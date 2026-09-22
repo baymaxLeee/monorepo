@@ -1,4 +1,13 @@
 import {
+  Button as DialogButton,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@repo/design-system";
+import {
   Trash2 as IconDeleteLine,
   Upload as IconLocalAddition,
   Pause as IconPause,
@@ -10,7 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { AudioSpectrum, useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { EllipsisText as CEllipsis, FormItem } from "@/components/compat";
-import { Message, Input, Modal, Select, Button, Tooltip } from "@/components/ui";
+import { Button, Input, Message, Select, Tooltip } from "@/components/ui";
 import { resource } from "@/domain";
 import { RESOURCE_DESCRIPTION_MAX_LENGTH } from "@/lib/resourceConstraints";
 import t from "@/utils/i18n";
@@ -28,7 +37,7 @@ import {
 } from "../domain/resourceTypes";
 
 import styles from "./ResourceDialog.module.less";
-import modalSizing from "@/components/ModalSizing.module.less";
+import dialogSizing from "@/components/DialogSizing.module.less";
 
 interface PendingResourceFile {
   blobId?: string;
@@ -374,210 +383,225 @@ export function ResourceDialog({
   );
 
   return (
-    <Modal
-      cancelButtonProps={{ disabled: submitting }}
-      closable={!submitting}
-      maskClosable={false}
-      okButtonProps={{
-        disabled: state?.mode === "create" && (!name.trim() || uploading),
-        loading: submitting,
-      }}
-      onCancel={() => {
-        if (!submitting) onClose();
-      }}
-      onOk={submit}
-      className={state?.mode === "create" ? styles.modal : modalSizing.standard}
-      title={state?.mode === "edit" ? t("编辑资产") : t("创建资产")}
-      visible={Boolean(state)}
-    >
-      {state?.mode === "create" ? (
-        <div className={styles.createLayout}>
-          {form}
-          <section className={styles.materialColumn}>
-            <div className={styles.materialHeader}>
-              <span>{materialLabel}</span>
-              {pendingFiles.length ? (
-                <Tooltip
-                  content={t("只允许包含{count}个{type}{item}", {
-                    count: materialLimit,
-                    type: typeLabel,
-                    item: materialItem,
-                  })}
-                  disabled={!materialLimitReached}
-                >
-                  <span>
-                    <Button disabled={materialLimitReached} onClick={() => uploadInputRef.current?.click()}>
-                      <span className="flex items-center gap-[6px]">
-                        <IconLocalAddition style={{ height: 16, width: 16 }} />
-                        {t("从本地上传")}
+    <Dialog open={Boolean(state)} onOpenChange={(open) => !open && !submitting && onClose()}>
+      <DialogContent
+        className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${
+          state?.mode === "create" ? styles.modal : dialogSizing.standard
+        }`}
+        onEscapeKeyDown={(event) => submitting && event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+        showCloseButton={!submitting}
+        style={{ maxWidth: "92vw" }}
+      >
+        <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">
+          <DialogTitle className="canvas-modal-title">
+            {state?.mode === "edit" ? t("编辑资产") : t("创建资产")}
+          </DialogTitle>
+          <DialogDescription className="sr-only">{t("编辑资产信息和素材")}</DialogDescription>
+        </DialogHeader>
+        <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">
+          {state?.mode === "create" ? (
+            <div className={styles.createLayout}>
+              {form}
+              <section className={styles.materialColumn}>
+                <div className={styles.materialHeader}>
+                  <span>{materialLabel}</span>
+                  {pendingFiles.length ? (
+                    <Tooltip
+                      content={t("只允许包含{count}个{type}{item}", {
+                        count: materialLimit,
+                        type: typeLabel,
+                        item: materialItem,
+                      })}
+                      disabled={!materialLimitReached}
+                    >
+                      <span>
+                        <Button disabled={materialLimitReached} onClick={() => uploadInputRef.current?.click()}>
+                          <span className="flex items-center gap-[6px]">
+                            <IconLocalAddition style={{ height: 16, width: 16 }} />
+                            {t("从本地上传")}
+                          </span>
+                        </Button>
                       </span>
-                    </Button>
-                  </span>
-                </Tooltip>
-              ) : null}
-            </div>
-            <input
-              ref={uploadInputRef}
-              accept={getResourceFileConfig(type).accept}
-              aria-label={t("{materialLabel}上传", { materialLabel })}
-              className="hidden"
-              multiple={materialLimit > 1}
-              onChange={(event) => {
-                void addFiles(Array.from(event.target.files ?? []));
-                event.target.value = "";
-              }}
-              type="file"
-            />
-            {pendingFiles.length ? (
-              <div className={styles.materialGrid}>
-                {pendingFiles.map((item, index) => (
-                  <article className={styles.materialCard} key={item.id}>
-                    <div className={styles.materialPreview}>
-                      {type === resource.ResourceType.AUDIO && item.previewUrl ? (
-                        <div className={styles.audioPreviewControl}>
-                          <AudioSpectrum
-                            className={styles.audioSpectrum}
-                            fallback={audioSpectrum.fallback}
-                            heights={playingAudioFileId === item.id ? audioSpectrum.heights : undefined}
-                            playing={playingAudioFileId === item.id}
-                          />
+                    </Tooltip>
+                  ) : null}
+                </div>
+                <input
+                  ref={uploadInputRef}
+                  accept={getResourceFileConfig(type).accept}
+                  aria-label={t("{materialLabel}上传", { materialLabel })}
+                  className="hidden"
+                  multiple={materialLimit > 1}
+                  onChange={(event) => {
+                    void addFiles(Array.from(event.target.files ?? []));
+                    event.target.value = "";
+                  }}
+                  type="file"
+                />
+                {pendingFiles.length ? (
+                  <div className={styles.materialGrid}>
+                    {pendingFiles.map((item, index) => (
+                      <article className={styles.materialCard} key={item.id}>
+                        <div className={styles.materialPreview}>
+                          {type === resource.ResourceType.AUDIO && item.previewUrl ? (
+                            <div className={styles.audioPreviewControl}>
+                              <AudioSpectrum
+                                className={styles.audioSpectrum}
+                                fallback={audioSpectrum.fallback}
+                                heights={playingAudioFileId === item.id ? audioSpectrum.heights : undefined}
+                                playing={playingAudioFileId === item.id}
+                              />
+                              <button
+                                aria-label={t("{action}音频：{name}", {
+                                  action: playingAudioFileId === item.id ? t("暂停") : t("播放"),
+                                  name: item.name,
+                                })}
+                                className={styles.audioPlayButton}
+                                onClick={() => toggleAudioPlayback(item)}
+                                type="button"
+                              >
+                                {playingAudioFileId === item.id ? <IconPause /> : <IconPlay />}
+                              </button>
+                            </div>
+                          ) : item.previewUrl ? (
+                            <img
+                              alt={item.file.name}
+                              className={`object-contain ${styles.materialPreviewImage}`}
+                              src={item.previewUrl}
+                            />
+                          ) : (
+                            <ResourceTypeIcon type={type} />
+                          )}
+                          {index === 0 ? (
+                            <span className={styles.primaryTag}>
+                              {t("主{materialName}", {
+                                materialName: materialItem,
+                              })}
+                            </span>
+                          ) : (
+                            <Tooltip
+                              content={t("设为主{materialName}", {
+                                materialName: materialItem,
+                              })}
+                              position="top"
+                            >
+                              <button
+                                aria-label={t("设为主{materialName}：{name}", {
+                                  materialName: materialItem,
+                                  name: item.file.name,
+                                })}
+                                className={styles.setPrimaryButton}
+                                onClick={() => setPrimaryFile(item.id)}
+                                type="button"
+                              >
+                                {t("主{materialName}", {
+                                  materialName: materialItem,
+                                })}
+                              </button>
+                            </Tooltip>
+                          )}
                           <button
-                            aria-label={t("{action}音频：{name}", {
-                              action: playingAudioFileId === item.id ? t("暂停") : t("播放"),
-                              name: item.name,
-                            })}
-                            className={styles.audioPlayButton}
-                            onClick={() => toggleAudioPlayback(item)}
+                            aria-label={t("移除 {name}", { name: item.file.name })}
+                            className={styles.removeButton}
+                            onClick={() => removeFile(item.id)}
                             type="button"
                           >
-                            {playingAudioFileId === item.id ? <IconPause /> : <IconPlay />}
+                            <IconDeleteLine />
                           </button>
+                          {item.status !== "ready" ? (
+                            <span className={styles.materialStatus}>
+                              {item.status === "uploading" ? t("上传中") : t("上传失败")}
+                            </span>
+                          ) : null}
                         </div>
-                      ) : item.previewUrl ? (
-                        <img
-                          alt={item.file.name}
-                          className={`object-contain ${styles.materialPreviewImage}`}
-                          src={item.previewUrl}
-                        />
-                      ) : (
-                        <ResourceTypeIcon type={type} />
-                      )}
-                      {index === 0 ? (
-                        <span className={styles.primaryTag}>
-                          {t("主{materialName}", {
-                            materialName: materialItem,
-                          })}
-                        </span>
-                      ) : (
-                        <Tooltip
-                          content={t("设为主{materialName}", {
-                            materialName: materialItem,
-                          })}
-                          position="top"
-                        >
-                          <button
-                            aria-label={t("设为主{materialName}：{name}", {
-                              materialName: materialItem,
-                              name: item.file.name,
-                            })}
-                            className={styles.setPrimaryButton}
-                            onClick={() => setPrimaryFile(item.id)}
-                            type="button"
-                          >
-                            {t("主{materialName}", {
-                              materialName: materialItem,
-                            })}
-                          </button>
-                        </Tooltip>
-                      )}
-                      <button
-                        aria-label={t("移除 {name}", { name: item.file.name })}
-                        className={styles.removeButton}
-                        onClick={() => removeFile(item.id)}
-                        type="button"
-                      >
-                        <IconDeleteLine />
-                      </button>
-                      {item.status !== "ready" ? (
-                        <span className={styles.materialStatus}>
-                          {item.status === "uploading" ? t("上传中") : t("上传失败")}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className={styles.materialNameContainer}>
-                      {renamingFileId === item.id ? (
-                        <Input
-                          aria-label={t("素材名称")}
+                        <div className={styles.materialNameContainer}>
+                          {renamingFileId === item.id ? (
+                            <Input
+                              aria-label={t("素材名称")}
 
-                          className={styles.materialNameInput}
-                          maxLength={RESOURCE_NAME_MAX_LENGTH}
-                          onBlur={() => finishRenaming(item.id)}
-                          onChange={setRenameValue}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              finishRenaming(item.id);
-                            } else if (event.key === "Escape") {
-                              setRenamingFileId("");
-                              setRenameValue("");
-                            }
-                          }}
-                          size="mini"
-                          value={renameValue}
-                        />
-                      ) : (
-                        <button
-                          aria-label={t("重命名素材：{name}", {
-                            name: item.name,
-                          })}
-                          className={`${styles.materialNameButton} ${
-                            duplicateMaterialNames.has(item.name.trim()) ? styles.materialNameDuplicate : ""
-                          }`}
-                          onClick={() => {
-                            setRenamingFileId(item.id);
-                            setRenameValue(item.name);
-                          }}
-                          type="button"
-                        >
-                          <CEllipsis className={styles.materialName}>{item.name}</CEllipsis>
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <button
-                className={styles.dropzone}
-                onClick={() => uploadInputRef.current?.click()}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  void addFiles(Array.from(event.dataTransfer.files));
-                }}
-                type="button"
-              >
-                <IconPlus className={styles.dropzoneIcon} />
-                <strong>{t("点击或拖拽文件到此处上传")}</strong>
-                <span>{getResourceFileConfig(type).hint}</span>
-              </button>
-            )}
-            {type === resource.ResourceType.AUDIO && pendingFiles[0]?.previewUrl ? (
-              <AudioPlayer
-                controls={false}
-                crossOrigin="anonymous"
-                onEnded={() => setPlayingAudioFileId("")}
-                onPause={() => setPlayingAudioFileId("")}
-                ref={audioRef}
-                src={pendingFiles[0].previewUrl}
-                style={{ display: "none" }}
-              />
-            ) : null}
-          </section>
+                              className={styles.materialNameInput}
+                              maxLength={RESOURCE_NAME_MAX_LENGTH}
+                              onBlur={() => finishRenaming(item.id)}
+                              onChange={setRenameValue}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  finishRenaming(item.id);
+                                } else if (event.key === "Escape") {
+                                  setRenamingFileId("");
+                                  setRenameValue("");
+                                }
+                              }}
+                              size="mini"
+                              value={renameValue}
+                            />
+                          ) : (
+                            <button
+                              aria-label={t("重命名素材：{name}", {
+                                name: item.name,
+                              })}
+                              className={`${styles.materialNameButton} ${
+                                duplicateMaterialNames.has(item.name.trim()) ? styles.materialNameDuplicate : ""
+                              }`}
+                              onClick={() => {
+                                setRenamingFileId(item.id);
+                                setRenameValue(item.name);
+                              }}
+                              type="button"
+                            >
+                              <CEllipsis className={styles.materialName}>{item.name}</CEllipsis>
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <button
+                    className={styles.dropzone}
+                    onClick={() => uploadInputRef.current?.click()}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      void addFiles(Array.from(event.dataTransfer.files));
+                    }}
+                    type="button"
+                  >
+                    <IconPlus className={styles.dropzoneIcon} />
+                    <strong>{t("点击或拖拽文件到此处上传")}</strong>
+                    <span>{getResourceFileConfig(type).hint}</span>
+                  </button>
+                )}
+                {type === resource.ResourceType.AUDIO && pendingFiles[0]?.previewUrl ? (
+                  <AudioPlayer
+                    controls={false}
+                    crossOrigin="anonymous"
+                    onEnded={() => setPlayingAudioFileId("")}
+                    onPause={() => setPlayingAudioFileId("")}
+                    ref={audioRef}
+                    src={pendingFiles[0].previewUrl}
+                    style={{ display: "none" }}
+                  />
+                ) : null}
+              </section>
+            </div>
+          ) : (
+            form
+          )}
         </div>
-      ) : (
-        form
-      )}
-    </Modal>
+        <DialogFooter className="canvas-modal-footer shrink-0 px-6 py-4">
+          <DialogButton disabled={submitting} onClick={onClose} type="button" variant="outline">
+            {t("取消")}
+          </DialogButton>
+          <DialogButton
+            disabled={submitting || (state?.mode === "create" && (!name.trim() || uploading))}
+            onClick={() => void submit()}
+            type="button"
+          >
+            {t("确定")}
+          </DialogButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -22,7 +22,7 @@ import {
 import { useParams } from "react-router-dom";
 
 import menuUploadIcon from "@/assets/canvas/menu-upload.svg";
-import { AssetReviewModal } from "@/components/AssetReviewModal/index";
+import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { type AssetMentionItem, type AssetMentionSource } from "@/components/promptEditor/index";
 import { Message, Spin } from "@/components/ui";
 import { canvasnode } from "@/domain";
@@ -46,7 +46,7 @@ import {
   upsertCanvasNodesAtom,
   useStudioMutationCoordinator,
 } from "../store/index";
-import { CanvasAddToLibraryModal } from "./assets/CanvasAddToLibraryModal";
+import { CanvasAddToLibraryDialog } from "./assets/CanvasAddToLibraryDialog";
 import { useCanvasAssetUpload } from "./assets/useCanvasAssetUpload";
 import { useCanvasNodeAssets } from "./assets/useCanvasNodeAssets";
 import {
@@ -1071,7 +1071,7 @@ function CanvasBoardInner({
             nodes.findIndex((node) => node.id === historyNode?.NodeID),
           )}
         />
-        <AssetReviewModal
+        <AssetReviewDialog
           items={reviewNode ? [{ assetId: contentAssetID(reviewNode) }] : []}
           materialName={t("素材")}
           onClose={() => setReviewNode(undefined)}
@@ -1085,7 +1085,7 @@ function CanvasBoardInner({
           projectId={projectId}
           visible={Boolean(reviewNode)}
         />
-        <AssetReviewModal
+        <AssetReviewDialog
           items={
             mentionReviewRequest
               ? [
@@ -1112,7 +1112,7 @@ function CanvasBoardInner({
           projectId={projectId}
           visible={Boolean(mentionReviewRequest)}
         />
-        <CanvasAddToLibraryModal
+        <CanvasAddToLibraryDialog
           canvasId={canvasId}
           item={libraryNode}
           onClose={() => setLibraryNode(undefined)}

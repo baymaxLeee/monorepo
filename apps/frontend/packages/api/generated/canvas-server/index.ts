@@ -1926,7 +1926,6 @@ export type CanvasMaterializeResourceReferenceBody = {
 };
 
 export type CanvasStartStoryboardDraftsBody = {
-  canvas_nodes?: CanvasNodeDraft[];
   model_config: CanvasStoryboardModelConfig;
   planning_config: CanvasStoryboardPlanningConfig;
   plot: string;

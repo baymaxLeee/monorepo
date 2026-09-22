@@ -6,7 +6,7 @@ import {
   type ImageGenerationSettings,
 } from "@/components/GenerationConfiguration/index";
 import { ImageGenerationEditor } from "@/components/ImageGeneration/ImageGenerationEditor";
-import { ImageGenerationEditorModal } from "@/components/ImageGeneration/ImageGenerationEditorModal";
+import { ImageGenerationEditorDialog } from "@/components/ImageGeneration/ImageGenerationEditorDialog";
 import { Message } from "@/components/ui";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
@@ -14,7 +14,7 @@ import t from "@/utils/i18n";
 
 import { categoryFromFile, revokeAssetBlobUrls } from "../../studio/domain/model";
 import type { StoryboardAsset } from "../../studio/domain/types";
-import { ResourceAssetDetailModal } from "../assets/ResourceAssetDetailModal";
+import { ResourceAssetDetailDialog } from "../assets/ResourceAssetDetailDialog";
 import { useResourceUpload } from "../assets/useResourceUpload";
 import {
   RESOURCE_ASSET_DETAIL_MODAL_Z_INDEX,
@@ -503,7 +503,7 @@ export function ResourceAssetCreateView({
   };
 
   return (
-    <ResourceAssetDetailModal
+    <ResourceAssetDetailDialog
       asset={{ ...slot, Name: name, PreviewURL: previewUrl }}
       busy={busy || generating}
       generationFailure={generationFailure ? { ...generationFailure, onRetry: handleGenerate } : undefined}
@@ -520,7 +520,7 @@ export function ResourceAssetCreateView({
       onStopGeneration={handleStop}
     >
       <ImageGenerationEditor {...editorProps} onExpand={() => setEditorExpanded(true)} onGenerate={handleGenerate} />
-      <ImageGenerationEditorModal
+      <ImageGenerationEditorDialog
         {...editorProps}
         onClose={() => setEditorExpanded(false)}
         onGenerate={() => {
@@ -531,6 +531,6 @@ export function ResourceAssetCreateView({
         visible={editorExpanded}
         zIndex={RESOURCE_GENERATION_EDITOR_MODAL_Z_INDEX}
       />
-    </ResourceAssetDetailModal>
+    </ResourceAssetDetailDialog>
   );
 }

@@ -19,7 +19,7 @@ import {
   EllipsisText as CEllipsis,
   LegacySkeleton as Skeleton,
   OperationMenu as COperationMenu,
-  openDeleteConfirmModal,
+  openDeleteConfirmDialog,
   UserLabel as UserAuto,
   formatDateByCurrentYear,
 } from "@/components/compat";
@@ -239,7 +239,7 @@ export default function ProjectsPage() {
   };
 
   const handleDelete = (project: Project) => {
-    openDeleteConfirmModal({
+    openDeleteConfirmDialog({
       name: t("项目"),
       targetName: project.title,
       info: <span className="block px-6">{t("删除项目后不可恢复，请谨慎操作。")}</span>,

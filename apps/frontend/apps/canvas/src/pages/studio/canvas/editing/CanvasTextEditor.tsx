@@ -1,7 +1,7 @@
 import { Minimize2 as IconAbbreviation } from "lucide-react";
 import { useState } from "react";
 
-import { GenerationEditorModal } from "@/components/ImageGeneration/GenerationEditorModal";
+import { GenerationEditorDialog } from "@/components/ImageGeneration/GenerationEditorDialog";
 import type { AssetMentionItem, AssetMentionSource } from "@/components/promptEditor/index";
 import t from "@/utils/i18n";
 
@@ -58,7 +58,7 @@ export function CanvasTextEditor({
   return (
     <>
       {renderEditor()}
-      <GenerationEditorModal onClose={onCollapse} visible={expanded} zIndex={EDITOR_MODAL_Z_INDEX}>
+      <GenerationEditorDialog onClose={onCollapse} visible={expanded} zIndex={EDITOR_MODAL_Z_INDEX}>
         <section
           className="nodrag nopan nowheel flex h-full w-full flex-col gap-5"
           onDoubleClick={(event) => event.stopPropagation()}
@@ -77,7 +77,7 @@ export function CanvasTextEditor({
           </div>
           <div className="flex min-h-0 flex-1">{renderEditor()}</div>
         </section>
-      </GenerationEditorModal>
+      </GenerationEditorDialog>
     </>
   );
 }

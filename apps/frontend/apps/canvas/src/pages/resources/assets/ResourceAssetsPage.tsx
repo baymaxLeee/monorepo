@@ -2,10 +2,10 @@ import { RefreshCw as IconRefresh, ChevronLeft as IconLeft, Plus as IconPlus } f
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import emptyIllustration from "@/assets/storyboard-empty.png";
-import { AssetReviewModal } from "@/components/AssetReviewModal/index";
+import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
-import { Pagination, Result, openDeleteConfirmModal } from "@/components/compat";
+import { Pagination, Result, openDeleteConfirmDialog } from "@/components/compat";
 import { Message, Spin, Button, Dropdown, Menu } from "@/components/ui";
 import { asset, resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
@@ -34,7 +34,7 @@ import {
 import { getResourceFileConfig, validateResourceFile } from "../domain/resourceTypes";
 import { ResourceAssetCreateView } from "../generation/ResourceAssetCreateView";
 import { ResourceAssetCard } from "./ResourceAssetCard";
-import { ResourceAssetDetailModal } from "./ResourceAssetDetailModal";
+import { ResourceAssetDetailDialog } from "./ResourceAssetDetailDialog";
 import { useResourceAssetList } from "./useResourceAssetList";
 import { useResourceAssetStatus } from "./useResourceAssetStatus";
 import { useResourceUpload } from "./useResourceUpload";
@@ -375,7 +375,7 @@ export function ResourceAssetsPageContent({
     );
 
   const confirmRemove = (file: resource.ResourceAsset) => {
-    openDeleteConfirmModal({
+    openDeleteConfirmDialog({
       name: materialName,
       targetName: file.Name,
       info: <span className="block px-6">{t("移除后不可恢复，请谨慎操作。")}</span>,
@@ -387,7 +387,7 @@ export function ResourceAssetsPageContent({
 
   const confirmBatchRemove = () => {
     if (!selectedFiles.length) return;
-    openDeleteConfirmModal({
+    openDeleteConfirmDialog({
       name: t("素材"),
       targetName: t("已选 {count} 项", { count: selectedFiles.length }),
       info: <span className="block px-6">{t("移除后不可恢复，请谨慎操作。")}</span>,
@@ -637,7 +637,7 @@ export function ResourceAssetsPageContent({
         </div>
       </section>
       {detailFile ? (
-        <ResourceAssetDetailModal
+        <ResourceAssetDetailDialog
           asset={detailFile}
           busy={busy}
           materialName={materialName}
@@ -725,7 +725,7 @@ export function ResourceAssetsPageContent({
         />
       ) : null}
       {reviewFiles.some((file) => file.CurrentAssetID) ? (
-        <AssetReviewModal
+        <AssetReviewDialog
           items={reviewFiles.flatMap((file) =>
             file.CurrentAssetID
               ? [

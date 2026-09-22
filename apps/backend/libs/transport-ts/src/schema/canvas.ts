@@ -5380,7 +5380,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    canvas_nodes?: components["schemas"]["CanvasNodeDraft"][];
                     model_config: components["schemas"]["CanvasStoryboardModelConfig"];
                     planning_config: components["schemas"]["CanvasStoryboardPlanningConfig"];
                     plot: string;

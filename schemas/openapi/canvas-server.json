@@ -8603,12 +8603,6 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "canvas_nodes": {
-                    "items": {
-                      "$ref": "#/components/schemas/CanvasNodeDraft"
-                    },
-                    "type": "array"
-                  },
                   "model_config": {
                     "$ref": "#/components/schemas/CanvasStoryboardModelConfig"
                   },

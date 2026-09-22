@@ -3,7 +3,7 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { ImagePreview } from "@/components/compat";
 import { AssetAvatar, type AssetMentionSource } from "@/components/promptEditor/index";
-import { AddAssetToLibraryModal } from "@/components/promptEditor/plugins/assetMention/AddAssetToLibraryModal";
+import { AddAssetToLibraryDialog } from "@/components/promptEditor/plugins/assetMention/AddAssetToLibraryDialog";
 import { AssetPreviewCard } from "@/components/promptEditor/plugins/assetMention/AssetPreviewCard";
 import { Tooltip, Trigger } from "@/components/ui";
 import { canvasnode } from "@/domain";
@@ -379,7 +379,7 @@ export function AssetStrip({
         </div>
       ) : null}
       {addAssetToLibrary ? (
-        <AddAssetToLibraryModal
+        <AddAssetToLibraryDialog
           asset={libraryAsset}
           onClose={() => setLibraryAsset(undefined)}
           onSubmit={addAssetToLibrary}

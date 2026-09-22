@@ -13,10 +13,8 @@ import (
 )
 
 type storyboardDraftServiceSpy struct {
-	startCalls         int
-	startPreparedCalls int
-	preparedDrafts     []applicationcanvas.Draft
-	listed             []applicationcanvas.StoryboardSession
+	startCalls int
+	listed     []applicationcanvas.StoryboardSession
 }
 
 func (s *storyboardDraftServiceSpy) Start(
@@ -31,19 +29,6 @@ func (s *storyboardDraftServiceSpy) Start(
 ) (applicationcanvas.StoryboardSession, error) {
 	s.startCalls++
 	return applicationcanvas.StoryboardSession{ID: "manual-run", Status: applicationcanvas.StoryboardStatusQueued}, nil
-}
-
-func (s *storyboardDraftServiceSpy) StartPrepared(
-	_ context.Context,
-	_ applicationcanvas.Scope,
-	_, _, _ string,
-	_ applicationcanvas.StoryboardModelConfig,
-	_ applicationcanvas.StoryboardPlanningConfig,
-	drafts []applicationcanvas.Draft,
-) (applicationcanvas.StoryboardSession, error) {
-	s.startPreparedCalls++
-	s.preparedDrafts = drafts
-	return applicationcanvas.StoryboardSession{ID: "agent-run", Status: applicationcanvas.StoryboardStatusCompleted, Drafts: drafts}, nil
 }
 
 func (s *storyboardDraftServiceSpy) List(context.Context, applicationcanvas.Scope, string, string) ([]applicationcanvas.StoryboardSession, error) {
@@ -88,7 +73,7 @@ func (*storyboardDraftServiceSpy) Confirm(context.Context, applicationcanvas.Sco
 	return nil, 0, nil
 }
 
-func TestCreateCanvasNodesUsesCanvasPlannerWhenDraftsAreAbsent(t *testing.T) {
+func TestCreateCanvasNodesAlwaysUsesCanvasPlanner(t *testing.T) {
 	spy := &storyboardDraftServiceSpy{}
 	handler := &CanvasNodeHandler{drafts: spy}
 
@@ -98,31 +83,10 @@ func TestCreateCanvasNodesUsesCanvasPlannerWhenDraftsAreAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCanvasNodes returned error: %v", err)
 	}
-	if spy.startCalls != 1 || spy.startPreparedCalls != 0 {
-		t.Fatalf("unexpected dispatch: Start=%d StartPrepared=%d", spy.startCalls, spy.startPreparedCalls)
+	if spy.startCalls != 1 {
+		t.Fatalf("unexpected Start calls: %d", spy.startCalls)
 	}
 	if response.Session == nil || response.Session.TaskRunID != "manual-run" {
-		t.Fatalf("unexpected response: %#v", response)
-	}
-}
-
-func TestCreateCanvasNodesPersistsAgentPreparedDraftsThroughSameEndpoint(t *testing.T) {
-	spy := &storyboardDraftServiceSpy{}
-	handler := &CanvasNodeHandler{drafts: spy}
-
-	response, err := handler.CreateCanvasNodes(storyboardHandlerContext(), &contractcanvasnode.CreateCanvasNodesRequest{
-		ProjectID: "project-1", CanvasID: "canvas-1", Plot: "agent plot",
-		CanvasNodes: []*contractcanvasnode.CanvasNodeDraft{{
-			DraftID: "draft-1", CanvasNodeNo: 1, Prompt: "wide establishing shot", DurationSeconds: 5,
-		}},
-	})
-	if err != nil {
-		t.Fatalf("CreateCanvasNodes returned error: %v", err)
-	}
-	if spy.startCalls != 0 || spy.startPreparedCalls != 1 || len(spy.preparedDrafts) != 1 {
-		t.Fatalf("unexpected dispatch: Start=%d StartPrepared=%d drafts=%d", spy.startCalls, spy.startPreparedCalls, len(spy.preparedDrafts))
-	}
-	if response.Session == nil || response.Session.TaskRunID != "agent-run" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 }

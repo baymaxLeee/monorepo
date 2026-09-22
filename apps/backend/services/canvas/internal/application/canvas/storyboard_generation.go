@@ -320,95 +320,9 @@ func (s *StoryboardService) Start(
 	return session, nil
 }
 
-// StartPrepared persists storyboard drafts already produced by the Chat model.
-// It deliberately creates no poll schedule and performs no Canvas-side inference;
-// the succeeded TaskRun exists only to keep recovery, confirmation and auditing on
-// the same durable storyboard lifecycle as asynchronously planned drafts.
-func (s *StoryboardService) StartPrepared(
-	ctx context.Context,
-	scope Scope,
-	projectID, canvasID, plot string,
-	modelConfig StoryboardModelConfig,
-	planningConfig StoryboardPlanningConfig,
-	drafts []Draft,
-) (StoryboardSession, error) {
-	if !s.preparedConfigured() {
-		return StoryboardSession{}, errno.New(errno.ErrConfigurationError)
-	}
-	if !validStoryboardInput(scope, projectID, canvasID, plot, 0) || len(drafts) == 0 || len(drafts) > 200 {
-		return StoryboardSession{}, errno.New(errno.ErrInvalidArgument)
-	}
-	modelConfig, planningConfig, _, err := s.canvas_nodes.PrepareStoryboardPlanning(
-		ctx, scope, modelConfig, planningConfig, 0,
-	)
-	if err != nil {
-		return StoryboardSession{}, err
-	}
-	prepared := make([]Draft, 0, len(drafts))
-	var totalDuration int32
-	for index, draft := range drafts {
-		prompt := strings.TrimSpace(draft.Prompt)
-		if prompt == "" || !utf8.ValidString(prompt) || utf8.RuneCountInString(prompt) > 50000 ||
-			draft.DurationSeconds < planningConfig.CanvasNodeDurationMinSeconds ||
-			draft.DurationSeconds > planningConfig.CanvasNodeDurationMaxSeconds {
-			return StoryboardSession{}, errno.New(errno.ErrInvalidArgument)
-		}
-		if strings.TrimSpace(draft.ID) == "" {
-			draft.ID, err = s.ids.NewID()
-			if err != nil {
-				return StoryboardSession{}, errno.Wrap(errno.ErrInternalError, err)
-			}
-		}
-		draft.CanvasNodeNo = index + 1
-		draft.Prompt = prompt
-		prepared = append(prepared, draft)
-		totalDuration += draft.DurationSeconds
-	}
-	if totalDuration < planningConfig.TotalDurationMinSeconds || totalDuration > planningConfig.TotalDurationMaxSeconds {
-		return StoryboardSession{}, errno.New(errno.ErrInvalidArgument)
-	}
-	id, err := s.ids.NewID()
-	if err != nil {
-		return StoryboardSession{}, errno.Wrap(errno.ErrInternalError, err)
-	}
-	now := s.clock.Now()
-	session := StoryboardSession{
-		ID: id, ProjectID: strings.TrimSpace(projectID), CanvasID: strings.TrimSpace(canvasID),
-		Plot: strings.TrimSpace(plot), ModelConfig: normalizeStoryboardModelConfig(modelConfig), PlanningConfig: planningConfig,
-		Status: StoryboardStatusCompleted, Drafts: prepared,
-		Generation: StoryboardGenerationState{ProtocolVersion: StoryboardGenerationProtocolVersion}, CreatedAt: now,
-	}
-	run := domaintask.TaskRun{
-		ID: id, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, CreatedBy: scope.CallerID,
-		RunType: s.RunType(), SubjectType: domaintask.SubjectTypeCanvasNode, SubjectID: id,
-		Status: domaintask.StatusSucceeded, StateVersion: 1, StartedAt: &now, FinishedAt: &now,
-		CreatedAt: now, UpdatedAt: now,
-	}
-	err = s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
-		if createErr := s.runs.Create(txCtx, run); createErr != nil {
-			return createErr
-		}
-		if createErr := s.canvas_nodes.CreateStoryboardDraftNode(txCtx, scope, projectID, canvasID, id, session.Plot); createErr != nil {
-			return createErr
-		}
-		if createErr := s.repository.Create(txCtx, scope, projectID, canvasID, session, now); createErr != nil {
-			return createErr
-		}
-		return s.canvas_nodes.FinishStoryboardDraftNode(txCtx, scope, projectID, canvasID, id)
-	})
-	if err != nil {
-		return StoryboardSession{}, errno.Wrap(errno.ErrInternalError, err)
-	}
-	return session, nil
-}
-
-func (s *StoryboardService) preparedConfigured() bool {
-	return s != nil && s.canvas_nodes != nil && s.repository != nil && s.runs != nil &&
-		s.transactions != nil && s.ids != nil && s.clock != nil
-}
-
 func (s *StoryboardService) confirmationConfigured() bool {
-	return s.preparedConfigured() && s.cache != nil
+	return s != nil && s.canvas_nodes != nil && s.repository != nil && s.runs != nil &&
+		s.transactions != nil && s.ids != nil && s.clock != nil && s.cache != nil
 }
 
 func (s *StoryboardService) configured() bool {

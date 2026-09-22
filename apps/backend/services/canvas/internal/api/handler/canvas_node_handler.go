@@ -163,7 +163,6 @@ type generationService interface {
 
 type storyboardDraftService interface {
 	Start(context.Context, applicationcanvasnode.Scope, string, string, string, applicationcanvasnode.StoryboardModelConfig, applicationcanvasnode.StoryboardPlanningConfig, int) (applicationcanvasnode.StoryboardSession, error)
-	StartPrepared(context.Context, applicationcanvasnode.Scope, string, string, string, applicationcanvasnode.StoryboardModelConfig, applicationcanvasnode.StoryboardPlanningConfig, []applicationcanvasnode.Draft) (applicationcanvasnode.StoryboardSession, error)
 	List(context.Context, applicationcanvasnode.Scope, string, string) ([]applicationcanvasnode.StoryboardSession, error)
 	Cancel(context.Context, applicationcanvasnode.Scope, string, string, string) error
 	Confirm(context.Context, applicationcanvasnode.Scope, string, string, string, []applicationcanvasnode.StoryboardOverride) ([]domaincanvasnode.CanvasNode, int64, error)
@@ -173,45 +172,12 @@ func (h *CanvasNodeHandler) CreateCanvasNodes(ctx context.Context, r *thriftcanv
 	if err := requireAction(ctx, "CreateCanvasNodes"); err != nil {
 		return nil, err
 	}
-	var state applicationcanvasnode.StoryboardSession
-	var err error
 	modelConfig := storyboardModelConfigFromRequest(r)
 	planningConfig := storyboardPlanningConfigFromRequest(r)
-	if len(r.CanvasNodes) == 0 {
-		state, err = h.drafts.Start(
-			ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.Plot,
-			modelConfig, planningConfig, 0,
-		)
-	} else {
-		drafts := make([]applicationcanvasnode.Draft, 0, len(r.CanvasNodes))
-		for _, item := range r.CanvasNodes {
-			if item == nil {
-				return nil, errno.New(errno.ErrInvalidArgument)
-			}
-			references := make([]applicationcanvasnode.StoryboardAssetReference, 0, len(item.AssetReferences))
-			for _, reference := range item.AssetReferences {
-				if reference == nil {
-					return nil, errno.New(errno.ErrInvalidArgument)
-				}
-				mediaType := domainasset.MediaType(0)
-				if reference.MediaType != nil {
-					mediaType = domainasset.MediaType(*reference.MediaType)
-				}
-				references = append(references, applicationcanvasnode.StoryboardAssetReference{
-					ResourceAssetID: reference.ResourceAssetID, AssetID: reference.GetAssetID(), Label: reference.GetLabel(),
-					TargetField: reference.TargetField, AnchorText: reference.AnchorText, MediaType: mediaType,
-				})
-			}
-			drafts = append(drafts, applicationcanvasnode.Draft{
-				ID: item.DraftID, CanvasNodeNo: int(item.CanvasNodeNo), Prompt: item.Prompt,
-				DurationSeconds: item.DurationSeconds, AssetReferences: references,
-			})
-		}
-		state, err = h.drafts.StartPrepared(
-			ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.Plot,
-			modelConfig, planningConfig, drafts,
-		)
-	}
+	state, err := h.drafts.Start(
+		ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.Plot,
+		modelConfig, planningConfig, 0,
+	)
 	if err != nil {
 		return nil, err
 	}

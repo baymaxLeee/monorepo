@@ -6,7 +6,7 @@ import {
   Video as IconVideoDefault,
 } from "lucide-react";
 
-import { openDeleteConfirmModal } from "@/components/compat";
+import { openDeleteConfirmDialog } from "@/components/compat";
 import { Tooltip } from "@/components/ui";
 import t from "@/utils/i18n";
 
@@ -54,7 +54,7 @@ export function ShotCard({
       }`}
       onClick={() => {
         if (!deleteDisabledReason) {
-          openDeleteConfirmModal({
+          openDeleteConfirmDialog({
             name: t("分镜"),
             info: <span className="block px-6">{t("删除分镜后不可恢复，请谨慎操作。")}</span>,
             className: "w-[400px]! max-w-[calc(100vw-48px)]!",

@@ -30,6 +30,7 @@ import { isToolOutcome } from "../tools/outcome.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { exactTextResponseModel } from "./exact-text-response-model.js";
 import { deriveOrchestrationState, resolveOrchestrationDirective, type OrchestrationSeed } from "./orchestration.js";
+import { newMessagesForStoredResponse } from "./response-continuation.js";
 import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 
@@ -214,7 +215,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       return null;
     },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
-    prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions }) => {
+    prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions, messages }) => {
       const orchestration = deriveOrchestrationState(orchestrationSeed, steps);
       const directive = resolveOrchestrationDirective(orchestration, steps.length);
       const activeTools = orchestration.skillLoadedThisRun ? loadSkillActiveTools : resolvedTools.activeTools;
@@ -225,7 +226,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
         previousResponseId && (steps.length === 0 || toolResultMessages.length > 0)
           ? {
               providerOptions: { openai: { previousResponseId } },
-              ...(steps.length > 0 ? { messages: toolResultMessages } : {}),
+              messages: steps.length > 0 ? toolResultMessages : newMessagesForStoredResponse(messages),
             }
           : {};
       if (directive.kind === "final") {

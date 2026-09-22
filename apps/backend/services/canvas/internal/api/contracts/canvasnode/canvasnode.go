@@ -2422,10 +2422,6 @@ type CreateCanvasNodesRequest struct {
 	Plot           string                    `json:"Plot"`
 	ModelConfig    *StoryboardModelConfig    `json:"ModelConfig"`
 	PlanningConfig *StoryboardPlanningConfig `json:"PlanningConfig"`
-	// CanvasNodes is supplied by the Chat tool when the Agent already produced the structured storyboard.
-	// When omitted, Canvas runs its deterministic planner for the manually entered plot and parameters.
-	// Both modes use the same durable draft lifecycle.
-	CanvasNodes []*CanvasNodeDraft `json:"CanvasNodes,omitempty"`
 }
 
 func NewCreateCanvasNodesRequest() *CreateCanvasNodesRequest {
@@ -2474,10 +2470,6 @@ func (p *CreateCanvasNodesRequest) GetPlanningConfig() (v *StoryboardPlanningCon
 	return p.PlanningConfig
 }
 
-func (p *CreateCanvasNodesRequest) GetCanvasNodes() (v []*CanvasNodeDraft) {
-	return p.CanvasNodes
-}
-
 func (p *CreateCanvasNodesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
@@ -2488,10 +2480,6 @@ func (p *CreateCanvasNodesRequest) IsSetModelConfig() bool {
 
 func (p *CreateCanvasNodesRequest) IsSetPlanningConfig() bool {
 	return p.PlanningConfig != nil
-}
-
-func (p *CreateCanvasNodesRequest) IsSetCanvasNodes() bool {
-	return p.CanvasNodes != nil
 }
 
 func (p *CreateCanvasNodesRequest) String() string {

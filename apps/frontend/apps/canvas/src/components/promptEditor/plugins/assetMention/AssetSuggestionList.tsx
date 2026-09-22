@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { Message } from "@/components/ui";
 import { type asset, asset as assetIDL } from "@/domain";
 
-import { AddAssetToLibraryModal } from "./AddAssetToLibraryModal";
+import { AddAssetToLibraryDialog } from "./AddAssetToLibraryDialog";
 import { AssetPreviewCard, POPUP_SURFACE } from "./AssetPreviewCard";
 import { MentionListColumn } from "./MentionListColumn";
 import {
@@ -329,7 +329,7 @@ export const AssetSuggestionList = forwardRef<AssetSuggestionListRef, AssetSugge
           </div>
         ) : null}
         {onAddToLibrary ? (
-          <AddAssetToLibraryModal
+          <AddAssetToLibraryDialog
             asset={libraryAsset}
             onClose={() => setLibraryAsset(undefined)}
             onSubmit={async (current, input) => {

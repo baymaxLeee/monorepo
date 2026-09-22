@@ -1,7 +1,7 @@
-import { GenerationEditorModal } from "./GenerationEditorModal";
+import { GenerationEditorDialog } from "./GenerationEditorDialog";
 import { type ImageGenerationEditorProps, ImageGenerationEditor } from "./ImageGenerationEditor";
 
-export function ImageGenerationEditorModal({
+export function ImageGenerationEditorDialog({
   onClose,
   title,
   visible,
@@ -14,8 +14,8 @@ export function ImageGenerationEditorModal({
   zIndex?: number;
 }) {
   return (
-    <GenerationEditorModal onClose={onClose} visible={visible} zIndex={zIndex}>
+    <GenerationEditorDialog onClose={onClose} visible={visible} zIndex={zIndex}>
       <ImageGenerationEditor {...editorProps} expanded onCollapse={onClose} title={title} />
-    </GenerationEditorModal>
+    </GenerationEditorDialog>
   );
 }

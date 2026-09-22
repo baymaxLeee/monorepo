@@ -6,6 +6,11 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   InputGroup,
   InputGroupInput,
   InputGroupText,
@@ -26,7 +31,7 @@ import {
   getVideoModelParamConfigByOption,
   sanitizeGenerationSettings,
 } from "@/components/GenerationConfiguration/videoModelConfig";
-import { Input, Modal } from "@/components/ui";
+import { Input } from "@/components/ui";
 import { HIDDEN_SCROLLBAR_CLASS, HIDDEN_SCROLLBAR_STYLE } from "@/hooks/useHorizontalScrollFade";
 import t from "@/utils/i18n";
 
@@ -39,7 +44,7 @@ import {
 import { splitScriptInstruction } from "./scriptInstruction";
 
 import styles from "./ScriptDesignDialog.module.less";
-import modalSizing from "@/components/ModalSizing.module.less";
+import dialogSizing from "@/components/DialogSizing.module.less";
 
 const { formatReference: SCRIPT_FORMAT_REFERENCE, instruction: SCRIPT_INSTRUCTION } = splitScriptInstruction(
   t("输入本集的剧本，将根据内容自动拆解分镜。剧本格式参考："),
@@ -351,117 +356,127 @@ export function ScriptDesignDialog({
   };
 
   return (
-    <Modal
-      footer={null}
-      maskClosable
-      onCancel={onCancel}
-      className={`${modalSizing.storyboard} ${styles.modal}`}
-      title={<span className={styles.title}>{t("剧本设计")}</span>}
-      visible={visible}
-    >
-      <div className={`${modalSizing.storyboardBody} ${styles.body}`}>
-        <div className={styles.scriptColumn}>
-          <p className={styles.instruction}>{SCRIPT_INSTRUCTION}</p>
-          <div className={`min-h-0 flex-1 ${styles.plotInput}`}>
-            <Input.TextArea
-              className={HIDDEN_SCROLLBAR_CLASS}
-              maxLength={STORYBOARD_HARD_PLOT_CHARACTERS}
-              onChange={setPlot}
-              placeholder={SCRIPT_PLACEHOLDER}
-              style={{
-                resize: "none",
-                height: "100%",
-                overflowY: "auto",
-                ...HIDDEN_SCROLLBAR_STYLE,
-              }}
-              wrapperStyle={{ display: "block", height: "100%" }}
-              value={plot}
-            />
+    <Dialog open={visible} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent
+        className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${dialogSizing.storyboard} ${styles.modal}`}
+        style={{ maxWidth: "92vw" }}
+      >
+        <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">
+          <DialogTitle className="canvas-modal-title">
+            <span className={styles.title}>{t("剧本设计")}</span>
+          </DialogTitle>
+          <DialogDescription className="sr-only">{t("输入剧本并设置分镜参数")}</DialogDescription>
+        </DialogHeader>
+        <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">
+          <div className={`${dialogSizing.storyboardBody} ${styles.body}`}>
+            <div className={styles.scriptColumn}>
+              <p className={styles.instruction}>{SCRIPT_INSTRUCTION}</p>
+              <div className={`min-h-0 flex-1 ${styles.plotInput}`}>
+                <Input.TextArea
+                  className={HIDDEN_SCROLLBAR_CLASS}
+                  maxLength={STORYBOARD_HARD_PLOT_CHARACTERS}
+                  onChange={setPlot}
+                  placeholder={SCRIPT_PLACEHOLDER}
+                  style={{
+                    resize: "none",
+                    height: "100%",
+                    overflowY: "auto",
+                    ...HIDDEN_SCROLLBAR_STYLE,
+                  }}
+                  wrapperStyle={{ display: "block", height: "100%" }}
+                  value={plot}
+                />
+              </div>
+            </div>
+
+            <div className={styles.divider} />
+
+            <div className={styles.settingsColumn}>
+              <LabeledField label={t("分镜模型")}>
+                <ModelSelectChip
+                  onChange={setStoryboardModel}
+                  options={storyboardModelOptions}
+                  value={storyboardModel}
+                />
+              </LabeledField>
+              <LabeledField label={t("视频模型")}>
+                <ModelSelectChip
+                  onChange={(model) => emitSettings({ ...settings, model })}
+                  options={modelOptions}
+                  value={settings.model}
+                />
+              </LabeledField>
+              <LabeledField label={t("分镜时长（参考范围）")}>
+                <DurationRangeInput
+                  limitMax={shotDurationLimitMaxSeconds}
+                  limitMin={shotDurationLimitMinSeconds}
+                  max={shotDuration.max}
+                  min={shotDuration.min}
+                  namePrefix="shot-duration-seconds"
+                  onChange={setShotDuration}
+                  unit={t("秒")}
+                />
+              </LabeledField>
+              <LabeledField label={t("视频时长（参考范围）")}>
+                <DurationRangeInput
+                  limitMax={VIDEO_DURATION_LIMIT_MAX_MINUTES}
+                  limitMin={VIDEO_DURATION_LIMIT_MIN_MINUTES}
+                  max={videoDuration.max}
+                  min={videoDuration.min}
+                  namePrefix="video-duration-minutes"
+                  onChange={setVideoDuration}
+                  unit={t("分钟")}
+                />
+              </LabeledField>
+              <p className={styles.durationHint}>
+                {t("时长仅用于引导节奏，生成会优先保证剧情完整和自然，不会刻意逼近上下限。")}
+              </p>
+              <LabeledField label={t("视频参数")}>
+                <GenerationConfiguration
+                  fillParameterWidth
+                  modelOptions={modelOptions}
+                  onVideoSettingsChange={emitSettings}
+                  parameters="video"
+                  popupZIndex={MODAL_CHILD_POPUP_Z_INDEX}
+                  showDuration={false}
+                  showModel={false}
+                  summaryKeys={[...PARAM_SUMMARY_KEYS]}
+                  videoSettings={settings}
+                />
+              </LabeledField>
+            </div>
+          </div>
+
+          <div className={styles.actions}>
+            <p
+              className={`${styles.counter} ${
+                plot.length > STORYBOARD_RECOMMENDED_PLOT_CHARACTERS ? styles.counterWarning : ""
+              }`}
+            >
+              {t("建议单次不超过 6000 字；当前 {count}/30000 字", {
+                count: plot.length,
+              })}
+            </p>
+            <div className={styles.actionButtons}>
+              <ActionButton onClick={onCancel}>{t("取消")}</ActionButton>
+              <ActionButton
+                disabled={!plot.trim() || !settings.model || !storyboardModel}
+                onClick={() =>
+                  onSubmit(
+                    plot.trim(),
+                    { ...settings, duration: `${shotDuration.min}s` },
+                    { shot: shotDuration, video: videoDuration },
+                    storyboardModel,
+                  )
+                }
+                variant="primary"
+              >
+                {t("确定")}
+              </ActionButton>
+            </div>
           </div>
         </div>
-
-        <div className={styles.divider} />
-
-        <div className={styles.settingsColumn}>
-          <LabeledField label={t("分镜模型")}>
-            <ModelSelectChip onChange={setStoryboardModel} options={storyboardModelOptions} value={storyboardModel} />
-          </LabeledField>
-          <LabeledField label={t("视频模型")}>
-            <ModelSelectChip
-              onChange={(model) => emitSettings({ ...settings, model })}
-              options={modelOptions}
-              value={settings.model}
-            />
-          </LabeledField>
-          <LabeledField label={t("分镜时长（参考范围）")}>
-            <DurationRangeInput
-              limitMax={shotDurationLimitMaxSeconds}
-              limitMin={shotDurationLimitMinSeconds}
-              max={shotDuration.max}
-              min={shotDuration.min}
-              namePrefix="shot-duration-seconds"
-              onChange={setShotDuration}
-              unit={t("秒")}
-            />
-          </LabeledField>
-          <LabeledField label={t("视频时长（参考范围）")}>
-            <DurationRangeInput
-              limitMax={VIDEO_DURATION_LIMIT_MAX_MINUTES}
-              limitMin={VIDEO_DURATION_LIMIT_MIN_MINUTES}
-              max={videoDuration.max}
-              min={videoDuration.min}
-              namePrefix="video-duration-minutes"
-              onChange={setVideoDuration}
-              unit={t("分钟")}
-            />
-          </LabeledField>
-          <p className={styles.durationHint}>
-            {t("时长仅用于引导节奏，生成会优先保证剧情完整和自然，不会刻意逼近上下限。")}
-          </p>
-          <LabeledField label={t("视频参数")}>
-            <GenerationConfiguration
-              fillParameterWidth
-              modelOptions={modelOptions}
-              onVideoSettingsChange={emitSettings}
-              parameters="video"
-              popupZIndex={MODAL_CHILD_POPUP_Z_INDEX}
-              showDuration={false}
-              showModel={false}
-              summaryKeys={[...PARAM_SUMMARY_KEYS]}
-              videoSettings={settings}
-            />
-          </LabeledField>
-        </div>
-      </div>
-
-      <div className={styles.actions}>
-        <p
-          className={`${styles.counter} ${
-            plot.length > STORYBOARD_RECOMMENDED_PLOT_CHARACTERS ? styles.counterWarning : ""
-          }`}
-        >
-          {t("建议单次不超过 6000 字；当前 {count}/30000 字", {
-            count: plot.length,
-          })}
-        </p>
-        <div className={styles.actionButtons}>
-          <ActionButton onClick={onCancel}>{t("取消")}</ActionButton>
-          <ActionButton
-            disabled={!plot.trim() || !settings.model || !storyboardModel}
-            onClick={() =>
-              onSubmit(
-                plot.trim(),
-                { ...settings, duration: `${shotDuration.min}s` },
-                { shot: shotDuration, video: videoDuration },
-                storyboardModel,
-              )
-            }
-            variant="primary"
-          >
-            {t("确定")}
-          </ActionButton>
-        </div>
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 }

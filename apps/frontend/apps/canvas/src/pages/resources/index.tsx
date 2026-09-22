@@ -10,7 +10,7 @@ import { useParams } from "react-router-dom";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
-import { Pagination, Result, openDeleteConfirmModal } from "@/components/compat";
+import { Pagination, Result, openDeleteConfirmDialog } from "@/components/compat";
 import { Dropdown, Message, Spin, Menu, Button } from "@/components/ui";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
@@ -20,12 +20,12 @@ import t from "@/utils/i18n";
 import { FilterTabs } from "../../components/FilterTabs";
 import { SearchInput } from "../../components/SearchInput";
 import { useProjectLayoutSummary } from "../projectLayout/index";
-import { ResourceAssetsModal } from "./assets/ResourceAssetsModal";
+import { ResourceAssetsDialog } from "./assets/ResourceAssetsDialog";
 import { useResourceUpload } from "./assets/useResourceUpload";
 import { BatchActionBar } from "./components/BatchActionBar";
 import { ResourceTypeIcon } from "./components/ResourceTypeIcon";
 import { ResourceDialog } from "./dialogs/ResourceDialog";
-import { ResourceReviewModal } from "./dialogs/ResourceReviewModal";
+import { ResourceReviewDialog } from "./dialogs/ResourceReviewDialog";
 import {
   addResourceFile,
   batchDeleteResources,
@@ -265,7 +265,7 @@ export default function ResourcesPage() {
   };
 
   const confirmDelete = (item: resource.Resource) => {
-    openDeleteConfirmModal({
+    openDeleteConfirmDialog({
       name: t("资产"),
       targetName: item.Name,
       info: (
@@ -287,7 +287,7 @@ export default function ResourcesPage() {
   const confirmBatchDelete = () => {
     if (!selectedResources.length) return;
     const count = selectedResources.length;
-    openDeleteConfirmModal({
+    openDeleteConfirmDialog({
       name: t("{count} 个资产", { count }),
       targetName: t("确定删除{count}个资产", { count }),
       targetNameLabel: t("请输入："),
@@ -544,14 +544,14 @@ export default function ResourcesPage() {
         onClose={() => setDialogState(undefined)}
         onSuccess={refresh}
       />
-      <ResourceReviewModal
+      <ResourceReviewDialog
         items={reviewItems}
         projectId={projectId}
         onClose={() => setReviewItems([])}
         onSuccess={finishReview}
       />
       {managedResource ? (
-        <ResourceAssetsModal
+        <ResourceAssetsDialog
           item={managedResource}
           onChange={refresh}
           onClose={() => setManagedResource(undefined)}

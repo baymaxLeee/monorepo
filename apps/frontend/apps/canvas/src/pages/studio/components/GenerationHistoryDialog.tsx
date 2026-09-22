@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@repo/design-system";
 import { useAtomValue } from "jotai";
 import {
   Check as IconCheck,
@@ -10,7 +11,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ActionButton } from "@/components/ActionButton";
-import { Modal, Tooltip } from "@/components/ui";
+import { Tooltip } from "@/components/ui";
 import { VideoPlayer } from "@/components/videoPlayer/index";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
@@ -367,71 +368,75 @@ export function GenerationHistoryDialog({
         : videoModels;
 
   return (
-    <Modal
-      className={styles.dialog}
-      footer={null}
-      maskClosable
-      onCancel={onCancel}
-      title={
-        <div className="flex min-w-0 items-center gap-4">
-          <button
-            aria-label={t("返回")}
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-solid border-border bg-white p-0 text-[14px] text-foreground hover:bg-background"
-            onClick={onCancel}
-            type="button"
-          >
-            <IconLeft />
-          </button>
-          <span className="max-w-[320px] truncate text-[14px] font-medium leading-6 text-foreground">
-            {displayTitle}
-          </span>
-        </div>
-      }
-      visible={visible}
-    >
-      <div className={styles.dialogBody}>
-        <SelectedHistoryDetail
-          alreadySelected={selected?.id === currentHistoryId}
-          item={selected}
-          modelLabel={selected ? videoModelLabel(selected.model, selectedModelOptions) : "-"}
-          number={selectedNumber}
-          onSelectHistory={onSelectHistory}
-          selecting={selecting}
-          shotIndex={shotIndex}
-        />
+    <Dialog open={visible} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent
+        className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${styles.dialog}`}
+        style={{ maxWidth: "92vw" }}
+      >
+        <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">
+          <DialogTitle className="canvas-modal-title">
+            <div className="flex min-w-0 items-center gap-4">
+              <button
+                aria-label={t("返回")}
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-solid border-border bg-white p-0 text-[14px] text-foreground hover:bg-background"
+                onClick={onCancel}
+                type="button"
+              >
+                <IconLeft />
+              </button>
+              <span className="max-w-[320px] truncate text-[14px] font-medium leading-6 text-foreground">
+                {displayTitle}
+              </span>
+            </div>
+          </DialogTitle>
+          <DialogDescription className="sr-only">{t("查看并选择历史生成结果")}</DialogDescription>
+        </DialogHeader>
+        <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">
+          <div className={styles.dialogBody}>
+            <SelectedHistoryDetail
+              alreadySelected={selected?.id === currentHistoryId}
+              item={selected}
+              modelLabel={selected ? videoModelLabel(selected.model, selectedModelOptions) : "-"}
+              number={selectedNumber}
+              onSelectHistory={onSelectHistory}
+              selecting={selecting}
+              shotIndex={shotIndex}
+            />
 
-        <aside className={styles.historyPanel}>
-          <div className="flex shrink-0 items-center gap-4">
-            <h2 className="m-0 text-[18px] font-medium leading-6.5 text-foreground">
-              {t("{shot} 生成历史", { shot: displayTitle })}
-            </h2>
-            <span className="text-[13px] leading-5.5 text-muted-foreground">
-              {t("共 {count} 个记录", { count: items.length })}
-            </span>
-          </div>
-          <div className={styles.historyList}>
-            {loading ? (
-              <div className="flex h-[240px] items-center justify-center">
-                <IconLoading fontSize={20} />
+            <aside className={styles.historyPanel}>
+              <div className="flex shrink-0 items-center gap-4">
+                <h2 className="m-0 text-[18px] font-medium leading-6.5 text-foreground">
+                  {t("{shot} 生成历史", { shot: displayTitle })}
+                </h2>
+                <span className="text-[13px] leading-5.5 text-muted-foreground">
+                  {t("共 {count} 个记录", { count: items.length })}
+                </span>
               </div>
-            ) : items.length === 0 ? (
-              <div className="flex h-[240px] items-center justify-center text-[14px] text-muted-foreground">
-                {t("暂无生成记录")}
+              <div className={styles.historyList}>
+                {loading ? (
+                  <div className="flex h-[240px] items-center justify-center">
+                    <IconLoading fontSize={20} />
+                  </div>
+                ) : items.length === 0 ? (
+                  <div className="flex h-[240px] items-center justify-center text-[14px] text-muted-foreground">
+                    {t("暂无生成记录")}
+                  </div>
+                ) : (
+                  items.map((item, index) => (
+                    <HistoryRow
+                      item={item}
+                      key={item.id}
+                      number={items.length - index}
+                      onSelect={() => setSelectedId(item.id)}
+                      selected={item.id === selected?.id}
+                    />
+                  ))
+                )}
               </div>
-            ) : (
-              items.map((item, index) => (
-                <HistoryRow
-                  item={item}
-                  key={item.id}
-                  number={items.length - index}
-                  onSelect={() => setSelectedId(item.id)}
-                  selected={item.id === selected?.id}
-                />
-              ))
-            )}
+            </aside>
           </div>
-        </aside>
-      </div>
-    </Modal>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

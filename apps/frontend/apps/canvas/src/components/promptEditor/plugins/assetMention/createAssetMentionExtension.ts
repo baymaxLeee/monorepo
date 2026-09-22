@@ -6,7 +6,7 @@ import { type SuggestionKeyDownProps, type SuggestionProps, exitSuggestion } fro
 
 import { Message } from "@/components/ui";
 
-import { ASSET_LIBRARY_MODAL_CLASS } from "./AddAssetToLibraryModal";
+import { ASSET_LIBRARY_DIALOG_CLASS } from "./AddAssetToLibraryDialog";
 import { createAssetMentionNode } from "./AssetMentionNode";
 import {
   AssetSuggestionList,
@@ -339,7 +339,7 @@ export const createAssetMentionExtension = (source: AssetMentionSource) => {
             return;
           }
 
-          if (target instanceof Element && target.closest(`.${PREVIEW_POPUP_CLASS}, .${ASSET_LIBRARY_MODAL_CLASS}`)) {
+          if (target instanceof Element && target.closest(`.${PREVIEW_POPUP_CLASS}, .${ASSET_LIBRARY_DIALOG_CLASS}`)) {
             return;
           }
 

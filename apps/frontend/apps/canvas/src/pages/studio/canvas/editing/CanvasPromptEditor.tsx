@@ -2,7 +2,7 @@ import { MarkdownEditor } from "@repo/editors/markdown-editor";
 import { Minimize2 as IconAbbreviation, Maximize2 as IconUnfold } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { GenerationEditorModal } from "@/components/ImageGeneration/GenerationEditorModal";
+import { GenerationEditorDialog } from "@/components/ImageGeneration/GenerationEditorDialog";
 import {
   type AssetMentionItem,
   type AssetMentionSource,
@@ -262,9 +262,9 @@ export function CanvasPromptEditor({
   return (
     <>
       {renderEditor(false)}
-      <GenerationEditorModal onClose={() => setExpanded(false)} visible={expanded} zIndex={EDITOR_MODAL_Z_INDEX}>
+      <GenerationEditorDialog onClose={() => setExpanded(false)} visible={expanded} zIndex={EDITOR_MODAL_Z_INDEX}>
         {renderEditor(true)}
-      </GenerationEditorModal>
+      </GenerationEditorDialog>
     </>
   );
 }

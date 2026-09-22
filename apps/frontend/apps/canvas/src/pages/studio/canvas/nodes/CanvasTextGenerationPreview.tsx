@@ -1,7 +1,7 @@
 import { Minimize2 as IconAbbreviation } from "lucide-react";
 
 import { Markdown as MarkDown } from "@/components/compat";
-import { GenerationEditorModal } from "@/components/ImageGeneration/GenerationEditorModal";
+import { GenerationEditorDialog } from "@/components/ImageGeneration/GenerationEditorDialog";
 import t from "@/utils/i18n";
 
 import styles from "./CanvasTextGenerationPreview.module.less";
@@ -20,7 +20,7 @@ export function CanvasTextGenerationPreview({
   visible: boolean;
 }) {
   return (
-    <GenerationEditorModal onClose={onClose} visible={visible} zIndex={PREVIEW_MODAL_Z_INDEX}>
+    <GenerationEditorDialog onClose={onClose} visible={visible} zIndex={PREVIEW_MODAL_Z_INDEX}>
       <section
         className="nodrag nopan nowheel flex h-full w-full flex-col gap-5"
         onDoubleClick={(event) => event.stopPropagation()}
@@ -41,6 +41,6 @@ export function CanvasTextGenerationPreview({
           <MarkDown className={styles.markdown} data={content} />
         </div>
       </section>
-    </GenerationEditorModal>
+    </GenerationEditorDialog>
   );
 }

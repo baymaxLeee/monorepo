@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { type AssetReviewItem, AssetReviewModal } from "@/components/AssetReviewModal/index";
+import { type AssetReviewItem, AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { resource } from "@/domain";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 
 import { batchListResourceFiles } from "../domain/actions";
 
-export function ResourceReviewModal({
+export function ResourceReviewDialog({
   items,
   projectId,
   onClose,
@@ -65,7 +65,7 @@ export function ResourceReviewModal({
   }, [items, load]);
 
   return (
-    <AssetReviewModal
+    <AssetReviewDialog
       error={error}
       items={assets}
       loading={loading}

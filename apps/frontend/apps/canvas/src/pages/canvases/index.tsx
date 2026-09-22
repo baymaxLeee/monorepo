@@ -17,7 +17,7 @@ import {
   OperationMenu as COperationMenu,
   Result,
   UserLabel as UserAuto,
-  openDeleteConfirmModal,
+  openDeleteConfirmDialog,
   formatDateByCurrentYear,
 } from "@/components/compat";
 import { Spin, Button } from "@/components/ui";
@@ -163,7 +163,7 @@ export default function CanvasesPage() {
 
   const refresh = () => setRefreshVersion((value) => value + 1);
   const handleDelete = (item: canvas.ProjectCanvasSummary) => {
-    openDeleteConfirmModal({
+    openDeleteConfirmDialog({
       name: t("剧集"),
       targetName: item.Name,
       info: <span className="block px-6">{t("删除剧集后不可恢复，请谨慎操作。")}</span>,

@@ -335,7 +335,7 @@ interface ConfirmOptions {
 
 let confirmListener: ((options: ConfirmOptions) => void) | undefined;
 
-export function openDeleteConfirmModal(options: ConfirmOptions) {
+export function openDeleteConfirmDialog(options: ConfirmOptions) {
   confirmListener?.(options);
 }
 

@@ -85,18 +85,9 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
       "create_canvas_storyboard_drafts",
       tool({
         description:
-          "Submit an Agent-prepared storyboard to the bound Canvas through its unified batch-storyboard endpoint. In a conversational flow, call ask_user first to collect or confirm the video duration range, shot duration range, resolution, aspect ratio, audio and watermark settings; never ask the user to choose a model. Provider ids are injected from this Agent's binding. The task is recovered through read_canvas_node_states; never open or emulate a second event stream.",
+          "Start storyboard splitting through the bound Canvas HTTP endpoint. Do not split the plot or prepare shots in Chat: Canvas owns the native function-call planner, durable draft node, confirmation and cancellation lifecycle used by both manual and conversational entrypoints. Call ask_user first to collect or confirm the video duration range, shot duration range, resolution, aspect ratio, audio and watermark settings; never ask the user to choose a model. Provider ids are injected from this Agent's binding. Recover the task through read_canvas_node_states; never open or emulate a second event stream.",
         inputSchema: z.object({
           plot: z.string().min(1).max(30000),
-          shots: z
-            .array(
-              z.object({
-                prompt: z.string().min(1).max(50000),
-                duration_seconds: z.number().int().positive(),
-              }),
-            )
-            .min(1)
-            .max(200),
           canvas_node_duration_min_seconds: z.number().int().positive(),
           canvas_node_duration_max_seconds: z.number().int().positive(),
           total_duration_min_seconds: z.number().int().positive(),
@@ -130,20 +121,13 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
                   watermark: input.watermark,
                 },
               },
-              canvas_nodes: input.shots.map((shot, index) => ({
-                draft_id: crypto.randomUUID(),
-                canvas_node_no: index + 1,
-                prompt: shot.prompt,
-                duration_seconds: shot.duration_seconds,
-                asset_references: [],
-              })),
             },
             abortSignal,
           ),
       }),
       { capability: "canvas", effect: "update", trust: "closed", execution: "inline", modes: ["normal"] },
       {
-        summary: "Submit Agent-prepared drafts through Canvas's unified durable storyboard entrypoint.",
+        summary: "Start Canvas's unified durable storyboard planner over HTTP.",
         prerequisites: [
           "Use ask_user in the current conversational flow to confirm video parameters before submission.",
           "Use the Agent-bound providers; never ask for or accept a user-selected model id.",

@@ -103,6 +103,11 @@ export function useHoverTrigger({
 
   const setOpen = useCallback(
     (next: boolean) => {
+      // Keep pointer-event decisions synchronous with the requested state. In
+      // controlled mode React may not commit the new `open` prop before the
+      // pointer leaves, which previously made that leave look like an already
+      // closed popover and skipped scheduling the close timer.
+      openRef.current = next;
       if (enabled && !isControlled) {
         setInternalOpen(next);
       }

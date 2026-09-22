@@ -27,7 +27,7 @@ import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 
-import { ResourceAssetsModal } from "../../resources/assets/ResourceAssetsModal";
+import { ResourceAssetsDialog } from "../../resources/assets/ResourceAssetsDialog";
 import type { ResourceAssetsInitialAction } from "../../resources/assets/ResourceAssetsPage";
 import { ResourceTypeIcon } from "../../resources/components/ResourceTypeIcon";
 import { ResourceDialog } from "../../resources/dialogs/ResourceDialog";
@@ -299,7 +299,7 @@ export function StudioAssetPanel({
   const [loading, setLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [dialogType, setDialogType] = useState<resource.ResourceType>();
-  const [resourceModalState, setResourceModalState] = useState<{
+  const [resourceDialogState, setResourceDialogState] = useState<{
     initialAction?: ResourceAssetsInitialAction;
     item: resource.Resource;
   }>();
@@ -336,7 +336,7 @@ export function StudioAssetPanel({
 
   const openResourceAction = (item: resource.Resource, action: ResourceAssetsActionInput) => {
     resourceActionIdRef.current += 1;
-    setResourceModalState({
+    setResourceDialogState({
       initialAction: { ...action, id: resourceActionIdRef.current },
       item,
     });
@@ -555,7 +555,6 @@ export function StudioAssetPanel({
                     <button
                       className={styles.nodeItem}
                       onClick={onLocateNode ? () => onLocateNode(item.NodeID) : undefined}
-                      onMouseEnter={() => setHoveredPreviewId(previewId)}
                       title={onLocateNode ? t("在画布中定位") : undefined}
                       type="button"
                     >
@@ -665,7 +664,6 @@ export function StudioAssetPanel({
                           event.dataTransfer.effectAllowed = "copy";
                           event.dataTransfer.setData(CANVAS_ASSET_DRAG_TYPE, JSON.stringify(data));
                         }}
-                        onMouseEnter={() => setHoveredPreviewId(previewId)}
                       >
                         <span className={`${styles.thumbnail} ${styles.fallbackThumbnail}`}>
                           <ResourceTypeIcon type={item.Type} />
@@ -783,7 +781,6 @@ export function StudioAssetPanel({
                                   event.dataTransfer.effectAllowed = "copy";
                                   event.dataTransfer.setData(CANVAS_ASSET_DRAG_TYPE, JSON.stringify(data));
                                 }}
-                                onMouseEnter={() => setHoveredPreviewId(previewId)}
                                 type="button"
                               >
                                 <span className={`${styles.thumbnail} ${hasCover ? "" : styles.fallbackThumbnail}`}>
@@ -812,12 +809,12 @@ export function StudioAssetPanel({
         projectId={projectId}
         state={dialogType === undefined ? undefined : { mode: "create", type: dialogType }}
       />
-      {resourceModalState ? (
-        <ResourceAssetsModal
-          initialAction={resourceModalState.initialAction}
-          item={resourceModalState.item}
+      {resourceDialogState ? (
+        <ResourceAssetsDialog
+          initialAction={resourceDialogState.initialAction}
+          item={resourceDialogState.item}
           onChange={() => setReloadKey((key) => key + 1)}
-          onClose={() => setResourceModalState(undefined)}
+          onClose={() => setResourceDialogState(undefined)}
           projectId={projectId}
         />
       ) : null}

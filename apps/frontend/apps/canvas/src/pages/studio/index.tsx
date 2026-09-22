@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { useNavigate, useParams } from "react-router-dom";
 
 import panelCollapseIcon from "@/assets/canvas/panel-collapse.svg";
-import { AssetReviewModal } from "@/components/AssetReviewModal/index";
+import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { CanvasConversation } from "@/components/CanvasConversation";
 import { EllipsisText as CEllipsis } from "@/components/compat";
 import {
@@ -2690,7 +2690,7 @@ function StudioContent() {
             )}
 
             {reviewRequest ? (
-              <AssetReviewModal
+              <AssetReviewDialog
                 error={reviewRequest.error}
                 items={[
                   {
