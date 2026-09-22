@@ -68,8 +68,11 @@ for the full rationale.
   functions for the actual work) and register it in `src/application/tasks/registry.ts`.
   Do not put business logic directly in `src/api/http/routes/tasks.ts` or
   `src/application/tasks/service.ts` — those stay type-agnostic.
-- `file-task-batch`, `video-generation`, `text-generation`, `canvas-image-generation`, `canvas-video-generation`, and `canvas-archive` are registered. Executor does not
+- `file-task-batch`, `video-generation`, `canvas-archive`, and `canvas-video-frames` are registered. Executor does not
   host smoke workflows or synchronous HTML validation/review endpoints.
+- `canvas-video-frames` is a durable one-step media post-processing task. Canvas
+  owns the video/frame business state and an idempotent internal execution
+  endpoint; Executor only supplies replay, retry, cancellation, and recovery.
 - `file-task-batch` accepts a frozen shared context and independent
   `{id,instruction,outputPath}` tasks. Every output path is unique. Each Workflow
   step performs one context-free complete-file generation and writes only its

@@ -136,7 +136,7 @@ func (s *CanvasNodeService) matchAssetsForNode(ctx context.Context, scope Scope,
 	if len(available) == 0 {
 		return result, nil
 	}
-	models, err := s.models.Resolve(ctx, applicationmodel.Actor{TenantID: scope.TenantID, UserID: scope.CallerID}, []applicationmodel.Requirement{{Capability: applicationmodel.CapabilityStoryboardInference}})
+	models, err := s.models.Resolve(ctx, applicationmodel.Actor{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, UserID: scope.CallerID}, []applicationmodel.Requirement{{Capability: applicationmodel.CapabilityStoryboardInference}})
 	if err != nil {
 		return result, errno.Wrap(errno.ErrModelDependencyError, err)
 	}

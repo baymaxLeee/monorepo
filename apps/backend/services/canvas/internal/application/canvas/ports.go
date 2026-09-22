@@ -245,6 +245,7 @@ type StoryboardGenerationState struct {
 
 type StoryboardConstraints struct {
 	TenantID                string
+	WorkspaceID             string
 	CallerID                string
 	ProjectID               string
 	DurationMinSeconds      int32

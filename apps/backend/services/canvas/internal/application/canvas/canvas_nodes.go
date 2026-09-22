@@ -969,8 +969,8 @@ func (s *CanvasNodeService) videoCapabilities(
 		return applicationmodel.VideoCapabilities{}, errno.New(errno.ErrConfigurationError)
 	}
 	resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{{Capability: applicationmodel.CapabilityCanvasNodeVideo, ModelID: modelID}})
 	if err != nil {
 		if errors.Is(err, applicationmodel.ErrDefaultModelNotConfigured) {
@@ -1024,8 +1024,8 @@ func (s *CanvasNodeService) resolveCanvasNodeInputLimits(
 			return canvasNodeInputLimits{}, errno.New(errno.ErrConfigurationError)
 		}
 		resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-			TenantID: scope.TenantID,
-			UserID:   scope.CallerID,
+			TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+			UserID: scope.CallerID,
 		}, []applicationmodel.Requirement{{
 			Capability: applicationmodel.CapabilityResourceImageToImage,
 			ModelID:    target.GenerationConfig.ModelServiceID,
@@ -1118,8 +1118,8 @@ func (s *CanvasNodeService) imageCapabilities(
 		capability = applicationmodel.CapabilityResourceImageToImage
 	}
 	resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{{Capability: capability, ModelID: modelServiceID}})
 	if err != nil {
 		if errors.Is(err, applicationmodel.ErrDefaultModelNotConfigured) {
@@ -1225,8 +1225,8 @@ func (s *CanvasNodeService) validateTextModel(ctx context.Context, scope Scope, 
 		return errno.New(errno.ErrConfigurationError)
 	}
 	resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{{
 		Capability: applicationmodel.CapabilityCanvasTextGeneration,
 		ModelID:    modelID,

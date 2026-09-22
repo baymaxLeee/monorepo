@@ -42,8 +42,9 @@ type Selection struct {
 }
 
 type Actor struct {
-	TenantID string
-	UserID   string
+	TenantID    string
+	WorkspaceID *string
+	UserID      string
 }
 
 type Requirement struct {

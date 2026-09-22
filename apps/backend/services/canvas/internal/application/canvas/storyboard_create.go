@@ -181,8 +181,8 @@ func (s *CanvasNodeService) PrepareStoryboardPlanning(
 		return StoryboardModelConfig{}, StoryboardPlanningConfig{}, StoryboardInferenceModelSnapshot{}, errno.New(errno.ErrInvalidArgument)
 	}
 	resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{
 		{
 			Capability: applicationmodel.CapabilityStoryboardInference,
@@ -344,6 +344,7 @@ func (s *CanvasNodeService) GenerateDraftsWithState(
 	}
 	constraints := StoryboardConstraints{
 		TenantID:                scope.TenantID,
+		WorkspaceID:             storyboardWorkspaceID(scope.WorkspaceID),
 		CallerID:                scope.CallerID,
 		ProjectID:               projectID,
 		DurationMinSeconds:      planning.CanvasNodeDurationMinSeconds,
@@ -370,6 +371,13 @@ func (s *CanvasNodeService) GenerateDraftsWithState(
 		ctx, taskRunID, inferenceModel, plot, constraints, assetSnapshot, videoCapabilities,
 		generation, modelCalls, checkpoint, emit,
 	)
+}
+
+func storyboardWorkspaceID(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 func (s *CanvasNodeService) generateStoryboardDrafts(

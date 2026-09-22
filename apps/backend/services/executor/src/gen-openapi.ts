@@ -84,6 +84,17 @@ const canvasArchivePayloadSchema = {
   required: ["taskRunId"],
 };
 
+const canvasVideoFramesPayloadSchema = {
+  type: "object",
+  properties: {
+    taskRunId: {
+      type: "string",
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    },
+  },
+  required: ["taskRunId"],
+};
+
 const videoGenerationTaskPayloadSchema = {
   type: "object",
   properties: {
@@ -172,6 +183,7 @@ const taskEnvelope = (type: string, payload: object) => ({
 const createTaskInputSchema = {
   oneOf: [
     taskEnvelope("canvas-archive", ref("CanvasArchivePayload")),
+    taskEnvelope("canvas-video-frames", ref("CanvasVideoFramesPayload")),
     taskEnvelope("file-task-batch", ref("FileTaskBatchPayload")),
     taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
   ],
@@ -565,6 +577,7 @@ const openapi = {
       TaskWatchFrame: taskWatchFrameSchema,
       CreateTaskInput: createTaskInputSchema,
       CanvasArchivePayload: canvasArchivePayloadSchema,
+      CanvasVideoFramesPayload: canvasVideoFramesPayloadSchema,
       FileTaskBatchPayload: fileTaskBatchPayloadSchema,
       VideoGenerationTaskPayload: videoGenerationTaskPayloadSchema,
       ReferenceAsset: referenceAssetSchema,

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	requestcontext "github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
@@ -76,8 +75,11 @@ func (catalog *Catalog) Resolve(ctx context.Context, actor applicationmodel.Acto
 	if catalog == nil || catalog.providers == nil || strings.TrimSpace(actor.TenantID) == "" || len(requirements) == 0 {
 		return nil, applicationmodel.ErrUnavailable
 	}
-	workspaceID, ok := requestcontext.WorkspaceIDFromContext(ctx)
-	if !ok || strings.TrimSpace(workspaceID) == "" {
+	workspaceID := ""
+	if actor.WorkspaceID != nil {
+		workspaceID = strings.TrimSpace(*actor.WorkspaceID)
+	}
+	if workspaceID == "" {
 		return nil, applicationmodel.ErrUnavailable
 	}
 	resolved := make([]applicationmodel.Resolution, len(requirements))

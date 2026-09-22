@@ -55,10 +55,6 @@ func WithTargetFailureReporter(reporter TargetFailureReporter) Option {
 	}
 }
 
-func WithFirstLastFrameDispatches(dispatches AsyncDispatchStore) Option {
-	return func(service *Service) { service.asyncDispatches = dispatches }
-}
-
 func WithModelCatalog(models applicationmodel.Catalog) Option {
 	return func(service *Service) { service.models = models }
 }
@@ -182,6 +178,7 @@ func NewService(
 	canvasnodeVideoProvider CanvasNodeVideoProvider,
 	canvasnodeVideoResults CanvasNodeVideoResultStore,
 	resolver ReferenceResolver,
+	asyncDispatches AsyncDispatchStore,
 	transactions applicationcanvasnode.TransactionManager,
 	statistics applicationcanvasnode.CanvasStatisticsProjector,
 	ids IDGenerator,
@@ -192,7 +189,7 @@ func NewService(
 		canvas_nodes: canvas_nodes, runs: runs, pollSchedules: pollSchedules,
 		videoGenerations:        videoGenerations,
 		canvasnodeVideoProvider: canvasnodeVideoProvider, canvasnodeVideoResults: canvasnodeVideoResults,
-		resolver: resolver, transactions: transactions,
+		resolver: resolver, asyncDispatches: asyncDispatches, transactions: transactions,
 		statistics: statistics, ids: ids, clock: clock,
 		targetFailures:       noopTargetFailureReporter{},
 		framePreviewFailures: noopFramePreviewFailureReporter{},
@@ -256,8 +253,8 @@ func (s *Service) start(ctx context.Context, scope Scope, projectID, canvasID, c
 		return "", false, errno.New(errno.ErrConfigurationError)
 	}
 	resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{{
 		Capability: applicationmodel.CapabilityCanvasNodeVideo,
 		ModelID:    item.GenerationConfig.ModelServiceID,
@@ -1245,9 +1242,6 @@ func (s *Service) applyPollWithHistory(
 			taskRunStatus := poll.TerminalStatus
 			finishedAt := poll.FinishedAt
 			if poll.TerminalStatus == domaintask.StatusSucceeded {
-				if s.asyncDispatches == nil {
-					return errors.New("first last frame async dispatch store is not configured")
-				}
 				if updateErr = s.createFirstLastFrameTask(txCtx, firstLastFrameTargetFromRun(run), run, now); updateErr != nil {
 					return updateErr
 				}

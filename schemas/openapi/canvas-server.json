@@ -5830,6 +5830,51 @@
         ]
       }
     },
+    "/internal/worker/video-generations/{taskRunId}/extract-frames": {
+      "post": {
+        "operationId": "canvasExtractVideoFrames",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskRunId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasEmpty"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects": {
       "get": {
         "operationId": "canvasListProjects",

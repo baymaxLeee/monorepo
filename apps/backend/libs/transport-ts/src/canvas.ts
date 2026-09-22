@@ -44,6 +44,18 @@ export class CanvasInternalClient {
     return this.failure(response, "archive execution", error);
   }
 
+  async extractVideoFrames(taskRunId: string, signal?: AbortSignal): Promise<void> {
+    const { error, response } = await this.client.POST(
+      "/internal/worker/video-generations/{taskRunId}/extract-frames",
+      {
+        params: { path: { taskRunId } },
+        signal,
+      },
+    );
+    if (response.ok) return;
+    return this.failure(response, "video frame extraction", error);
+  }
+
   private headers(actor: CanvasActor) {
     return {
       "X-Auth-User-ID": actor.userId,

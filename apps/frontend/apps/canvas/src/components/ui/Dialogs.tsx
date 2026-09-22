@@ -88,7 +88,7 @@ export function Modal({
           if (!escToExit || busy) event.preventDefault();
         }}
       >
-        <DialogHeader className={title ? "canvas-modal-header shrink-0 border-b px-6 py-5" : "sr-only"}>
+        <DialogHeader className={title ? "canvas-modal-header shrink-0 px-6 py-5" : "sr-only"}>
           <DialogTitle className="canvas-modal-title">{title ?? "编辑"}</DialogTitle>
           <DialogDescription className="sr-only">
             {typeof title === "string" ? title : "编辑当前内容"}
@@ -96,7 +96,7 @@ export function Modal({
         </DialogHeader>
         <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">{children}</div>
         {footer !== null && (
-          <DialogFooter className="canvas-modal-footer shrink-0 border-t px-6 py-4">
+          <DialogFooter className="canvas-modal-footer shrink-0 px-6 py-4">
             {footer ?? (
               <>
                 <Button

@@ -66,6 +66,14 @@ export interface paths {
                         payload: components["schemas"]["CanvasArchivePayload"];
                     } | {
                         /** @constant */
+                        type: "canvas-video-frames";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: components["schemas"]["CanvasVideoFramesPayload"];
+                    } | {
+                        /** @constant */
                         type: "file-task-batch";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -562,6 +570,14 @@ export interface components {
             payload: components["schemas"]["CanvasArchivePayload"];
         } | {
             /** @constant */
+            type: "canvas-video-frames";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: components["schemas"]["CanvasVideoFramesPayload"];
+        } | {
+            /** @constant */
             type: "file-task-batch";
             /** @description calling service, e.g. chat */
             owner_service: string;
@@ -578,6 +594,9 @@ export interface components {
             payload: components["schemas"]["VideoGenerationTaskPayload"];
         };
         CanvasArchivePayload: {
+            taskRunId: string;
+        };
+        CanvasVideoFramesPayload: {
             taskRunId: string;
         };
         FileTaskBatchPayload: {

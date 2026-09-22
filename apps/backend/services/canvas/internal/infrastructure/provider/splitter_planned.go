@@ -447,5 +447,6 @@ func withStoryboardTraceContext(
 	constraints applicationcanvasnode.StoryboardConstraints,
 ) context.Context {
 	ctx = providerclient.WithTraceIdentity(ctx, constraints.TenantID, constraints.CallerID)
+	ctx = providerclient.WithWorkspaceID(ctx, constraints.WorkspaceID)
 	return providerclient.WithProjectID(ctx, constraints.ProjectID)
 }

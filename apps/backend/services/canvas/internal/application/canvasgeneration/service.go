@@ -351,8 +351,8 @@ func (s *Service) resolveImageUsageSnapshot(
 		}
 	}
 	resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{{
 		Capability: capability,
 		ModelID:    node.GenerationConfig.ModelServiceID,

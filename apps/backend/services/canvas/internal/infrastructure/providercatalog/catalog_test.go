@@ -1,6 +1,42 @@
 package modelcatalog
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
+	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
+)
+
+func TestResolveUsesExplicitWorkspaceOutsideRequestContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if got := request.URL.Query().Get("tenant_id"); got != "tenant-1" {
+			t.Fatalf("unexpected tenant_id: %q", got)
+		}
+		if got := request.URL.Query().Get("workspace_id"); got != "workspace-1" {
+			t.Fatalf("unexpected workspace_id: %q", got)
+		}
+		_ = json.NewEncoder(writer).Encode(admin.Provider{
+			ID: "chat-provider", Name: "Chat", Model: "chat-model", ProviderKind: "chat", IsEnabled: true,
+		})
+	}))
+	defer server.Close()
+
+	workspaceID := "workspace-1"
+	catalog := New(&admin.Directory{URL: server.URL})
+	resolved, err := catalog.Resolve(context.Background(), applicationmodel.Actor{
+		TenantID: "tenant-1", WorkspaceID: &workspaceID, UserID: "user-1",
+	}, []applicationmodel.Requirement{{Capability: applicationmodel.CapabilityStoryboardInference, ModelID: "chat-provider"}})
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+	if len(resolved) != 1 || resolved[0].Selection.ModelID != "chat-provider" {
+		t.Fatalf("unexpected resolution: %#v", resolved)
+	}
+}
 
 func TestProviderCapabilitiesComeFromConfiguredUpstreamModel(t *testing.T) {
 	video := videoCapabilities("doubao-seedance-2-5-pro-250922")

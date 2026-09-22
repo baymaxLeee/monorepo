@@ -11,12 +11,13 @@ import { shotLabel } from "../domain/model";
 import type { Shot } from "../domain/types";
 import { DraftScriptPreview } from "./DraftScriptPreview";
 
+import styles from "./StoryboardPreviewDialog.module.less";
 import modalSizing from "@/components/ModalSizing.module.less";
 
 function ShotNavItem({ active, label, onClick }: { active: boolean; label: string; onClick?: () => void }) {
   return (
     <button
-      className={`flex w-[120px] items-center justify-between rounded-[8px] border-0 px-3 py-1.25 text-[13px] leading-5.5 tracking-[0.039px] ${
+      className={`${styles.navigationItem} flex items-center justify-between rounded-[8px] border-0 px-3 py-1.25 text-[13px] leading-5.5 tracking-[0.039px] ${
         active ? "bg-muted font-medium text-foreground" : "bg-background font-normal text-foreground"
       } ${onClick ? "cursor-pointer" : "cursor-default"}`}
       onClick={onClick}
@@ -32,7 +33,7 @@ function ShotNavSkeleton() {
   return (
     <div
       aria-hidden
-      className="h-[32px] w-[120px] shrink-0 rounded-[8px] bg-[linear-gradient(90deg,rgba(114,119,132,0.05)_0%,rgba(26,27,30,0)_100%)]"
+      className={`${styles.navigationItem} h-[32px] shrink-0 rounded-[8px] bg-[linear-gradient(90deg,rgba(114,119,132,0.05)_0%,rgba(26,27,30,0)_100%)]`}
     />
   );
 }
@@ -85,15 +86,15 @@ export function StoryboardPreviewDialog({
       footer={null}
       maskClosable={!confirming}
       onCancel={handleCancel}
-      className={modalSizing.storyboard}
+      className={`${modalSizing.storyboard} ${styles.modal}`}
       title={
         <span className="text-[18px] font-medium leading-6.5 tracking-[0.054px] text-foreground">{t("分镜预览")}</span>
       }
       visible={visible}
     >
-      <div className={`${modalSizing.storyboardBody} flex gap-2`}>
+      <div className={`${modalSizing.storyboardBody} ${styles.body} flex`}>
         <div
-          className={`flex w-[120px] shrink-0 flex-col gap-1 overflow-y-auto ${HIDDEN_SCROLLBAR_CLASS}`}
+          className={`${styles.navigation} flex shrink-0 flex-col overflow-y-auto ${HIDDEN_SCROLLBAR_CLASS}`}
           style={HIDDEN_SCROLLBAR_STYLE}
         >
           {hasShots ? (
@@ -116,7 +117,9 @@ export function StoryboardPreviewDialog({
         <div className="w-[1px] shrink-0 self-stretch bg-border" />
 
         {selected ? (
-          <div className="flex min-w-0 flex-1 flex-col items-start justify-start gap-2.5 overflow-y-auto px-3">
+          <div
+            className={`${styles.content} flex min-w-0 flex-1 flex-col items-start justify-start gap-2.5 overflow-y-auto`}
+          >
             <div className="flex flex-col gap-1">
               <span className="text-[13px] font-medium leading-5.5 tracking-[0.039px] text-foreground">
                 {t("时长：")}
@@ -131,7 +134,7 @@ export function StoryboardPreviewDialog({
             </div>
           </div>
         ) : (
-          <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2.5 px-3">
+          <div className={`${styles.content} flex min-w-0 flex-1 flex-col items-center justify-center gap-2.5`}>
             <img alt="" className="h-[200px] w-[222px] shrink-0 object-contain" src={emptyIllustration} />
             {generating ? (
               <p className="m-0 text-[16px] leading-5.5 tracking-[0.048px] text-foreground">
@@ -142,7 +145,7 @@ export function StoryboardPreviewDialog({
         )}
       </div>
 
-      <div className="mt-5 flex items-center justify-end">
+      <div className={`${styles.actions} flex items-center justify-end`}>
         {generating && !hasShots ? (
           <ActionButton onClick={onTerminate}>{t("终止")}</ActionButton>
         ) : (

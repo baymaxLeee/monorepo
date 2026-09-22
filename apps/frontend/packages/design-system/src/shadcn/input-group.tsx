@@ -109,7 +109,7 @@ function InputGroupInput({ className, ...props }: React.ComponentProps<"input">)
   return (
     <Input
       className={cn(
-        "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:outline-0 dark:bg-transparent",
+        "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:outline-none! dark:bg-transparent",
         className,
       )}
       data-slot="input-group-control"
@@ -122,7 +122,7 @@ function InputGroupTextarea({ className, ...props }: React.ComponentProps<"texta
   return (
     <Textarea
       className={cn(
-        "flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none focus-visible:outline-0 dark:bg-transparent",
+        "flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none focus-visible:outline-none! dark:bg-transparent",
         className,
       )}
       data-slot="input-group-control"

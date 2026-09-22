@@ -53,6 +53,31 @@
                     "type": "object",
                     "properties": {
                       "type": {
+                        "const": "canvas-video-frames"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "$ref": "#/components/schemas/CanvasVideoFramesPayload"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
                         "const": "file-task-batch"
                       },
                       "owner_service": {
@@ -1032,6 +1057,31 @@
             "type": "object",
             "properties": {
               "type": {
+                "const": "canvas-video-frames"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/CanvasVideoFramesPayload"
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
                 "const": "file-task-batch"
               },
               "owner_service": {
@@ -1089,6 +1139,18 @@
           "taskRunId": {
             "type": "string",
             "pattern": "^[a-f0-9]{32}$"
+          }
+        },
+        "required": [
+          "taskRunId"
+        ]
+      },
+      "CanvasVideoFramesPayload": {
+        "type": "object",
+        "properties": {
+          "taskRunId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         },
         "required": [

@@ -42,18 +42,20 @@ type Router struct {
 	assets         *maturehttp.AssetHandler
 	archives       *maturehttp.CanvasArchiveHandler
 	executeArchive func(context.Context, string) (any, error)
+	executeFrames  func(context.Context, string) (any, error)
 	uploadBlob     func(context.Context, io.Reader) (string, int64, error)
 	access         applicationprojectaccess.MemberChecker
 }
 
-func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), access applicationprojectaccess.MemberChecker) http.Handler {
-	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, uploadBlob: uploadBlob, access: access}
+func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), access applicationprojectaccess.MemberChecker) http.Handler {
+	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, executeFrames: executeFrames, uploadBlob: uploadBlob, access: access}
 	router := chi.NewRouter()
 	router.Use(serviceAuthentication(internalToken))
 	router.Get("/livez", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	router.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
+	router.Post("/internal/worker/video-generations/{taskRunId}/extract-frames", transport.internalFrameRoute())
 	router.Post("/uploads", transport.uploadRoute())
 	router.Post("/cover-uploads", transport.binaryUploadRoute("StageCoverUpload", maxCoverUploadBytes))
 	router.Get("/admin/projects", transport.workspaceAdminRoute("ListProjects", func(ctx context.Context, request *http.Request) (any, error) {
@@ -780,6 +782,21 @@ func (transport *Router) internalArchiveRoute() http.HandlerFunc {
 			return
 		}
 		value, err := transport.executeArchive(request.Context(), chi.URLParam(request, "archiveId"))
+		if err != nil {
+			writeProblem(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toSnakeJSON(value))
+	}
+}
+
+func (transport *Router) internalFrameRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		if strings.TrimSpace(request.Header.Get("X-Caller-Service")) != "executor" || transport.executeFrames == nil {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		value, err := transport.executeFrames(request.Context(), chi.URLParam(request, "taskRunId"))
 		if err != nil {
 			writeProblem(w, err)
 			return

@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/worker/video-generations/{taskRunId}/extract-frames": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasExtractVideoFrames"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects": {
         parameters: {
             query?: never;
@@ -1027,7 +1043,6 @@ export interface components {
             items: components["schemas"]["CanvasAssetReviews"][];
         };
         CanvasBatchGetCanvasNodeStatesResponse: {
-            draft_sessions: components["schemas"]["CanvasNodeDraftSession"][];
             items: components["schemas"]["CanvasNodeState"][];
         };
         CanvasBatchGetResourceAssetGenerationStatesResponse: {
@@ -1464,6 +1479,7 @@ export interface components {
             created_at: string;
             created_by: string;
             current_asset_id?: string;
+            draft_session?: components["schemas"]["CanvasNodeDraftSession"];
             first_frame_asset_id?: string;
             first_frame_url?: string;
             generation_config?: components["schemas"]["CanvasNodeGenerationConfig"];
@@ -2819,6 +2835,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasProjectCanvasVideoArchiveExport"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasExtractVideoFrames: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasEmpty"];
                 };
             };
             /** @description Invalid input */

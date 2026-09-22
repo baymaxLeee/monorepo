@@ -308,8 +308,8 @@ func (service *Service) validateImageConfig(
 		capability = applicationmodel.CapabilityResourceImageToImage
 	}
 	resolved, err := service.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{{Capability: capability, ModelID: draft.Config.ModelID}})
 	if err != nil {
 		if errors.Is(err, applicationmodel.ErrDefaultModelNotConfigured) {

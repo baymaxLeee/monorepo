@@ -183,8 +183,8 @@ func (s *Service) Start(ctx context.Context, scope applicationcanvas.Scope, proj
 		return Session{}, errno.New(errno.ErrInvalidArgument)
 	}
 	resolved, err := s.models.Resolve(ctx, applicationmodel.Actor{
-		TenantID: scope.TenantID,
-		UserID:   scope.CallerID,
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		UserID: scope.CallerID,
 	}, []applicationmodel.Requirement{{
 		Capability: applicationmodel.CapabilityCanvasTextGeneration,
 		ModelID:    node.GenerationConfig.ModelServiceID,

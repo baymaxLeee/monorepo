@@ -42,8 +42,8 @@ function formatTip(categories: AssetCategory[]) {
 const FORMAT_TIP_POPUP = "max-h-none max-w-none rounded-xl p-3";
 
 const ADD_ASSET_BUTTON_CLASS =
-  "flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-muted bg-background p-0 text-[27px] text-muted-foreground";
-const ACTIVE_ADD_ASSET_BUTTON_CLASS = "cursor-pointer hover:border-muted-foreground hover:text-foreground";
+  "flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-muted-foreground/40 bg-background p-0 text-[27px] text-muted-foreground outline-hidden focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+const ACTIVE_ADD_ASSET_BUTTON_CLASS = "cursor-pointer hover:border-muted-foreground/70 hover:text-foreground";
 
 // AssetStrip 挂载到 body 的浮层需要高于宿主弹窗。
 const MODAL_POPUP_Z_INDEX = 1002;

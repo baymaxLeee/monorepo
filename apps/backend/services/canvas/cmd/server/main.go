@@ -22,6 +22,7 @@ import (
 	applicationcanvasimagegeneration "github.com/example/monorepo/canvas/internal/application/canvasimagegeneration"
 	applicationcanvastextgeneration "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
 	applicationdeletion "github.com/example/monorepo/canvas/internal/application/deletion"
+	applicationfirstlastframe "github.com/example/monorepo/canvas/internal/application/firstlastframe"
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
 	applicationprojectcleanup "github.com/example/monorepo/canvas/internal/application/projectcleanup"
@@ -41,6 +42,7 @@ import (
 	coverimagestore "github.com/example/monorepo/canvas/internal/infrastructure/coverimage"
 	executorclient "github.com/example/monorepo/canvas/internal/infrastructure/executor"
 	canvasarchivemedia "github.com/example/monorepo/canvas/internal/infrastructure/media/canvasarchive"
+	firstlastframemedia "github.com/example/monorepo/canvas/internal/infrastructure/media/firstlastframe"
 	"github.com/example/monorepo/canvas/internal/infrastructure/observability"
 	assetpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/asset"
 	benefitpackagepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/benefitpackage"
@@ -353,9 +355,27 @@ func run() error {
 		applicationimagegeneration.WithProjectUsage(projectUsageCalls, projectUsageFinalizer),
 	)
 	resourceGenerationCleanup := resourceGenerationDeletion{engine: imageEngine, runs: imageRepository, queue: deletionQueue}
+	frameTerminalCoordinator, err := applicationtask.NewTerminalCoordinator(
+		taskRepository,
+		applicationvideogeneration.NewFirstLastFrameParentAggregator(projectUsageFinalizer),
+	)
+	if err != nil {
+		return err
+	}
+	frames := applicationfirstlastframe.NewService(
+		videoRepository, taskRepository, transactions, utcClock{},
+		applicationfirstlastframe.WithAssets(assetService),
+		applicationfirstlastframe.WithAssetReferences(assetService),
+		applicationfirstlastframe.WithTerminalCoordinator(frameTerminalCoordinator),
+	)
+	frameRuntime := firstlastframemedia.NewRuntime(
+		frames, taskRepository, transactions, storageClient, utcClock{}, "",
+	)
+	frameWorkflows := executorclient.NewFirstLastFrameWorkflowStore(db, executorClient, frames, taskRepository)
+	go frameWorkflows.Run(ctx)
 	videos := applicationvideogeneration.NewService(
 		nodeRepository, taskRepository, taskRepository, videoRepository,
-		provider.NewCanvasNodeVideoProvider(providerClient), artifacts, artifacts,
+		provider.NewCanvasNodeVideoProvider(providerClient), artifacts, artifacts, taskRepository,
 		transactions, canvasStatistics, uuidGenerator{}, utcClock{},
 		applicationvideogeneration.WithModelCatalog(models),
 		applicationvideogeneration.WithFrameAssets(assetService),
@@ -528,6 +548,9 @@ func run() error {
 		maturehttp.NewCanvasArchiveHandler(archiveService, archiveRuntime),
 		func(ctx context.Context, taskRunID string) (any, error) {
 			return archiveRuntime.Execute(ctx, taskRunID)
+		},
+		func(ctx context.Context, taskRunID string) (any, error) {
+			return frameRuntime.Execute(ctx, taskRunID)
 		},
 		func(ctx context.Context, reader io.Reader) (string, int64, error) {
 			return artifacts.UploadBlob(ctx, "", "", reader)

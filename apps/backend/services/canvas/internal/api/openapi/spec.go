@@ -84,6 +84,7 @@ var operations = []operationSpec{
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}:cancel", "canvasCancelArchive", nil, contractType[*contractbase.Empty]()},
 	{"GET", "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}/content", "canvasArchiveContent", nil, nil},
 	{"POST", "/internal/worker/archives/{archiveId}/execute", "canvasExecuteArchive", nil, contractType[*contractcanvas.ProjectCanvasVideoArchiveExport]()},
+	{"POST", "/internal/worker/video-generations/{taskRunId}/extract-frames", "canvasExtractVideoFrames", nil, contractType[*contractbase.Empty]()},
 	{"GET", "/projects/{projectId}/canvases/{canvasId}/nodes", "canvasGetGraph", nil, contractType[*contractcanvasnode.GetCanvasGraphResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes", "canvasCreateNode", contractType[*contractcanvasnode.CreateCanvasNodeRequest](), contractType[*contractcanvasnode.CreateCanvasNodeResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/assets", "canvasCreateAsset", contractType[*contractcanvasnode.CreateCanvasAssetRequest](), contractType[*contractcanvasnode.CreateCanvasAssetResponse]()},

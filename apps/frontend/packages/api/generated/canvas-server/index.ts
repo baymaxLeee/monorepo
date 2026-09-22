@@ -2144,6 +2144,15 @@ const canvasExecuteArchive = (
       options);
     }
 
+const canvasExtractVideoFrames = (
+    taskRunId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasEmpty>>,) => {
+      return apiMutator<CanvasEmpty>(
+      {url: `/api/canvas-server/internal/worker/video-generations/${taskRunId}/extract-frames`, method: 'POST'
+    },
+      options);
+    }
+
 const canvasListProjects = (
     params: CanvasListProjectsParams,
  options?: SecondParameter<typeof apiMutator<CanvasListProjectsByMemberResponse>>,) => {
@@ -2977,7 +2986,7 @@ const canvasStageUpload = (
       options);
     }
 
-return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasStageCoverUpload,canvasExecuteArchive,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats,canvasStageUpload}};
+return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasStageCoverUpload,canvasExecuteArchive,canvasExtractVideoFrames,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats,canvasStageUpload}};
 export type CanvasAdminListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminListProjects']>>>
 export type CanvasAdminCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminCreateProject']>>>
 export type CanvasAdminDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminDeleteProject']>>>
@@ -2987,6 +2996,7 @@ export type CanvasDownloadProjectUsageResult = NonNullable<Awaited<ReturnType<Re
 export type CanvasListAvailableBenefitPackagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListAvailableBenefitPackages']>>>
 export type CanvasStageCoverUploadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStageCoverUpload']>>>
 export type CanvasExecuteArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasExecuteArchive']>>>
+export type CanvasExtractVideoFramesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasExtractVideoFrames']>>>
 export type CanvasListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListProjects']>>>
 export type CanvasCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateProject']>>>
 export type CanvasDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteProject']>>>
