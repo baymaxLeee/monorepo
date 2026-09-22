@@ -31,6 +31,7 @@ import (
 
 const apiVersion = "2026-07-31"
 const maxStagedUploadBytes int64 = 512 << 20
+const maxCoverUploadBytes int64 = 2 << 20
 
 type Router struct {
 	projects       *maturehttp.ProjectHandler
@@ -54,6 +55,7 @@ func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projec
 	})
 	router.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
 	router.Post("/uploads", transport.uploadRoute())
+	router.Post("/cover-uploads", transport.binaryUploadRoute("StageCoverUpload", maxCoverUploadBytes))
 	router.Get("/admin/projects", transport.workspaceAdminRoute("ListProjects", func(ctx context.Context, request *http.Request) (any, error) {
 		workspace := metadataWorkspace(request)
 		pageSize, err := requiredPositiveInt32Query(request, "page_size")
@@ -824,8 +826,12 @@ func (transport *Router) archiveContentRoute() http.HandlerFunc {
 type endpoint func(context.Context, *http.Request) (any, error)
 
 func (transport *Router) uploadRoute() http.HandlerFunc {
+	return transport.binaryUploadRoute("StageUpload", maxStagedUploadBytes)
+}
+
+func (transport *Router) binaryUploadRoute(action string, maximumBytes int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
-		metadata, err := metadataFromRequest(request, "StageUpload")
+		metadata, err := metadataFromRequest(request, action)
 		if err != nil {
 			writeProblem(w, errno.New(errno.ErrForbidden))
 			return
@@ -834,19 +840,19 @@ func (transport *Router) uploadRoute() http.HandlerFunc {
 			writeProblem(w, errno.New(errno.ErrConfigurationError))
 			return
 		}
-		if request.ContentLength > maxStagedUploadBytes {
+		if request.ContentLength > maximumBytes {
 			writeProblem(w, errno.New(errno.ErrInvalidArgument))
 			return
 		}
 		ctx := requestcontext.WithMetadata(request.Context(), metadata)
-		request.Body = http.MaxBytesReader(w, request.Body, maxStagedUploadBytes)
+		request.Body = http.MaxBytesReader(w, request.Body, maximumBytes)
 		blobID, size, err := transport.uploadBlob(ctx, request.Body)
 		if err != nil {
 			var tooLarge *http.MaxBytesError
 			if errors.As(err, &tooLarge) {
 				err = errno.New(errno.ErrInvalidArgument)
 			}
-			slog.Error("canvas request failed", "action", "StageUpload", "error", err)
+			slog.Error("canvas request failed", "action", action, "error", err)
 			writeProblem(w, err)
 			return
 		}

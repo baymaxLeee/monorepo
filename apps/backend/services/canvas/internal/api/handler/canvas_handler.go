@@ -228,7 +228,8 @@ func canvasSortDirection(sort *thriftcanvas.ProjectCanvasSort) (applicationcanva
 func canvasSummary(item domaincanvas.Canvas) *thriftcanvas.ProjectCanvasSummary {
 	return &thriftcanvas.ProjectCanvasSummary{
 		CanvasID: item.ID, ProjectID: item.ProjectID, Name: item.Name, CoverImagePath: cloneString(item.CoverImagePath),
-		CreatedBy: item.CreatedBy, CreatedAt: timestamp(item.CreatedAt), UpdatedAt: timestamp(item.UpdatedAt),
+		CoverImageURL: optionalString(item.CoverImageURL),
+		CreatedBy:     item.CreatedBy, CreatedAt: timestamp(item.CreatedAt), UpdatedAt: timestamp(item.UpdatedAt),
 		Stats: &thriftcanvas.ProjectCanvasStats{
 			CanvasNodeCount: item.CanvasNodeCount, SelectedVideoDurationMillis: item.SelectedVideoDurationMillis,
 		},

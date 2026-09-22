@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cover-uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasStageCoverUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/worker/archives/{archiveId}/execute": {
         parameters: {
             query?: never;
@@ -1382,6 +1398,7 @@ export interface components {
         };
         CanvasMemberProjectDetail: {
             cover_image_path?: string;
+            cover_image_url?: string;
             created_at: string;
             created_by: string;
             name: string;
@@ -1391,6 +1408,7 @@ export interface components {
         };
         CanvasMemberProjectSummary: {
             cover_image_path?: string;
+            cover_image_url?: string;
             created_at: string;
             created_by: string;
             name: string;
@@ -1743,6 +1761,7 @@ export interface components {
         CanvasProjectCanvasSummary: {
             canvas_id: string;
             cover_image_path?: string;
+            cover_image_url?: string;
             created_at: string;
             created_by: string;
             default_view: components["schemas"]["CanvasViewMode"];
@@ -1777,6 +1796,7 @@ export interface components {
         CanvasProjectCanvasVideoArchiveExportSortField: 1;
         CanvasProjectDetail: {
             cover_image_path?: string;
+            cover_image_url?: string;
             created_at: string;
             created_by: string;
             member_user_ids: string[];
@@ -1894,6 +1914,7 @@ export interface components {
         };
         CanvasProjectSummary: {
             cover_image_path?: string;
+            cover_image_url?: string;
             created_at: string;
             created_by: string;
             member_user_ids: string[];
@@ -2686,6 +2707,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasListAvailableBenefitPackagesResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasStageCoverUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasStagedUpload"];
                 };
             };
             /** @description Invalid input */

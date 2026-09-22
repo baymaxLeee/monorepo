@@ -91,6 +91,8 @@ type ProjectSummary struct {
 	Name string `json:"Name"`
 	// CoverImagePath 是已通过 Up 长期化的封面图片 path。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
+	CoverImageURL *string `json:"CoverImageURL,omitempty"`
 	// CreatedBy 是项目创建用户 ID。
 	CreatedBy string `json:"CreatedBy"`
 	// CreatedAt 是项目创建时间。
@@ -175,6 +177,8 @@ type ProjectDetail struct {
 	Name string `json:"Name"`
 	// CoverImagePath 是已通过 Up 长期化的封面图片 path。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
+	CoverImageURL *string `json:"CoverImageURL,omitempty"`
 	// CreatedBy 是项目创建用户 ID。
 	CreatedBy string `json:"CreatedBy"`
 	// CreatedAt 是项目创建时间。
@@ -286,6 +290,7 @@ type MemberProjectSummary struct {
 	ProjectID      string           `json:"ProjectID"`
 	Name           string           `json:"Name"`
 	CoverImagePath *string          `json:"CoverImagePath,omitempty"`
+	CoverImageURL  *string          `json:"CoverImageURL,omitempty"`
 	CreatedBy      string           `json:"CreatedBy"`
 	CreatedAt      common.Timestamp `json:"CreatedAt"`
 	UpdatedAt      common.Timestamp `json:"UpdatedAt"`
@@ -357,6 +362,7 @@ type MemberProjectDetail struct {
 	ProjectID      string           `json:"ProjectID"`
 	Name           string           `json:"Name"`
 	CoverImagePath *string          `json:"CoverImagePath,omitempty"`
+	CoverImageURL  *string          `json:"CoverImageURL,omitempty"`
 	CreatedBy      string           `json:"CreatedBy"`
 	CreatedAt      common.Timestamp `json:"CreatedAt"`
 	UpdatedAt      common.Timestamp `json:"UpdatedAt"`

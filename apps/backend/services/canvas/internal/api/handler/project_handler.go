@@ -382,7 +382,8 @@ func projectSortDirection(sort *thriftproject.ProjectSort) (applicationproject.S
 func projectSummary(project domainproject.Project) *thriftproject.ProjectSummary {
 	return &thriftproject.ProjectSummary{
 		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
-		CreatedBy: project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
+		CoverImageURL: optionalString(project.CoverImageURL),
+		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats: &thriftproject.ProjectStats{
 			CanvasCount: project.CanvasCount, SelectedVideoDurationMillis: project.SelectedVideoDurationMillis,
 			ResourceCount: project.ResourceCount,
@@ -394,7 +395,8 @@ func projectSummary(project domainproject.Project) *thriftproject.ProjectSummary
 func memberProjectSummary(project domainproject.Project) *thriftproject.MemberProjectSummary {
 	return &thriftproject.MemberProjectSummary{
 		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
-		CreatedBy: project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
+		CoverImageURL: optionalString(project.CoverImageURL),
+		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats: projectStats(project),
 	}
 }
@@ -406,7 +408,8 @@ func timestamp(value time.Time) thriftcommon.Timestamp {
 func projectDetail(project domainproject.Project) *thriftproject.ProjectDetail {
 	return &thriftproject.ProjectDetail{
 		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
-		CreatedBy: project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
+		CoverImageURL: optionalString(project.CoverImageURL),
+		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats:         projectStats(project),
 		MemberUserIDs: append([]string(nil), project.MemberIDs...),
 	}
@@ -422,7 +425,8 @@ func projectDetailWithUsage(result applicationproject.ProjectWithUsage) *thriftp
 func memberProjectDetail(project domainproject.Project) *thriftproject.MemberProjectDetail {
 	return &thriftproject.MemberProjectDetail{
 		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
-		CreatedBy: project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
+		CoverImageURL: optionalString(project.CoverImageURL),
+		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats: projectStats(project),
 	}
 }

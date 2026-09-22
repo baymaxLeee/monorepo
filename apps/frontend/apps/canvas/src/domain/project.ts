@@ -123,6 +123,7 @@ export interface MemberProjectDetail {
   ProjectID: string;
   Name: string;
   CoverImagePath?: string;
+  CoverImageURL?: string;
   CreatedBy: string;
   CreatedAt: string;
   UpdatedAt: string;
@@ -134,6 +135,7 @@ export interface MemberProjectSummary {
   ProjectID: string;
   Name: string;
   CoverImagePath?: string;
+  CoverImageURL?: string;
   CreatedBy: string;
   CreatedAt: string;
   UpdatedAt: string;
@@ -148,6 +150,8 @@ export interface ProjectDetail {
   Name: string;
   /** CoverImagePath 是已通过 Up 长期化的封面图片 path。 */
   CoverImagePath?: string;
+  /** CoverImageURL 是只用于展示的短期签名 URL。 */
+  CoverImageURL?: string;
   /** CreatedBy 是项目创建用户 ID。 */
   CreatedBy: string;
   /** CreatedAt 是项目创建时间。 */
@@ -307,6 +311,8 @@ export interface ProjectSummary {
   Name: string;
   /** CoverImagePath 是已通过 Up 长期化的封面图片 path。 */
   CoverImagePath?: string;
+  /** CoverImageURL 是只用于展示的短期签名 URL。 */
+  CoverImageURL?: string;
   /** CreatedBy 是项目创建用户 ID。 */
   CreatedBy: string;
   /** CreatedAt 是项目创建时间。 */

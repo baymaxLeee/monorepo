@@ -300,6 +300,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (ProjectWithUsa
 		}
 		return ProjectWithUsage{}, classifyRepositoryError(err)
 	}
+	created = s.enrichedCoverImage(ctx, created)
 	return projectWithUsage(created, input.UsageLimit, 0), nil
 }
 
@@ -397,6 +398,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (ProjectWithUsa
 	if !slices.Equal(previousMembers, current.MemberIDs) {
 		s.invalidateMemberCache(ctx, input.Scope, current.ID)
 	}
+	current = s.enrichedCoverImage(ctx, current)
 	return projectWithUsage(current, input.UsageLimit, appliedPolicy.UsedAmount), nil
 }
 
@@ -464,6 +466,7 @@ func (s *Service) UpdateByMember(ctx context.Context, input UpdateByMemberInput)
 		)
 		return domainproject.Project{}, classifyRepositoryError(err)
 	}
+	current = s.enrichedCoverImage(ctx, current)
 	return current, nil
 }
 
@@ -603,6 +606,10 @@ func (s *Service) registerCoverImage(
 		if errors.Is(err, applicationcoverimage.ErrTooLarge) {
 			return nil, errno.Wrap(errno.ErrCoverImageTooLarge, err)
 		}
+		if errors.Is(err, applicationcoverimage.ErrUnsupportedFormat) ||
+			errors.Is(err, applicationcoverimage.ErrInvalidReference) {
+			return nil, errno.Wrap(errno.ErrInvalidArgument, err)
+		}
 		if errors.Is(err, applicationcoverimage.ErrIDGeneration) {
 			return nil, preserveOrWrap(err, errno.ErrInternalError)
 		}
@@ -616,6 +623,7 @@ func (s *Service) registerCoverImage(
 	}
 	project.CoverImageID = registration.ID
 	project.CoverImageSHA256 = registration.SHA256
+	project.CoverImageContentType = registration.ContentType
 	project.CoverImageSizeBytes = registration.SizeBytes
 	return &registration, nil
 }
@@ -626,7 +634,8 @@ func coverImageRegistration(project domainproject.Project) *applicationcoverimag
 	}
 	return &applicationcoverimage.Registration{
 		Path: *project.CoverImagePath, ID: project.CoverImageID,
-		SHA256: project.CoverImageSHA256, SizeBytes: project.CoverImageSizeBytes,
+		SHA256: project.CoverImageSHA256, ContentType: project.CoverImageContentType,
+		SizeBytes: project.CoverImageSizeBytes,
 	}
 }
 
@@ -714,6 +723,7 @@ func (s *Service) Get(ctx context.Context, input GetInput) (domainproject.Projec
 	if err != nil {
 		return domainproject.Project{}, classifyRepositoryError(err)
 	}
+	project = s.enrichedCoverImage(ctx, project)
 	return project, nil
 }
 
@@ -772,7 +782,9 @@ func (s *Service) BatchGet(ctx context.Context, input BatchGetInput) ([]domainpr
 	if err != nil {
 		return nil, classifyRepositoryError(err)
 	}
-	return orderProjects(items, ids), nil
+	items = orderProjects(items, ids)
+	s.enrichCoverImages(ctx, items)
+	return items, nil
 }
 
 func (s *Service) List(ctx context.Context, input ListInput) ([]domainproject.Project, int64, error) {
@@ -805,7 +817,33 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]domainproject.Pr
 	if err != nil {
 		return nil, 0, classifyRepositoryError(err)
 	}
+	s.enrichCoverImages(ctx, projects)
 	return projects, total, nil
+}
+
+func (s *Service) enrichCoverImages(ctx context.Context, projects []domainproject.Project) {
+	if s.covers == nil {
+		return
+	}
+	registrations := make([]applicationcoverimage.Registration, 0, len(projects))
+	for _, project := range projects {
+		if registration := coverImageRegistration(project); registration != nil {
+			registrations = append(registrations, *registration)
+		}
+	}
+	urls, err := s.covers.Presign(ctx, registrations)
+	if err != nil {
+		return
+	}
+	for index := range projects {
+		projects[index].CoverImageURL = urls[projects[index].CoverImageID]
+	}
+}
+
+func (s *Service) enrichedCoverImage(ctx context.Context, project domainproject.Project) domainproject.Project {
+	projects := []domainproject.Project{project}
+	s.enrichCoverImages(ctx, projects)
+	return projects[0]
 }
 
 func isValidScope(scope Scope) bool {

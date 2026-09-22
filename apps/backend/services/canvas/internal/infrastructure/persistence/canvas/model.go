@@ -17,6 +17,7 @@ type canvasRow struct {
 	CoverImagePath              *string            `gorm:"type:varchar(128)"`
 	CoverImageID                *persistenceid.UUID
 	CoverImageSHA256            *string               `gorm:"type:varchar(64)"`
+	CoverImageContentType       *string               `gorm:"type:varchar(32)"`
 	CoverImageSizeBytes         int64                 `gorm:"not null;default:0"`
 	CanvasNodeCount             int32                 `gorm:"not null;default:0"`
 	SelectedVideoDurationMillis int64                 `gorm:"not null;default:0"`

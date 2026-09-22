@@ -1,5 +1,6 @@
+import { stageCanvasCoverUpload } from "@repo/api";
 import { ImagePlus, X } from "lucide-react";
-import { type ChangeEvent, type DragEvent, type ReactNode, useRef, useState } from "react";
+import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import t from "@/utils/i18n";
 
@@ -23,6 +24,7 @@ export function CoverImage({
 
 export function CoverImageUploader({
   value,
+  previewURL,
   onChange,
   onUploadingChange,
   imageAlt = t("封面"),
@@ -33,6 +35,7 @@ export function CoverImageUploader({
   showReplaceAction = false,
 }: {
   value?: string;
+  previewURL?: string;
   onChange?: (value?: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
   imageAlt?: string;
@@ -43,7 +46,32 @@ export function CoverImageUploader({
   showReplaceAction?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadRef = useRef<AbortController | undefined>(undefined);
+  const objectURLRef = useRef<string | undefined>(undefined);
+  const uploadedBlobIDRef = useRef<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
+  const [localPreviewURL, setLocalPreviewURL] = useState<string>();
+
+  const clearLocalPreview = () => {
+    if (objectURLRef.current) URL.revokeObjectURL(objectURLRef.current);
+    objectURLRef.current = undefined;
+    setLocalPreviewURL(undefined);
+  };
+
+  useEffect(() => {
+    if (value !== uploadedBlobIDRef.current) {
+      uploadedBlobIDRef.current = undefined;
+      clearLocalPreview();
+    }
+  }, [value]);
+
+  useEffect(
+    () => () => {
+      uploadRef.current?.abort();
+      if (objectURLRef.current) URL.revokeObjectURL(objectURLRef.current);
+    },
+    [],
+  );
 
   const selectFile = (file?: File) => {
     if (!file) return;
@@ -55,20 +83,30 @@ export function CoverImageUploader({
       Message.error(t("封面图片不能超过 2MB"));
       return;
     }
+    uploadRef.current?.abort();
+    const controller = new AbortController();
+    uploadRef.current = controller;
     setUploading(true);
     onUploadingChange?.(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      onChange?.(typeof reader.result === "string" ? reader.result : undefined);
-      setUploading(false);
-      onUploadingChange?.(false);
-    };
-    reader.onerror = () => {
-      setUploading(false);
-      onUploadingChange?.(false);
-      Message.error(t("封面读取失败，请重新选择"));
-    };
-    reader.readAsDataURL(file);
+    void stageCanvasCoverUpload(file, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        clearLocalPreview();
+        const objectURL = URL.createObjectURL(file);
+        objectURLRef.current = objectURL;
+        uploadedBlobIDRef.current = result.blob_id;
+        setLocalPreviewURL(objectURL);
+        onChange?.(result.blob_id);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) Message.error(t("封面上传失败，请重新选择"));
+      })
+      .finally(() => {
+        if (uploadRef.current !== controller) return;
+        uploadRef.current = undefined;
+        setUploading(false);
+        onUploadingChange?.(false);
+      });
   };
 
   const select = (event: ChangeEvent<HTMLInputElement>) => {
@@ -93,14 +131,18 @@ export function CoverImageUploader({
         onClick={() => inputRef.current?.click()}
         type="button"
       >
-        {value ? (
-          <CoverImage alt={imageAlt} className={imageClassName ?? "h-full w-full object-cover"} path={value} />
+        {localPreviewURL || previewURL ? (
+          <CoverImage
+            alt={imageAlt}
+            className={imageClassName ?? "h-full w-full object-cover"}
+            path={localPreviewURL ?? previewURL ?? ""}
+          />
         ) : (
           (emptyContent ?? <ImagePlus />)
         )}
       </button>
       <input ref={inputRef} accept="image/png,image/jpeg" className="sr-only" onChange={select} type="file" />
-      {value && showReplaceAction ? (
+      {(localPreviewURL || previewURL) && showReplaceAction ? (
         <div className={styles.replaceMask}>
           <ImagePlus className="size-10" />
         </div>
@@ -110,13 +152,15 @@ export function CoverImageUploader({
           <Spin />
         </div>
       ) : null}
-      {value && !uploading ? (
+      {(localPreviewURL || previewURL) && !uploading ? (
         <button
           aria-label={removeAriaLabel}
           className={styles.removeButton}
           onClick={(event) => {
             event.stopPropagation();
-            onChange?.(undefined);
+            uploadedBlobIDRef.current = "";
+            clearLocalPreview();
+            onChange?.("");
           }}
           type="button"
         >

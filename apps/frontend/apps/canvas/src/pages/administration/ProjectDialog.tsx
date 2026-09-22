@@ -85,7 +85,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
             ? [user.id]
             : [],
       UsageLimit: state?.mode === "edit" && "UsageLimit" in state.project ? state.project.UsageLimit : undefined,
-      CoverImagePath: state?.mode === "edit" ? state.project.CoverImagePath : undefined,
+      CoverImagePath: undefined,
     });
     setMemberQuery("");
     setCoverUploading(false);
@@ -151,7 +151,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
         form.handleSubmit(async (values) => {
           if (!state) return;
           if (memberOnlyEdit && state.mode === "edit") {
-            await canvasUpdateProject(state.project.ProjectID, { cover_image_path: values.CoverImagePath || "" });
+            await canvasUpdateProject(state.project.ProjectID, { cover_image_path: values.CoverImagePath });
             onSuccess();
             onClose();
             return;
@@ -160,7 +160,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
             await updateProjectWithUsage({
               ProjectID: state.project.ProjectID,
               ...values,
-              CoverImagePath: values.CoverImagePath ?? "",
+              CoverImagePath: values.CoverImagePath,
             });
           } else {
             await createProjectWithUsage(values);
@@ -295,6 +295,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                 <FormLabel>{t("项目封面")}</FormLabel>
                 <FormControl>
                   <ProjectCoverUploader
+                    key={state?.mode === "edit" ? state.project.ProjectID : (state?.mode ?? "closed")}
                     className={styles.coverUploader}
                     emptyContent={
                       <div className={styles.coverEmpty}>
@@ -308,6 +309,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                     imageClassName={styles.coverImageContain}
                     onChange={field.onChange}
                     onUploadingChange={setCoverUploading}
+                    previewURL={state?.mode === "edit" ? state.project.CoverImageURL : undefined}
                     showReplaceAction
                     value={field.value}
                   />

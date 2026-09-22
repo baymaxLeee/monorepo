@@ -15,6 +15,7 @@ function canvasFromDTO(value: Awaited<ReturnType<typeof canvasGetCanvas>>["canva
     ProjectID: value.project_id,
     Name: value.name,
     CoverImagePath: value.cover_image_path,
+    CoverImageURL: value.cover_image_url,
     CreatedBy: value.created_by,
     CreatedAt: value.created_at,
     UpdatedAt: value.updated_at,
@@ -38,7 +39,7 @@ export async function saveCanvas(projectId: string, state: CanvasDialogState, va
       (
         await canvasUpdateCanvas(projectId, state.canvas.CanvasID, {
           name: values.Name,
-          cover_image_path: values.CoverImagePath ?? "",
+          cover_image_path: values.CoverImagePath,
         })
       ).canvas,
     );

@@ -193,6 +193,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domaincanvas.C
 		return domaincanvas.Canvas{}, classifyRepositoryError(err)
 	}
 	s.refreshProjectStatistics(ctx, input.Scope, input.ProjectID, applicationprojectstatistics.CanvasCountField)
+	created = s.enrichedCoverImage(ctx, created)
 	return created, nil
 }
 
@@ -204,6 +205,7 @@ func (s *Service) Get(ctx context.Context, input GetInput) (domaincanvas.Canvas,
 	if err != nil {
 		return domaincanvas.Canvas{}, classifyRepositoryError(err)
 	}
+	item = s.enrichedCoverImage(ctx, item)
 	return item, nil
 }
 
@@ -219,7 +221,9 @@ func (s *Service) BatchGet(ctx context.Context, input BatchGetInput) ([]domainca
 	if err != nil {
 		return nil, classifyRepositoryError(err)
 	}
-	return orderCanvases(items, ids), nil
+	items = orderCanvases(items, ids)
+	s.enrichCoverImages(ctx, items)
+	return items, nil
 }
 
 func (s *Service) List(ctx context.Context, input ListInput) ([]domaincanvas.Canvas, int64, error) {
@@ -246,6 +250,7 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]domaincanvas.Can
 		return nil, 0, classifyRepositoryError(err)
 	}
 	s.enrichFallbackCovers(ctx, input.Scope, input.ProjectID, items)
+	s.enrichCoverImages(ctx, items)
 	return items, total, nil
 }
 
@@ -354,7 +359,33 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domaincanvas.C
 		)
 		return domaincanvas.Canvas{}, classifyRepositoryError(err)
 	}
+	current = s.enrichedCoverImage(ctx, current)
 	return current, nil
+}
+
+func (s *Service) enrichCoverImages(ctx context.Context, canvases []domaincanvas.Canvas) {
+	if s.covers == nil {
+		return
+	}
+	registrations := make([]applicationcoverimage.Registration, 0, len(canvases))
+	for _, canvas := range canvases {
+		if registration := coverImageRegistration(canvas); registration != nil {
+			registrations = append(registrations, *registration)
+		}
+	}
+	urls, err := s.covers.Presign(ctx, registrations)
+	if err != nil {
+		return
+	}
+	for index := range canvases {
+		canvases[index].CoverImageURL = urls[canvases[index].CoverImageID]
+	}
+}
+
+func (s *Service) enrichedCoverImage(ctx context.Context, canvas domaincanvas.Canvas) domaincanvas.Canvas {
+	canvases := []domaincanvas.Canvas{canvas}
+	s.enrichCoverImages(ctx, canvases)
+	return canvases[0]
 }
 
 func (s *Service) UpdateView(ctx context.Context, input UpdateViewInput) error {
@@ -470,6 +501,10 @@ func (s *Service) registerCoverImage(
 		if errors.Is(err, applicationcoverimage.ErrTooLarge) {
 			return nil, errno.Wrap(errno.ErrCoverImageTooLarge, err)
 		}
+		if errors.Is(err, applicationcoverimage.ErrUnsupportedFormat) ||
+			errors.Is(err, applicationcoverimage.ErrInvalidReference) {
+			return nil, errno.Wrap(errno.ErrInvalidArgument, err)
+		}
 		if errors.Is(err, applicationcoverimage.ErrIDGeneration) {
 			return nil, preserveOrWrap(err, errno.ErrInternalError)
 		}
@@ -483,6 +518,7 @@ func (s *Service) registerCoverImage(
 	}
 	canvas.CoverImageID = registration.ID
 	canvas.CoverImageSHA256 = registration.SHA256
+	canvas.CoverImageContentType = registration.ContentType
 	canvas.CoverImageSizeBytes = registration.SizeBytes
 	return &registration, nil
 }
@@ -493,7 +529,8 @@ func coverImageRegistration(canvas domaincanvas.Canvas) *applicationcoverimage.R
 	}
 	return &applicationcoverimage.Registration{
 		Path: *canvas.CoverImagePath, ID: canvas.CoverImageID,
-		SHA256: canvas.CoverImageSHA256, SizeBytes: canvas.CoverImageSizeBytes,
+		SHA256: canvas.CoverImageSHA256, ContentType: canvas.CoverImageContentType,
+		SizeBytes: canvas.CoverImageSizeBytes,
 	}
 }
 

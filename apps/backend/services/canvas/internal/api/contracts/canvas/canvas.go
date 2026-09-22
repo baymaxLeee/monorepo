@@ -228,6 +228,8 @@ type ProjectCanvasSummary struct {
 	Name string `json:"Name"`
 	// CoverImagePath 是已通过 Up 长期化的封面图片 path。
 	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
+	CoverImageURL *string `json:"CoverImageURL,omitempty"`
 	// CreatedBy 是剧集创建用户 ID。
 	CreatedBy string `json:"CreatedBy"`
 	// CreatedAt 是剧集创建时间。

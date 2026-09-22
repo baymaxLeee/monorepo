@@ -1758,6 +1758,9 @@
           "cover_image_path": {
             "type": "string"
           },
+          "cover_image_url": {
+            "type": "string"
+          },
           "created_at": {
             "type": "string"
           },
@@ -1791,6 +1794,9 @@
         "additionalProperties": false,
         "properties": {
           "cover_image_path": {
+            "type": "string"
+          },
+          "cover_image_url": {
             "type": "string"
           },
           "created_at": {
@@ -3215,6 +3221,9 @@
           "cover_image_path": {
             "type": "string"
           },
+          "cover_image_url": {
+            "type": "string"
+          },
           "created_at": {
             "type": "string"
           },
@@ -3335,6 +3344,9 @@
         "additionalProperties": false,
         "properties": {
           "cover_image_path": {
+            "type": "string"
+          },
+          "cover_image_url": {
             "type": "string"
           },
           "created_at": {
@@ -3749,6 +3761,9 @@
         "additionalProperties": false,
         "properties": {
           "cover_image_path": {
+            "type": "string"
+          },
+          "cover_image_url": {
             "type": "string"
           },
           "created_at": {
@@ -5709,6 +5724,41 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanvasListAvailableBenefitPackagesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/cover-uploads": {
+      "post": {
+        "operationId": "canvasStageCoverUpload",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasStagedUpload"
                 }
               }
             },

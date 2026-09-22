@@ -10,6 +10,7 @@ const present = (value: Awaited<ReturnType<typeof canvasAdminGetProject>>["proje
   ProjectID: value.project_id,
   Name: value.name,
   CoverImagePath: value.cover_image_path,
+  CoverImageURL: value.cover_image_url,
   CreatedBy: value.created_by,
   CreatedAt: value.created_at,
   UpdatedAt: value.updated_at,

@@ -30,7 +30,9 @@ type Canvas struct {
 	CoverImagePath              *string
 	CoverImageID                string
 	CoverImageSHA256            string
+	CoverImageContentType       string
 	CoverImageSizeBytes         int64
+	CoverImageURL               string
 	CreatedBy                   string
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
@@ -89,6 +91,7 @@ func (v *Canvas) Update(name string, coverImagePath *string, now time.Time) erro
 		if !stringPointersEqual(v.CoverImagePath, normalizedCoverImagePath) {
 			v.CoverImageID = ""
 			v.CoverImageSHA256 = ""
+			v.CoverImageContentType = ""
 			v.CoverImageSizeBytes = 0
 		}
 		v.CoverImagePath = normalizedCoverImagePath

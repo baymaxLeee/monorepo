@@ -38,6 +38,7 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/artifact"
 	"github.com/example/monorepo/canvas/internal/infrastructure/canvasstoryboardredis"
 	"github.com/example/monorepo/canvas/internal/infrastructure/canvastextgenerationredis"
+	coverimagestore "github.com/example/monorepo/canvas/internal/infrastructure/coverimage"
 	executorclient "github.com/example/monorepo/canvas/internal/infrastructure/executor"
 	canvasarchivemedia "github.com/example/monorepo/canvas/internal/infrastructure/media/canvasarchive"
 	"github.com/example/monorepo/canvas/internal/infrastructure/observability"
@@ -271,6 +272,7 @@ func run() error {
 		URL: bootstrap.Env("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"), Token: cfg.InternalToken,
 	}
 	artifacts := artifact.New(storageClient, cfg.PublicGatewayURL)
+	coverImages := coverimagestore.New(storageClient, uuidGenerator{}, cfg.PublicGatewayURL)
 	projectUsageExporter := applicationprojectusage.NewExporter(projectUsageRepository, artifacts, uuidGenerator{}, utcClock{})
 	transactions := persistencetransaction.New(db)
 	archiveRepository := canvasarchivepersistence.NewRepository(db)
@@ -436,7 +438,7 @@ func run() error {
 	resourceHandler := maturehttp.NewResourceHandler(resourceService, assetService, resourceGenerations)
 	access := projectaccesspersistence.NewChecker(db, redisClient, log)
 	canvasService := applicationcanvas.NewService(
-		canvasRepository, nil, uuidGenerator{}, utcClock{},
+		canvasRepository, coverImages, uuidGenerator{}, utcClock{},
 		applicationcanvas.WithCanvasNodes(nodes, transactions),
 		applicationcanvas.WithCanvasDeletionPreparer(deletionRepository),
 		applicationcanvas.WithFallbackCovers(nodeRepository, assetService, nil),
@@ -444,7 +446,7 @@ func run() error {
 		applicationcanvas.WithCanvasDeletionQueue(deletionQueue),
 	)
 	projectService := applicationproject.NewService(
-		projectRepository, nil, uuidGenerator{}, utcClock{},
+		projectRepository, coverImages, uuidGenerator{}, utcClock{},
 		applicationproject.WithProjectChildCleanup(
 			applicationprojectcleanup.NewService(canvasService, assetService, resourceService),
 			nil,

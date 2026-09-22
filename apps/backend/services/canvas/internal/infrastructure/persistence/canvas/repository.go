@@ -175,13 +175,14 @@ func (r *Repository) Update(ctx context.Context, item domaincanvas.Canvas) error
 			return err
 		}
 		return tx.Model(&current).Updates(map[string]any{
-			"name":                   item.Name,
-			"cover_image_path":       cloneString(item.CoverImagePath),
-			"cover_image_id":         row.CoverImageID,
-			"cover_image_sha256":     nullableString(item.CoverImageSHA256),
-			"cover_image_size_bytes": item.CoverImageSizeBytes,
-			"revision":               item.Revision,
-			"updated_at":             item.UpdatedAt,
+			"name":                     item.Name,
+			"cover_image_path":         cloneString(item.CoverImagePath),
+			"cover_image_id":           row.CoverImageID,
+			"cover_image_sha256":       nullableString(item.CoverImageSHA256),
+			"cover_image_content_type": nullableString(item.CoverImageContentType),
+			"cover_image_size_bytes":   item.CoverImageSizeBytes,
+			"revision":                 item.Revision,
+			"updated_at":               item.UpdatedAt,
 		}).Error
 	})
 	return translateWriteError(err)
@@ -239,8 +240,9 @@ func (r *Repository) Delete(ctx context.Context, item domaincanvas.Canvas) error
 		deletedAt := soft_delete.DeletedAt(item.DeletedAt.UnixMilli())
 		if err := tx.Model(&current).Updates(map[string]any{
 			"cover_image_path": nil, "cover_image_id": nil, "cover_image_sha256": nil,
-			"cover_image_size_bytes": 0,
-			"revision":               item.Revision, "updated_at": item.UpdatedAt, "deleted_at": deletedAt,
+			"cover_image_content_type": nil,
+			"cover_image_size_bytes":   0,
+			"revision":                 item.Revision, "updated_at": item.UpdatedAt, "deleted_at": deletedAt,
 		}).Error; err != nil {
 			return err
 		}
@@ -263,7 +265,7 @@ func (r *Repository) DeleteByProject(
 	err = r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
 		var rows []canvasRow
 		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id", "revision", "cover_image_path", "cover_image_id", "cover_image_sha256", "cover_image_size_bytes").
+			Select("id", "revision", "cover_image_path", "cover_image_id", "cover_image_sha256", "cover_image_content_type", "cover_image_size_bytes").
 			Where("tenant_id = ? AND project_id = ?", scope.TenantID, projectUUID)
 		query = applyWorkspaceScope(query, scope.WorkspaceID)
 		if err := query.Find(&rows).Error; err != nil {
@@ -283,8 +285,9 @@ func (r *Repository) DeleteByProject(
 		deletedAt := soft_delete.DeletedAt(now.UnixMilli())
 		return tx.Model(&canvasRow{}).Where("id IN ?", ids).Updates(map[string]any{
 			"cover_image_path": nil, "cover_image_id": nil, "cover_image_sha256": nil,
-			"cover_image_size_bytes": 0,
-			"updated_at":             now, "deleted_at": deletedAt,
+			"cover_image_content_type": nil,
+			"cover_image_size_bytes":   0,
+			"updated_at":               now, "deleted_at": deletedAt,
 		}).Error
 	})
 	if err != nil {
@@ -325,7 +328,8 @@ func coverImageRegistrationFromRow(row canvasRow) *applicationcoverimage.Registr
 	}
 	return &applicationcoverimage.Registration{
 		Path: *row.CoverImagePath, ID: row.CoverImageID.String(),
-		SHA256: *row.CoverImageSHA256, SizeBytes: row.CoverImageSizeBytes,
+		SHA256: *row.CoverImageSHA256, ContentType: stringValue(row.CoverImageContentType),
+		SizeBytes: row.CoverImageSizeBytes,
 	}
 }
 
@@ -366,8 +370,9 @@ func rowFromDomain(item domaincanvas.Canvas) (canvasRow, error) {
 		ID: id, TenantID: item.TenantID, WorkspaceID: cloneString(item.WorkspaceID),
 		ProjectID: projectID, Name: item.Name,
 		CoverImagePath: cloneString(item.CoverImagePath), CoverImageID: coverImageID,
-		CoverImageSHA256:    nullableString(item.CoverImageSHA256),
-		CoverImageSizeBytes: item.CoverImageSizeBytes, CreatedBy: item.CreatedBy,
+		CoverImageSHA256:      nullableString(item.CoverImageSHA256),
+		CoverImageContentType: nullableString(item.CoverImageContentType),
+		CoverImageSizeBytes:   item.CoverImageSizeBytes, CreatedBy: item.CreatedBy,
 		DefaultView: int16(item.DefaultView),
 		Revision:    item.Revision,
 		CreatedAt:   item.CreatedAt, UpdatedAt: item.UpdatedAt,
@@ -383,8 +388,9 @@ func domainFromRow(row canvasRow) domaincanvas.Canvas {
 		ID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID),
 		ProjectID: row.ProjectID.String(), Name: row.Name, CoverImagePath: cloneString(row.CoverImagePath),
 		CoverImageID: uuidStringValue(row.CoverImageID), CoverImageSHA256: stringValue(row.CoverImageSHA256),
-		CoverImageSizeBytes: row.CoverImageSizeBytes,
-		CreatedBy:           row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		CoverImageContentType: stringValue(row.CoverImageContentType),
+		CoverImageSizeBytes:   row.CoverImageSizeBytes,
+		CreatedBy:             row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		CanvasNodeCount: row.CanvasNodeCount, SelectedVideoDurationMillis: row.SelectedVideoDurationMillis,
 		DefaultView: domaincanvas.ViewMode(row.DefaultView), Revision: row.Revision,
 	}

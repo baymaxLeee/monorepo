@@ -74,6 +74,18 @@ code stay in Knowledge, while Canvas keeps a small HTTP adapter.
 9. The frontend assigns signed URLs directly to `img`, `video`, and `audio`.
    The temporary authenticated-fetch-to-Blob cover path and obsolete media
    proxy use are removed as each response adopts the signed URL.
+10. Project and Canvas covers use a two-step binary upload. The browser sends
+    the original `File` body to `/cover-uploads`; JSON create/update requests
+    contain only the returned content-addressed blob ID. Data URLs and Base64
+    payloads are not part of the API contract. The dedicated route caps the
+    request at 2 MiB before storage, while the promotion boundary detects the
+    actual bytes as PNG or JPEG and repeats the size check before copying them
+    into an immutable cover-registration namespace.
+11. A cover registration persists the immutable artifact identity, trusted
+    content type, byte size, and a generated registration ID. Read responses
+    expose a derived `cover_image_url`; clients never persist that capability
+    URL or send it back as mutation input. Replacing or clearing a cover marks
+    the prior registration for the existing asynchronous cleanup flow.
 
 ## Migration and rollout
 
@@ -101,6 +113,9 @@ identities are unaffected.
   credentials.
 - Query strings are capabilities and must remain redacted by normal request
   logging.
+- Client-provided MIME headers are only an early UX hint. Canvas validates the
+  file signature after upload and accepts only PNG/JPEG bytes. Blob IDs must be
+  lowercase SHA-256 identifiers, preventing arbitrary storage-path input.
 
 ## Consequences
 
@@ -122,3 +137,14 @@ cache TTL, immutable `ArtifactID` on `Asset`, and owner/reference-aware asset
 resolution. The monorepo uses Knowledge's existing object store and platform
 Redis instead of copying AgentFrame's UP SDK, IAM credentials, or private
 configuration.
+
+The cover flow also follows the object-storage upload pattern documented by
+[Amazon S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/PresignedUrlUploadObject.html):
+upload bytes first, then persist only the object identity. Its validation
+boundary follows the
+[OWASP File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html):
+allowlist formats, distrust the request `Content-Type`, enforce a size limit,
+generate server-owned storage names, and keep uploaded content outside the web
+root. This repository proxies the small 2 MiB body through Canvas today; a
+future direct-to-object-store signed upload can replace that transport without
+changing the blob-ID association contract.

@@ -62,12 +62,13 @@ func (r *Repository) Update(ctx context.Context, project domainproject.Project) 
 		}
 
 		if err := tx.Model(&current).Updates(map[string]any{
-			"name":                   project.Name,
-			"cover_image_path":       cloneString(project.CoverImagePath),
-			"cover_image_id":         row.CoverImageID,
-			"cover_image_sha256":     nullableString(project.CoverImageSHA256),
-			"cover_image_size_bytes": project.CoverImageSizeBytes,
-			"updated_at":             project.UpdatedAt,
+			"name":                     project.Name,
+			"cover_image_path":         cloneString(project.CoverImagePath),
+			"cover_image_id":           row.CoverImageID,
+			"cover_image_sha256":       nullableString(project.CoverImageSHA256),
+			"cover_image_content_type": nullableString(project.CoverImageContentType),
+			"cover_image_size_bytes":   project.CoverImageSizeBytes,
+			"updated_at":               project.UpdatedAt,
 		}).Error; err != nil {
 			return err
 		}
@@ -90,11 +91,12 @@ func (r *Repository) UpdateByMember(ctx context.Context, project domainproject.P
 	result := r.scopeQuery(r.db.WithContext(ctx), row.TenantID, row.WorkspaceID).
 		Where("projects.id = ?", row.ID).
 		Updates(map[string]any{
-			"cover_image_path":       row.CoverImagePath,
-			"cover_image_id":         row.CoverImageID,
-			"cover_image_sha256":     row.CoverImageSHA256,
-			"cover_image_size_bytes": row.CoverImageSizeBytes,
-			"updated_at":             row.UpdatedAt,
+			"cover_image_path":         row.CoverImagePath,
+			"cover_image_id":           row.CoverImageID,
+			"cover_image_sha256":       row.CoverImageSHA256,
+			"cover_image_content_type": row.CoverImageContentType,
+			"cover_image_size_bytes":   row.CoverImageSizeBytes,
+			"updated_at":               row.UpdatedAt,
 		})
 	if result.Error != nil {
 		return translateWriteError(result.Error)
@@ -134,8 +136,9 @@ func (r *Repository) Delete(ctx context.Context, project domainproject.Project) 
 		}
 		return tx.Model(&current).Updates(map[string]any{
 			"cover_image_path": nil, "cover_image_id": nil, "cover_image_sha256": nil,
-			"cover_image_size_bytes": 0,
-			"updated_at":             project.UpdatedAt, "deleted_at": project.DeletedAt.UnixMilli(),
+			"cover_image_content_type": nil,
+			"cover_image_size_bytes":   0,
+			"updated_at":               project.UpdatedAt, "deleted_at": project.DeletedAt.UnixMilli(),
 		}).Error
 	})
 	return translateWriteError(err)
@@ -344,9 +347,10 @@ func rowFromDomain(project domainproject.Project) (projectRow, error) {
 		ID: id, TenantID: project.TenantID, WorkspaceID: cloneString(project.WorkspaceID),
 		Name: project.Name, CreatedBy: project.CreatedBy,
 		CoverImagePath: cloneString(project.CoverImagePath), CoverImageID: coverImageID,
-		CoverImageSHA256:    nullableString(project.CoverImageSHA256),
-		CoverImageSizeBytes: project.CoverImageSizeBytes,
-		CreatedAt:           project.CreatedAt, UpdatedAt: project.UpdatedAt,
+		CoverImageSHA256:      nullableString(project.CoverImageSHA256),
+		CoverImageContentType: nullableString(project.CoverImageContentType),
+		CoverImageSizeBytes:   project.CoverImageSizeBytes,
+		CreatedAt:             project.CreatedAt, UpdatedAt: project.UpdatedAt,
 	}
 	if project.DeletedAt != nil {
 		row.DeletedAt = soft_delete.DeletedAt(project.DeletedAt.UnixMilli())
@@ -370,8 +374,9 @@ func domainFromRow(row projectRow, memberIDs []string) domainproject.Project {
 		ID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID),
 		Name: row.Name, CreatedBy: row.CreatedBy, CoverImagePath: cloneString(row.CoverImagePath),
 		CoverImageID: uuidStringValue(row.CoverImageID), CoverImageSHA256: stringValue(row.CoverImageSHA256),
-		CoverImageSizeBytes: row.CoverImageSizeBytes,
-		CanvasCount:         row.CanvasCount, SelectedVideoDurationMillis: row.SelectedVideoDurationMillis, ResourceCount: row.ResourceCount,
+		CoverImageContentType: stringValue(row.CoverImageContentType),
+		CoverImageSizeBytes:   row.CoverImageSizeBytes,
+		CanvasCount:           row.CanvasCount, SelectedVideoDurationMillis: row.SelectedVideoDurationMillis, ResourceCount: row.ResourceCount,
 		MemberIDs: append([]string(nil), memberIDs...), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		DeletedAt: deletedAt(row.DeletedAt),
 	}

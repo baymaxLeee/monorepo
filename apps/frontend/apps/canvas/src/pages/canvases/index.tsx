@@ -69,7 +69,7 @@ function CanvasCard({
   onDelete: (item: canvas.ProjectCanvasSummary) => void;
 }) {
   const hasVideo = item.Stats.SelectedVideoDurationMillis > 0;
-  const coverImagePath = item.CoverImagePath;
+  const coverImagePath = item.CoverImageURL;
   const fallbackCoverImageURL = resolveUpPreviewURL(item.FallbackCoverImageURL ?? "");
 
   return (
@@ -197,6 +197,7 @@ export default function CanvasesPage() {
         ProjectID: item.project_id,
         Name: item.name,
         CoverImagePath: item.cover_image_path,
+        CoverImageURL: item.cover_image_url,
         CreatedBy: item.created_by,
         CreatedAt: item.created_at,
         UpdatedAt: item.updated_at,

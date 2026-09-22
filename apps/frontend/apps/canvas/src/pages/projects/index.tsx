@@ -215,7 +215,7 @@ export default function ProjectsPage() {
           videos: item.Stats.CanvasCount,
           duration: formatDuration(item.Stats.SelectedVideoDurationMillis),
           assets: item.Stats.ResourceCount,
-          thumbnail: item.CoverImagePath,
+          thumbnail: item.CoverImageURL,
         })),
         pageNum,
       };

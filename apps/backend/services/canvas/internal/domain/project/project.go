@@ -23,7 +23,9 @@ type Project struct {
 	CoverImagePath              *string
 	CoverImageID                string
 	CoverImageSHA256            string
+	CoverImageContentType       string
 	CoverImageSizeBytes         int64
+	CoverImageURL               string
 	MemberIDs                   []string
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
@@ -100,6 +102,7 @@ func (p *Project) Update(name string, memberIDs []string, coverImagePath *string
 		if !equalStringPointers(p.CoverImagePath, normalizedCoverImagePath) {
 			p.CoverImageID = ""
 			p.CoverImageSHA256 = ""
+			p.CoverImageContentType = ""
 			p.CoverImageSizeBytes = 0
 		}
 		p.CoverImagePath = normalizedCoverImagePath
@@ -119,6 +122,7 @@ func (p *Project) UpdateByMember(coverImagePath *string, now time.Time) error {
 	if !equalStringPointers(p.CoverImagePath, normalizedCoverImagePath) {
 		p.CoverImageID = ""
 		p.CoverImageSHA256 = ""
+		p.CoverImageContentType = ""
 		p.CoverImageSizeBytes = 0
 	}
 	p.CoverImagePath = normalizedCoverImagePath

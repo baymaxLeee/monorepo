@@ -44,7 +44,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
   useEffect(() => {
     form.reset({
       Name: state?.mode === "edit" ? state.canvas.Name : "",
-      CoverImagePath: state?.mode === "edit" ? state.canvas.CoverImagePath : undefined,
+      CoverImagePath: undefined,
     });
     setCoverUploading(false);
   }, [form, state]);
@@ -99,6 +99,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
                 <FormLabel>{t("视频封面")}</FormLabel>
                 <FormControl>
                   <CoverImageUploader
+                    key={state?.mode === "edit" ? state.canvas.CanvasID : (state?.mode ?? "closed")}
                     className={styles.coverUploader}
                     emptyContent={
                       <div className={styles.coverEmpty}>
@@ -113,6 +114,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
                     imageClassName={styles.coverImageContain}
                     onChange={field.onChange}
                     onUploadingChange={setCoverUploading}
+                    previewURL={state?.mode === "edit" ? state.canvas.CoverImageURL : undefined}
                     removeAriaLabel={t("移除视频封面")}
                     showReplaceAction
                     value={field.value}
