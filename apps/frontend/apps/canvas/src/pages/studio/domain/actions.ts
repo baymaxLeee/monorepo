@@ -1,5 +1,4 @@
 import {
-  canvasBatchGetNodeStates,
   canvasStartStoryboardDrafts,
   canvasConfirmStoryboardDrafts,
   canvasCancelStoryboardDrafts,
@@ -25,6 +24,7 @@ import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 
+import { requestCanvasState, type CanvasStatePubSub, watchCanvasDraft } from "./canvasStatePubSub";
 import { isVideoGenerationCancellationAllowed } from "./generationCancellation";
 import { materializedCanvasNodeAssetId } from "./model";
 import {
@@ -266,9 +266,9 @@ const SILENT_POLL: ApiRequestConfig = { skipErrorNotify: true };
 
 const SILENT_REQUEST = SILENT_POLL;
 
-export async function listCanvasNodeDraftSessions(projectId: string, canvasId: string) {
-  const result = await canvasBatchGetNodeStates(projectId, canvasId, { targets: [] }, SILENT_POLL);
-  return result.draft_sessions.flatMap((item) =>
+export async function listCanvasNodeDraftSessions(statePubSub: CanvasStatePubSub) {
+  const result = await requestCanvasState(statePubSub);
+  return result.DraftSessions.flatMap((item) =>
     (item.canvas_nodes ?? []).map(
       (draft) =>
         ({
@@ -366,6 +366,7 @@ export async function streamCanvasNodeDrafts(
   modelBindings: { inferenceModelServiceId: string; videoModelServiceId: string },
   durations: { shot: { min: number; max: number }; video: { min: number; max: number } },
   frontendSettings: StoryboardSettings,
+  statePubSub: CanvasStatePubSub,
   signal: AbortSignal,
   onSession: (session: StoryboardDraftSession) => void,
   onCanvasNode: (shot: Shot) => void,
@@ -395,7 +396,7 @@ export async function streamCanvasNodeDrafts(
     { signal },
   );
   if (!started.session) throw new Error(t("分镜任务启动失败"));
-  return observeDraft(projectId, canvasId, started.session, signal, onSession, onCanvasNode);
+  return observeDraft(statePubSub, started.session, signal, onSession, onCanvasNode);
 }
 
 export interface StoryboardDraftSession {
@@ -416,23 +417,18 @@ export interface StoryboardDraftSession {
 export class StoryboardDraftNotFoundError extends Error {}
 
 export async function recoverCanvasNodeDrafts(
-  projectId: string,
-  canvasId: string,
+  statePubSub: CanvasStatePubSub,
   taskRunId: string,
   _frontendSettings: StoryboardSettings,
   signal: AbortSignal,
   onSession: (session: StoryboardDraftSession) => void,
   onCanvasNode: (shot: Shot) => void,
 ) {
-  const result = await canvasBatchGetNodeStates(
-    projectId,
-    canvasId,
-    { targets: [] },
-    { signal, skipErrorNotify: true },
-  );
-  const draft = result.draft_sessions.find((item) => item.task_run_id === taskRunId);
+  const result = await requestCanvasState(statePubSub);
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  const draft = result.DraftSessions.find((item) => item.task_run_id === taskRunId);
   if (!draft) throw new StoryboardDraftNotFoundError();
-  return observeDraft(projectId, canvasId, draft, signal, onSession, onCanvasNode);
+  return observeDraft(statePubSub, draft, signal, onSession, onCanvasNode);
 }
 
 export async function confirmCanvasNodeDrafts(projectId: string, canvasId: string, taskRunId: string, shots: Shot[]) {
@@ -738,8 +734,7 @@ function shotFromDraftSession(
 }
 
 async function observeDraft(
-  projectId: string,
-  canvasId: string,
+  statePubSub: CanvasStatePubSub,
   draft: CanvasNodeDraftSession,
   signal: AbortSignal,
   onSession: (session: StoryboardDraftSession) => void,
@@ -768,27 +763,30 @@ async function observeDraft(
     for (const shot of shots) onShot(shot);
   };
   publish(draft);
-  while (snapshot.status === 1 && !signal.aborted) {
-    await new Promise<void>((resolve, reject) => {
-      const onAbort = () => {
-        window.clearTimeout(timer);
-        reject(new DOMException("Aborted", "AbortError"));
-      };
-      const timer = window.setTimeout(() => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      }, 2000);
-      signal.addEventListener("abort", onAbort, { once: true });
+  if (snapshot.status !== 1) return snapshot;
+  return new Promise<CanvasNodeDraftSession>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      unsubscribe();
+      stopWatching();
+      signal.removeEventListener("abort", onAbort);
+    };
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onAbort = () => settle(() => reject(new DOMException("Aborted", "AbortError")));
+    const unsubscribe = statePubSub.on("snapshot", (result) => {
+      const next = result.DraftSessions.find((item) => item.task_run_id === draft.task_run_id);
+      // 关注登记可能与上一个在途批次重叠；该快照未包含新会话时等待下个统一周期。
+      if (!next) return;
+      publish(next);
+      if (next.status !== 1) settle(() => resolve(next));
     });
-    const result = await canvasBatchGetNodeStates(
-      projectId,
-      canvasId,
-      { targets: [] },
-      { signal, skipErrorNotify: true },
-    );
-    const next = result.draft_sessions.find((item) => item.task_run_id === draft.task_run_id);
-    if (!next) throw new StoryboardDraftNotFoundError();
-    publish(next);
-  }
-  return snapshot;
+    const stopWatching = watchCanvasDraft(statePubSub, draft.task_run_id);
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
 }

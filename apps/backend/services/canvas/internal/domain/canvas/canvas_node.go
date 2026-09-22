@@ -29,13 +29,14 @@ const (
 	NodeTypeImageGeneration
 	NodeTypeVideoGeneration
 	NodeTypeTextGeneration
+	NodeTypeStoryboardDraft
 )
 
 func (m VideoInputMode) Valid() bool {
 	return m == VideoInputModeReference || m == VideoInputModeFirstLastFrame
 }
 
-func (t NodeType) Valid() bool { return t >= NodeTypeImageAsset && t <= NodeTypeTextGeneration }
+func (t NodeType) Valid() bool { return t >= NodeTypeImageAsset && t <= NodeTypeStoryboardDraft }
 
 func DefaultCanvasNodeName(nodeType NodeType) string {
 	switch nodeType {
@@ -53,6 +54,8 @@ func DefaultCanvasNodeName(nodeType NodeType) string {
 		return "视频生成"
 	case NodeTypeTextGeneration:
 		return "文本生成"
+	case NodeTypeStoryboardDraft:
+		return "批量分镜"
 	default:
 		return ""
 	}

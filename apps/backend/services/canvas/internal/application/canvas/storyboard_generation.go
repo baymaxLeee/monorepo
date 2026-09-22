@@ -145,7 +145,10 @@ type StoryboardProvider interface {
 }
 
 type StoryboardConfirmer interface {
-	ConfirmStoryboardDrafts(context.Context, Scope, string, string, []CanvasNodeDraftConfirmInput) ([]domaincanvasnode.CanvasNode, int64, error)
+	CreateStoryboardDraftNode(context.Context, Scope, string, string, string, string) error
+	FinishStoryboardDraftNode(context.Context, Scope, string, string, string) error
+	DeleteStoryboardDraftNode(context.Context, Scope, string, string, string) error
+	ConfirmStoryboardDrafts(context.Context, Scope, string, string, string, []CanvasNodeDraftConfirmInput) ([]domaincanvasnode.CanvasNode, int64, error)
 }
 
 type StoryboardCanvasNodes interface {
@@ -257,7 +260,10 @@ func (s *StoryboardService) Start(
 	planningConfig StoryboardPlanningConfig,
 	limit int,
 ) (StoryboardSession, error) {
-	if !s.configured() || !validStoryboardInput(scope, projectID, canvasID, plot, limit) {
+	if !s.configured() {
+		return StoryboardSession{}, errno.New(errno.ErrConfigurationError)
+	}
+	if !validStoryboardInput(scope, projectID, canvasID, plot, limit) {
 		return StoryboardSession{}, errno.New(errno.ErrInvalidArgument)
 	}
 	modelConfig, planningConfig, inferenceSnapshot, err := s.canvas_nodes.PrepareStoryboardPlanning(
@@ -279,8 +285,8 @@ func (s *StoryboardService) Start(
 	}
 	run := domaintask.TaskRun{
 		ID: id, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, CreatedBy: scope.CallerID,
-		RunType: s.RunType(), SubjectType: domaintask.SubjectTypeCanvas,
-		SubjectID: canvasID, Status: domaintask.StatusQueued, StateVersion: 1,
+		RunType: s.RunType(), SubjectType: domaintask.SubjectTypeCanvasNode,
+		SubjectID: id, Status: domaintask.StatusQueued, StateVersion: 1,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	schedule := domaintask.PollSchedule{
@@ -299,6 +305,9 @@ func (s *StoryboardService) Start(
 			}); planErr != nil {
 				return planErr
 			}
+		}
+		if createErr := s.canvas_nodes.CreateStoryboardDraftNode(txCtx, scope, projectID, canvasID, id, session.Plot); createErr != nil {
+			return createErr
 		}
 		if createErr := s.repository.Create(txCtx, scope, projectID, canvasID, session, now); createErr != nil {
 			return createErr
@@ -323,7 +332,10 @@ func (s *StoryboardService) StartPrepared(
 	planningConfig StoryboardPlanningConfig,
 	drafts []Draft,
 ) (StoryboardSession, error) {
-	if !s.preparedConfigured() || !validStoryboardInput(scope, projectID, canvasID, plot, 0) || len(drafts) == 0 || len(drafts) > 200 {
+	if !s.preparedConfigured() {
+		return StoryboardSession{}, errno.New(errno.ErrConfigurationError)
+	}
+	if !validStoryboardInput(scope, projectID, canvasID, plot, 0) || len(drafts) == 0 || len(drafts) > 200 {
 		return StoryboardSession{}, errno.New(errno.ErrInvalidArgument)
 	}
 	modelConfig, planningConfig, _, err := s.canvas_nodes.PrepareStoryboardPlanning(
@@ -368,7 +380,7 @@ func (s *StoryboardService) StartPrepared(
 	}
 	run := domaintask.TaskRun{
 		ID: id, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, CreatedBy: scope.CallerID,
-		RunType: s.RunType(), SubjectType: domaintask.SubjectTypeCanvas, SubjectID: canvasID,
+		RunType: s.RunType(), SubjectType: domaintask.SubjectTypeCanvasNode, SubjectID: id,
 		Status: domaintask.StatusSucceeded, StateVersion: 1, StartedAt: &now, FinishedAt: &now,
 		CreatedAt: now, UpdatedAt: now,
 	}
@@ -376,7 +388,13 @@ func (s *StoryboardService) StartPrepared(
 		if createErr := s.runs.Create(txCtx, run); createErr != nil {
 			return createErr
 		}
-		return s.repository.Create(txCtx, scope, projectID, canvasID, session, now)
+		if createErr := s.canvas_nodes.CreateStoryboardDraftNode(txCtx, scope, projectID, canvasID, id, session.Plot); createErr != nil {
+			return createErr
+		}
+		if createErr := s.repository.Create(txCtx, scope, projectID, canvasID, session, now); createErr != nil {
+			return createErr
+		}
+		return s.canvas_nodes.FinishStoryboardDraftNode(txCtx, scope, projectID, canvasID, id)
 	})
 	if err != nil {
 		return StoryboardSession{}, errno.Wrap(errno.ErrInternalError, err)
@@ -596,7 +614,7 @@ func (s *StoryboardService) finishClaim(ctx context.Context, scope Scope, taskRu
 		if !completed {
 			return errors.New("storyboard poll schedule lease changed before finish")
 		}
-		return nil
+		return s.canvas_nodes.FinishStoryboardDraftNode(txCtx, scope, state.ProjectID, state.CanvasID, taskRunID)
 	})
 	if err != nil {
 		return err
@@ -703,6 +721,9 @@ func (s *StoryboardService) Cancel(ctx context.Context, scope Scope, projectID, 
 				return closeErr
 			}
 		}
+		if deleteErr := s.canvas_nodes.DeleteStoryboardDraftNode(txCtx, scope, projectID, canvasID, state.ID); deleteErr != nil {
+			return deleteErr
+		}
 		return s.schedules.DeletePollSchedule(txCtx, state.ID)
 	})
 	if err != nil {
@@ -711,6 +732,52 @@ func (s *StoryboardService) Cancel(ctx context.Context, scope Scope, projectID, 
 	s.triggerUsageAfterCommit(state.ID)
 	s.executions.Cancel(state.ID)
 	s.cleanupCache(ctx, scope, projectID, canvasID, taskRunID, "cancel")
+	return nil
+}
+
+// CancelDeletedCanvasTask converges a storyboard task after its owning Canvas
+// node has already been hidden by parent deletion. It intentionally does not
+// read or delete the node again; the parent deletion transaction owns that row.
+func (s *StoryboardService) CancelDeletedCanvasTask(
+	ctx context.Context,
+	scope Scope,
+	projectID, canvasID, taskRunID string,
+) error {
+	if !validCallerScope(scope) || projectID == "" || canvasID == "" || taskRunID == "" {
+		return errno.New(errno.ErrInvalidArgument)
+	}
+	now := s.clock.Now()
+	err := s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
+		current, lockErr := s.runs.GetTaskRunForUpdate(txCtx, taskRunID)
+		if lockErr != nil {
+			return lockErr
+		}
+		if current.RunType != s.RunType() || current.SubjectType != domaintask.SubjectTypeCanvasNode ||
+			current.SubjectID == "" || current.TenantID != scope.TenantID {
+			return errno.New(errno.ErrNotFound)
+		}
+		if !current.Terminal() {
+			updated, updateErr := s.runs.UpdateTaskRun(txCtx, current, applicationtask.TaskRunUpdate{
+				Status: domaintask.StatusCancelled, FinishedAt: &now,
+			}, now)
+			if updateErr != nil {
+				return updateErr
+			}
+			if !updated {
+				return errors.New("storyboard task run state changed before deleted-canvas cancellation")
+			}
+			if closeErr := s.closeUsage(txCtx, current.ID); closeErr != nil {
+				return closeErr
+			}
+		}
+		return s.schedules.DeletePollSchedule(txCtx, taskRunID)
+	})
+	if err != nil {
+		return errno.Wrap(errno.ErrInternalError, err)
+	}
+	s.triggerUsageAfterCommit(taskRunID)
+	s.executions.Cancel(taskRunID)
+	s.cleanupCache(ctx, scope, projectID, canvasID, taskRunID, "deleted_canvas")
 	return nil
 }
 
@@ -816,7 +883,7 @@ func (s *StoryboardService) Confirm(ctx context.Context, scope Scope, projectID,
 	var canvasRevision int64
 	err = s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
 		var confirmErr error
-		created, canvasRevision, confirmErr = s.canvas_nodes.ConfirmStoryboardDrafts(txCtx, scope, projectID, canvasID, inputs)
+		created, canvasRevision, confirmErr = s.canvas_nodes.ConfirmStoryboardDrafts(txCtx, scope, projectID, canvasID, state.ID, inputs)
 		if confirmErr != nil {
 			return confirmErr
 		}

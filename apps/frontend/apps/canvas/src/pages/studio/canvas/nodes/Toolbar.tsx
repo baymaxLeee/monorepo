@@ -40,6 +40,7 @@ export const CANVAS_NODE_TOOLS: Record<canvasnode.CanvasNodeType, readonly Canva
   [canvasnode.CanvasNodeType.IMAGE_GENERATION]: ["review", "addToLibrary", "copy", "download", "history", "fullscreen"],
   [canvasnode.CanvasNodeType.VIDEO_GENERATION]: ["review", "addToLibrary", "copy", "download", "history", "fullscreen"],
   [canvasnode.CanvasNodeType.TEXT_GENERATION]: ["copy", "download", "history", "largePreview"],
+  [canvasnode.CanvasNodeType.STORYBOARD_DRAFT]: [],
 };
 
 const TOOL_META: Record<CanvasNodeTool, { icon: ToolbarIcon; label: string }> = {

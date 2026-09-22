@@ -7,7 +7,7 @@ import {
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
-import { useAtomValue, useStore as useJotaiStore, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import {
   Fragment,
   type Ref,
@@ -33,6 +33,7 @@ import t from "@/utils/i18n";
 
 import { CANVAS_ASSET_DRAG_TYPE, type CanvasAssetDragData } from "../components/StudioAssetPanel";
 import { canvasRequestErrorMessage } from "../domain/actions";
+import type { CanvasStatePubSub } from "../domain/canvasStatePubSub";
 import { assetFromCanvasNode, projectCanvasNodeAssets } from "../domain/model";
 import { canvasAssetDetailsAtom, useStudioAssetStore } from "../store/assets";
 import {
@@ -81,7 +82,7 @@ import {
   nodePositionFromAnchor,
   nodePositionFromQuickConnection,
 } from "./graph/canvasNodeHelpers";
-import { CanvasNodeStore } from "./graph/CanvasNodeStore";
+import type { CanvasNodeStore } from "./graph/CanvasNodeStore";
 import type { CanvasFlowNode, ContentPatch } from "./graph/canvasNodeTypes";
 import { resolveCanvasConnection } from "./graph/connectionPolicy";
 import { hasMeasuredCanvasNodes } from "./graph/layout";
@@ -107,7 +108,9 @@ function CanvasBoardInner({
   defaultTextModelId,
   onCanvasRevisionChange,
   onRefreshGraph,
+  nodePubSub,
   projectId,
+  statePubSub,
 }: {
   canvasId: string;
   controllerRef: Ref<CanvasBoardHandle>;
@@ -116,7 +119,9 @@ function CanvasBoardInner({
   defaultTextModelId: string;
   onCanvasRevisionChange: (revision: number) => void;
   onRefreshGraph: () => Promise<void>;
+  nodePubSub: CanvasNodeStore;
   projectId: string;
+  statePubSub: CanvasStatePubSub;
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const assetStore = useStudioAssetStore();
@@ -145,8 +150,6 @@ function CanvasBoardInner({
   const edgesRef = useRef<Edge[]>([]);
   const nodeClickTimerRef = useRef<number>();
   const invalidConnectionWarningRef = useRef<string>();
-  const jotaiStore = useJotaiStore();
-  const [nodePubSub] = useState(() => new CanvasNodeStore(jotaiStore));
   const resolveConnection = useCallback(
     (source: canvasnode.CanvasNode, target: canvasnode.CanvasNode) =>
       resolveCanvasConnection(source, target, edgesRef.current),
@@ -200,6 +203,7 @@ function CanvasBoardInner({
     canvasId,
     projectId,
     nodePubSub,
+    statePubSub,
   });
 
   const patchNode = useCallback(
@@ -233,14 +237,14 @@ function CanvasBoardInner({
         throw error;
       });
     },
-    [canvasId, enqueueCanvasMutation, jotaiStore, projectId, setNodes, upsertCanvasNodes],
+    [canvasId, enqueueCanvasMutation, nodePubSub.store, projectId, setNodes, upsertCanvasNodes],
   );
 
   const swapNodeFrames = useCallback(
     async (item: canvasnode.CanvasNode) => {
       try {
         await enqueueCanvasMutation(async () => {
-          const current = jotaiStore.get(canvasNodesAtom).find((node) => node.NodeID === item.NodeID);
+          const current = nodePubSub.store.get(canvasNodesAtom).find((node) => node.NodeID === item.NodeID);
           if (!current) return;
           await swapCanvasFrames({
             projectId,
@@ -262,7 +266,15 @@ function CanvasBoardInner({
         }
       }
     },
-    [canvasId, enqueueCanvasMutation, jotaiStore, onCanvasRevisionChange, onRefreshGraph, projectId, upsertCanvasNodes],
+    [
+      canvasId,
+      enqueueCanvasMutation,
+      nodePubSub.store,
+      onCanvasRevisionChange,
+      onRefreshGraph,
+      projectId,
+      upsertCanvasNodes,
+    ],
   );
 
   const {
@@ -509,7 +521,7 @@ function CanvasBoardInner({
       defaultImageModelId,
       defaultTextModelId,
       enqueueCanvasMutation,
-      jotaiStore,
+      nodePubSub.store,
       nodePubSub,
       onCanvasRevisionChange,
       openEditor,
@@ -680,7 +692,7 @@ function CanvasBoardInner({
       canvasId,
       enqueueCanvasMutation,
       instance,
-      jotaiStore,
+      nodePubSub.store,
       nodePubSub,
       onCanvasRevisionChange,
       openHistory,
@@ -1144,10 +1156,10 @@ export interface CanvasBoardHandle {
   pauseMedia: () => void;
 }
 
-export const CanvasBoard = forwardRef<CanvasBoardHandle, { onRefreshGraph: () => Promise<void> }>(function CanvasBoard(
-  { onRefreshGraph },
-  ref,
-) {
+export const CanvasBoard = forwardRef<
+  CanvasBoardHandle,
+  { nodePubSub: CanvasNodeStore; onRefreshGraph: () => Promise<void>; statePubSub: CanvasStatePubSub }
+>(function CanvasBoard({ nodePubSub, onRefreshGraph, statePubSub }, ref) {
   const { projectId = "", canvasId = "" } = useParams();
   const defaultVideoModelId = useAtomValue(defaultVideoModelIdAtom);
   const defaultImageModelId = useAtomValue(defaultImageModelIdAtom);
@@ -1162,9 +1174,11 @@ export const CanvasBoard = forwardRef<CanvasBoardHandle, { onRefreshGraph: () =>
         defaultImageModelId={defaultImageModelId}
         defaultTextModelId={defaultTextModelId}
         defaultVideoModelId={defaultVideoModelId}
+        nodePubSub={nodePubSub}
         onCanvasRevisionChange={onCanvasRevisionChange}
         onRefreshGraph={onRefreshGraph}
         projectId={projectId}
+        statePubSub={statePubSub}
       />
     </ReactFlowProvider>
   );

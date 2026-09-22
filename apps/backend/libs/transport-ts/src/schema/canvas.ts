@@ -1686,7 +1686,7 @@ export interface components {
          * Format: int64
          * @enum {integer}
          */
-        CanvasNodeType: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+        CanvasNodeType: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
         /**
          * Format: int64
          * @description CanvasNodeVideoProviderStatus 是视频 provider 的独立执行状态。

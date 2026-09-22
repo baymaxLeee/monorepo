@@ -13,7 +13,9 @@ Canvas 素材独立于会话存活；删除会话不能删除被画布持有的�
 
 画布上的显式“生成”操作是 Canvas 命令，不是 Chat 消息。它不得创建或读取 Chat 会话、消息、memory、Agent run 或 tool call，不得把 Chat 历史、Agent instructions 或 tools 注入模型请求。Chat Agent 继续保留 Canvas、媒体及其他通用 tools：只有用户从 Chat 发起编排时才运行完整 ToolLoopAgent，并由 Canvas tools 调用相同的 Canvas application 用例。两条入口共享领域规则和生成结果，不共享模型上下文与会话副作用。
 
-批量分镜同样保留两个明确入口。故事板视图不挂载 Chat：用户手动填写剧情、时长和视频参数后，由 Canvas 的确定性 planner 创建草稿；模型绑定来自项目默认配置，不展示模型选择。会话入口由 Agent 先通过 `ask_user` 收集或确认视频参数，再把 Agent 已规划的结构化分镜提交给 Canvas，Provider 来自该 Agent 的绑定。两者调用同一个 Canvas `/storyboard-drafts` 入口，并共享恢复、预览、确认和持久化生命周期；是否携带结构化草稿只决定 Canvas 是运行 planner 还是直接持久化。Chat 仅在画布视图挂载，之后可通过 `read_canvas` 读取手动创建的正式分镜继续对话，但不为手动操作补写虚假的消息或 tool call。
+批量分镜同样保留两个明确入口。故事板视图不挂载 Chat：用户手动填写剧情、选择分镜推理模型、视频生成模型、时长和视频参数后，由 Canvas 的确定性 planner 创建草稿。会话入口由 Agent 先通过 `ask_user` 收集或确认视频参数，再把 Agent 已规划的结构化分镜提交给 Canvas；会话不展示模型选择，Provider 来自该 Agent 的绑定。两者调用同一个 Canvas `/storyboard-drafts` 入口，并共享恢复、预览、确认和持久化生命周期；是否携带结构化草稿只决定 Canvas 是运行 planner 还是直接持久化。Chat 仅在画布视图挂载，之后可通过 `read_canvas` 读取手动创建的正式分镜继续对话，但不为手动操作补写虚假的消息或 tool call。
+
+分镜草稿不再拥有独立业务表。`canvas_nodes` 以 `STORYBOARD_DRAFT` 表示待确认的临时节点，`node_data` 保存剧情、规划参数、模型快照和候选分镜；`task_runs` 与 `poll_schedules` 只保存异步执行事实。画布和故事板读取同一节点投影。确认操作在一个事务内软删除临时节点并批量创建正式视频节点；取消操作终止任务并软删除临时节点。普通节点创建、复制和删除接口不能创建或绕过该临时节点生命周期。
 
 Canvas 不运行 HiBot、个人 Agent 或租户 Agent。右侧对话唯一 runtime 是 Chat 的 AI SDK v7 `ToolLoopAgent`，同一 tenant、workspace、user、project、canvas 原子地获取或创建一个私有会话；Canvas 协作数据共享，会话和 memory 不共享。Canvas 删除后保留只读聊天历史，不再允许启动绑定该 Canvas 的新 run。
 
@@ -32,6 +34,8 @@ Canvas 不运行 HiBot、个人 Agent 或租户 Agent。右侧对话唯一 runti
 ## 前端状态与布局
 
 Canvas 保留 Jotai，按 ProjectID + CanvasID 挂载页面级 Provider。正式图规范化为节点 ID 列表与节点映射，故事板派生自视频节点；节点组件按 ID 订阅。XYFlow 临时坐标、选择和表单草稿留在对应交互层。手动写入共用串行队列，入队推进 epoch；整图刷新等待队尾并丢弃过期响应，队列失败不阻断后续操作。Agent 通过服务端同一 mutation 用例写入，完成事件触发重新读取，而非把模型输出直接写入 atoms。
+
+Studio 顶层只有一个 3 秒任务状态轮询器。它从正式图派生全部 `ActiveTaskRunID` 目标，批量读取后通过页面级 typed PubSub 发布快照；节点生成和分镜预览只订阅，不自行启动定时器。快照只更新匹配 `NodeID + TaskRunID` 且 revision 不落后的节点，避免整图替换和局部任务互相覆盖。
 
 左侧保留节点/素材面板，中间为画布或故事板，右侧为可收起、可调宽的共享 Chat。节点编辑留在画布内。Chat 消息流使用既有 AI SDK 状态，不建立 Jotai 消息副本。Jotai 仅由 Canvas 消费，不升级为平台全局状态库或跨 MFE singleton；共享 Chat 保持原来的 Zustand 实现。
 

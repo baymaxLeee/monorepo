@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ActionButton } from "@/components/ActionButton";
 import {
@@ -10,7 +10,7 @@ import {
   getVideoModelParamConfigByOption,
   sanitizeGenerationSettings,
 } from "@/components/GenerationConfiguration/videoModelConfig";
-import { Input, Modal, InputNumber } from "@/components/ui";
+import { Input, Modal, Select, InputNumber } from "@/components/ui";
 import { HIDDEN_SCROLLBAR_CLASS, HIDDEN_SCROLLBAR_STYLE } from "@/hooks/useHorizontalScrollFade";
 import t from "@/utils/i18n";
 
@@ -66,11 +66,53 @@ function clampDurationRange(min: number, max: number, limitMin: number, limitMax
   return { min: nextMin, max: nextMax };
 }
 
+function filterModelOption(input: string, option: ReactElement) {
+  const keyword = input.trim().toLowerCase();
+  if (!keyword) {
+    return true;
+  }
+  const props = option.props as { children?: unknown; value?: unknown };
+  const label = String(props.children ?? "");
+  const id = String(props.value ?? "");
+  return label.toLowerCase().includes(keyword) || id.toLowerCase().includes(keyword);
+}
+
 function LabeledField({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[14px] font-medium leading-6 tracking-[0.042px] text-foreground">{label}</span>
       {children}
+    </div>
+  );
+}
+
+function ModelSelectChip({
+  options,
+  value,
+  onChange,
+}: {
+  options: ScriptDesignModelOption[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div className={styles.modelSelectChip}>
+      <Select
+        bordered={false}
+        className={styles.modelSelect}
+        disabled={options.length === 0}
+        filterOption={filterModelOption}
+        onChange={onChange}
+        placeholder={t("选择模型")}
+        showSearch
+        value={value || undefined}
+      >
+        {options.map((model) => (
+          <Select.Option key={model.id} value={model.id}>
+            {model.name}
+          </Select.Option>
+        ))}
+      </Select>
     </div>
   );
 }
@@ -169,27 +211,33 @@ function DurationRangeInput({
 export function ScriptDesignDialog({
   initialPlot = "",
   initialSettings = DEFAULT_GENERATION_SETTINGS,
+  initialStoryboardModel = "",
   initialShotDuration,
   initialVideoDuration = DEFAULT_VIDEO_DURATION_RANGE,
   modelOptions,
+  storyboardModelOptions,
   visible,
   onCancel,
   onSubmit,
 }: {
   initialPlot?: string;
   initialSettings?: GenerationSettings;
+  initialStoryboardModel?: string;
   initialShotDuration?: ScriptDurationRange;
   initialVideoDuration?: ScriptDurationRange;
   modelOptions: ScriptDesignModelOption[];
+  storyboardModelOptions: ScriptDesignModelOption[];
   visible: boolean;
   onCancel: () => void;
   onSubmit: (
     plot: string,
     settings: GenerationSettings,
     durations: { shot: ScriptDurationRange; video: ScriptDurationRange },
+    storyboardModel: string,
   ) => void;
 }) {
   const [plot, setPlot] = useState(initialPlot);
+  const [storyboardModel, setStoryboardModel] = useState(initialStoryboardModel || storyboardModelOptions[0]?.id || "");
   const [settings, setSettings] = useState(() =>
     sanitizeGenerationSettings(initialSettings, getVideoModelParamConfigByOption(initialSettings.model, modelOptions)),
   );
@@ -203,6 +251,13 @@ export function ScriptDesignDialog({
       return;
     }
     setPlot(initialPlot);
+    setStoryboardModel((current) =>
+      storyboardModelOptions.some((item) => item.id === initialStoryboardModel)
+        ? initialStoryboardModel
+        : storyboardModelOptions.some((item) => item.id === current)
+          ? current
+          : (storyboardModelOptions[0]?.id ?? ""),
+    );
     const model = initialSettings.model || modelOptions[0]?.id || initialSettings.model;
     const config = getVideoModelParamConfigByOption(model, modelOptions);
     const shotDurationLimits = storyboardShotDurationLimits(config.limits);
@@ -249,6 +304,15 @@ export function ScriptDesignDialog({
       return sanitizeGenerationSettings({ ...current, model }, config);
     });
   }, [visible, modelOptions]);
+
+  useEffect(() => {
+    if (!visible || storyboardModelOptions.length === 0) {
+      return;
+    }
+    setStoryboardModel((current) =>
+      storyboardModelOptions.some((item) => item.id === current) ? current : storyboardModelOptions[0].id,
+    );
+  }, [visible, storyboardModelOptions]);
 
   const modelParamConfig = getVideoModelParamConfigByOption(settings.model, modelOptions);
   const shotDurationLimits = storyboardShotDurationLimits(modelParamConfig.limits);
@@ -309,6 +373,16 @@ export function ScriptDesignDialog({
         <div className="w-[1px] shrink-0 self-stretch bg-border" />
 
         <div className="flex h-full w-[260px] shrink-0 flex-col gap-6 overflow-y-auto">
+          <LabeledField label={t("分镜推理模型")}>
+            <ModelSelectChip onChange={setStoryboardModel} options={storyboardModelOptions} value={storyboardModel} />
+          </LabeledField>
+          <LabeledField label={t("视频生成模型")}>
+            <ModelSelectChip
+              onChange={(model) => emitSettings({ ...settings, model })}
+              options={modelOptions}
+              value={settings.model}
+            />
+          </LabeledField>
           <LabeledField label={t("分镜时长（参考范围）")}>
             <DurationRangeInput
               limitMax={shotDurationLimitMaxSeconds}
@@ -365,12 +439,13 @@ export function ScriptDesignDialog({
         <div className="flex items-center justify-end gap-3">
           <ActionButton onClick={onCancel}>{t("取消")}</ActionButton>
           <ActionButton
-            disabled={!plot.trim() || !settings.model}
+            disabled={!plot.trim() || !settings.model || !storyboardModel}
             onClick={() =>
               onSubmit(
                 plot.trim(),
                 { ...settings, duration: `${shotDuration.min}s` },
                 { shot: shotDuration, video: videoDuration },
+                storyboardModel,
               )
             }
             variant="primary"

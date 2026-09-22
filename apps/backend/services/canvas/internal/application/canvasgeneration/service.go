@@ -328,6 +328,8 @@ func generationRunMatchesNode(runType domaintask.RunType, nodeType domaincanvas.
 		return runType == domaintask.RunTypeImageGeneration
 	case domaincanvas.NodeTypeVideoGeneration:
 		return runType == domaintask.RunTypeCanvasNodeVideoGeneration
+	case domaincanvas.NodeTypeStoryboardDraft:
+		return runType == domaintask.RunTypeCanvasStoryboardGeneration
 	default:
 		return false
 	}

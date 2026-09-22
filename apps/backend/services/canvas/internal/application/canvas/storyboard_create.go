@@ -30,6 +30,100 @@ type CanvasNodeDraftConfirmInput struct {
 	AssetReferences  []StoryboardAssetReference
 }
 
+type storyboardTaskSlot interface {
+	ReleaseTaskRun(context.Context, domain.CanvasNode, string) (bool, error)
+}
+
+func (s *CanvasNodeService) CreateStoryboardDraftNode(
+	ctx context.Context,
+	scope Scope,
+	projectID, canvasID, taskRunID, plot string,
+) error {
+	if !validCallerScope(scope) || strings.TrimSpace(projectID) == "" || strings.TrimSpace(canvasID) == "" ||
+		strings.TrimSpace(taskRunID) == "" || strings.TrimSpace(plot) == "" || s.graphRepository == nil {
+		return errno.New(errno.ErrInvalidArgument)
+	}
+	now := s.clock.Now()
+	return s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
+		lockedRevision, err := s.graphRepository.LockCanvas(txCtx, scope, projectID, canvasID)
+		if err != nil {
+			return err
+		}
+		node, err := domain.NewCanvasNode(domain.CanvasNodeInput{
+			ID: taskRunID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+			ProjectID: projectID, CanvasID: canvasID, CreatedBy: scope.CallerID,
+			Type: domain.NodeTypeStoryboardDraft, Name: domain.DefaultCanvasNodeName(domain.NodeTypeStoryboardDraft),
+			Prompt: strings.TrimSpace(plot), Position: domain.Position{}, Now: now,
+		})
+		if err != nil {
+			return err
+		}
+		if err = node.BeginGeneration(taskRunID); err != nil {
+			return err
+		}
+		if _, err = s.repository.Create(txCtx, node, nil); err != nil {
+			return err
+		}
+		if err = s.statistics.Rebuild(txCtx, scope, projectID, canvasID); err != nil {
+			return err
+		}
+		_, err = s.graphRepository.AdvanceCanvasRevision(txCtx, scope, projectID, canvasID, lockedRevision, now)
+		return err
+	})
+}
+
+func (s *CanvasNodeService) FinishStoryboardDraftNode(
+	ctx context.Context,
+	scope Scope,
+	projectID, canvasID, taskRunID string,
+) error {
+	slots, ok := s.repository.(storyboardTaskSlot)
+	if !ok {
+		return errno.New(errno.ErrConfigurationError)
+	}
+	node, err := s.repository.Get(ctx, scope, projectID, canvasID, taskRunID)
+	if err != nil {
+		return err
+	}
+	if node.Type != domain.NodeTypeStoryboardDraft {
+		return ErrNotFound
+	}
+	_, err = slots.ReleaseTaskRun(ctx, node, taskRunID)
+	return err
+}
+
+func (s *CanvasNodeService) DeleteStoryboardDraftNode(
+	ctx context.Context,
+	scope Scope,
+	projectID, canvasID, taskRunID string,
+) error {
+	now := s.clock.Now()
+	return s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
+		lockedRevision, err := s.graphRepository.LockCanvas(txCtx, scope, projectID, canvasID)
+		if err != nil {
+			return err
+		}
+		node, err := s.repository.GetForUpdate(txCtx, scope, projectID, canvasID, taskRunID)
+		if err != nil {
+			return err
+		}
+		if node.Type != domain.NodeTypeStoryboardDraft {
+			return ErrNotFound
+		}
+		if err = node.Delete(scope.CallerID, now); err != nil {
+			return err
+		}
+		if _, _, err = s.repository.Delete(txCtx, node); err != nil {
+			return err
+		}
+		if err = s.statistics.Rebuild(txCtx, scope, projectID, canvasID); err != nil {
+			return err
+		}
+		_, err = s.graphRepository.AdvanceCanvasRevision(txCtx, scope, projectID, canvasID, lockedRevision, now)
+		return err
+	})
+}
+
 type storyboardAssetSnapshot struct {
 	once       sync.Once
 	load       func(context.Context) ([]ProjectAssetCandidate, error)
@@ -380,7 +474,7 @@ func validStoryboardRequestedTotalDuration(value StoryboardPlanningConfig) bool 
 func (s *CanvasNodeService) ConfirmStoryboardDrafts(
 	ctx context.Context,
 	scope Scope,
-	projectID, canvasID string,
+	projectID, canvasID, draftNodeID string,
 	inputs []CanvasNodeDraftConfirmInput,
 ) ([]domain.CanvasNode, int64, error) {
 	if !validCallerScope(scope) || strings.TrimSpace(projectID) == "" || strings.TrimSpace(canvasID) == "" ||
@@ -511,6 +605,25 @@ func (s *CanvasNodeService) ConfirmStoryboardDrafts(
 		occupied, listErr := s.repository.ListForUpdate(txCtx, scope, projectID, canvasID)
 		if listErr != nil {
 			return listErr
+		}
+		var draftNode *domain.CanvasNode
+		retained := make([]domain.CanvasNode, 0, len(occupied))
+		for index := range occupied {
+			if occupied[index].ID == draftNodeID && occupied[index].Type == domain.NodeTypeStoryboardDraft {
+				draftNode = &occupied[index]
+				continue
+			}
+			retained = append(retained, occupied[index])
+		}
+		if draftNode == nil {
+			return ErrNotFound
+		}
+		occupied = retained
+		if markErr := draftNode.Delete(scope.CallerID, now); markErr != nil {
+			return markErr
+		}
+		if _, _, deleteErr := s.repository.Delete(txCtx, *draftNode); deleteErr != nil {
+			return deleteErr
 		}
 		for index := range created {
 			name, nameErr := allocateNumberedCanvasNodeName(occupied, created[index].Type)

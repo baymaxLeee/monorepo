@@ -4,14 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
-import {
-  BatchGetCanvasNodeStates,
-  CancelCanvasNodeGeneration,
-  StartCanvasNodeGeneration,
-} from "@/pages/studio/domain/generations";
+import { CancelCanvasNodeGeneration, StartCanvasNodeGeneration } from "@/pages/studio/domain/generations";
 import t from "@/utils/i18n";
 
 import { cancelCancellableVideoGeneration, canvasGenerationFailureFromError } from "../../domain/actions";
+import type { CanvasStatePubSub } from "../../domain/canvasStatePubSub";
 import { isVideoGenerationCancellationDisabled, videoProviderStatusForRun } from "../../domain/generationCancellation";
 import {
   canvasGenerationRuntimeStatesAtom,
@@ -21,14 +18,11 @@ import {
   setCanvasGenerationFailureAtom,
   setCanvasGenerationRuntimeStateAtom,
   upsertCanvasNodesAtom,
-  updateCanvasRevisionAtom,
   useStudioMutationCoordinator,
 } from "../../store";
 import { isDeletedReferenceNode } from "../graph/canvasNodeHelpers";
-import { type CanvasNodeStore, useCanvasGenerationTargets } from "../graph/CanvasNodeStore";
+import type { CanvasNodeStore } from "../graph/CanvasNodeStore";
 import { showGenerationError } from "./showGenerationError";
-
-const CANVAS_GENERATION_POLL_INTERVAL_MS = 3000;
 
 function generationFailureFallback(type?: canvasnode.CanvasNodeType) {
   switch (type) {
@@ -45,10 +39,12 @@ export function useCanvasGeneration({
   canvasId,
   projectId,
   nodePubSub,
+  statePubSub,
 }: {
   canvasId: string;
   projectId: string;
   nodePubSub: CanvasNodeStore;
+  statePubSub: CanvasStatePubSub;
 }) {
   const mutations = useStudioMutationCoordinator();
   const enqueueCanvasMutation = mutations.enqueue;
@@ -60,10 +56,6 @@ export function useCanvasGeneration({
     () => new Set(),
   );
   const textGenerationStreamsRef = useRef(new Map<string, AbortController>());
-  const generationTargets = useCanvasGenerationTargets(nodePubSub);
-  const generationTargetsRef = useRef(generationTargets);
-  generationTargetsRef.current = generationTargets;
-  const generationTargetsKey = JSON.stringify(generationTargets);
 
   useEffect(
     () => () => {
@@ -74,33 +66,14 @@ export function useCanvasGeneration({
   );
 
   useEffect(() => {
-    if (generationTargetsKey === "[]") return;
     let disposed = false;
-    let timer: number | undefined;
-    const poll = async () => {
-      const targets = generationTargetsRef.current;
-      try {
+    const unsubscribe = statePubSub.on("snapshot", (response) => {
+      void (async () => {
         await mutations.waitForIdle();
         if (disposed) return;
         const epoch = mutations.snapshotEpoch();
-        const batches: Promise<canvasnode.BatchGetCanvasNodeStatesResponse>[] = [];
-        for (let offset = 0; offset < targets.length; offset += 100) {
-          batches.push(
-            BatchGetCanvasNodeStates(
-              {
-                ProjectID: projectId,
-                CanvasID: canvasId,
-                Targets: targets.slice(offset, offset + 100),
-              },
-              { skipErrorNotify: true },
-            ),
-          );
-        }
-        const responses = await Promise.all(batches);
-        if (disposed || !mutations.isSnapshotCurrent(epoch)) return;
-        const response = { Items: responses.flatMap((batch) => batch.Items) };
-        const canvasRevision = Math.max(...responses.map((batch) => batch.CanvasRevision ?? 0));
-        if (canvasRevision > 0) nodePubSub.store.set(updateCanvasRevisionAtom, canvasRevision);
+        if (!mutations.isSnapshotCurrent(epoch)) return;
+        const targets = response.Targets;
         const returned = new Set(response.Items.map((item) => `${item.NodeID}:${item.TaskRunID}`));
         response.Items.forEach((state) => {
           const current = nodePubSub.store.get(canvasGraphAtom).nodesById.get(state.NodeID);
@@ -180,29 +153,20 @@ export function useCanvasGeneration({
                 },
           );
         });
-      } catch {
-        // Transient polling failures retain the latest node-local snapshot.
-      } finally {
-        if (!disposed) {
-          timer = window.setTimeout(poll, CANVAS_GENERATION_POLL_INTERVAL_MS);
-        }
-      }
-    };
-    void poll();
+      })();
+    });
     return () => {
       disposed = true;
-      if (timer !== undefined) window.clearTimeout(timer);
+      unsubscribe();
     };
   }, [
-    canvasId,
     clearCanvasGenerationRuntimeState,
     clearCanvasGenerationFailure,
-    generationTargetsKey,
     nodePubSub,
     mutations,
-    projectId,
     setCanvasGenerationFailure,
     setCanvasGenerationRuntimeState,
+    statePubSub,
   ]);
 
   const subscribeTextGeneration = useCallback(

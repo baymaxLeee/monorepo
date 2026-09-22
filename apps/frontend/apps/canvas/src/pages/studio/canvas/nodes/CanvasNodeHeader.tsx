@@ -62,7 +62,7 @@ export function CanvasNodeName({
     }
   };
 
-  if (isDeletedReferenceNode(item)) {
+  if (isDeletedReferenceNode(item) || item.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT) {
     return (
       <Tooltip content={item.Name} position="top">
         <span className={styles.nodeTitle}>{item.Name}</span>

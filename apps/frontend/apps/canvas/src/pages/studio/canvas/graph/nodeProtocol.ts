@@ -147,6 +147,16 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
     quickCreateAsSource: true,
     quickCreateAsTarget: true,
   },
+  [canvasnode.CanvasNodeType.STORYBOARD_DRAFT]: {
+    createLabel: "批量分镜",
+    inputs: NO_INPUT_PORTS,
+    label: "批量分镜",
+    menuIcon: menuTextGenerationIcon,
+    output: { dataType: "text", port: OUTPUT_PORT },
+    placeholderIcon: menuTextGenerationIcon,
+    quickCreateAsSource: false,
+    quickCreateAsTarget: false,
+  },
 };
 
 const QUICK_CREATE_ORDER = [

@@ -20,6 +20,7 @@ const (
 	CanvasNodeType_IMAGE_GENERATION CanvasNodeType = 5
 	CanvasNodeType_VIDEO_GENERATION CanvasNodeType = 6
 	CanvasNodeType_TEXT_GENERATION  CanvasNodeType = 7
+	CanvasNodeType_STORYBOARD_DRAFT CanvasNodeType = 8
 )
 
 func (p CanvasNodeType) String() string {
@@ -38,6 +39,8 @@ func (p CanvasNodeType) String() string {
 		return "VIDEO_GENERATION"
 	case CanvasNodeType_TEXT_GENERATION:
 		return "TEXT_GENERATION"
+	case CanvasNodeType_STORYBOARD_DRAFT:
+		return "STORYBOARD_DRAFT"
 	}
 	return "<UNSET>"
 }
@@ -58,6 +61,8 @@ func CanvasNodeTypeFromString(s string) (CanvasNodeType, error) {
 		return CanvasNodeType_VIDEO_GENERATION, nil
 	case "TEXT_GENERATION":
 		return CanvasNodeType_TEXT_GENERATION, nil
+	case "STORYBOARD_DRAFT":
+		return CanvasNodeType_STORYBOARD_DRAFT, nil
 	}
 	return CanvasNodeType(0), fmt.Errorf("not a valid CanvasNodeType string")
 }

@@ -72,6 +72,7 @@ export async function BatchGetCanvasNodeStates(
         VideoProviderStatus: state.video_provider_status,
       }),
     ),
+    DraftSessions: response.draft_sessions,
   };
 }
 

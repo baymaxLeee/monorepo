@@ -64,7 +64,12 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
   const generationFailures = useAtomValue(canvasGenerationFailuresAtom);
   const generationRuntimeStates = useAtomValue(canvasGenerationRuntimeStatesAtom);
   const { item: storedItem, onHistory, onPatch, previewURL, queryTree, selectAsset, thumbnailURL } = data;
-  const item = useCanvasNodeSnapshot(data.nodePubSub, storedItem, isGenerationType(storedItem.Type));
+  const isStoryboardDraft = storedItem.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT;
+  const item = useCanvasNodeSnapshot(
+    data.nodePubSub,
+    storedItem,
+    isGenerationType(storedItem.Type) || isStoryboardDraft,
+  );
   const persistedMediaURL =
     resolveArtifactURL(item.SelectedOutputURL ?? "") || resolveArtifactURL(item.PreviewURL ?? "");
   const mediaURL = isGenerationType(item.Type) ? persistedMediaURL || previewURL : previewURL || persistedMediaURL;
@@ -133,20 +138,22 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
   );
   return (
     <>
-      <CanvasNodeToolbar
-        item={item}
-        mediaURL={mediaURL ?? ""}
-        onAddToLibrary={actions.addToLibrary}
-        onCopy={actions.copy}
-        onHistory={onHistory}
-        onLargePreview={() => editor.openLargeTextPreview(item.NodeID)}
-        onReview={actions.review}
-        textContent={nodeTextContent}
-        visible={isEditing}
-      />
+      {!isStoryboardDraft ? (
+        <CanvasNodeToolbar
+          item={item}
+          mediaURL={mediaURL ?? ""}
+          onAddToLibrary={actions.addToLibrary}
+          onCopy={actions.copy}
+          onHistory={onHistory}
+          onLargePreview={() => editor.openLargeTextPreview(item.NodeID)}
+          onReview={actions.review}
+          textContent={nodeTextContent}
+          visible={isEditing}
+        />
+      ) : null}
       <CanvasNodeHeader item={item} onPatch={onPatch} reviewAsset={data.reviewAsset} />
       <div className={styles.nodeBody}>
-        <CanvasNodePort item={item} side="input" />
+        {!isStoryboardDraft ? <CanvasNodePort item={item} side="input" /> : null}
         <div
           className={`${styles.previewShell} ${
             isAudio ? styles.audioPreviewShell : ""
@@ -154,7 +161,12 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
           data-canvas-node-preview={item.NodeID}
           style={isAutoSizedMedia ? mediaPreview.style : undefined}
         >
-          {generationFailure && !item.ActiveTaskRunID ? (
+          {isStoryboardDraft ? (
+            <div className={`${styles.textPreview} nopan nowheel`}>
+              <strong>{item.ActiveTaskRunID ? t("分镜脚本生成中") : t("分镜脚本待确认")}</strong>
+              <MarkDown className={styles.textPreviewMarkdown} data={item.Prompt ?? ""} />
+            </div>
+          ) : generationFailure && !item.ActiveTaskRunID ? (
             <CanvasGenerationFailureState
               code={generationFailure.errorCode}
               message={generationFailure.errorMessage}
@@ -239,7 +251,7 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
                 if (editor.projectId) void materialMatching.cancel(editor.projectId, item.CanvasID);
               }}
             />
-          ) : item.ActiveTaskRunID || isWaitingForTextGeneration ? (
+          ) : !isStoryboardDraft && (item.ActiveTaskRunID || isWaitingForTextGeneration) ? (
             <CanvasGeneratingBadge
               disabled={editor.saving || cancellationDisabled || !item.ActiveTaskRunID}
               disabledReason={cancellationDisabled ? t("视频已开始生成，无法取消") : undefined}
@@ -248,7 +260,7 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
           ) : null}
           <DeletedReferenceNotice item={item} />
         </div>
-        <CanvasNodePort item={item} side="output" />
+        {!isStoryboardDraft ? <CanvasNodePort item={item} side="output" /> : null}
       </div>
       {isGeneration && isEditing ? (
         <div className={styles.promptEditorOverlay}>

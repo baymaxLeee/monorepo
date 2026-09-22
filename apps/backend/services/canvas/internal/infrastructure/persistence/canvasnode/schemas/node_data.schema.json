@@ -9,7 +9,8 @@
     "TEXT": 1,
     "IMAGE_GENERATION": 2,
     "VIDEO_GENERATION": 3,
-    "TEXT_GENERATION": 1
+    "TEXT_GENERATION": 1,
+    "STORYBOARD_DRAFT": 1
   },
   "type": "object",
   "additionalProperties": false,
@@ -29,7 +30,8 @@
         { "$ref": "#/$defs/text_payload" },
         { "$ref": "#/$defs/image_generation_payload" },
         { "$ref": "#/$defs/video_generation_payload" },
-        { "$ref": "#/$defs/text_generation_payload" }
+        { "$ref": "#/$defs/text_generation_payload" },
+        { "$ref": "#/$defs/storyboard_draft_payload" }
       ]
     }
   },
@@ -155,6 +157,17 @@
         "prompt": { "type": "string", "maxLength": 50000 },
         "generation_config": { "$ref": "#/$defs/generation_config" },
         "selected_output_text": { "type": "string" }
+      }
+    },
+    "storyboard_draft_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "plot"],
+      "properties": {
+        "version": { "const": 1 },
+        "plot": { "type": "string", "minLength": 1, "maxLength": 30000 },
+        "session": { "type": "object" },
+        "generation": { "type": "object" }
       }
     }
   }

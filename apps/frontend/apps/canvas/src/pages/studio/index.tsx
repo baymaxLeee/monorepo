@@ -36,6 +36,7 @@ import { createResourceFromExistingAsset } from "../resources/domain/actions";
 import { MaterialMatchButton } from "./assetMatching/MaterialMatchButton";
 import { useMaterialMatching } from "./assetMatching/useMaterialMatching";
 import { CanvasBoard, type CanvasBoardHandle } from "./canvas/CanvasBoard";
+import { CanvasNodeStore } from "./canvas/graph/CanvasNodeStore";
 import { canvasNodeGraphEdges, resolveCanvasConnection } from "./canvas/graph/connectionPolicy";
 import {
   type CanvasNodePortCounts,
@@ -75,6 +76,7 @@ import {
   streamCanvasNodeDrafts,
   updateCanvasNode,
 } from "./domain/actions";
+import { createCanvasStatePubSub } from "./domain/canvasStatePubSub";
 import { hasExportableCanvasVideo } from "./domain/exportAvailability";
 import { isVideoGenerationCancellationDisabled, videoProviderStatusForRun } from "./domain/generationCancellation";
 import {
@@ -143,6 +145,7 @@ import { type AddShotMode, ShotTimeline } from "./storyboard/ShotTimeline";
 import { ShotTitle } from "./storyboard/ShotTitle";
 import { StoryboardPreviewDialog } from "./storyboard/StoryboardPreviewDialog";
 import { StoryboardToolbar } from "./storyboard/StoryboardToolbar";
+import { useCanvasStatePolling } from "./useCanvasStatePolling";
 import { useStudioAssetReviewPolling } from "./useStudioAssetReviewPolling";
 
 const CHAT_PANEL_MIN_WIDTH = 320;
@@ -164,6 +167,8 @@ function StudioContent() {
   const assetStore = useStudioAssetStore();
   const mutationCoordinator = useStudioMutationCoordinator();
   const studioStore = useStore();
+  const [nodePubSub] = useState(() => new CanvasNodeStore(studioStore));
+  const [statePubSub] = useState(createCanvasStatePubSub);
   const assets = useAtomValue(activeAssetsAtom);
 
   const [canvas, setCanvas] = useAtom(canvasAtom);
@@ -181,11 +186,13 @@ function StudioContent() {
   const canvasAssetDetails = useAtomValue(canvasAssetDetailsAtom);
   const canvasGraphLoaded = useAtomValue(canvasGraphLoadedAtom);
   const canvasGenerationRuntimeStates = useAtomValue(canvasGenerationRuntimeStatesAtom);
+  useCanvasStatePolling({ canvasId, nodePubSub, projectId, statePubSub });
   useStudioAssetReviewPolling(projectId, canvasGraphLoaded);
   const [, setDraftShots] = useAtom(storyboardDraftShotsAtom);
   const setOptimisticShots = useSetAtom(storyboardOptimisticShotsAtom);
 
   useEffect(() => () => chatResizeCleanupRef.current?.(), []);
+  useEffect(() => () => statePubSub.clear(), [statePubSub]);
   const upsertCanvasNodes = useSetAtom(upsertCanvasNodesAtom);
   const replaceCanvasNodes = useSetAtom(replaceCanvasNodesAtom);
   const patchCanvasNode = useSetAtom(patchCanvasNodeAtom);
@@ -218,6 +225,7 @@ function StudioContent() {
   const defaultVideoModelId = useAtomValue(defaultVideoModelIdAtom);
   const defaultInferenceModelId = useAtomValue(defaultStoryboardModelIdAtom);
   const [storyboardBatchSettings, setStoryboardBatchSettings] = useState<StoryboardSettings>(DEFAULT_SETTINGS);
+  const [storyboardInferenceModelId, setStoryboardInferenceModelId] = useState("");
   const [storyboardShotDuration, setStoryboardShotDuration] =
     useState<ScriptDurationRange>(DEFAULT_SHOT_DURATION_RANGE);
   const [storyboardVideoDuration, setStoryboardVideoDuration] =
@@ -455,7 +463,10 @@ function StudioContent() {
     if (defaultVideoModelId) {
       setStoryboardBatchSettings((current) => (current.model ? current : { ...current, model: defaultVideoModelId }));
     }
-  }, [defaultVideoModelId]);
+    if (defaultInferenceModelId) {
+      setStoryboardInferenceModelId((current) => current || defaultInferenceModelId);
+    }
+  }, [defaultInferenceModelId, defaultVideoModelId]);
 
   useEffect(() => {
     if (!studioReady || !canvasGraphLoaded) return;
@@ -473,7 +484,7 @@ function StudioContent() {
     setLoading(true);
     const loadCurrentSnapshot = async () => {
       await mutationCoordinator.waitForIdle();
-      const result = await listCanvasNodeDraftSessions(projectId, canvasId);
+      const result = await listCanvasNodeDraftSessions(statePubSub);
       if (!active) return;
       setDraftShots(result);
     };
@@ -489,7 +500,7 @@ function StudioContent() {
     return () => {
       active = false;
     };
-  }, [canvasId, mutationCoordinator, projectId, canvasGraphLoaded, setDraftShots, studioReady]);
+  }, [mutationCoordinator, canvasGraphLoaded, setDraftShots, statePubSub, studioReady]);
 
   /** 正式关系已可同步投影；异步请求只补充签名 URL、审核等展示信息。 */
   useEffect(() => {
@@ -592,8 +603,7 @@ function StudioContent() {
     };
     setStoryboardBatchSettings(frontendSettings);
     void recoverCanvasNodeDrafts(
-      projectId,
-      canvasId,
+      statePubSub,
       taskRunId,
       frontendSettings,
       controller.signal,
@@ -602,6 +612,9 @@ function StudioContent() {
           return;
         }
         setStoryboardPlot(session.plot);
+        if (session.inferenceModelServiceId) {
+          setStoryboardInferenceModelId(session.inferenceModelServiceId);
+        }
         setStoryboardBatchSettings(session.settings);
         if (session.canvasnodeDurationMinSeconds && session.canvasnodeDurationMaxSeconds) {
           setStoryboardShotDuration({
@@ -1508,6 +1521,7 @@ function StudioContent() {
       ...DEFAULT_SETTINGS,
       model: defaultVideoModelId,
     });
+    setStoryboardInferenceModelId(defaultInferenceModelId);
     setStoryboardShotDuration(DEFAULT_SHOT_DURATION_RANGE);
     setStoryboardVideoDuration(DEFAULT_VIDEO_DURATION_RANGE);
     setStoryboardTaskRunId("");
@@ -1538,11 +1552,13 @@ function StudioContent() {
     plot: string,
     batchSettings: StoryboardSettings,
     durations: { shot: ScriptDurationRange; video: ScriptDurationRange },
+    inferenceModelServiceId: string,
   ) => {
     const requestId = storyboardRequestIDRef.current + 1;
     storyboardRequestIDRef.current = requestId;
     setStoryboardPlot(plot);
     setStoryboardBatchSettings(batchSettings);
+    setStoryboardInferenceModelId(inferenceModelServiceId);
     setStoryboardShotDuration(durations.shot);
     setStoryboardVideoDuration(durations.video);
     setStoryboardStep("preview");
@@ -1572,19 +1588,24 @@ function StudioContent() {
           canvasId,
           plot,
           {
-            inferenceModelServiceId: defaultInferenceModelId,
+            inferenceModelServiceId,
             videoModelServiceId: modelServiceId,
           },
           durations,
           frontendSettings,
+          statePubSub,
           controller.signal,
           (session) => {
+            const firstSession = !sessionReceived;
             sessionReceived = true;
             activeTaskRunId = session.taskRunId;
             if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
               return;
             }
             setStoryboardPlot(session.plot);
+            if (session.inferenceModelServiceId) {
+              setStoryboardInferenceModelId(session.inferenceModelServiceId);
+            }
             setStoryboardBatchSettings(session.settings);
             if (session.canvasnodeDurationMinSeconds && session.canvasnodeDurationMaxSeconds) {
               setStoryboardShotDuration({
@@ -1602,6 +1623,7 @@ function StudioContent() {
             setStoryboardDraftPresent(true);
             setStoryboardDraftStatus(session.status);
             setPreviewGenerating(session.generating);
+            if (firstSession) void refreshCanvasGraph();
             setDraftShots((current) => {
               if (current.some((item) => item.id === session.taskRunId)) {
                 return current;
@@ -1653,7 +1675,7 @@ function StudioContent() {
             ),
           );
         }
-        // Redis 已建立的失败会话必须显式放弃后才能重建；建会话前失败才回设计页。
+        // 已入库的失败草稿节点必须显式放弃后才能重建；建节点前失败才回设计页。
         setStoryboardStep(sessionReceived ? "preview" : "design");
       }
     })();
@@ -1665,11 +1687,12 @@ function StudioContent() {
     }
     try {
       await mutationCoordinator.enqueue(() => cancelCanvasNodeDrafts(projectId, canvasId, storyboardTaskRunId));
+      await refreshCanvasGraph();
       setDraftShots((current) => current.filter((item) => item.id !== storyboardTaskRunId));
       storyboardRequestIDRef.current += 1;
       resetStoryboardFlow();
     } catch {
-      // 请求层已统一提示；保留草稿 UI，刷新后仍可从 Redis 恢复。
+      // 请求层已统一提示；保留草稿 UI，刷新后仍可从 Canvas 节点恢复。
     }
   };
 
@@ -2447,7 +2470,12 @@ function StudioContent() {
                   view === "canvas" ? "" : "absolute inset-0 opacity-0 pointer-events-none"
                 }`}
               >
-                <CanvasBoard onRefreshGraph={refreshCanvasGraph} ref={canvasBoardRef} />
+                <CanvasBoard
+                  nodePubSub={nodePubSub}
+                  onRefreshGraph={refreshCanvasGraph}
+                  ref={canvasBoardRef}
+                  statePubSub={statePubSub}
+                />
               </div>
             ) : null}
 
@@ -2624,11 +2652,13 @@ function StudioContent() {
                 <ScriptDesignDialog
                   initialPlot={storyboardPlot}
                   initialSettings={storyboardBatchSettings}
+                  initialStoryboardModel={storyboardInferenceModelId}
                   initialShotDuration={storyboardShotDuration}
                   initialVideoDuration={storyboardVideoDuration}
                   modelOptions={videoModels}
                   onCancel={resetStoryboardFlow}
                   onSubmit={handleScriptDesignSubmit}
+                  storyboardModelOptions={storyboardModels}
                   visible={storyboardStep === "design"}
                 />
 
@@ -2733,7 +2763,7 @@ function StudioContent() {
                 canvasId={canvasId}
                 onChange={() => {
                   void refreshCanvasGraph();
-                  void listCanvasNodeDraftSessions(projectId, canvasId)
+                  void listCanvasNodeDraftSessions(statePubSub)
                     .then(setDraftShots)
                     .catch(() => undefined);
                 }}

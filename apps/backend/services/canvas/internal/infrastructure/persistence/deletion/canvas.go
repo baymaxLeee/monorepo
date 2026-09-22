@@ -41,7 +41,7 @@ func (r *Repository) HideByCanvasNodes(ctx context.Context, scope applicationcan
 	}
 	var runs []nodeRun
 	if err := deletionScope(db.Table("task_runs"), scope).
-		Where("subject_type = ? AND subject_id IN ? AND run_type IN ?", domaintask.SubjectTypeCanvasNode, nodeIDs, []domaintask.RunType{domaintask.RunTypeCanvasNodeVideoGeneration, domaintask.RunTypeCanvasNodeTextGeneration}).
+		Where("subject_type = ? AND subject_id IN ? AND run_type IN ?", domaintask.SubjectTypeCanvasNode, nodeIDs, []domaintask.RunType{domaintask.RunTypeCanvasNodeVideoGeneration, domaintask.RunTypeCanvasNodeTextGeneration, domaintask.RunTypeCanvasStoryboardGeneration}).
 		Select("id, subject_id, created_by, run_type").Find(&runs).Error; err != nil {
 		return err
 	}
@@ -53,8 +53,11 @@ func (r *Repository) HideByCanvasNodes(ctx context.Context, scope applicationcan
 	for _, node := range nodes {
 		for _, run := range runsByNode[node.ID] {
 			nodeType := domaincanvas.NodeTypeVideoGeneration
-			if run.RunType == domaintask.RunTypeCanvasNodeTextGeneration {
+			switch run.RunType {
+			case domaintask.RunTypeCanvasNodeTextGeneration:
 				nodeType = domaincanvas.NodeTypeTextGeneration
+			case domaintask.RunTypeCanvasStoryboardGeneration:
+				nodeType = domaincanvas.NodeTypeStoryboardDraft
 			}
 			payload := applicationcanvas.NodeCleanupPayload{Scope: scope, NodeID: node.ID, ProjectID: node.ProjectID, CanvasID: node.CanvasID, TaskRunID: run.ID, NodeType: nodeType, NodeRevision: node.Revision, DeletedAt: now}
 			payload.Scope.CallerID = run.CreatedBy
@@ -84,7 +87,7 @@ func (r *Repository) PrepareCanvasDeletion(ctx context.Context, scope applicatio
 	queue := application.NewQueue(r)
 	for offset := 0; offset < len(ids); offset += 100 {
 		batch := ids[offset:min(offset+100, len(ids))]
-		query := deletionScope(db.Table("task_runs"), scope).Where("subject_type = ? AND subject_id IN ? AND run_type IN ?", domaintask.SubjectTypeCanvas, batch, []domaintask.RunType{domaintask.RunTypeCanvasStoryboardGeneration, domaintask.RunTypeCanvasVideoArchiveExport})
+		query := deletionScope(db.Table("task_runs"), scope).Where("subject_type = ? AND subject_id IN ? AND run_type = ?", domaintask.SubjectTypeCanvas, batch, domaintask.RunTypeCanvasVideoArchiveExport)
 		var runs []struct {
 			ID, SubjectID, CreatedBy string
 			RunType                  domaintask.RunType
@@ -94,7 +97,7 @@ func (r *Repository) PrepareCanvasDeletion(ctx context.Context, scope applicatio
 		}
 		for _, run := range runs {
 			payload := applicationcanvas.CanvasTaskCleanupPayload{Scope: scope, ProjectID: projectID, CanvasID: run.SubjectID, TaskRunID: run.ID, RunType: run.RunType}
-			// Storyboard drafts belong to their creator, not the deleting member.
+			// Async Canvas tasks belong to their creator, not the deleting member.
 			payload.Scope.CallerID = run.CreatedBy
 			if err := queue.Enqueue(ctx, scope.TenantID, applicationcanvas.CanvasTaskCleanupJobKind, run.ID, payload); err != nil {
 				return err
@@ -102,6 +105,37 @@ func (r *Repository) PrepareCanvasDeletion(ctx context.Context, scope applicatio
 		}
 		if err := query.Where("hidden_at IS NULL").Updates(map[string]any{"hidden_at": now, "state_version": gorm.Expr("state_version + 1"), "updated_at": now}).Error; err != nil {
 			return err
+		}
+		var storyboardRuns []struct {
+			ID, CanvasID, CreatedBy string
+			RunType                 domaintask.RunType
+		}
+		storyboardQuery := deletionScope(db.Table("task_runs AS task_runs"), scope).
+			Select("task_runs.id, canvas_nodes.canvas_id, task_runs.created_by, task_runs.run_type").
+			Joins("JOIN canvas_nodes ON canvas_nodes.id = task_runs.subject_id").
+			Where("task_runs.subject_type = ? AND task_runs.run_type = ? AND canvas_nodes.canvas_id IN ?", domaintask.SubjectTypeCanvasNode, domaintask.RunTypeCanvasStoryboardGeneration, batch)
+		if err := storyboardQuery.Find(&storyboardRuns).Error; err != nil {
+			return err
+		}
+		for _, run := range storyboardRuns {
+			payload := applicationcanvas.CanvasTaskCleanupPayload{
+				Scope: scope, ProjectID: projectID, CanvasID: run.CanvasID, TaskRunID: run.ID, RunType: run.RunType,
+			}
+			payload.Scope.CallerID = run.CreatedBy
+			if err := queue.Enqueue(ctx, scope.TenantID, applicationcanvas.CanvasTaskCleanupJobKind, run.ID, payload); err != nil {
+				return err
+			}
+		}
+		if len(storyboardRuns) > 0 {
+			storyboardRunIDs := make([]string, 0, len(storyboardRuns))
+			for _, run := range storyboardRuns {
+				storyboardRunIDs = append(storyboardRunIDs, run.ID)
+			}
+			if err := deletionScope(db.Table("task_runs"), scope).
+				Where("id IN ? AND hidden_at IS NULL", storyboardRunIDs).
+				Updates(map[string]any{"hidden_at": now, "state_version": gorm.Expr("state_version + 1"), "updated_at": now}).Error; err != nil {
+				return err
+			}
 		}
 		// Existing output associations already have a durable cleanup state. Reuse
 		// that owner rather than creating a second storage deletion protocol.

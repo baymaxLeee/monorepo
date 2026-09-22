@@ -66,6 +66,7 @@ import (
 	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 	modelcatalog "github.com/example/monorepo/canvas/internal/infrastructure/providercatalog"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
+	"github.com/example/monorepo/canvas/internal/infrastructure/usageobserver"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -413,6 +414,8 @@ func run() error {
 		nodes, canvasstoryboardredis.New(redisClient), storyboardRepository, taskRepository, taskRepository,
 		executions, transactions, uuidGenerator{}, utcClock{},
 		applicationcanvas.WithStoryboardCanvasAccess(canvasRepository),
+		applicationcanvas.WithStoryboardModelCallLedger(usageobserver.NewStoryboardObserver(projectUsageCalls)),
+		applicationcanvas.WithStoryboardProjectUsage(projectUsageCalls, projectUsageFinalizer),
 	)
 	assets := applicationcanvas.NewCanvasNodeAssetService(
 		nodeRepository, assetService, assetService, nil, nodeRepository,
@@ -469,10 +472,19 @@ func run() error {
 			if err := json.Unmarshal(data, &input); err != nil {
 				return err
 			}
-			if input.RunType != domaintask.RunTypeCanvasStoryboardGeneration {
+			switch input.RunType {
+			case domaintask.RunTypeCanvasStoryboardGeneration:
+				return storyboards.CancelDeletedCanvasTask(ctx, input.Scope, input.ProjectID, input.CanvasID, input.TaskRunID)
+			case domaintask.RunTypeCanvasVideoArchiveExport:
+				return archiveService.Cancel(ctx, applicationcanvasarchive.GetInput{
+					Scope: applicationcanvasarchive.Scope{
+						TenantID: input.Scope.TenantID, WorkspaceID: input.Scope.WorkspaceID, CallerID: input.Scope.CallerID,
+					},
+					ProjectID: input.ProjectID, CanvasID: input.CanvasID, TaskRunID: input.TaskRunID,
+				})
+			default:
 				return errors.New("unsupported deleted canvas task type")
 			}
-			return storyboards.Cancel(ctx, input.Scope, input.ProjectID, input.CanvasID, input.TaskRunID)
 		},
 		applicationcanvas.NodeCleanupJobKind: func(ctx context.Context, data json.RawMessage) error {
 			var input applicationcanvas.NodeCleanupPayload

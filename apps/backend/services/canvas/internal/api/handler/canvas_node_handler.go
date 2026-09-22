@@ -36,7 +36,7 @@ type canvasnodeService interface {
 	ProjectViews(context.Context, applicationcanvasnode.Scope, []domaincanvasnode.CanvasNode) ([]applicationcanvasnode.CanvasNodeView, error)
 	Create(context.Context, applicationcanvasnode.Scope, applicationcanvasnode.CreateNodeInput) (domaincanvasnode.CanvasNode, int32, int64, error)
 	Copy(context.Context, applicationcanvasnode.Scope, applicationcanvasnode.CopyNodeInput) (applicationcanvasnode.CopyNodeResult, error)
-	ConfirmStoryboardDrafts(context.Context, applicationcanvasnode.Scope, string, string, []applicationcanvasnode.CanvasNodeDraftConfirmInput) ([]domaincanvasnode.CanvasNode, int64, error)
+	ConfirmStoryboardDrafts(context.Context, applicationcanvasnode.Scope, string, string, string, []applicationcanvasnode.CanvasNodeDraftConfirmInput) ([]domaincanvasnode.CanvasNode, int64, error)
 	Update(context.Context, applicationcanvasnode.Scope, string, string, string, applicationcanvasnode.UpdatePatch) (applicationcanvasnode.UpdateResult, error)
 	BatchUpdatePositions(context.Context, applicationcanvasnode.Scope, string, string, []applicationcanvasnode.CanvasNodePositionUpdate) (applicationcanvasnode.BatchUpdatePositionsResult, error)
 	Delete(context.Context, applicationcanvasnode.Scope, string, string, string) error

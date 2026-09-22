@@ -458,7 +458,8 @@ type noopStoryboardAssetCatalogFailureReporter struct{}
 func (noopStoryboardAssetCatalogFailureReporter) ReportStoryboardAssetCatalogFailure(context.Context, error) {
 }
 func (s *CanvasNodeService) Create(ctx context.Context, scope Scope, input CreateNodeInput) (domain.CanvasNode, int32, int64, error) {
-	if !validCallerScope(scope) || input.ProjectID == "" || input.CanvasID == "" || !input.Type.Valid() || s.graphRepository == nil {
+	if !validCallerScope(scope) || input.ProjectID == "" || input.CanvasID == "" || !input.Type.Valid() ||
+		input.Type == domain.NodeTypeStoryboardDraft || s.graphRepository == nil {
 		return domain.CanvasNode{}, 0, 0, errno.New(errno.ErrInvalidArgument)
 	}
 	var config domainvideo.Config
@@ -675,6 +676,9 @@ func (s *CanvasNodeService) Copy(ctx context.Context, scope Scope, input CopyNod
 		if getErr != nil {
 			return getErr
 		}
+		if source.Type == domain.NodeTypeStoryboardDraft {
+			return domain.ErrInvalidCanvasNode
+		}
 		sources := []domain.CanvasNode{source}
 		if getErr = s.resolveCurrentResourceAssets(txCtx, scope, input.ProjectID, sources); getErr != nil {
 			return getErr
@@ -776,6 +780,9 @@ func (s *CanvasNodeService) Update(ctx context.Context, scope Scope, projectID, 
 	item, err := s.repository.Get(ctx, scope, projectID, canvasID, canvasnodeID)
 	if err != nil {
 		return UpdateResult{}, classify(err)
+	}
+	if item.Type == domain.NodeTypeStoryboardDraft && !positionOnlyUpdate(patch.Content) {
+		return UpdateResult{}, errno.New(errno.ErrInvalidArgument)
 	}
 	items := []domain.CanvasNode{item}
 	if err = s.resolveCurrentResourceAssets(ctx, scope, projectID, items); err != nil {

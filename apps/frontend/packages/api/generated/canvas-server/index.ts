@@ -345,6 +345,7 @@ export const CanvasNodeType = {
   IMAGE_GENERATION: 5,
   VIDEO_GENERATION: 6,
   TEXT_GENERATION: 7,
+  STORYBOARD_DRAFT: 8,
 } as const;
 
 export type CanvasVideoInputMode = typeof CanvasVideoInputMode[keyof typeof CanvasVideoInputMode];

@@ -96,6 +96,10 @@ const NODE_KIND: Record<number, { icon: string; label: string }> = {
     icon: "文",
     label: t("文本生成"),
   },
+  [canvasnode.CanvasNodeType.STORYBOARD_DRAFT]: {
+    icon: "镜",
+    label: t("批量分镜"),
+  },
 };
 
 function HighlightedName({ query, text }: { query: string; text: string }) {

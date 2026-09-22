@@ -85,6 +85,13 @@ type canvasNodeTextGenerationPayload struct {
 	SelectedOutputText string                     `json:"selected_output_text"`
 }
 
+type canvasNodeStoryboardDraftPayload struct {
+	canvasNodePayloadVersion
+	Plot       string          `json:"plot"`
+	Session    json.RawMessage `json:"session,omitempty"`
+	Generation json.RawMessage `json:"generation,omitempty"`
+}
+
 func mustCompileCanvasNodeDataSchema(name string, encoded []byte) (*jsonschema.Schema, map[domain.NodeType]int) {
 	var document map[string]any
 	if err := json.Unmarshal(encoded, &document); err != nil {
@@ -98,7 +105,7 @@ func mustCompileCanvasNodeDataSchema(name string, encoded []byte) (*jsonschema.S
 	for nodeType, name := range map[domain.NodeType]string{
 		domain.NodeTypeImageAsset: "IMAGE_ASSET", domain.NodeTypeVideoAsset: "VIDEO_ASSET", domain.NodeTypeAudioAsset: "AUDIO_ASSET",
 		domain.NodeTypeText: "TEXT", domain.NodeTypeImageGeneration: "IMAGE_GENERATION", domain.NodeTypeVideoGeneration: "VIDEO_GENERATION",
-		domain.NodeTypeTextGeneration: "TEXT_GENERATION",
+		domain.NodeTypeTextGeneration: "TEXT_GENERATION", domain.NodeTypeStoryboardDraft: "STORYBOARD_DRAFT",
 	} {
 		value, exists := versionsDocument[name].(float64)
 		if !exists || value < 1 || value != float64(int(value)) {
@@ -242,6 +249,8 @@ func encodeCanvasNodePayload(node domain.CanvasNode) (json.RawMessage, error) {
 		payload = canvasNodeVideoGenerationPayload{canvasNodePayloadVersion: version, Prompt: node.Prompt, VideoInputMode: int16(node.VideoInputMode), GenerationConfig: config}
 	case domain.NodeTypeTextGeneration:
 		payload = canvasNodeTextGenerationPayload{canvasNodePayloadVersion: version, Prompt: node.Prompt, GenerationConfig: config, SelectedOutputText: node.SelectedOutputText}
+	case domain.NodeTypeStoryboardDraft:
+		payload = canvasNodeStoryboardDraftPayload{canvasNodePayloadVersion: version, Plot: node.Prompt}
 	default:
 		return nil, fmt.Errorf("unsupported canvas node type %d", node.Type)
 	}
@@ -269,6 +278,8 @@ func decodeCanvasNodePayload(nodeType domain.NodeType, encoded []byte) (any, err
 		payload = &canvasNodeVideoGenerationPayload{}
 	case domain.NodeTypeTextGeneration:
 		payload = &canvasNodeTextGenerationPayload{}
+	case domain.NodeTypeStoryboardDraft:
+		payload = &canvasNodeStoryboardDraftPayload{}
 	default:
 		return nil, fmt.Errorf("unsupported canvas node type %d", nodeType)
 	}
@@ -328,6 +339,8 @@ func applyCanvasNodePayload(node *domain.CanvasNode, payload any) error {
 		node.Prompt = value.Prompt
 		node.GenerationConfig = generationConfigFromData(value.GenerationConfig)
 		node.SelectedOutputText = value.SelectedOutputText
+	case *canvasNodeStoryboardDraftPayload:
+		node.Prompt = value.Plot
 	default:
 		return fmt.Errorf("unsupported decoded payload %T", payload)
 	}

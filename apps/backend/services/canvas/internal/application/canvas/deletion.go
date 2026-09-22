@@ -151,6 +151,11 @@ func (s *CanvasNodeService) CleanupDeletedNode(ctx context.Context, input NodeCl
 	if input.TaskRunID == "" {
 		return nil
 	}
+	// Storyboard task cancellation is queued by PrepareCanvasDeletion with the
+	// parent Canvas scope; the generic generation canceller does not own it.
+	if input.NodeType == domain.NodeTypeStoryboardDraft {
+		return nil
+	}
 	matches, err := s.repository.DeletionMatches(
 		ctx, input.Scope, input.ProjectID, input.CanvasID, input.NodeID, input.NodeRevision, input.DeletedAt,
 	)

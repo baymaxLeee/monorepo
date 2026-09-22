@@ -3,7 +3,7 @@ import { useSetAtom } from "jotai";
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
 import { Message } from "@/components/ui";
-import type { canvasnode } from "@/domain";
+import { canvasnode } from "@/domain";
 import { BatchDeleteCanvasNodes, ConnectCanvasNodes, DeleteCanvasEdge } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
 
@@ -44,6 +44,10 @@ export function useCanvasConnections({
   const deleteNodes = useCallback(
     async (items: canvasnode.CanvasNode[]) => {
       if (!items.length) return false;
+      if (items.some((item) => item.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT)) {
+        Message.warning(t("请在故事板中确认或取消批量分镜"));
+        return false;
+      }
       const nodeIDs = new Set(items.map((item) => item.NodeID));
       if (items.some((item) => item.ActiveTaskRunID)) {
         Message.warning(t("生成中的节点不可删除"));

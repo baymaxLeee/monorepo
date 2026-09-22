@@ -641,6 +641,9 @@ func (s *CanvasNodeService) BatchDeleteNodes(ctx context.Context, input BatchDel
 		found := make(map[string]struct{}, len(input.NodeIDs))
 		for _, node := range nodes {
 			if _, shouldDelete := deletedIDs[node.ID]; shouldDelete {
+				if node.Type == domain.NodeTypeStoryboardDraft {
+					return domain.ErrInvalidCanvasNode
+				}
 				if node.ActiveTaskRunID != "" {
 					return ErrRevisionConflict
 				}
