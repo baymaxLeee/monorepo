@@ -1,14 +1,9 @@
 import {
-  canvasStartStoryboard,
-  canvasListStoryboards,
-  canvasGetStoryboard,
-  canvasConfirmStoryboard,
-  canvasCancelStoryboard,
-  observeCanvasStoryboard,
-  canvasGetGraph,
-  canvasStartGeneration,
-  canvasListGenerations,
-  type CanvasStoryboardDraft,
+  canvasBatchGetNodeStates,
+  canvasStartStoryboardDrafts,
+  canvasConfirmStoryboardDrafts,
+  canvasCancelStoryboardDrafts,
+  type CanvasNodeDraftSession,
   type ApiRequestConfig,
 } from "@repo/api";
 
@@ -29,9 +24,7 @@ import t from "@/utils/i18n";
 import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
 import { isVideoGenerationCancellationAllowed } from "./generationCancellation";
-import { generationStatus } from "./generations";
 import { materializedCanvasNodeAssetId } from "./model";
-import { generationConfig as persistedGenerationConfig } from "./persistence";
 import {
   DEFAULT_SETTINGS,
   type GenerationHistoryItem,
@@ -75,10 +68,6 @@ const RESOLUTION_TO_API: Record<string, canvasnode.CanvasNodeResolution> = {
   "4K": canvasnode.CanvasNodeResolution.P4K,
 };
 
-// The generated Web SDK may lag the additive Server enum during rollout.
-const ASPECT_RATIO_3_2 = 7 as canvasnode.CanvasNodeAspectRatio;
-const ASPECT_RATIO_ADAPTIVE = 8 as canvasnode.CanvasNodeAspectRatio;
-
 const RATIO_FROM_API: Record<number, string> = {
   [canvasnode.CanvasNodeAspectRatio.RATIO_21_9]: "21:9",
   [canvasnode.CanvasNodeAspectRatio.RATIO_16_9]: "16:9",
@@ -86,9 +75,9 @@ const RATIO_FROM_API: Record<number, string> = {
   [canvasnode.CanvasNodeAspectRatio.RATIO_1_1]: "1:1",
   [canvasnode.CanvasNodeAspectRatio.RATIO_3_4]: "3:4",
   [canvasnode.CanvasNodeAspectRatio.RATIO_9_16]: "9:16",
-  [ASPECT_RATIO_3_2]: "3:2",
+  [canvasnode.CanvasNodeAspectRatio.RATIO_3_2]: "3:2",
   [canvasnode.CanvasNodeAspectRatio.RATIO_2_3]: "2:3",
-  [ASPECT_RATIO_ADAPTIVE]: "adaptive",
+  [canvasnode.CanvasNodeAspectRatio.RATIO_ADAPTIVE]: "adaptive",
 };
 
 const RATIO_TO_API: Record<string, canvasnode.CanvasNodeAspectRatio> = {
@@ -98,9 +87,9 @@ const RATIO_TO_API: Record<string, canvasnode.CanvasNodeAspectRatio> = {
   "1:1": canvasnode.CanvasNodeAspectRatio.RATIO_1_1,
   "3:4": canvasnode.CanvasNodeAspectRatio.RATIO_3_4,
   "9:16": canvasnode.CanvasNodeAspectRatio.RATIO_9_16,
-  "3:2": ASPECT_RATIO_3_2,
+  "3:2": canvasnode.CanvasNodeAspectRatio.RATIO_3_2,
   "2:3": canvasnode.CanvasNodeAspectRatio.RATIO_2_3,
-  adaptive: ASPECT_RATIO_ADAPTIVE,
+  adaptive: canvasnode.CanvasNodeAspectRatio.RATIO_ADAPTIVE,
 };
 
 // These values are domain option IDs shared with model capabilities, not UI copy.
@@ -250,61 +239,10 @@ export function canvasRequestErrorMessage(error: unknown, fallbackMessage: strin
   return typeof message === "string" && message.trim() ? message.trim() : fallbackMessage;
 }
 
-export interface CanvasTextGenerationStreamState {
-  taskRunId: string;
-  status: canvasnode.CanvasGenerationStatus;
-  content: string;
-  errorCode?: string;
-  errorMessage?: string;
-}
-
-export async function streamCanvasNodeTextGeneration(
-  body: { CanvasID: string; NodeID: string; ProjectID?: string },
-  signal: AbortSignal,
-  onState: (state: CanvasTextGenerationStreamState) => void,
-) {
-  const graph = await canvasGetGraph(body.CanvasID, { signal });
-  const node = graph.nodes.find((item) => item.id === body.NodeID);
-  if (!node) throw new Error("节点已不存在");
-  let run = await canvasStartGeneration(
-    body.CanvasID,
-    body.NodeID,
-    { expected_revision: node.revision, operation_id: crypto.randomUUID() },
-    { signal },
-  );
-  for (;;) {
-    signal.throwIfAborted();
-    const current = {
-      taskRunId: run.id,
-      status: generationStatus(run.status),
-      content: run.output_text,
-      errorMessage: run.error || undefined,
-    };
-    onState(current);
-    if (!["queued", "pending", "running"].includes(run.status)) return current;
-    await new Promise<void>((resolve, reject) => {
-      const abort = () => {
-        clearTimeout(timer);
-        reject(signal.reason);
-      };
-      const timer = setTimeout(() => {
-        signal.removeEventListener("abort", abort);
-        resolve();
-      }, 1000);
-      signal.addEventListener("abort", abort, { once: true });
-    });
-    const latest = (
-      await canvasListGenerations(body.CanvasID, body.NodeID, { signal, skipErrorNotify: true })
-    ).items.find((item) => item.id === run.id);
-    if (!latest) throw new Error("生成任务已不存在");
-    run = latest;
-  }
-}
-
 export function generationConfigPatch(
   current: StoryboardSettings,
   next: StoryboardSettings,
-  videoInputMode = canvasnode.CanvasVideoInputMode.REFERENCE,
+  videoInputMode: canvasnode.CanvasVideoInputMode = canvasnode.CanvasVideoInputMode.REFERENCE,
 ): canvasnode.CanvasNodeGenerationConfigPatch {
   const patch: canvasnode.CanvasNodeGenerationConfigPatch = {};
   if (current.model !== next.model) {
@@ -343,25 +281,18 @@ const SILENT_POLL: ApiRequestConfig = { skipErrorNotify: true };
 
 const SILENT_REQUEST = SILENT_POLL;
 
-export async function listCanvasNodeDraftSessions(_projectId: string, canvasId: string) {
-  const result = await canvasListStoryboards(canvasId);
-  return result.items.map(
-    (item) =>
-      ({
-        id: item.id,
-        detailLoaded: true,
-        timelineStatus:
-          item.status === "queued" || item.status === "running"
-            ? "generating"
-            : item.status === "failed"
-              ? "failed"
-              : "pending-confirmation",
-        storyboardTaskRunId: item.id,
-        duration: DEFAULT_SETTINGS.duration,
-        status: "empty",
-        script: item.plot,
-        settings: storyboardSettings(item),
-      }) satisfies Shot,
+export async function listCanvasNodeDraftSessions(projectId: string, canvasId: string) {
+  const result = await canvasBatchGetNodeStates(projectId, canvasId, { targets: [] }, SILENT_POLL);
+  return result.draft_sessions.flatMap((item) =>
+    (item.canvas_nodes ?? []).map(
+      (draft) =>
+        ({
+          ...shotFromDraftSession(item, draft),
+          id: draft.draft_id,
+          detailLoaded: true,
+          storyboardTaskRunId: item.task_run_id,
+        }) satisfies Shot,
+    ),
   );
 }
 
@@ -444,7 +375,7 @@ export async function createCanvasNode(
 }
 
 export async function streamCanvasNodeDrafts(
-  _projectId: string,
+  projectId: string,
   canvasId: string,
   plot: string,
   inferenceModelServiceId: string,
@@ -454,22 +385,32 @@ export async function streamCanvasNodeDrafts(
   onSession: (session: StoryboardDraftSession) => void,
   onCanvasNode: (shot: Shot) => void,
 ) {
-  const draft = await canvasStartStoryboard(
+  const started = await canvasStartStoryboardDrafts(
+    projectId,
     canvasId,
     {
       plot,
-      provider_id: inferenceModelServiceId,
-      operation_id: crypto.randomUUID(),
-      parameters: null,
-      duration_min: durations.shot.min,
-      duration_max: durations.shot.max,
-      total_duration_min: durations.video.min * 60,
-      total_duration_max: durations.video.max * 60,
-      video_config: persistedGenerationConfig(generationConfigFromSettings(frontendSettings)),
+      planning_config: {
+        canvas_node_duration_min_seconds: durations.shot.min,
+        canvas_node_duration_max_seconds: durations.shot.max,
+        total_duration_min_seconds: durations.video.min * 60,
+        total_duration_max_seconds: durations.video.max * 60,
+      },
+      model_config: {
+        inference_model_service_id: inferenceModelServiceId,
+        video_model_service_id: frontendSettings.model,
+        video_parameters: {
+          resolution: RESOLUTION_TO_API[frontendSettings.resolution],
+          aspect_ratio: RATIO_TO_API[frontendSettings.ratio],
+          generate_audio: frontendSettings.audio === AUDIO_ENABLED,
+          watermark: frontendSettings.watermark === WATERMARK_ENABLED,
+        },
+      },
     },
     { signal },
   );
-  return observeDraft(canvasId, draft, signal, onSession, onCanvasNode);
+  if (!started.session) throw new Error(t("分镜任务启动失败"));
+  return observeDraft(projectId, canvasId, started.session, signal, onSession, onCanvasNode);
 }
 
 export interface StoryboardDraftSession {
@@ -490,7 +431,7 @@ export interface StoryboardDraftSession {
 export class StoryboardDraftNotFoundError extends Error {}
 
 export async function recoverCanvasNodeDrafts(
-  _projectId: string,
+  projectId: string,
   canvasId: string,
   taskRunId: string,
   _frontendSettings: StoryboardSettings,
@@ -498,44 +439,39 @@ export async function recoverCanvasNodeDrafts(
   onSession: (session: StoryboardDraftSession) => void,
   onCanvasNode: (shot: Shot) => void,
 ) {
-  const draft = await canvasGetStoryboard(canvasId, taskRunId, { signal });
-  return observeDraft(canvasId, draft, signal, onSession, onCanvasNode);
+  const result = await canvasBatchGetNodeStates(
+    projectId,
+    canvasId,
+    { targets: [] },
+    { signal, skipErrorNotify: true },
+  );
+  const draft = result.draft_sessions.find((item) => item.task_run_id === taskRunId);
+  if (!draft) throw new StoryboardDraftNotFoundError();
+  return observeDraft(projectId, canvasId, draft, signal, onSession, onCanvasNode);
 }
 
-function generationConfigFromSettings(settings: StoryboardSettings): canvasnode.CanvasNodeGenerationConfig {
-  return {
-    ModelServiceID: settings.model,
-    Resolution: RESOLUTION_TO_API[settings.resolution],
-    AspectRatio: RATIO_TO_API[settings.ratio],
-    DurationSeconds: Number.parseInt(settings.duration, 10),
-    GenerateAudio: settings.audio === AUDIO_ENABLED,
-    Watermark: settings.watermark === WATERMARK_ENABLED,
-  };
-}
-
-export async function confirmCanvasNodeDrafts(_projectId: string, canvasId: string, taskRunId: string, shots: Shot[]) {
-  const [current, draft] = await Promise.all([canvasGetGraph(canvasId), canvasGetStoryboard(canvasId, taskRunId)]);
-  const graph = await canvasConfirmStoryboard(canvasId, taskRunId, {
-    expected_revision: current.canvas.revision,
-    shots: shots.map((shot, index) => ({
-      id: shot.id,
-      sequence_no: index + 1,
-      prompt: shot.script,
-      duration_seconds: Number.parseFloat(shot.duration),
+export async function confirmCanvasNodeDrafts(projectId: string, canvasId: string, taskRunId: string, shots: Shot[]) {
+  const result = await canvasConfirmStoryboardDrafts(projectId, canvasId, taskRunId, {
+    items: shots.map((shot) => ({
+      draft_id: shot.id,
+      generation_config: {
+        model_service_id: shot.settings.model,
+        resolution: RESOLUTION_TO_API[shot.settings.resolution],
+        aspect_ratio: RATIO_TO_API[shot.settings.ratio],
+        duration_seconds: Number.parseFloat(shot.duration),
+        generate_audio: shot.settings.audio === AUDIO_ENABLED,
+        watermark: shot.settings.watermark === WATERMARK_ENABLED,
+      },
     })),
-    video_config: shots[0]
-      ? persistedGenerationConfig(generationConfigFromSettings(shots[0].settings))
-      : draft.video_config,
   });
-  const previous = new Set(current.nodes.map((node) => node.id));
   return {
-    canvasNodeIds: graph.nodes.filter((node) => !previous.has(node.id)).map((node) => node.id),
-    canvasRevision: graph.canvas.revision,
+    canvasNodeIds: result.canvas_node_ids,
+    canvasRevision: result.canvas_revision,
   };
 }
 
-export async function cancelCanvasNodeDrafts(_projectId: string, canvasId: string, taskRunId: string) {
-  await canvasCancelStoryboard(canvasId, taskRunId);
+export async function cancelCanvasNodeDrafts(projectId: string, canvasId: string, taskRunId: string) {
+  await canvasCancelStoryboardDrafts(projectId, canvasId, taskRunId);
 }
 
 export async function startCanvasNodeGeneration(projectId: string, canvasId: string, canvasnodeId: string) {
@@ -610,7 +546,7 @@ export async function listCanvasNodeHistories(projectId: string, canvasId: strin
     ...scope(projectId, canvasId),
     NodeID: canvasnodeId,
   });
-  return response.Items.map((item) => historyFromDTO(item, canvasnodeId));
+  return response.Items.map((item: canvasnode.CanvasNodeHistory) => historyFromDTO(item, canvasnodeId));
 }
 
 export async function selectCanvasNodeHistory(
@@ -741,60 +677,93 @@ export async function queryMentionTree(
   };
 }
 
-function storyboardSettings(draft: CanvasStoryboardDraft): StoryboardSettings {
-  const config = draft.video_config;
+function storyboardSettings(draft: CanvasNodeDraftSession): StoryboardSettings {
+  const config = draft.model_config?.video_parameters;
   return {
-    model: config.provider_id,
-    ratio: config.aspect_ratio,
-    resolution: config.resolution,
-    duration: config.duration_seconds + "s",
-    audio: config.generate_audio ? "有声" : "无声",
-    watermark: config.watermark ? "有水印" : "无水印",
+    model: draft.model_config?.video_model_service_id ?? "",
+    ratio: RATIO_FROM_API[config?.aspect_ratio ?? canvasnode.CanvasNodeAspectRatio.RATIO_16_9] ?? "16:9",
+    resolution: RESOLUTION_FROM_API[config?.resolution ?? canvasnode.CanvasNodeResolution.P720] ?? "720P",
+    duration: DEFAULT_SETTINGS.duration,
+    audio: config?.generate_audio ? AUDIO_ENABLED : AUDIO_DISABLED,
+    watermark: config?.watermark ? WATERMARK_ENABLED : WATERMARK_DISABLED,
   };
 }
+
+function shotFromDraftSession(
+  session: CanvasNodeDraftSession,
+  draft: NonNullable<CanvasNodeDraftSession["canvas_nodes"]>[number],
+) {
+  return shotFromDraftDTO(
+    {
+      DraftID: draft.draft_id,
+      CanvasNodeNo: draft.canvas_node_no,
+      Prompt: draft.prompt,
+      DurationSeconds: draft.duration_seconds,
+      AssetReferences: draft.asset_references.map((reference) => ({
+        ResourceAssetID: reference.resource_asset_id,
+        AssetID: reference.asset_id,
+        Label: reference.label,
+        TargetField: reference.target_field,
+        AnchorText: reference.anchor_text,
+        MediaType: reference.media_type,
+      })),
+    },
+    storyboardSettings(session),
+  );
+}
+
 async function observeDraft(
+  projectId: string,
   canvasId: string,
-  draft: CanvasStoryboardDraft,
+  draft: CanvasNodeDraftSession,
   signal: AbortSignal,
   onSession: (session: StoryboardDraftSession) => void,
   onShot: (shot: Shot) => void,
 ) {
   let snapshot = draft;
-  const publish = (next: CanvasStoryboardDraft) => {
+  const publish = (next: CanvasNodeDraftSession) => {
     snapshot = next;
     const settings = storyboardSettings(next);
-    const shots = next.shots.map((shot) =>
-      shotFromDraftDTO(
-        {
-          DraftID: shot.id,
-          CanvasNodeNo: shot.sequence_no,
-          Prompt: shot.prompt,
-          DurationSeconds: shot.duration_seconds,
-          AssetReferences: [],
-        },
-        settings,
-      ),
-    );
-    const running = next.status === "queued" || next.status === "running";
+    const shots = (next.canvas_nodes ?? []).map((shot) => shotFromDraftSession(next, shot));
+    const running = next.status === 1;
     onSession({
-      taskRunId: next.id,
+      taskRunId: next.task_run_id,
       plot: next.plot,
-      status: running ? "running" : next.status === "failed" || next.status === "cancelled" ? "failed" : "completed",
+      status: running ? "running" : next.status === 3 ? "failed" : "completed",
       generating: running,
       canvasnodes: shots,
-      inferenceModelServiceId: next.input.provider_id,
-      videoModelServiceId: next.video_config.provider_id,
-      canvasnodeDurationMinSeconds: next.input.duration_min,
-      canvasnodeDurationMaxSeconds: next.input.duration_max,
-      totalDurationMinSeconds: next.input.total_duration_min,
-      totalDurationMaxSeconds: next.input.total_duration_max,
+      inferenceModelServiceId: next.model_config?.inference_model_service_id,
+      videoModelServiceId: next.model_config?.video_model_service_id,
+      canvasnodeDurationMinSeconds: next.planning_config?.canvas_node_duration_min_seconds,
+      canvasnodeDurationMaxSeconds: next.planning_config?.canvas_node_duration_max_seconds,
+      totalDurationMinSeconds: next.planning_config?.total_duration_min_seconds,
+      totalDurationMaxSeconds: next.planning_config?.total_duration_max_seconds,
       settings,
     });
     for (const shot of shots) onShot(shot);
   };
   publish(draft);
-  if (draft.status === "queued" || draft.status === "running")
-    await observeCanvasStoryboard(canvasId, draft.id, signal, publish);
-  if (snapshot.status === "queued" || snapshot.status === "running")
-    publish(await canvasGetStoryboard(canvasId, draft.id, { signal }));
+  while (snapshot.status === 1 && !signal.aborted) {
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        window.clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      const timer = window.setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, 2000);
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
+    const result = await canvasBatchGetNodeStates(
+      projectId,
+      canvasId,
+      { targets: [] },
+      { signal, skipErrorNotify: true },
+    );
+    const next = result.draft_sessions.find((item) => item.task_run_id === draft.task_run_id);
+    if (!next) throw new StoryboardDraftNotFoundError();
+    publish(next);
+  }
+  return snapshot;
 }

@@ -1,15 +1,10 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-export type Int64 = number;
+import { CanvasThinkingModes as ThinkingModes } from "@repo/api";
 
-export const enum ThinkingModes {
-  /** 自动模式，模型根据上下文决定是否开启深度思考 */
-  Auto = 0,
-  /** 开启深度思考模式 */
-  Thinking = 1,
-  /** 关闭深度思考模式 */
-  NoThinking = 2,
-}
+export { ThinkingModes };
+
+export type Int64 = number;
 
 export interface AdvancedReviewConfig {
   /** 是否开启提示词防护 */

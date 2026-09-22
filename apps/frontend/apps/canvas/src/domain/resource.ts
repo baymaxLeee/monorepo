@@ -1,64 +1,31 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
+import {
+  CanvasResourceAssetGenerationAspectRatio as ResourceAssetGenerationAspectRatio,
+  CanvasResourceAssetGenerationInputSourceType as ResourceAssetGenerationInputSourceType,
+  CanvasResourceAssetGenerationResolution as ResourceAssetGenerationResolution,
+  CanvasResourceAssetGenerationRunStatus as ResourceAssetGenerationRunStatus,
+  CanvasResourceAssetSourceType as ResourceAssetSourceType,
+  CanvasResourceOwnerType as ResourceOwnerType,
+  CanvasResourceSortField as ResourceSortField,
+  CanvasResourceType as ResourceType,
+} from "@repo/api";
+
 import type * as asset from "./asset";
 import type * as common from "./common";
 
+export {
+  ResourceAssetGenerationAspectRatio,
+  ResourceAssetGenerationInputSourceType,
+  ResourceAssetGenerationResolution,
+  ResourceAssetGenerationRunStatus,
+  ResourceAssetSourceType,
+  ResourceOwnerType,
+  ResourceSortField,
+  ResourceType,
+};
+
 export type Int64 = number;
-
-export const enum ResourceAssetGenerationAspectRatio {
-  RATIO_1_1 = 1,
-  RATIO_3_4 = 2,
-  RATIO_4_3 = 3,
-  RATIO_9_16 = 4,
-  RATIO_16_9 = 5,
-  RATIO_3_2 = 6,
-  RATIO_2_3 = 7,
-  RATIO_21_9 = 8,
-}
-
-export const enum ResourceAssetGenerationInputSourceType {
-  UPLOADED = 1,
-  RESOURCE_ASSET = 2,
-}
-
-export const enum ResourceAssetGenerationResolution {
-  RESOLUTION_480P = 1,
-  RESOLUTION_720P = 2,
-  RESOLUTION_1080P = 3,
-  RESOLUTION_2K = 4,
-  RESOLUTION_4K = 5,
-}
-
-export const enum ResourceAssetGenerationRunStatus {
-  QUEUED = 1,
-  RUNNING = 2,
-  SUCCEEDED = 3,
-  FAILED = 4,
-  CANCELLED = 5,
-}
-
-export const enum ResourceAssetSourceType {
-  UPLOAD = 1,
-  GENERATED = 2,
-}
-
-/** ResourceOwnerType 是 Resource 的所有权归属。OFFICIAL 为受信系统对账维护的只读官方资源。 */
-export const enum ResourceOwnerType {
-  PROJECT = 1,
-  OFFICIAL = 2,
-}
-
-export const enum ResourceSortField {
-  CREATED_AT = 1,
-  UPDATED_AT = 2,
-}
-
-export const enum ResourceType {
-  CHARACTER = 1,
-  SCENE = 2,
-  PROP = 3,
-  AUDIO = 4,
-}
 
 export interface BatchDeleteResourceAssetsRequest {
   WorkspaceID?: string;

@@ -1,14 +1,10 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-export type Int64 = number;
+import { CanvasSortDirection as SortDirection } from "@repo/api";
 
-/** SortDirection 定义列表排序方向。 */
-export const enum SortDirection {
-  /** ASC 表示升序。 */
-  ASC = 1,
-  /** DESC 表示降序。 */
-  DESC = 2,
-}
+export { SortDirection };
+
+export type Int64 = number;
 
 /** Page 是列表请求的标准分页参数。 */
 export interface Page {

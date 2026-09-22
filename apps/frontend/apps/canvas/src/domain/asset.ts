@@ -1,31 +1,14 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
+import {
+  CanvasAssetMediaType as AssetMediaType,
+  CanvasAssetOwnerType as AssetOwnerType,
+  CanvasAssetReviewStatus as AssetReviewStatus,
+} from "@repo/api";
+
+export { AssetMediaType, AssetOwnerType, AssetReviewStatus };
+
 export type Int64 = number;
-
-/** AssetMediaType 定义服务端根据文件内容识别的媒体类型。 */
-export const enum AssetMediaType {
-  /** IMAGE 表示图片素材。 */
-  IMAGE = 1,
-  /** VIDEO 表示视频素材。 */
-  VIDEO = 2,
-  /** AUDIO 表示音频素材。 */
-  AUDIO = 3,
-}
-
-/** AssetOwnerType 定义素材的可见范围归属类型。 */
-export const enum AssetOwnerType {
-  /** PROJECT 表示素材仅可在指定项目范围内使用。 */
-  PROJECT = 1,
-  /** RESOURCE 表示素材归属于公共资源范围。 */
-  RESOURCE = 2,
-}
-
-export const enum AssetReviewStatus {
-  SUBMITTING = 1,
-  PROCESSING = 2,
-  APPROVED = 3,
-  FAILED = 4,
-}
 
 /** Asset 描述已完成持久化注册的素材。 */
 export interface Asset {

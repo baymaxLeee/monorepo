@@ -197,7 +197,9 @@ export async function createAgentRunResponse(
 
   const startedAt = performance.now();
   const conversation = await getConversationRow(auth, conversationId);
-  if (conversation.canvasId) await canvasClient().graph(auth, conversation.canvasId);
+  if (conversation.canvasId && conversation.projectId) {
+    await canvasClient().graph(auth, conversation.projectId, conversation.canvasId);
+  }
   const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
   const latestMessage = uiMessages.at(-1);
   if (!latestMessage) {
@@ -355,6 +357,7 @@ export async function createAgentRunResponse(
     }
     const assistantMessageId = randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
+      projectId: conversation.projectId,
       canvasId: conversation.canvasId,
       workspaceRole: auth.workspaceRole,
       runId,

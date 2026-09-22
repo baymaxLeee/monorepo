@@ -1,11 +1,10 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-export type Int64 = number;
+import { CanvasBenefitPackageScopeType as BenefitPackageScopeType } from "@repo/api";
 
-export const enum BenefitPackageScopeType {
-  CUSTOM_MODELS = 1,
-  SYSTEM_PRESET_MODELS = 2,
-}
+export { BenefitPackageScopeType };
+
+export type Int64 = number;
 
 /** BenefitPackage 是高级创作使用的权益包。预置与自定义权益包共享同一数据模型。 */
 export interface BenefitPackage {

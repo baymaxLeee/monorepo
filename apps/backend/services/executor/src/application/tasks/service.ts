@@ -48,7 +48,13 @@ function toSnapshot(row: TaskRow): TaskSnapshot {
     ownerService: row.ownerService,
     ownerRef: row.ownerRef,
     result: row.result ?? null,
-    progress: row.progress ? { done: row.progress.done, total: row.progress.total } : null,
+    progress: row.progress
+      ? {
+          done: row.progress.done,
+          total: row.progress.total,
+          ...(row.progress.text !== undefined && { text: row.progress.text }),
+        }
+      : null,
     error: row.error,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

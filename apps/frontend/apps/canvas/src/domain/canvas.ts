@@ -1,32 +1,22 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
+import {
+  CanvasProjectCanvasSortField as ProjectCanvasSortField,
+  CanvasProjectCanvasVideoArchiveExportSortField as ProjectCanvasVideoArchiveExportSortField,
+  CanvasVideoArchiveExportStatus,
+  CanvasViewMode,
+} from "@repo/api";
+
 import type * as common from "./common";
 
+export {
+  CanvasVideoArchiveExportStatus,
+  CanvasViewMode,
+  ProjectCanvasSortField,
+  ProjectCanvasVideoArchiveExportSortField,
+};
+
 export type Int64 = number;
-
-/** CanvasVideoArchiveExportStatus 是剧集视频压缩包导出的生命周期状态。 */
-export const enum CanvasVideoArchiveExportStatus {
-  QUEUED = 1,
-  RUNNING = 2,
-  SUCCEEDED = 3,
-  FAILED = 4,
-  CANCELLED = 5,
-}
-
-export const enum CanvasViewMode {
-  CANVAS = 1,
-  STORYBOARD = 2,
-}
-
-/** ProjectCanvasSortField 定义剧集列表支持的排序字段。 */
-export const enum ProjectCanvasSortField {
-  UPDATED_AT = 1,
-}
-
-/** ProjectCanvasVideoArchiveExportSortField 定义视频压缩包导出列表支持的排序字段。 */
-export const enum ProjectCanvasVideoArchiveExportSortField {
-  CREATED_AT = 1,
-}
 
 export interface BatchGetProjectCanvasesRequest {
   /** WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。 */

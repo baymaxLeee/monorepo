@@ -107,6 +107,7 @@ function CanvasBoardInner({
   defaultTextModelId,
   onCanvasRevisionChange,
   onRefreshGraph,
+  onRequestTextGeneration,
   projectId,
 }: {
   canvasId: string;
@@ -116,6 +117,7 @@ function CanvasBoardInner({
   defaultTextModelId: string;
   onCanvasRevisionChange: (revision: number) => void;
   onRefreshGraph: () => Promise<void>;
+  onRequestTextGeneration: (node: canvasnode.CanvasNode) => void;
   projectId: string;
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -200,6 +202,7 @@ function CanvasBoardInner({
     canvasId,
     projectId,
     nodePubSub,
+    onRequestTextGeneration,
   });
 
   const patchNode = useCallback(
@@ -1144,8 +1147,11 @@ export interface CanvasBoardHandle {
   pauseMedia: () => void;
 }
 
-export const CanvasBoard = forwardRef<CanvasBoardHandle, { onRefreshGraph: () => Promise<void> }>(function CanvasBoard(
-  { onRefreshGraph },
+export const CanvasBoard = forwardRef<
+  CanvasBoardHandle,
+  { onRefreshGraph: () => Promise<void>; onRequestTextGeneration: (node: canvasnode.CanvasNode) => void }
+>(function CanvasBoard(
+  { onRefreshGraph, onRequestTextGeneration },
   ref,
 ) {
   const { projectId = "", canvasId = "" } = useParams();
@@ -1164,6 +1170,7 @@ export const CanvasBoard = forwardRef<CanvasBoardHandle, { onRefreshGraph: () =>
         defaultVideoModelId={defaultVideoModelId}
         onCanvasRevisionChange={onCanvasRevisionChange}
         onRefreshGraph={onRefreshGraph}
+        onRequestTextGeneration={onRequestTextGeneration}
         projectId={projectId}
       />
     </ReactFlowProvider>

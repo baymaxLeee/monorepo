@@ -11,6 +11,11 @@ export interface CanvasConversationInput {
      * @minLength 1
      * @maxLength 36
      */
+  project_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 36
+     */
   canvas_id: string;
   /**
      * @minLength 1
@@ -21,6 +26,7 @@ export interface CanvasConversationInput {
 
 export interface CanvasConversationBinding {
   id: string;
+  project_id: string;
   canvas_id: string;
 }
 

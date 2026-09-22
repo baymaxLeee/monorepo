@@ -2,14 +2,15 @@ package main
 
 import (
 	"encoding/json"
-	api "github.com/example/monorepo/canvas/internal/api/http"
 	"os"
+
+	"github.com/example/monorepo/canvas/internal/api/openapi"
 )
 
 func main() {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(api.OpenAPI()); err != nil {
+	if err := encoder.Encode(openapi.Spec()); err != nil {
 		panic(err)
 	}
 }

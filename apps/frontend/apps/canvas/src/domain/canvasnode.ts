@@ -1,117 +1,41 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
+import {
+  CanvasGenerationStatus,
+  CanvasNodeAspectRatio,
+  CanvasNodeDraftStatus,
+  CanvasNodeMediaType,
+  CanvasNodeMentionReferenceType,
+  CanvasNodeReferenceStatus,
+  CanvasNodeResolution,
+  CanvasNodeStatus,
+  CanvasNodeTaskType,
+  CanvasNodeType,
+  CanvasNodeVideoProviderStatus,
+  CanvasPort,
+  CanvasVideoInputMode,
+} from "@repo/api";
+
 import type * as asset from "./asset";
 import type * as resource from "./resource";
 
+export {
+  CanvasGenerationStatus,
+  CanvasNodeAspectRatio,
+  CanvasNodeDraftStatus,
+  CanvasNodeMediaType,
+  CanvasNodeMentionReferenceType,
+  CanvasNodeReferenceStatus,
+  CanvasNodeResolution,
+  CanvasNodeStatus,
+  CanvasNodeTaskType,
+  CanvasNodeType,
+  CanvasNodeVideoProviderStatus,
+  CanvasPort,
+  CanvasVideoInputMode,
+};
+
 export type Int64 = number;
-
-/** CanvasGenerationStatus 是画布生成操作的即时状态。 */
-export const enum CanvasGenerationStatus {
-  QUEUED = 1,
-  RUNNING = 2,
-  SUCCEEDED = 3,
-  FAILED = 4,
-  CANCELLED = 5,
-}
-
-/** CanvasNodeAspectRatio 是分镜生成输出的画幅比例；RATIO_ADAPTIVE 表示由模型自动选择。 */
-export const enum CanvasNodeAspectRatio {
-  RATIO_21_9 = 1,
-  RATIO_16_9 = 2,
-  RATIO_4_3 = 3,
-  RATIO_1_1 = 4,
-  RATIO_3_4 = 5,
-  RATIO_9_16 = 6,
-  RATIO_3_2 = 7,
-  RATIO_ADAPTIVE = 8,
-  RATIO_2_3 = 9,
-}
-
-export const enum CanvasNodeDraftStatus {
-  RUNNING = 1,
-  COMPLETED = 2,
-  FAILED = 3,
-}
-
-/** CanvasNodeMediaType 是画布输入、输出和素材查询共享的通用媒体维度。 */
-export const enum CanvasNodeMediaType {
-  IMAGE = 1,
-  VIDEO = 2,
-  AUDIO = 3,
-  TEXT = 4,
-}
-
-/** CanvasNodeMentionReferenceType 是 @ 候选项及其物化素材节点的唯一活动引用身份类型。 */
-export const enum CanvasNodeMentionReferenceType {
-  UNSPECIFIED = 0,
-  ASSET = 1,
-  RESOURCE = 2,
-  RESOURCE_ASSET = 3,
-  CANVAS_NODE = 4,
-}
-
-/** CanvasNodeReferenceStatus 是 Resource/ResourceAsset 引用的读取期可用状态。 */
-export const enum CanvasNodeReferenceStatus {
-  ACTIVE = 1,
-  DELETED = 2,
-}
-
-/** CanvasNodeResolution 是分镜图片和视频生成输出的统一分辨率。 */
-export const enum CanvasNodeResolution {
-  P480 = 1,
-  P720 = 2,
-  P1080 = 3,
-  P2K = 4,
-  P4K = 5,
-}
-
-/** CanvasNodeStatus 是分镜当前结果的展示状态。 */
-export const enum CanvasNodeStatus {
-  EMPTY = 1,
-  READY = 2,
-  GENERATING = 3,
-}
-
-export const enum CanvasNodeTaskType {
-  GENERATION = 1,
-  ASSETS_MATCH = 2,
-}
-
-export const enum CanvasNodeType {
-  IMAGE_ASSET = 1,
-  VIDEO_ASSET = 2,
-  AUDIO_ASSET = 3,
-  TEXT = 4,
-  IMAGE_GENERATION = 5,
-  VIDEO_GENERATION = 6,
-  TEXT_GENERATION = 7,
-}
-
-/** CanvasNodeVideoProviderStatus 是视频 provider 的独立执行状态。 */
-export const enum CanvasNodeVideoProviderStatus {
-  PENDING = 1,
-  QUEUED = 2,
-  RUNNING = 3,
-  SUCCEEDED = 4,
-  FAILED = 5,
-  CANCELLED = 6,
-  UNKNOWN = 7,
-}
-
-export const enum CanvasPort {
-  OUTPUT = 1,
-  REFERENCE_IMAGE = 2,
-  REFERENCE_VIDEO = 3,
-  REFERENCE_AUDIO = 4,
-  REFERENCE_TEXT = 5,
-  FIRST_FRAME = 6,
-  LAST_FRAME = 7,
-}
-
-export const enum CanvasVideoInputMode {
-  REFERENCE = 1,
-  FIRST_LAST_FRAME = 2,
-}
 
 export interface BatchDeleteCanvasNodesRequest {
   WorkspaceID?: string;

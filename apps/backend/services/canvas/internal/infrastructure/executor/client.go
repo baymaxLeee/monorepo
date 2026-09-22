@@ -21,8 +21,11 @@ type TextInput struct {
 	Prompt      string `json:"prompt"`
 }
 type Task struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
+	ID       string `json:"id"`
+	Status   string `json:"status"`
+	Progress struct {
+		Text string `json:"text"`
+	} `json:"progress"`
 	Result struct {
 		Text       string `json:"text"`
 		ArtifactID string `json:"artifactId"`
@@ -87,7 +90,7 @@ func (c *Client) Cancel(ctx context.Context, id, owner string) (Task, error) {
 func Terminal(status string) bool {
 	return status == "completed" || status == "failed" || status == "cancelled"
 }
-func (c *Client) Watch(ctx context.Context, id, owner string) (Task, error) {
+func (c *Client) Watch(ctx context.Context, id, owner string, observe func(Task) error) (Task, error) {
 	path := strings.Replace(taskPath(id, owner), "?", "/stream?", 1)
 	res, err := c.request(ctx, "GET", path, nil)
 	if err != nil {
@@ -106,6 +109,11 @@ func (c *Client) Watch(ctx context.Context, id, owner string) (Task, error) {
 		}
 		if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(line, "data:"))), &frame); err != nil {
 			return Task{}, err
+		}
+		if observe != nil {
+			if err := observe(frame.Task); err != nil {
+				return Task{}, err
+			}
 		}
 		if Terminal(frame.Task.Status) {
 			return frame.Task, nil

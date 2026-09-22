@@ -4,13 +4,7 @@ import { streamSSE } from "hono/streaming";
 import { getRun } from "workflow/api";
 import { z } from "zod";
 
-import { canvasArchiveInputSchema } from "../../../../workflows/canvas-archive.js";
-import { canvasImageInputSchema } from "../../../../workflows/canvas-image-generation.js";
-import { canvasStoryboardInputSchema } from "../../../../workflows/canvas-storyboard.js";
-import { canvasFramesInputSchema } from "../../../../workflows/canvas-video-frames.js";
-import { canvasVideoInputSchema } from "../../../../workflows/canvas-video-generation.js";
 import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
-import { textGenerationInputSchema } from "../../../../workflows/text-generation.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
 import {
@@ -46,12 +40,6 @@ const createTaskEnvelope = {
 };
 
 const createTaskSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("canvas-storyboard"), payload: canvasStoryboardInputSchema, ...createTaskEnvelope }),
-  z.object({ type: z.literal("canvas-video-frames"), payload: canvasFramesInputSchema, ...createTaskEnvelope }),
-  z.object({ type: z.literal("canvas-archive"), payload: canvasArchiveInputSchema, ...createTaskEnvelope }),
-  z.object({ type: z.literal("canvas-video-generation"), payload: canvasVideoInputSchema, ...createTaskEnvelope }),
-  z.object({ type: z.literal("canvas-image-generation"), payload: canvasImageInputSchema, ...createTaskEnvelope }),
-  z.object({ type: z.literal("text-generation"), payload: textGenerationInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("file-task-batch"), payload: fileTaskBatchInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
 ]);
@@ -80,17 +68,6 @@ tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
   if (body.owner_service !== caller) {
     throw new RequestError("owner_service must match X-Caller-Service");
   }
-  if (
-    [
-      "canvas-video-frames",
-      "canvas-storyboard",
-      "canvas-archive",
-      "canvas-image-generation",
-      "canvas-video-generation",
-    ].includes(body.type) &&
-    caller !== "canvas"
-  )
-    throw new RequestError("Canvas tasks require the Canvas caller");
   const task = await createTask({
     type: body.type,
     ownerService: body.owner_service,

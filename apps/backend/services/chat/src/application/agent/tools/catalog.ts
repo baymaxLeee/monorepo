@@ -90,7 +90,12 @@ export class ToolCatalog {
     const resolvedSkills = resolveSkills(skillSource);
     const manifests = [
       ...builtinManifests(context.mode, providers),
-      ...(context.canvasId ? createCanvasToolManifests() : []),
+      ...(context.projectId && context.canvasId
+        ? createCanvasToolManifests({
+            textProviderId: providers.textProvider.id,
+            videoProviderId: providers.videoProviderId,
+          })
+        : []),
       ...resolvedSkills.manifests,
     ];
     const skills = [...resolvedSkills.skills];

@@ -270,17 +270,19 @@ const openapi = {
     schemas: {
       CanvasConversationInput: {
         type: "object",
-        required: ["canvas_id"],
+        required: ["project_id", "canvas_id"],
         properties: {
+          project_id: { type: "string", minLength: 1, maxLength: 36 },
           canvas_id: { type: "string", minLength: 1, maxLength: 36 },
           title: { type: "string", minLength: 1, maxLength: 200 },
         },
       },
       CanvasConversationBinding: {
         type: "object",
-        required: ["id", "canvas_id"],
+        required: ["id", "project_id", "canvas_id"],
         properties: {
           id: { type: "string" },
+          project_id: { type: "string" },
           canvas_id: { type: "string" },
         },
       },

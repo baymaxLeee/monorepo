@@ -24,13 +24,14 @@ export function canvasClient() {
     propagatedHeaders: propagationHeaders,
   });
   return {
-    startGeneration: (...args: Parameters<CanvasInternalClient["startGeneration"]>) =>
-      client.startGeneration(...args).catch(canvasError),
-    listGenerations: (...args: Parameters<CanvasInternalClient["listGenerations"]>) =>
-      client.listGenerations(...args).catch(canvasError),
-    cancelGeneration: (...args: Parameters<CanvasInternalClient["cancelGeneration"]>) =>
-      client.cancelGeneration(...args).catch(canvasError),
+    generateNodes: (...args: Parameters<CanvasInternalClient["generateNodes"]>) =>
+      client.generateNodes(...args).catch(canvasError),
+    nodeStates: (...args: Parameters<CanvasInternalClient["nodeStates"]>) =>
+      client.nodeStates(...args).catch(canvasError),
+    startStoryboardDrafts: (...args: Parameters<CanvasInternalClient["startStoryboardDrafts"]>) =>
+      client.startStoryboardDrafts(...args).catch(canvasError),
+    updateNode: (...args: Parameters<CanvasInternalClient["updateNode"]>) =>
+      client.updateNode(...args).catch(canvasError),
     graph: (...args: Parameters<CanvasInternalClient["graph"]>) => client.graph(...args).catch(canvasError),
-    mutate: (...args: Parameters<CanvasInternalClient["mutate"]>) => client.mutate(...args).catch(canvasError),
   };
 }

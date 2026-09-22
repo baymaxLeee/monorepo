@@ -31,13 +31,17 @@ conversationsRoutes.post(
   zValidator(
     "json",
     z.object({
+      project_id: z.string().min(1).max(36),
       canvas_id: z.string().min(1).max(36),
       title: z.string().min(1).max(200).optional(),
     }),
   ),
   async (c) => {
     const conversation = await createConversation(getAuth(c), c.req.valid("json"));
-    return c.json({ id: conversation.id, canvas_id: conversation.canvas_id! }, 201);
+    return c.json(
+      { id: conversation.id, project_id: conversation.project_id!, canvas_id: conversation.canvas_id! },
+      201,
+    );
   },
 );
 

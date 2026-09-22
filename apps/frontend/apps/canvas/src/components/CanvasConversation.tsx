@@ -2,7 +2,17 @@ import { createCanvasConversation, fetchConversations } from "@repo/api";
 import { ChatSession, ChatWorkspacePanel } from "@repo/chat";
 import { Button } from "@repo/design-system";
 import { useEffect, useState } from "react";
-export function CanvasConversation({ canvasId, onChange }: { canvasId: string; onChange: () => void }) {
+export function CanvasConversation({
+  projectId,
+  canvasId,
+  onChange,
+  request,
+}: {
+  projectId: string;
+  canvasId: string;
+  onChange: () => void;
+  request?: { id: string; text: string } | null;
+}) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -15,7 +25,10 @@ export function CanvasConversation({ canvasId, onChange }: { canvasId: string; o
     setConversationId(null);
     void fetchConversations()
       .then((items) => {
-        if (active) setConversationId(items.find((item) => item.canvas_id === canvasId)?.id ?? null);
+        if (active)
+          setConversationId(
+            items.find((item) => item.project_id === projectId && item.canvas_id === canvasId)?.id ?? null,
+          );
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -26,7 +39,15 @@ export function CanvasConversation({ canvasId, onChange }: { canvasId: string; o
     return () => {
       active = false;
     };
-  }, [canvasId, attempt]);
+  }, [projectId, canvasId, attempt]);
+  useEffect(() => {
+    if (!request || loading || failed || conversationId || creating) return;
+    setCreating(true);
+    void createCanvasConversation(projectId, canvasId)
+      .then((conversation) => setConversationId(conversation.id))
+      .catch(() => setFailed(true))
+      .finally(() => setCreating(false));
+  }, [canvasId, conversationId, creating, failed, loading, projectId, request]);
   if (loading) return <div className="p-4 text-sm text-muted-foreground">读取会话…</div>;
   if (failed)
     return (
@@ -43,7 +64,7 @@ export function CanvasConversation({ canvasId, onChange }: { canvasId: string; o
           disabled={creating}
           onClick={() => {
             setCreating(true);
-            void createCanvasConversation(canvasId)
+            void createCanvasConversation(projectId, canvasId)
               .then((conversation) => setConversationId(conversation.id))
               .catch(() => {})
               .finally(() => setCreating(false));
@@ -55,7 +76,12 @@ export function CanvasConversation({ canvasId, onChange }: { canvasId: string; o
     );
   return (
     <div className="relative flex h-full min-w-0 min-h-0 flex-col overflow-hidden [&_[role=log]>div]:[-ms-overflow-style:none] [&_[role=log]>div]:[scrollbar-width:none] [&_[role=log]>div::-webkit-scrollbar]:hidden">
-      <ChatSession key={conversationId} conversationId={conversationId} onCanvasChange={onChange} />
+      <ChatSession
+        key={conversationId}
+        conversationId={conversationId}
+        externalRequest={request}
+        onCanvasChange={onChange}
+      />
       <ChatWorkspacePanel conversationId={conversationId} />
     </div>
   );

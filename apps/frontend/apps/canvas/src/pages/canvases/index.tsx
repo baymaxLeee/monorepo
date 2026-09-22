@@ -9,8 +9,9 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { CanvasSortDirection } from "@repo/api";
 
-import { SortDirection, agentframeService } from "@/api/index";
+import { agentframeService } from "@/api/index";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import {
   EllipsisText as CEllipsis,
@@ -196,7 +197,7 @@ export default function CanvasesPage() {
             : undefined,
         Sort: {
           Field: canvas.ProjectCanvasSortField.UPDATED_AT,
-          Direction: ascending ? SortDirection.Asc : SortDirection.Desc,
+          Direction: ascending ? CanvasSortDirection.ASC : CanvasSortDirection.DESC,
         },
         Page: { PageSize: VIDEO_PAGE_SIZE, PageNum: pageNum },
       });

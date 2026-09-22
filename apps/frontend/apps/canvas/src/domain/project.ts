@@ -1,14 +1,13 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
+import { CanvasProjectSortField as ProjectSortField } from "@repo/api";
+
 import type * as aigw_model_types from "./aigw_model_types";
 import type * as common from "./common";
 
-export type Int64 = number;
+export { ProjectSortField };
 
-/** ProjectSortField 定义项目列表支持的排序字段。 */
-export const enum ProjectSortField {
-  UPDATED_AT = 1,
-}
+export type Int64 = number;
 
 export interface BatchGetProjectsByMemberRequest {
   WorkspaceID?: string;

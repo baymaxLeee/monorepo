@@ -29,6 +29,7 @@ const taskSchema = {
       properties: {
         done: { type: "integer" },
         total: { type: "integer" },
+        text: { type: "string" },
       },
       required: ["done", "total"],
     },
@@ -162,115 +163,8 @@ const taskEnvelope = (type: string, payload: object) => ({
   required: ["type", "owner_service", "owner_ref", "payload"],
 });
 
-const inferenceParametersSchema = {
-  type: "object",
-  properties: {
-    temperature: { type: "number", minimum: 0, maximum: 2 },
-    topP: { type: "number", minimum: 0, maximum: 1 },
-    maxOutputTokens: { type: "integer", minimum: 1 },
-    reasoningEffort: { type: "string", minLength: 1 },
-  },
-};
-const textGenerationPayloadSchema = {
-  type: "object",
-  properties: {
-    tenantId: { type: "string" },
-    workspaceId: { type: "string" },
-    providerId: { type: "string" },
-    prompt: { type: "string" },
-    parameters: inferenceParametersSchema,
-  },
-  required: ["tenantId", "workspaceId", "providerId", "prompt"],
-};
-
-const canvasImagePayloadSchema = {
-  type: "object",
-  properties: {
-    ...textGenerationPayloadSchema.properties,
-    watermark: { type: "boolean" },
-    objectScope: { type: "string", pattern: "^[a-f0-9]{64}$" },
-    references: { type: "array", items: { type: "string" } },
-    aspectRatio: { type: "string" },
-    size: { type: "string" },
-  },
-  required: [...textGenerationPayloadSchema.required, "objectScope", "references"],
-};
-const canvasVideoPayloadSchema = {
-  type: "object",
-  properties: {
-    ...textGenerationPayloadSchema.properties,
-    objectScope: { type: "string", pattern: "^[a-f0-9]{64}$" },
-    references: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          key: { type: "string", pattern: "^[a-f0-9]{64}$" },
-          mimeType: { type: "string" },
-          role: {
-            type: "string",
-            enum: ["reference_image", "reference_video", "reference_audio", "first_frame", "last_frame"],
-          },
-        },
-        required: ["key", "mimeType", "role"],
-      },
-    },
-    duration: { type: "integer" },
-    resolution: { type: "string", enum: ["480p", "720p", "1080p", "2k", "4k"] },
-    aspectRatio: { type: "string", enum: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "3:2", "2:3", "adaptive"] },
-    generateAudio: { type: "boolean" },
-    watermark: { type: "boolean" },
-  },
-  required: [
-    ...textGenerationPayloadSchema.required,
-    "objectScope",
-    "references",
-    "duration",
-    "generateAudio",
-    "watermark",
-  ],
-};
 const createTaskInputSchema = {
   oneOf: [
-    taskEnvelope("canvas-storyboard", {
-      type: "object",
-      properties: {
-        draftId: { type: "string", pattern: "^[a-f0-9]{32}$" },
-        parameters: inferenceParametersSchema,
-        tenantId: { type: "string", minLength: 1 },
-        workspaceId: { type: "string", minLength: 1 },
-        providerId: { type: "string", minLength: 1 },
-        plot: { type: "string", minLength: 1, maxLength: 30000 },
-        durationMin: { type: "integer", minimum: 4, maximum: 30 },
-        durationMax: { type: "integer", minimum: 4, maximum: 30 },
-        totalDurationMin: { type: "integer", minimum: 60, maximum: 3000 },
-        totalDurationMax: { type: "integer", minimum: 60, maximum: 3000 },
-      },
-      required: [
-        "draftId",
-        "tenantId",
-        "workspaceId",
-        "providerId",
-        "plot",
-        "durationMin",
-        "durationMax",
-        "totalDurationMin",
-        "totalDurationMax",
-      ],
-    }),
-    taskEnvelope("canvas-video-frames", {
-      type: "object",
-      properties: { taskRunId: { type: "string", pattern: "^[a-f0-9]{32}$" } },
-      required: ["taskRunId"],
-    }),
-    taskEnvelope("canvas-archive", {
-      type: "object",
-      properties: { taskRunId: { type: "string", pattern: "^[a-f0-9]{32}$" } },
-      required: ["taskRunId"],
-    }),
-    taskEnvelope("canvas-video-generation", ref("CanvasVideoPayload")),
-    taskEnvelope("canvas-image-generation", ref("CanvasImagePayload")),
-    taskEnvelope("text-generation", ref("TextGenerationPayload")),
     taskEnvelope("file-task-batch", ref("FileTaskBatchPayload")),
     taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
   ],
@@ -660,9 +554,6 @@ const openapi = {
   },
   components: {
     schemas: {
-      TextGenerationPayload: textGenerationPayloadSchema,
-      CanvasVideoPayload: canvasVideoPayloadSchema,
-      CanvasImagePayload: canvasImagePayloadSchema,
       Task: taskSchema,
       TaskWatchFrame: taskWatchFrameSchema,
       CreateTaskInput: createTaskInputSchema,

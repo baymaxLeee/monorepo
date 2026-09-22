@@ -52,12 +52,16 @@ const TextInput = forwardRef<HTMLInputElement, InputProps>(function TextInput(
 ) {
   return (
     <span className={`relative inline-flex w-full items-center ${className ?? ""}`} data-ui-input style={style}>
-      {prefix && <span className="pointer-events-none absolute left-3 text-muted-foreground">{prefix}</span>}
+      {prefix && (
+        <span className="pointer-events-none absolute inset-y-0 left-3 z-10 flex items-center text-muted-foreground">
+          {prefix}
+        </span>
+      )}
       <NativeInput
         {...props}
         ref={ref}
         aria-invalid={error}
-        className={`${prefix ? "pl-9" : ""} ${allowClear || suffix ? "pr-8" : ""}`}
+        className={`${prefix ? "pl-9!" : ""} ${allowClear || suffix ? "pr-8!" : ""}`}
         data-ui-input-control
         onChange={(event) => onChange?.(event.target.value, event)}
         onKeyDown={(event) => {
@@ -69,7 +73,7 @@ const TextInput = forwardRef<HTMLInputElement, InputProps>(function TextInput(
         <button
           type="button"
           aria-label="清空"
-          className="absolute right-2"
+          className="absolute inset-y-0 right-2 flex items-center"
           onClick={(event) => {
             const input = event.currentTarget.parentElement?.querySelector("input");
             if (input) {
@@ -83,7 +87,7 @@ const TextInput = forwardRef<HTMLInputElement, InputProps>(function TextInput(
           <X className="size-3.5" />
         </button>
       )}
-      {suffix && <span className="absolute right-2">{suffix}</span>}
+      {suffix && <span className="absolute inset-y-0 right-2 flex items-center">{suffix}</span>}
     </span>
   );
 });

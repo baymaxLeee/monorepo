@@ -9,6 +9,7 @@ import {
   type ApiRequestConfig,
   type CanvasGraph,
   type CanvasNode,
+  type CanvasNodePatch,
   type CanvasGenerationState,
 } from "@repo/api";
 
@@ -55,6 +56,16 @@ export function generationConfig(
     watermark: config.Watermark ?? current?.watermark ?? false,
   };
 }
+function generationConfigPatch(config: view.CanvasNodeGenerationConfigPatch): CanvasNodePatch["generation_config"] {
+  return {
+    ...(config.ModelServiceID === undefined ? {} : { provider_id: config.ModelServiceID }),
+    ...(config.AspectRatio === undefined ? {} : { aspect_ratio: ratios[config.AspectRatio] ?? "16:9" }),
+    ...(config.Resolution === undefined ? {} : { resolution: resolutions[config.Resolution] ?? "720P" }),
+    ...(config.DurationSeconds === undefined ? {} : { duration_seconds: config.DurationSeconds }),
+    ...(config.GenerateAudio === undefined ? {} : { generate_audio: config.GenerateAudio }),
+    ...(config.Watermark === undefined ? {} : { watermark: config.Watermark }),
+  };
+}
 export function presentNode(graph: CanvasGraph, node: CanvasNode, state?: CanvasGenerationState): view.CanvasNode {
   const config = node.generation_config;
   const active = state && ["pending", "queued", "running", "cancelling"].includes(state.status);
@@ -74,6 +85,7 @@ export function presentNode(graph: CanvasGraph, node: CanvasNode, state?: Canvas
     StoryboardRank: node.storyboard_rank,
     Text: node.text,
     SelectedOutputText: node.type === view.CanvasNodeType.TEXT_GENERATION ? node.text : undefined,
+    SelectedOutputID: state?.selected_generation_id || undefined,
     AssetID: node.asset_id || undefined,
     ResourceID: node.resource_id || undefined,
     ResourceAssetID: node.resource_asset_id || undefined,
@@ -98,8 +110,8 @@ export function presentNode(graph: CanvasGraph, node: CanvasNode, state?: Canvas
       : undefined,
     GenerationConfig: {
       ModelServiceID: config.provider_id,
-      Resolution: enumKey(resolutions, config.resolution, 2),
-      AspectRatio: enumKey(ratios, config.aspect_ratio, 2),
+      Resolution: enumKey(resolutions, config.resolution, 2) as view.CanvasNodeResolution,
+      AspectRatio: enumKey(ratios, config.aspect_ratio, 2) as view.CanvasNodeAspectRatio,
       DurationSeconds: config.duration_seconds,
       GenerateAudio: config.generate_audio,
       Watermark: config.watermark,
@@ -134,41 +146,79 @@ export async function presentGraph(graph: CanvasGraph, states: CanvasGenerationS
     }),
   );
 }
+async function presentNodes(graph: CanvasGraph, nodes: CanvasNode[], states: CanvasGenerationState[] = []) {
+  return Promise.all(
+    nodes.map(async (node) => {
+      const result = presentNode(
+        graph,
+        node,
+        states.find((state) => state.node_id === node.id),
+      );
+      if (node.asset_id) {
+        try {
+          const url = await nodeMediaURL(graph.canvas.id, node.id, node.asset_id);
+          result.PreviewURL = url;
+          result.SelectedOutputURL = url;
+        } catch {
+          /* The node remains editable when media cannot be read. */
+        }
+      }
+      return result;
+    }),
+  );
+}
 export async function writeGraph(
   canvasId: string,
-  change: (graph: CanvasGraph) => { upsert?: CanvasNode[]; delete_ids?: string[] },
+  change: (graph: CanvasGraph) => { create?: CanvasNode[]; patch?: CanvasNodePatch[]; delete_ids?: string[] },
   options?: ApiRequestConfig,
 ) {
-  const graph = await canvasGetGraph(canvasId, options);
+  const [graph, status] = await Promise.all([
+    canvasGetGraph(canvasId, options),
+    canvasGenerationStatus(canvasId, options),
+  ]);
   const mutation = change(graph);
-  return canvasMutateGraph(
+  const result = await canvasMutateGraph(
     canvasId,
     {
       expected_revision: graph.canvas.revision,
       operation_id: crypto.randomUUID(),
-      upsert: mutation.upsert ?? [],
+      create: mutation.create ?? [],
+      patch: mutation.patch ?? [],
       delete_ids: mutation.delete_ids ?? [],
     },
     options,
   );
+  const nodesByID = new Map(graph.nodes.map((node) => [node.id, node]));
+  result.deleted_ids.forEach((id) => nodesByID.delete(id));
+  result.upserted.forEach((node) => nodesByID.set(node.id, node));
+  return {
+    graph: { canvas: result.canvas, nodes: [...nodesByID.values()] },
+    upserted: result.upserted,
+    deletedIds: result.deleted_ids,
+    states: status.items,
+  };
 }
 const requiredNode = (graph: CanvasGraph, id: string) => {
   const node = graph.nodes.find((item) => item.id === id);
   if (!node) throw new Error("节点已不存在，请刷新画布");
   return node;
 };
-async function responseNode(graph: CanvasGraph, id: string) {
-  const node = requiredNode(graph, id);
-  const result = presentNode(graph, node);
+async function responseNode(write: Awaited<ReturnType<typeof writeGraph>>, id: string) {
+  const node = requiredNode(write.graph, id);
+  const result = presentNode(
+    write.graph,
+    node,
+    write.states.find((state) => state.node_id === id),
+  );
   if (node.asset_id) {
     try {
-      result.PreviewURL = await nodeMediaURL(graph.canvas.id, id, node.asset_id);
+      result.PreviewURL = await nodeMediaURL(write.graph.canvas.id, id, node.asset_id);
       result.SelectedOutputURL = result.PreviewURL;
     } catch {
       /* Preserve graph data if media is unavailable. */
     }
   }
-  return { CanvasNode: result, CanvasRevision: graph.canvas.revision };
+  return { CanvasNode: result, CanvasRevision: write.graph.canvas.revision };
 }
 export async function CreateCanvasNode(request: view.CreateCanvasNodeRequest, options?: ApiRequestConfig) {
   const id = crypto.randomUUID();
@@ -198,7 +248,7 @@ export async function CreateCanvasNode(request: view.CreateCanvasNodeRequest, op
     await canvasCopyResourceToCanvas(request.CanvasID, { resource_asset_id: asset, node_id: id }, options);
     return UpdateCanvasNode({ ...request, NodeID: id }, options);
   }
-  const graph = await writeGraph(
+  const write = await writeGraph(
     request.CanvasID,
     (current) => {
       const isStoryboardNode = request.Type === view.CanvasNodeType.VIDEO_GENERATION;
@@ -232,11 +282,18 @@ export async function CreateCanvasNode(request: view.CreateCanvasNodeRequest, op
         video_input_mode: 1,
         revision: 0,
       };
-      return { upsert: [node, ...following] };
+      return {
+        create: [node],
+        patch: following.map((item) => ({
+          id: item.id,
+          expected_revision: item.revision,
+          storyboard_rank: item.storyboard_rank,
+        })),
+      };
     },
     options,
   );
-  return responseNode(graph, id);
+  return responseNode(write, id);
 }
 
 export async function GetCanvasGraph(request: view.GetCanvasGraphRequest, options?: ApiRequestConfig) {
@@ -248,56 +305,61 @@ export async function GetCanvasGraph(request: view.GetCanvasGraphRequest, option
 }
 
 export async function UpdateCanvasNode(request: view.UpdateCanvasNodeRequest, options?: ApiRequestConfig) {
-  const graph = await writeGraph(
+  const write = await writeGraph(
     request.CanvasID,
     (current) => {
       const node = requiredNode(current, request.NodeID);
       return {
-        upsert: [
+        patch: [
           {
-            ...node,
-            name: request.Name ?? node.name,
-            prompt: request.Prompt ?? node.prompt,
-            text: request.Text ?? node.text,
-            x: request.Position?.PositionX ?? node.x,
-            y: request.Position?.PositionY ?? node.y,
-            video_input_mode: request.VideoInputMode ?? node.video_input_mode,
-            generation_config: generationConfig(request.GenerationConfig ?? {}, node.generation_config),
+            id: node.id,
+            expected_revision: node.revision,
+            ...(request.Name === undefined ? {} : { name: request.Name }),
+            ...(request.Prompt === undefined ? {} : { prompt: request.Prompt }),
+            ...(request.Text === undefined ? {} : { text: request.Text }),
+            ...(request.Position === undefined
+              ? {}
+              : { x: request.Position.PositionX, y: request.Position.PositionY }),
+            ...(request.VideoInputMode === undefined ? {} : { video_input_mode: request.VideoInputMode }),
+            ...(request.GenerationConfig === undefined
+              ? {}
+              : { generation_config: generationConfigPatch(request.GenerationConfig) }),
           },
         ],
       };
     },
     options,
   );
-  return responseNode(graph, request.NodeID);
+  return responseNode(write, request.NodeID);
 }
 
 export async function DeleteCanvasNode(request: view.DeleteCanvasNodeRequest, options?: ApiRequestConfig) {
-  const graph = await writeGraph(request.CanvasID, () => ({ delete_ids: [request.NodeID] }), options);
-  return { CanvasRevision: graph.canvas.revision };
+  const write = await writeGraph(request.CanvasID, () => ({ delete_ids: [request.NodeID] }), options);
+  return { CanvasRevision: write.graph.canvas.revision };
 }
 
 export async function BatchDeleteCanvasNodes(request: view.BatchDeleteCanvasNodesRequest, options?: ApiRequestConfig) {
-  const graph = await writeGraph(request.CanvasID, () => ({ delete_ids: request.NodeIDs }), options);
-  return { CanvasRevision: graph.canvas.revision };
+  const write = await writeGraph(request.CanvasID, () => ({ delete_ids: request.NodeIDs }), options);
+  return { CanvasRevision: write.graph.canvas.revision };
 }
 
 export async function BatchUpdateCanvasNodePositions(
   request: view.BatchUpdateCanvasNodePositionsRequest,
   options?: ApiRequestConfig,
 ) {
-  const graph = await writeGraph(
+  const write = await writeGraph(
     request.CanvasID,
     (current) => ({
-      upsert: request.Items.map((position) => ({
-        ...requiredNode(current, position.NodeID),
+      patch: request.Items.map((position) => ({
+        id: position.NodeID,
+        expected_revision: requiredNode(current, position.NodeID).revision,
         x: position.Position.PositionX,
         y: position.Position.PositionY,
       })),
     }),
     options,
   );
-  return { Items: await presentGraph(graph) };
+  return { Items: await presentNodes(write.graph, write.upserted, write.states) };
 }
 
 export async function CopyCanvasNode(request: view.CopyCanvasNodeRequest, options?: ApiRequestConfig) {
@@ -313,7 +375,7 @@ export async function CopyCanvasNode(request: view.CopyCanvasNodeRequest, option
 }
 
 export async function ConnectCanvasNodes(request: view.ConnectCanvasNodesRequest, options?: ApiRequestConfig) {
-  const graph = await writeGraph(
+  const write = await writeGraph(
     request.CanvasID,
     (current) => {
       const target = requiredNode(current, request.TargetNodeID);
@@ -323,9 +385,10 @@ export async function ConnectCanvasNodes(request: view.ConnectCanvasNodesRequest
         (edge) => !(edge.source_node_id === request.SourceNodeID && edge.target_port === port),
       );
       return {
-        upsert: [
+        patch: [
           {
-            ...target,
+            id: target.id,
+            expected_revision: target.revision,
             incoming_edges: [
               ...incoming,
               {
@@ -343,37 +406,45 @@ export async function ConnectCanvasNodes(request: view.ConnectCanvasNodesRequest
     options,
   );
   return {
-    TargetNode: (await responseNode(graph, request.TargetNodeID)).CanvasNode,
-    CanvasRevision: graph.canvas.revision,
+    TargetNode: (await responseNode(write, request.TargetNodeID)).CanvasNode,
+    CanvasRevision: write.graph.canvas.revision,
   };
 }
 
 export async function DeleteCanvasEdge(request: view.DeleteCanvasEdgeRequest, options?: ApiRequestConfig) {
-  const graph = await writeGraph(
+  const write = await writeGraph(
     request.CanvasID,
     (current) => ({
-      upsert: current.nodes
+      patch: current.nodes
         .filter((node) => node.incoming_edges.some((edge) => edge.id === request.EdgeID))
-        .map((node) => ({ ...node, incoming_edges: node.incoming_edges.filter((edge) => edge.id !== request.EdgeID) })),
+        .map((node) => ({
+          id: node.id,
+          expected_revision: node.revision,
+          incoming_edges: node.incoming_edges.filter((edge) => edge.id !== request.EdgeID),
+        })),
     }),
     options,
   );
   return {
-    TargetNode: (await responseNode(graph, request.TargetNodeID)).CanvasNode,
-    CanvasRevision: graph.canvas.revision,
+    TargetNode: (await responseNode(write, request.TargetNodeID)).CanvasNode,
+    CanvasRevision: write.graph.canvas.revision,
   };
 }
 
 export async function ReorderStoryboardNodes(request: view.ReorderStoryboardNodesRequest, options?: ApiRequestConfig) {
-  const graph = await writeGraph(
+  const write = await writeGraph(
     request.CanvasID,
     (current) => ({
-      upsert: request.Items.map((item) => ({
-        ...requiredNode(current, item.NodeID),
+      patch: request.Items.map((item) => ({
+        id: item.NodeID,
+        expected_revision: requiredNode(current, item.NodeID).revision,
         storyboard_rank: item.StoryboardRank,
       })),
     }),
     options,
   );
-  return { Nodes: await presentGraph(graph), CanvasRevision: graph.canvas.revision };
+  return {
+    Nodes: await presentNodes(write.graph, write.upserted, write.states),
+    CanvasRevision: write.graph.canvas.revision,
+  };
 }

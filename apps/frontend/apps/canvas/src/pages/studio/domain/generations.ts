@@ -1,11 +1,11 @@
 import {
-  canvasGetGraph,
+  canvasBatchGetNodeStates,
   canvasStartGeneration,
   canvasStartAllVideoGenerations,
   canvasCancelGeneration,
+  canvasGetGraph,
   canvasListGenerations,
   canvasApplyGeneration,
-  canvasGetAssetMatch,
   type ApiRequestConfig,
   type CanvasGeneration,
 } from "@repo/api";
@@ -13,7 +13,7 @@ import {
 import { canvasnode } from "@/domain";
 import { generationMediaURL } from "@/utils/media";
 
-import { presentGraph, presentNode } from "./persistence";
+import { presentNode } from "./persistence";
 
 const statuses: Record<string, canvasnode.CanvasGenerationStatus> = {
   pending: 1,
@@ -68,49 +68,79 @@ export async function BatchGetCanvasNodeStates(
   },
   options?: ApiRequestConfig,
 ) {
-  const runs = await Promise.all(
-    input.Targets.map(async (target) => {
-      if (target.TaskType === canvasnode.CanvasNodeTaskType.ASSETS_MATCH) {
-        const run = await canvasGetAssetMatch(input.CanvasID, target.NodeID, target.TaskRunID, options);
-        return { target, run, matching: true } as const;
-      }
-      const runs = await canvasListGenerations(input.CanvasID, target.NodeID, options);
-      const run = runs.items.find((item) => item.id === target.TaskRunID);
-      return run ? ({ target, run, matching: false } as const) : undefined;
-    }),
+  const response = await canvasBatchGetNodeStates(
+    input.CanvasID,
+    {
+      targets: input.Targets.map((target) => ({
+        node_id: target.NodeID,
+        task_run_id: target.TaskRunID,
+        task_type: target.TaskType ?? canvasnode.CanvasNodeTaskType.GENERATION,
+      })),
+    },
+    options,
   );
-  const graph = await canvasGetGraph(input.CanvasID, options);
-  const nodes = await presentGraph(graph);
-  const Items = runs.flatMap((state): canvasnode.CanvasNodeState[] => {
-    if (!state) return [];
-    const { target, run, matching } = state;
-    const node = nodes.find((item) => item.NodeID === target.NodeID);
-    if (!node) return [];
-    if (["queued", "running"].includes(run.status)) {
-      node.ActiveTaskRunID = run.id;
+  const rawNodes = response.items.flatMap((state) => [state.node, ...state.related_nodes]);
+  const graph = {
+    canvas: {
+      id: input.CanvasID,
+      project_id: input.ProjectID ?? "",
+      name: "",
+      cover_image_path: "",
+      created_by: "",
+      default_view: 0,
+      revision: response.canvas_revision,
+      created_at: "",
+      updated_at: "",
+    },
+    nodes: rawNodes,
+  };
+  const Items = response.items.map((state): canvasnode.CanvasNodeState => {
+    const matching = state.task_type === canvasnode.CanvasNodeTaskType.ASSETS_MATCH;
+    const active = ["pending", "queued", "running", "cancelling"].includes(state.status);
+    const node = presentNode(
+      graph,
+      state.node,
+      matching
+        ? undefined
+        : {
+            id: state.task_run_id,
+            node_id: state.node_id,
+            status: state.status,
+            task_type: state.task_type,
+            selected_generation_id: state.selected_generation_id,
+            cancel_requested: false,
+          },
+    );
+    if (active) {
+      node.ActiveTaskRunID = state.task_run_id;
       node.ActiveTaskType = matching
         ? canvasnode.CanvasNodeTaskType.ASSETS_MATCH
         : canvasnode.CanvasNodeTaskType.GENERATION;
-      if (!matching) node.Status = canvasnode.CanvasNodeStatus.GENERATING;
     }
     const relatedIds = new Set(node.IncomingEdges.map((edge) => edge.SourceNodeID));
-    return [
-      {
-        NodeID: target.NodeID,
-        TaskRunID: run.id,
-        Status: generationStatus(run.status),
-        TaskType: matching ? canvasnode.CanvasNodeTaskType.ASSETS_MATCH : canvasnode.CanvasNodeTaskType.GENERATION,
-        Node: node,
-        RelatedNodes: matching ? nodes.filter((item) => relatedIds.has(item.NodeID)) : [],
-        ErrorMessage: run.error || undefined,
-        VideoProviderStatus: canvasnode.CanvasNodeVideoProviderStatus.UNKNOWN,
-      },
-    ];
+    return {
+      NodeID: state.node_id,
+      TaskRunID: state.task_run_id,
+      Status: generationStatus(state.status),
+      TaskType: state.task_type,
+      Node: node,
+      RelatedNodes: matching
+        ? state.related_nodes
+            .filter((item) => relatedIds.has(item.id))
+            .map((item) => presentNode(graph, item))
+        : [],
+      ErrorMessage: state.error || undefined,
+      VideoProviderStatus: canvasnode.CanvasNodeVideoProviderStatus.UNKNOWN,
+    };
   });
-  return { Items, CanvasRevision: graph.canvas.revision };
+  return { Items, CanvasRevision: response.canvas_revision };
 }
 
-async function history(run: CanvasGeneration, canvasId: string, type: number): Promise<canvasnode.CanvasNodeHistory> {
+async function history(
+  run: CanvasGeneration,
+  canvasId: string,
+  type: canvasnode.CanvasNodeType,
+): Promise<canvasnode.CanvasNodeHistory> {
   const result: canvasnode.CanvasNodeHistory = {
     HistoryID: run.id,
     Status: generationStatus(run.status),

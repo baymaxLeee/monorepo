@@ -10,7 +10,13 @@ import (
 	"os"
 )
 
-type Config struct{ Port, InternalToken, DatabaseURL, PublicGatewayURL string }
+type Config struct {
+	Port             string
+	InternalToken    string
+	DatabaseURL      string
+	RedisURL         string
+	PublicGatewayURL string
+}
 
 func Env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -33,7 +39,13 @@ func Load() (Config, error) {
 	if Env("ENVIRONMENT", "development") == "production" && parsed.Scheme != "https" {
 		return Config{}, fmt.Errorf("production PUBLIC_GATEWAY_URL must use https")
 	}
-	return Config{Port: Env("PORT", "8012"), InternalToken: token, PublicGatewayURL: publicGatewayURL, DatabaseURL: fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", Env("POSTGRES_HOST", "localhost"), Env("POSTGRES_PORT", "5432"), Env("POSTGRES_USER", "canvas"), password, Env("POSTGRES_DATABASE", "canvas"), Env("POSTGRES_SSLMODE", "disable"))}, nil
+	return Config{
+		Port:             Env("PORT", "8012"),
+		InternalToken:    token,
+		PublicGatewayURL: publicGatewayURL,
+		RedisURL:         Env("REDIS_URL", "redis://localhost:6379/0"),
+		DatabaseURL:      fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", Env("POSTGRES_HOST", "localhost"), Env("POSTGRES_PORT", "5432"), Env("POSTGRES_USER", "canvas"), password, Env("POSTGRES_DATABASE", "canvas"), Env("POSTGRES_SSLMODE", "disable")),
+	}, nil
 }
 func Connect(cfg Config) (*gorm.DB, error) {
 	return gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})

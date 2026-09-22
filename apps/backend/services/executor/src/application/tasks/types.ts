@@ -13,6 +13,7 @@ export interface TaskProgress {
   done: number;
   total: number;
   externalTaskIds?: string[];
+  text?: string;
 }
 
 export interface TaskSnapshot {

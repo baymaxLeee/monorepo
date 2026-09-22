@@ -173,6 +173,7 @@ function StudioContent() {
   const [viewChanging, setViewChanging] = useAtom(studioViewChangingAtom);
   const [assetsOpen, setAssetsOpen] = useAtom(assetsPanelOpenAtom);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatRequest, setChatRequest] = useState<{ id: string; text: string } | null>(null);
   const [chatWidth, setChatWidth] = useState(420);
   const [chatResizing, setChatResizing] = useState(false);
   const chatResizeCleanupRef = useRef<(() => void) | undefined>(undefined);
@@ -229,7 +230,9 @@ function StudioContent() {
   const [selectedShotId, setSelectedShotId] = useState("");
   const [draftScript, setDraftScript] = useState("");
   const [draftSettings, setDraftSettings] = useState<StoryboardSettings>(DEFAULT_SETTINGS);
-  const [draftVideoInputMode, setDraftVideoInputMode] = useState(canvasnode.CanvasVideoInputMode.REFERENCE);
+  const [draftVideoInputMode, setDraftVideoInputMode] = useState<canvasnode.CanvasVideoInputMode>(
+    canvasnode.CanvasVideoInputMode.REFERENCE,
+  );
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1562,6 +1565,27 @@ function StudioContent() {
     durations: { shot: ScriptDurationRange; video: ScriptDurationRange },
     inferenceModelServiceId: string,
   ) => {
+    const modelServiceId = batchSettings.model || defaultVideoModelId;
+    if (!modelServiceId) {
+      Message.error(t("暂无可用视频模型"));
+      return;
+    }
+    setChatOpen(true);
+    setStoryboardStep(undefined);
+    setChatRequest({
+      id: crypto.randomUUID(),
+      text: [
+        "请为当前画布拆分分镜。先读取画布，再调用 create_canvas_storyboard_drafts；不要只输出文字方案。",
+        `剧情：${plot}`,
+        `单镜头时长：${durations.shot.min}-${durations.shot.max} 秒。`,
+        `总时长：${durations.video.min}-${durations.video.max} 分钟。`,
+        `视频模型：${modelServiceId}；文本模型：${inferenceModelServiceId}。`,
+        `生成参数：${JSON.stringify(batchSettings)}。`,
+        "shots 必须覆盖完整剧情、按自然节拍拆分，每项给出可直接用于视频生成的 prompt 和 duration_seconds。",
+      ].join("\n"),
+    });
+    return;
+
     const requestId = storyboardRequestIDRef.current + 1;
     storyboardRequestIDRef.current = requestId;
     setStoryboardPlot(plot);
@@ -2473,7 +2497,21 @@ function StudioContent() {
                   view === "canvas" ? "" : "absolute inset-0 opacity-0 pointer-events-none"
                 }`}
               >
-                <CanvasBoard onRefreshGraph={refreshCanvasGraph} ref={canvasBoardRef} />
+                <CanvasBoard
+                  onRefreshGraph={refreshCanvasGraph}
+                  onRequestTextGeneration={(node) => {
+                    setChatOpen(true);
+                    setChatRequest({
+                      id: crypto.randomUUID(),
+                      text: [
+                        `请为当前画布节点 ${node.NodeID} 生成文本。`,
+                        `要求：${node.Prompt || "根据当前画布上下文生成合适内容"}`,
+                        "先读取画布理解上下文，在本次聊天中直接生成最终文本，然后调用 update_canvas_node 只更新该节点的 text 字段；不要启动 Canvas 文本生成任务。",
+                      ].join("\n"),
+                    });
+                  }}
+                  ref={canvasBoardRef}
+                />
               </div>
             ) : null}
 
@@ -2756,7 +2794,17 @@ function StudioContent() {
                   }`}
                 />
               </div>
-              <CanvasConversation canvasId={canvasId} onChange={() => void refreshCanvasGraph()} />
+              <CanvasConversation
+                projectId={projectId}
+                canvasId={canvasId}
+                onChange={() => {
+                  void refreshCanvasGraph();
+                  void listCanvasNodeDraftSessions(projectId, canvasId)
+                    .then(setDraftShots)
+                    .catch(() => undefined);
+                }}
+                request={chatRequest}
+              />
             </aside>
           ) : null}
         </div>

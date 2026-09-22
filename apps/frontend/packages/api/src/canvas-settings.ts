@@ -2,9 +2,9 @@ import { getAdminService, type UpdateCanvasSettings } from "../generated/admin-s
 export type {
   CanvasSettings,
   CanvasDefaults,
-  CanvasModelSelection,
   CanvasModelParameters,
 } from "../generated/admin-server/index";
+export type { CanvasModelSelection as AdminCanvasModelSelection } from "../generated/admin-server/index";
 export function fetchCanvasSettings() {
   return getAdminService().getCanvasSettings({ baseURL: "/api/admin-server" });
 }

@@ -122,9 +122,11 @@ const CHAT_STREAM_THROTTLE_MS = 50;
 export function ChatSession({
   conversationId: id,
   onCanvasChange,
+  externalRequest,
 }: {
   conversationId: string;
   onCanvasChange?: () => void;
+  externalRequest?: { id: string; text: string } | null;
 }) {
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,6 +146,7 @@ export function ChatSession({
   const titleRafRef = useRef<number | null>(null);
   const pendingTitleRef = useRef<{ id: string; title: string } | null>(null);
   const pendingClientContinuationRef = useRef(false);
+  const handledExternalRequestRef = useRef<string | null>(null);
   const {
     agents,
     selectedAgentId,
@@ -363,11 +366,9 @@ export function ChatSession({
     .flatMap((message) => message.parts)
     .filter(
       (part) =>
-        (part.type === "tool-update_canvas_nodes" ||
-          part.type === "tool-delete_canvas_nodes" ||
-          part.type === "tool-generate_canvas_node" ||
-          part.type === "tool-read_canvas_generations" ||
-          part.type === "tool-cancel_canvas_generation") &&
+        (part.type === "tool-create_canvas_storyboard_drafts" ||
+          part.type === "tool-generate_canvas_nodes" ||
+          part.type === "tool-update_canvas_node") &&
         "state" in part &&
         part.state === "output-available",
     ).length;
@@ -378,6 +379,28 @@ export function ChatSession({
     void useChatStore.getState().loadAgents();
   }, []);
   const busy = isRunning(status);
+  useEffect(() => {
+    if (
+      !externalRequest ||
+      !id ||
+      loading ||
+      detail?.id !== id ||
+      busy ||
+      handledExternalRequestRef.current === externalRequest.id
+    ) {
+      return;
+    }
+    handledExternalRequestRef.current = externalRequest.id;
+    pendingClientContinuationRef.current = false;
+    const sent = sendMessage(
+      { parts: [{ type: "text", text: externalRequest.text }] },
+      { body: { ...requestBody, mode: "normal" as const } },
+    );
+    conversationScrollRef.current?.scrollToBottom();
+    void sent.catch(() => {
+      handledExternalRequestRef.current = null;
+    });
+  }, [busy, detail?.id, externalRequest, id, loading, requestBody, sendMessage]);
   const showThinkingPlaceholder =
     status === "submitted" || (status === "streaming" && isPendingAssistantMessage(messages.at(-1)));
   const documents = useMemo(() => {

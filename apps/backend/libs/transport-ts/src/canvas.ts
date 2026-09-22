@@ -1,9 +1,13 @@
 import { createInternalOpenApiClient, TransportError, type InternalOpenApiClient } from "./http.js";
-import type { components, paths } from "./schema/canvas.js";
+import type { components, operations, paths } from "./schema/canvas.js";
 
-export type CanvasGraph = components["schemas"]["CanvasGraph"];
-export type CanvasMutation = components["schemas"]["CanvasMutation"];
 export type CanvasNode = components["schemas"]["CanvasNode"];
+export type CanvasGraph = components["schemas"]["CanvasGetCanvasGraphResponse"];
+export type CanvasNodeStateTarget = components["schemas"]["CanvasNodeStateTarget"];
+export type CanvasNodePatch = operations["canvasUpdateNode"]["requestBody"]["content"]["application/json"];
+export type CanvasStoryboardDraftInput =
+  operations["canvasStartStoryboardDrafts"]["requestBody"]["content"]["application/json"];
+
 export interface CanvasActor {
   userId: string;
   tenantId: string;
@@ -13,6 +17,7 @@ export interface CanvasActor {
 
 export class CanvasInternalClient {
   private readonly client: InternalOpenApiClient<paths>;
+
   constructor(options: {
     baseUrl: string;
     internalToken: string;
@@ -21,44 +26,11 @@ export class CanvasInternalClient {
   }) {
     this.client = createInternalOpenApiClient<paths>({
       ...options,
-      baseUrl: `${options.baseUrl.replace(/\/$/, "")}/internal`,
+      baseUrl: `${options.baseUrl.replace(/\/$/, "")}/api/canvas-server`,
       service: "canvas",
     });
   }
-  async commitStoryboardProgress(
-    draftId: string,
-    body: components["schemas"]["CanvasStoryboardProgress"],
-    signal?: AbortSignal,
-  ) {
-    const { data, error, response } = await this.client.POST("/worker/storyboards/{draftId}/progress", {
-      params: { path: { draftId } },
-      body,
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError(
-      "canvas",
-      response.status,
-      `Canvas storyboard progress failed (${response.status})`,
-      error,
-    );
-  }
-  async executeFrames(taskRunId: string, signal?: AbortSignal) {
-    const { data, error, response } = await this.client.POST("/worker/frames/{taskRunId}/execute", {
-      params: { path: { taskRunId } },
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError("canvas", response.status, `Canvas frame extraction failed (${response.status})`, error);
-  }
-  async executeArchive(archiveId: string, signal?: AbortSignal) {
-    const { data, error, response } = await this.client.POST("/worker/archives/{archiveId}/execute", {
-      params: { path: { archiveId } },
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError("canvas", response.status, `Canvas archive execution failed (${response.status})`, error);
-  }
+
   private headers(actor: CanvasActor) {
     return {
       "X-Auth-User-ID": actor.userId,
@@ -67,69 +39,97 @@ export class CanvasInternalClient {
       "X-Auth-Workspace-Role": actor.workspaceRole,
     };
   }
-  async graph(actor: CanvasActor, canvasId: string, signal?: AbortSignal): Promise<CanvasGraph> {
-    const { data, error, response } = await this.client.GET("/canvases/{id}/graph", {
-      params: { path: { id: canvasId } },
-      headers: this.headers(actor),
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError("canvas", response.status, `Canvas read failed (${response.status})`, error);
+
+  private failure(response: Response, operation: string, error: unknown): never {
+    throw new TransportError("canvas", response.status, `Canvas ${operation} failed (${response.status})`, error);
   }
-  async startGeneration(
+
+  async graph(actor: CanvasActor, projectId: string, canvasId: string, signal?: AbortSignal): Promise<CanvasGraph> {
+    const { data, error, response } = await this.client.GET(
+      "/projects/{projectId}/canvases/{canvasId}/nodes",
+      { params: { path: { projectId, canvasId } }, headers: this.headers(actor), signal },
+    );
+    if (data) return data;
+    return this.failure(response, "read", error);
+  }
+
+  async nodeStates(
     actor: CanvasActor,
+    projectId: string,
     canvasId: string,
-    nodeId: string,
-    input: components["schemas"]["CanvasStartGeneration"],
+    targets: CanvasNodeStateTarget[],
     signal?: AbortSignal,
   ) {
-    const { data, error, response } = await this.client.POST("/canvases/{id}/nodes/{nodeId}/generations", {
-      params: { path: { id: canvasId, nodeId } },
-      headers: this.headers(actor),
-      body: input,
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError("canvas", response.status, `Canvas generation request failed (${response.status})`, error);
-  }
-  async listGenerations(actor: CanvasActor, canvasId: string, nodeId: string, signal?: AbortSignal) {
-    const { data, error, response } = await this.client.GET("/canvases/{id}/nodes/{nodeId}/generations", {
-      params: { path: { id: canvasId, nodeId } },
-      headers: this.headers(actor),
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError("canvas", response.status, `Canvas generation request failed (${response.status})`, error);
-  }
-  async cancelGeneration(actor: CanvasActor, canvasId: string, generationId: string, signal?: AbortSignal) {
-    const { data, error, response } = await this.client.POST("/canvases/{id}/generations/{generationId}/cancel", {
-      params: { path: { id: canvasId, generationId } },
-      headers: this.headers(actor),
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError("canvas", response.status, `Canvas generation request failed (${response.status})`, error);
-  }
-  async mutate(
-    actor: CanvasActor,
-    canvasId: string,
-    input: CanvasMutation,
-    signal?: AbortSignal,
-  ): Promise<CanvasGraph> {
-    const { data, error, response } = await this.client.POST("/canvases/{id}/mutations", {
-      params: { path: { id: canvasId } },
-      headers: this.headers(actor),
-      body: input,
-      signal,
-    });
-    if (data) return data;
-    throw new TransportError(
-      "canvas",
-      response.status,
-      response.status === 409
-        ? "Canvas changed; read the current graph before retrying."
-        : `Canvas mutation failed (${response.status})`,
-      error,
+    const { data, error, response } = await this.client.POST(
+      "/projects/{projectId}/canvases/{canvasId}/node-states:batchGet",
+      {
+        params: { path: { projectId, canvasId } },
+        headers: this.headers(actor),
+        body: { targets },
+        signal,
+      },
     );
+    if (data) return data;
+    return this.failure(response, "state read", error);
+  }
+
+  async startStoryboardDrafts(
+    actor: CanvasActor,
+    projectId: string,
+    canvasId: string,
+    input: CanvasStoryboardDraftInput,
+    signal?: AbortSignal,
+  ) {
+    const { data, error, response } = await this.client.POST(
+      "/projects/{projectId}/canvases/{canvasId}/storyboard-drafts",
+      {
+        params: { path: { projectId, canvasId } },
+        headers: this.headers(actor),
+        body: input,
+        signal,
+      },
+    );
+    if (data) return data;
+    return this.failure(response, "storyboard draft start", error);
+  }
+
+  async generateNodes(
+    actor: CanvasActor,
+    projectId: string,
+    canvasId: string,
+    nodeIds: string[],
+    signal?: AbortSignal,
+  ) {
+    const items: Array<{ node_id: string; task_run_id: string }> = [];
+    for (const nodeId of nodeIds) {
+      const { data, error, response } = await this.client.POST(
+        "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/generations",
+        { params: { path: { projectId, canvasId, nodeId } }, headers: this.headers(actor), signal },
+      );
+      if (!data) this.failure(response, "generation start", error);
+      items.push({ node_id: nodeId, task_run_id: data.task_run_id });
+    }
+    return { items };
+  }
+
+  async updateNode(
+    actor: CanvasActor,
+    projectId: string,
+    canvasId: string,
+    nodeId: string,
+    patch: CanvasNodePatch,
+    signal?: AbortSignal,
+  ) {
+    const { data, error, response } = await this.client.PATCH(
+      "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}",
+      {
+        params: { path: { projectId, canvasId, nodeId } },
+        headers: this.headers(actor),
+        body: patch,
+        signal,
+      },
+    );
+    if (data) return data;
+    return this.failure(response, "node update", error);
   }
 }

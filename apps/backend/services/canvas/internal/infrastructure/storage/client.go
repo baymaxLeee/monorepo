@@ -26,6 +26,12 @@ type PresignedArtifact struct {
 	ExpiresAt  string `json:"expires_at"`
 }
 
+type StoredObject struct {
+	ArtifactID string `json:"artifact_id"`
+	Size       int64  `json:"size"`
+	SHA256     string `json:"sha256"`
+}
+
 func Scope(tenant, workspace, project string) string {
 	v := sha256.Sum256([]byte(tenant + "\x00" + workspace + "\x00" + project))
 	return hex.EncodeToString(v[:])
@@ -49,16 +55,19 @@ func (c *Client) request(ctx context.Context, method, path string, body io.Reade
 	return res, nil
 }
 func (c *Client) Put(ctx context.Context, scope string, body io.Reader) (string, error) {
+	stored, err := c.PutObject(ctx, scope, body)
+	return stored.ArtifactID, err
+}
+
+func (c *Client) PutObject(ctx context.Context, scope string, body io.Reader) (StoredObject, error) {
 	res, err := c.request(ctx, "POST", scope, body)
 	if err != nil {
-		return "", err
+		return StoredObject{}, err
 	}
 	defer res.Body.Close()
-	var out struct {
-		ArtifactID string `json:"artifact_id"`
-	}
+	var out StoredObject
 	err = json.NewDecoder(res.Body).Decode(&out)
-	return out.ArtifactID, err
+	return out, err
 }
 func (c *Client) Get(ctx context.Context, namespace, artifactID string) (io.ReadCloser, error) {
 	res, err := c.request(ctx, "GET", namespace+"/"+artifactID, nil)

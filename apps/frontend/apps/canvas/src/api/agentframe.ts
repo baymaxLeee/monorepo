@@ -23,7 +23,7 @@ import {
   canvasProjectManagement,
   fetchModelProviders,
   canvasResourceFromNode,
-  canvasSearchCreativeAssets,
+  canvasSearchNodeAssets,
   canvasReplaceResourceAsset,
   canvasSetPrimaryResourceAsset,
   canvasStartResourceGeneration,
@@ -148,13 +148,6 @@ async function toCanvasSummary(value: CanvasBoard): Promise<canvas.ProjectCanvas
   };
 }
 
-const reviewStatus: Record<string, asset.AssetReviewStatus> = {
-  submitting: asset.AssetReviewStatus.SUBMITTING,
-  processing: asset.AssetReviewStatus.PROCESSING,
-  approved: asset.AssetReviewStatus.APPROVED,
-  failed: asset.AssetReviewStatus.FAILED,
-};
-
 function providerModelType(kind: ModelProvider["provider_kind"]): string {
   if (kind === "chat") return "text-generation";
   if (kind === "image" || kind === "video") return "vision";
@@ -225,7 +218,7 @@ function toReview(value: CanvasAssetReview): asset.AssetReview {
   return {
     PackageID: value.benefit_package_id,
     PackageName: value.package_name,
-    Status: reviewStatus[value.status.toLowerCase()] ?? asset.AssetReviewStatus.PROCESSING,
+    Status: value.status,
     FailureReason: value.failure_reason || undefined,
     SubmittedAt: value.submitted_at || undefined,
     UpdatedAt: value.updated_at,
@@ -918,28 +911,42 @@ export const agentframeService = {
   },
   async SearchCanvasNodeAssets(
     request: canvasnode.SearchCanvasNodeAssetsRequest,
-    _options?: ApiRequestConfig,
+    options?: ApiRequestConfig,
   ): Promise<canvasnode.SearchCanvasNodeAssetsResponse> {
-    const response = await canvasSearchCreativeAssets(request.ProjectID, {
-      params: { query: request.Keyword, limit: request.Limit },
-      skipErrorNotify: true,
+    const response = await canvasSearchNodeAssets(
+      request.CanvasID,
+      request.NodeID,
+      {
+        keyword: request.Keyword ?? "",
+        cursor: request.Cursor ?? "",
+        limit: request.Limit,
+        media_types: request.MediaTypes ?? [],
+      },
+      { ...options, skipErrorNotify: true },
+    );
+    const mapNode = (node: (typeof response.items)[number]): canvasnode.CanvasNodeAssetMentionNode => ({
+      ID: node.id,
+      Label: node.label,
+      Children: node.children.map(mapNode),
+      URL: node.url || undefined,
+      MediaType: node.media_type ? (node.media_type as asset.AssetMediaType) : undefined,
+      Description: node.description || undefined,
+      CanvasNodeID: node.canvas_node_id || undefined,
+      AssetID: node.asset_id || undefined,
+      NodeType: node.node_type ? (node.node_type as canvasnode.CanvasNodeType) : undefined,
+      ResourceAssetID: node.resource_asset_id || undefined,
+      Reviews: node.reviews.map(toReview),
+      ResourceID: node.resource_id || undefined,
+      ReferenceType: node.reference_type
+        ? (node.reference_type as canvasnode.CanvasNodeMentionReferenceType)
+        : undefined,
+      ResourceType: node.resource_type ? (node.resource_type as resource.ResourceType) : undefined,
+      Available: node.available,
+      Generating: node.generating,
     });
     return {
-      Items: response.items.map((item) => ({
-        ID: item.resource_asset_id ? `resource:${item.resource_asset_id}` : `node:${item.node_id}`,
-        Label: item.name,
-        Children: [],
-        MediaType: item.media_type,
-        CanvasNodeID: item.canvas_id === request.CanvasID ? item.node_id : undefined,
-        AssetID: item.current_asset_id,
-        ResourceID: item.resource_id || undefined,
-        ResourceAssetID: item.resource_asset_id || undefined,
-        ResourceType: item.resource_type,
-        ReferenceType: item.resource_asset_id
-          ? canvasnode.CanvasNodeMentionReferenceType.RESOURCE_ASSET
-          : canvasnode.CanvasNodeMentionReferenceType.ASSET,
-        Available: true,
-      })),
+      Items: response.items.map(mapNode),
+      NextCursor: response.next_cursor || undefined,
     };
   },
   async MaterializeCanvasResourceAssetReference(
@@ -1031,5 +1038,3 @@ export const agentframeService = {
 export type AgentFrameService = typeof agentframeService;
 
 export const silentRequestConfig = { skipErrorNotify: true } satisfies ApiRequestConfig;
-
-export const SortDirection = { Asc: 1, Desc: 2 } as const;

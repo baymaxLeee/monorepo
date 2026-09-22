@@ -58,74 +58,6 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
-                        type: "canvas-storyboard";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: {
-                            draftId: string;
-                            parameters?: {
-                                temperature?: number;
-                                topP?: number;
-                                maxOutputTokens?: number;
-                                reasoningEffort?: string;
-                            };
-                            tenantId: string;
-                            workspaceId: string;
-                            providerId: string;
-                            plot: string;
-                            durationMin: number;
-                            durationMax: number;
-                            totalDurationMin: number;
-                            totalDurationMax: number;
-                        };
-                    } | {
-                        /** @constant */
-                        type: "canvas-video-frames";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: {
-                            taskRunId: string;
-                        };
-                    } | {
-                        /** @constant */
-                        type: "canvas-archive";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: {
-                            taskRunId: string;
-                        };
-                    } | {
-                        /** @constant */
-                        type: "canvas-video-generation";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: components["schemas"]["CanvasVideoPayload"];
-                    } | {
-                        /** @constant */
-                        type: "canvas-image-generation";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: components["schemas"]["CanvasImagePayload"];
-                    } | {
-                        /** @constant */
-                        type: "text-generation";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: components["schemas"]["TextGenerationPayload"];
-                    } | {
-                        /** @constant */
                         type: "file-task-batch";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -161,6 +93,7 @@ export interface paths {
                             progress: {
                                 done: number;
                                 total: number;
+                                text?: string;
                             } | null;
                             error: string | null;
                             /** Format: date-time */
@@ -225,6 +158,7 @@ export interface paths {
                             progress: {
                                 done: number;
                                 total: number;
+                                text?: string;
                             } | null;
                             error: string | null;
                             /** Format: date-time */
@@ -344,6 +278,7 @@ export interface paths {
                             progress: {
                                 done: number;
                                 total: number;
+                                text?: string;
                             } | null;
                             error: string | null;
                             /** Format: date-time */
@@ -403,6 +338,7 @@ export interface paths {
                             progress: {
                                 done: number;
                                 total: number;
+                                text?: string;
                             } | null;
                             error: string | null;
                             /** Format: date-time */
@@ -583,61 +519,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        TextGenerationPayload: {
-            tenantId: string;
-            workspaceId: string;
-            providerId: string;
-            prompt: string;
-            parameters?: {
-                temperature?: number;
-                topP?: number;
-                maxOutputTokens?: number;
-                reasoningEffort?: string;
-            };
-        };
-        CanvasVideoPayload: {
-            tenantId: string;
-            workspaceId: string;
-            providerId: string;
-            prompt: string;
-            parameters?: {
-                temperature?: number;
-                topP?: number;
-                maxOutputTokens?: number;
-                reasoningEffort?: string;
-            };
-            objectScope: string;
-            references: {
-                key: string;
-                mimeType: string;
-                /** @enum {string} */
-                role: "reference_image" | "reference_video" | "reference_audio" | "first_frame" | "last_frame";
-            }[];
-            duration: number;
-            /** @enum {string} */
-            resolution?: "480p" | "720p" | "1080p" | "2k" | "4k";
-            /** @enum {string} */
-            aspectRatio?: "21:9" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "3:2" | "2:3" | "adaptive";
-            generateAudio: boolean;
-            watermark: boolean;
-        };
-        CanvasImagePayload: {
-            tenantId: string;
-            workspaceId: string;
-            providerId: string;
-            prompt: string;
-            parameters?: {
-                temperature?: number;
-                topP?: number;
-                maxOutputTokens?: number;
-                reasoningEffort?: string;
-            };
-            watermark?: boolean;
-            objectScope: string;
-            references: string[];
-            aspectRatio?: string;
-            size?: string;
-        };
         Task: {
             id: string;
             type: string;
@@ -649,6 +530,7 @@ export interface components {
             progress: {
                 done: number;
                 total: number;
+                text?: string;
             } | null;
             error: string | null;
             /** Format: date-time */
@@ -663,74 +545,6 @@ export interface components {
             production: components["schemas"]["VideoProductionProjection"] | null;
         };
         CreateTaskInput: {
-            /** @constant */
-            type: "canvas-storyboard";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: {
-                draftId: string;
-                parameters?: {
-                    temperature?: number;
-                    topP?: number;
-                    maxOutputTokens?: number;
-                    reasoningEffort?: string;
-                };
-                tenantId: string;
-                workspaceId: string;
-                providerId: string;
-                plot: string;
-                durationMin: number;
-                durationMax: number;
-                totalDurationMin: number;
-                totalDurationMax: number;
-            };
-        } | {
-            /** @constant */
-            type: "canvas-video-frames";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: {
-                taskRunId: string;
-            };
-        } | {
-            /** @constant */
-            type: "canvas-archive";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: {
-                taskRunId: string;
-            };
-        } | {
-            /** @constant */
-            type: "canvas-video-generation";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: components["schemas"]["CanvasVideoPayload"];
-        } | {
-            /** @constant */
-            type: "canvas-image-generation";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: components["schemas"]["CanvasImagePayload"];
-        } | {
-            /** @constant */
-            type: "text-generation";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: components["schemas"]["TextGenerationPayload"];
-        } | {
             /** @constant */
             type: "file-task-batch";
             /** @description calling service, e.g. chat */

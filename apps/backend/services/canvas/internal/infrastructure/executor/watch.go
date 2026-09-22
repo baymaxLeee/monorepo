@@ -8,6 +8,10 @@ import (
 // Cancellation intent belongs to the caller's outbox, so a failed HTTP cancel
 // must be retried while the existing durable task is still being watched.
 func (c *Client) WatchWithCancellation(ctx context.Context, id, owner string, requested func(context.Context) (bool, error)) (Task, error) {
+	return c.WatchWithCancellationProgress(ctx, id, owner, requested, nil)
+}
+
+func (c *Client) WatchWithCancellationProgress(ctx context.Context, id, owner string, requested func(context.Context) (bool, error), observe func(Task) error) (Task, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	done := make(chan struct{})
@@ -29,7 +33,7 @@ func (c *Client) WatchWithCancellation(ctx context.Context, id, owner string, re
 			}
 		}
 	}()
-	task, err := c.Watch(ctx, id, owner)
+	task, err := c.Watch(ctx, id, owner, observe)
 	cancel()
 	<-done
 	return task, err

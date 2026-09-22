@@ -11,8 +11,9 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { CanvasSortDirection } from "@repo/api";
 
-import { SortDirection, agentframeService } from "@/api/index";
+import { agentframeService } from "@/api/index";
 import { getProjectForRole, listMyProjects } from "@/api/projectAccess";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import {
@@ -200,7 +201,7 @@ export default function ProjectsPage() {
         Filter: debouncedKeyword.trim() ? { Keyword: debouncedKeyword.trim() } : undefined,
         Sort: {
           Field: project.ProjectSortField.UPDATED_AT,
-          Direction: ascending ? SortDirection.Asc : SortDirection.Desc,
+          Direction: ascending ? CanvasSortDirection.ASC : CanvasSortDirection.DESC,
         },
         Page: { PageSize: PAGE_SIZE, PageNum: pageNum },
       });
