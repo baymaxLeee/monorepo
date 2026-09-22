@@ -85,24 +85,13 @@ func (r *Repository) List(ctx context.Context, scope applicationcanvas.Scope, pr
 func (r *Repository) MarkRunning(ctx context.Context, scope applicationcanvas.Scope, id string, now time.Time) error {
 	return r.update(ctx, scope, id, map[string]any{"status": task.StatusRunning, "updated_at": now}, task.StatusQueued)
 }
-func (r *Repository) Append(ctx context.Context, scope applicationcanvas.Scope, id, delta string, now time.Time) error {
-	parsed, err := persistenceid.Parse(id)
-	if err != nil {
-		return app.ErrNotFound
-	}
-	result := scopeQuery(r.dbFor(ctx).Model(&row{}), scope).Where("task_run_id = ? AND created_by = ? AND status = ?", parsed, scope.CallerID, task.StatusRunning).Updates(map[string]any{"content": gorm.Expr("CONCAT(content, ?)", delta), "updated_at": now})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected != 1 {
-		return app.ErrNotFound
-	}
-	return nil
-}
-func (r *Repository) Finish(ctx context.Context, scope applicationcanvas.Scope, id string, status task.Status, failure *app.Failure, now time.Time) error {
+func (r *Repository) Finish(ctx context.Context, scope applicationcanvas.Scope, id string, status task.Status, failure *app.Failure, content string, now time.Time) error {
 	updates := map[string]any{"status": status, "updated_at": now, "finished_at": now}
 	if failure != nil {
 		updates["error_code"], updates["error_message"] = failure.Code, failure.Message
+	}
+	if status == task.StatusSucceeded {
+		updates["content"] = content
 	}
 	parsed, err := persistenceid.Parse(id)
 	if err != nil {

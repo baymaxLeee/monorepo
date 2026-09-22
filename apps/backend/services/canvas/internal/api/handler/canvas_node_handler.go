@@ -420,7 +420,37 @@ func (h *CanvasNodeHandler) GetCanvasGraph(
 		}
 		nodes = append(nodes, canvasnodeViewDTO(item, no, failures[item.ID]))
 	}
+	if err = h.attachStoryboardDraftSessions(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, nodes); err != nil {
+		return nil, err
+	}
 	return &thriftcanvasnode.GetCanvasGraphResponse{Nodes: nodes}, nil
+}
+
+func (h *CanvasNodeHandler) attachStoryboardDraftSessions(
+	ctx context.Context,
+	scope applicationcanvasnode.Scope,
+	projectID, canvasID string,
+	nodes []*thriftcanvasnode.CanvasNode,
+) error {
+	draftNodes := make(map[string]*thriftcanvasnode.CanvasNode)
+	for _, node := range nodes {
+		if node != nil && node.Type == thriftcanvasnode.CanvasNodeType_STORYBOARD_DRAFT {
+			draftNodes[node.NodeID] = node
+		}
+	}
+	if len(draftNodes) == 0 {
+		return nil
+	}
+	drafts, err := h.drafts.List(ctx, scope, projectID, canvasID)
+	if err != nil {
+		return err
+	}
+	for _, draft := range drafts {
+		if node := draftNodes[draft.ID]; node != nil {
+			node.DraftSession = draftSessionDTO(draft, true)
+		}
+	}
+	return nil
 }
 
 func (h *CanvasNodeHandler) CreateCanvasNode(ctx context.Context, r *thriftcanvasnode.CreateCanvasNodeRequest) (*thriftcanvasnode.CreateCanvasNodeResponse, error) {
@@ -1213,15 +1243,14 @@ func (h *CanvasNodeHandler) BatchGetCanvasNodeStates(ctx context.Context, r *thr
 		}
 		items = append(items, item)
 	}
-	drafts, err := h.drafts.List(ctx, scope, r.ProjectID, r.CanvasID)
-	if err != nil {
+	requestedNodes := make([]*thriftcanvasnode.CanvasNode, 0, len(items))
+	for _, item := range items {
+		requestedNodes = append(requestedNodes, item.Node)
+	}
+	if err = h.attachStoryboardDraftSessions(ctx, scope, r.ProjectID, r.CanvasID, requestedNodes); err != nil {
 		return nil, err
 	}
-	draftSessions := make([]*thriftcanvasnode.CanvasNodeDraftSession, 0, len(drafts))
-	for _, draft := range drafts {
-		draftSessions = append(draftSessions, draftSessionDTO(draft, true))
-	}
-	return &thriftcanvasnode.BatchGetCanvasNodeStatesResponse{Items: items, DraftSessions: draftSessions}, nil
+	return &thriftcanvasnode.BatchGetCanvasNodeStatesResponse{Items: items}, nil
 }
 
 func (h *CanvasNodeHandler) CancelCanvasNodeAssetsMatch(ctx context.Context, r *thriftcanvasnode.CancelCanvasNodeAssetsMatchRequest) (*thriftbase.Empty, error) {

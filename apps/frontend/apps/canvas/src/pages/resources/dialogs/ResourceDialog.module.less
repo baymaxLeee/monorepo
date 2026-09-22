@@ -3,6 +3,11 @@
 .modal {
   .responsive-modal-size(1152);
   .responsive-modal-scroll();
+
+  &:global(.canvas-modal-content) {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
 }
 
 .createLayout {
@@ -20,6 +25,15 @@
   min-width: 15rem;
   flex: 0 1 18rem;
   flex-direction: column;
+  gap: 24px;
+}
+
+.typeSelect {
+  width: 100%;
+
+  &:global([data-slot="select-trigger"]) {
+    width: 100%;
+  }
 }
 
 .fieldCount {
@@ -38,13 +52,22 @@
 
 .descriptionField {
   flex: 1;
+  min-height: 0;
   margin-bottom: 0;
 }
 
 .descriptionInput {
-  min-height: 12rem;
+  min-height: 0;
+  height: 100%;
   flex: 1;
   resize: vertical;
+
+  &:global([data-ui-input-control]) {
+    height: 100%;
+    min-height: 192px;
+    padding: 10px 12px;
+    line-height: 22px;
+  }
 }
 
 .error {
@@ -80,11 +103,21 @@
   padding: 2rem;
   border: 1px dashed var(--border);
   border-radius: 12px;
-  background: var(--muted);
-  color: var(--foreground);
+  background: #f7f8fa;
+  color: #0c0d0e;
   cursor: pointer;
   flex-direction: column;
   gap: 0.5rem;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #86909c;
+    background: #f2f3f5;
+    outline: none;
+  }
 
   strong {
     font-size: 16px;

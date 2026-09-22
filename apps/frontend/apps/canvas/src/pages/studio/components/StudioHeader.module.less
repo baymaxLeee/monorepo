@@ -1,0 +1,151 @@
+.header {
+  display: flex;
+  height: 48px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.canvasHeader {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 20;
+  border: 0;
+  background: transparent;
+}
+
+.storyboardHeader {
+  border: 0;
+  border-bottom: 1px solid #e5e8ef;
+  background: #fff;
+}
+
+.headerWithAssets {
+  padding-right: 20px;
+}
+
+.headerWithoutAssets {
+  padding: 0 20px;
+}
+
+.leading,
+.project,
+.viewSwitch,
+.viewButton,
+.backButton,
+.actions {
+  display: flex;
+  align-items: center;
+}
+
+.leading,
+.project {
+  min-width: 0;
+  gap: 16px;
+}
+
+.projectWithAssets {
+  width: 300px;
+  height: 48px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  padding: 0 20px;
+}
+
+.projectCanvas {
+  border-right: 1px solid #e5e8ef;
+  border-bottom: 1px solid #e5e8ef;
+  background: #fff;
+}
+
+.projectWithoutAssets {
+  max-width: 300px;
+}
+
+.backButton {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #d5dbe3;
+  border-radius: 8px;
+  background: #fff;
+  color: #0c0d0e;
+  font-size: 14px;
+  transition: background-color 160ms ease;
+}
+
+.backButton:hover {
+  background: #f5f6f8;
+}
+
+.backButton svg,
+.viewIcon {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.projectTitle {
+  min-width: 0;
+  max-width: 240px;
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  color: #0c0d0e;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewSwitch {
+  height: 32px;
+  padding: 3px 4px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #f6f6f6 70%, transparent);
+  backdrop-filter: blur(16px);
+  gap: 4px;
+}
+
+.viewButton {
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: #42464e;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 4px;
+}
+
+.activeViewButton {
+  padding: 0 8px;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 7%),
+    0 0.5px 1px rgb(0 0 0 / 5%),
+    0 0 0 0.5px rgb(213 219 227 / 70%);
+  cursor: default;
+}
+
+.idleViewButton {
+  width: 24px;
+  background: transparent;
+}
+
+.idleViewButton:hover {
+  background: rgb(26 27 30 / 5%);
+}
+
+.viewIcon {
+  flex-shrink: 0;
+}
+
+.actions {
+  flex-shrink: 0;
+  gap: 12px;
+}

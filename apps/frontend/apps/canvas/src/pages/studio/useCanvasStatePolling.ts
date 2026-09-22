@@ -19,15 +19,18 @@ export function useCanvasStatePolling({
   projectId: string;
   statePubSub: CanvasStatePubSub;
 }) {
-  const targets = useCanvasGenerationTargets(nodePubSub);
-  const [draftWatchCounts, setDraftWatchCounts] = useState<ReadonlyMap<string, number>>(new Map());
+  const graphTargets = useCanvasGenerationTargets(nodePubSub);
+  const [watchedTargets, setWatchedTargets] = useState<
+    ReadonlyMap<string, { count: number; target: CanvasStateSnapshot["Targets"][number] }>
+  >(new Map());
   const [refreshVersion, setRefreshVersion] = useState(0);
   const inFlightRef = useRef<Promise<CanvasStateSnapshot>>();
   const handledRefreshVersionRef = useRef(0);
+  const targets = dedupeTargets([...graphTargets, ...[...watchedTargets.values()].map(({ target }) => target)]);
   const targetsRef = useRef(targets);
   targetsRef.current = targets;
-  const active = targets.length > 0 || draftWatchCounts.size > 0;
-  const activeKey = `${JSON.stringify(targets)}:${[...draftWatchCounts.keys()].sort().join(",")}`;
+  const active = targets.length > 0;
+  const activeKey = JSON.stringify(targets);
 
   useEffect(() => {
     const unsubscribe = statePubSub.on("control", (event) => {
@@ -35,12 +38,13 @@ export function useCanvasStatePolling({
         setRefreshVersion((current) => Math.max(current, event.version));
         return;
       }
-      setDraftWatchCounts((current) => {
+      setWatchedTargets((current) => {
         const next = new Map(current);
-        const count = next.get(event.taskRunId) ?? 0;
-        if (event.type === "watch-draft") next.set(event.taskRunId, count + 1);
-        else if (count <= 1) next.delete(event.taskRunId);
-        else next.set(event.taskRunId, count - 1);
+        const key = targetKey(event.target);
+        const entry = next.get(key);
+        if (event.type === "watch-target") next.set(key, { count: (entry?.count ?? 0) + 1, target: event.target });
+        else if (!entry || entry.count <= 1) next.delete(key);
+        else next.set(key, { ...entry, count: entry.count - 1 });
         return next;
       });
     });
@@ -68,11 +72,6 @@ export function useCanvasStatePolling({
           ),
         ).then((responses) => ({
           Items: responses.flatMap((response) => response.Items),
-          DraftSessions: [
-            ...new Map(
-              responses.flatMap((response) => response.DraftSessions).map((item) => [item.task_run_id, item]),
-            ).values(),
-          ],
           Targets: currentTargets,
           RefreshVersion: refreshVersion,
         }));
@@ -109,6 +108,14 @@ export function useCanvasStatePolling({
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [active, activeKey, canvasId, projectId, refreshVersion, statePubSub]);
+}
+
+function targetKey(target: CanvasStateSnapshot["Targets"][number]) {
+  return `${target.NodeID}:${target.TaskRunID}`;
+}
+
+function dedupeTargets(targets: CanvasStateSnapshot["Targets"]) {
+  return [...new Map(targets.map((target) => [targetKey(target), target])).values()];
 }
 
 function chunk<T>(items: T[], size: number) {

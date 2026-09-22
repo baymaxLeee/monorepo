@@ -1,4 +1,20 @@
-import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  Button,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  InputGroup,
+  InputGroupInput,
+  InputGroupText,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@repo/design-system";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/ActionButton";
 import {
@@ -10,7 +26,7 @@ import {
   getVideoModelParamConfigByOption,
   sanitizeGenerationSettings,
 } from "@/components/GenerationConfiguration/videoModelConfig";
-import { Input, Modal, Select, InputNumber } from "@/components/ui";
+import { Input, Modal } from "@/components/ui";
 import { HIDDEN_SCROLLBAR_CLASS, HIDDEN_SCROLLBAR_STYLE } from "@/hooks/useHorizontalScrollFade";
 import t from "@/utils/i18n";
 
@@ -66,21 +82,10 @@ function clampDurationRange(min: number, max: number, limitMin: number, limitMax
   return { min: nextMin, max: nextMax };
 }
 
-function filterModelOption(input: string, option: ReactElement) {
-  const keyword = input.trim().toLowerCase();
-  if (!keyword) {
-    return true;
-  }
-  const props = option.props as { children?: unknown; value?: unknown };
-  const label = String(props.children ?? "");
-  const id = String(props.value ?? "");
-  return label.toLowerCase().includes(keyword) || id.toLowerCase().includes(keyword);
-}
-
 function LabeledField({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-[14px] font-medium leading-6 tracking-[0.042px] text-foreground">{label}</span>
+    <div className={styles.labeledField}>
+      <span className={styles.fieldLabel}>{label}</span>
       {children}
     </div>
   );
@@ -95,25 +100,47 @@ function ModelSelectChip({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((model) => model.id === value);
+
   return (
-    <div className={styles.modelSelectChip}>
-      <Select
-        bordered={false}
-        className={styles.modelSelect}
-        disabled={options.length === 0}
-        filterOption={filterModelOption}
-        onChange={onChange}
-        placeholder={t("选择模型")}
-        showSearch
-        value={value || undefined}
-      >
-        {options.map((model) => (
-          <Select.Option key={model.id} value={model.id}>
-            {model.name}
-          </Select.Option>
-        ))}
-      </Select>
-    </div>
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger asChild>
+        <Button
+          aria-expanded={open}
+          className={styles.modelComboboxTrigger}
+          disabled={options.length === 0}
+          role="combobox"
+          variant="outline"
+        >
+          <span className={styles.modelComboboxValue}>{selected?.name ?? t("选择模型")}</span>
+          <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className={styles.modelComboboxContent}>
+        <Command>
+          <CommandInput placeholder={t("搜索模型")} />
+          <CommandList>
+            <CommandEmpty>{t("没有匹配的模型")}</CommandEmpty>
+            <CommandGroup>
+              {options.map((model) => (
+                <CommandItem
+                  key={model.id}
+                  onSelect={() => {
+                    onChange(model.id);
+                    setOpen(false);
+                  }}
+                  value={`${model.name} ${model.id}`}
+                >
+                  <Check className={value === model.id ? "opacity-100" : "opacity-0"} />
+                  <span className="truncate">{model.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -132,36 +159,25 @@ function DurationNumberField({
   value: number;
   onChange: (value: number | undefined) => void;
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
   return (
-    <div
-      className={styles.durationField}
-      onMouseDown={(event) => {
-        if ((event.target as HTMLElement).closest("input")) {
-          return;
-        }
-        event.preventDefault();
-        wrapRef.current?.querySelector("input")?.focus();
-      }}
-      ref={wrapRef}
-    >
-      <InputNumber
-        aria-label={ariaLabel}
-        autoComplete="duration-seconds"
-        autoCorrect="off"
-        data-1p-ignore
-        data-form-type="other"
-        data-lpignore="true"
-        hideControl
-        max={limitMax}
-        min={limitMin}
-        name={name}
-        onChange={onChange}
-        precision={0}
-        spellCheck={false}
-        value={value}
-      />
-    </div>
+    <InputGroupInput
+      aria-label={ariaLabel}
+      autoComplete="off"
+      autoCorrect="off"
+      className={styles.durationInput}
+      data-1p-ignore
+      data-form-type="other"
+      data-lpignore="true"
+      max={limitMax}
+      min={limitMin}
+      name={name}
+      onChange={(event) =>
+        onChange(Number.isNaN(event.currentTarget.valueAsNumber) ? undefined : event.currentTarget.valueAsNumber)
+      }
+      spellCheck={false}
+      type="number"
+      value={value}
+    />
   );
 }
 
@@ -183,28 +199,26 @@ function DurationRangeInput({
   onChange: (range: ScriptDurationRange) => void;
 }) {
   return (
-    <form autoComplete="off" className={styles.durationRange} onSubmit={(event) => event.preventDefault()}>
-      <div className={styles.durationValues}>
-        <DurationNumberField
-          ariaLabel={`${t("{namePrefix} 下限", { namePrefix })}`}
-          limitMax={limitMax}
-          limitMin={limitMin}
-          name={`${namePrefix}-min`}
-          onChange={(value) => onChange(clampDurationRange(value ?? limitMin, max, limitMin, limitMax))}
-          value={min}
-        />
-        <span className={styles.durationSep}>~</span>
-        <DurationNumberField
-          ariaLabel={`${t("{namePrefix} 上限", { namePrefix })}`}
-          limitMax={limitMax}
-          limitMin={limitMin}
-          name={`${namePrefix}-max`}
-          onChange={(value) => onChange(clampDurationRange(min, value ?? limitMax, limitMin, limitMax))}
-          value={max}
-        />
-      </div>
-      <span className={styles.durationUnit}>{unit}</span>
-    </form>
+    <InputGroup className={styles.durationRange}>
+      <DurationNumberField
+        ariaLabel={`${t("{namePrefix} 下限", { namePrefix })}`}
+        limitMax={limitMax}
+        limitMin={limitMin}
+        name={`${namePrefix}-min`}
+        onChange={(value) => onChange(clampDurationRange(value ?? limitMin, max, limitMin, limitMax))}
+        value={min}
+      />
+      <InputGroupText className={styles.durationSep}>~</InputGroupText>
+      <DurationNumberField
+        ariaLabel={`${t("{namePrefix} 上限", { namePrefix })}`}
+        limitMax={limitMax}
+        limitMin={limitMin}
+        name={`${namePrefix}-max`}
+        onChange={(value) => onChange(clampDurationRange(min, value ?? limitMax, limitMin, limitMax))}
+        value={max}
+      />
+      <InputGroupText className={styles.durationUnit}>{unit}</InputGroupText>
+    </InputGroup>
   );
 }
 
@@ -341,17 +355,13 @@ export function ScriptDesignDialog({
       footer={null}
       maskClosable
       onCancel={onCancel}
-      className={modalSizing.storyboard}
-      title={
-        <span className="text-[18px] font-medium leading-6.5 tracking-[0.054px] text-foreground">{t("剧本设计")}</span>
-      }
+      className={`${modalSizing.storyboard} ${styles.modal}`}
+      title={<span className={styles.title}>{t("剧本设计")}</span>}
       visible={visible}
     >
-      <div className={`${modalSizing.storyboardBody} flex min-h-0 overflow-hidden gap-6`}>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          <p className="m-0 shrink-0 text-[13px] leading-5.5 tracking-[0.039px] text-foreground">
-            {SCRIPT_INSTRUCTION}
-          </p>
+      <div className={`${modalSizing.storyboardBody} ${styles.body}`}>
+        <div className={styles.scriptColumn}>
+          <p className={styles.instruction}>{SCRIPT_INSTRUCTION}</p>
           <div className={`min-h-0 flex-1 ${styles.plotInput}`}>
             <Input.TextArea
               className={HIDDEN_SCROLLBAR_CLASS}
@@ -370,13 +380,13 @@ export function ScriptDesignDialog({
           </div>
         </div>
 
-        <div className="w-[1px] shrink-0 self-stretch bg-border" />
+        <div className={styles.divider} />
 
-        <div className="flex h-full w-[260px] shrink-0 flex-col gap-6 overflow-y-auto">
-          <LabeledField label={t("分镜推理模型")}>
+        <div className={styles.settingsColumn}>
+          <LabeledField label={t("分镜模型")}>
             <ModelSelectChip onChange={setStoryboardModel} options={storyboardModelOptions} value={storyboardModel} />
           </LabeledField>
-          <LabeledField label={t("视频生成模型")}>
+          <LabeledField label={t("视频模型")}>
             <ModelSelectChip
               onChange={(model) => emitSettings({ ...settings, model })}
               options={modelOptions}
@@ -405,7 +415,7 @@ export function ScriptDesignDialog({
               unit={t("分钟")}
             />
           </LabeledField>
-          <p className="m-0 text-[12px] leading-5 text-muted-foreground">
+          <p className={styles.durationHint}>
             {t("时长仅用于引导节奏，生成会优先保证剧情完整和自然，不会刻意逼近上下限。")}
           </p>
           <LabeledField label={t("视频参数")}>
@@ -424,19 +434,17 @@ export function ScriptDesignDialog({
         </div>
       </div>
 
-      <div className="mt-5 flex items-center justify-between">
+      <div className={styles.actions}>
         <p
-          className={`m-0 shrink-0 text-[12px] leading-5 ${
-            plot.length > STORYBOARD_RECOMMENDED_PLOT_CHARACTERS
-              ? "text-[color:oklch(0.555 0.163 48.998)]"
-              : "text-muted-foreground"
+          className={`${styles.counter} ${
+            plot.length > STORYBOARD_RECOMMENDED_PLOT_CHARACTERS ? styles.counterWarning : ""
           }`}
         >
           {t("建议单次不超过 6000 字；当前 {count}/30000 字", {
             count: plot.length,
           })}
         </p>
-        <div className="flex items-center justify-end gap-3">
+        <div className={styles.actionButtons}>
           <ActionButton onClick={onCancel}>{t("取消")}</ActionButton>
           <ActionButton
             disabled={!plot.trim() || !settings.model || !storyboardModel}

@@ -1049,6 +1049,8 @@ func (p *CanvasNodeGenerationFailure) String() string {
 // CanvasNode 描述项目剧集下的一个稳定分镜。
 type CanvasNode struct {
 	ActiveTaskType *CanvasNodeTaskType `json:"ActiveTaskType,omitempty"`
+	// DraftSession 仅在 STORYBOARD_DRAFT 临时节点上返回，草稿生命周期与该节点一致。
+	DraftSession *CanvasNodeDraftSession `json:"DraftSession,omitempty"`
 	// NodeID 是分镜稳定标识。
 	NodeID string `json:"NodeID"`
 	// CanvasID 是分镜所属剧集标识。
@@ -1511,74 +1513,6 @@ func (p *CanvasNode) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("CanvasNode(%+v)", *p)
-}
-
-// ListCanvasNodeDraftSessionsRequest 查询当前调用者尚未处理的批量分镜任务。
-type ListCanvasNodeDraftSessionsRequest struct {
-	// WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。
-	WorkspaceID *string `json:"WorkspaceID,omitempty"`
-	// ProjectID 是所属项目标识。
-	ProjectID string `json:"ProjectID"`
-	// CanvasID 是所属剧集标识。
-	CanvasID string `json:"CanvasID"`
-}
-
-func NewListCanvasNodeDraftSessionsRequest() *ListCanvasNodeDraftSessionsRequest {
-	return &ListCanvasNodeDraftSessionsRequest{}
-}
-
-func (p *ListCanvasNodeDraftSessionsRequest) InitDefault() {
-}
-
-var ListCanvasNodeDraftSessionsRequest_WorkspaceID_DEFAULT string
-
-func (p *ListCanvasNodeDraftSessionsRequest) GetWorkspaceID() (v string) {
-	if !p.IsSetWorkspaceID() {
-		return ListCanvasNodeDraftSessionsRequest_WorkspaceID_DEFAULT
-	}
-	return *p.WorkspaceID
-}
-
-func (p *ListCanvasNodeDraftSessionsRequest) GetProjectID() (v string) {
-	return p.ProjectID
-}
-
-func (p *ListCanvasNodeDraftSessionsRequest) GetCanvasID() (v string) {
-	return p.CanvasID
-}
-
-func (p *ListCanvasNodeDraftSessionsRequest) IsSetWorkspaceID() bool {
-	return p.WorkspaceID != nil
-}
-
-func (p *ListCanvasNodeDraftSessionsRequest) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("ListCanvasNodeDraftSessionsRequest(%+v)", *p)
-}
-
-// ListCanvasNodeDraftSessionsResponse 只返回确认前的任务；正式节点统一从 GetCanvasGraph 读取。
-type ListCanvasNodeDraftSessionsResponse struct {
-	Items []*CanvasNodeDraftSession `json:"Items"`
-}
-
-func NewListCanvasNodeDraftSessionsResponse() *ListCanvasNodeDraftSessionsResponse {
-	return &ListCanvasNodeDraftSessionsResponse{}
-}
-
-func (p *ListCanvasNodeDraftSessionsResponse) InitDefault() {
-}
-
-func (p *ListCanvasNodeDraftSessionsResponse) GetItems() (v []*CanvasNodeDraftSession) {
-	return p.Items
-}
-
-func (p *ListCanvasNodeDraftSessionsResponse) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("ListCanvasNodeDraftSessionsResponse(%+v)", *p)
 }
 
 type GetCanvasGraphRequest struct {
@@ -5533,8 +5467,7 @@ func (p *BatchGetCanvasNodeStatesRequest) String() string {
 }
 
 type BatchGetCanvasNodeStatesResponse struct {
-	Items         []*CanvasNodeState        `json:"Items"`
-	DraftSessions []*CanvasNodeDraftSession `json:"DraftSessions"`
+	Items []*CanvasNodeState `json:"Items"`
 }
 
 func NewBatchGetCanvasNodeStatesResponse() *BatchGetCanvasNodeStatesResponse {
@@ -5546,10 +5479,6 @@ func (p *BatchGetCanvasNodeStatesResponse) InitDefault() {
 
 func (p *BatchGetCanvasNodeStatesResponse) GetItems() (v []*CanvasNodeState) {
 	return p.Items
-}
-
-func (p *BatchGetCanvasNodeStatesResponse) GetDraftSessions() (v []*CanvasNodeDraftSession) {
-	return p.DraftSessions
 }
 
 func (p *BatchGetCanvasNodeStatesResponse) String() string {

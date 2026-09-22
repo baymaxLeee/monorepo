@@ -1,106 +1,171 @@
-.modelSelectChip {
-  width: 260px;
-  height: 32px;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: rgba(26, 27, 30, 0.05);
+.modal {
+  :global(.canvas-modal-header) {
+    border-bottom: 0;
+  }
 
-  :global(button) {
-    height: 32px;
-    padding: 0 12px;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    font-size: 13px;
-    line-height: 22px;
+  &:global(.canvas-modal-content) {
+    padding: 0 28px 24px;
+    overflow: hidden;
   }
 }
 
-.modelSelect {
+.title {
+  color: #0c0d0e;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 26px;
+  letter-spacing: 0.054px;
+}
+
+.body {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  gap: 24px;
+}
+
+.scriptColumn {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.instruction {
+  flex-shrink: 0;
+  margin: 0;
+  color: #42464e;
+  font-size: 13px;
+  line-height: 22px;
+  letter-spacing: 0.039px;
+}
+
+.divider {
+  width: 1px;
+  flex-shrink: 0;
+  align-self: stretch;
+  background: #e5e8ef;
+}
+
+.settingsColumn {
+  display: flex;
+  width: 280px;
+  height: 100%;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.settingsColumn::-webkit-scrollbar {
+  display: none;
+}
+
+.labeledField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fieldLabel {
+  color: #0c0d0e;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: 0.042px;
+}
+
+.durationHint,
+.counter {
+  margin: 0;
+  color: #676b72;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.counter {
+  flex-shrink: 0;
+}
+
+.counterWarning {
+  color: #b45f06;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.actionButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modelComboboxTrigger {
   width: 100%;
+  justify-content: space-between;
+  font-weight: 400;
+}
+
+.modelComboboxValue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelComboboxContent {
+  z-index: 1002;
+  width: var(--radix-popover-trigger-width);
+  padding: 0;
 }
 
 .durationRange {
-  display: flex;
-  align-items: center;
-  width: 260px;
-  height: 32px;
-  padding: 0 12px;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: rgba(26, 27, 30, 0.05);
+  width: 280px;
 }
 
-.durationValues {
-  display: flex;
-  flex: 1;
+.durationInput {
+  width: 0;
   min-width: 0;
-  height: 100%;
-  align-items: stretch;
-  gap: 4px;
-}
+  padding: 0 8px;
+  appearance: textfield;
+  text-align: center;
 
-.durationField {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  cursor: text;
-
-  :global([data-ui-number-input]),
-  :global([data-ui-input-control]) {
-    width: 100%;
-    height: 100%;
-    background: transparent;
-    box-shadow: none;
-  }
-
-  :global([data-ui-number-input]) {
-    display: flex;
-    align-items: center;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  :global([data-ui-number-input]:hover),
-  :global([data-ui-number-input]:focus-within) {
-    background: transparent;
-    box-shadow: none;
-  }
-
-  :global([data-ui-input-control]) {
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    font-size: 13px;
-    line-height: 22px;
-    text-align: center;
-    background: transparent;
-    cursor: text;
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
   }
 }
 
 .durationSep {
   flex-shrink: 0;
-  width: 8px;
-  align-self: center;
-  font-size: 13px;
-  line-height: 22px;
-  color: var(--foreground);
-  text-align: center;
+  color: var(--muted-foreground);
 }
 
 .durationUnit {
   flex-shrink: 0;
-  margin-left: 8px;
-  font-size: 13px;
-  line-height: 22px;
-  color: var(--foreground);
-  text-align: right;
+  padding-right: 12px;
 }
 
 .plotInput {
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f7f8fa;
+  transition: background-color 160ms ease;
+
+  &:focus-within {
+    background: #f2f3f5;
+  }
+
   :global(textarea) {
     height: 100%;
     border: 0;
@@ -109,11 +174,14 @@
     outline: none;
     resize: none;
     caret-color: var(--foreground);
+    color: #42464e;
+    font-size: 13px;
+    line-height: 22px;
     padding: 0;
   }
 
   :global(textarea:hover) {
-    background: rgba(26, 27, 30, 0.03);
+    background: transparent;
     box-shadow: none;
   }
 
@@ -121,5 +189,10 @@
     background: transparent;
     border-color: transparent;
     box-shadow: none;
+  }
+
+  :global(textarea::placeholder) {
+    color: #676b72;
+    opacity: 1;
   }
 }

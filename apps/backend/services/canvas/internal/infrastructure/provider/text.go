@@ -34,7 +34,7 @@ func (p *TextProvider) Generate(ctx context.Context, input app.ProviderInput) (a
 	if p == nil || p.client == nil {
 		return result, errors.New("text provider is not configured")
 	}
-	store := true
+	store := false
 	content := []*responses.ContentItem{{Union: &responses.ContentItem_Text{Text: &responses.ContentItemText{Type: responses.ContentItemType_input_text, Text: input.Prompt}}}}
 	for _, reference := range input.References {
 		item, referenceErr := textReferenceContent(reference)
@@ -58,32 +58,39 @@ func (p *TextProvider) Generate(ctx context.Context, input app.ProviderInput) (a
 	}
 	result.Call.RequestID = providerclient.ProviderRequestID(stream.Header())
 	defer closeResponseStream(stream)
+	emitted := false
 	for {
-		event, e := stream.Recv()
-		if e != nil {
-			if errors.Is(e, io.EOF) {
+		event, receiveErr := stream.Recv()
+		if receiveErr != nil {
+			if errors.Is(receiveErr, io.EOF) {
 				return result, errors.New("text generation stream ended before completion")
 			}
-			return result, e
+			return result, receiveErr
 		}
 		if event == nil {
 			continue
 		}
 		if delta := event.GetText(); delta != nil && delta.GetDelta() != "" {
-			if e = input.Emit(delta.GetDelta()); e != nil {
-				return result, e
+			emitted = true
+			if input.Emit != nil {
+				if err := input.Emit(delta.GetDelta()); err != nil {
+					return result, err
+				}
 			}
 		}
 		if failure := event.GetError(); failure != nil {
 			return result, fmt.Errorf("text generation failed: %s", failure.GetMessage())
 		}
-		if completed := event.GetResponseCompleted(); completed != nil {
+		if event.GetResponseCompleted() != nil {
+			if !emitted {
+				return result, errors.New("text generation returned no text")
+			}
 			return result, nil
 		}
-		if failed := event.GetResponseFailed(); failed != nil {
+		if event.GetResponseFailed() != nil {
 			return result, errors.New("text generation failed")
 		}
-		if incomplete := event.GetResponseIncomplete(); incomplete != nil {
+		if event.GetResponseIncomplete() != nil {
 			return result, errors.New("text generation incomplete")
 		}
 	}

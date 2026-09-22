@@ -15,6 +15,7 @@ import {
   CanvasPort,
   CanvasVideoInputMode,
 } from "@repo/api";
+import type { CanvasNodeDraftSession as CanvasNodeDraftSessionDTO } from "@repo/api";
 
 import type * as asset from "./asset";
 import type * as resource from "./resource";
@@ -124,6 +125,8 @@ export interface CanvasNode {
   Prompt: string;
   /** GenerationConfig 是当前分镜保存的完整生成配置。 */
   GenerationConfig?: CanvasNodeGenerationConfig;
+  /** DraftSession 仅属于 STORYBOARD_DRAFT 临时节点。 */
+  DraftSession?: CanvasNodeDraftSessionDTO;
   /** Status 是当前分镜生成结果的展示状态。 */
   Status: CanvasNodeStatus;
   /** SelectedOutputID 是当前内容来自本节点生成历史时对应的 TaskRunID；复制得到的当前内容没有该字段。 */
@@ -557,19 +560,6 @@ export interface GetCanvasNodeDraftsRequest {
   ProjectID: string;
   CanvasID: string;
   TaskRunID: string;
-}
-
-export interface ListCanvasNodeDraftSessionsRequest {
-  /** WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。 */
-  WorkspaceID?: string;
-  /** ProjectID 是所属项目标识。 */
-  ProjectID: string;
-  /** CanvasID 是所属剧集标识。 */
-  CanvasID: string;
-}
-
-export interface ListCanvasNodeDraftSessionsResponse {
-  Items: Array<CanvasNodeDraftSession>;
 }
 
 export interface ListCanvasNodeHistoriesRequest {

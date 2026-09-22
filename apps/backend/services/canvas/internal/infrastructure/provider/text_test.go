@@ -12,29 +12,49 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
 )
 
-type captureTextClient struct{ request *responses.ResponsesRequest }
+type captureTextClient struct {
+	request *responses.ResponsesRequest
+	stream  providerclient.ResponsesStream
+}
 
 func (client *captureTextClient) CreateResponsesStream(_ context.Context, request *responses.ResponsesRequest) (providerclient.ResponsesStream, error) {
 	client.request = request
-	return eofResponsesStream{}, nil
+	return client.stream, nil
 }
 
-type eofResponsesStream struct{}
+type textResponsesStream struct {
+	events []*responses.Event
+	index  int
+}
 
-func (eofResponsesStream) Recv() (*responses.Event, error) { return nil, io.EOF }
-func (eofResponsesStream) Close() error                    { return nil }
-func (eofResponsesStream) Header() http.Header             { return http.Header{} }
+func (stream *textResponsesStream) Recv() (*responses.Event, error) {
+	if stream.index >= len(stream.events) {
+		return nil, io.EOF
+	}
+	event := stream.events[stream.index]
+	stream.index++
+	return event, nil
+}
+func (*textResponsesStream) Close() error { return nil }
+func (*textResponsesStream) Header() http.Header {
+	return http.Header{providerclient.HeaderProviderRequestID: []string{"request-1"}}
+}
 
 func TestTextProviderSendsPlainResponseRequestWithoutAgentTools(t *testing.T) {
-	client := &captureTextClient{}
+	delta := "generated text"
+	client := &captureTextClient{stream: &textResponsesStream{events: []*responses.Event{
+		{Event: &responses.Event_Text{Text: &responses.OutputTextEvent{Delta: &delta}}},
+		{Event: &responses.Event_ResponseCompleted{ResponseCompleted: &responses.ResponseCompletedEvent{Response: &responses.ResponseObject{Status: responses.ResponseStatus_completed}}}},
+	}}}
 	provider := newTextProvider(client)
-	_, err := provider.Generate(context.Background(), app.ProviderInput{
+	var emitted string
+	result, err := provider.Generate(context.Background(), app.ProviderInput{
 		TaskRunID: "run-1", CallOrdinal: 1,
 		Selection: appSelection("provider-text"), Prompt: "write a paragraph",
-		Emit: func(string) error { return nil },
+		Emit: func(content string) error { emitted += content; return nil },
 	})
-	if err == nil {
-		t.Fatal("expected the synthetic EOF stream to fail")
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
 	}
 	if client.request == nil {
 		t.Fatal("text provider did not issue a Responses request")
@@ -44,6 +64,26 @@ func TestTextProviderSendsPlainResponseRequestWithoutAgentTools(t *testing.T) {
 	}
 	if client.request.Model != "provider-text" {
 		t.Fatalf("unexpected provider id: %q", client.request.Model)
+	}
+	if client.request.GetStore() {
+		t.Fatal("Canvas text generation must not create provider-side conversation state")
+	}
+	if emitted != "generated text" {
+		t.Fatalf("emitted text = %q", emitted)
+	}
+	if result.Call.RequestID != "request-1" || !result.Call.RequestAttempted {
+		t.Fatalf("provider call metadata = %#v", result.Call)
+	}
+}
+
+func TestTextProviderRejectsStreamWithoutCompletion(t *testing.T) {
+	provider := newTextProvider(&captureTextClient{stream: &textResponsesStream{}})
+	_, err := provider.Generate(context.Background(), app.ProviderInput{
+		TaskRunID: "run-1", CallOrdinal: 1,
+		Selection: appSelection("provider-text"), Prompt: "write a paragraph",
+	})
+	if err == nil {
+		t.Fatal("expected a stream without a completion event to fail")
 	}
 }
 

@@ -29,6 +29,14 @@ export class CanvasNodeStore {
     return nodeAtom;
   }
 
+  getNodes() {
+    const graph = this.store.get(canvasGraphAtom);
+    return graph.nodeIds.flatMap((nodeId) => {
+      const node = graph.nodesById.get(nodeId);
+      return node ? [node] : [];
+    });
+  }
+
   /** 删除已离开画布的节点 atom，避免长时间创建、删除节点时缓存单调增长。 */
   retain(nodeIds: Iterable<string>) {
     const retained = new Set(nodeIds);

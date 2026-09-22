@@ -51,6 +51,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
 
   return (
     <Modal
+      autoFocus={false}
       cancelText={t("取消")}
       className={styles.dialog}
       confirmLoading={form.formState.isSubmitting}
@@ -68,15 +69,16 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
       }
       title={<div className={styles.title}>{state?.mode === "edit" ? t("编辑视频") : t("创建视频")}</div>}
       visible={Boolean(state)}
+      width={428}
     >
       <Form {...form}>
-        <form onSubmit={(event) => event.preventDefault()}>
+        <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
           <FormField
             control={form.control}
             name="Name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="flex items-center gap-1">
+                <FormLabel className={`${styles.fieldLabel} flex items-center gap-1`}>
                   {t("视频名称")}
                   <span className="text-destructive">*</span>
                   <span title={t("名称长度为 2-20 个字，不能以连接符或空格开头、结尾")}>
@@ -96,7 +98,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
             name="CoverImagePath"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t("视频封面")}</FormLabel>
+                <FormLabel className={styles.fieldLabel}>{t("视频封面")}</FormLabel>
                 <FormControl>
                   <CoverImageUploader
                     key={state?.mode === "edit" ? state.canvas.CanvasID : (state?.mode ?? "closed")}

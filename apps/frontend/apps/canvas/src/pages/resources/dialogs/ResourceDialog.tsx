@@ -315,7 +315,13 @@ export function ResourceDialog({
     <div className={styles.formColumn}>
       {state?.mode === "create" ? (
         <FormItem label={t("资产类型")} layout="vertical" required requiredSymbol={{ position: "end" }}>
-          <Select aria-label={t("资产类型")} aria-required="true" onChange={changeCreateType} value={type}>
+          <Select
+            aria-label={t("资产类型")}
+            aria-required="true"
+            className={styles.typeSelect}
+            onChange={changeCreateType}
+            value={type}
+          >
             {RESOURCE_TYPE_OPTIONS.map((option) => (
               <Select.Option key={option.value} value={option.value}>
                 {option.label}

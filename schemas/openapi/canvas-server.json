@@ -298,12 +298,6 @@
       "CanvasBatchGetCanvasNodeStatesResponse": {
         "additionalProperties": false,
         "properties": {
-          "draft_sessions": {
-            "items": {
-              "$ref": "#/components/schemas/CanvasNodeDraftSession"
-            },
-            "type": "array"
-          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/CanvasNodeState"
@@ -312,8 +306,7 @@
           }
         },
         "required": [
-          "items",
-          "draft_sessions"
+          "items"
         ],
         "type": "object"
       },
@@ -2003,6 +1996,9 @@
           },
           "current_asset_id": {
             "type": "string"
+          },
+          "draft_session": {
+            "$ref": "#/components/schemas/CanvasNodeDraftSession"
           },
           "first_frame_asset_id": {
             "type": "string"

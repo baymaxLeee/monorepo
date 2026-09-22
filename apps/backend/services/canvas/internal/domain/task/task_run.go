@@ -107,7 +107,7 @@ func (run TaskRun) Validate() error {
 		return ErrInvalidTaskRun
 	}
 	switch run.RunType {
-	case RunTypeCanvasNodeVideoGeneration, RunTypeCanvasNodeTextGeneration, RunTypeCanvasNodeAssetsMatch:
+	case RunTypeCanvasNodeVideoGeneration, RunTypeCanvasNodeTextGeneration, RunTypeCanvasNodeAssetsMatch, RunTypeCanvasStoryboardGeneration:
 		if run.SubjectType != SubjectTypeCanvasNode {
 			return ErrInvalidTaskRun
 		}
@@ -115,7 +115,7 @@ func (run TaskRun) Validate() error {
 		if run.SubjectType != SubjectTypeCanvasNode || !run.IsInternal {
 			return ErrInvalidTaskRun
 		}
-	case RunTypeCanvasVideoArchiveExport, RunTypeCanvasStoryboardGeneration:
+	case RunTypeCanvasVideoArchiveExport:
 		if run.SubjectType != SubjectTypeCanvas {
 			return ErrInvalidTaskRun
 		}

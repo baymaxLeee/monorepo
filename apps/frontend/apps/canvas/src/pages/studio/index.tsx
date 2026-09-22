@@ -65,7 +65,7 @@ import {
   deleteCanvasNode,
   generationConfigPatch,
   getCanvasNodeAssets,
-  listCanvasNodeDraftSessions,
+  listStoryboardDraftShots,
   materializeCanvasResourceAssetReference,
   materializeCanvasStandaloneAssetReference,
   queryMentionTree,
@@ -484,7 +484,7 @@ function StudioContent() {
     setLoading(true);
     const loadCurrentSnapshot = async () => {
       await mutationCoordinator.waitForIdle();
-      const result = await listCanvasNodeDraftSessions(statePubSub);
+      const result = await listStoryboardDraftShots(nodePubSub);
       if (!active) return;
       setDraftShots(result);
     };
@@ -500,7 +500,7 @@ function StudioContent() {
     return () => {
       active = false;
     };
-  }, [mutationCoordinator, canvasGraphLoaded, setDraftShots, statePubSub, studioReady]);
+  }, [mutationCoordinator, canvasGraphLoaded, nodePubSub, setDraftShots, studioReady]);
 
   /** 正式关系已可同步投影；异步请求只补充签名 URL、审核等展示信息。 */
   useEffect(() => {
@@ -2753,8 +2753,8 @@ function StudioContent() {
                   aria-hidden="true"
                   className={`pointer-events-none h-full shrink-0 transition-[width,background-color] duration-150 ${
                     chatResizing
-                      ? "w-1 bg-blue-500"
-                      : "w-px bg-border/80 group-hover:w-1 group-hover:bg-blue-500 group-focus:w-1 group-focus:bg-blue-500"
+                      ? "w-1 bg-ring"
+                      : "w-px bg-border/80 group-hover:w-1 group-hover:bg-ring group-focus:w-1 group-focus:bg-ring"
                   }`}
                 />
               </div>
@@ -2763,7 +2763,7 @@ function StudioContent() {
                 canvasId={canvasId}
                 onChange={() => {
                   void refreshCanvasGraph();
-                  void listCanvasNodeDraftSessions(statePubSub)
+                  void listStoryboardDraftShots(nodePubSub)
                     .then(setDraftShots)
                     .catch(() => undefined);
                 }}

@@ -64,6 +64,7 @@ export function presentNode(node: CanvasNodeDTO, state?: CanvasNodeState): view.
     ResourceAssetRevision: node.resource_asset_revision,
     ResourceAssetIsPrimary: node.resource_asset_is_primary,
     CurrentAssetID: node.current_asset_id,
+    DraftSession: node.draft_session,
     SelectedAssetID: node.selected_asset_id,
     Status: node.status,
     ReferenceStatus: node.reference_status,

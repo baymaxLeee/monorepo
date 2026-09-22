@@ -10,6 +10,10 @@
     border-bottom: 0;
   }
 
+  :global(.canvas-modal-content) {
+    padding-top: 0;
+  }
+
   :global(.canvas-modal-footer) {
     padding: 20px 24px;
     border-top: 0;
@@ -39,16 +43,24 @@
   gap: 20px;
 }
 
+.fieldLabel {
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+}
+
 .nameCount {
   margin-left: auto;
-  color: var(--foreground);
+  color: var(--muted-foreground);
   font-size: 14px;
   line-height: 22px;
 }
 
 .nameInfoIcon {
+  width: 14px;
+  height: 14px;
   color: var(--muted-foreground);
-  font-size: 14px;
 }
 
 .nameTooltip {
@@ -95,8 +107,9 @@
 }
 
 .coverIcon {
-  color: var(--muted);
-  font-size: 40px;
+  width: 32px;
+  height: 32px;
+  color: var(--border);
 }
 
 .coverHint {

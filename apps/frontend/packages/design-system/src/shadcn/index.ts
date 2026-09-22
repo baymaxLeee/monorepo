@@ -19,6 +19,7 @@ export * from "./field";
 export * from "./form";
 export * from "./hover-card";
 export * from "./input";
+export * from "./input-group";
 export * from "./input-otp";
 export * from "./label";
 export * from "./menu";

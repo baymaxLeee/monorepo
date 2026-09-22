@@ -160,6 +160,14 @@ export interface CanvasBatchGetAssetReviewsResponse {
   items: CanvasAssetReviews[];
 }
 
+export type CanvasNodeTaskType = typeof CanvasNodeTaskType[keyof typeof CanvasNodeTaskType];
+
+
+export const CanvasNodeTaskType = {
+  GENERATION: 1,
+  ASSETS_MATCH: 2,
+} as const;
+
 export interface CanvasNodeDraftAssetReference {
   anchor_text: string;
   asset_id?: string;
@@ -246,14 +254,6 @@ export interface CanvasNodeDraftSession {
   status: CanvasNodeDraftStatus;
   task_run_id: string;
 }
-
-export type CanvasNodeTaskType = typeof CanvasNodeTaskType[keyof typeof CanvasNodeTaskType];
-
-
-export const CanvasNodeTaskType = {
-  GENERATION: 1,
-  ASSETS_MATCH: 2,
-} as const;
 
 export interface CanvasNodeGenerationConfig {
   aspect_ratio: CanvasNodeAspectRatio;
@@ -365,6 +365,7 @@ export interface CanvasNode {
   created_at: string;
   created_by: string;
   current_asset_id?: string;
+  draft_session?: CanvasNodeDraftSession;
   first_frame_asset_id?: string;
   first_frame_url?: string;
   generation_config?: CanvasNodeGenerationConfig;
@@ -442,7 +443,6 @@ export interface CanvasNodeState {
 }
 
 export interface CanvasBatchGetCanvasNodeStatesResponse {
-  draft_sessions: CanvasNodeDraftSession[];
   items: CanvasNodeState[];
 }
 

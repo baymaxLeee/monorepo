@@ -11,6 +11,7 @@ import {
 
 import type { MentionNode, MentionReferenceIdentity, MentionTreeResult } from "@/components/promptEditor";
 import { asset, canvasnode } from "@/domain";
+import type { CanvasNodeStore } from "@/pages/studio/canvas/graph/CanvasNodeStore";
 import {
   StartCanvasNodeGeneration,
   StartCanvasGeneration,
@@ -24,7 +25,7 @@ import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 
-import { requestCanvasState, type CanvasStatePubSub, watchCanvasDraft } from "./canvasStatePubSub";
+import { requestCanvasState, type CanvasStatePubSub, watchCanvasTarget } from "./canvasStatePubSub";
 import { isVideoGenerationCancellationAllowed } from "./generationCancellation";
 import { materializedCanvasNodeAssetId } from "./model";
 import {
@@ -266,19 +267,21 @@ const SILENT_POLL: ApiRequestConfig = { skipErrorNotify: true };
 
 const SILENT_REQUEST = SILENT_POLL;
 
-export async function listCanvasNodeDraftSessions(statePubSub: CanvasStatePubSub) {
-  const result = await requestCanvasState(statePubSub);
-  return result.DraftSessions.flatMap((item) =>
-    (item.canvas_nodes ?? []).map(
-      (draft) =>
-        ({
-          ...shotFromDraftSession(item, draft),
-          id: draft.draft_id,
-          detailLoaded: true,
-          storyboardTaskRunId: item.task_run_id,
-        }) satisfies Shot,
-    ),
-  );
+export async function listStoryboardDraftShots(nodeStore: CanvasNodeStore) {
+  return nodeStore
+    .getNodes()
+    .flatMap((node) => (node.DraftSession ? [node.DraftSession] : []))
+    .flatMap((item) =>
+      (item.canvas_nodes ?? []).map(
+        (draft) =>
+          ({
+            ...shotFromDraftSession(item, draft),
+            id: draft.draft_id,
+            detailLoaded: true,
+            storyboardTaskRunId: item.task_run_id,
+          }) satisfies Shot,
+      ),
+    );
 }
 
 export async function getCanvasNodeAssets(target: canvasnode.CanvasNode, graphNodes: canvasnode.CanvasNode[]) {
@@ -424,9 +427,10 @@ export async function recoverCanvasNodeDrafts(
   onSession: (session: StoryboardDraftSession) => void,
   onCanvasNode: (shot: Shot) => void,
 ) {
-  const result = await requestCanvasState(statePubSub);
+  const stopWatching = watchCanvasTarget(statePubSub, { NodeID: taskRunId, TaskRunID: taskRunId });
+  const result = await requestCanvasState(statePubSub).finally(stopWatching);
   if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-  const draft = result.DraftSessions.find((item) => item.task_run_id === taskRunId);
+  const draft = result.Items.find((item) => item.NodeID === taskRunId)?.Node.DraftSession;
   if (!draft) throw new StoryboardDraftNotFoundError();
   return observeDraft(statePubSub, draft, signal, onSession, onCanvasNode);
 }
@@ -779,13 +783,16 @@ async function observeDraft(
     };
     const onAbort = () => settle(() => reject(new DOMException("Aborted", "AbortError")));
     const unsubscribe = statePubSub.on("snapshot", (result) => {
-      const next = result.DraftSessions.find((item) => item.task_run_id === draft.task_run_id);
+      const next = result.Items.find((item) => item.NodeID === draft.task_run_id)?.Node.DraftSession;
       // 关注登记可能与上一个在途批次重叠；该快照未包含新会话时等待下个统一周期。
       if (!next) return;
       publish(next);
       if (next.status !== 1) settle(() => resolve(next));
     });
-    const stopWatching = watchCanvasDraft(statePubSub, draft.task_run_id);
+    const stopWatching = watchCanvasTarget(statePubSub, {
+      NodeID: draft.task_run_id,
+      TaskRunID: draft.task_run_id,
+    });
     signal.addEventListener("abort", onAbort, { once: true });
     if (signal.aborted) onAbort();
   });

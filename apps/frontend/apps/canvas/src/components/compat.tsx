@@ -180,8 +180,10 @@ export function FormItem({
     <label className={`grid gap-2 text-sm font-medium ${className ?? ""}`}>
       {label ? (
         <span className="flex items-center justify-between">
-          {label}
-          {required ? <span className="text-destructive"> *</span> : null}
+          <span>
+            {label}
+            {required ? <span className="text-destructive"> *</span> : null}
+          </span>
           {labelExtra}
         </span>
       ) : null}

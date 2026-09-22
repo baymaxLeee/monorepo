@@ -8,6 +8,8 @@ import {
 import { Tooltip } from "@/components/ui";
 import t from "@/utils/i18n";
 
+import styles from "./ScriptDraftCard.module.less";
+
 /**
  * 批量分镜脚本生成任务的时间轴占位：关闭预览弹窗后 SSE 继续跑，
  * 用户点「查看分镜」再打开弹窗做采纳确认。
@@ -26,9 +28,7 @@ export function ScriptDraftCard({
   const removeBadge = (
     <button
       aria-label={generating ? t("分镜识别中，无法删除") : t("关闭分镜脚本草稿")}
-      className={`flex h-4 w-4 items-center justify-center rounded-[999px] border-0 bg-[rgba(255,255,255,0.16)] p-0 text-[10px] text-white ${
-        generating ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-      }`}
+      className={`${styles.dismissButton} ${generating ? styles.dismissButtonDisabled : ""}`}
       onClick={(event) => {
         event.stopPropagation();
         if (!generating) {
@@ -42,9 +42,10 @@ export function ScriptDraftCard({
   );
 
   return (
-    <div className="relative flex w-[138px] shrink-0 flex-col items-center gap-1">
+    <div className={styles.card}>
       <div
-        className="relative flex h-[78px] w-full cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-[12px] bg-[rgba(26,27,30,0.9)] px-2"
+        aria-label={generating ? t("分镜脚本生成中") : t("查看分镜脚本")}
+        className={styles.surface}
         onClick={onOpen}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -56,20 +57,20 @@ export function ScriptDraftCard({
         tabIndex={0}
       >
         {generating ? (
-          <IconLoading className="text-white" fontSize={16} />
+          <IconLoading aria-hidden className={styles.loadingIcon} />
         ) : status === "failed" ? (
-          <IconCloseCircleFill className="text-[18px] text-destructive" />
+          <IconCloseCircleFill aria-hidden className={styles.failedIcon} />
         ) : (
-          <IconCheckCircleFill className="text-[18px] text-[color:oklch(0.627 0.194 149.214)]" />
+          <IconCheckCircleFill aria-hidden className={styles.successIcon} />
         )}
-        <span className="text-[11px] leading-4.25 text-white">
+        <span className={styles.status}>
           {generating ? t("分镜脚本生成中") : status === "failed" ? t("分镜脚本生成失败") : t("分镜脚本已生成")}
         </span>
         {/* 分镜入口保留产品蓝色，避免被中性的全局 primary 吞掉层级。 */}
-        <span className="text-[11px] leading-4.25 text-[#1664FF]">{t("查看分镜")}</span>
+        <span className={styles.openLabel}>{t("查看分镜")}</span>
 
         <span
-          className="absolute right-[4px] top-[4px]"
+          className={styles.dismiss}
           onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => event.stopPropagation()}
         >

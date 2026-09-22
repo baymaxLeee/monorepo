@@ -200,7 +200,7 @@ export function PreviewPanel({
                 <Tooltip content={t("视频已开始生成，无法取消")} position="top">
                   <span>
                     <button
-                      className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-[#1664FF] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                       disabled
                       type="button"
                     >
@@ -210,7 +210,7 @@ export function PreviewPanel({
                 </Tooltip>
               ) : (
                 <button
-                  className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-[#1664FF] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={stoppingGeneration}
                   onClick={onStopGenerate}
                   type="button"

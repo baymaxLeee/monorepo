@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	contractcanvasnode "github.com/example/monorepo/canvas/internal/api/contracts/canvasnode"
@@ -14,6 +16,7 @@ type storyboardDraftServiceSpy struct {
 	startCalls         int
 	startPreparedCalls int
 	preparedDrafts     []applicationcanvas.Draft
+	listed             []applicationcanvas.StoryboardSession
 }
 
 func (s *storyboardDraftServiceSpy) Start(
@@ -43,8 +46,38 @@ func (s *storyboardDraftServiceSpy) StartPrepared(
 	return applicationcanvas.StoryboardSession{ID: "agent-run", Status: applicationcanvas.StoryboardStatusCompleted, Drafts: drafts}, nil
 }
 
-func (*storyboardDraftServiceSpy) List(context.Context, applicationcanvas.Scope, string, string) ([]applicationcanvas.StoryboardSession, error) {
-	return nil, nil
+func (s *storyboardDraftServiceSpy) List(context.Context, applicationcanvas.Scope, string, string) ([]applicationcanvas.StoryboardSession, error) {
+	return s.listed, nil
+}
+
+func TestStoryboardDraftSessionIsProjectedOnItsTemporaryNode(t *testing.T) {
+	spy := &storyboardDraftServiceSpy{listed: []applicationcanvas.StoryboardSession{{
+		ID: "draft-node-1", Plot: "plot", Status: applicationcanvas.StoryboardStatusCompleted,
+		Drafts: []applicationcanvas.Draft{{ID: "shot-1", CanvasNodeNo: 1, Prompt: "prompt", DurationSeconds: 5}},
+	}}}
+	handler := &CanvasNodeHandler{drafts: spy}
+	nodes := []*contractcanvasnode.CanvasNode{
+		{NodeID: "draft-node-1", Type: contractcanvasnode.CanvasNodeType_STORYBOARD_DRAFT},
+		{NodeID: "video-node-1", Type: contractcanvasnode.CanvasNodeType_VIDEO_GENERATION},
+	}
+
+	if err := handler.attachStoryboardDraftSessions(context.Background(), applicationcanvas.Scope{}, "project-1", "canvas-1", nodes); err != nil {
+		t.Fatalf("attachStoryboardDraftSessions returned error: %v", err)
+	}
+	if nodes[0].DraftSession == nil || nodes[0].DraftSession.TaskRunID != "draft-node-1" || len(nodes[0].DraftSession.CanvasNodes) != 1 {
+		t.Fatalf("draft session was not attached to its node: %#v", nodes[0].DraftSession)
+	}
+	if nodes[1].DraftSession != nil {
+		t.Fatalf("non-draft node received a draft session: %#v", nodes[1].DraftSession)
+	}
+
+	payload, err := json.Marshal(&contractcanvasnode.BatchGetCanvasNodeStatesResponse{Items: []*contractcanvasnode.CanvasNodeState{}})
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if strings.Contains(string(payload), "DraftSessions") || strings.Contains(string(payload), "draft_sessions") {
+		t.Fatalf("legacy draft session collection leaked into batch protocol: %s", payload)
+	}
 }
 
 func (*storyboardDraftServiceSpy) Cancel(context.Context, applicationcanvas.Scope, string, string, string) error {

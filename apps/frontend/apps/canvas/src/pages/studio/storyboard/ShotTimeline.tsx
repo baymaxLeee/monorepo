@@ -13,6 +13,8 @@ import type { Shot } from "../domain/types";
 import { ScriptDraftCard } from "./ScriptDraftCard";
 import { ShotCard } from "./ShotCard";
 
+import styles from "./ShotTimeline.module.less";
+
 export type AddShotMode = "single" | "batch";
 
 export interface UnsavedPrompt {
@@ -23,18 +25,12 @@ export interface UnsavedPrompt {
 
 function AddShotGap({ disabled, emphasized, onAdd }: { disabled: boolean; emphasized: boolean; onAdd: () => void }) {
   return (
-    <div className="group relative z-[1] h-[78px] w-3 shrink-0">
-      <span
-        className={`pointer-events-none absolute left-[5px] top-[7px] hidden h-[64px] w-[2px] rounded-[999px] bg-border group-hover:block ${
-          emphasized ? "shadow-[0_0_0_2px_#fff]" : ""
-        }`}
-      />
+    <div className={styles.addGap}>
+      <span className={`${styles.addGapLine} ${emphasized ? styles.addGapLineEmphasized : ""}`} />
       <Tooltip content={t("创建分镜")} position="top">
         <button
           aria-label={t("在此处创建分镜")}
-          className={`absolute left-[-4px] top-[29px] flex h-5 w-5 items-center justify-center rounded-[999px] border border-solid border-border bg-background p-0 text-[12px] text-foreground opacity-0 transition-opacity group-hover:opacity-100 ${
-            disabled ? "cursor-not-allowed" : "cursor-pointer"
-          }`}
+          className={`${styles.addGapButton} ${disabled ? styles.disabled : ""}`}
           onClick={() => {
             if (!disabled) {
               onAdd();
@@ -119,11 +115,7 @@ export function ShotTimeline({
     >
       <button
         aria-label={t("新增分镜")}
-        className={`flex h-[78px] w-[78px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-muted-foreground bg-background p-0 text-[32px] text-muted-foreground ${
-          lockAdd
-            ? "cursor-not-allowed opacity-60"
-            : "cursor-pointer hover:border-muted-foreground hover:text-foreground"
-        }`}
+        className={`${styles.addShotButton} ${lockAdd ? styles.disabled : ""}`}
         type="button"
       >
         <IconPlus />
@@ -164,11 +156,7 @@ export function ShotTimeline({
   };
 
   return (
-    <footer
-      className={`relative mx-5 mb-5 flex shrink-0 rounded-[20px] border border-solid border-border bg-background ${
-        hasLabeledShot ? "items-start" : "items-center"
-      }`}
-    >
+    <footer className={`${styles.timeline} ${hasLabeledShot ? styles.timelineWithLabels : styles.timelineCentered}`}>
       {/*
        * 分镜横向滚动，加号跟着分镜排在内容末尾，占满整行宽度即可。
        * 纵向内边距放在滚动容器上：选中态的 6px 外发光和播放三角形都画在
@@ -177,9 +165,9 @@ export function ShotTimeline({
        * 避免 pt/pb 不对称把 78px 卡片顶偏。
        */}
       <div
-        className={`min-w-0 flex-1 overflow-x-auto pl-3 pr-3 ${
-          hasLabeledShot ? "pb-1 pt-3" : "py-3"
-        } ${HIDDEN_SCROLLBAR_CLASS}`}
+        className={`${styles.scroller} ${hasLabeledShot ? styles.scrollerWithLabels : styles.scrollerCentered} ${
+          HIDDEN_SCROLLBAR_CLASS
+        }`}
         ref={scrollRef}
         style={{
           ...HIDDEN_SCROLLBAR_STYLE,
@@ -187,7 +175,7 @@ export function ShotTimeline({
           WebkitMaskImage: maskImage,
         }}
       >
-        <div className={`flex w-max ${hasLabeledShot ? "items-start" : "items-center"}`} ref={contentRef}>
+        <div className={`${styles.track} ${hasLabeledShot ? styles.trackTop : styles.trackCenter}`} ref={contentRef}>
           {shots.map((shot, entryIndex) => {
             const prevIsDraft = Boolean(shots[entryIndex - 1]?.storyboardTaskRunId);
             const isDraft = Boolean(shot.storyboardTaskRunId);
@@ -207,7 +195,7 @@ export function ShotTimeline({
                   />
                 ) : null}
                 {isDraft ? (
-                  <div className="shrink-0">
+                  <div className={styles.trackItem}>
                     <ScriptDraftCard
                       generating={shot.timelineStatus === "generating"}
                       onDismiss={() => onRemove(shot.id)}
@@ -272,8 +260,7 @@ export function ShotTimeline({
                       {insertPosition?.shotId === shot.id && insertPosition.side === "left" ? (
                         <span
                           aria-hidden
-                          className="pointer-events-none absolute left-[-6px] top-0 z-[1] h-full w-[3px]"
-                          style={{ backgroundColor: "#1664FF" }}
+                          className="pointer-events-none absolute left-[-6px] top-0 z-[1] h-full w-[3px] bg-primary"
                         />
                       ) : null}
                       <ShotCard
@@ -291,8 +278,7 @@ export function ShotTimeline({
                       {insertPosition?.shotId === shot.id && insertPosition.side === "right" ? (
                         <span
                           aria-hidden
-                          className="pointer-events-none absolute right-[-6px] top-0 z-[1] h-full w-[3px]"
-                          style={{ backgroundColor: "#1664FF" }}
+                          className="pointer-events-none absolute right-[-6px] top-0 z-[1] h-full w-[3px] bg-primary"
                         />
                       ) : null}
                     </div>,
@@ -321,9 +307,7 @@ export function ShotTimeline({
        */}
       {overflowing && !adding ? (
         <div
-          className={`pointer-events-none absolute inset-y-0 right-0 flex rounded-r-[20px] pl-10 pr-3 ${
-            hasLabeledShot ? "items-start pt-3" : "items-center py-3"
-          }`}
+          className={`${styles.floatingAdd} ${hasLabeledShot ? styles.floatingAddTop : styles.floatingAddCenter}`}
           style={{
             background: "linear-gradient(90deg, transparent 0px, var(--background) 40px)",
           }}

@@ -1,18 +1,17 @@
-import type { CanvasNodeDraftSession } from "@repo/api";
-
 import type { canvasnode } from "@/domain";
 import { PubSub } from "@/lib/pubsub";
 
 export interface CanvasStateSnapshot {
   Items: canvasnode.CanvasNodeState[];
-  DraftSessions: CanvasNodeDraftSession[];
   Targets: Array<{ NodeID: string; TaskRunID: string; TaskType?: canvasnode.CanvasNodeTaskType }>;
   RefreshVersion: number;
 }
 
 export type CanvasStateControlEvent =
-  | { type: "watch-draft"; taskRunId: string }
-  | { type: "unwatch-draft"; taskRunId: string }
+  | {
+      type: "watch-target" | "unwatch-target";
+      target: { NodeID: string; TaskRunID: string; TaskType?: canvasnode.CanvasNodeTaskType };
+    }
   | { type: "refresh"; version: number };
 
 type CanvasStateEvents = {
@@ -49,7 +48,10 @@ export function requestCanvasState(pubSub: CanvasStatePubSub) {
   });
 }
 
-export function watchCanvasDraft(pubSub: CanvasStatePubSub, taskRunId: string) {
-  pubSub.emit("control", { type: "watch-draft", taskRunId });
-  return () => pubSub.emit("control", { type: "unwatch-draft", taskRunId });
+export function watchCanvasTarget(
+  pubSub: CanvasStatePubSub,
+  target: { NodeID: string; TaskRunID: string; TaskType?: canvasnode.CanvasNodeTaskType },
+) {
+  pubSub.emit("control", { type: "watch-target", target });
+  return () => pubSub.emit("control", { type: "unwatch-target", target });
 }

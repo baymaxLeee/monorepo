@@ -390,6 +390,7 @@ func run() error {
 		nodeRepository, uuidGenerator{}, utcClock{},
 		applicationcanvas.WithMutationDependencies(transactions, canvasstatisticspersistence.New(db)),
 		applicationcanvas.WithCanvasStatisticsProjector(canvasStatistics),
+		applicationcanvas.WithStoryboardSplitter(provider.NewStoryboardSplitter(providerClient, log)),
 		applicationcanvas.WithPromptAssetMatcher(provider.NewPromptAssetMatcher(providerClient)),
 		applicationcanvas.WithAssetMatchTasks(nodeRepository, taskRepository, taskRepository, taskRepository),
 		applicationcanvas.WithModelCatalog(models),
@@ -509,7 +510,7 @@ func run() error {
 		},
 	})
 	go runDeletionProcessor(ctx, deletionProcessor)
-	processors := []applicationtask.PollProcessor{videos, imageProcessor, textGenerations, nodes, reviews}
+	processors := []applicationtask.PollProcessor{videos, imageProcessor, textGenerations, storyboards, nodes, reviews}
 	for _, processor := range processors {
 		scheduler, schedulerErr := applicationtask.NewRunTypePollScheduler(
 			taskRepository, taskRepository, processor, executions, utcClock{}, applicationtask.PollPoolConfig{

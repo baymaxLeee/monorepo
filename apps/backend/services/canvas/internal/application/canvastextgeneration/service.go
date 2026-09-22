@@ -66,8 +66,7 @@ type Repository interface {
 	GetHistory(context.Context, applicationcanvas.Scope, string, string, string, string) (Session, error)
 	List(context.Context, applicationcanvas.Scope, string, string, string) ([]Session, error)
 	MarkRunning(context.Context, applicationcanvas.Scope, string, time.Time) error
-	Append(context.Context, applicationcanvas.Scope, string, string, time.Time) error
-	Finish(context.Context, applicationcanvas.Scope, string, domaintask.Status, *Failure, time.Time) error
+	Finish(context.Context, applicationcanvas.Scope, string, domaintask.Status, *Failure, string, time.Time) error
 }
 type NodeStore interface {
 	Get(context.Context, applicationcanvas.Scope, string, string, string) (domaincanvas.CanvasNode, error)
@@ -363,7 +362,7 @@ func (s *Service) ProcessPollClaim(ctx context.Context, run domaintask.TaskRun, 
 		return nil
 	}
 	if err = s.ensureCache(ctx, scope, state); err != nil {
-		return s.finish(context.WithoutCancel(ctx), scope, run, schedule, domaintask.StatusFailed, &Failure{Code: string(errno.ErrInternalError), Message: errno.Meta(errno.ErrInternalError).Message})
+		return s.finish(context.WithoutCancel(ctx), scope, run, schedule, domaintask.StatusFailed, &Failure{Code: string(errno.ErrInternalError), Message: errno.Meta(errno.ErrInternalError).Message}, "")
 	}
 	providerCtx, cancel := context.WithDeadline(ctx, schedule.DeadlineAt)
 	defer cancel()
@@ -406,7 +405,7 @@ func (s *Service) ProcessPollClaim(ctx context.Context, run domaintask.TaskRun, 
 				if e := s.cache.Append(providerCtx, scope, state.ProjectID, state.CanvasID, state.NodeID, state.ID, delta); e != nil {
 					return e
 				}
-				return s.repository.Append(providerCtx, scope, state.ID, delta, state.UpdatedAt)
+				return nil
 			},
 		})
 	}
@@ -431,12 +430,12 @@ func (s *Service) ProcessPollClaim(ctx context.Context, run domaintask.TaskRun, 
 		if errors.Is(err, applicationmodel.ErrDefaultModelNotConfigured) {
 			err = errno.Wrap(errno.ErrDefaultModelNotConfigured, err)
 		}
-		return s.finish(context.WithoutCancel(ctx), scope, run, schedule, domaintask.StatusFailed, &Failure{Code: string(errno.CodeOf(err)), Message: errno.MessageOf(err)})
+		return s.finish(context.WithoutCancel(ctx), scope, run, schedule, domaintask.StatusFailed, &Failure{Code: string(errno.CodeOf(err)), Message: errno.MessageOf(err)}, "")
 	}
-	return s.finish(context.WithoutCancel(ctx), scope, run, schedule, domaintask.StatusSucceeded, nil)
+	return s.finish(context.WithoutCancel(ctx), scope, run, schedule, domaintask.StatusSucceeded, nil, state.Content)
 }
 
-func (s *Service) finish(ctx context.Context, scope applicationcanvas.Scope, run domaintask.TaskRun, schedule domaintask.PollSchedule, status domaintask.Status, failure *Failure) error {
+func (s *Service) finish(ctx context.Context, scope applicationcanvas.Scope, run domaintask.TaskRun, schedule domaintask.PollSchedule, status domaintask.Status, failure *Failure, content string) error {
 	state, err := s.repository.Get(ctx, scope, run.ID)
 	if err != nil {
 		return err
@@ -447,11 +446,11 @@ func (s *Service) finish(ctx context.Context, scope applicationcanvas.Scope, run
 		update.ErrorCode, update.ErrorMessage = failure.Code, failure.Message
 	}
 	err = s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
-		if e := s.repository.Finish(tx, scope, run.ID, status, failure, now); e != nil {
+		if e := s.repository.Finish(tx, scope, run.ID, status, failure, content, now); e != nil {
 			return e
 		}
 		if status == domaintask.StatusSucceeded {
-			_, e := s.nodes.BindGeneratedText(tx, scope, state.ProjectID, state.CanvasID, state.NodeID, state.ID, state.Content, now)
+			_, e := s.nodes.BindGeneratedText(tx, scope, state.ProjectID, state.CanvasID, state.NodeID, state.ID, content, now)
 			if e != nil && !errors.Is(e, applicationcanvas.ErrNotFound) {
 				return e
 			}
@@ -577,7 +576,7 @@ func (s *Service) Cancel(ctx context.Context, scope applicationcanvas.Scope, pro
 	}
 	now := s.clock.Now()
 	err = s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
-		if e := s.repository.Finish(tx, scope, state.ID, domaintask.StatusCancelled, nil, now); e != nil {
+		if e := s.repository.Finish(tx, scope, state.ID, domaintask.StatusCancelled, nil, "", now); e != nil {
 			return e
 		}
 		node, e := s.nodes.Get(tx, scope, projectID, canvasID, nodeID)
