@@ -1,7 +1,6 @@
 import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 
-import { agentframeService } from "@/api";
 import { batchGetAssetReviews } from "@/api/assetReviews";
 
 import { pendingAssetReviewIDsAtom, useStudioAssetStore } from "./store/assets";
@@ -31,11 +30,7 @@ export function useStudioAssetReviewPolling(projectId: string, enabled: boolean)
     let timer: number | undefined;
 
     const poll = async () => {
-      const results = await Promise.allSettled(
-        batches.map((assetIDs) =>
-          batchGetAssetReviews(agentframeService, projectId, assetIDs, { skipErrorNotify: true }),
-        ),
-      );
+      const results = await Promise.allSettled(batches.map((assetIDs) => batchGetAssetReviews(projectId, assetIDs)));
       if (disposed) return;
 
       const items = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));

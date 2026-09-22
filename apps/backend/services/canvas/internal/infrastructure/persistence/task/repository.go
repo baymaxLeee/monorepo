@@ -1282,7 +1282,6 @@ func asyncDispatchToRow(dispatch domain.AsyncDispatch) (asyncDispatchRow, error)
 	return asyncDispatchRow{
 		TaskRunID:           id,
 		RunType:             string(dispatch.RunType),
-		Topic:               domain.AsyncTopic(dispatch.RunType),
 		DeliveryState:       string(dispatch.DeliveryState),
 		ExecutionState:      string(dispatch.ExecutionState),
 		NextDispatchAt:      dispatch.NextDispatchAt,

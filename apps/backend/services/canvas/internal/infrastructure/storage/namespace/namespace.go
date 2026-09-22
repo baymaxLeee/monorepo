@@ -19,8 +19,8 @@ type Scope struct {
 	ProjectID   *string
 }
 
-// Namespace returns a fixed-width legacy Artifact namespace derived from the
-// complete scope. The first 128 bits of SHA-256 keep the value below UP's
+// Namespace returns a fixed-width Artifact namespace derived from the complete
+// scope. The first 128 bits of SHA-256 keep the value below UP's
 // 64-character limit while retaining ample collision resistance for scope IDs.
 func (scope Scope) Namespace() (string, error) {
 	tenantID := strings.TrimSpace(scope.TenantID)

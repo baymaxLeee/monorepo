@@ -5,6 +5,52 @@
  * OpenAPI spec version: 2026-07-31
  */
 import { apiMutator } from '../../src/orval-mutator';
+export interface CanvasAPIConfigDetails {
+  enabled?: boolean;
+  features?: string[];
+  supported?: boolean;
+}
+
+export interface CanvasAPIConfig {
+  chat?: CanvasAPIConfigDetails;
+  responses?: CanvasAPIConfigDetails;
+}
+
+export interface CanvasLanguage {
+  code: string;
+  content: string;
+}
+
+export interface CanvasI18NConfig {
+  languages?: CanvasLanguage[];
+}
+
+export interface CanvasLanguageConfig {
+  language?: string;
+  name: string;
+  name_i18_n?: CanvasI18NConfig;
+  preset: boolean;
+}
+
+export interface CanvasMultiLanguageConfig {
+  default_language?: string;
+  enable_i18_n: boolean;
+  enabled: boolean;
+  i18_n_languages?: string[];
+  languages?: CanvasLanguageConfig[];
+}
+
+export interface CanvasASRConfig {
+  multi_language?: CanvasMultiLanguageConfig;
+}
+
+export interface CanvasAdvancedReviewConfig {
+  enable_model_misuse: boolean;
+  enable_pii_leakage: boolean;
+  enable_prompt: boolean;
+  enable_token: boolean;
+}
+
 /**
  * AssetMediaType 定义服务端根据文件内容识别的媒体类型。
  */
@@ -64,8 +110,54 @@ export interface CanvasAsset {
   size_bytes: number;
 }
 
+export interface CanvasAssetReviewUpload {
+  blob_id: string;
+  client_id: string;
+  file_name: string;
+}
+
+export interface CanvasAssetReviews {
+  asset_id: string;
+  reviews: CanvasAssetReview[];
+}
+
+export interface CanvasTranscriptionConfig {
+  multi_language?: CanvasMultiLanguageConfig;
+}
+
+export interface CanvasVoiceConfig {
+  name: string;
+  name_i18_n?: CanvasI18NConfig;
+  preset: boolean;
+  supported_languages?: string[];
+  voice: string;
+}
+
+export interface CanvasMultiVoiceConfig {
+  default_voice?: string;
+  enable_i18_n: boolean;
+  enabled: boolean;
+  i18_n_languages?: string[];
+  voices?: CanvasVoiceConfig[];
+}
+
+export interface CanvasTTSConfig {
+  multi_language?: CanvasMultiLanguageConfig;
+  multi_voice?: CanvasMultiVoiceConfig;
+}
+
+export interface CanvasAudioConfig {
+  asr?: CanvasASRConfig;
+  transcription?: CanvasTranscriptionConfig;
+  tts?: CanvasTTSConfig;
+}
+
 export interface CanvasBatchDeleteCanvasNodesResponse {
   canvas_revision: number;
+}
+
+export interface CanvasBatchGetAssetReviewsResponse {
+  items: CanvasAssetReviews[];
 }
 
 export interface CanvasNodeDraftAssetReference {
@@ -353,6 +445,76 @@ export interface CanvasBatchGetCanvasNodeStatesResponse {
   items: CanvasNodeState[];
 }
 
+export type CanvasResourceAssetGenerationRunStatus = typeof CanvasResourceAssetGenerationRunStatus[keyof typeof CanvasResourceAssetGenerationRunStatus];
+
+
+export const CanvasResourceAssetGenerationRunStatus = {
+  QUEUED: 1,
+  RUNNING: 2,
+  SUCCEEDED: 3,
+  FAILED: 4,
+  CANCELLED: 5,
+} as const;
+
+export interface CanvasResourceAssetGenerationState {
+  error_code?: string;
+  error_message?: string;
+  resource_asset_id: string;
+  status: CanvasResourceAssetGenerationRunStatus;
+  task_run_id: string;
+}
+
+export interface CanvasBatchGetResourceAssetGenerationStatesResponse {
+  items: CanvasResourceAssetGenerationState[];
+}
+
+export type CanvasResourceAssetSourceType = typeof CanvasResourceAssetSourceType[keyof typeof CanvasResourceAssetSourceType];
+
+
+export const CanvasResourceAssetSourceType = {
+  UPLOAD: 1,
+  GENERATED: 2,
+} as const;
+
+export interface CanvasResourceAsset {
+  created_at: string;
+  current_asset_id?: string;
+  expires_at?: string;
+  generation_state?: CanvasResourceAssetGenerationState;
+  is_primary: boolean;
+  media_type: CanvasAssetMediaType;
+  name: string;
+  preview_url?: string;
+  resource_asset_id: string;
+  resource_id: string;
+  reviews?: CanvasAssetReview[];
+  revision: number;
+  sequence_no: number;
+  source_type: CanvasResourceAssetSourceType;
+  updated_at: string;
+}
+
+export interface CanvasResourceAssetGroup {
+  items: CanvasResourceAsset[];
+  resource_id: string;
+}
+
+export interface CanvasBatchListResourceAssetsResponse {
+  groups: CanvasResourceAssetGroup[];
+}
+
+export interface CanvasSubmitAssetReviewResult {
+  asset_id?: string;
+  error_code?: string;
+  error_message?: string;
+  package_id: string;
+  review?: CanvasAssetReview;
+}
+
+export interface CanvasBatchSubmitAssetReviewsResponse {
+  items: CanvasSubmitAssetReviewResult[];
+}
+
 export interface CanvasBatchUpdateCanvasNodePositionsResponse {
   items: CanvasNode[];
 }
@@ -364,6 +526,42 @@ export const CanvasBenefitPackageScopeType = {
   CUSTOM_MODELS: 1,
   SYSTEM_PRESET_MODELS: 2,
 } as const;
+
+export interface CanvasBenefitPackage {
+  created_at: string;
+  created_by: string;
+  enabled: boolean;
+  has_access_key_id: boolean;
+  has_secret_access_key: boolean;
+  is_preset: boolean;
+  material_used: number;
+  model_ids: string[];
+  name: string;
+  package_id: string;
+  project_name: string;
+  revision: number;
+  scope_type: CanvasBenefitPackageScopeType;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface CanvasCommonBoolSwitch {
+  enabled?: boolean;
+  supported?: boolean;
+}
+
+export interface CanvasSecurityConfig {
+  aicc?: CanvasCommonBoolSwitch;
+}
+
+export interface CanvasCommonModelConfig {
+  security?: CanvasSecurityConfig;
+}
+
+export interface CanvasCommonSwitch {
+  default?: string;
+  types?: string[];
+}
 
 export interface CanvasConfirmCanvasNodeDraftsResponse {
   canvas_node_ids: string[];
@@ -403,51 +601,6 @@ export interface CanvasCreateCanvasNodesResponse {
   completed?: CanvasCreateCanvasNodesCompleted;
   error?: CanvasCreateCanvasNodesError;
   session?: CanvasNodeDraftSession;
-}
-
-export type CanvasResourceAssetGenerationRunStatus = typeof CanvasResourceAssetGenerationRunStatus[keyof typeof CanvasResourceAssetGenerationRunStatus];
-
-
-export const CanvasResourceAssetGenerationRunStatus = {
-  QUEUED: 1,
-  RUNNING: 2,
-  SUCCEEDED: 3,
-  FAILED: 4,
-  CANCELLED: 5,
-} as const;
-
-export interface CanvasResourceAssetGenerationState {
-  error_code?: string;
-  error_message?: string;
-  resource_asset_id: string;
-  status: CanvasResourceAssetGenerationRunStatus;
-  task_run_id: string;
-}
-
-export type CanvasResourceAssetSourceType = typeof CanvasResourceAssetSourceType[keyof typeof CanvasResourceAssetSourceType];
-
-
-export const CanvasResourceAssetSourceType = {
-  UPLOAD: 1,
-  GENERATED: 2,
-} as const;
-
-export interface CanvasResourceAsset {
-  created_at: string;
-  current_asset_id?: string;
-  expires_at?: string;
-  generation_state?: CanvasResourceAssetGenerationState;
-  is_primary: boolean;
-  media_type: CanvasAssetMediaType;
-  name: string;
-  preview_url?: string;
-  resource_asset_id: string;
-  resource_id: string;
-  reviews?: CanvasAssetReview[];
-  revision: number;
-  sequence_no: number;
-  source_type: CanvasResourceAssetSourceType;
-  updated_at: string;
 }
 
 export interface CanvasCreateGeneratedResourceAssetResponse {
@@ -585,22 +738,20 @@ export interface CanvasCreateResourceResponse {
   resource_assets: CanvasResourceAsset[];
 }
 
-export interface CanvasModelConfig {
-  max_tokens?: number;
-  reasoning_effort_type?: string;
-  temperature?: number;
-  top_p?: number;
-}
-
-export interface CanvasModelSelection {
-  model_config: CanvasModelConfig;
-  model_id: string;
-}
-
-export interface CanvasDefaultModels {
-  image_model: CanvasModelSelection;
-  inference_model: CanvasModelSelection;
-  video_model: CanvasModelSelection;
+export interface CanvasCredentialFormSchema {
+  default?: string;
+  format?: string;
+  label: string;
+  label_i18_n?: CanvasI18NConfig;
+  max_length?: number;
+  name: string;
+  options?: string[];
+  placeholder?: string;
+  placeholder_i18_n?: CanvasI18NConfig;
+  required: boolean;
+  tips?: string;
+  tips_i18_n?: CanvasI18NConfig;
+  type: string;
 }
 
 export interface CanvasDeleteCanvasEdgeResponse {
@@ -612,10 +763,65 @@ export interface CanvasDeleteCanvasNodeResponse {
   canvas_revision: number;
 }
 
+export interface CanvasDeleteResourceAssetTarget {
+  expected_resource_asset_revision: number;
+  expected_resource_revision: number;
+  resource_asset_id: string;
+}
+
+export interface CanvasDeleteResourceTarget {
+  expected_revision: number;
+  resource_id: string;
+}
+
+export interface CanvasDistributedInferenceConfig {
+  enabled: boolean;
+  node_num: number;
+  rdma_enabled: boolean;
+}
+
+export interface CanvasDoubleRange {
+  default?: number;
+  max?: number;
+  min?: number;
+  switch?: CanvasCommonSwitch;
+}
+
+export interface CanvasDownloadProjectUsageXLSXResponse {
+  download_url: string;
+  expires_at: string;
+  file_name: string;
+  file_size: number;
+  pending_billing_count: number;
+  row_count: number;
+}
+
+export interface CanvasHiddenSizeConfig {
+  default: number;
+  supports?: number[];
+}
+
+export interface CanvasInputConfig {
+  max_texts?: number;
+  single_text_token?: number;
+  total_tokens?: number;
+}
+
+export interface CanvasQueryInstructionConfig {
+  enabled?: boolean;
+  scope?: string[];
+}
+
+export interface CanvasEmbeddingConfig {
+  hidden_size?: CanvasHiddenSizeConfig;
+  input?: CanvasInputConfig;
+  query_instruction?: CanvasQueryInstructionConfig;
+}
+
 export interface CanvasEmpty { [key: string]: unknown }
 
-export interface CanvasGetBasicConfigResponse {
-  default_models: CanvasDefaultModels;
+export interface CanvasFunctionCallPromptConfig {
+  enable_inline_chat_histories?: boolean;
 }
 
 export interface CanvasGetCanvasGraphResponse {
@@ -638,6 +844,56 @@ export interface CanvasGetProjectByMemberResponse {
 
 export interface CanvasGetProjectCanvasResponse {
   canvas: CanvasProjectCanvasSummary;
+}
+
+/**
+ * CanvasVideoArchiveExportStatus 是剧集视频压缩包导出的生命周期状态。
+ */
+export type CanvasVideoArchiveExportStatus = typeof CanvasVideoArchiveExportStatus[keyof typeof CanvasVideoArchiveExportStatus];
+
+
+export const CanvasVideoArchiveExportStatus = {
+  QUEUED: 1,
+  RUNNING: 2,
+  SUCCEEDED: 3,
+  FAILED: 4,
+  CANCELLED: 5,
+} as const;
+
+export interface CanvasProjectCanvasVideoArchiveExport {
+  canvas_id: string;
+  created_at: string;
+  error_code?: string;
+  error_message?: string;
+  finished_at?: string;
+  input_count: number;
+  output_filename: string;
+  output_size: number;
+  path?: string;
+  project_id: string;
+  retention_guaranteed_until?: string;
+  started_at?: string;
+  status: CanvasVideoArchiveExportStatus;
+  task_run_id: string;
+}
+
+export interface CanvasGetProjectCanvasVideoArchiveExportResponse {
+  export: CanvasProjectCanvasVideoArchiveExport;
+}
+
+export interface CanvasProjectResourceStats {
+  audio_count: number;
+  character_count: number;
+  prop_count: number;
+  scene_count: number;
+}
+
+export interface CanvasGetProjectResourceStatsResponse {
+  stats: CanvasProjectResourceStats;
+}
+
+export interface CanvasGetProjectResponse {
+  project: CanvasProjectDetail;
 }
 
 export type CanvasResourceAssetGenerationAspectRatio = typeof CanvasResourceAssetGenerationAspectRatio[keyof typeof CanvasResourceAssetGenerationAspectRatio];
@@ -733,6 +989,140 @@ export interface CanvasGetResourceResponse {
   resource: CanvasResource;
 }
 
+export interface CanvasIntRange {
+  default?: number;
+  max?: number;
+  min?: number;
+  switch?: CanvasCommonSwitch;
+}
+
+export interface CanvasHWConfig {
+  height?: CanvasIntRange;
+  pairs?: number[][];
+  ratio?: CanvasDoubleRange;
+  total?: CanvasIntRange;
+  width?: CanvasIntRange;
+}
+
+export interface CanvasIOConfig {
+  input?: CanvasCommonSwitch;
+  input_config?: CanvasIntRange;
+  output?: CanvasCommonSwitch;
+  output_config?: CanvasIntRange;
+}
+
+export interface CanvasImageQualityConfig {
+  default?: string;
+  supports?: string[];
+  switch?: CanvasCommonBoolSwitch;
+}
+
+export interface CanvasResolutionConfig {
+  switch?: CanvasCommonSwitch;
+  values?: string[];
+}
+
+export interface CanvasToolConfig {
+  web_search?: CanvasCommonBoolSwitch;
+}
+
+export interface CanvasImageConfig {
+  hw?: CanvasHWConfig;
+  image_to_image?: CanvasIOConfig;
+  negative_prompt?: CanvasCommonSwitch;
+  quality?: CanvasImageQualityConfig;
+  resolution?: CanvasResolutionConfig;
+  text_to_image?: CanvasIOConfig;
+  tools?: CanvasToolConfig;
+  watermark?: CanvasCommonBoolSwitch;
+}
+
+export interface CanvasImageUnderstandConfig {
+  default_type?: string;
+  enabled: boolean;
+  types?: string[];
+}
+
+export interface CanvasLLMTemperatureRange {
+  default?: number;
+  max?: number;
+  min?: number;
+}
+
+export interface CanvasLLMParameterTemplateItem {
+  template: string;
+}
+
+export interface CanvasLLMTopPRange {
+  default?: number;
+  max?: number;
+  min?: number;
+}
+
+export interface CanvasLLMParameterConfig {
+  temperature?: CanvasLLMTemperatureRange;
+  templates?: CanvasLLMParameterTemplateItem[];
+  top_p?: CanvasLLMTopPRange;
+}
+
+export interface CanvasReasoningEffort {
+  default_type?: string;
+  types?: string[];
+}
+
+export interface CanvasReasoningSwitch {
+  default_type?: string;
+  types?: string[];
+}
+
+export interface CanvasReasoningConfig {
+  effort?: CanvasReasoningEffort;
+  switch?: CanvasReasoningSwitch;
+}
+
+export interface CanvasMaxTokens {
+  default: number;
+  max: number;
+  min: number;
+}
+
+export interface CanvasTokenConfig {
+  context_tokens?: number;
+  max_tokens?: CanvasMaxTokens;
+}
+
+export interface CanvasToolCallConfig {
+  streaming?: CanvasCommonBoolSwitch;
+}
+
+export interface CanvasVisionUnderstandConfig {
+  image?: CanvasImageUnderstandConfig;
+}
+
+export interface CanvasLLMConfig {
+  api?: CanvasAPIConfig;
+  parameter?: CanvasLLMParameterConfig;
+  reasoning?: CanvasReasoningConfig;
+  streaming?: boolean;
+  token?: CanvasTokenConfig;
+  tool_call?: CanvasToolCallConfig;
+  vision?: CanvasVisionUnderstandConfig;
+}
+
+export interface CanvasLMCacheConfig {
+  enabled: boolean;
+  memory: string;
+}
+
+export interface CanvasLabelInfo {
+  code: string;
+  name?: string;
+}
+
+export interface CanvasListAvailableBenefitPackagesResponse {
+  items: CanvasBenefitPackage[];
+}
+
 export interface CanvasNodeGenerationResourceAssetSnapshot {
   asset_id: string;
   resource_asset_id: string;
@@ -779,9 +1169,297 @@ export interface CanvasPageOutput {
   total_page: number;
 }
 
+export interface CanvasListProjectCanvasVideoArchiveExportsResponse {
+  items: CanvasProjectCanvasVideoArchiveExport[];
+  page: CanvasPageOutput;
+}
+
 export interface CanvasListProjectCanvasesResponse {
   items: CanvasProjectCanvasSummary[];
   page: CanvasPageOutput;
+}
+
+export interface CanvasModelCredentialSchema {
+  credential_form_schemas?: CanvasCredentialFormSchema[];
+}
+
+export interface CanvasMarkerDetails {
+  color: string;
+  description?: string;
+  text: string;
+}
+
+export interface CanvasQuantizationConfig {
+  enabled: boolean;
+  type?: string;
+}
+
+export interface CanvasRateLimit {
+  enabled: boolean;
+  rpm?: number;
+}
+
+export type CanvasThinkingModes = typeof CanvasThinkingModes[keyof typeof CanvasThinkingModes];
+
+
+export const CanvasThinkingModes = {
+  /** 自动模式，模型根据上下文决定是否开启深度思考 */
+  Auto: 0,
+  /** 开启深度思考模式 */
+  Thinking: 1,
+  /** 关闭深度思考模式 */
+  NoThinking: 2,
+} as const;
+
+export interface CanvasModelServiceConfig {
+  load_balance_policy?: string;
+  quantization?: CanvasQuantizationConfig;
+  rate_limit?: CanvasRateLimit;
+  termination_grace_period_seconds?: number;
+  thinking_mode_by_default?: CanvasThinkingModes;
+}
+
+export interface CanvasPdDisaggregationResourceConfig {
+  cpu: string;
+  gpu: number;
+  gpu_card_type: string;
+  memory: string;
+  node_num: number;
+  replica: number;
+}
+
+export interface CanvasPdDisaggregationConfig {
+  decode_config: CanvasPdDisaggregationResourceConfig;
+  prefill_config: CanvasPdDisaggregationResourceConfig;
+  rdma_enabled: boolean;
+}
+
+export interface CanvasModelServiceResource {
+  cpu: string;
+  gpu: number;
+  gpu_card_type?: string;
+  gpu_core?: number;
+  gpu_memory?: string;
+  lm_cache_config?: CanvasLMCacheConfig;
+  max_replica?: number;
+  memory: string;
+  pd_disaggregation_config?: CanvasPdDisaggregationConfig;
+  replica: number;
+}
+
+export interface CanvasMaaSModelServiceDeployConfig {
+  config?: CanvasModelServiceConfig;
+  distributed_inference_config?: CanvasDistributedInferenceConfig;
+  model_id: string;
+  model_source: string;
+  model_version_id: string;
+  resource: CanvasModelServiceResource;
+  resource_id: string;
+  resource_name: string;
+  resource_pool_type: string;
+  resource_quota_id: string;
+}
+
+export interface CanvasParameterMapping {
+  name?: string;
+  type: string;
+  value?: string;
+}
+
+export interface CanvasParameterRule {
+  default?: string;
+  mapping?: CanvasParameterMapping;
+  max?: string;
+  min?: string;
+  name: string;
+  path?: string;
+  required?: boolean;
+  type?: string;
+}
+
+export interface CanvasModelParameter {
+  rules?: CanvasParameterRule[];
+}
+
+export interface CanvasRPMPolicy {
+  enabled: boolean;
+  rpm?: number;
+  unit?: string;
+  usage?: number;
+}
+
+export interface CanvasTPMPolicy {
+  enabled: boolean;
+  tpm?: number;
+  unit?: string;
+  usage?: number;
+}
+
+export interface CanvasRateLimitPolicy {
+  rpm_policy?: CanvasRPMPolicy;
+  tpm_policy?: CanvasTPMPolicy;
+}
+
+export interface CanvasRetryPolicy {
+  attempts?: number;
+  enabled: boolean;
+  on_status?: number[];
+}
+
+export interface CanvasReviewPolicy {
+  advanced_review_config?: CanvasAdvancedReviewConfig;
+  advanced_review_type?: string;
+  enabled: boolean;
+}
+
+export interface CanvasTimeoutPolicy {
+  enabled: boolean;
+  timeout?: number;
+}
+
+export interface CanvasPolicyConfig {
+  load_balance_policy?: string;
+  rate_limit_policy?: CanvasRateLimitPolicy;
+  retry_policy?: CanvasRetryPolicy;
+  review_policy?: CanvasReviewPolicy;
+  timeout_policy?: CanvasTimeoutPolicy;
+}
+
+export interface CanvasPriceConfig {
+  completion?: string;
+  currency: string;
+  input?: string;
+  output?: string;
+  prompt?: string;
+  type?: string;
+  unit: string;
+}
+
+export interface CanvasReactPromptConfig {
+  enable_fewshots?: boolean;
+  enable_inline_chat_histories?: boolean;
+  name?: string;
+  remove_stop?: boolean;
+}
+
+export interface CanvasPromptConfig {
+  function_call_prompt?: CanvasFunctionCallPromptConfig;
+  react_prompt?: CanvasReactPromptConfig;
+}
+
+export interface CanvasProjectModelDuration {
+  default?: number;
+  max?: number;
+  min?: number;
+  recommend_default?: number;
+  recommends?: number[];
+}
+
+export interface CanvasVisionFeature {
+  name: string;
+  switch?: CanvasCommonSwitch;
+}
+
+export interface CanvasProjectModelRatio {
+  adaptive?: boolean;
+  default?: string;
+  values?: string[];
+}
+
+export interface CanvasReferenceConfigDetail {
+  max?: number;
+  supported?: boolean;
+}
+
+export interface CanvasReferenceConfig {
+  audio?: CanvasReferenceConfigDetail;
+  image?: CanvasReferenceConfigDetail;
+  video?: CanvasReferenceConfigDetail;
+}
+
+export interface CanvasProjectModelVideoProperty {
+  camera_fixed?: CanvasCommonSwitch;
+  duration?: CanvasProjectModelDuration;
+  features?: CanvasVisionFeature[];
+  generate_audio?: CanvasCommonSwitch;
+  negative_prompt?: CanvasCommonSwitch;
+  ratio?: CanvasProjectModelRatio;
+  reference?: CanvasReferenceConfig;
+  resolutions?: string[];
+  tools?: CanvasToolConfig;
+  watermark?: CanvasCommonBoolSwitch;
+}
+
+export interface CanvasProjectModelVisionProperty {
+  guidance_scale?: CanvasDoubleRange;
+  image?: CanvasImageConfig;
+  seed?: CanvasIntRange;
+  video?: CanvasProjectModelVideoProperty;
+}
+
+export interface CanvasProjectModelProperty {
+  audio?: CanvasAudioConfig;
+  common?: CanvasCommonModelConfig;
+  embedding?: CanvasEmbeddingConfig;
+  llm?: CanvasLLMConfig;
+  vision?: CanvasProjectModelVisionProperty;
+}
+
+export interface CanvasProjectModelInfo {
+  business_labels?: CanvasLabelInfo[];
+  create_time: string;
+  create_user_name: string;
+  credential_schema?: CanvasModelCredentialSchema;
+  custom_marker?: CanvasMarkerDetails;
+  custom_parameters?: string;
+  default_type?: string;
+  default_types?: string[];
+  delete_at: string;
+  deploy_config?: CanvasMaaSModelServiceDeployConfig;
+  description?: string;
+  distribute_type?: string;
+  dl_version?: string;
+  features_config?: string[];
+  from_id?: string;
+  granted: boolean;
+  icon?: string;
+  id: string;
+  is_billing?: boolean;
+  is_custom_marker_enabled?: boolean;
+  is_default: boolean;
+  is_default_ltm?: boolean;
+  is_preset?: boolean;
+  is_public: boolean;
+  is_published?: boolean;
+  model_name: string;
+  name: string;
+  parameter?: CanvasModelParameter;
+  policy_config?: CanvasPolicyConfig;
+  price_config?: CanvasPriceConfig;
+  product_code?: string;
+  prompt_config?: CanvasPromptConfig;
+  property?: CanvasProjectModelProperty;
+  provider: string;
+  publish_source_type: string;
+  publish_time?: string;
+  publish_user_name?: string;
+  service_introduction?: string;
+  source: string;
+  spec?: string;
+  status?: string;
+  strategies_config: string[];
+  tenant_id: string;
+  type: string;
+  update_time?: string;
+  update_user_name?: string;
+  version?: string;
+  workspace_id?: string;
+  workspace_name?: string;
+}
+
+export interface CanvasListProjectModelsResponse {
+  items: CanvasProjectModelInfo[];
+  total: number;
 }
 
 export interface CanvasMemberProjectSummary {
@@ -796,6 +1474,22 @@ export interface CanvasMemberProjectSummary {
 
 export interface CanvasListProjectsByMemberResponse {
   items: CanvasMemberProjectSummary[];
+  page: CanvasPageOutput;
+}
+
+export interface CanvasProjectSummary {
+  cover_image_path?: string;
+  created_at: string;
+  created_by: string;
+  member_user_ids: string[];
+  name: string;
+  project_id: string;
+  stats: CanvasProjectStats;
+  updated_at: string;
+}
+
+export interface CanvasListProjectsResponse {
+  items: CanvasProjectSummary[];
   page: CanvasPageOutput;
 }
 
@@ -882,6 +1576,31 @@ export interface CanvasNodePositionUpdate {
 export interface CanvasNodeStateTarget {
   node_id: string;
   task_run_id: string;
+}
+
+export interface CanvasTextGenerationCompleted {
+  content: string;
+  task_run_id: string;
+}
+
+export interface CanvasTextGenerationDelta {
+  delta: string;
+  offset: number;
+}
+
+export interface CanvasTextGenerationSession {
+  content: string;
+  error_code?: string;
+  error_message?: string;
+  node_id: string;
+  status: CanvasGenerationStatus;
+  task_run_id: string;
+}
+
+export interface CanvasNodeTextGenerationResponse {
+  completed?: CanvasTextGenerationCompleted;
+  delta?: CanvasTextGenerationDelta;
+  session?: CanvasTextGenerationSession;
 }
 
 /**
@@ -973,6 +1692,11 @@ export const CanvasSortDirection = {
   DESC: 2,
 } as const;
 
+export interface CanvasStagedUpload {
+  blob_id: string;
+  size_bytes: number;
+}
+
 export interface CanvasStartCanvasGenerationResponse {
   items: CanvasNodeGenerationStart[];
   skipped_count: number;
@@ -986,6 +1710,10 @@ export interface CanvasStartCanvasNodeGenerationResponse {
   task_run_id: string;
 }
 
+export interface CanvasStartProjectCanvasVideoArchiveExportResponse {
+  export: CanvasProjectCanvasVideoArchiveExport;
+}
+
 export interface CanvasStartResourceAssetGenerationResponse {
   task_run_id: string;
 }
@@ -995,20 +1723,10 @@ export interface CanvasStoryboardRankUpdate {
   storyboard_rank: number;
 }
 
-export type CanvasThinkingModes = typeof CanvasThinkingModes[keyof typeof CanvasThinkingModes];
-
-
-export const CanvasThinkingModes = {
-  /** 自动模式，模型根据上下文决定是否开启深度思考 */
-  Auto: 0,
-  /** 开启深度思考模式 */
-  Thinking: 1,
-  /** 关闭深度思考模式 */
-  NoThinking: 2,
-} as const;
-
-export interface CanvasUpdateBasicConfigResponse {
-  default_models: CanvasDefaultModels;
+export interface CanvasSubmitAssetReviewItem {
+  asset_id?: string;
+  package_id: string;
+  upload?: CanvasAssetReviewUpload;
 }
 
 export interface CanvasUpdateCanvasNodeResponse {
@@ -1021,6 +1739,10 @@ export interface CanvasUpdateProjectByMemberResponse {
 
 export interface CanvasUpdateProjectCanvasResponse {
   canvas: CanvasProjectCanvasSummary;
+}
+
+export interface CanvasUpdateProjectResponse {
+  project: CanvasProjectDetail;
 }
 
 export interface CanvasUpdateResourceAssetGenerationResponse {
@@ -1040,22 +1762,30 @@ export interface CanvasUploadedAsset {
   file_name: string;
 }
 
-/**
- * CanvasVideoArchiveExportStatus 是剧集视频压缩包导出的生命周期状态。
- */
-export type CanvasVideoArchiveExportStatus = typeof CanvasVideoArchiveExportStatus[keyof typeof CanvasVideoArchiveExportStatus];
+export type CanvasAdminListProjectsParams = {
+page_size: number;
+page_num: number;
+};
 
+export type CanvasAdminCreateProjectBody = {
+  cover_image_path?: string;
+  member_user_ids: string[];
+  name: string;
+  usage_limit?: number;
+};
 
-export const CanvasVideoArchiveExportStatus = {
-  QUEUED: 1,
-  RUNNING: 2,
-  SUCCEEDED: 3,
-  FAILED: 4,
-  CANCELLED: 5,
-} as const;
+export type CanvasAdminUpdateProjectBody = {
+  cover_image_path?: string;
+  member_user_ids: string[];
+  name: string;
+  usage_limit?: number;
+};
 
-export type CanvasUpdateBasicConfigBody = {
-  default_models: CanvasDefaultModels;
+export type CanvasListProjectsParams = {
+keyword?: string;
+sort_direction?: string;
+page_size: number;
+page_num: number;
 };
 
 export type CanvasCreateProjectBody = {
@@ -1069,6 +1799,22 @@ export type CanvasUpdateProjectBody = {
   cover_image_path?: string;
 };
 
+export type CanvasBatchGetAssetReviewsBody = {
+  asset_ids: string[];
+};
+
+export type CanvasBatchSubmitAssetReviewsBody = {
+  items: CanvasSubmitAssetReviewItem[];
+};
+
+export type CanvasListCanvasesParams = {
+keyword?: string;
+created_by_me?: boolean;
+sort_direction?: string;
+page_size: number;
+page_num: number;
+};
+
 export type CanvasCreateCanvasBody = {
   cover_image_path?: string;
   name: string;
@@ -1079,10 +1825,18 @@ export type CanvasUpdateCanvasBody = {
   name: string;
 };
 
+export type CanvasListArchivesParams = {
+sort_direction?: string;
+page_size: number;
+page_num: number;
+};
+
+export type CanvasArchiveContent200 = { [key: string]: unknown };
+
 export type CanvasMaterializeAssetReferenceBody = {
   asset_id?: string;
   asset_node_position: CanvasNodePosition;
-  reference_type?: CanvasNodeMentionReferenceType;
+  reference_type: CanvasNodeMentionReferenceType;
   target_node_id: string;
   target_port: CanvasPort;
   uploaded_asset?: CanvasUploadedAsset;
@@ -1117,7 +1871,6 @@ export type CanvasCreateNodeBody = {
   after_node_id?: string;
   asset_id?: string;
   model_service_id?: string;
-  name?: string;
   position: CanvasNodePosition;
   resource_asset_id?: string;
   resource_id?: string;
@@ -1149,7 +1902,6 @@ export type CanvasSearchNodeAssetsBody = {
 };
 
 export type CanvasCopyNodeBody = {
-  name?: string;
   position: CanvasNodePosition;
   source_node_id: string;
 };
@@ -1159,7 +1911,7 @@ export type CanvasBatchDeleteNodesBody = {
 };
 
 export type CanvasMaterializeResourceReferenceBody = {
-  reference_type?: CanvasNodeMentionReferenceType;
+  reference_type: CanvasNodeMentionReferenceType;
   resource_asset_id?: string;
   resource_asset_node_position: CanvasNodePosition;
   resource_id?: string;
@@ -1169,7 +1921,6 @@ export type CanvasMaterializeResourceReferenceBody = {
 
 export type CanvasStartStoryboardDraftsBody = {
   canvas_nodes?: CanvasNodeDraft[];
-  max_canvas_nodes?: number;
   model_config: CanvasStoryboardModelConfig;
   planning_config: CanvasStoryboardPlanningConfig;
   plot: string;
@@ -1187,6 +1938,23 @@ export type CanvasUpdateCanvasViewBody = {
   default_view?: CanvasViewMode;
 };
 
+export type CanvasListProjectModelsParams = {
+page_size: number;
+page_num: number;
+};
+
+export type CanvasBatchListResourceAssetsBody = {
+  resource_ids: string[];
+};
+
+export type CanvasListResourcesParams = {
+keyword?: string;
+type?: number;
+sort_direction?: string;
+page_size: number;
+page_num: number;
+};
+
 export type CanvasCreateResourceBody = {
   description?: string;
   initial_assets?: CanvasCreateResourceInitialAsset[];
@@ -1202,6 +1970,11 @@ export type CanvasUpdateResourceBody = {
   description?: string;
   expected_revision: number;
   name?: string;
+};
+
+export type CanvasListResourceAssetsParams = {
+page_size: number;
+page_num: number;
 };
 
 export type CanvasCreateResourceAssetBody = {
@@ -1249,12 +2022,25 @@ export type CanvasReplaceResourceAssetBody = {
   resource_asset_id: string;
 };
 
+export type CanvasBatchDeleteResourceAssetsBody = {
+  targets: CanvasDeleteResourceAssetTarget[];
+};
+
 export type CanvasCreateGeneratedResourceAssetBody = {
   expected_resource_revision: number;
 };
 
+export type CanvasBatchGetResourceGenerationStatesBody = {
+  resource_asset_ids: string[];
+};
+
+export type CanvasBatchDeleteResourcesBody = {
+  targets: CanvasDeleteResourceTarget[];
+};
+
 export type CanvasCreateResourceFromAssetBody = {
   asset_id: string;
+  canvas_id?: string;
   canvas_node_id?: string;
   description?: string;
   name: string;
@@ -1265,40 +2051,90 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
   export const getCanvasService = () => {
-const canvasGetBasicConfig = (
-
- options?: SecondParameter<typeof apiMutator<CanvasGetBasicConfigResponse>>,) => {
-      return apiMutator<CanvasGetBasicConfigResponse>(
-      {url: `/api/canvas-server/admin/config`, method: 'GET'
+const canvasAdminListProjects = (
+    params: CanvasAdminListProjectsParams,
+ options?: SecondParameter<typeof apiMutator<CanvasListProjectsResponse>>,) => {
+      return apiMutator<CanvasListProjectsResponse>(
+      {url: `/api/canvas-server/admin/projects`, method: 'GET',
+        params
     },
       options);
     }
 
-const canvasUpdateBasicConfig = (
-    canvasUpdateBasicConfigBody: CanvasUpdateBasicConfigBody,
- options?: SecondParameter<typeof apiMutator<CanvasUpdateBasicConfigResponse>>,) => {
-      return apiMutator<CanvasUpdateBasicConfigResponse>(
-      {url: `/api/canvas-server/admin/config`, method: 'PUT',
+const canvasAdminCreateProject = (
+    canvasAdminCreateProjectBody: CanvasAdminCreateProjectBody,
+ options?: SecondParameter<typeof apiMutator<CanvasCreateProjectResponse>>,) => {
+      return apiMutator<CanvasCreateProjectResponse>(
+      {url: `/api/canvas-server/admin/projects`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
-      data: canvasUpdateBasicConfigBody
+      data: canvasAdminCreateProjectBody
     },
       options);
     }
 
-const canvasGetRuntimeBasicConfig = (
+const canvasAdminDeleteProject = (
+    projectId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasEmpty>>,) => {
+      return apiMutator<CanvasEmpty>(
+      {url: `/api/canvas-server/admin/projects/${projectId}`, method: 'DELETE'
+    },
+      options);
+    }
 
- options?: SecondParameter<typeof apiMutator<CanvasGetBasicConfigResponse>>,) => {
-      return apiMutator<CanvasGetBasicConfigResponse>(
-      {url: `/api/canvas-server/config`, method: 'GET'
+const canvasAdminGetProject = (
+    projectId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasGetProjectResponse>>,) => {
+      return apiMutator<CanvasGetProjectResponse>(
+      {url: `/api/canvas-server/admin/projects/${projectId}`, method: 'GET'
+    },
+      options);
+    }
+
+const canvasAdminUpdateProject = (
+    projectId: string,
+    canvasAdminUpdateProjectBody: CanvasAdminUpdateProjectBody,
+ options?: SecondParameter<typeof apiMutator<CanvasUpdateProjectResponse>>,) => {
+      return apiMutator<CanvasUpdateProjectResponse>(
+      {url: `/api/canvas-server/admin/projects/${projectId}`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasAdminUpdateProjectBody
+    },
+      options);
+    }
+
+const canvasDownloadProjectUsage = (
+    projectId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasDownloadProjectUsageXLSXResponse>>,) => {
+      return apiMutator<CanvasDownloadProjectUsageXLSXResponse>(
+      {url: `/api/canvas-server/admin/projects/${projectId}/usage:export`, method: 'POST'
+    },
+      options);
+    }
+
+const canvasListAvailableBenefitPackages = (
+
+ options?: SecondParameter<typeof apiMutator<CanvasListAvailableBenefitPackagesResponse>>,) => {
+      return apiMutator<CanvasListAvailableBenefitPackagesResponse>(
+      {url: `/api/canvas-server/benefit-packages`, method: 'GET'
+    },
+      options);
+    }
+
+const canvasExecuteArchive = (
+    archiveId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasProjectCanvasVideoArchiveExport>>,) => {
+      return apiMutator<CanvasProjectCanvasVideoArchiveExport>(
+      {url: `/api/canvas-server/internal/worker/archives/${archiveId}/execute`, method: 'POST'
     },
       options);
     }
 
 const canvasListProjects = (
-
+    params: CanvasListProjectsParams,
  options?: SecondParameter<typeof apiMutator<CanvasListProjectsByMemberResponse>>,) => {
       return apiMutator<CanvasListProjectsByMemberResponse>(
-      {url: `/api/canvas-server/projects`, method: 'GET'
+      {url: `/api/canvas-server/projects`, method: 'GET',
+        params
     },
       options);
     }
@@ -1344,11 +2180,37 @@ const canvasUpdateProject = (
       options);
     }
 
+const canvasBatchGetAssetReviews = (
+    projectId: string,
+    canvasBatchGetAssetReviewsBody: CanvasBatchGetAssetReviewsBody,
+ options?: SecondParameter<typeof apiMutator<CanvasBatchGetAssetReviewsResponse>>,) => {
+      return apiMutator<CanvasBatchGetAssetReviewsResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/asset-reviews:batchGet`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasBatchGetAssetReviewsBody
+    },
+      options);
+    }
+
+const canvasBatchSubmitAssetReviews = (
+    projectId: string,
+    canvasBatchSubmitAssetReviewsBody: CanvasBatchSubmitAssetReviewsBody,
+ options?: SecondParameter<typeof apiMutator<CanvasBatchSubmitAssetReviewsResponse>>,) => {
+      return apiMutator<CanvasBatchSubmitAssetReviewsResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/asset-reviews:batchSubmit`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasBatchSubmitAssetReviewsBody
+    },
+      options);
+    }
+
 const canvasListCanvases = (
     projectId: string,
+    params: CanvasListCanvasesParams,
  options?: SecondParameter<typeof apiMutator<CanvasListProjectCanvasesResponse>>,) => {
       return apiMutator<CanvasListProjectCanvasesResponse>(
-      {url: `/api/canvas-server/projects/${projectId}/canvases`, method: 'GET'
+      {url: `/api/canvas-server/projects/${projectId}/canvases`, method: 'GET',
+        params
     },
       options);
     }
@@ -1394,6 +2256,61 @@ const canvasUpdateCanvas = (
       {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: canvasUpdateCanvasBody
+    },
+      options);
+    }
+
+const canvasListArchives = (
+    projectId: string,
+    canvasId: string,
+    params: CanvasListArchivesParams,
+ options?: SecondParameter<typeof apiMutator<CanvasListProjectCanvasVideoArchiveExportsResponse>>,) => {
+      return apiMutator<CanvasListProjectCanvasVideoArchiveExportsResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/archives`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+const canvasCreateArchive = (
+    projectId: string,
+    canvasId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasStartProjectCanvasVideoArchiveExportResponse>>,) => {
+      return apiMutator<CanvasStartProjectCanvasVideoArchiveExportResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/archives`, method: 'POST'
+    },
+      options);
+    }
+
+const canvasGetArchive = (
+    projectId: string,
+    canvasId: string,
+    taskRunId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasGetProjectCanvasVideoArchiveExportResponse>>,) => {
+      return apiMutator<CanvasGetProjectCanvasVideoArchiveExportResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/archives/${taskRunId}`, method: 'GET'
+    },
+      options);
+    }
+
+const canvasArchiveContent = (
+    projectId: string,
+    canvasId: string,
+    taskRunId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasArchiveContent200>>,) => {
+      return apiMutator<CanvasArchiveContent200>(
+      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/archives/${taskRunId}/content`, method: 'GET'
+    },
+      options);
+    }
+
+const canvasCancelArchive = (
+    projectId: string,
+    canvasId: string,
+    taskRunId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasEmpty>>,) => {
+      return apiMutator<CanvasEmpty>(
+      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/archives/${taskRunId}:cancel`, method: 'POST'
     },
       options);
     }
@@ -1623,6 +2540,17 @@ const canvasSelectNodeHistory = (
       options);
     }
 
+const canvasStreamNodeTextGeneration = (
+    projectId: string,
+    canvasId: string,
+    nodeId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasNodeTextGenerationResponse>>,) => {
+      return apiMutator<CanvasNodeTextGenerationResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/nodes/${nodeId}/text-generations:stream`, method: 'POST'
+    },
+      options);
+    }
+
 const canvasCopyNode = (
     projectId: string,
     canvasId: string,
@@ -1727,11 +2655,36 @@ const canvasUpdateCanvasView = (
       options);
     }
 
+const canvasListProjectModels = (
+    projectId: string,
+    params: CanvasListProjectModelsParams,
+ options?: SecondParameter<typeof apiMutator<CanvasListProjectModelsResponse>>,) => {
+      return apiMutator<CanvasListProjectModelsResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/models`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+const canvasBatchListResourceAssets = (
+    projectId: string,
+    canvasBatchListResourceAssetsBody: CanvasBatchListResourceAssetsBody,
+ options?: SecondParameter<typeof apiMutator<CanvasBatchListResourceAssetsResponse>>,) => {
+      return apiMutator<CanvasBatchListResourceAssetsResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/resource-assets:batchList`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasBatchListResourceAssetsBody
+    },
+      options);
+    }
+
 const canvasListResources = (
     projectId: string,
+    params: CanvasListResourcesParams,
  options?: SecondParameter<typeof apiMutator<CanvasListResourcesResponse>>,) => {
       return apiMutator<CanvasListResourcesResponse>(
-      {url: `/api/canvas-server/projects/${projectId}/resources`, method: 'GET'
+      {url: `/api/canvas-server/projects/${projectId}/resources`, method: 'GET',
+        params
     },
       options);
     }
@@ -1787,9 +2740,11 @@ const canvasUpdateResource = (
 const canvasListResourceAssets = (
     projectId: string,
     resourceId: string,
+    params: CanvasListResourceAssetsParams,
  options?: SecondParameter<typeof apiMutator<CanvasListResourceAssetsResponse>>,) => {
       return apiMutator<CanvasListResourceAssetsResponse>(
-      {url: `/api/canvas-server/projects/${projectId}/resources/${resourceId}/assets`, method: 'GET'
+      {url: `/api/canvas-server/projects/${projectId}/resources/${resourceId}/assets`, method: 'GET',
+        params
     },
       options);
     }
@@ -1926,6 +2881,19 @@ const canvasReplaceResourceAsset = (
       options);
     }
 
+const canvasBatchDeleteResourceAssets = (
+    projectId: string,
+    resourceId: string,
+    canvasBatchDeleteResourceAssetsBody: CanvasBatchDeleteResourceAssetsBody,
+ options?: SecondParameter<typeof apiMutator<CanvasEmpty>>,) => {
+      return apiMutator<CanvasEmpty>(
+      {url: `/api/canvas-server/projects/${projectId}/resources/${resourceId}/assets:batchDelete`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasBatchDeleteResourceAssetsBody
+    },
+      options);
+    }
+
 const canvasCreateGeneratedResourceAsset = (
     projectId: string,
     resourceId: string,
@@ -1935,6 +2903,31 @@ const canvasCreateGeneratedResourceAsset = (
       {url: `/api/canvas-server/projects/${projectId}/resources/${resourceId}/generated-assets`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: canvasCreateGeneratedResourceAssetBody
+    },
+      options);
+    }
+
+const canvasBatchGetResourceGenerationStates = (
+    projectId: string,
+    resourceId: string,
+    canvasBatchGetResourceGenerationStatesBody: CanvasBatchGetResourceGenerationStatesBody,
+ options?: SecondParameter<typeof apiMutator<CanvasBatchGetResourceAssetGenerationStatesResponse>>,) => {
+      return apiMutator<CanvasBatchGetResourceAssetGenerationStatesResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/resources/${resourceId}/generation-states:batchGet`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasBatchGetResourceGenerationStatesBody
+    },
+      options);
+    }
+
+const canvasBatchDeleteResources = (
+    projectId: string,
+    canvasBatchDeleteResourcesBody: CanvasBatchDeleteResourcesBody,
+ options?: SecondParameter<typeof apiMutator<CanvasEmpty>>,) => {
+      return apiMutator<CanvasEmpty>(
+      {url: `/api/canvas-server/projects/${projectId}/resources:batchDelete`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasBatchDeleteResourcesBody
     },
       options);
     }
@@ -1951,20 +2944,50 @@ const canvasCreateResourceFromAsset = (
       options);
     }
 
-return {canvasGetBasicConfig,canvasUpdateBasicConfig,canvasGetRuntimeBasicConfig,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasCreateGeneratedResourceAsset,canvasCreateResourceFromAsset}};
-export type CanvasGetBasicConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetBasicConfig']>>>
-export type CanvasUpdateBasicConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateBasicConfig']>>>
-export type CanvasGetRuntimeBasicConfigResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetRuntimeBasicConfig']>>>
+const canvasGetProjectResourceStats = (
+    projectId: string,
+ options?: SecondParameter<typeof apiMutator<CanvasGetProjectResourceStatsResponse>>,) => {
+      return apiMutator<CanvasGetProjectResourceStatsResponse>(
+      {url: `/api/canvas-server/projects/${projectId}/resources:stats`, method: 'GET'
+    },
+      options);
+    }
+
+const canvasStageUpload = (
+
+ options?: SecondParameter<typeof apiMutator<CanvasStagedUpload>>,) => {
+      return apiMutator<CanvasStagedUpload>(
+      {url: `/api/canvas-server/uploads`, method: 'POST'
+    },
+      options);
+    }
+
+return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasExecuteArchive,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats,canvasStageUpload}};
+export type CanvasAdminListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminListProjects']>>>
+export type CanvasAdminCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminCreateProject']>>>
+export type CanvasAdminDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminDeleteProject']>>>
+export type CanvasAdminGetProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminGetProject']>>>
+export type CanvasAdminUpdateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminUpdateProject']>>>
+export type CanvasDownloadProjectUsageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDownloadProjectUsage']>>>
+export type CanvasListAvailableBenefitPackagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListAvailableBenefitPackages']>>>
+export type CanvasExecuteArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasExecuteArchive']>>>
 export type CanvasListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListProjects']>>>
 export type CanvasCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateProject']>>>
 export type CanvasDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteProject']>>>
 export type CanvasGetProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetProject']>>>
 export type CanvasUpdateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateProject']>>>
+export type CanvasBatchGetAssetReviewsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchGetAssetReviews']>>>
+export type CanvasBatchSubmitAssetReviewsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchSubmitAssetReviews']>>>
 export type CanvasListCanvasesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListCanvases']>>>
 export type CanvasCreateCanvasResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateCanvas']>>>
 export type CanvasDeleteCanvasResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteCanvas']>>>
 export type CanvasGetCanvasResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetCanvas']>>>
 export type CanvasUpdateCanvasResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateCanvas']>>>
+export type CanvasListArchivesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListArchives']>>>
+export type CanvasCreateArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateArchive']>>>
+export type CanvasGetArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetArchive']>>>
+export type CanvasArchiveContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasArchiveContent']>>>
+export type CanvasCancelArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelArchive']>>>
 export type CanvasMaterializeAssetReferenceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasMaterializeAssetReference']>>>
 export type CanvasCreateAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateAsset']>>>
 export type CanvasDeleteEdgeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteEdge']>>>
@@ -1983,6 +3006,7 @@ export type CanvasStartNodeGenerationResult = NonNullable<Awaited<ReturnType<Ret
 export type CanvasCancelNodeGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelNodeGeneration']>>>
 export type CanvasListNodeHistoriesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListNodeHistories']>>>
 export type CanvasSelectNodeHistoryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasSelectNodeHistory']>>>
+export type CanvasStreamNodeTextGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStreamNodeTextGeneration']>>>
 export type CanvasCopyNodeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCopyNode']>>>
 export type CanvasBatchDeleteNodesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchDeleteNodes']>>>
 export type CanvasMaterializeResourceReferenceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasMaterializeResourceReference']>>>
@@ -1991,6 +3015,8 @@ export type CanvasCancelStoryboardDraftsResult = NonNullable<Awaited<ReturnType<
 export type CanvasConfirmStoryboardDraftsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasConfirmStoryboardDrafts']>>>
 export type CanvasReorderStoryboardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasReorderStoryboard']>>>
 export type CanvasUpdateCanvasViewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateCanvasView']>>>
+export type CanvasListProjectModelsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListProjectModels']>>>
+export type CanvasBatchListResourceAssetsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchListResourceAssets']>>>
 export type CanvasListResourcesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListResources']>>>
 export type CanvasCreateResourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateResource']>>>
 export type CanvasDeleteResourceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteResource']>>>
@@ -2007,5 +3033,10 @@ export type CanvasGetResourceGenerationRunResult = NonNullable<Awaited<ReturnTyp
 export type CanvasCancelResourceGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelResourceGeneration']>>>
 export type CanvasSetPrimaryResourceAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasSetPrimaryResourceAsset']>>>
 export type CanvasReplaceResourceAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasReplaceResourceAsset']>>>
+export type CanvasBatchDeleteResourceAssetsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchDeleteResourceAssets']>>>
 export type CanvasCreateGeneratedResourceAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateGeneratedResourceAsset']>>>
+export type CanvasBatchGetResourceGenerationStatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchGetResourceGenerationStates']>>>
+export type CanvasBatchDeleteResourcesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchDeleteResources']>>>
 export type CanvasCreateResourceFromAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateResourceFromAsset']>>>
+export type CanvasGetProjectResourceStatsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetProjectResourceStats']>>>
+export type CanvasStageUploadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStageUpload']>>>

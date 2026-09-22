@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { agentframeService } from "@/api/index";
 import { type AssetReviewItem, AssetReviewModal } from "@/components/AssetReviewModal/index";
 import { resource } from "@/domain";
 import { latestAssetReview } from "@/utils/assetReview";
@@ -31,7 +30,6 @@ export function ResourceReviewModal({
     setError("");
     try {
       const fileGroups = await batchListResourceFiles(
-        agentframeService,
         projectId,
         items.map((item) => item.ResourceID),
       );

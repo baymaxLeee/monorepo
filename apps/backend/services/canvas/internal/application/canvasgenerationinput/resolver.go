@@ -82,7 +82,7 @@ func HasMediaInputEdges(target domaincanvas.CanvasNode) bool {
 }
 
 // ResolveImageGeneration treats image edges as authoritative provider inputs.
-// Legacy media mentions only render aliases and never select or reorder images.
+// Media mentions only render aliases and never select or reorder images.
 func (resolver *Resolver) ResolveImageGeneration(ctx context.Context, scope applicationcanvas.Scope, projectID string, target domaincanvas.CanvasNode, nodes []domaincanvas.CanvasNode) (Result, error) {
 	mentionIDs, err := domaincanvas.AssetMentionIDs(target.Prompt)
 	if err != nil {

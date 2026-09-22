@@ -1,5 +1,6 @@
+import { streamCanvasNodeTextGeneration } from "@repo/api";
 import { useSetAtom } from "jotai";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
@@ -44,12 +45,10 @@ export function useCanvasGeneration({
   canvasId,
   projectId,
   nodePubSub,
-  onRequestTextGeneration,
 }: {
   canvasId: string;
   projectId: string;
   nodePubSub: CanvasNodeStore;
-  onRequestTextGeneration: (node: canvasnode.CanvasNode) => void;
 }) {
   const mutations = useStudioMutationCoordinator();
   const enqueueCanvasMutation = mutations.enqueue;
@@ -57,11 +56,22 @@ export function useCanvasGeneration({
   const clearCanvasGenerationRuntimeState = useSetAtom(clearCanvasGenerationRuntimeStateAtom);
   const setCanvasGenerationFailure = useSetAtom(setCanvasGenerationFailureAtom);
   const setCanvasGenerationRuntimeState = useSetAtom(setCanvasGenerationRuntimeStateAtom);
-  const textGenerationWaitingNodeIDs = EMPTY_NODE_IDS;
+  const [textGenerationWaitingNodeIDs, setTextGenerationWaitingNodeIDs] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const textGenerationStreamsRef = useRef(new Map<string, AbortController>());
   const generationTargets = useCanvasGenerationTargets(nodePubSub);
   const generationTargetsRef = useRef(generationTargets);
   generationTargetsRef.current = generationTargets;
   const generationTargetsKey = JSON.stringify(generationTargets);
+
+  useEffect(
+    () => () => {
+      textGenerationStreamsRef.current.forEach((controller) => controller.abort());
+      textGenerationStreamsRef.current.clear();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (generationTargetsKey === "[]") return;
@@ -195,6 +205,105 @@ export function useCanvasGeneration({
     setCanvasGenerationRuntimeState,
   ]);
 
+  const subscribeTextGeneration = useCallback(
+    async (item: canvasnode.CanvasNode) => {
+      textGenerationStreamsRef.current.get(item.NodeID)?.abort();
+      const controller = new AbortController();
+      textGenerationStreamsRef.current.set(item.NodeID, controller);
+      setTextGenerationWaitingNodeIDs((current) => new Set(current).add(item.NodeID));
+      clearCanvasGenerationFailure(item.NodeID);
+      let latestTaskRunId: string | undefined;
+      try {
+        const final = await streamCanvasNodeTextGeneration(
+          projectId,
+          canvasId,
+          item.NodeID,
+          controller.signal,
+          (state) => {
+            latestTaskRunId = state.taskRunId;
+            if (state.content) {
+              setTextGenerationWaitingNodeIDs((current) => {
+                if (!current.has(item.NodeID)) return current;
+                const next = new Set(current);
+                next.delete(item.NodeID);
+                return next;
+              });
+            }
+            const terminal =
+              state.status === canvasnode.CanvasGenerationStatus.SUCCEEDED ||
+              state.status === canvasnode.CanvasGenerationStatus.FAILED ||
+              state.status === canvasnode.CanvasGenerationStatus.CANCELLED;
+            if (state.status === canvasnode.CanvasGenerationStatus.FAILED) {
+              setCanvasGenerationFailure({
+                nodeId: item.NodeID,
+                taskRunId: state.taskRunId,
+                errorCode: state.errorCode,
+                requestId: state.taskRunId,
+                errorMessage: state.errorMessage || generationFailureFallback(item.Type),
+              });
+            } else if (
+              state.status === canvasnode.CanvasGenerationStatus.SUCCEEDED ||
+              state.status === canvasnode.CanvasGenerationStatus.CANCELLED
+            ) {
+              clearCanvasGenerationFailure(item.NodeID);
+            }
+            nodePubSub.update(item.NodeID, (current) => ({
+              ...current,
+              ActiveTaskRunID: terminal ? undefined : state.taskRunId,
+              SelectedOutputText:
+                state.status === canvasnode.CanvasGenerationStatus.SUCCEEDED
+                  ? state.content
+                  : terminal
+                    ? current.SelectedOutputText
+                    : state.content,
+              Status: terminal
+                ? current.SelectedOutputText
+                  ? canvasnode.CanvasNodeStatus.READY
+                  : canvasnode.CanvasNodeStatus.EMPTY
+                : canvasnode.CanvasNodeStatus.GENERATING,
+            }));
+          },
+        );
+        if (!controller.signal.aborted && final) {
+          if (final.status === canvasnode.CanvasGenerationStatus.SUCCEEDED) Message.success(t("文本生成完成"));
+          else if (final.status === canvasnode.CanvasGenerationStatus.FAILED)
+            Message.error(final.errorMessage || t("文本生成失败"));
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          const fallbackMessage =
+            error instanceof Error && error.message.trim()
+              ? error.message.trim()
+              : generationFailureFallback(item.Type);
+          const failure = canvasGenerationFailureFromError(error, fallbackMessage);
+          setCanvasGenerationFailure({ nodeId: item.NodeID, ...failure });
+          nodePubSub.update(item.NodeID, (current) => ({
+            ...current,
+            ActiveTaskRunID: latestTaskRunId ?? current.ActiveTaskRunID,
+            Status:
+              latestTaskRunId || current.ActiveTaskRunID
+                ? canvasnode.CanvasNodeStatus.GENERATING
+                : current.SelectedOutputText
+                  ? canvasnode.CanvasNodeStatus.READY
+                  : canvasnode.CanvasNodeStatus.EMPTY,
+          }));
+          showGenerationError(failure.errorMessage ?? fallbackMessage);
+        }
+      } finally {
+        if (textGenerationStreamsRef.current.get(item.NodeID) === controller) {
+          textGenerationStreamsRef.current.delete(item.NodeID);
+          setTextGenerationWaitingNodeIDs((current) => {
+            if (!current.has(item.NodeID)) return current;
+            const next = new Set(current);
+            next.delete(item.NodeID);
+            return next;
+          });
+        }
+      }
+    },
+    [canvasId, clearCanvasGenerationFailure, nodePubSub, projectId, setCanvasGenerationFailure],
+  );
+
   const cancelNodeGeneration = useCallback(
     async (item: canvasnode.CanvasNode) => {
       if (isDeletedReferenceNode(item)) return;
@@ -213,7 +322,20 @@ export function useCanvasGeneration({
         return;
       }
       try {
-        if (item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION) {
+        if (item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION) {
+          await enqueueCanvasMutation(() =>
+            CancelCanvasNodeGeneration(
+              {
+                ProjectID: projectId,
+                CanvasID: canvasId,
+                NodeID: item.NodeID,
+                TaskRunID: activeTaskRunId,
+              },
+              { skipErrorNotify: true },
+            ),
+          );
+          textGenerationStreamsRef.current.get(item.NodeID)?.abort();
+        } else if (item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION) {
           const result = await enqueueCanvasMutation(() =>
             cancelCancellableVideoGeneration(projectId, canvasId, item.NodeID, activeTaskRunId),
           );
@@ -286,7 +408,7 @@ export function useCanvasGeneration({
     async (item: canvasnode.CanvasNode) => {
       if (isDeletedReferenceNode(item) || item.ActiveTaskRunID) return;
       if (item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION) {
-        onRequestTextGeneration(item);
+        void subscribeTextGeneration(item);
         return;
       }
       try {
@@ -328,11 +450,9 @@ export function useCanvasGeneration({
       projectId,
       setCanvasGenerationFailure,
       setCanvasGenerationRuntimeState,
-      onRequestTextGeneration,
+      subscribeTextGeneration,
     ],
   );
 
   return { generateNode, cancelNodeGeneration, textGenerationWaitingNodeIDs };
 }
-
-const EMPTY_NODE_IDS: ReadonlySet<string> = new Set();

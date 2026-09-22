@@ -224,7 +224,7 @@ func (s *CanvasNodeService) finishAssetsMatch(ctx context.Context, scope Scope, 
 func (s *CanvasNodeService) applyMatchedAssets(ctx context.Context, scope Scope, node domain.CanvasNode, result MatchAssetsResult) error {
 	replacements := make(map[string]string, len(result.Matches))
 	for index, match := range result.Matches {
-		input := MaterializeResourceAssetReferenceInput{Scope: scope, ProjectID: node.ProjectID, CanvasID: node.CanvasID, TargetNodeID: node.ID, ResourceAssetID: match.ResourceAssetID, TargetPort: domain.PortReferenceImage, ResourceAssetNodePosition: &domain.Position{PositionX: node.Position.PositionX - 360, PositionY: node.Position.PositionY + float64(index)*180}}
+		input := MaterializeResourceAssetReferenceInput{Scope: scope, ProjectID: node.ProjectID, CanvasID: node.CanvasID, TargetNodeID: node.ID, ReferenceType: MentionReferenceTypeResourceAsset, ResourceAssetID: match.ResourceAssetID, TargetPort: domain.PortReferenceImage, ResourceAssetNodePosition: &domain.Position{PositionX: node.Position.PositionX - 360, PositionY: node.Position.PositionY + float64(index)*180}}
 		switch match.MediaType {
 		case domainasset.MediaVideo:
 			input.TargetPort = domain.PortReferenceVideo

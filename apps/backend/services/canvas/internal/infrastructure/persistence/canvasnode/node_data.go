@@ -30,13 +30,11 @@ type canvasNodePayloadHeader struct {
 }
 
 type canvasNodeData struct {
-	SchemaVersion              int                   `json:"schema_version"`
-	PersistedPayloadVersion    int                   `json:"-"`
-	HasPersistedPayloadVersion bool                  `json:"-"`
-	Name                       *string               `json:"name,omitempty"`
-	Position                   canvasNodePosition    `json:"position"`
-	IncomingEdges              []domain.IncomingEdge `json:"incoming_edges"`
-	Payload                    json.RawMessage       `json:"payload"`
+	SchemaVersion int                   `json:"schema_version"`
+	Name          *string               `json:"name,omitempty"`
+	Position      canvasNodePosition    `json:"position"`
+	IncomingEdges []domain.IncomingEdge `json:"incoming_edges"`
+	Payload       json.RawMessage       `json:"payload"`
 }
 
 type canvasNodePosition struct {
@@ -57,7 +55,7 @@ type canvasNodePayloadVersion struct {
 	Version int `json:"version"`
 }
 
-type canvasNodeAssetPayloadV2 struct {
+type canvasNodeAssetPayload struct {
 	canvasNodePayloadVersion
 	ReferenceType int16 `json:"reference_type"`
 }
@@ -144,7 +142,7 @@ func canvasNodeDataPersistedPayloadVersion(encoded []byte) (int, bool, error) {
 		return 0, false, fmt.Errorf("decode canvas node payload version: %w", err)
 	}
 	if payloadHeader.Version == nil {
-		return 1, false, nil
+		return 0, false, fmt.Errorf("canvas node payload version is required")
 	}
 	return *payloadHeader.Version, true, nil
 }
@@ -182,23 +180,21 @@ func encodeCanvasNodeData(node domain.CanvasNode) ([]byte, error) {
 }
 
 func decodeCanvasNodeData(nodeType domain.NodeType, encoded []byte) (canvasNodeData, any, error) {
-	return decodeCanvasNodeDataWithReference(nodeType, domain.ReferenceTypeUnspecified, encoded)
-}
-
-func decodeCanvasNodeDataWithReference(nodeType domain.NodeType, legacyReferenceType domain.ReferenceType, encoded []byte) (canvasNodeData, any, error) {
-	upgraded, persistedVersion, hasPersistedVersion, err := upgradeCanvasNodePayload(nodeType, legacyReferenceType, encoded)
+	persistedVersion, _, err := canvasNodeDataPersistedPayloadVersion(encoded)
 	if err != nil {
 		return canvasNodeData{}, nil, err
 	}
-	if err = validateCanvasNodeData(upgraded); err != nil {
+	currentVersion, ok := canvasNodePayloadCurrentVersion(nodeType)
+	if !ok || persistedVersion != currentVersion {
+		return canvasNodeData{}, nil, fmt.Errorf("unsupported canvas node payload version %d", persistedVersion)
+	}
+	if err = validateCanvasNodeData(encoded); err != nil {
 		return canvasNodeData{}, nil, err
 	}
 	var document canvasNodeData
-	if err = decodeStrict(upgraded, &document); err != nil {
+	if err = decodeStrict(encoded, &document); err != nil {
 		return canvasNodeData{}, nil, fmt.Errorf("decode canvas node data: %w", err)
 	}
-	document.PersistedPayloadVersion = persistedVersion
-	document.HasPersistedPayloadVersion = hasPersistedVersion
 	payload, err := decodeCanvasNodePayload(nodeType, document.Payload)
 	if err != nil {
 		return canvasNodeData{}, nil, err
@@ -224,60 +220,6 @@ func validateCanvasNodeData(encoded []byte) error {
 	return nil
 }
 
-// ValidatePersistedNodeData applies the same versioned schema and relational
-// node-type checks as the repository. Migration verification uses this entry
-// point so backfilled data cannot diverge from the runtime persistence contract.
-func ValidatePersistedNodeData(nodeType domain.NodeType, encoded []byte) error {
-	referenceType := domain.ReferenceTypeUnspecified
-	version, _, err := canvasNodeDataPersistedPayloadVersion(encoded)
-	if err != nil {
-		return err
-	}
-	// The released V1 backfill artifact only has node_data and relational type. A valid
-	// placeholder lets it structurally validate old empty material payloads; runtime
-	// reads always upgrade with the actual reference inferred from relational IDs.
-	if version == 1 && (nodeType == domain.NodeTypeImageAsset || nodeType == domain.NodeTypeVideoAsset || nodeType == domain.NodeTypeAudioAsset) {
-		referenceType = domain.ReferenceTypeAsset
-	}
-	_, _, err = decodeCanvasNodeDataWithReference(nodeType, referenceType, encoded)
-	return err
-}
-
-func upgradeCanvasNodePayload(nodeType domain.NodeType, legacyReferenceType domain.ReferenceType, encoded []byte) ([]byte, int, bool, error) {
-	persistedVersion, hasPersistedVersion, err := canvasNodeDataPersistedPayloadVersion(encoded)
-	if err != nil {
-		return nil, 0, false, err
-	}
-	currentVersion, ok := canvasNodePayloadCurrentVersion(nodeType)
-	if !ok || persistedVersion < 1 || persistedVersion > currentVersion {
-		return nil, 0, false, fmt.Errorf("unsupported canvas node payload version %d", persistedVersion)
-	}
-	var document map[string]any
-	if err := json.Unmarshal(encoded, &document); err != nil {
-		return nil, 0, false, fmt.Errorf("decode canvas node data for upgrade: %w", err)
-	}
-	payload, payloadOK := document["payload"].(map[string]any)
-	if !payloadOK {
-		return nil, 0, false, fmt.Errorf("upgrade canvas node payload: payload is not an object")
-	}
-	payload["version"] = persistedVersion
-	for version := persistedVersion; version < currentVersion; version++ {
-		updater, ok := canvasNodePayloadUpdaters[canvasNodePayloadUpdaterKey{NodeType: nodeType, FromVersion: version}]
-		if !ok {
-			return nil, 0, false, fmt.Errorf("missing canvas node payload updater from version %d to %d", version, version+1)
-		}
-		if err := updater(legacyReferenceType, payload); err != nil {
-			return nil, 0, false, fmt.Errorf("upgrade canvas node payload from version %d to %d: %w", version, version+1, err)
-		}
-		payload["version"] = version + 1
-	}
-	upgraded, err := json.Marshal(document)
-	if err != nil {
-		return nil, 0, false, fmt.Errorf("encode upgraded canvas node data: %w", err)
-	}
-	return upgraded, persistedVersion, hasPersistedVersion, nil
-}
-
 func encodeCanvasNodePayload(node domain.CanvasNode) (json.RawMessage, error) {
 	config := generationConfigToData(node.GenerationConfig)
 	writeVersion, ok := canvasNodePayloadWriteVersion(node)
@@ -291,7 +233,7 @@ func encodeCanvasNodePayload(node domain.CanvasNode) (json.RawMessage, error) {
 		if !node.ReferenceType.Valid() {
 			return nil, fmt.Errorf("material canvas node reference type %d is invalid", node.ReferenceType)
 		}
-		payload = canvasNodeAssetPayloadV2{canvasNodePayloadVersion: version, ReferenceType: int16(node.ReferenceType)}
+		payload = canvasNodeAssetPayload{canvasNodePayloadVersion: version, ReferenceType: int16(node.ReferenceType)}
 	case domain.NodeTypeText:
 		payload = canvasNodeTextPayload{canvasNodePayloadVersion: version, Text: node.Text}
 	case domain.NodeTypeImageGeneration:
@@ -311,29 +253,14 @@ func encodeCanvasNodePayload(node domain.CanvasNode) (json.RawMessage, error) {
 }
 
 func canvasNodePayloadWriteVersion(node domain.CanvasNode) (int, bool) {
-	currentVersion, ok := canvasNodePayloadCurrentVersion(node.Type)
-	if !ok {
-		return 0, false
-	}
-	// Keep fixed-ratio video writes on V2 during the reader-first rollout. Only
-	// the new adaptive value requires V3, so old pods can continue reading all
-	// writes produced before the Web capability is enabled.
-	if node.Type == domain.NodeTypeVideoGeneration && node.GenerationConfig.AspectRatio != domainvideo.AspectAdaptive {
-		return 2, true
-	}
-	// Only 2:3 requires image payload V2. Keeping legacy ratios on V1 lets old
-	// pods read writes produced before the Web option is enabled.
-	if node.Type == domain.NodeTypeImageGeneration && node.GenerationConfig.AspectRatio != domainvideo.Aspect2x3 {
-		return 1, true
-	}
-	return currentVersion, true
+	return canvasNodePayloadCurrentVersion(node.Type)
 }
 
 func decodeCanvasNodePayload(nodeType domain.NodeType, encoded []byte) (any, error) {
 	var payload any
 	switch nodeType {
 	case domain.NodeTypeImageAsset, domain.NodeTypeVideoAsset, domain.NodeTypeAudioAsset:
-		payload = &canvasNodeAssetPayloadV2{}
+		payload = &canvasNodeAssetPayload{}
 	case domain.NodeTypeText:
 		payload = &canvasNodeTextPayload{}
 	case domain.NodeTypeImageGeneration:
@@ -348,7 +275,7 @@ func decodeCanvasNodePayload(nodeType domain.NodeType, encoded []byte) (any, err
 	if err := decodeStrict(encoded, payload); err != nil {
 		return nil, fmt.Errorf("decode canvas node payload for type %d: %w", nodeType, err)
 	}
-	if material, ok := payload.(*canvasNodeAssetPayloadV2); ok && !domain.ReferenceType(material.ReferenceType).Valid() {
+	if material, ok := payload.(*canvasNodeAssetPayload); ok && !domain.ReferenceType(material.ReferenceType).Valid() {
 		return nil, fmt.Errorf("decode canvas node payload for type %d: invalid reference type %d", nodeType, material.ReferenceType)
 	}
 	return payload, nil
@@ -386,7 +313,7 @@ func generationConfigFromData(config canvasNodeGenerationConfig) domainvideo.Con
 
 func applyCanvasNodePayload(node *domain.CanvasNode, payload any) error {
 	switch value := payload.(type) {
-	case *canvasNodeAssetPayloadV2:
+	case *canvasNodeAssetPayload:
 		node.ReferenceType = domain.ReferenceType(value.ReferenceType)
 	case *canvasNodeTextPayload:
 		node.Text = value.Text

@@ -42,12 +42,6 @@ type TaskRunUpdate struct {
 
 type TaskRunReader interface {
 	GetTaskRun(context.Context, string) (domain.TaskRun, error)
-}
-
-// TaskRunAdmission is an optional execution-time parent-chain fence. Stores
-// that implement it prevent durable work from starting after its owning
-// Project, Canvas, Node, Resource, or Asset has become unreachable.
-type TaskRunAdmission interface {
 	CanExecuteTaskRun(context.Context, domain.TaskRun) (bool, error)
 }
 
@@ -114,6 +108,7 @@ type AsyncExecutionEventStore interface {
 
 type AsyncExecutionEventRunStore interface {
 	GetTaskRun(context.Context, string) (domain.TaskRun, error)
+	CanExecuteTaskRun(context.Context, domain.TaskRun) (bool, error)
 }
 
 type AsyncExecutionEventDispatchStore interface {

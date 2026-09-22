@@ -1548,11 +1548,6 @@ func toRow(s domain.CanvasNode) (canvasnodeRow, error) {
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	if s.ReferenceType == domain.ReferenceTypeUnspecified {
-		if inferred, ok := domain.InferMaterialReferenceType(s); ok {
-			s.ReferenceType = inferred
-		}
-	}
 	nodeData, e := encodeCanvasNodeData(s)
 	if e != nil {
 		return canvasnodeRow{}, e
@@ -1573,10 +1568,7 @@ func fromRow(r canvasnodeRow) (domain.CanvasNode, error) {
 	if !nodeType.Valid() {
 		return domain.CanvasNode{}, fmt.Errorf("canvas node %s has invalid type %d", r.ID.String(), r.Type)
 	}
-	legacyReferenceType, _ := domain.InferMaterialReferenceType(domain.CanvasNode{
-		Type: nodeType, AssetID: optionalUUIDString(r.AssetID), ResourceID: optionalUUIDString(r.ResourceID), ResourceAssetID: optionalUUIDString(r.ResourceAssetID),
-	})
-	document, payload, err := decodeCanvasNodeDataWithReference(nodeType, legacyReferenceType, r.NodeData)
+	document, payload, err := decodeCanvasNodeData(nodeType, r.NodeData)
 	if err != nil {
 		return domain.CanvasNode{}, fmt.Errorf("decode canvas node %s node_data: %w", r.ID.String(), err)
 	}
@@ -1600,39 +1592,15 @@ func fromRow(r canvasnodeRow) (domain.CanvasNode, error) {
 		return domain.CanvasNode{}, fmt.Errorf("apply canvas node %s payload: %w", r.ID.String(), err)
 	}
 	if nodeType == domain.NodeTypeImageAsset || nodeType == domain.NodeTypeVideoAsset || nodeType == domain.NodeTypeAudioAsset {
-		inferred, ok := domain.InferMaterialReferenceType(item)
-		if !ok || (item.ReferenceType != domain.ReferenceTypeUnspecified && item.ReferenceType != inferred) {
+		if !domain.ValidMaterialReference(item) {
 			return domain.CanvasNode{}, fmt.Errorf("canvas node %s has inconsistent material reference", r.ID.String())
-		}
-		if item.ReferenceType == domain.ReferenceTypeUnspecified {
-			item.ReferenceType = inferred
 		}
 	}
 	return item, nil
 }
 
-func (r *Repository) decodeRow(ctx context.Context, row canvasnodeRow) (domain.CanvasNode, error) {
-	item, err := fromRow(row)
-	if err != nil {
-		return domain.CanvasNode{}, err
-	}
-	writeVersion, ok := canvasNodePayloadWriteVersion(item)
-	persistedVersion, hasPersistedVersion, versionErr := canvasNodeDataPersistedPayloadVersion(row.NodeData)
-	if versionErr != nil {
-		return domain.CanvasNode{}, versionErr
-	}
-	if !ok || (hasPersistedVersion && persistedVersion == writeVersion) {
-		return item, nil
-	}
-	encoded, err := encodeCanvasNodeData(item)
-	if err != nil {
-		return domain.CanvasNode{}, err
-	}
-	// The compare-and-set keeps concurrent readers' repair idempotent without changing the user-visible node revision.
-	if err = r.dbFor(ctx).Model(&canvasnodeRow{}).Where("id = ? AND node_data = ?", row.ID, row.NodeData).Update("node_data", encoded).Error; err != nil {
-		return domain.CanvasNode{}, err
-	}
-	return item, nil
+func (r *Repository) decodeRow(_ context.Context, row canvasnodeRow) (domain.CanvasNode, error) {
+	return fromRow(row)
 }
 
 func optionalUUIDString(value *persistenceid.UUID) string {

@@ -65,6 +65,11 @@ const (
 	AssetMediaType_AUDIO AssetMediaType = 3
 )
 
+type StagedUpload struct {
+	BlobID    string `json:"blob_id"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
 func (p AssetMediaType) String() string {
 	switch p {
 	case AssetMediaType_IMAGE:

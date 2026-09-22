@@ -28,6 +28,31 @@
                     "type": "object",
                     "properties": {
                       "type": {
+                        "const": "canvas-archive"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "$ref": "#/components/schemas/CanvasArchivePayload"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
                         "const": "file-task-batch"
                       },
                       "owner_service": {
@@ -982,6 +1007,31 @@
             "type": "object",
             "properties": {
               "type": {
+                "const": "canvas-archive"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/CanvasArchivePayload"
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
                 "const": "file-task-batch"
               },
               "owner_service": {
@@ -1032,6 +1082,18 @@
         "discriminator": {
           "propertyName": "type"
         }
+      },
+      "CanvasArchivePayload": {
+        "type": "object",
+        "properties": {
+          "taskRunId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          }
+        },
+        "required": [
+          "taskRunId"
+        ]
       },
       "FileTaskBatchPayload": {
         "type": "object",

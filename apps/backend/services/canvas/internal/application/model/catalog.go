@@ -41,13 +41,6 @@ type Selection struct {
 	ModelConfig Config `json:"ModelConfig"`
 }
 
-// DefaultModels is the complete AgentFrame-owned model configuration.
-type DefaultModels struct {
-	InferenceModel Selection `json:"InferenceModel"`
-	ImageModel     Selection `json:"ImageModel"`
-	VideoModel     Selection `json:"VideoModel"`
-}
-
 type Actor struct {
 	TenantID string
 	UserID   string
@@ -76,19 +69,6 @@ type Resolution struct {
 	ModelSource       Source
 	VideoCapabilities *VideoCapabilities
 	ImageCapabilities *ImageCapabilities
-}
-
-// Defaults reads AgentFrame's product-specific default model configuration.
-// AIGW remains the source of truth for model availability and capability.
-type Defaults interface {
-	Get(context.Context, string, Capability) (Selection, error)
-	GetAll(context.Context, string) (DefaultModels, error)
-}
-
-// DefaultStore is AgentFrame's tenant-scoped durable default-model store.
-type DefaultStore interface {
-	Defaults
-	Save(context.Context, string, string, DefaultModels) error
 }
 
 type VideoCapabilities struct {
@@ -274,5 +254,5 @@ func containsBool(allowed []bool, value bool) bool {
 // durable task was queued; the provider remains the final execution authority.
 type Catalog interface {
 	Resolve(context.Context, Actor, []Requirement) ([]Resolution, error)
-	LoadSelection(context.Context, string, Capability, string) (Selection, error)
+	LoadSelection(context.Context, string, *string, Capability, string) (Selection, error)
 }

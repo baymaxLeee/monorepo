@@ -20,9 +20,9 @@ func Index(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func NewServiceProxy(upstream, service, externalPrefix string) http.Handler {
+func NewServiceProxy(upstream, service, externalPrefix, internalToken string) http.Handler {
 	return &internalPathGuard{
-		inner:          newReverseProxy(upstream, service, externalPrefix),
+		inner:          newReverseProxy(upstream, service, externalPrefix, internalToken),
 		externalPrefix: externalPrefix,
 	}
 }
@@ -49,7 +49,7 @@ func isInternalPath(path string) bool {
 	return path == "/internal" || strings.HasPrefix(path, "/internal/")
 }
 
-func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
+func newReverseProxy(upstream, service, externalPrefix, internalToken string) http.Handler {
 	target, err := url.Parse(strings.TrimRight(upstream, "/"))
 	if err != nil {
 		panic("invalid " + service + " upstream url: " + err.Error())
@@ -63,6 +63,8 @@ func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 		req.URL.Path = stripServicePrefix(incomingPath, externalPrefix)
 		req.URL.RawPath = ""
 		req.Host = target.Host
+		req.Header.Set(middleware.HeaderInternalToken, internalToken)
+		req.Header.Set(middleware.HeaderCallerService, "gateway")
 		slog.Info("proxy",
 			"trace_id", middleware.TraceIDFromContext(req.Context()),
 			"service", service,

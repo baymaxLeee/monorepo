@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
-import { agentframeService } from "@/api";
 import { batchGetAssetReviews } from "@/api/assetReviews";
 import { Message } from "@/components/ui";
 import { asset, resource } from "@/domain";
@@ -59,7 +58,7 @@ export function useResourceAssetStatus({
   useEffect(() => {
     if (!generatingFileIds.size) return;
     const timer = window.setTimeout(() => {
-      void batchGetResourceAssetGenerationStates(agentframeService, projectId, resourceId, [...generatingFileIds])
+      void batchGetResourceAssetGenerationStates(projectId, resourceId, [...generatingFileIds])
         .then((states) => {
           const statesByID = new Map(states.map((state) => [state.ResourceAssetID, state]));
           const statuses = [...generatingFileIds].map((id) => {
@@ -123,7 +122,7 @@ export function useResourceAssetStatus({
     }
     const timer = window.setTimeout(() => {
       const assetIds = files.flatMap((file) => (file.CurrentAssetID ? [file.CurrentAssetID] : []));
-      void batchGetAssetReviews(agentframeService, projectId, assetIds)
+      void batchGetAssetReviews(projectId, assetIds)
         .then((items) => {
           const reviewsByAssetId = new Map(items.map((item) => [item.AssetID, item.Reviews]));
           setFiles((current) =>
@@ -142,7 +141,7 @@ export function useResourceAssetStatus({
     const runId = activeGenerationRunIdsRef.current.get(file.ResourceAssetID);
     if (!runId) return;
     try {
-      await cancelResourceAssetGeneration(agentframeService, projectId, resourceId, file.ResourceAssetID, runId);
+      await cancelResourceAssetGeneration(projectId, resourceId, file.ResourceAssetID, runId);
       activeGenerationRunIdsRef.current.delete(file.ResourceAssetID);
       setGeneratingFileIds((current) => {
         const next = new Set(current);

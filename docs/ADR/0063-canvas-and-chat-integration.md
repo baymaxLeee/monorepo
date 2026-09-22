@@ -1,6 +1,6 @@
 # ADR 0063：Canvas 业务能力与统一 Chat runtime
 
-状态：提议中
+状态：已接受
 日期：2026-09-20
 
 ## 决定
@@ -9,7 +9,11 @@
 
 手动与 Agent 写入调用同一 application 用例。内部身份包含服务身份与用户/组织，服务 token 不代替项目权限。画布操作以预期 revision 和幂等 key 防止冲突与重放。画布绑定在会话持久化，不能从模型参数取得；每次 run 和每次操作重新校验权限。
 
-Canvas 素材独立于会话存活；删除会话不能删除被画布持有的内容。旧 Up 接入现有 knowledge 存储的正式 HTTP 能力，不跨库、不跨服务导入实现。模型配置归 admin，直接 provider 调用不再依赖 AIGW；持久任务复用 executor。
+Canvas 素材独立于会话存活；删除会话不能删除被画布持有的内容。旧 Up 接入现有 Knowledge 正式 HTTP 能力，不跨库、不跨服务导入实现。模型 Provider、全局目录、默认配置与权益包归 Admin；Canvas 拥有项目级成员、模型授权、使用量、审核状态和资源使用关系。Canvas 的图片、视频和文本节点生成保留 AgentFrame 业务状态机，通过 monorepo AIGW/Provider 能力执行；持久任务复用 Executor。
+
+Canvas 不运行 HiBot、个人 Agent 或租户 Agent。右侧对话唯一 runtime 是 Chat 的 AI SDK v7 `ToolLoopAgent`，同一 tenant、workspace、user、project、canvas 原子地获取或创建一个私有会话；Canvas 协作数据共享，会话和 memory 不共享。Canvas 删除后保留只读聊天历史，不再允许启动绑定该 Canvas 的新 run。
+
+浏览器只经 Gateway 的 `/api/canvas-server` 前缀访问；Chat、Executor 等服务以 service token 直连 Canvas 根路径。Canvas 验证服务身份，用户/租户头不能单独构成可信内部身份。前端业务代码直接消费 OpenAPI 生成客户端和 snake_case DTO，不保留 AgentFrame facade、Board/Action 协议、旧 export alias 或运行时协议探测。
 
 ## 复用矩阵
 
@@ -29,83 +33,18 @@ Canvas 保留 Jotai，按 ProjectID + CanvasID 挂载页面级 Provider。正式
 
 此选择依据是迁用现有 Canvas 原子状态与交互不变量；不以状态库宣称 AI-native。Jotai 的 [Provider](https://jotai.org/docs/core/provider) 与 [Store](https://jotai.org/docs/core/store) 支持子树隔离，服务端版本校验承担多调用方并发边界。
 
-## 语言演进
+## 实现与迁移策略
 
-第一版保留 Go 以复用既有领域规则、降低功能迁移成本；长期方向是 Canvas 服务统一到 TypeScript。语言统一方便维护工具输入、Provider 调用、异步任务和应用用例，但不改变数据所有权：Chat 仍负责会话与唯一 Agent runtime，Canvas 负责画布、项目与资产业务关系，admin 负责运营配置。
+Canvas 保留 Go，以复用 AgentFrame 已验证的领域规则。跨服务调用继续通过 OpenAPI 生成客户端；前端共用 `packages/chat`，后端不复制 `ToolLoopAgent`。本次不规划第二语言实现，也不建立为未来迁移准备的抽象层。
 
-跨服务调用继续通过 OpenAPI 生成的内部 HTTP SDK。安装 SDK 是获得类型和调用入口，并不把远端服务变成本地函数。即使 Canvas 改为 TS，也不从 Chat 导入 Canvas 服务实现或直接访问其数据库。前端共用 packages/chat；后端不为统一语言复制 ToolLoopAgent。
-
-替换顺序为：先完成 Go 版本功能与数据迁移，再以相同契约逐模块替换 Canvas application 和持久化实现，最后退役 Go 服务。每次切换只能有一个权威写入方；保留 ID、scope、revision、幂等记录、资产引用和在途任务语义。数据库迁移与 ORM 切换单独评估，不能因语言变化重建数据。只有确有本地复用需求时才提取独立纯领域包，不预先搭建跨语言适配框架。
+项目处于 demo 阶段且 Canvas 数据无需保留。首次安装 migration 直接更新为最终 schema，开发环境重装；删除旧 HiBot 表、简化模型、旧 DTO、旧 facade、双读双写和 fallback。任何时刻只有一个权威实现和一份协议。
 
 官方依据：[ToolLoopAgent](https://ai-sdk.dev/docs/reference/ai-sdk-core/tool-loop-agent) 提供工具循环；[Chat transport](https://ai-sdk.dev/docs/ai-sdk-ui/transport) 将 UI 会话与传输分离。选择保留独立 Canvas 服务属于本仓库的数据与权限边界决策，并非 SDK 强制要求。
 
 ## 验证状态
 
-现有 ToolCatalog、tool manifest 和 UIMessage 流可扩展，Agent 不复制到 Canvas。源端 domain/canvas 的连线规则继续有效，TOP/AIGW/Up 适配层不属于目标运行契约。参考 Vercel ToolLoopAgent 与 WorkflowAgent 的运行边界，继续采用一个主 Agent 加 executor 的已有模式，不新增角色式 Agent 编排。
+迁移已按最终协议完成接管。Canvas 启动入口只装配迁入的领域与应用服务；旧 HiBot/Agent runtime、Canvas 私有配置、数据升级器、读时修复和旧前端 facade 均已删除。项目、Canvas、节点、资源、生成、审核、归档走同一套 OpenAPI handler；浏览器入口与内部 service-auth 入口共享业务实现。
 
-本 ADR 在全链路验证和迁移验收前保持提议中。执行缺口见 docs/plans/canvas-migration.md，不能把新建入口视为整体迁移完成。源数据保持，切换采用备份、显式 scope/身份映射、幂等转换和逐项业务不变量验收，不能利用 demo 规则丢弃已有数据。
+2026-09-22 已在清空并重建的本地数据库上完成真实 HTTP 验收：IAM 登录、Admin 创建项目、创建 Canvas、创建及读取文本节点、资源统计、归档分页、旧配置路由 404、Chat Canvas 会话两次 get-or-create 返回同一 ID、删除项目后 Canvas 404 且聊天历史仍可读。创建节点路径同时验证未知旧字段会返回 400，最终协议无兼容吞字段。`just sync`、裸 `just lint`、裸 `just build`、Canvas Go test/vet 与前端 typecheck 均通过。
 
-
-## 当前落地边界
-
-Canvas 新应用首次接入仅维护 `v1.0.0.sql` 建库版本。源结构事实以 `multix-app/migrations/mysql/3.1.0/schema.json` 及其版本链为准，目标为 PostgreSQL；不依赖 `.100` 环境连接，也没有执行源数据搬迁。当前建库还不是完整源 schema 的迁移结果。
-
-文本生成由 Canvas 事务写入待派发记录，Executor 使用 generation ID 幂等启动 Workflow。Canvas 通过 Executor 原有状态 SSE 收敛任务；重启重新连接同一任务。成功文本保留历史，仅当目标节点版本仍与启动版本相符时自动应用；取消意图在本地持久化，迟到结果不覆盖节点。手动历史选用仍检查节点版本。
-
-素材上传复用 Knowledge ObjectStore，Canvas 持有资产和 `CANVAS_NODE_ASSET` 引用；节点创建与 acquire 同事务，节点/画布/项目删除与 release 同事务。读取先校验项目权限与节点引用，不暴露任意 AssetID 读取口。上传对象以内容摘要幂等写入，数据库提交不明时不删除字节。当前没有物理 GC，资源 revision、生成媒体 owner 和 GC 清理仍是迁移缺口。
-
-验证：本地接口验证了文本任务去重与 Provider 缺失时的持久失败回写，以及媒体上传、服务端类型检测、逐字节读取、重复上传、删除后的 404。未用真实付费模型验证成功生成，未进行浏览器交互验收。
-
-
-资源库按源端 `resource` 领域规则迁入，支持角色/场景/道具/音频分类、创建编辑删除、素材上传与首个内容 revision。每个 ResourceAsset revision 通过 `RESOURCE_ASSET_REVISION / ResourceAssetID` 持有素材；独立复制到画布额外建立 `CANVAS_NODE_ASSET`。资源删除只释放资源 owner，画布独立副本继续可读。当前复制语义不是“跟随资源当前版本”；跟随绑定、换版与主素材切换仍待迁入，不以静态副本冒充。
-
-资源链路 API 验证覆盖创建、上传、列表、预览、复制以及删除资源后独立副本仍可读。源 MySQL 当前版本链截至 `3.1.0.16`，最终 schema 包含 41 张业务表；尚未迁入的表与用途需逐项对照，不以目标表数相等代替业务验收。
-
-## 图片生成
-
-Canvas 的图片任务复用 AI SDK `generateImage` 和现有 `createProviderImageModel`，API 依据本地 ai/dist/index.d.ts 的 GenerateImagePrompt（文本及图片字节输入）与官方 https://ai-sdk.dev/docs/reference/ai-sdk-core/generate-image。Executor 在单个不可自动重试的付费 step 内读取参考图、调用 Provider、上传不可变对象，仅持久化定位符。Knowledge 允许 Canvas 与 Executor 读写固定 Canvas namespace，任务入口限制 Canvas caller。生成历史以 CANVAS_GENERATION_OUTPUT 拥有资产，节点选中结果只是投影；删除节点、画布或项目释放历史 owner 并请求取消在途任务。CAS 防止后台结果覆盖更新后的节点。
-
-## 视频节点
-
-Canvas 独立视频节点使用 canvas-video-generation Workflow，提交时冻结参考素材、首尾帧角色及参数。复用 Executor Ark 查询/取消客户端、Provider scope 与 Knowledge 对象存储；不经过 Chat 的短剧策划和拼接流程。付费创建不重试，外部任务 ID 写入任务进度，取消执行 Provider DELETE。轮询使用 Workflow sleep（https://useworkflow.dev/docs/api-reference/workflow/sleep），不占用长期轮询 step。Ark 内容字段依据官方 SDK content_generation/create_task_content_param.py；参考素材在 step 内转为 data URL，不进入持久化步骤结果。
-
-本地通过视频提交、相同 operation 重放、真实 Executor 派发后的 Provider 缺失失败回写。独立 Nitro 构建和 full-stack 启动通过；实际付费视频、不同模型的媒体/参数限制仍待配置 Provider 后验收。
-
-## 资源版本管理
-
-ResourceAsset 的替换上传新增不可变 revision，不覆盖旧对象；切换历史仅更新 current_asset_id。资源与素材修改先锁定项目、资源，再校验乐观版本。每个历史素材保留 RESOURCE_ASSET_REVISION owner；删除素材释放其全部历史 owner，已独立复制的 Canvas 节点继续持有自己的 owner。主素材显式切换，删除主素材按 sequence_no 选择剩余首项。OpenAPI 生成前后端契约，UI 提供替换、预览历史、选版、重命名、删除确认与主素材操作。
-
-本地 HTTP 验证已覆盖换版前后与历史逐字节读取、旧版本恢复、过期 revision 返回 409、删除主素材递补、删除后历史返回 404，以及画布独立副本仍可读取。
-
-## Go 执行代码与 TS Workflow 的边界
-
-保留源端 Go domain、application、persistence 和媒体处理实现，通过 ports 替换外部依赖；不再逐功能重写简化业务。搬入代码不代表已经完成运行装配。原 Go 的 MQ consumer、租约心跳、poll scheduler 和 agent runner 不挂入 Canvas 启动流程。
-
-Executor 是唯一持久执行调度方，负责 Workflow 重放、等待、步骤重试和取消意图。Go Canvas 保存业务任务、资产引用、额度与审计，保留原 CAS 状态机；两边以业务 TaskRunID 对应 Executor owner_ref，不能各自派发同一笔生成。原 worker 的 ZIP/FCPXML 与首尾帧处理可作为内部 HTTP 执行能力，由 Workflow step 调用，不新启独立调度系统。
-
-HTTP 返回丢失不表示 Go 未执行。允许重试的处理必须按 TaskRunID 和步骤检查已有 checkpoint，并在事务内完成状态转换；付费 Provider 创建无幂等保证时禁止自动重试。取消 Workflow 不自动终止已运行的 Go 处理或外部 Provider：必须传播取消、终止 ffmpeg 子进程，并在提交结果前校验持久取消状态，防止迟到结果复活任务。媒体字节留在执行端，Workflow 只持久化定位符。参考 [Workflow 幂等说明](https://workflow-sdk.dev/docs/foundations/idempotency)。
-
-当前批量迁入核心与普通 HTTP handler 已通过 Go build/vet；HTTP handler 尚未挂载，新 schema 与基础设施 adapter 尚未装配，不能据此宣称源端功能已经可用。已有 Canvas 入口仍运行原先接通的链路。
-
-## 导出与批量生成运行接入
-
-导出已挂载原端 `application/canvasarchive.Service`、`persistence/canvasarchive`、`persistence/task`，保留快照、活动任务去重、checkpoint、CAS 成功/失败/取消及七天下载窗口。原端 `worker/application/canvasarchive.Builder` 保留 ZIP、媒体探测与 FCPXML 实现。UP multipart adapter 不迁入，产物走 Knowledge 现有独立对象接口；Knowledge 对该接口改为有上限的流式落盘与摘要原子发布，避免整包内存缓冲。
-
-`canvas_workflow_tasks` 是 Canvas 事务 outbox 和 Executor ID 关联，不实现任务租约或执行重试。Executor 注册 `canvas-archive` Workflow，通过生成的内部 HTTP client 调用 Go 执行端点；调用仅允许 Executor service 身份，用户与 scope 取自已授权的持久任务。取消意图先提交 Canvas，再由 outbox 送达 Executor；step 的取消信号中止 HTTP，Go context 传递给 FFprobe 和归档 I/O，最终提交再次检查父资源存活及原状态机。源端 async dispatcher、MQ 与 agent runner 不启动。
-
-源表 task_runs、canvas_video_archive_exports、canvas_video_archive_export_inputs 合并进入首次 v1.0.0；PostgreSQL 标识列使用 uuid，API 保持 monorepo 的紧凑字符串。新服务端 ID 生成 UUID v7，接受前端创建节点的 UUID；不继承源持久层“所有外部 ID 必须 v7”的约束。执行端镜像安装 FFmpeg，Executor → Canvas binding 同步本地示例、K8s 和 single-VPS。
-
-批量生成复用源端 StartCanvasNodes 并发提交实现，只选择视频生成节点。每节点继续使用既有 Canvas → Executor Workflow；operation ID 按节点派生，未就绪/已有运行任务计入跳过数。前端新增生成全部、批量导出与导出记录，工具栏从 Studio 拆出，仍共享同一页面 Jotai Store。
-
-验证：bare sync/lint/build、独立 Executor Nitro build 通过；初始 SQL 在隔离事务中执行并回滚。HTTP 验证覆盖导出空输入、跨租户拒绝、worker caller 鉴权，以及真实 Workflow → Go 404 的持久失败收敛；批量提交覆盖视频筛选、跳过未就绪节点、operation 重放和取消。Knowledge 验证 chunked 上传、摘要、大小和原字节读取。没有本地成功生成的视频，所以完整 ZIP 下载与执行中取消仍未验收；不以失败路径代替成功路径。资产物理 GC、导出快照 owner 的统一回收和其余源业务装配仍在整体迁移范围内。
-
-画布新增按节点批量读取最新任务状态的轻量投影，一次查询返回状态及取消意图，不携带历史文本或媒体字节。页面级 Jotai 存储投影，节点按 ID 订阅；终态变化刷新正式图，未选中节点也能看到生成进度和停止入口。
-
-
-## Worker 接入与恢复边界
-
-视频生成成功在同一事务写入首尾帧 outbox。`canvas-video-frames` Workflow 调用 Go 内部执行接口，复用原 `worker/application/firstlastframe` 的 FFmpeg、checkpoint 和执行控制协议；成功事务建立 `VIDEO_GENERATION_FIRST_FRAME` / `VIDEO_GENERATION_LAST_FRAME` owner。导出输入快照不再新增资产 owner，内容所有权仍由原生成历史持有。物理对象 GC 尚未接入。
-
-Executor 在任何业务 step 前原子绑定任务与 Workflow，终态不得重新变为 running。按 owner 取消允许先写取消记录，关闭 Canvas 尚未保存远端 TaskID 的取消窗口。`cleanup_pending` 由 Executor v1.4.0 migration 引入；取消、失败及迟到的 Provider task ID 都保留可重试清理意图，服务启动及后台恢复继续清理。Canvas watch 从数据库读取取消意图，并检查节点／资源父级存活。任务已经存在时，Executor 使用 Admin 受内部鉴权保护的 task-credentials 接口读取停用 Provider 的凭据；新任务仍要求 Provider 启用，不新增私有配置副本。
-
-验证：真实本地 Workflow → Go FFmpeg → Knowledge 完成首尾帧 JPEG；执行重放后仍恰有两个输出 owner。先取消 owner 后提交任务返回同一取消记录，没有启动 Workflow。OpenAPI 全链生成、Canvas Go vet 和 Executor 构建已验证；真实付费 Provider 成功生成尚未验证。Provider 已接受请求但返回 task ID 前连接丢失仍需要 Provider 幂等支持，不能安全自动重试；Provider 凭据删除或失效也可能使清理持续失败。没有承诺上述情形下的恰好一次外部执行。
+Provider 的真实付费图片/视频/文本成功结果仍取决于部署环境配置有效凭据，不属于本地无凭据验收条件；业务调度、状态收敛和失败路径已经接入 monorepo Admin/Executor/Knowledge。

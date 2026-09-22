@@ -58,6 +58,14 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
+                        type: "canvas-archive";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: components["schemas"]["CanvasArchivePayload"];
+                    } | {
+                        /** @constant */
                         type: "file-task-batch";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -546,6 +554,14 @@ export interface components {
         };
         CreateTaskInput: {
             /** @constant */
+            type: "canvas-archive";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: components["schemas"]["CanvasArchivePayload"];
+        } | {
+            /** @constant */
             type: "file-task-batch";
             /** @description calling service, e.g. chat */
             owner_service: string;
@@ -560,6 +576,9 @@ export interface components {
             /** @description idempotency key scoped to owner_service */
             owner_ref: string;
             payload: components["schemas"]["VideoGenerationTaskPayload"];
+        };
+        CanvasArchivePayload: {
+            taskRunId: string;
         };
         FileTaskBatchPayload: {
             tenantId: string;

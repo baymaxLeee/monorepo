@@ -53,7 +53,7 @@ func New(input NewInput) (Project, error) {
 	if err := validateName(input.Name); err != nil {
 		return Project{}, err
 	}
-	members, err := normalizeMembers(input.MemberIDs)
+	members, err := normalizeMembers(append(append([]string(nil), input.MemberIDs...), input.CreatedBy))
 	if err != nil {
 		return Project{}, err
 	}
@@ -82,7 +82,7 @@ func (p *Project) Update(name string, memberIDs []string, coverImagePath *string
 	if err := validateName(name); err != nil {
 		return err
 	}
-	members, err := normalizeMembers(memberIDs)
+	members, err := normalizeMembers(append(append([]string(nil), memberIDs...), p.CreatedBy))
 	if err != nil {
 		return err
 	}

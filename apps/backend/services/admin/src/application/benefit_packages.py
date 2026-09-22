@@ -331,9 +331,7 @@ class BenefitPackageService:
                         raise ConflictError("review reservation id already belongs to another request")
                     if existing.status != "released":
                         return BenefitPackageReviewReservation(id=existing.id, status=existing.status)
-                    usage = await repository.review_usage(
-                        self._session, self._user.tenant_id, self._user.workspace_id
-                    )
+                    usage = await repository.review_usage(self._session, self._user.tenant_id, self._user.workspace_id)
                     committed, reserved = usage.get(package_id, (0, 0))
                     if package.material_limit is not None and committed + reserved >= package.material_limit:
                         raise ConflictError("benefit package material quota exceeded")

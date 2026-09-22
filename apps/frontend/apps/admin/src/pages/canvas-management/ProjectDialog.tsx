@@ -1,9 +1,8 @@
 import {
-  canvasCreateProject,
-  canvasUpdateProject,
-  canvasUpdateProjectMembers,
+  canvasAdminUpdateProject,
+  canvasAdminCreateProject,
   listWorkspaceMembers,
-  type CanvasProjectManagement,
+  type CanvasProjectDetail,
   type WorkspaceMemberView,
 } from "@repo/api";
 import {
@@ -25,30 +24,26 @@ import { useEffect, useState } from "react";
 export function ProjectDialog({
   value,
   workspaceId,
+  currentUserId,
   onClose,
   onSaved,
 }: {
-  value: CanvasProjectManagement | null | undefined;
+  value: CanvasProjectDetail | null | undefined;
   workspaceId: string;
+  currentUserId: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [directory, setDirectory] = useState<WorkspaceMemberView[]>([]);
-  const [name, setName] = useState(value?.project.name ?? "");
-  const [description, setDescription] = useState(value?.project.description ?? "");
-  const [memberIds, setMemberIds] = useState(value?.members.map((member) => member.user_id) ?? []);
-  const [limit, setLimit] = useState(
-    value?.usage_limit_micros === null || value?.usage_limit_micros === undefined
-      ? ""
-      : String(value.usage_limit_micros / 1_000_000),
-  );
+  const [name, setName] = useState(value?.name ?? "");
+  const [memberIds, setMemberIds] = useState(value?.member_user_ids ?? [currentUserId]);
+  const [limit, setLimit] = useState(value?.usage_limit === undefined ? "" : String(value.usage_limit));
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (value !== undefined) void listWorkspaceMembers(workspaceId, "active").then(setDirectory);
   }, [value, workspaceId]);
   if (value === undefined) return null;
-  const existingProject = value;
-  const editing = existingProject !== null;
+  const editing = value !== null;
 
   async function save() {
     const trimmed = name.trim();
@@ -56,36 +51,21 @@ export function ProjectDialog({
       toast.error("项目名称为 1-20 个字，且不能以连接符或空格开头/结尾");
       return;
     }
-    const yuan = limit.trim() === "" ? null : Number(limit);
-    if (yuan !== null && (!Number.isInteger(yuan) || yuan <= 0 || yuan > 1_000_000_000)) {
+    const yuan = limit.trim() === "" ? undefined : Number(limit);
+    if (yuan !== undefined && (!Number.isInteger(yuan) || yuan <= 0 || yuan > 1_000_000_000)) {
       toast.error("项目额度请输入正整数，且不超过 10 亿元");
       return;
     }
     setSaving(true);
     try {
-      if (editing) {
-        const project = await canvasUpdateProject(existingProject.project.id, {
-          name,
-          description,
-          expected_revision: existingProject.project.revision,
-        });
-        await canvasUpdateProjectMembers(existingProject.project.id, {
-          expected_revision: project.revision,
-          members: memberIds
-            .filter((id) => id !== existingProject.project.created_by)
-            .map((user_id) => ({
-              user_id,
-              role: existingProject.members.find((member) => member.user_id === user_id)?.role ?? "editor",
-            })),
-        });
-      } else {
-        await canvasCreateProject({
-          name,
-          description,
-          member_user_ids: memberIds,
-          usage_limit_micros: yuan === null ? null : yuan * 1_000_000,
-        });
-      }
+      const input = {
+        name: trimmed,
+        member_user_ids: memberIds,
+        usage_limit: yuan,
+        cover_image_path: value?.cover_image_path,
+      };
+      if (value) await canvasAdminUpdateProject(value.project_id, input);
+      else await canvasAdminCreateProject(input);
       toast.success(editing ? "项目已更新" : "项目已创建");
       onSaved();
       onClose();
@@ -99,7 +79,7 @@ export function ProjectDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{editing ? "编辑项目" : "创建项目"}</DialogTitle>
-          <DialogDescription>设置项目基本信息、成员和生成额度。</DialogDescription>
+          <DialogDescription>设置项目名称、成员和生成额度。</DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
           <label className="grid gap-2 text-sm">
@@ -107,27 +87,21 @@ export function ProjectDialog({
             <Input maxLength={20} value={name} onChange={(event) => setName(event.target.value)} />
           </label>
           <label className="grid gap-2 text-sm">
-            <Label>项目说明</Label>
-            <Input value={description} onChange={(event) => setDescription(event.target.value)} />
+            <Label>总金额限额（元，留空表示不限制）</Label>
+            <Input
+              type="number"
+              min={1}
+              max={1_000_000_000}
+              step={1}
+              value={limit}
+              onChange={(event) => setLimit(event.target.value)}
+            />
           </label>
-          {!editing ? (
-            <label className="grid gap-2 text-sm">
-              <Label>总金额限额（元，留空表示不限制）</Label>
-              <Input
-                type="number"
-                min={1}
-                max={1_000_000_000}
-                step={1}
-                value={limit}
-                onChange={(event) => setLimit(event.target.value)}
-              />
-            </label>
-          ) : null}
           <div className="space-y-2">
             <Label>项目成员</Label>
             <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border p-3">
               {directory.map((member) => {
-                const owner = editing && member.userId === existingProject.project.created_by;
+                const owner = editing && member.userId === value.created_by;
                 return (
                   <label key={member.userId} className="flex items-center gap-3 text-sm">
                     <Checkbox

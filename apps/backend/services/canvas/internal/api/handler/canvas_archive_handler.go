@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"time"
 
@@ -28,10 +29,36 @@ type canvasArchiveService interface {
 type CanvasArchiveHandler struct {
 	service canvasArchiveService
 	now     func() time.Time
+	content interface {
+		Open(context.Context, applicationcanvasarchive.Export) (io.ReadCloser, error)
+	}
 }
 
-func NewCanvasArchiveHandler(service *applicationcanvasarchive.Service) *CanvasArchiveHandler {
-	return &CanvasArchiveHandler{service: service, now: time.Now}
+func NewCanvasArchiveHandler(
+	service *applicationcanvasarchive.Service,
+	content interface {
+		Open(context.Context, applicationcanvasarchive.Export) (io.ReadCloser, error)
+	},
+) *CanvasArchiveHandler {
+	return &CanvasArchiveHandler{service: service, content: content, now: time.Now}
+}
+
+func (h *CanvasArchiveHandler) OpenProjectCanvasVideoArchiveExport(
+	ctx context.Context,
+	request *thriftcanvas.GetProjectCanvasVideoArchiveExportRequest,
+) (io.ReadCloser, string, error) {
+	if err := requireAction(ctx, "OpenProjectCanvasVideoArchiveExport"); err != nil {
+		return nil, "", err
+	}
+	item, err := h.service.Get(ctx, archiveGetInput(ctx, request.WorkspaceID, request.ProjectID, request.CanvasID, request.TaskRunID))
+	if err != nil {
+		return nil, "", classifyArchiveError(err)
+	}
+	if item.DownloadPath(h.now()) == nil {
+		return nil, "", errno.New(errno.ErrNotFound)
+	}
+	body, err := h.content.Open(ctx, item)
+	return body, item.OutputFilename, err
 }
 
 func (h *CanvasArchiveHandler) StartProjectCanvasVideoArchiveExport(ctx context.Context, request *thriftcanvas.StartProjectCanvasVideoArchiveExportRequest) (*thriftcanvas.StartProjectCanvasVideoArchiveExportResponse, error) {

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 
-import { agentframeService } from "@/api/index";
 import { Input, Modal, Select, Message } from "@/components/ui";
 import { canvasnode, resource } from "@/domain";
 import t from "@/utils/i18n";
@@ -55,7 +54,7 @@ export function CanvasAddToLibraryModal({
         const assetID = contentAssetID(item);
         if (!assetID) return;
         setSubmitting(true);
-        void createResourceFromExistingAsset(agentframeService, projectId, assetID, {
+        void createResourceFromExistingAsset(projectId, assetID, {
           canvasId,
           canvasNodeId: item.NodeID,
           name,

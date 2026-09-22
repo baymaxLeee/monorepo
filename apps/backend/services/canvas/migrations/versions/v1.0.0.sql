@@ -62,21 +62,19 @@ CREATE TABLE public.asset_references (
 CREATE TABLE public.asset_review_cleanup_outbox (
     review_id character(36) NOT NULL,
     asset_id character(36) NOT NULL,
+    package_id character varying(64) NOT NULL,
     tenant_id character varying(64) NOT NULL,
-    provider_asset_id character varying(128) NOT NULL,
-    project_name character varying(128) NOT NULL,
-    encrypted_access_key_id text NOT NULL,
-    encrypted_secret_access_key text NOT NULL,
-    quota_reservation_id character varying(64) DEFAULT ''::character varying NOT NULL,
+    workspace_id character varying(64) NOT NULL,
+    provider_asset_id character varying(128) DEFAULT ''::character varying NOT NULL,
+    reservation_id character varying(64) NOT NULL,
+    status character varying(16) DEFAULT 'pending'::character varying NOT NULL,
     next_attempt_at timestamp(3) with time zone NOT NULL,
     lease_until timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
     state_version bigint NOT NULL,
     attempts integer NOT NULL,
     last_error character varying(512) NOT NULL,
     created_at timestamp(3) with time zone NOT NULL,
-    updated_at timestamp(3) with time zone NOT NULL,
-    package_id character(36) NOT NULL,
-    status character varying(16) DEFAULT 'pending'::character varying NOT NULL
+    updated_at timestamp(3) with time zone NOT NULL
 );
 
 
@@ -88,21 +86,22 @@ CREATE TABLE public.asset_reviews (
     id character(36) NOT NULL,
     task_run_id character(36) NOT NULL,
     tenant_id character varying(64) NOT NULL,
-    workspace_id character varying(64) DEFAULT NULL::character varying,
+    workspace_id character varying(64) NOT NULL,
     project_id character(36) NOT NULL,
-    package_id character(36) NOT NULL,
+    package_id character varying(64) NOT NULL,
     package_name character varying(80) NOT NULL,
-    scope_type character varying(32) NOT NULL,
+    model_ids text NOT NULL,
+    system_preset_models boolean NOT NULL,
     asset_id character(36) NOT NULL,
     provider_asset_id character varying(128) DEFAULT ''::character varying NOT NULL,
+    reservation_id character varying(64) DEFAULT ''::character varying NOT NULL,
     status character varying(32) NOT NULL,
     failure_reason character varying(512) DEFAULT ''::character varying NOT NULL,
-    quota_reservation_id character varying(64) DEFAULT ''::character varying NOT NULL,
+    submission_started_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
     submitted_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
     created_at timestamp(3) with time zone NOT NULL,
     updated_at timestamp(3) with time zone NOT NULL,
-    deleted_at bigint,
-    submission_started_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone
+    deleted_at bigint DEFAULT 0 NOT NULL
 );
 
 
@@ -122,7 +121,7 @@ CREATE TABLE public.assets (
     media_type smallint NOT NULL,
     content_type character varying(128) NOT NULL,
     size_bytes bigint NOT NULL,
-    billing_class character varying(16) DEFAULT ''::character varying NOT NULL,
+    billing_class character varying(16) NOT NULL,
     reference_count integer DEFAULT 0 NOT NULL,
     created_by character varying(64) NOT NULL,
     created_at timestamp(3) with time zone NOT NULL,
@@ -138,15 +137,14 @@ CREATE TABLE public.assets (
 CREATE TABLE public.async_dispatches (
     task_run_id character(36) NOT NULL,
     run_type character varying(64) NOT NULL,
-    topic character varying(191) NOT NULL,
-    delivery_state character varying(32) DEFAULT NULL::character varying,
-    execution_state character varying(32) DEFAULT NULL::character varying,
+    delivery_state character varying(32) NOT NULL,
+    execution_state character varying(32) NOT NULL,
     next_dispatch_at timestamp(3) with time zone NOT NULL,
     publish_lease_until timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
     execution_lease_until timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
     execution_token character varying(36) NOT NULL,
-    delivery_version bigint,
-    execution_version bigint,
+    delivery_version bigint NOT NULL,
+    execution_version bigint NOT NULL,
     publish_attempts integer NOT NULL,
     execution_attempts integer NOT NULL,
     execution_failures integer NOT NULL,
@@ -293,8 +291,27 @@ CREATE TABLE public.canvas_storyboard_drafts (
     diagnostics_json text NOT NULL,
     protocol_version integer DEFAULT 1 NOT NULL,
     source_beats_json text,
-    plan_json text,
-    next_call_ordinal integer DEFAULT 0 NOT NULL
+    plan_json text
+);
+
+CREATE TABLE public.canvas_text_generations (
+    task_run_id character(36) NOT NULL,
+    tenant_id character varying(64) NOT NULL,
+    workspace_id character varying(64),
+    project_id character(36) NOT NULL,
+    canvas_id character(36) NOT NULL,
+    node_id character(36) NOT NULL,
+    created_by character varying(64) NOT NULL,
+    prompt text NOT NULL,
+    model_service_id character varying(128) NOT NULL,
+    inputs jsonb,
+    content text NOT NULL,
+    status character varying(32) NOT NULL,
+    error_code character varying(128) NOT NULL,
+    error_message text NOT NULL,
+    created_at timestamp(3) with time zone NOT NULL,
+    updated_at timestamp(3) with time zone NOT NULL,
+    finished_at timestamp(3) with time zone
 );
 
 
@@ -344,6 +361,15 @@ CREATE TABLE public.canvas_video_archive_exports (
     updated_at timestamp(3) with time zone NOT NULL
 );
 
+CREATE TABLE public.canvas_archive_workflows (
+    task_run_id character(36) NOT NULL,
+    executor_task_id character varying(32) NOT NULL DEFAULT '',
+    cancel_requested boolean NOT NULL DEFAULT false,
+    settled boolean NOT NULL DEFAULT false,
+    created_at timestamp(3) with time zone NOT NULL,
+    updated_at timestamp(3) with time zone NOT NULL
+);
+
 
 --
 -- Name: canvases; Type: TABLE; Schema: public; Owner: -
@@ -367,22 +393,6 @@ CREATE TABLE public.canvases (
     created_at timestamp(3) with time zone NOT NULL,
     updated_at timestamp(3) with time zone NOT NULL,
     deleted_at bigint
-);
-
-
---
--- Name: default_model_configs; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.default_model_configs (
-    tenant_id character varying(191) NOT NULL,
-    config jsonb NOT NULL,
-    revision bigint NOT NULL,
-    imported_from_iam boolean NOT NULL,
-    created_by character varying(191) NOT NULL,
-    updated_by character varying(191) NOT NULL,
-    created_at timestamp(3) with time zone NOT NULL,
-    updated_at timestamp(3) with time zone NOT NULL
 );
 
 
@@ -539,58 +549,6 @@ ALTER TABLE public.official_assets ALTER COLUMN id ADD GENERATED BY DEFAULT AS I
     NO MINVALUE
     NO MAXVALUE
     CACHE 1
-);
-
-
---
--- Name: package_models; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.package_models (
-    id bigint NOT NULL,
-    tenant_id character varying(64) NOT NULL,
-    package_id character(36) NOT NULL,
-    model_id character varying(128) NOT NULL,
-    created_at timestamp(3) with time zone NOT NULL,
-    deleted_at bigint
-);
-
-
---
--- Name: package_models_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-ALTER TABLE public.package_models ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME public.package_models_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
---
--- Name: packages; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.packages (
-    id character(36) NOT NULL,
-    tenant_id character varying(64) NOT NULL,
-    is_preset boolean DEFAULT false NOT NULL,
-    name character varying(80) NOT NULL,
-    project_name character varying(128) NOT NULL,
-    asset_group_id character varying(128) NOT NULL,
-    encrypted_access_key_id text NOT NULL,
-    encrypted_secret_access_key text NOT NULL,
-    enabled boolean DEFAULT true NOT NULL,
-    scope_type character varying(32) NOT NULL,
-    revision bigint DEFAULT '1'::bigint NOT NULL,
-    created_by character varying(64) NOT NULL,
-    updated_by character varying(64) NOT NULL,
-    created_at timestamp(3) with time zone NOT NULL,
-    updated_at timestamp(3) with time zone NOT NULL,
-    deleted_at bigint
 );
 
 
@@ -1018,23 +976,6 @@ CREATE TABLE public.task_runs (
 
 
 --
--- Name: tenant_hibot_agents; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.tenant_hibot_agents (
-    tenant_id character varying(191) NOT NULL,
-    product_code character varying(64) NOT NULL,
-    workspace_id character varying(255) NOT NULL,
-    agent_id character varying(255) NOT NULL,
-    created_by_user_id character varying(191) NOT NULL,
-    binding_digest character(64) NOT NULL,
-    prompt_version character(64) NOT NULL,
-    created_at timestamp(3) with time zone NOT NULL,
-    updated_at timestamp(3) with time zone NOT NULL
-);
-
-
---
 -- Name: tenant_storage_usage_ledger; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1149,6 +1090,9 @@ ALTER TABLE ONLY public.canvas_video_archive_export_inputs
 ALTER TABLE ONLY public.canvas_video_archive_exports
     ADD CONSTRAINT canvas_video_archive_exports_pkey PRIMARY KEY (task_run_id);
 
+ALTER TABLE ONLY public.canvas_archive_workflows
+    ADD CONSTRAINT canvas_archive_workflows_pkey PRIMARY KEY (task_run_id);
+
 
 --
 -- Name: canvases canvases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1156,14 +1100,6 @@ ALTER TABLE ONLY public.canvas_video_archive_exports
 
 ALTER TABLE ONLY public.canvases
     ADD CONSTRAINT canvases_pkey PRIMARY KEY (id);
-
-
---
--- Name: default_model_configs default_model_configs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.default_model_configs
-    ADD CONSTRAINT default_model_configs_pkey PRIMARY KEY (tenant_id);
 
 
 --
@@ -1276,22 +1212,6 @@ ALTER TABLE ONLY public.official_asset_blobs
 
 ALTER TABLE ONLY public.official_assets
     ADD CONSTRAINT official_assets_pkey PRIMARY KEY (id);
-
-
---
--- Name: package_models package_models_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.package_models
-    ADD CONSTRAINT package_models_pkey PRIMARY KEY (id);
-
-
---
--- Name: packages packages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.packages
-    ADD CONSTRAINT packages_pkey PRIMARY KEY (id);
 
 
 --
@@ -1429,13 +1349,8 @@ ALTER TABLE ONLY public.task_run_aigw_calls
 ALTER TABLE ONLY public.task_runs
     ADD CONSTRAINT task_runs_pkey PRIMARY KEY (id);
 
-
---
--- Name: tenant_hibot_agents tenant_hibot_agents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tenant_hibot_agents
-    ADD CONSTRAINT tenant_hibot_agents_pkey PRIMARY KEY (tenant_id, product_code);
+ALTER TABLE ONLY public.canvas_text_generations
+    ADD CONSTRAINT canvas_text_generations_pkey PRIMARY KEY (task_run_id);
 
 
 --
@@ -1508,38 +1423,6 @@ ALTER TABLE ONLY public.official_assets
 
 ALTER TABLE ONLY public.official_assets
     ADD CONSTRAINT uniq_official_assets_scope UNIQUE (slug, tenant_id, workspace_key, deleted_at);
-
-
---
--- Name: package_models uniq_package_models_package_model_active; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.package_models
-    ADD CONSTRAINT uniq_package_models_package_model_active UNIQUE (package_id, model_id, deleted_at);
-
-
---
--- Name: package_models uniq_package_models_tenant_model_active; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.package_models
-    ADD CONSTRAINT uniq_package_models_tenant_model_active UNIQUE (tenant_id, model_id, deleted_at);
-
-
---
--- Name: packages uniq_packages_asset_group_active; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.packages
-    ADD CONSTRAINT uniq_packages_asset_group_active UNIQUE (asset_group_id, deleted_at);
-
-
---
--- Name: packages uniq_packages_tenant_name_active; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.packages
-    ADD CONSTRAINT uniq_packages_tenant_name_active UNIQUE (tenant_id, name, deleted_at);
 
 
 --
@@ -1673,38 +1556,18 @@ CREATE INDEX idx_asset_review_cleanup_outbox_asset_id ON public.asset_review_cle
 
 
 --
--- Name: idx_asset_review_cleanup_outbox_quota_reservation_id; Type: INDEX; Schema: public; Owner: -
+--
+-- Name: idx_asset_reviews_scope; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_asset_review_cleanup_outbox_quota_reservation_id ON public.asset_review_cleanup_outbox USING btree (quota_reservation_id);
-
-
---
--- Name: idx_asset_review_cleanup_package; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_asset_review_cleanup_package ON public.asset_review_cleanup_outbox USING btree (tenant_id, package_id, status);
+CREATE INDEX idx_asset_reviews_scope ON public.asset_reviews USING btree (tenant_id, workspace_id, project_id, asset_id);
 
 
 --
--- Name: idx_asset_reviews_asset_scope; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_asset_reviews_reservation_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_asset_reviews_asset_scope ON public.asset_reviews USING btree (tenant_id, workspace_id, asset_id);
-
-
---
--- Name: idx_asset_reviews_package; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_asset_reviews_package ON public.asset_reviews USING btree (tenant_id, package_id, submitted_at, deleted_at);
-
-
---
--- Name: idx_asset_reviews_quota_reservation_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_asset_reviews_quota_reservation_id ON public.asset_reviews USING btree (quota_reservation_id);
+CREATE INDEX idx_asset_reviews_reservation_id ON public.asset_reviews USING btree (reservation_id);
 
 
 --
@@ -1867,6 +1730,8 @@ CREATE INDEX idx_canvas_video_archive_exports_scope ON public.canvas_video_archi
 
 CREATE INDEX idx_canvas_video_archive_exports_status ON public.canvas_video_archive_exports USING btree (status);
 
+CREATE INDEX idx_canvas_archive_workflows_settled ON public.canvas_archive_workflows USING btree (settled);
+
 
 --
 -- Name: idx_canvases_creator; Type: INDEX; Schema: public; Owner: -
@@ -1999,34 +1864,6 @@ CREATE INDEX idx_official_assets_resource_asset_id ON public.official_assets USI
 --
 
 CREATE INDEX idx_official_assets_slug ON public.official_assets USING btree (slug);
-
-
---
--- Name: idx_package_models_package; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_package_models_package ON public.package_models USING btree (tenant_id, package_id, deleted_at);
-
-
---
--- Name: idx_packages_deleted_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_packages_deleted_at ON public.packages USING btree (deleted_at);
-
-
---
--- Name: idx_packages_tenant; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_packages_tenant ON public.packages USING btree (tenant_id, is_preset);
-
-
---
--- Name: idx_packages_updated_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_packages_updated_at ON public.packages USING btree (updated_at);
 
 
 --
@@ -2294,12 +2131,10 @@ CREATE INDEX idx_task_runs_root_created ON public.task_runs USING btree (tenant_
 
 CREATE INDEX idx_task_runs_subject ON public.task_runs USING btree (tenant_id, workspace_id, run_type, subject_type, subject_id);
 
-
---
--- Name: idx_tenant_hibot_agents_agent_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_tenant_hibot_agents_agent_id ON public.tenant_hibot_agents USING btree (agent_id);
+CREATE INDEX idx_canvas_text_generation_scope ON public.canvas_text_generations USING btree (tenant_id, workspace_id);
+CREATE INDEX idx_canvas_text_generation_node ON public.canvas_text_generations USING btree (node_id, status);
+CREATE INDEX idx_canvas_text_generations_project_id ON public.canvas_text_generations USING btree (project_id);
+CREATE INDEX idx_canvas_text_generations_canvas_id ON public.canvas_text_generations USING btree (canvas_id);
 
 
 --
@@ -2317,10 +2152,10 @@ CREATE INDEX idx_tenant_storage_usage_ledger_owner_type ON public.tenant_storage
 
 
 --
--- Name: uniq_asset_reviews_tenant_asset_package; Type: INDEX; Schema: public; Owner: -
+-- Name: uniq_asset_reviews_scope_asset_package; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX uniq_asset_reviews_tenant_asset_package ON public.asset_reviews USING btree (tenant_id, asset_id, package_id);
+CREATE UNIQUE INDEX uniq_asset_reviews_scope_asset_package ON public.asset_reviews USING btree (tenant_id, workspace_id, asset_id, package_id);
 
 
 --

@@ -7,6 +7,8 @@ export type CanvasNodeStateTarget = components["schemas"]["CanvasNodeStateTarget
 export type CanvasNodePatch = operations["canvasUpdateNode"]["requestBody"]["content"]["application/json"];
 export type CanvasStoryboardDraftInput =
   operations["canvasStartStoryboardDrafts"]["requestBody"]["content"]["application/json"];
+export type CanvasArchiveExecution =
+  operations["canvasExecuteArchive"]["responses"][200]["content"]["application/json"];
 
 export interface CanvasActor {
   userId: string;
@@ -23,12 +25,23 @@ export class CanvasInternalClient {
     internalToken: string;
     callerService: string;
     propagatedHeaders?: () => Record<string, string> | undefined;
+    timeoutMs?: number;
   }) {
-    this.client = createInternalOpenApiClient<paths>({
+    const clientOptions = {
       ...options,
-      baseUrl: `${options.baseUrl.replace(/\/$/, "")}/api/canvas-server`,
+      baseUrl: options.baseUrl.replace(/\/$/, ""),
       service: "canvas",
+    };
+    this.client = createInternalOpenApiClient<paths>(clientOptions);
+  }
+
+  async executeArchive(archiveId: string, signal?: AbortSignal): Promise<CanvasArchiveExecution> {
+    const { data, error, response } = await this.client.POST("/internal/worker/archives/{archiveId}/execute", {
+      params: { path: { archiveId } },
+      signal,
     });
+    if (data) return data;
+    return this.failure(response, "archive execution", error);
   }
 
   private headers(actor: CanvasActor) {
@@ -45,10 +58,11 @@ export class CanvasInternalClient {
   }
 
   async graph(actor: CanvasActor, projectId: string, canvasId: string, signal?: AbortSignal): Promise<CanvasGraph> {
-    const { data, error, response } = await this.client.GET(
-      "/projects/{projectId}/canvases/{canvasId}/nodes",
-      { params: { path: { projectId, canvasId } }, headers: this.headers(actor), signal },
-    );
+    const { data, error, response } = await this.client.GET("/projects/{projectId}/canvases/{canvasId}/nodes", {
+      params: { path: { projectId, canvasId } },
+      headers: this.headers(actor),
+      signal,
+    });
     if (data) return data;
     return this.failure(response, "read", error);
   }

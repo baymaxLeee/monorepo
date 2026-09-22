@@ -67,61 +67,24 @@
     "generation_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "model_service_id",
-        "resolution",
-        "aspect_ratio",
-        "duration_seconds",
-        "generate_audio",
-        "watermark"
-      ],
+      "required": ["model_service_id", "resolution", "aspect_ratio", "duration_seconds", "generate_audio", "watermark"],
       "properties": {
         "model_service_id": { "type": "string", "maxLength": 128 },
         "resolution": { "type": "integer", "minimum": 1, "maximum": 5 },
-        "aspect_ratio": { "type": "integer", "minimum": 1, "maximum": 7 },
-        "duration_seconds": { "type": "integer", "minimum": 1 },
-        "generate_audio": { "type": "boolean" },
-        "watermark": { "type": "boolean" }
-      }
-    },
-    "video_generation_config_v2": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "model_service_id",
-        "resolution",
-        "aspect_ratio",
-        "duration_seconds",
-        "generate_audio",
-        "watermark"
-      ],
-      "properties": {
-        "model_service_id": { "type": "string", "maxLength": 128 },
-        "resolution": { "type": "integer", "minimum": 1, "maximum": 5 },
-        "aspect_ratio": { "type": "integer", "minimum": 1, "maximum": 7 },
+        "aspect_ratio": { "type": "integer", "minimum": 1, "maximum": 8 },
         "duration_seconds": {
-          "oneOf": [
-            { "const": -1 },
-            { "type": "integer", "minimum": 1 }
-          ]
+          "oneOf": [{ "const": -1 }, { "type": "integer", "minimum": 1 }]
         },
         "generate_audio": { "type": "boolean" },
         "watermark": { "type": "boolean" }
       }
     },
-    "image_generation_config_v2": {
+    "image_generation_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "model_service_id",
-        "resolution",
-        "aspect_ratio",
-        "duration_seconds",
-        "generate_audio",
-        "watermark"
-      ],
+      "required": ["model_service_id", "resolution", "aspect_ratio", "duration_seconds", "generate_audio", "watermark"],
       "properties": {
-               "model_service_id": { "type": "string", "maxLength": 128 },
+        "model_service_id": { "type": "string", "maxLength": 128 },
         "resolution": { "type": "integer", "minimum": 1, "maximum": 5 },
         "aspect_ratio": { "type": "integer", "enum": [1, 2, 3, 4, 5, 6, 7, 9] },
         "duration_seconds": { "type": "integer", "minimum": 1 },
@@ -129,26 +92,16 @@
         "watermark": { "type": "boolean" }
       }
     },
-    "video_generation_config_v3": {
+    "video_generation_config": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "model_service_id",
-        "resolution",
-        "aspect_ratio",
-        "duration_seconds",
-        "generate_audio",
-        "watermark"
-      ],
+      "required": ["model_service_id", "resolution", "aspect_ratio", "duration_seconds", "generate_audio", "watermark"],
       "properties": {
         "model_service_id": { "type": "string", "maxLength": 128 },
         "resolution": { "type": "integer", "minimum": 1, "maximum": 5 },
         "aspect_ratio": { "type": "integer", "minimum": 1, "maximum": 8 },
         "duration_seconds": {
-          "oneOf": [
-            { "const": -1 },
-            { "type": "integer", "minimum": 1 }
-          ]
+          "oneOf": [{ "const": -1 }, { "type": "integer", "minimum": 1 }]
         },
         "generate_audio": { "type": "boolean" },
         "watermark": { "type": "boolean" }
@@ -173,54 +126,25 @@
       }
     },
     "image_generation_payload": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["version", "prompt", "generation_config"],
-          "properties": {
-            "version": { "const": 1 },
-            "prompt": { "type": "string", "maxLength": 50000 },
-            "generation_config": { "$ref": "#/$defs/generation_config" }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["version", "prompt", "generation_config"],
-          "properties": {
-            "version": { "const": 2 },
-            "prompt": { "type": "string", "maxLength": 50000 },
-            "generation_config": { "$ref": "#/$defs/image_generation_config_v2" }
-          }
-        }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "prompt", "generation_config"],
+      "properties": {
+        "version": { "const": 2 },
+        "prompt": { "type": "string", "maxLength": 50000 },
+        "generation_config": { "$ref": "#/$defs/image_generation_config" }
+      }
     },
     "video_generation_payload": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["version", "prompt", "video_input_mode", "generation_config"],
-          "properties": {
-            "version": { "const": 2 },
-            "prompt": { "type": "string", "maxLength": 50000 },
-            "video_input_mode": { "type": "integer", "enum": [1, 2] },
-            "generation_config": { "$ref": "#/$defs/video_generation_config_v2" }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["version", "prompt", "video_input_mode", "generation_config"],
-          "properties": {
-            "version": { "const": 3 },
-            "prompt": { "type": "string", "maxLength": 50000 },
-            "video_input_mode": { "type": "integer", "enum": [1, 2] },
-            "generation_config": { "$ref": "#/$defs/video_generation_config_v3" }
-          }
-        }
-      ]
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "prompt", "video_input_mode", "generation_config"],
+      "properties": {
+        "version": { "const": 3 },
+        "prompt": { "type": "string", "maxLength": 50000 },
+        "video_input_mode": { "type": "integer", "enum": [1, 2] },
+        "generation_config": { "$ref": "#/$defs/video_generation_config" }
+      }
     },
     "text_generation_payload": {
       "type": "object",

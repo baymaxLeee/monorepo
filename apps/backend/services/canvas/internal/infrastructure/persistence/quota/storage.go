@@ -291,6 +291,19 @@ func mergeArtifactStorageAlias(tx *gorm.DB, existing, alias storageUsageLedgerRo
 		Update("billing_class", alias.BillingClass).Error
 }
 
+func billingClassPriority(value string) int {
+	switch value {
+	case applicationquota.BillingBillable:
+		return 3
+	case applicationquota.BillingBuiltin:
+		return 2
+	case applicationquota.BillingBorrowed:
+		return 1
+	default:
+		return 0
+	}
+}
+
 func stringPointersEqual(left, right *string) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil

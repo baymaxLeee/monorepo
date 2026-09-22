@@ -234,7 +234,7 @@ func (s *CanvasNodeService) GenerateDraftsWithState(
 	if s.models == nil {
 		return errno.New(errno.ErrConfigurationError)
 	}
-	inferenceModel, err := s.models.LoadSelection(ctx, scope.TenantID, applicationmodel.CapabilityStoryboardInference, modelConfig.InferenceModelServiceID)
+	inferenceModel, err := s.models.LoadSelection(ctx, scope.TenantID, scope.WorkspaceID, applicationmodel.CapabilityStoryboardInference, modelConfig.InferenceModelServiceID)
 	if err != nil {
 		if errors.Is(err, applicationmodel.ErrDefaultModelNotConfigured) {
 			return errno.Wrap(errno.ErrDefaultModelNotConfigured, err)
@@ -465,7 +465,7 @@ func (s *CanvasNodeService) ConfirmStoryboardDrafts(
 			node, nodeErr := domain.NewCanvasNode(domain.CanvasNodeInput{
 				ID: nodeID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
 				ProjectID: projectID, CanvasID: canvasID, CreatedBy: scope.CallerID,
-				Type: nodeType, Name: name, ResourceAssetID: candidate.ResourceAssetID,
+				Type: nodeType, ReferenceType: domain.ReferenceTypeResourceAsset, Name: name, ResourceAssetID: candidate.ResourceAssetID,
 				VideoInputMode: domain.VideoInputModeReference, Now: now,
 			})
 			if nodeErr != nil {

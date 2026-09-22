@@ -1,7 +1,6 @@
 import { fetchCanvasSettings } from "@repo/api";
 import { useEffect, useRef, useState } from "react";
 
-import { agentframeService } from "@/api/index";
 import {
   DEFAULT_IMAGE_GENERATION_SETTINGS,
   type ImageGenerationSettings,
@@ -177,7 +176,7 @@ export function ResourceAssetCreateView({
     let active = true;
     setGenerationLoading(true);
     setGenerationFailure(undefined);
-    getResourceAssetGeneration(agentframeService, projectId, resourceId, slot.ResourceAssetID)
+    getResourceAssetGeneration(projectId, resourceId, slot.ResourceAssetID)
       .then((generation) => {
         if (!active) return;
         revisionRef.current = generation.Revision;
@@ -273,7 +272,6 @@ export function ResourceAssetCreateView({
       const slot = slotRef.current;
       if (!slot) return undefined;
       const generation = await updateResourceAssetGeneration(
-        agentframeService,
         projectId,
         resourceId,
         slot.ResourceAssetID,
@@ -393,13 +391,7 @@ export function ResourceAssetCreateView({
     if (!slot) return;
     const tick = async () => {
       try {
-        const run = await getResourceAssetGenerationRun(
-          agentframeService,
-          projectId,
-          resourceId,
-          slot.ResourceAssetID,
-          runId,
-        );
+        const run = await getResourceAssetGenerationRun(projectId, resourceId, slot.ResourceAssetID, runId);
         if (activeRunRef.current !== runId) return;
         if (run.Status === resource.ResourceAssetGenerationRunStatus.SUCCEEDED) {
           activeRunRef.current = undefined;
@@ -449,7 +441,6 @@ export function ResourceAssetCreateView({
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       await persist();
       const runId = await startResourceAssetGeneration(
-        agentframeService,
         projectId,
         resourceId,
         slot.ResourceAssetID,
@@ -474,7 +465,7 @@ export function ResourceAssetCreateView({
     setGenerating(false);
     onGeneratingChangeRef.current?.(undefined);
     try {
-      await cancelResourceAssetGeneration(agentframeService, projectId, resourceId, slot.ResourceAssetID, runId);
+      await cancelResourceAssetGeneration(projectId, resourceId, slot.ResourceAssetID, runId);
     } catch {
       // 停止失败不阻断交互；后端 run 最终会走向终态。
     }

@@ -6,66 +6,18 @@ import (
 	"time"
 
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
-	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	domainpackage "github.com/example/monorepo/canvas/internal/domain/benefitpackage"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 )
 
 var (
-	ErrNotFound                 = errors.New("benefit package not found")
-	ErrNameConflict             = errors.New("benefit package name conflict")
-	ErrModelConflict            = errors.New("benefit package model conflict")
-	ErrRevisionConflict         = errors.New("benefit package revision conflict")
-	ErrPresetImmutable          = errors.New("preset benefit package cannot be deleted")
-	ErrPackageTypeMismatch      = errors.New("benefit package type mismatch")
-	ErrReviewStateConflict      = errors.New("asset review state conflict")
-	ErrReviewNotFound           = errors.New("asset review not found")
-	ErrAssetReviewAuthorization = errors.New("asset review provider authorization failed")
-	ErrAssetReviewRateLimited   = errors.New("asset review provider rate limited")
+	ErrReviewStateConflict = errors.New("asset review state conflict")
+	ErrReviewNotFound      = errors.New("asset review not found")
 )
-
-type Scope struct {
-	TenantID string
-	CallerID string
-}
-
-type Repository interface {
-	Create(context.Context, domainpackage.Package) error
-	Get(context.Context, Scope, string) (domainpackage.Package, error)
-	Update(context.Context, domainpackage.Package, int64) error
-	Delete(context.Context, domainpackage.Package, int64, bool) ([]AssetReviewRecord, error)
-	List(context.Context, Scope) ([]domainpackage.Package, error)
-}
-
-type PackageDeletion interface {
-	DeletePackage(context.Context, domainpackage.Package, int64, bool) error
-}
 
 type IDGenerator interface{ NewID() (string, error) }
 type Clock interface{ Now() time.Time }
-type CredentialCipher interface {
-	Encrypt(string, string) (string, error)
-	Decrypt(string, string) (string, error)
-}
-
-type CreateAssetGroupInput struct {
-	Name, ProjectName, AccessKeyID, SecretAccessKey string
-}
-
-type DeleteAssetGroupInput struct {
-	AssetGroupID, ProjectName, AccessKeyID, SecretAccessKey string
-}
-
-type AssetGroupGateway interface {
-	CreateAssetGroup(context.Context, CreateAssetGroupInput) (string, error)
-	DeleteAssetGroup(context.Context, DeleteAssetGroupInput) error
-}
-
-type AssetGroupCleanupFailureReporter interface {
-	ReportAssetGroupCleanupFailure(context.Context, string, string, error)
-}
 
 type ReviewScope struct {
 	TenantID    string
@@ -73,12 +25,52 @@ type ReviewScope struct {
 	CallerID    string
 }
 
+type BenefitPackage struct {
+	ID, Name string
+	IsPreset bool
+	ModelIDs []string
+}
+
+type ReviewReservation struct {
+	ID, Status string
+}
+
+type ProviderAssetStatus string
+
+const (
+	ProviderAssetProcessing ProviderAssetStatus = "Processing"
+	ProviderAssetActive     ProviderAssetStatus = "Active"
+	ProviderAssetFailed     ProviderAssetStatus = "Failed"
+)
+
+type ReviewedAsset struct {
+	ID            string
+	Status        ProviderAssetStatus
+	FailureReason string
+}
+
+type ReviewCleanup struct {
+	CleanupID, ReservationID, Status string
+}
+
+type ReviewGateway interface {
+	ListBenefitPackages(context.Context, string, string) ([]BenefitPackage, error)
+	ReserveBenefitPackageReview(context.Context, string, string, string, string, string, string) (ReviewReservation, error)
+	TransitionBenefitPackageReview(context.Context, string, string, string, string, string) (ReviewReservation, error)
+	SubmitReviewedAsset(context.Context, string, string, string, string, string, string) (ReviewedAsset, error)
+	GetReviewedAsset(context.Context, string, string, string, string) (ReviewedAsset, error)
+	BeginBenefitPackageReviewCleanup(context.Context, string, string, string, string, string) (ReviewCleanup, error)
+	CompleteBenefitPackageReviewCleanup(context.Context, string, string, string, string, string) (ReviewCleanup, error)
+	DeleteReviewedAsset(context.Context, string, string, string, string) error
+}
+
 type AssetReviewRecord struct {
 	ID, TaskRunID, TenantID, ProjectID, PackageID, PackageName, AssetID string
-	ProviderAssetID, FailureReason, QuotaReservationID                  string
+	ProviderAssetID, FailureReason, ReservationID                       string
 	WorkspaceID                                                         *string
+	ModelIDs                                                            []string
+	SystemPresetModels                                                  bool
 	Status                                                              domainasset.ReviewStatus
-	ScopeType                                                           domainpackage.ScopeType
 	SubmittedAt, SubmissionStartedAt                                    *time.Time
 	CreatedAt, UpdatedAt                                                time.Time
 }
@@ -86,7 +78,8 @@ type AssetReviewRecord struct {
 type ReserveAssetReviewInput struct {
 	ID, TaskRunID, TenantID, ProjectID, PackageID, PackageName, AssetID string
 	WorkspaceID                                                         *string
-	ScopeType                                                           domainpackage.ScopeType
+	ModelIDs                                                            []string
+	SystemPresetModels                                                  bool
 	Now                                                                 time.Time
 }
 
@@ -97,7 +90,7 @@ type ReplaceAssetReviewResult struct {
 
 type AssetReviewRepository interface {
 	ReplaceAssetReview(context.Context, ReserveAssetReviewInput) (ReplaceAssetReviewResult, error)
-	SetAssetReviewQuotaReservation(context.Context, string, string, time.Time) error
+	SetAssetReviewReservation(context.Context, string, string, time.Time) error
 	MarkAssetReviewSubmissionStarted(context.Context, string, string, time.Time) error
 	ResetAssetReviewSubmission(context.Context, string, string, time.Time) error
 	MarkAssetReviewProcessing(context.Context, string, string, string, time.Time) error
@@ -107,13 +100,11 @@ type AssetReviewRepository interface {
 }
 
 type ProjectAssetReviewReader interface {
-	// BatchGetProjectAssetReviews returns the current submission for each asset and package pair, capped at 200 reviews.
 	BatchGetProjectAssetReviews(context.Context, ReviewScope, string, []string) (map[string][]domainasset.Review, error)
 }
 
 type AssetReviewCleanupRepository interface {
 	RetireAssetReviews(context.Context, applicationasset.Scope, string, time.Time) ([]AssetReviewRecord, error)
-	Delete(context.Context, domainpackage.Package, int64, bool) ([]AssetReviewRecord, error)
 }
 
 type ReviewAssetStore interface {
@@ -129,37 +120,6 @@ type AssetProjectValidator interface {
 	ValidateReviewAsset(context.Context, ReviewScope, string, string, string) error
 }
 
-type CreateReviewedAssetInput struct {
-	AssetGroupID, URL, AssetType, Name, ProjectName, AccessKeyID, SecretAccessKey string
-}
-
-type GetReviewedAssetInput struct {
-	ProviderAssetID, ProjectName, AccessKeyID, SecretAccessKey string
-}
-
-type DeleteReviewedAssetInput struct {
-	ProviderAssetID, ProjectName, AccessKeyID, SecretAccessKey string
-}
-
-type ProviderAssetStatus string
-
-const (
-	ProviderAssetProcessing ProviderAssetStatus = "Processing"
-	ProviderAssetActive     ProviderAssetStatus = "Active"
-	ProviderAssetFailed     ProviderAssetStatus = "Failed"
-)
-
-type ReviewedAsset struct {
-	Status        ProviderAssetStatus
-	FailureReason string
-}
-
-type AssetReviewGateway interface {
-	CreateAsset(context.Context, CreateReviewedAssetInput) (string, error)
-	GetAsset(context.Context, GetReviewedAssetInput) (ReviewedAsset, error)
-	DeleteAsset(context.Context, DeleteReviewedAssetInput) error
-}
-
 type ReviewTaskStore interface {
 	applicationtask.TaskRunStore
 	applicationtask.PollScheduleStore
@@ -173,14 +133,14 @@ type ReviewCleanupTaskStore interface {
 }
 
 type ReviewCleanupOutbox struct {
-	ReviewID, AssetID, PackageID, TenantID, ProviderAssetID, ProjectName string
-	EncryptedAccessKeyID, EncryptedSecretAccessKey, LastError            string
-	QuotaReservationID                                                   string
-	Status                                                               string
-	NextAttemptAt, CreatedAt, UpdatedAt                                  time.Time
-	LeaseUntil                                                           *time.Time
-	StateVersion                                                         int64
-	Attempts                                                             int32
+	ReviewID, AssetID, PackageID, TenantID, ProviderAssetID, ReservationID string
+	WorkspaceID                                                            *string
+	Status                                                                 string
+	NextAttemptAt, CreatedAt, UpdatedAt                                    time.Time
+	LeaseUntil                                                             *time.Time
+	StateVersion                                                           int64
+	Attempts                                                               int32
+	LastError                                                              string
 }
 
 type ReviewCleanupOutboxRepository interface {
@@ -197,14 +157,6 @@ const (
 
 type TransactionManager interface {
 	WithinTransaction(context.Context, func(context.Context) error) error
-}
-
-type ReviewQuota interface {
-	ReservePresetEntitlement(context.Context, string, string, string, string) (applicationquota.Reservation, error)
-	CommitReservation(context.Context, applicationquota.Reservation) error
-	ReleaseReservation(context.Context, applicationquota.Reservation) error
-	BeginPresetEntitlementRelease(context.Context, string) error
-	CompletePresetEntitlementCleanup(context.Context, string) (bool, error)
 }
 
 type TaskRun = domaintask.TaskRun

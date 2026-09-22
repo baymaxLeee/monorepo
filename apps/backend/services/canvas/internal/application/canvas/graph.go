@@ -42,7 +42,7 @@ type MaterializeResourceAssetReferenceInput struct {
 	ProjectID                 string
 	CanvasID                  string
 	TargetNodeID              string
-	ReferenceType             *MentionReferenceType
+	ReferenceType             MentionReferenceType
 	ResourceID                string
 	ResourceAssetID           string
 	TargetPort                domain.Port
@@ -59,7 +59,7 @@ type MaterializeResourceAssetReferenceResult struct {
 type MaterializeStandaloneAssetReferenceInput struct {
 	Scope
 	ProjectID, CanvasID, TargetNodeID, AssetID string
-	ReferenceType                              *MentionReferenceType
+	ReferenceType                              MentionReferenceType
 	TargetPort                                 domain.Port
 	AssetNodePosition                          *domain.Position
 	UploadedAsset                              *UploadedAssetInput
@@ -301,7 +301,7 @@ func (s *CanvasNodeService) MaterializeResourceAssetReference(
 			resourceAssetNode, getErr = domain.NewCanvasNode(domain.CanvasNodeInput{
 				ID: assetNodeID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID,
 				ProjectID: input.ProjectID, CanvasID: input.CanvasID, CreatedBy: input.CallerID,
-				Type: nodeType, Name: name, Position: *input.ResourceAssetNodePosition,
+				Type: nodeType, ReferenceType: domain.ReferenceType(input.ReferenceType), Name: name, Position: *input.ResourceAssetNodePosition,
 				ResourceID: resourceID, ResourceAssetID: resourceAssetID,
 				VideoInputMode: domain.VideoInputModeReference, Now: s.clock.Now(),
 			})
@@ -452,7 +452,7 @@ func (s *CanvasNodeService) MaterializeStandaloneAssetReference(ctx context.Cont
 			if nameErr != nil {
 				return nameErr
 			}
-			assetNode, err = domain.NewCanvasNode(domain.CanvasNodeInput{ID: assetNodeID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, ProjectID: input.ProjectID, CanvasID: input.CanvasID, CreatedBy: input.CallerID, Type: nodeType, Name: name, Position: *input.AssetNodePosition, AssetID: input.AssetID, VideoInputMode: domain.VideoInputModeReference, Now: s.clock.Now()})
+			assetNode, err = domain.NewCanvasNode(domain.CanvasNodeInput{ID: assetNodeID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, ProjectID: input.ProjectID, CanvasID: input.CanvasID, CreatedBy: input.CallerID, Type: nodeType, ReferenceType: domain.ReferenceTypeAsset, Name: name, Position: *input.AssetNodePosition, AssetID: input.AssetID, VideoInputMode: domain.VideoInputModeReference, Now: s.clock.Now()})
 			if err != nil {
 				return err
 			}
@@ -509,14 +509,11 @@ func (s *CanvasNodeService) MaterializeStandaloneAssetReference(ctx context.Cont
 	return result, nil
 }
 
-func validResourceMaterializationReference(referenceType *MentionReferenceType, hasResourceID, hasResourceAssetID bool) bool {
+func validResourceMaterializationReference(referenceType MentionReferenceType, hasResourceID, hasResourceAssetID bool) bool {
 	if hasResourceID == hasResourceAssetID {
 		return false
 	}
-	if referenceType == nil {
-		return true
-	}
-	switch *referenceType {
+	switch referenceType {
 	case MentionReferenceTypeResource:
 		return hasResourceID
 	case MentionReferenceTypeResourceAsset:
@@ -526,8 +523,8 @@ func validResourceMaterializationReference(referenceType *MentionReferenceType, 
 	}
 }
 
-func validStandaloneMaterializationReference(referenceType *MentionReferenceType) bool {
-	return referenceType == nil || *referenceType == MentionReferenceTypeAsset
+func validStandaloneMaterializationReference(referenceType MentionReferenceType) bool {
+	return referenceType == MentionReferenceTypeAsset
 }
 
 func (s *CanvasNodeService) DeleteEdge(ctx context.Context, input DeleteEdgeInput) (DeleteEdgeResult, error) {

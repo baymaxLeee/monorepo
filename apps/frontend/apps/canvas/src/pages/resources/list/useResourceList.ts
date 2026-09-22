@@ -2,7 +2,6 @@ import { useDebounce } from "ahooks";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { agentframeService } from "@/api";
 import type { resource } from "@/domain";
 
 import { getProjectResourceStats, listResources } from "../domain/actions";
@@ -34,7 +33,7 @@ export function useResourceList(projectId: string) {
   useEffect(() => {
     if (!projectId) return;
     let active = true;
-    void getProjectResourceStats(agentframeService, projectId)
+    void getProjectResourceStats(projectId)
       .then((stats) => {
         if (active) setResourceStats(stats);
       })
@@ -49,7 +48,7 @@ export function useResourceList(projectId: string) {
     const sequence = ++listSequenceRef.current;
     setLoading(true);
     setError(undefined);
-    void listResources(agentframeService, projectId, {
+    void listResources(projectId, {
       keyword: debouncedKeyword,
       ascending: false,
       pageNum,

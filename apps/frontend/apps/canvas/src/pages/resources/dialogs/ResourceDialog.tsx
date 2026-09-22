@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { agentframeService } from "@/api/index";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { AudioSpectrum, useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { EllipsisText as CEllipsis, FormItem } from "@/components/compat";
@@ -275,7 +274,7 @@ export function ResourceDialog({
     setError("");
     try {
       if (state.mode === "create") {
-        await createResource(agentframeService, projectId, {
+        await createResource(projectId, {
           name,
           description,
           type,
@@ -288,7 +287,7 @@ export function ResourceDialog({
             })),
         });
       } else if (editingItem) {
-        await updateResource(agentframeService, projectId, editingItem, {
+        await updateResource(projectId, editingItem, {
           name,
           description,
         });
@@ -297,7 +296,7 @@ export function ResourceDialog({
       onClose();
     } catch (reason) {
       if (state.mode === "edit") {
-        const latest = await getResource(agentframeService, projectId, state.item.ResourceID).catch(() => undefined);
+        const latest = await getResource(projectId, state.item.ResourceID).catch(() => undefined);
         if (latest && latest.Revision !== editingItem?.Revision) {
           setEditingItem(latest);
           setName(latest.Name);

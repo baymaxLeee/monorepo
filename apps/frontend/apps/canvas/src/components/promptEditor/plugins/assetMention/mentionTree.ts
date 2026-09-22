@@ -86,19 +86,8 @@ export function mentionReferenceIdentity(item: AssetMentionItem): MentionReferen
   }
 }
 
-function legacyReferenceType(node: MentionNode): MentionReferenceType | undefined {
-  if (node.CanvasNodeID?.trim()) return "canvasNode";
-  if (node.ResourceID?.trim()) return "resource";
-  if (node.ResourceAssetID?.trim()) return "resourceAsset";
-  if (node.AssetID?.trim()) return "asset";
-  return undefined;
-}
-
 function mentionNodeReferenceType(node: MentionNode): MentionReferenceType | undefined {
-  if (node.ReferenceType !== undefined) {
-    return REFERENCE_TYPE_BY_CODE[node.ReferenceType];
-  }
-  return legacyReferenceType(node);
+  return node.ReferenceType === undefined ? undefined : REFERENCE_TYPE_BY_CODE[node.ReferenceType];
 }
 
 const mediaCategory = (
@@ -138,17 +127,6 @@ export function mentionNodeToAsset(node: MentionNode, source?: AssetMentionItem[
 }
 
 function localMentionNode(item: AssetMentionItem): MentionNode {
-  const referenceType =
-    item.referenceType ??
-    (item.canvasNodeId
-      ? "canvasNode"
-      : item.resourceId
-        ? "resource"
-        : item.resourceAssetId
-          ? "resourceAsset"
-          : item.assetId
-            ? "asset"
-            : undefined);
   return {
     Children: [],
     Description: item.description,
@@ -159,7 +137,7 @@ function localMentionNode(item: AssetMentionItem): MentionNode {
     ResourceID: item.resourceId,
     ResourceAssetID: item.resourceAssetId,
     CanvasNodeID: item.canvasNodeId,
-    ReferenceType: referenceType ? MENTION_REFERENCE_TYPE_CODE[referenceType] : undefined,
+    ReferenceType: item.referenceType ? MENTION_REFERENCE_TYPE_CODE[item.referenceType] : undefined,
     ResourceType: item.resourceType ? RESOURCE_TYPE_CODE_BY_NAME[item.resourceType] : undefined,
     MediaType:
       item.category === "video"

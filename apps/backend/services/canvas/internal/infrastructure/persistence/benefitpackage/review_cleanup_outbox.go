@@ -91,11 +91,9 @@ func (r *Repository) MarkReviewCleanupDead(ctx context.Context, item application
 
 func reviewCleanupFromRow(row assetReviewCleanupOutboxRow) applicationpackage.ReviewCleanupOutbox {
 	return applicationpackage.ReviewCleanupOutbox{
-		ReviewID: row.ReviewID.String(), AssetID: row.AssetID.String(), PackageID: row.PackageID.String(), TenantID: row.TenantID,
-		ProviderAssetID: row.ProviderAssetID, ProjectName: row.ProjectName,
-		EncryptedAccessKeyID: row.EncryptedAccessKeyID, EncryptedSecretAccessKey: row.EncryptedSecretAccessKey,
-		QuotaReservationID: row.QuotaReservationID,
-		NextAttemptAt:      row.NextAttemptAt.UTC(), LeaseUntil: row.LeaseUntil, StateVersion: row.StateVersion,
+		ReviewID: row.ReviewID.String(), AssetID: row.AssetID.String(), PackageID: row.PackageID, TenantID: row.TenantID,
+		WorkspaceID: row.WorkspaceID, ProviderAssetID: row.ProviderAssetID, ReservationID: row.ReservationID,
+		NextAttemptAt: row.NextAttemptAt.UTC(), LeaseUntil: row.LeaseUntil, StateVersion: row.StateVersion,
 		Attempts: row.Attempts, Status: row.Status, LastError: row.LastError, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 	}
 }

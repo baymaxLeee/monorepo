@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { agentframeService } from "@/api";
 import { CoverImageUploader } from "@/components/CoverImageUploader";
 import { Input, Modal } from "@/components/ui";
 import t from "@/utils/i18n";
@@ -62,7 +61,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
       onOk={() =>
         form.handleSubmit(async (values) => {
           if (!state) return;
-          await saveCanvas(agentframeService, projectId, state, values);
+          await saveCanvas(projectId, state, values);
           onSuccess();
           onClose();
         })()

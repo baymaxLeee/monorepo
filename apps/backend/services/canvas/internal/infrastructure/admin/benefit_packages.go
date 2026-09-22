@@ -9,9 +9,11 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
 )
 
-type BenefitPackage struct {
+type benefitPackageResponse struct {
 	ID               string   `json:"id"`
 	Name             string   `json:"name"`
 	IsPreset         bool     `json:"is_preset"`
@@ -21,18 +23,18 @@ type BenefitPackage struct {
 	MaterialLimit    *int64   `json:"material_limit"`
 }
 
-type ReviewReservation struct {
+type reviewReservationResponse struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 }
 
-type ReviewedAsset struct {
+type reviewedAssetResponse struct {
 	ID            string `json:"id"`
 	Status        string `json:"status"`
 	FailureReason string `json:"failure_reason"`
 }
 
-type ReviewCleanup struct {
+type reviewCleanupResponse struct {
 	CleanupID     string `json:"cleanup_id"`
 	ReservationID string `json:"reservation_id"`
 	Status        string `json:"status"`
@@ -47,49 +49,55 @@ func (e *DependencyError) Error() string {
 	return fmt.Sprintf("admin benefit package returned status %d: %s", e.Status, e.Detail)
 }
 
-func (d *Directory) ListBenefitPackages(ctx context.Context, tenantID, workspaceID string) ([]BenefitPackage, error) {
-	var packages []BenefitPackage
-	err := d.benefitPackageRequest(ctx, http.MethodGet, "", tenantID, workspaceID, nil, &packages)
-	return packages, err
+func (d *Directory) ListBenefitPackages(ctx context.Context, tenantID, workspaceID string) ([]applicationpackage.BenefitPackage, error) {
+	var response []benefitPackageResponse
+	if err := d.benefitPackageRequest(ctx, http.MethodGet, "", tenantID, workspaceID, nil, &response); err != nil {
+		return nil, err
+	}
+	items := make([]applicationpackage.BenefitPackage, 0, len(response))
+	for _, item := range response {
+		items = append(items, applicationpackage.BenefitPackage{ID: item.ID, Name: item.Name, IsPreset: item.IsPreset, ModelIDs: item.ModelIDs})
+	}
+	return items, nil
 }
 
-func (d *Directory) ReserveBenefitPackageReview(ctx context.Context, tenantID, workspaceID, packageID, reservationID, projectID, assetID string) (ReviewReservation, error) {
+func (d *Directory) ReserveBenefitPackageReview(ctx context.Context, tenantID, workspaceID, packageID, reservationID, projectID, assetID string) (applicationpackage.ReviewReservation, error) {
 	payload := map[string]string{"reservation_id": reservationID, "project_id": projectID, "asset_id": assetID}
-	var reservation ReviewReservation
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-reservations", tenantID, workspaceID, payload, &reservation)
-	return reservation, err
+	var response reviewReservationResponse
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-reservations", tenantID, workspaceID, payload, &response)
+	return applicationpackage.ReviewReservation{ID: response.ID, Status: response.Status}, err
 }
 
-func (d *Directory) TransitionBenefitPackageReview(ctx context.Context, tenantID, workspaceID, packageID, reservationID, status string) (ReviewReservation, error) {
-	var reservation ReviewReservation
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-reservations/"+url.PathEscape(reservationID)+"/"+url.PathEscape(status), tenantID, workspaceID, nil, &reservation)
-	return reservation, err
+func (d *Directory) TransitionBenefitPackageReview(ctx context.Context, tenantID, workspaceID, packageID, reservationID, status string) (applicationpackage.ReviewReservation, error) {
+	var response reviewReservationResponse
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-reservations/"+url.PathEscape(reservationID)+"/"+url.PathEscape(status), tenantID, workspaceID, nil, &response)
+	return applicationpackage.ReviewReservation{ID: response.ID, Status: response.Status}, err
 }
 
-func (d *Directory) SubmitReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, referenceURL, assetType, name string) (ReviewedAsset, error) {
+func (d *Directory) SubmitReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, referenceURL, assetType, name string) (applicationpackage.ReviewedAsset, error) {
 	payload := map[string]string{"url": referenceURL, "asset_type": assetType, "name": name}
-	var asset ReviewedAsset
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/reviewed-assets", tenantID, workspaceID, payload, &asset)
-	return asset, err
+	var response reviewedAssetResponse
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/reviewed-assets", tenantID, workspaceID, payload, &response)
+	return applicationpackage.ReviewedAsset{ID: response.ID, Status: applicationpackage.ProviderAssetStatus(response.Status), FailureReason: response.FailureReason}, err
 }
 
-func (d *Directory) GetReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) (ReviewedAsset, error) {
-	var asset ReviewedAsset
-	err := d.benefitPackageRequest(ctx, http.MethodGet, "/"+url.PathEscape(packageID)+"/reviewed-assets/"+url.PathEscape(assetID), tenantID, workspaceID, nil, &asset)
-	return asset, err
+func (d *Directory) GetReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) (applicationpackage.ReviewedAsset, error) {
+	var response reviewedAssetResponse
+	err := d.benefitPackageRequest(ctx, http.MethodGet, "/"+url.PathEscape(packageID)+"/reviewed-assets/"+url.PathEscape(assetID), tenantID, workspaceID, nil, &response)
+	return applicationpackage.ReviewedAsset{ID: response.ID, Status: applicationpackage.ProviderAssetStatus(response.Status), FailureReason: response.FailureReason}, err
 }
 
-func (d *Directory) BeginBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (ReviewCleanup, error) {
+func (d *Directory) BeginBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (applicationpackage.ReviewCleanup, error) {
 	payload := map[string]string{"cleanup_id": cleanupID}
-	var cleanup ReviewCleanup
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID), tenantID, workspaceID, payload, &cleanup)
-	return cleanup, err
+	var response reviewCleanupResponse
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID), tenantID, workspaceID, payload, &response)
+	return applicationpackage.ReviewCleanup{CleanupID: response.CleanupID, ReservationID: response.ReservationID, Status: response.Status}, err
 }
 
-func (d *Directory) CompleteBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (ReviewCleanup, error) {
-	var cleanup ReviewCleanup
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID)+"/"+url.PathEscape(cleanupID)+"/complete", tenantID, workspaceID, nil, &cleanup)
-	return cleanup, err
+func (d *Directory) CompleteBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (applicationpackage.ReviewCleanup, error) {
+	var response reviewCleanupResponse
+	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID)+"/"+url.PathEscape(cleanupID)+"/complete", tenantID, workspaceID, nil, &response)
+	return applicationpackage.ReviewCleanup{CleanupID: response.CleanupID, ReservationID: response.ReservationID, Status: response.Status}, err
 }
 
 func (d *Directory) DeleteReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) error {

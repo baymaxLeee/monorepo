@@ -137,7 +137,9 @@ async def get_review_cleanup_claim(
 async def count_pending_review_cleanup_claims(session: AsyncSession, reservation_id: str) -> int:
     return int(
         await session.scalar(
-            select(func.count()).select_from(BenefitPackageReviewCleanupClaimRow).where(
+            select(func.count())
+            .select_from(BenefitPackageReviewCleanupClaimRow)
+            .where(
                 BenefitPackageReviewCleanupClaimRow.reservation_id == reservation_id,
                 BenefitPackageReviewCleanupClaimRow.status == "pending",
             )

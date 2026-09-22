@@ -1,3 +1,4 @@
+import { canvasListCanvases } from "@repo/api";
 import { useInfiniteScroll } from "ahooks";
 import {
   RefreshCw as IconRefresh,
@@ -9,9 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { CanvasSortDirection } from "@repo/api";
 
-import { agentframeService } from "@/api/index";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import {
   EllipsisText as CEllipsis,
@@ -22,7 +21,7 @@ import {
   formatDateByCurrentYear,
 } from "@/components/compat";
 import { Spin, Button } from "@/components/ui";
-import { canvas } from "@/domain";
+import type { canvas } from "@/domain";
 import t from "@/utils/i18n";
 import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
 
@@ -170,7 +169,7 @@ export default function CanvasesPage() {
       info: <span className="block px-6">{t("删除剧集后不可恢复，请谨慎操作。")}</span>,
       className: "w-[400px]! max-w-[calc(100vw-48px)]!",
       async onOk() {
-        await deleteCanvas(agentframeService, projectId, item.CanvasID);
+        await deleteCanvas(projectId, item.CanvasID);
         refresh();
       },
     });
@@ -186,27 +185,35 @@ export default function CanvasesPage() {
     async (currentPage) => {
       const pageNum = (currentPage?.pageNum ?? 0) + 1;
       const normalizedKeyword = debouncedKeyword.trim();
-      const response = await agentframeService.ListProjectCanvases({
-        ProjectID: projectId,
-        Filter:
-          normalizedKeyword || onlyMine
-            ? {
-                ...(normalizedKeyword ? { Keyword: normalizedKeyword } : {}),
-                ...(onlyMine ? { CreatedByMe: true } : {}),
-              }
-            : undefined,
-        Sort: {
-          Field: canvas.ProjectCanvasSortField.UPDATED_AT,
-          Direction: ascending ? CanvasSortDirection.ASC : CanvasSortDirection.DESC,
-        },
-        Page: { PageSize: VIDEO_PAGE_SIZE, PageNum: pageNum },
+      const raw = await canvasListCanvases(projectId, {
+        keyword: normalizedKeyword || undefined,
+        created_by_me: onlyMine || undefined,
+        sort_direction: ascending ? "ASC" : "DESC",
+        page_size: VIDEO_PAGE_SIZE,
+        page_num: pageNum,
       });
+      const items = raw.items.map((item) => ({
+        CanvasID: item.canvas_id,
+        ProjectID: item.project_id,
+        Name: item.name,
+        CoverImagePath: item.cover_image_path,
+        CreatedBy: item.created_by,
+        CreatedAt: item.created_at,
+        UpdatedAt: item.updated_at,
+        Stats: {
+          CanvasNodeCount: item.stats.canvas_node_count,
+          SelectedVideoDurationMillis: item.stats.selected_video_duration_millis,
+        },
+        FallbackCoverImageURL: item.fallback_cover_image_url,
+        DefaultView: item.default_view,
+        Revision: item.revision,
+      }));
 
       return {
-        hasMore: pageNum * VIDEO_PAGE_SIZE < response.Page.Total,
-        list: response.Items,
+        hasMore: pageNum * VIDEO_PAGE_SIZE < raw.page.total,
+        list: items,
         pageNum,
-        total: response.Page.Total,
+        total: raw.page.total,
       };
     },
     {

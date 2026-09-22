@@ -1,7 +1,6 @@
 import { useDebounce } from "ahooks";
 import { useCallback, useRef, useState } from "react";
 
-import { agentframeService } from "@/api";
 import { resource } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -44,9 +43,9 @@ export function useResourceAssetList({
       try {
         const normalizedKeyword = debouncedKeyword.trim().toLocaleLowerCase();
         const [nextResource, nextPage] = await Promise.all([
-          getResource(agentframeService, projectId, resourceId),
+          getResource(projectId, resourceId),
           normalizedKeyword
-            ? listResourceFiles(agentframeService, projectId, resourceId).then((allFiles) => {
+            ? listResourceFiles(projectId, resourceId).then((allFiles) => {
                 const matchedFiles = allFiles.filter((file) =>
                   file.Name.toLocaleLowerCase().includes(normalizedKeyword),
                 );
@@ -56,7 +55,7 @@ export function useResourceAssetList({
                   total: matchedFiles.length,
                 };
               })
-            : listResourceFilesPage(agentframeService, projectId, resourceId, pageNum, pageSize),
+            : listResourceFilesPage(projectId, resourceId, pageNum, pageSize),
         ]);
         if (sequence !== loadSequenceRef.current) return;
         if (pageNum > 1 && !nextPage.items.length && nextPage.total > 0) {

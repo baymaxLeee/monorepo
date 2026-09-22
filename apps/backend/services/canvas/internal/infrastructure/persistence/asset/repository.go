@@ -13,24 +13,14 @@ import (
 
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/mysqlcompat"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
 	scopelifecycle "github.com/example/monorepo/canvas/internal/infrastructure/persistence/scopelifecycle"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
-type Repository struct {
-	db                     *gorm.DB
-	mysqlCompatibleVersion int
-}
+type Repository struct{ db *gorm.DB }
 
-func NewRepository(db *gorm.DB, mysqlCompatibleVersion ...int) *Repository {
-	version := 5
-	if len(mysqlCompatibleVersion) > 0 {
-		version = mysqlCompatibleVersion[0]
-	}
-	return &Repository{db: db, mysqlCompatibleVersion: version}
-}
+func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 
 func (r *Repository) dbFor(ctx context.Context) *gorm.DB {
 	return persistencetransaction.DB(ctx, r.db)
@@ -489,7 +479,7 @@ func (r *Repository) ClaimGarbageCollection(ctx context.Context, now, leaseUntil
 			Where("candidate.purge_not_before <= ? AND candidate.next_attempt_at <= ? AND (candidate.lease_until IS NULL OR candidate.lease_until <= ?)", now, now, now).
 			Where("NOT EXISTS (?)", predecessor).
 			Order("candidate.next_attempt_at ASC").Limit(limit).
-			Clauses(mysqlcompat.ForUpdate(r.mysqlCompatibleVersion)).Find(&rows).Error; err != nil {
+			Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Find(&rows).Error; err != nil {
 			return err
 		}
 		for index := range rows {

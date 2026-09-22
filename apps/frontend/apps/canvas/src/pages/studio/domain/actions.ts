@@ -3,11 +3,13 @@ import {
   canvasStartStoryboardDrafts,
   canvasConfirmStoryboardDrafts,
   canvasCancelStoryboardDrafts,
+  canvasMaterializeAssetReference,
+  canvasMaterializeResourceReference,
+  canvasSearchNodeAssets,
   type CanvasNodeDraftSession,
   type ApiRequestConfig,
 } from "@repo/api";
 
-import type { AgentFrameService } from "@/api/agentframe";
 import type { MentionNode, MentionReferenceIdentity, MentionTreeResult } from "@/components/promptEditor";
 import { asset, canvasnode } from "@/domain";
 import {
@@ -18,7 +20,7 @@ import {
   ListCanvasNodeHistories,
   SelectCanvasNodeHistory,
 } from "@/pages/studio/domain/generations";
-import { CreateCanvasNode, UpdateCanvasNode, DeleteCanvasNode } from "@/pages/studio/domain/persistence";
+import { CreateCanvasNode, UpdateCanvasNode, DeleteCanvasNode, presentNode } from "@/pages/studio/domain/persistence";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 import { resolveUpPreviewURL } from "@/utils/upPreviewURL";
@@ -33,25 +35,8 @@ import {
   type StoryboardSettings,
 } from "./types";
 
-type StoryboardService = Pick<
-  AgentFrameService,
-  "MaterializeCanvasResourceAssetReference" | "MaterializeCanvasStandaloneAssetReference" | "SearchCanvasNodeAssets"
->;
-
 type ResourceMentionReference = Extract<MentionReferenceIdentity, { kind: "resource" | "resourceAsset" }>;
 type AssetMentionReference = Extract<MentionReferenceIdentity, { kind: "asset" }>;
-type CompatibleMaterializeResourceReferenceRequest = Omit<
-  canvasnode.MaterializeCanvasResourceAssetReferenceRequest,
-  "ResourceAssetID"
-> & {
-  ReferenceType: number;
-  ResourceID?: string;
-  ResourceAssetID?: string;
-};
-type CompatibleMaterializeAssetReferenceRequest = canvasnode.MaterializeCanvasStandaloneAssetReferenceRequest & {
-  ReferenceType: number;
-};
-
 const RESOLUTION_FROM_API: Record<number, string> = {
   [canvasnode.CanvasNodeResolution.P480]: "480P",
   [canvasnode.CanvasNodeResolution.P720]: "720P",
@@ -594,7 +579,6 @@ export function deleteCanvasNode(projectId: string, canvasId: string, canvasnode
 }
 
 export function materializeCanvasResourceAssetReference(
-  service: StoryboardService,
   projectId: string,
   canvasId: string,
   targetNodeId: string,
@@ -606,19 +590,27 @@ export function materializeCanvasResourceAssetReference(
     reference.kind === "resource"
       ? { ResourceID: reference.ResourceID }
       : { ResourceAssetID: reference.ResourceAssetID };
-  const request: CompatibleMaterializeResourceReferenceRequest = {
-    ...scope(projectId, canvasId),
-    TargetNodeID: targetNodeId,
-    ReferenceType: reference.ReferenceType,
-    ...referenceFields,
-    TargetPort: targetPort,
-    ResourceAssetNodePosition: position,
-  };
-  return service.MaterializeCanvasResourceAssetReference(request, SILENT_REQUEST);
+  return canvasMaterializeResourceReference(
+    projectId,
+    canvasId,
+    {
+      target_node_id: targetNodeId,
+      reference_type: reference.ReferenceType,
+      resource_id: referenceFields.ResourceID,
+      resource_asset_id: referenceFields.ResourceAssetID,
+      target_port: targetPort,
+      resource_asset_node_position: { position_x: position.PositionX, position_y: position.PositionY },
+    },
+    SILENT_REQUEST,
+  ).then((response) => ({
+    ResourceAssetNode: presentNode(response.resource_asset_node),
+    TargetNode: presentNode(response.target_node),
+    CanvasRevision: response.canvas_revision,
+    CreatedResourceAssetNode: response.created_resource_asset_node,
+  }));
 }
 
 export function materializeCanvasStandaloneAssetReference(
-  service: StoryboardService,
   projectId: string,
   canvasId: string,
   targetNodeId: string,
@@ -627,16 +619,24 @@ export function materializeCanvasStandaloneAssetReference(
   position: canvasnode.CanvasNodePosition,
 ) {
   const uploaded = "BlobID" in reference;
-  const request: CompatibleMaterializeAssetReferenceRequest = {
-    ...scope(projectId, canvasId),
-    TargetNodeID: targetNodeId,
-    ReferenceType: canvasnode.CanvasNodeMentionReferenceType.ASSET,
-    AssetID: uploaded ? undefined : reference.AssetID,
-    UploadedAsset: uploaded ? reference : undefined,
-    TargetPort: targetPort,
-    AssetNodePosition: position,
-  };
-  return service.MaterializeCanvasStandaloneAssetReference(request, SILENT_REQUEST);
+  return canvasMaterializeAssetReference(
+    projectId,
+    canvasId,
+    {
+      target_node_id: targetNodeId,
+      reference_type: canvasnode.CanvasNodeMentionReferenceType.ASSET,
+      asset_id: uploaded ? undefined : reference.AssetID,
+      uploaded_asset: uploaded ? { blob_id: reference.BlobID, file_name: reference.FileName } : undefined,
+      target_port: targetPort,
+      asset_node_position: { position_x: position.PositionX, position_y: position.PositionY },
+    },
+    SILENT_REQUEST,
+  ).then((response) => ({
+    AssetNode: presentNode(response.asset_node),
+    TargetNode: presentNode(response.target_node),
+    CanvasRevision: response.canvas_revision,
+    CreatedAssetNode: response.created_asset_node,
+  }));
 }
 
 function resolveMentionNodeURL(node: canvasnode.CanvasNodeAssetMentionNode): MentionNode {
@@ -648,9 +648,38 @@ function resolveMentionNodeURL(node: canvasnode.CanvasNodeAssetMentionNode): Men
   };
 }
 
+function mentionNodeFromDTO(
+  node: Awaited<ReturnType<typeof canvasSearchNodeAssets>>["items"][number],
+): canvasnode.CanvasNodeAssetMentionNode {
+  return {
+    ID: node.id,
+    Label: node.label,
+    Children: node.children.map(mentionNodeFromDTO),
+    URL: node.url,
+    MediaType: node.media_type,
+    Description: node.description,
+    CanvasNodeID: node.canvas_node_id,
+    AssetID: node.asset_id,
+    NodeType: node.node_type,
+    ResourceAssetID: node.resource_asset_id,
+    ResourceID: node.resource_id,
+    ReferenceType: node.reference_type,
+    ResourceType: node.resource_type,
+    Available: node.available,
+    Generating: node.generating,
+    Reviews: node.reviews?.map((review) => ({
+      PackageID: review.package_id,
+      PackageName: review.package_name,
+      Status: review.status,
+      FailureReason: review.failure_reason,
+      SubmittedAt: review.submitted_at,
+      UpdatedAt: review.updated_at,
+    })),
+  };
+}
+
 /** @ 面板直接消费服务端返回的通用素材树和窗口状态。 */
 export async function queryMentionTree(
-  service: Pick<AgentFrameService, "SearchCanvasNodeAssets">,
   projectId: string,
   canvasId: string,
   canvasnodeId: string,
@@ -660,20 +689,16 @@ export async function queryMentionTree(
   mediaTypes?: canvasnode.CanvasNodeMediaType[],
 ): Promise<MentionTreeResult> {
   const trimmed = keyword.trim();
-  const response = await service.SearchCanvasNodeAssets(
-    {
-      ...scope(projectId, canvasId),
-      NodeID: canvasnodeId,
-      Keyword: trimmed || undefined,
-      Cursor: cursor,
-      Limit: limit,
-      MediaTypes: mediaTypes,
-    },
+  const response = await canvasSearchNodeAssets(
+    projectId,
+    canvasId,
+    canvasnodeId,
+    { keyword: trimmed || undefined, cursor, limit, media_types: mediaTypes },
     SILENT_REQUEST,
   );
   return {
-    items: response.Items.map(resolveMentionNodeURL),
-    nextCursor: response.NextCursor,
+    items: response.items.map((node) => resolveMentionNodeURL(mentionNodeFromDTO(node))),
+    nextCursor: response.next_cursor,
   };
 }
 

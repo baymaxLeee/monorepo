@@ -5,11 +5,13 @@ import (
 	"slices"
 	"strings"
 
+	contractasset "github.com/example/monorepo/canvas/internal/api/contracts/asset"
 	contractbase "github.com/example/monorepo/canvas/internal/api/contracts/base"
-	contractbasicconfig "github.com/example/monorepo/canvas/internal/api/contracts/basicconfig"
+	contractbenefitpackage "github.com/example/monorepo/canvas/internal/api/contracts/benefitpackage"
 	contractcanvas "github.com/example/monorepo/canvas/internal/api/contracts/canvas"
 	contractcanvasnode "github.com/example/monorepo/canvas/internal/api/contracts/canvasnode"
 	contractproject "github.com/example/monorepo/canvas/internal/api/contracts/project"
+	contractprojectusage "github.com/example/monorepo/canvas/internal/api/contracts/projectusage"
 	contractresource "github.com/example/monorepo/canvas/internal/api/contracts/resource"
 )
 
@@ -21,20 +23,37 @@ type operationSpec struct {
 	output reflect.Type
 }
 
+type queryParameterSpec struct {
+	name     string
+	kind     string
+	required bool
+}
+
 func contractType[T any]() reflect.Type { return reflect.TypeFor[T]() }
 
 var operations = []operationSpec{
-	{"GET", "/config", "canvasGetRuntimeBasicConfig", nil, contractType[*contractbasicconfig.GetBasicConfigResponse]()},
-	{"GET", "/admin/config", "canvasGetBasicConfig", nil, contractType[*contractbasicconfig.GetBasicConfigResponse]()},
-	{"PUT", "/admin/config", "canvasUpdateBasicConfig", contractType[*contractbasicconfig.UpdateBasicConfigRequest](), contractType[*contractbasicconfig.UpdateBasicConfigResponse]()},
+	{"GET", "/benefit-packages", "canvasListAvailableBenefitPackages", nil, contractType[*contractbenefitpackage.ListAvailableBenefitPackagesResponse]()},
+	{"POST", "/uploads", "canvasStageUpload", nil, contractType[*contractasset.StagedUpload]()},
+	{"GET", "/admin/projects", "canvasAdminListProjects", nil, contractType[*contractproject.ListProjectsResponse]()},
+	{"POST", "/admin/projects", "canvasAdminCreateProject", contractType[*contractproject.CreateProjectRequest](), contractType[*contractproject.CreateProjectResponse]()},
+	{"GET", "/admin/projects/{projectId}", "canvasAdminGetProject", nil, contractType[*contractproject.GetProjectResponse]()},
+	{"PUT", "/admin/projects/{projectId}", "canvasAdminUpdateProject", contractType[*contractproject.UpdateProjectRequest](), contractType[*contractproject.UpdateProjectResponse]()},
+	{"DELETE", "/admin/projects/{projectId}", "canvasAdminDeleteProject", nil, contractType[*contractbase.Empty]()},
+	{"POST", "/admin/projects/{projectId}/usage:export", "canvasDownloadProjectUsage", nil, contractType[*contractprojectusage.DownloadProjectUsageXLSXResponse]()},
 	{"GET", "/projects", "canvasListProjects", nil, contractType[*contractproject.ListProjectsByMemberResponse]()},
 	{"POST", "/projects", "canvasCreateProject", contractType[*contractproject.CreateProjectRequest](), contractType[*contractproject.CreateProjectResponse]()},
 	{"GET", "/projects/{projectId}", "canvasGetProject", nil, contractType[*contractproject.GetProjectByMemberResponse]()},
 	{"PATCH", "/projects/{projectId}", "canvasUpdateProject", contractType[*contractproject.UpdateProjectByMemberRequest](), contractType[*contractproject.UpdateProjectByMemberResponse]()},
 	{"DELETE", "/projects/{projectId}", "canvasDeleteProject", nil, contractType[*contractbase.Empty]()},
+	{"POST", "/projects/{projectId}/asset-reviews:batchGet", "canvasBatchGetAssetReviews", contractType[*contractasset.BatchGetAssetReviewsRequest](), contractType[*contractasset.BatchGetAssetReviewsResponse]()},
+	{"POST", "/projects/{projectId}/asset-reviews:batchSubmit", "canvasBatchSubmitAssetReviews", contractType[*contractasset.BatchSubmitAssetReviewsRequest](), contractType[*contractasset.BatchSubmitAssetReviewsResponse]()},
+	{"GET", "/projects/{projectId}/models", "canvasListProjectModels", nil, contractType[*contractproject.ListProjectModelsResponse]()},
+	{"POST", "/projects/{projectId}/resources:batchDelete", "canvasBatchDeleteResources", contractType[*contractresource.BatchDeleteResourcesRequest](), contractType[*contractbase.Empty]()},
+	{"POST", "/projects/{projectId}/resource-assets:batchList", "canvasBatchListResourceAssets", contractType[*contractresource.BatchListResourceAssetsRequest](), contractType[*contractresource.BatchListResourceAssetsResponse]()},
 	{"GET", "/projects/{projectId}/canvases", "canvasListCanvases", nil, contractType[*contractcanvas.ListProjectCanvasesResponse]()},
 	{"POST", "/projects/{projectId}/canvases", "canvasCreateCanvas", contractType[*contractcanvas.CreateProjectCanvasRequest](), contractType[*contractcanvas.CreateProjectCanvasResponse]()},
 	{"GET", "/projects/{projectId}/resources", "canvasListResources", nil, contractType[*contractresource.ListResourcesResponse]()},
+	{"GET", "/projects/{projectId}/resources:stats", "canvasGetProjectResourceStats", nil, contractType[*contractresource.GetProjectResourceStatsResponse]()},
 	{"POST", "/projects/{projectId}/resources", "canvasCreateResource", contractType[*contractresource.CreateResourceRequest](), contractType[*contractresource.CreateResourceResponse]()},
 	{"POST", "/projects/{projectId}/resources:fromAsset", "canvasCreateResourceFromAsset", contractType[*contractresource.CreateResourceFromAssetRequest](), contractType[*contractresource.CreateResourceFromAssetResponse]()},
 	{"GET", "/projects/{projectId}/resources/{resourceId}", "canvasGetResource", nil, contractType[*contractresource.GetResourceResponse]()},
@@ -43,6 +62,8 @@ var operations = []operationSpec{
 	{"GET", "/projects/{projectId}/resources/{resourceId}/assets", "canvasListResourceAssets", nil, contractType[*contractresource.ListResourceAssetsResponse]()},
 	{"POST", "/projects/{projectId}/resources/{resourceId}/assets", "canvasCreateResourceAsset", contractType[*contractresource.CreateResourceAssetRequest](), contractType[*contractresource.CreateResourceAssetResponse]()},
 	{"POST", "/projects/{projectId}/resources/{resourceId}/generated-assets", "canvasCreateGeneratedResourceAsset", contractType[*contractresource.CreateGeneratedResourceAssetRequest](), contractType[*contractresource.CreateGeneratedResourceAssetResponse]()},
+	{"POST", "/projects/{projectId}/resources/{resourceId}/generation-states:batchGet", "canvasBatchGetResourceGenerationStates", contractType[*contractresource.BatchGetResourceAssetGenerationStatesRequest](), contractType[*contractresource.BatchGetResourceAssetGenerationStatesResponse]()},
+	{"POST", "/projects/{projectId}/resources/{resourceId}/assets:batchDelete", "canvasBatchDeleteResourceAssets", contractType[*contractresource.BatchDeleteResourceAssetsRequest](), contractType[*contractbase.Empty]()},
 	{"PATCH", "/projects/{projectId}/resources/{resourceId}/assets/{assetId}", "canvasUpdateResourceAsset", contractType[*contractresource.UpdateResourceAssetRequest](), contractType[*contractresource.UpdateResourceAssetResponse]()},
 	{"DELETE", "/projects/{projectId}/resources/{resourceId}/assets/{assetId}", "canvasDeleteResourceAsset", contractType[*contractresource.DeleteResourceAssetRequest](), contractType[*contractbase.Empty]()},
 	{"POST", "/projects/{projectId}/resources/{resourceId}/assets/{assetId}/primary", "canvasSetPrimaryResourceAsset", contractType[*contractresource.SetPrimaryResourceAssetRequest](), contractType[*contractresource.SetPrimaryResourceAssetResponse]()},
@@ -56,6 +77,12 @@ var operations = []operationSpec{
 	{"PATCH", "/projects/{projectId}/canvases/{canvasId}", "canvasUpdateCanvas", contractType[*contractcanvas.UpdateProjectCanvasRequest](), contractType[*contractcanvas.UpdateProjectCanvasResponse]()},
 	{"DELETE", "/projects/{projectId}/canvases/{canvasId}", "canvasDeleteCanvas", nil, contractType[*contractbase.Empty]()},
 	{"PATCH", "/projects/{projectId}/canvases/{canvasId}/view", "canvasUpdateCanvasView", contractType[*contractcanvas.UpdateCanvasViewRequest](), contractType[*contractbase.Empty]()},
+	{"POST", "/projects/{projectId}/canvases/{canvasId}/archives", "canvasCreateArchive", nil, contractType[*contractcanvas.StartProjectCanvasVideoArchiveExportResponse]()},
+	{"GET", "/projects/{projectId}/canvases/{canvasId}/archives", "canvasListArchives", nil, contractType[*contractcanvas.ListProjectCanvasVideoArchiveExportsResponse]()},
+	{"GET", "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}", "canvasGetArchive", nil, contractType[*contractcanvas.GetProjectCanvasVideoArchiveExportResponse]()},
+	{"POST", "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}:cancel", "canvasCancelArchive", nil, contractType[*contractbase.Empty]()},
+	{"GET", "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}/content", "canvasArchiveContent", nil, nil},
+	{"POST", "/internal/worker/archives/{archiveId}/execute", "canvasExecuteArchive", nil, contractType[*contractcanvas.ProjectCanvasVideoArchiveExport]()},
 	{"GET", "/projects/{projectId}/canvases/{canvasId}/nodes", "canvasGetGraph", nil, contractType[*contractcanvasnode.GetCanvasGraphResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes", "canvasCreateNode", contractType[*contractcanvasnode.CreateCanvasNodeRequest](), contractType[*contractcanvasnode.CreateCanvasNodeResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/assets", "canvasCreateAsset", contractType[*contractcanvasnode.CreateCanvasAssetRequest](), contractType[*contractcanvasnode.CreateCanvasAssetResponse]()},
@@ -67,6 +94,7 @@ var operations = []operationSpec{
 	{"DELETE", "/projects/{projectId}/canvases/{canvasId}/edges", "canvasDeleteEdge", contractType[*contractcanvasnode.DeleteCanvasEdgeRequest](), contractType[*contractcanvasnode.DeleteCanvasEdgeResponse]()},
 	{"PUT", "/projects/{projectId}/canvases/{canvasId}/storyboard-order", "canvasReorderStoryboard", contractType[*contractcanvasnode.ReorderStoryboardNodesRequest](), contractType[*contractcanvasnode.ReorderStoryboardNodesResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/generations", "canvasStartNodeGeneration", nil, contractType[*contractcanvasnode.StartCanvasNodeGenerationResponse]()},
+	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/text-generations:stream", "canvasStreamNodeTextGeneration", nil, contractType[*contractcanvasnode.CanvasNodeTextGenerationResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/generations", "canvasStartGeneration", nil, contractType[*contractcanvasnode.StartCanvasGenerationResponse]()},
 	{"GET", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/histories", "canvasListNodeHistories", nil, contractType[*contractcanvasnode.ListCanvasNodeHistoriesResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/histories/{historyId}:select", "canvasSelectNodeHistory", nil, contractType[*contractcanvasnode.SelectCanvasNodeHistoryResponse]()},
@@ -100,6 +128,12 @@ func Spec() map[string]any {
 			},
 		}
 		parameters := pathParameters(route.path)
+		for _, parameter := range queryParameters(route.id) {
+			parameters = append(parameters, map[string]any{
+				"name": parameter.name, "in": "query", "required": parameter.required,
+				"schema": map[string]any{"type": parameter.kind},
+			})
+		}
 		if len(parameters) > 0 {
 			operation["parameters"] = parameters
 		}
@@ -120,6 +154,57 @@ func Spec() map[string]any {
 	}
 }
 
+func queryParameters(operationID string) []queryParameterSpec {
+	switch operationID {
+	case "canvasAdminListProjects":
+		return []queryParameterSpec{
+			{name: "page_size", kind: "integer", required: true},
+			{name: "page_num", kind: "integer", required: true},
+		}
+	case "canvasListProjects":
+		return []queryParameterSpec{
+			{name: "keyword", kind: "string"},
+			{name: "sort_direction", kind: "string"},
+			{name: "page_size", kind: "integer", required: true},
+			{name: "page_num", kind: "integer", required: true},
+		}
+	case "canvasListCanvases":
+		return []queryParameterSpec{
+			{name: "keyword", kind: "string"},
+			{name: "created_by_me", kind: "boolean"},
+			{name: "sort_direction", kind: "string"},
+			{name: "page_size", kind: "integer", required: true},
+			{name: "page_num", kind: "integer", required: true},
+		}
+	case "canvasListResources":
+		return []queryParameterSpec{
+			{name: "keyword", kind: "string"},
+			{name: "type", kind: "integer"},
+			{name: "sort_direction", kind: "string"},
+			{name: "page_size", kind: "integer", required: true},
+			{name: "page_num", kind: "integer", required: true},
+		}
+	case "canvasListResourceAssets":
+		return []queryParameterSpec{
+			{name: "page_size", kind: "integer", required: true},
+			{name: "page_num", kind: "integer", required: true},
+		}
+	case "canvasListProjectModels":
+		return []queryParameterSpec{
+			{name: "page_size", kind: "integer", required: true},
+			{name: "page_num", kind: "integer", required: true},
+		}
+	case "canvasListArchives":
+		return []queryParameterSpec{
+			{name: "sort_direction", kind: "string"},
+			{name: "page_size", kind: "integer", required: true},
+			{name: "page_num", kind: "integer", required: true},
+		}
+	default:
+		return nil
+	}
+}
+
 func requestContractSchema(value reflect.Type, path string, schemas map[string]any) map[string]any {
 	for value.Kind() == reflect.Pointer {
 		value = value.Elem()
@@ -130,7 +215,6 @@ func requestContractSchema(value reflect.Type, path string, schemas map[string]a
 	omit := map[string]struct{}{
 		"workspace_id": {},
 		"project_id":   {},
-		"canvas_id":    {},
 		"top":          {},
 	}
 	for _, parameter := range pathParameters(path) {

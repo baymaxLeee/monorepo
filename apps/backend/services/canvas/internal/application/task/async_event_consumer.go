@@ -99,7 +99,7 @@ func (consumer *AsyncEventConsumer) consume(
 		if readErr != nil {
 			return readErr
 		}
-		allowed, admissionErr := CanExecuteTaskRun(txCtx, consumer.runs, run)
+		allowed, admissionErr := consumer.runs.CanExecuteTaskRun(txCtx, run)
 		if admissionErr != nil {
 			return admissionErr
 		}

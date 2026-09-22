@@ -1,9 +1,8 @@
-import { canvasCreateArchive, fetchCanvasSettings } from "@repo/api";
+import { canvasCreateArchive, canvasUpdateCanvasView, fetchCanvasSettings } from "@repo/api";
 import { Provider, useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { agentframeService } from "@/api/index";
 import panelCollapseIcon from "@/assets/canvas/panel-collapse.svg";
 import { AssetReviewModal } from "@/components/AssetReviewModal/index";
 import { CanvasConversation } from "@/components/CanvasConversation";
@@ -348,7 +347,7 @@ function StudioContent() {
   useEffect(() => {
     let active = true;
     setStudioReady(false);
-    getCanvas(agentframeService, projectId, canvasId)
+    getCanvas(projectId, canvasId)
       .then((result) => {
         if (active) {
           setCanvas(result);
@@ -715,7 +714,6 @@ function StudioContent() {
         return { items: [] };
       }
       const result = await queryMentionTree(
-        agentframeService,
         projectId,
         canvasId,
         selectedShotId,
@@ -866,15 +864,7 @@ function StudioContent() {
       let createdMaterializedNode = false;
       if (reference && (reference.kind === "resource" || reference.kind === "resourceAsset")) {
         const materialized = await mutationCoordinator.enqueue(() =>
-          materializeCanvasResourceAssetReference(
-            agentframeService,
-            projectId,
-            canvasId,
-            shotId,
-            reference,
-            targetPort,
-            target.Position,
-          ),
+          materializeCanvasResourceAssetReference(projectId, canvasId, shotId, reference, targetPort, target.Position),
         );
         materializedNode = materialized.ResourceAssetNode;
         materializedTarget = materialized.TargetNode;
@@ -885,7 +875,6 @@ function StudioContent() {
         if (!standaloneReference) throw new Error("standalone asset reference is not available");
         const materialized = await mutationCoordinator.enqueue(() =>
           materializeCanvasStandaloneAssetReference(
-            agentframeService,
             projectId,
             canvasId,
             shotId,
@@ -1048,16 +1037,11 @@ function StudioContent() {
   const addMentionAssetToLibrary = useCallback<NonNullable<AssetMentionSource["addToLibrary"]>>(
     async (candidate, input) => {
       const nodeId = candidate.canvasNodeId;
-      const response = await createResourceFromExistingAsset(
-        agentframeService,
-        projectId,
-        candidate.assetId ?? candidate.id,
-        {
-          ...input,
-          canvasId: nodeId ? canvasId : undefined,
-          canvasNodeId: nodeId,
-        },
-      );
+      const response = await createResourceFromExistingAsset(projectId, candidate.assetId ?? candidate.id, {
+        ...input,
+        canvasId: nodeId ? canvasId : undefined,
+        canvasNodeId: nodeId,
+      });
       const binding = response.CanvasNodeBinding;
       if (binding) {
         const current = studioStore.get(canvasNodesAtom).find((item) => item.NodeID === binding.CanvasNodeID);
@@ -2261,7 +2245,7 @@ function StudioContent() {
     }
     setExporting(true);
     try {
-      await canvasCreateArchive(canvasId);
+      await canvasCreateArchive(projectId, canvasId);
       Message.success(t("已开始导出"));
       setExportHistoryOpen(true);
     } catch {
@@ -2294,12 +2278,10 @@ function StudioContent() {
     }
     try {
       await mutationCoordinator.enqueue(() =>
-        agentframeService.UpdateCanvasView(
-          {
-            ProjectID: projectId,
-            CanvasID: canvasId,
-            DefaultView: next === "canvas" ? canvasIDL.CanvasViewMode.CANVAS : canvasIDL.CanvasViewMode.STORYBOARD,
-          },
+        canvasUpdateCanvasView(
+          projectId,
+          canvasId,
+          { default_view: next === "canvas" ? canvasIDL.CanvasViewMode.CANVAS : canvasIDL.CanvasViewMode.STORYBOARD },
           { skipErrorNotify: true },
         ),
       );
@@ -2497,21 +2479,7 @@ function StudioContent() {
                   view === "canvas" ? "" : "absolute inset-0 opacity-0 pointer-events-none"
                 }`}
               >
-                <CanvasBoard
-                  onRefreshGraph={refreshCanvasGraph}
-                  onRequestTextGeneration={(node) => {
-                    setChatOpen(true);
-                    setChatRequest({
-                      id: crypto.randomUUID(),
-                      text: [
-                        `请为当前画布节点 ${node.NodeID} 生成文本。`,
-                        `要求：${node.Prompt || "根据当前画布上下文生成合适内容"}`,
-                        "先读取画布理解上下文，在本次聊天中直接生成最终文本，然后调用 update_canvas_node 只更新该节点的 text 字段；不要启动 Canvas 文本生成任务。",
-                      ].join("\n"),
-                    });
-                  }}
-                  ref={canvasBoardRef}
-                />
+                <CanvasBoard onRefreshGraph={refreshCanvasGraph} ref={canvasBoardRef} />
               </div>
             ) : null}
 

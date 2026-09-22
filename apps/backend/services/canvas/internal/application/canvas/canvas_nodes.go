@@ -520,6 +520,7 @@ func (s *CanvasNodeService) Create(ctx context.Context, scope Scope, input Creat
 		}
 		input.AssetID = createdAsset.ID
 	}
+	referenceType := domain.ReferenceTypeUnspecified
 	if input.Type == domain.NodeTypeImageAsset || input.Type == domain.NodeTypeVideoAsset || input.Type == domain.NodeTypeAudioAsset {
 		assetReference := strings.TrimSpace(input.AssetID) != ""
 		resourceAssetReference := strings.TrimSpace(input.ResourceAssetID) != ""
@@ -528,6 +529,7 @@ func (s *CanvasNodeService) Create(ctx context.Context, scope Scope, input Creat
 			return domain.CanvasNode{}, 0, 0, errno.New(errno.ErrInvalidArgument)
 		}
 		if assetReference {
+			referenceType = domain.ReferenceTypeAsset
 			resolved, err := resolveProjectAsset(ctx, s.assets, scope, input.ProjectID, input.AssetID)
 			if err != nil {
 				return domain.CanvasNode{}, 0, 0, classify(err)
@@ -541,6 +543,7 @@ func (s *CanvasNodeService) Create(ctx context.Context, scope Scope, input Creat
 			}
 		}
 		if resourceAssetReference {
+			referenceType = domain.ReferenceTypeResourceAsset
 			if s.resourceAssets == nil {
 				return domain.CanvasNode{}, 0, 0, errno.New(errno.ErrInternalError)
 			}
@@ -557,6 +560,7 @@ func (s *CanvasNodeService) Create(ctx context.Context, scope Scope, input Creat
 			}
 		}
 		if resourceReference {
+			referenceType = domain.ReferenceTypeResource
 			if s.resources == nil {
 				return domain.CanvasNode{}, 0, 0, errno.New(errno.ErrInternalError)
 			}
@@ -605,7 +609,7 @@ func (s *CanvasNodeService) Create(ctx context.Context, scope Scope, input Creat
 		}
 		item, lockErr = domain.NewCanvasNode(domain.CanvasNodeInput{ID: id, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
 			ProjectID: input.ProjectID, CanvasID: input.CanvasID, CreatedBy: scope.CallerID, Type: input.Type,
-			Name: name, Position: input.Position, StoryboardRank: storyboardRank, Text: input.Text, AssetID: input.AssetID,
+			ReferenceType: referenceType, Name: name, Position: input.Position, StoryboardRank: storyboardRank, Text: input.Text, AssetID: input.AssetID,
 			ResourceID: input.ResourceID, ResourceAssetID: input.ResourceAssetID,
 			VideoInputMode: domain.VideoInputModeReference, GenerationConfig: config, Now: s.clock.Now()})
 		if lockErr != nil {
@@ -691,7 +695,7 @@ func (s *CanvasNodeService) Copy(ctx context.Context, scope Scope, input CopyNod
 			ID: id, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ProjectID: input.ProjectID,
 			CanvasID: input.CanvasID, CreatedBy: scope.CallerID, Type: source.Type, Name: source.Name, HasPersistedName: source.HasPersistedName,
 			Position: input.Position, StoryboardRank: storyboardRank, Prompt: source.Prompt, Text: source.Text,
-			AssetID: assetID, ResourceID: resourceID, ResourceAssetID: resourceAssetID, VideoInputMode: source.VideoInputMode,
+			ReferenceType: source.ReferenceType, AssetID: assetID, ResourceID: resourceID, ResourceAssetID: resourceAssetID, VideoInputMode: source.VideoInputMode,
 			GenerationConfig: source.GenerationConfig, Now: s.clock.Now(),
 		})
 		if getErr != nil {

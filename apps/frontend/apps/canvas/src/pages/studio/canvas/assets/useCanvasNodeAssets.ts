@@ -1,11 +1,11 @@
+import { canvasMaterializeAssetReference, canvasMaterializeResourceReference } from "@repo/api";
 import { useSetAtom } from "jotai";
 import { useCallback, type RefObject } from "react";
 
-import { agentframeService } from "@/api";
 import { type AssetMentionItem, mentionReferenceIdentity } from "@/components/promptEditor";
 import { Message } from "@/components/ui";
 import type { canvasnode } from "@/domain";
-import { ConnectCanvasNodes } from "@/pages/studio/domain/persistence";
+import { ConnectCanvasNodes, presentNode } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
 
 import { canvasRequestErrorMessage, queryMentionTree } from "../../domain/actions";
@@ -17,18 +17,6 @@ import { isDeletedReferenceNode, MATERIALIZED_NODE_HORIZONTAL_GAP } from "../gra
 import type { CanvasFlowNode } from "../graph/canvasNodeTypes";
 import type { resolveCanvasConnection } from "../graph/connectionPolicy";
 import { canvasNodeInputMediaTypes, canvasNodeInputWarning, resolveCanvasNodeInput } from "../graph/nodeProtocol";
-
-type CompatibleMaterializeResourceReferenceRequest = Omit<
-  canvasnode.MaterializeCanvasResourceAssetReferenceRequest,
-  "ResourceAssetID"
-> & {
-  ReferenceType: number;
-  ResourceID?: string;
-  ResourceAssetID?: string;
-};
-type CompatibleMaterializeAssetReferenceRequest = canvasnode.MaterializeCanvasStandaloneAssetReferenceRequest & {
-  ReferenceType: number;
-};
 
 export function useCanvasNodeAssets({
   canvasId,
@@ -57,7 +45,6 @@ export function useCanvasNodeAssets({
         return Promise.resolve({ items: [] });
       }
       return queryMentionTree(
-        agentframeService,
         projectId,
         canvasId,
         nodeID,
@@ -136,42 +123,51 @@ export function useCanvasNodeAssets({
       };
       const response = await enqueueCanvasMutation(async () => {
         if (reference.kind === "asset") {
-          const request: CompatibleMaterializeAssetReferenceRequest = {
-            ProjectID: projectId,
-            CanvasID: canvasId,
-            TargetNodeID: target.NodeID,
-            ReferenceType: reference.ReferenceType,
-            AssetID: reference.AssetID,
-            TargetPort: targetPort,
-            AssetNodePosition: materializedPosition,
-          };
-          const materialized = await agentframeService.MaterializeCanvasStandaloneAssetReference(request, {
-            skipErrorNotify: true,
-          });
-          onCanvasRevisionChange(materialized.CanvasRevision);
+          const materialized = await canvasMaterializeAssetReference(
+            projectId,
+            canvasId,
+            {
+              target_node_id: target.NodeID,
+              reference_type: reference.ReferenceType,
+              asset_id: reference.AssetID,
+              target_port: targetPort,
+              asset_node_position: {
+                position_x: materializedPosition.PositionX,
+                position_y: materializedPosition.PositionY,
+              },
+            },
+            {
+              skipErrorNotify: true,
+            },
+          );
+          onCanvasRevisionChange(materialized.canvas_revision);
           return {
-            assetNode: materialized.AssetNode,
-            targetNode: materialized.TargetNode,
+            assetNode: presentNode(materialized.asset_node),
+            targetNode: presentNode(materialized.target_node),
           };
         }
-        const request: CompatibleMaterializeResourceReferenceRequest = {
-          ProjectID: projectId,
-          CanvasID: canvasId,
-          TargetNodeID: target.NodeID,
-          ReferenceType: reference.ReferenceType,
-          ...(reference.kind === "resource"
-            ? { ResourceID: reference.ResourceID }
-            : { ResourceAssetID: reference.ResourceAssetID }),
-          TargetPort: targetPort,
-          ResourceAssetNodePosition: materializedPosition,
-        };
-        const materialized = await agentframeService.MaterializeCanvasResourceAssetReference(request, {
-          skipErrorNotify: true,
-        });
-        onCanvasRevisionChange(materialized.CanvasRevision);
+        const materialized = await canvasMaterializeResourceReference(
+          projectId,
+          canvasId,
+          {
+            target_node_id: target.NodeID,
+            reference_type: reference.ReferenceType,
+            resource_id: reference.kind === "resource" ? reference.ResourceID : undefined,
+            resource_asset_id: reference.kind === "resourceAsset" ? reference.ResourceAssetID : undefined,
+            target_port: targetPort,
+            resource_asset_node_position: {
+              position_x: materializedPosition.PositionX,
+              position_y: materializedPosition.PositionY,
+            },
+          },
+          {
+            skipErrorNotify: true,
+          },
+        );
+        onCanvasRevisionChange(materialized.canvas_revision);
         return {
-          assetNode: materialized.ResourceAssetNode,
-          targetNode: materialized.TargetNode,
+          assetNode: presentNode(materialized.resource_asset_node),
+          targetNode: presentNode(materialized.target_node),
         };
       });
       const selected: AssetMentionItem = {

@@ -46,25 +46,20 @@ type pollScheduleRow struct {
 func (pollScheduleRow) TableName() string { return "poll_schedules" }
 
 type asyncDispatchRow struct {
-	TaskRunID persistenceid.UUID `gorm:"primaryKey;index:idx_async_dispatches_due,priority:3"`
-	RunType   string             `gorm:"size:64;not null"`
-	// Topic remains a derived persistence column because GORM AutoMigrate does not
-	// drop the earlier NOT NULL column. Routing must never read this value.
-	Topic string `gorm:"size:191;not null"`
-	// These columns remain nullable in the schema inherited from the pre-Job
-	// migration owner. Runtime writes still always provide concrete values.
-	DeliveryState       string    `gorm:"size:32;index:idx_async_dispatches_due,priority:1"`
-	ExecutionState      string    `gorm:"size:32;index:idx_async_dispatches_execution_due,priority:1"`
-	NextDispatchAt      time.Time `gorm:"not null;index:idx_async_dispatches_due,priority:2"`
+	TaskRunID           persistenceid.UUID `gorm:"primaryKey;index:idx_async_dispatches_due,priority:3"`
+	RunType             string             `gorm:"size:64;not null"`
+	DeliveryState       string             `gorm:"size:32;not null;index:idx_async_dispatches_due,priority:1"`
+	ExecutionState      string             `gorm:"size:32;not null;index:idx_async_dispatches_execution_due,priority:1"`
+	NextDispatchAt      time.Time          `gorm:"not null;index:idx_async_dispatches_due,priority:2"`
 	PublishLeaseUntil   *time.Time
 	ExecutionLeaseUntil *time.Time `gorm:"index:idx_async_dispatches_execution_due,priority:2"`
 	ExecutionToken      string     `gorm:"size:36;not null"`
-	DeliveryVersion     int64
-	ExecutionVersion    int64
-	PublishAttempts     int32 `gorm:"not null"`
-	ExecutionAttempts   int32 `gorm:"not null"`
-	ExecutionFailures   int32 `gorm:"not null"`
-	LeaseRecoveries     int32 `gorm:"not null"`
+	DeliveryVersion     int64      `gorm:"not null"`
+	ExecutionVersion    int64      `gorm:"not null"`
+	PublishAttempts     int32      `gorm:"not null"`
+	ExecutionAttempts   int32      `gorm:"not null"`
+	ExecutionFailures   int32      `gorm:"not null"`
+	LeaseRecoveries     int32      `gorm:"not null"`
 	FirstStartedAt      *time.Time
 	LastErrorCode       string    `gorm:"size:128;not null"`
 	LastErrorMessage    string    `gorm:"type:text;not null"`

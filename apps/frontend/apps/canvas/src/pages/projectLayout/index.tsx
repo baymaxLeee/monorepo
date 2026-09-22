@@ -35,7 +35,7 @@ export default function ProjectLayout() {
     let active = true;
     canvasGetProject(projectId)
       .then((response) => {
-        if (active) setProjectName(response.name);
+        if (active) setProjectName(response.project.name);
       })
       .catch(() => {
         if (active) setProjectName("");

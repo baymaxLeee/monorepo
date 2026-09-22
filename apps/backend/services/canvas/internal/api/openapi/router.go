@@ -2,22 +2,26 @@ package openapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/go-chi/chi/v5"
 
-	contractbasicconfig "github.com/example/monorepo/canvas/internal/api/contracts/basicconfig"
+	contractasset "github.com/example/monorepo/canvas/internal/api/contracts/asset"
+	contractbenefitpackage "github.com/example/monorepo/canvas/internal/api/contracts/benefitpackage"
 	contractcanvas "github.com/example/monorepo/canvas/internal/api/contracts/canvas"
 	contractcanvasnode "github.com/example/monorepo/canvas/internal/api/contracts/canvasnode"
 	contractcommon "github.com/example/monorepo/canvas/internal/api/contracts/common"
 	contractproject "github.com/example/monorepo/canvas/internal/api/contracts/project"
+	contractprojectusage "github.com/example/monorepo/canvas/internal/api/contracts/projectusage"
 	contractresource "github.com/example/monorepo/canvas/internal/api/contracts/resource"
 	maturehttp "github.com/example/monorepo/canvas/internal/api/handler"
 	requestcontext "github.com/example/monorepo/canvas/internal/api/requestcontext"
@@ -26,40 +30,108 @@ import (
 )
 
 const apiVersion = "2026-07-31"
+const maxStagedUploadBytes int64 = 512 << 20
 
 type Router struct {
-	basic     *maturehttp.BasicConfigHandler
-	projects  *maturehttp.ProjectHandler
-	canvases  *maturehttp.CanvasHandler
-	nodes     *maturehttp.CanvasNodeHandler
-	resources *maturehttp.ResourceHandler
-	access    applicationprojectaccess.MemberChecker
+	projects       *maturehttp.ProjectHandler
+	projectUsage   *maturehttp.ProjectUsageHandler
+	canvases       *maturehttp.CanvasHandler
+	nodes          *maturehttp.CanvasNodeHandler
+	resources      *maturehttp.ResourceHandler
+	assets         *maturehttp.AssetHandler
+	archives       *maturehttp.CanvasArchiveHandler
+	executeArchive func(context.Context, string) (any, error)
+	uploadBlob     func(context.Context, io.Reader) (string, int64, error)
+	access         applicationprojectaccess.MemberChecker
 }
 
-func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.ProjectHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, access applicationprojectaccess.MemberChecker) http.Handler {
-	transport := &Router{basic: basic, projects: projects, canvases: canvases, nodes: nodes, resources: resources, access: access}
+func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), access applicationprojectaccess.MemberChecker) http.Handler {
+	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, uploadBlob: uploadBlob, access: access}
 	router := chi.NewRouter()
+	router.Use(serviceAuthentication(internalToken))
 	router.Get("/livez", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
-	router.Get("/config", transport.route("GetRuntimeBasicConfig", func(ctx context.Context, _ *http.Request) (any, error) {
-		return transport.basic.GetRuntimeBasicConfig(ctx, &contractbasicconfig.GetBasicConfigRequest{})
+	router.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
+	router.Post("/uploads", transport.uploadRoute())
+	router.Get("/admin/projects", transport.workspaceAdminRoute("ListProjects", func(ctx context.Context, request *http.Request) (any, error) {
+		workspace := metadataWorkspace(request)
+		pageSize, err := requiredPositiveInt32Query(request, "page_size")
+		if err != nil {
+			return nil, err
+		}
+		pageNum, err := requiredPositiveInt32Query(request, "page_num")
+		if err != nil {
+			return nil, err
+		}
+		return transport.projects.ListProjects(ctx, &contractproject.ListProjectsRequest{
+			WorkspaceID: &workspace, Page: &contractcommon.Page{PageSize: pageSize, PageNum: pageNum},
+		})
 	}))
-	router.Get("/admin/config", transport.route("GetBasicConfig", func(ctx context.Context, _ *http.Request) (any, error) {
-		return transport.basic.GetBasicConfig(ctx, &contractbasicconfig.GetBasicConfigRequest{})
-	}))
-	router.Put("/admin/config", transport.route("UpdateBasicConfig", func(ctx context.Context, request *http.Request) (any, error) {
-		input := new(contractbasicconfig.UpdateBasicConfigRequest)
+	router.Post("/admin/projects", transport.workspaceAdminRoute("CreateProject", func(ctx context.Context, request *http.Request) (any, error) {
+		input := new(contractproject.CreateProjectRequest)
 		if err := decodeContract(request, input); err != nil {
 			return nil, err
 		}
-		return transport.basic.UpdateBasicConfig(ctx, input)
+		workspace := metadataWorkspace(request)
+		input.WorkspaceID = &workspace
+		return transport.projects.CreateProject(ctx, input)
+	}))
+	router.Route("/admin/projects/{projectId}", func(r chi.Router) {
+		r.Get("/", transport.workspaceAdminRoute("GetProject", func(ctx context.Context, request *http.Request) (any, error) {
+			workspace := metadataWorkspace(request)
+			return transport.projects.GetProject(ctx, &contractproject.GetProjectRequest{
+				WorkspaceID: &workspace, ProjectID: chi.URLParam(request, "projectId"),
+			})
+		}))
+		r.Put("/", transport.workspaceAdminRoute("UpdateProject", func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractproject.UpdateProjectRequest)
+			if err := decodeContract(request, input); err != nil {
+				return nil, err
+			}
+			workspace := metadataWorkspace(request)
+			input.WorkspaceID, input.ProjectID = &workspace, chi.URLParam(request, "projectId")
+			return transport.projects.UpdateProject(ctx, input)
+		}))
+		r.Delete("/", transport.workspaceAdminRoute("DeleteProject", func(ctx context.Context, request *http.Request) (any, error) {
+			workspace := metadataWorkspace(request)
+			return transport.projects.DeleteProject(ctx, &contractproject.DeleteProjectRequest{
+				WorkspaceID: &workspace, ProjectID: chi.URLParam(request, "projectId"),
+			})
+		}))
+		r.Post("/usage:export", transport.workspaceAdminRoute("DownloadProjectUsageXLSX", func(ctx context.Context, request *http.Request) (any, error) {
+			workspace := metadataWorkspace(request)
+			return transport.projectUsage.DownloadProjectUsageXLSX(ctx, &contractprojectusage.DownloadProjectUsageXLSXRequest{
+				WorkspaceID: &workspace, ProjectID: chi.URLParam(request, "projectId"),
+			})
+		}))
+	})
+	router.Get("/benefit-packages", transport.route("ListAvailableBenefitPackages", func(ctx context.Context, _ *http.Request) (any, error) {
+		return transport.assets.ListAvailableBenefitPackages(ctx, &contractbenefitpackage.ListAvailableBenefitPackagesRequest{})
 	}))
 	router.Get("/projects", transport.route("ListProjectsByMember", func(ctx context.Context, request *http.Request) (any, error) {
 		workspace := metadataWorkspace(request)
-		input := &contractproject.ListProjectsByMemberRequest{WorkspaceID: &workspace, Page: &contractcommon.Page{PageSize: 100, PageNum: 1}}
+		pageSize, err := requiredPositiveInt32Query(request, "page_size")
+		if err != nil {
+			return nil, err
+		}
+		pageNum, err := requiredPositiveInt32Query(request, "page_num")
+		if err != nil {
+			return nil, err
+		}
+		input := &contractproject.ListProjectsByMemberRequest{
+			WorkspaceID: &workspace, Page: &contractcommon.Page{PageSize: pageSize, PageNum: pageNum},
+		}
 		if keyword := strings.TrimSpace(request.URL.Query().Get("keyword")); keyword != "" {
 			input.Filter = &contractproject.ProjectFilter{Keyword: &keyword}
+		}
+		if direction := strings.TrimSpace(request.URL.Query().Get("sort_direction")); direction != "" {
+			parsed, parseErr := contractcommon.SortDirectionFromString(strings.ToUpper(direction))
+			if parseErr != nil {
+				return nil, errno.Wrap(errno.ErrInvalidArgument, parseErr)
+			}
+			field := contractproject.ProjectSortField_UPDATED_AT
+			input.Sort = &contractproject.ProjectSort{Field: &field, Direction: &parsed}
 		}
 		return transport.projects.ListProjectsByMember(ctx, input)
 	}))
@@ -73,6 +145,59 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 		return transport.projects.CreateProject(ctx, input)
 	}))
 	router.Route("/projects/{projectId}", func(r chi.Router) {
+		r.Get("/models", transport.nodeRoute("ListProjectModels", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
+			workspace := metadataWorkspace(request)
+			pageSize, err := requiredPositiveInt32Query(request, "page_size")
+			if err != nil {
+				return nil, err
+			}
+			pageNum, err := requiredPositiveInt32Query(request, "page_num")
+			if err != nil {
+				return nil, err
+			}
+			granted := true
+			return transport.projects.ListProjectModels(ctx, &contractproject.ListProjectModelsRequest{
+				WorkspaceID: &workspace, ProjectID: chi.URLParam(request, "projectId"),
+				ListOpt: &contractproject.ProjectModelListOption{PageNumber: pageNum, PageSize: pageSize},
+				Filter:  &contractproject.ProjectModelFilter{IsGranted: &granted},
+			})
+		}))
+		r.Post("/resources:batchDelete", transport.nodeRoute("BatchDeleteResources", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractresource.BatchDeleteResourcesRequest)
+			if err := decodeContract(request, input); err != nil {
+				return nil, err
+			}
+			workspace := metadataWorkspace(request)
+			input.WorkspaceID, input.ProjectID = &workspace, chi.URLParam(request, "projectId")
+			return transport.resources.BatchDeleteResources(ctx, input)
+		}))
+		r.Post("/resource-assets:batchList", transport.nodeRoute("BatchListResourceAssets", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractresource.BatchListResourceAssetsRequest)
+			if err := decodeContract(request, input); err != nil {
+				return nil, err
+			}
+			workspace := metadataWorkspace(request)
+			input.WorkspaceID, input.ProjectID = &workspace, chi.URLParam(request, "projectId")
+			return transport.resources.BatchListResourceAssets(ctx, input)
+		}))
+		r.Post("/asset-reviews:batchGet", transport.nodeRoute("BatchGetAssetReviews", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractasset.BatchGetAssetReviewsRequest)
+			if err := decodeContract(request, input); err != nil {
+				return nil, err
+			}
+			workspace := metadataWorkspace(request)
+			input.WorkspaceID, input.ProjectID = &workspace, chi.URLParam(request, "projectId")
+			return transport.assets.BatchGetAssetReviews(ctx, input)
+		}))
+		r.Post("/asset-reviews:batchSubmit", transport.nodeRoute("BatchSubmitAssetReviews", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractasset.BatchSubmitAssetReviewsRequest)
+			if err := decodeContract(request, input); err != nil {
+				return nil, err
+			}
+			workspace := metadataWorkspace(request)
+			input.WorkspaceID, input.ProjectID = &workspace, chi.URLParam(request, "projectId")
+			return transport.assets.BatchSubmitAssetReviews(ctx, input)
+		}))
 		r.Get("/", transport.nodeRoute("GetProjectByMember", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
 			workspace := metadataWorkspace(request)
 			input := &contractproject.GetProjectByMemberRequest{
@@ -101,7 +226,34 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 		}))
 		r.Get("/canvases", transport.nodeRoute("ListProjectCanvases", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
 			workspace := metadataWorkspace(request)
-			input := &contractcanvas.ListProjectCanvasesRequest{WorkspaceID: &workspace, ProjectID: chi.URLParam(request, "projectId"), Page: &contractcommon.Page{PageSize: 100, PageNum: 1}}
+			pageSize, err := requiredPositiveInt32Query(request, "page_size")
+			if err != nil {
+				return nil, err
+			}
+			pageNum, err := requiredPositiveInt32Query(request, "page_num")
+			if err != nil {
+				return nil, err
+			}
+			input := &contractcanvas.ListProjectCanvasesRequest{
+				WorkspaceID: &workspace, ProjectID: chi.URLParam(request, "projectId"),
+				Page: &contractcommon.Page{PageSize: pageSize, PageNum: pageNum},
+			}
+			keyword := strings.TrimSpace(request.URL.Query().Get("keyword"))
+			createdByMe, err := optionalBoolQuery(request, "created_by_me")
+			if err != nil {
+				return nil, err
+			}
+			if keyword != "" || createdByMe != nil {
+				input.Filter = &contractcanvas.ProjectCanvasFilter{Keyword: &keyword, CreatedByMe: createdByMe}
+			}
+			if direction := strings.TrimSpace(request.URL.Query().Get("sort_direction")); direction != "" {
+				parsed, parseErr := contractcommon.SortDirectionFromString(strings.ToUpper(direction))
+				if parseErr != nil {
+					return nil, errno.Wrap(errno.ErrInvalidArgument, parseErr)
+				}
+				field := contractcanvas.ProjectCanvasSortField_UPDATED_AT
+				input.Sort = &contractcanvas.ProjectCanvasSort{Field: &field, Direction: &parsed}
+			}
 			return transport.canvases.ListProjectCanvases(ctx, input)
 		}))
 		r.Post("/canvases", transport.nodeRoute("CreateProjectCanvas", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
@@ -115,15 +267,45 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 		}))
 		r.Get("/resources", transport.nodeRoute("ListResources", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
 			workspace := metadataWorkspace(request)
+			pageSize, err := requiredPositiveInt32Query(request, "page_size")
+			if err != nil {
+				return nil, err
+			}
+			pageNum, err := requiredPositiveInt32Query(request, "page_num")
+			if err != nil {
+				return nil, err
+			}
 			input := &contractresource.ListResourcesRequest{
 				WorkspaceID: &workspace,
 				ProjectID:   chi.URLParam(request, "projectId"),
-				Page:        &contractcommon.Page{PageSize: 100, PageNum: 1},
+				Page:        &contractcommon.Page{PageSize: pageSize, PageNum: pageNum},
 			}
 			if keyword := strings.TrimSpace(request.URL.Query().Get("keyword")); keyword != "" {
 				input.Keyword = &keyword
 			}
+			if rawType := strings.TrimSpace(request.URL.Query().Get("type")); rawType != "" {
+				value, parseErr := strconv.ParseInt(rawType, 10, 64)
+				if parseErr != nil {
+					return nil, errno.Wrap(errno.ErrInvalidArgument, parseErr)
+				}
+				resourceType := contractresource.ResourceType(value)
+				input.Type = &resourceType
+			}
+			if direction := strings.TrimSpace(request.URL.Query().Get("sort_direction")); direction != "" {
+				parsed, parseErr := contractcommon.SortDirectionFromString(strings.ToUpper(direction))
+				if parseErr != nil {
+					return nil, errno.Wrap(errno.ErrInvalidArgument, parseErr)
+				}
+				field := contractresource.ResourceSortField_UPDATED_AT
+				input.Sort = &contractresource.ResourceSort{Field: &field, Direction: &parsed}
+			}
 			return transport.resources.ListResources(ctx, input)
+		}))
+		r.Get("/resources:stats", transport.nodeRoute("GetProjectResourceStats", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
+			workspace := metadataWorkspace(request)
+			return transport.resources.GetProjectResourceStats(ctx, &contractresource.GetProjectResourceStatsRequest{
+				WorkspaceID: &workspace, ProjectID: chi.URLParam(request, "projectId"),
+			})
 		}))
 		r.Post("/resources", transport.nodeRoute("CreateResource", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
 			input := new(contractresource.CreateResourceRequest)
@@ -146,6 +328,22 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 			return transport.resources.CreateResourceFromAsset(ctx, input)
 		}))
 		r.Route("/resources/{resourceId}", func(resources chi.Router) {
+			resources.Post("/generation-states:batchGet", transport.nodeRoute("BatchGetResourceAssetGenerationStates", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
+				input := new(contractresource.BatchGetResourceAssetGenerationStatesRequest)
+				if err := decodeContract(request, input); err != nil {
+					return nil, err
+				}
+				setResourceScope(request, &input.WorkspaceID, &input.ProjectID, &input.ResourceID)
+				return transport.resources.BatchGetResourceAssetGenerationStates(ctx, input)
+			}))
+			resources.Post("/assets:batchDelete", transport.nodeRoute("BatchDeleteResourceAssets", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
+				input := new(contractresource.BatchDeleteResourceAssetsRequest)
+				if err := decodeContract(request, input); err != nil {
+					return nil, err
+				}
+				setResourceScope(request, &input.WorkspaceID, &input.ProjectID, &input.ResourceID)
+				return transport.resources.BatchDeleteResourceAssets(ctx, input)
+			}))
 			resources.Get("/", transport.nodeRoute("GetResource", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
 				input := new(contractresource.GetResourceRequest)
 				setResourceScope(request, &input.WorkspaceID, &input.ProjectID, &input.ResourceID)
@@ -168,7 +366,17 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 				return transport.resources.DeleteResource(ctx, input)
 			}))
 			resources.Get("/assets", transport.nodeRoute("ListResourceAssets", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
-				input := &contractresource.ListResourceAssetsRequest{Page: &contractcommon.Page{PageSize: 100, PageNum: 1}}
+				pageSize, err := requiredPositiveInt32Query(request, "page_size")
+				if err != nil {
+					return nil, err
+				}
+				pageNum, err := requiredPositiveInt32Query(request, "page_num")
+				if err != nil {
+					return nil, err
+				}
+				input := &contractresource.ListResourceAssetsRequest{
+					Page: &contractcommon.Page{PageSize: pageSize, PageNum: pageNum},
+				}
 				setResourceScope(request, &input.WorkspaceID, &input.ProjectID, &input.ResourceID)
 				return transport.resources.ListResourceAssets(ctx, input)
 			}))
@@ -298,6 +506,46 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 			input.CanvasID = chi.URLParam(request, "canvasId")
 			return transport.canvases.UpdateCanvasView(ctx, input)
 		}))
+		r.Post("/archives", transport.nodeRoute("StartProjectCanvasVideoArchiveExport", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractcanvas.StartProjectCanvasVideoArchiveExportRequest)
+			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
+			return transport.archives.StartProjectCanvasVideoArchiveExport(ctx, input)
+		}))
+		r.Get("/archives", transport.nodeRoute("ListProjectCanvasVideoArchiveExports", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractcanvas.ListProjectCanvasVideoArchiveExportsRequest)
+			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
+			pageSize, err := requiredPositiveInt32Query(request, "page_size")
+			if err != nil {
+				return nil, err
+			}
+			pageNum, err := requiredPositiveInt32Query(request, "page_num")
+			if err != nil {
+				return nil, err
+			}
+			input.Page = &contractcommon.Page{PageSize: pageSize, PageNum: pageNum}
+			if direction := strings.TrimSpace(request.URL.Query().Get("sort_direction")); direction != "" {
+				parsed, parseErr := contractcommon.SortDirectionFromString(strings.ToUpper(direction))
+				if parseErr != nil {
+					return nil, errno.Wrap(errno.ErrInvalidArgument, parseErr)
+				}
+				field := contractcanvas.ProjectCanvasVideoArchiveExportSortField_CREATED_AT
+				input.Sort = &contractcanvas.ProjectCanvasVideoArchiveExportSort{Field: &field, Direction: &parsed}
+			}
+			return transport.archives.ListProjectCanvasVideoArchiveExports(ctx, input)
+		}))
+		r.Get("/archives/{taskRunId}", transport.nodeRoute("GetProjectCanvasVideoArchiveExport", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractcanvas.GetProjectCanvasVideoArchiveExportRequest)
+			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
+			input.TaskRunID = chi.URLParam(request, "taskRunId")
+			return transport.archives.GetProjectCanvasVideoArchiveExport(ctx, input)
+		}))
+		r.Post("/archives/{taskRunId}:cancel", transport.nodeRoute("CancelProjectCanvasVideoArchiveExport", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
+			input := new(contractcanvas.CancelProjectCanvasVideoArchiveExportRequest)
+			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
+			input.TaskRunID = chi.URLParam(request, "taskRunId")
+			return transport.archives.CancelProjectCanvasVideoArchiveExport(ctx, input)
+		}))
+		r.Get("/archives/{taskRunId}/content", transport.archiveContentRoute())
 		r.Get("/nodes", transport.nodeRoute("GetCanvasGraph", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
 			input := &contractcanvasnode.GetCanvasGraphRequest{}
 			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
@@ -385,6 +633,12 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
 			input.NodeID = chi.URLParam(request, "nodeId")
 			return transport.nodes.StartCanvasNodeGeneration(ctx, input)
+		}))
+		r.Post("/nodes/{nodeId}/text-generations:stream", transport.nodeStreamRoute("StartCanvasNodeTextGeneration", applicationprojectaccess.AccessUpdate, func(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+			input := new(contractcanvasnode.StartCanvasNodeTextGenerationRequest)
+			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
+			input.NodeID = chi.URLParam(request, "nodeId")
+			return transport.nodes.StreamCanvasNodeTextGeneration(ctx, writer, input)
 		}))
 		r.Post("/generations", transport.nodeRoute("StartCanvasGeneration", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
 			input := new(contractcanvasnode.StartCanvasGenerationRequest)
@@ -499,7 +753,129 @@ func NewRouter(basic *maturehttp.BasicConfigHandler, projects *maturehttp.Projec
 	return router
 }
 
+func serviceAuthentication(expectedToken string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			if request.URL.Path == "/livez" {
+				next.ServeHTTP(w, request)
+				return
+			}
+			token := request.Header.Get("X-Internal-Token")
+			caller := strings.TrimSpace(request.Header.Get("X-Caller-Service"))
+			if caller == "" || len(token) != len(expectedToken) || subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
+				writeProblem(w, errno.New(errno.ErrForbidden))
+				return
+			}
+			next.ServeHTTP(w, request)
+		})
+	}
+}
+
+func (transport *Router) internalArchiveRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		if strings.TrimSpace(request.Header.Get("X-Caller-Service")) != "executor" || transport.executeArchive == nil {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		value, err := transport.executeArchive(request.Context(), chi.URLParam(request, "archiveId"))
+		if err != nil {
+			writeProblem(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toSnakeJSON(value))
+	}
+}
+
+func (transport *Router) archiveContentRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		metadata, err := metadataFromRequest(request, "OpenProjectCanvasVideoArchiveExport")
+		if err != nil {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		workspaceID := metadataWorkspace(request)
+		if transport.access == nil || transport.archives == nil {
+			writeProblem(w, errno.New(errno.ErrConfigurationError))
+			return
+		}
+		if err = transport.access.Check(request.Context(), metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId")); err != nil {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		ctx := requestcontext.WithMetadata(request.Context(), metadata)
+		input := &contractcanvas.GetProjectCanvasVideoArchiveExportRequest{
+			WorkspaceID: &workspaceID, ProjectID: chi.URLParam(request, "projectId"),
+			CanvasID: chi.URLParam(request, "canvasId"), TaskRunID: chi.URLParam(request, "taskRunId"),
+		}
+		body, filename, err := transport.archives.OpenProjectCanvasVideoArchiveExport(ctx, input)
+		if err != nil {
+			writeProblem(w, err)
+			return
+		}
+		defer body.Close()
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+strings.ReplaceAll(filename, `"`, "")+`"`)
+		if _, err = io.Copy(w, body); err != nil {
+			slog.Warn("stream Canvas archive", "error", err)
+		}
+	}
+}
+
 type endpoint func(context.Context, *http.Request) (any, error)
+
+func (transport *Router) uploadRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		metadata, err := metadataFromRequest(request, "StageUpload")
+		if err != nil {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		if transport.uploadBlob == nil {
+			writeProblem(w, errno.New(errno.ErrConfigurationError))
+			return
+		}
+		if request.ContentLength > maxStagedUploadBytes {
+			writeProblem(w, errno.New(errno.ErrInvalidArgument))
+			return
+		}
+		ctx := requestcontext.WithMetadata(request.Context(), metadata)
+		request.Body = http.MaxBytesReader(w, request.Body, maxStagedUploadBytes)
+		blobID, size, err := transport.uploadBlob(ctx, request.Body)
+		if err != nil {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				err = errno.New(errno.ErrInvalidArgument)
+			}
+			slog.Error("canvas request failed", "action", "StageUpload", "error", err)
+			writeProblem(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, toSnakeJSON(&contractasset.StagedUpload{BlobID: blobID, SizeBytes: size}))
+	}
+}
+
+func requiredPositiveInt32Query(request *http.Request, name string) (int32, error) {
+	value, err := strconv.ParseInt(strings.TrimSpace(request.URL.Query().Get(name)), 10, 32)
+	if err != nil || value < 1 {
+		if err == nil {
+			err = errors.New("query value must be positive")
+		}
+		return 0, errno.Wrap(errno.ErrInvalidArgument, err)
+	}
+	return int32(value), nil
+}
+
+func optionalBoolQuery(request *http.Request, name string) (*bool, error) {
+	raw := strings.TrimSpace(request.URL.Query().Get(name))
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return nil, errno.Wrap(errno.ErrInvalidArgument, err)
+	}
+	return &value, nil
+}
 
 func (transport *Router) route(action string, endpoint endpoint) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
@@ -516,6 +892,33 @@ func (transport *Router) route(action string, endpoint endpoint) http.HandlerFun
 			return
 		}
 		writeJSON(w, http.StatusOK, toSnakeJSON(value))
+	}
+}
+
+func (transport *Router) workspaceAdminRoute(action string, endpoint endpoint) http.HandlerFunc {
+	return transport.authorizedRoute(action, endpoint, func(request *http.Request) bool {
+		return strings.TrimSpace(request.Header.Get("X-Auth-Workspace-Role")) == "workspace_admin"
+	})
+}
+
+func (transport *Router) platformAdminRoute(action string, endpoint endpoint) http.HandlerFunc {
+	return transport.authorizedRoute(action, endpoint, func(request *http.Request) bool {
+		for _, role := range strings.Split(request.Header.Get("X-Auth-Roles"), ",") {
+			if strings.TrimSpace(role) == "super_admin" {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func (transport *Router) authorizedRoute(action string, endpoint endpoint, authorized func(*http.Request) bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		if !authorized(request) {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		transport.route(action, endpoint)(w, request)
 	}
 }
 
@@ -543,6 +946,32 @@ func (transport *Router) nodeRoute(action string, _ applicationprojectaccess.Acc
 			return
 		}
 		writeJSON(w, http.StatusOK, toSnakeJSON(value))
+	}
+}
+
+type streamEndpoint func(context.Context, http.ResponseWriter, *http.Request) error
+
+func (transport *Router) nodeStreamRoute(action string, _ applicationprojectaccess.Access, endpoint streamEndpoint) http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		metadata, err := metadataFromRequest(request, action)
+		if err != nil {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		workspaceID := metadataWorkspace(request)
+		if transport.access == nil {
+			writeProblem(w, errno.New(errno.ErrConfigurationError))
+			return
+		}
+		if err = transport.access.Check(request.Context(), metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId")); err != nil {
+			writeProblem(w, errno.New(errno.ErrForbidden))
+			return
+		}
+		ctx := requestcontext.WithMetadata(request.Context(), metadata)
+		if err = endpoint(ctx, w, request.WithContext(ctx)); err != nil {
+			slog.Error("canvas stream request failed", "action", action, "error", err)
+			writeProblem(w, err)
+		}
 	}
 }
 
@@ -600,7 +1029,10 @@ func decodeContract(request *http.Request, output any) error {
 	if err != nil {
 		return errno.Wrap(errno.ErrSerializationError, err)
 	}
-	if err = json.Unmarshal(encoded, output); err != nil {
+	contractDecoder := json.NewDecoder(strings.NewReader(string(encoded)))
+	contractDecoder.UseNumber()
+	contractDecoder.DisallowUnknownFields()
+	if err = contractDecoder.Decode(output); err != nil {
 		return errno.Wrap(errno.ErrInvalidArgument, err)
 	}
 	return nil

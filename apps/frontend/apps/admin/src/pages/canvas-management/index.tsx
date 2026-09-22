@@ -1,9 +1,9 @@
 import {
-  canvasDeleteProject,
-  canvasListProjects,
-  canvasProjectManagement,
-  type CanvasProject,
-  type CanvasProjectManagement,
+  canvasAdminGetProject,
+  canvasAdminDeleteProject,
+  canvasAdminListProjects,
+  type CanvasProjectDetail,
+  type CanvasProjectSummary,
 } from "@repo/api";
 import {
   AlertDialog,
@@ -32,23 +32,31 @@ import { ProjectDetails } from "./ProjectDetails";
 import { ProjectDialog } from "./ProjectDialog";
 
 export function Component() {
-  const { activeWorkspaceId, isWorkspaceAdmin } = useAdminIdentity();
-  const [projects, setProjects] = useState<CanvasProject[] | null>(null);
+  const { activeWorkspaceId, isWorkspaceAdmin, userId } = useAdminIdentity();
+  const [projects, setProjects] = useState<CanvasProjectSummary[] | null>(null);
   const [projectId, setProjectId] = useState("");
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [dialog, setDialog] = useState<CanvasProjectManagement | null | undefined>(undefined);
-  const [deleting, setDeleting] = useState<CanvasProject | null>(null);
+  const [dialog, setDialog] = useState<CanvasProjectDetail | null | undefined>(undefined);
+  const [deleting, setDeleting] = useState<CanvasProjectSummary | null>(null);
   useEffect(() => {
     let active = true;
     setProjects(null);
     setProjectId("");
     setFailed(false);
-    void canvasListProjects()
-      .then((result) => {
+    void (async () => {
+      const pageSize = 100;
+      const items: CanvasProjectSummary[] = [];
+      for (let pageNum = 1; ; pageNum += 1) {
+        const result = await canvasAdminListProjects({ page_size: pageSize, page_num: pageNum });
+        items.push(...result.items);
+        if (result.items.length === 0 || items.length >= result.page.total) return items;
+      }
+    })()
+      .then((items) => {
         if (active) {
-          setProjects(result.items);
-          setProjectId(result.items[0]?.id ?? "");
+          setProjects(items);
+          setProjectId(items[0]?.project_id ?? "");
         }
       })
       .catch(() => {
@@ -79,7 +87,7 @@ export function Component() {
               </SelectTrigger>
               <SelectContent>
                 {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
+                  <SelectItem key={project.project_id} value={project.project_id}>
                     {project.name}
                   </SelectItem>
                 ))}
@@ -87,12 +95,15 @@ export function Component() {
             </Select>
             {isWorkspaceAdmin ? (
               <>
-                <Button variant="outline" onClick={() => void canvasProjectManagement(projectId).then(setDialog)}>
+                <Button
+                  variant="outline"
+                  onClick={() => void canvasAdminGetProject(projectId).then((response) => setDialog(response.project))}
+                >
                   编辑项目
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => setDeleting(projects.find((item) => item.id === projectId) ?? null)}
+                  onClick={() => setDeleting(projects.find((item) => item.project_id === projectId) ?? null)}
                 >
                   删除项目
                 </Button>
@@ -108,9 +119,10 @@ export function Component() {
         </div>
       )}
       <ProjectDialog
-        key={dialog === undefined ? "closed" : (dialog?.project.id ?? "create")}
+        key={dialog === undefined ? "closed" : (dialog?.project_id ?? "create")}
         value={dialog}
         workspaceId={activeWorkspaceId ?? ""}
+        currentUserId={userId ?? ""}
         onClose={() => setDialog(undefined)}
         onSaved={() => setAttempt((value) => value + 1)}
       />
@@ -125,7 +137,7 @@ export function Component() {
             <AlertDialogAction
               onClick={() => {
                 if (!deleting) return;
-                void canvasDeleteProject(deleting.id, { expected_revision: deleting.revision }).then(() => {
+                void canvasAdminDeleteProject(deleting.project_id).then(() => {
                   setDeleting(null);
                   setAttempt((value) => value + 1);
                 });

@@ -47,8 +47,8 @@ func (p *Rebuilder) rebuild(db *gorm.DB, scope applicationcanvasnode.Scope, proj
 				"AND COALESCE(canvas_node_generations.output_duration_seconds, canvas_node_generations.duration_seconds) > 0 "+
 				"THEN COALESCE(canvas_node_generations.output_duration_seconds, canvas_node_generations.duration_seconds) * 1000 "+
 				"WHEN canvas_nodes.selected_asset_id IS NOT NULL "+
-				"AND CAST(canvas_nodes.node_data ->> '$.payload.generation_config.duration_seconds' AS SIGNED) > 0 "+
-				"THEN CAST(canvas_nodes.node_data ->> '$.payload.generation_config.duration_seconds' AS SIGNED) * 1000 "+
+				"AND CAST(canvas_nodes.node_data #>> '{payload,generation_config,duration_seconds}' AS BIGINT) > 0 "+
+				"THEN CAST(canvas_nodes.node_data #>> '{payload,generation_config,duration_seconds}' AS BIGINT) * 1000 "+
 				"ELSE 0 END), 0) AS selected_video_duration_millis",
 		).
 		Where(

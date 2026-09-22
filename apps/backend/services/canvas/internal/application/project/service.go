@@ -150,12 +150,6 @@ type DeleteInput struct {
 	ProjectID string
 }
 
-type GrantModelsInput struct {
-	Scope
-	ProjectID string
-	ModelIDs  []string
-}
-
 type ListModelsInput struct {
 	Scope
 	ProjectID  string
@@ -192,34 +186,6 @@ func (s *Service) ListModels(ctx context.Context, input ListModelsInput) (Projec
 		return ProjectModelList{}, errno.Wrap(errno.ErrModelDependencyError, err)
 	}
 	return result, nil
-}
-
-func (s *Service) GrantModels(ctx context.Context, input GrantModelsInput) error {
-	if !isValidScope(input.Scope) || input.ProjectID == "" {
-		return errno.New(errno.ErrInvalidArgument)
-	}
-	if s.modelPermissions == nil {
-		return errno.New(errno.ErrConfigurationError)
-	}
-	if _, err := s.repository.GetByTenant(ctx, input.TenantID, input.ProjectID); err != nil {
-		return classifyRepositoryError(err)
-	}
-	seen := make(map[string]struct{}, len(input.ModelIDs))
-	modelIDs := make([]string, 0, len(input.ModelIDs))
-	for _, modelID := range input.ModelIDs {
-		if modelID == "" {
-			return errno.New(errno.ErrInvalidArgument)
-		}
-		if _, ok := seen[modelID]; ok {
-			continue
-		}
-		seen[modelID] = struct{}{}
-		modelIDs = append(modelIDs, modelID)
-	}
-	if err := s.modelPermissions.Grant(ctx, input.Scope, input.ProjectID, modelIDs); err != nil {
-		return errno.Wrap(errno.ErrModelDependencyError, err)
-	}
-	return nil
 }
 
 type GetInput struct {

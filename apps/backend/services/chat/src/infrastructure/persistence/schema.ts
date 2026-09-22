@@ -25,6 +25,7 @@ export const conversations = pgTable(
   (t) => [
     index("ix_conversations_user_id").on(t.userId),
     index("ix_conversations_user_workspace").on(t.userId, t.tenantId, t.workspaceId),
+    uniqueIndex("ux_conversations_canvas_owner").on(t.tenantId, t.workspaceId, t.userId, t.projectId, t.canvasId),
   ],
 );
 

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 import { batchSubmitAssetReviews, listAvailableBenefitPackages } from "@/api/assetReviews";
-import { agentframeService } from "@/api/index";
 import { Button, Message, Spin, Checkbox, Modal } from "@/components/ui";
 import type { asset, benefit_package } from "@/domain";
 import t from "@/utils/i18n";
@@ -57,7 +56,7 @@ export function AssetReviewModal({
     setPackagesLoading(true);
     setPackagesError("");
     try {
-      const nextPackages = [...(await listAvailableBenefitPackages(agentframeService, projectId))].sort(
+      const nextPackages = [...(await listAvailableBenefitPackages())].sort(
         (left, right) => Number(right.IsPreset) - Number(left.IsPreset),
       );
       if (sequence !== loadSequenceRef.current) return;
@@ -93,7 +92,6 @@ export function AssetReviewModal({
     setSubmitting(true);
     try {
       const results = await batchSubmitAssetReviews(
-        agentframeService,
         projectId,
         submissions.flatMap((item) =>
           selectedPackageIds.map((packageId) => ({

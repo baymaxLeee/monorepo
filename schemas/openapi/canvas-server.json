@@ -1,6 +1,69 @@
 {
   "components": {
     "schemas": {
+      "CanvasAPIConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "chat": {
+            "$ref": "#/components/schemas/CanvasAPIConfigDetails"
+          },
+          "responses": {
+            "$ref": "#/components/schemas/CanvasAPIConfigDetails"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasAPIConfigDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supported": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasASRConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "multi_language": {
+            "$ref": "#/components/schemas/CanvasMultiLanguageConfig"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasAdvancedReviewConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "enable_model_misuse": {
+            "type": "boolean"
+          },
+          "enable_pii_leakage": {
+            "type": "boolean"
+          },
+          "enable_prompt": {
+            "type": "boolean"
+          },
+          "enable_token": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enable_prompt",
+          "enable_model_misuse",
+          "enable_pii_leakage",
+          "enable_token"
+        ],
+        "type": "object"
+      },
       "CanvasAsset": {
         "additionalProperties": false,
         "properties": {
@@ -151,6 +214,60 @@
           "FAILED"
         ]
       },
+      "CanvasAssetReviewUpload": {
+        "additionalProperties": false,
+        "properties": {
+          "blob_id": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "blob_id",
+          "file_name"
+        ],
+        "type": "object"
+      },
+      "CanvasAssetReviews": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasAssetReview"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "asset_id",
+          "reviews"
+        ],
+        "type": "object"
+      },
+      "CanvasAudioConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "asr": {
+            "$ref": "#/components/schemas/CanvasASRConfig"
+          },
+          "transcription": {
+            "$ref": "#/components/schemas/CanvasTranscriptionConfig"
+          },
+          "tts": {
+            "$ref": "#/components/schemas/CanvasTTSConfig"
+          }
+        },
+        "type": "object"
+      },
       "CanvasBatchDeleteCanvasNodesResponse": {
         "additionalProperties": false,
         "properties": {
@@ -160,6 +277,21 @@
         },
         "required": [
           "canvas_revision"
+        ],
+        "type": "object"
+      },
+      "CanvasBatchGetAssetReviewsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasAssetReviews"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
         ],
         "type": "object"
       },
@@ -185,6 +317,51 @@
         ],
         "type": "object"
       },
+      "CanvasBatchGetResourceAssetGenerationStatesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasResourceAssetGenerationState"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "CanvasBatchListResourceAssetsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasResourceAssetGroup"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups"
+        ],
+        "type": "object"
+      },
+      "CanvasBatchSubmitAssetReviewsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasSubmitAssetReviewResult"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "CanvasBatchUpdateCanvasNodePositionsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -197,6 +374,77 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "CanvasBenefitPackage": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "has_access_key_id": {
+            "type": "boolean"
+          },
+          "has_secret_access_key": {
+            "type": "boolean"
+          },
+          "is_preset": {
+            "type": "boolean"
+          },
+          "material_used": {
+            "type": "integer"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "package_id": {
+            "type": "string"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "scope_type": {
+            "$ref": "#/components/schemas/CanvasBenefitPackageScopeType"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "updated_by": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "package_id",
+          "is_preset",
+          "name",
+          "project_name",
+          "has_access_key_id",
+          "has_secret_access_key",
+          "enabled",
+          "model_ids",
+          "material_used",
+          "revision",
+          "created_by",
+          "updated_by",
+          "created_at",
+          "updated_at",
+          "scope_type"
         ],
         "type": "object"
       },
@@ -219,6 +467,42 @@
           "CUSTOM_MODELS",
           "SYSTEM_PRESET_MODELS"
         ]
+      },
+      "CanvasCommonBoolSwitch": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "supported": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasCommonModelConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "security": {
+            "$ref": "#/components/schemas/CanvasSecurityConfig"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasCommonSwitch": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
       },
       "CanvasConfirmCanvasNodeDraftsResponse": {
         "additionalProperties": false,
@@ -450,23 +734,57 @@
         ],
         "type": "object"
       },
-      "CanvasDefaultModels": {
+      "CanvasCredentialFormSchema": {
         "additionalProperties": false,
         "properties": {
-          "image_model": {
-            "$ref": "#/components/schemas/CanvasModelSelection"
+          "default": {
+            "type": "string"
           },
-          "inference_model": {
-            "$ref": "#/components/schemas/CanvasModelSelection"
+          "format": {
+            "type": "string"
           },
-          "video_model": {
-            "$ref": "#/components/schemas/CanvasModelSelection"
+          "label": {
+            "type": "string"
+          },
+          "label_i18_n": {
+            "$ref": "#/components/schemas/CanvasI18NConfig"
+          },
+          "max_length": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "placeholder_i18_n": {
+            "$ref": "#/components/schemas/CanvasI18NConfig"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "tips": {
+            "type": "string"
+          },
+          "tips_i18_n": {
+            "$ref": "#/components/schemas/CanvasI18NConfig"
+          },
+          "type": {
+            "type": "string"
           }
         },
         "required": [
-          "inference_model",
-          "image_model",
-          "video_model"
+          "name",
+          "label",
+          "type",
+          "required"
         ],
         "type": "object"
       },
@@ -498,6 +816,112 @@
         ],
         "type": "object"
       },
+      "CanvasDeleteResourceAssetTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_resource_asset_revision": {
+            "type": "integer"
+          },
+          "expected_resource_revision": {
+            "type": "integer"
+          },
+          "resource_asset_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_asset_id",
+          "expected_resource_revision",
+          "expected_resource_asset_revision"
+        ],
+        "type": "object"
+      },
+      "CanvasDeleteResourceTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "type": "integer"
+          },
+          "resource_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "expected_revision"
+        ],
+        "type": "object"
+      },
+      "CanvasDistributedInferenceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "node_num": {
+            "type": "integer"
+          },
+          "rdma_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "node_num",
+          "rdma_enabled",
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasDoubleRange": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasDownloadProjectUsageXLSXResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "download_url": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "pending_billing_count": {
+            "type": "integer"
+          },
+          "row_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file_name",
+          "download_url",
+          "expires_at",
+          "row_count",
+          "file_size",
+          "pending_billing_count"
+        ],
+        "type": "object"
+      },
       "CanvasEdge": {
         "additionalProperties": false,
         "properties": {
@@ -526,9 +950,33 @@
         ],
         "type": "object"
       },
+      "CanvasEmbeddingConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "hidden_size": {
+            "$ref": "#/components/schemas/CanvasHiddenSizeConfig"
+          },
+          "input": {
+            "$ref": "#/components/schemas/CanvasInputConfig"
+          },
+          "query_instruction": {
+            "$ref": "#/components/schemas/CanvasQueryInstructionConfig"
+          }
+        },
+        "type": "object"
+      },
       "CanvasEmpty": {
         "additionalProperties": false,
         "properties": {},
+        "type": "object"
+      },
+      "CanvasFunctionCallPromptConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "enable_inline_chat_histories": {
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "CanvasGenerationStatus": {
@@ -563,18 +1011,6 @@
           "FAILED",
           "CANCELLED"
         ]
-      },
-      "CanvasGetBasicConfigResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "default_models": {
-            "$ref": "#/components/schemas/CanvasDefaultModels"
-          }
-        },
-        "required": [
-          "default_models"
-        ],
-        "type": "object"
       },
       "CanvasGetCanvasGraphResponse": {
         "additionalProperties": false,
@@ -615,6 +1051,42 @@
         ],
         "type": "object"
       },
+      "CanvasGetProjectCanvasVideoArchiveExportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "export": {
+            "$ref": "#/components/schemas/CanvasProjectCanvasVideoArchiveExport"
+          }
+        },
+        "required": [
+          "export"
+        ],
+        "type": "object"
+      },
+      "CanvasGetProjectResourceStatsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "stats": {
+            "$ref": "#/components/schemas/CanvasProjectResourceStats"
+          }
+        },
+        "required": [
+          "stats"
+        ],
+        "type": "object"
+      },
+      "CanvasGetProjectResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/CanvasProjectDetail"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "type": "object"
+      },
       "CanvasGetResourceAssetGenerationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -651,6 +1123,354 @@
         ],
         "type": "object"
       },
+      "CanvasHWConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "height": {
+            "$ref": "#/components/schemas/CanvasIntRange"
+          },
+          "pairs": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "ratio": {
+            "$ref": "#/components/schemas/CanvasDoubleRange"
+          },
+          "total": {
+            "$ref": "#/components/schemas/CanvasIntRange"
+          },
+          "width": {
+            "$ref": "#/components/schemas/CanvasIntRange"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasHiddenSizeConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "integer"
+          },
+          "supports": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "default"
+        ],
+        "type": "object"
+      },
+      "CanvasI18NConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasLanguage"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasIOConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          },
+          "input_config": {
+            "$ref": "#/components/schemas/CanvasIntRange"
+          },
+          "output": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          },
+          "output_config": {
+            "$ref": "#/components/schemas/CanvasIntRange"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasImageConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "hw": {
+            "$ref": "#/components/schemas/CanvasHWConfig"
+          },
+          "image_to_image": {
+            "$ref": "#/components/schemas/CanvasIOConfig"
+          },
+          "negative_prompt": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/CanvasImageQualityConfig"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/CanvasResolutionConfig"
+          },
+          "text_to_image": {
+            "$ref": "#/components/schemas/CanvasIOConfig"
+          },
+          "tools": {
+            "$ref": "#/components/schemas/CanvasToolConfig"
+          },
+          "watermark": {
+            "$ref": "#/components/schemas/CanvasCommonBoolSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasImageQualityConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "string"
+          },
+          "supports": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/CanvasCommonBoolSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasImageUnderstandConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "default_type": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasInputConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "max_texts": {
+            "type": "integer"
+          },
+          "single_text_token": {
+            "type": "integer"
+          },
+          "total_tokens": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasIntRange": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "integer"
+          },
+          "max": {
+            "type": "integer"
+          },
+          "min": {
+            "type": "integer"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasLLMConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "api": {
+            "$ref": "#/components/schemas/CanvasAPIConfig"
+          },
+          "parameter": {
+            "$ref": "#/components/schemas/CanvasLLMParameterConfig"
+          },
+          "reasoning": {
+            "$ref": "#/components/schemas/CanvasReasoningConfig"
+          },
+          "streaming": {
+            "type": "boolean"
+          },
+          "token": {
+            "$ref": "#/components/schemas/CanvasTokenConfig"
+          },
+          "tool_call": {
+            "$ref": "#/components/schemas/CanvasToolCallConfig"
+          },
+          "vision": {
+            "$ref": "#/components/schemas/CanvasVisionUnderstandConfig"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasLLMParameterConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "temperature": {
+            "$ref": "#/components/schemas/CanvasLLMTemperatureRange"
+          },
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasLLMParameterTemplateItem"
+            },
+            "type": "array"
+          },
+          "top_p": {
+            "$ref": "#/components/schemas/CanvasLLMTopPRange"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasLLMParameterTemplateItem": {
+        "additionalProperties": false,
+        "properties": {
+          "template": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "template"
+        ],
+        "type": "object"
+      },
+      "CanvasLLMTemperatureRange": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasLLMTopPRange": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasLMCacheConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "memory": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "memory"
+        ],
+        "type": "object"
+      },
+      "CanvasLabelInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
+      "CanvasLanguage": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "content"
+        ],
+        "type": "object"
+      },
+      "CanvasLanguageConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "name_i18_n": {
+            "$ref": "#/components/schemas/CanvasI18NConfig"
+          },
+          "preset": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "preset",
+          "name"
+        ],
+        "type": "object"
+      },
+      "CanvasListAvailableBenefitPackagesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasBenefitPackage"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "CanvasListCanvasNodeHistoriesResponse": {
         "additionalProperties": false,
         "properties": {
@@ -663,6 +1483,25 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "CanvasListProjectCanvasVideoArchiveExportsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasProjectCanvasVideoArchiveExport"
+            },
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CanvasPageOutput"
+          }
+        },
+        "required": [
+          "items",
+          "page"
         ],
         "type": "object"
       },
@@ -685,12 +1524,50 @@
         ],
         "type": "object"
       },
+      "CanvasListProjectModelsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasProjectModelInfo"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object"
+      },
       "CanvasListProjectsByMemberResponse": {
         "additionalProperties": false,
         "properties": {
           "items": {
             "items": {
               "$ref": "#/components/schemas/CanvasMemberProjectSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CanvasPageOutput"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "type": "object"
+      },
+      "CanvasListProjectsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasProjectSummary"
             },
             "type": "array"
           },
@@ -742,6 +1619,71 @@
         ],
         "type": "object"
       },
+      "CanvasMaaSModelServiceDeployConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/CanvasModelServiceConfig"
+          },
+          "distributed_inference_config": {
+            "$ref": "#/components/schemas/CanvasDistributedInferenceConfig"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "model_source": {
+            "type": "string"
+          },
+          "model_version_id": {
+            "type": "string"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/CanvasModelServiceResource"
+          },
+          "resource_id": {
+            "type": "string"
+          },
+          "resource_name": {
+            "type": "string"
+          },
+          "resource_pool_type": {
+            "type": "string"
+          },
+          "resource_quota_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_id",
+          "model_version_id",
+          "model_source",
+          "resource_id",
+          "resource_name",
+          "resource_quota_id",
+          "resource",
+          "resource_pool_type"
+        ],
+        "type": "object"
+      },
+      "CanvasMarkerDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "color"
+        ],
+        "type": "object"
+      },
       "CanvasMaterializeCanvasResourceAssetReferenceResponse": {
         "additionalProperties": false,
         "properties": {
@@ -787,6 +1729,26 @@
           "target_node",
           "canvas_revision",
           "created_asset_node"
+        ],
+        "type": "object"
+      },
+      "CanvasMaxTokens": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "integer"
+          },
+          "max": {
+            "type": "integer"
+          },
+          "min": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max",
+          "min",
+          "default"
         ],
         "type": "object"
       },
@@ -860,37 +1822,152 @@
         ],
         "type": "object"
       },
-      "CanvasModelConfig": {
+      "CanvasModelCredentialSchema": {
         "additionalProperties": false,
         "properties": {
-          "max_tokens": {
-            "type": "integer"
-          },
-          "reasoning_effort_type": {
-            "type": "string"
-          },
-          "temperature": {
-            "type": "number"
-          },
-          "top_p": {
-            "type": "number"
+          "credential_form_schemas": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasCredentialFormSchema"
+            },
+            "type": "array"
           }
         },
         "type": "object"
       },
-      "CanvasModelSelection": {
+      "CanvasModelParameter": {
         "additionalProperties": false,
         "properties": {
-          "model_config": {
-            "$ref": "#/components/schemas/CanvasModelConfig"
-          },
-          "model_id": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasParameterRule"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasModelServiceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "load_balance_policy": {
             "type": "string"
+          },
+          "quantization": {
+            "$ref": "#/components/schemas/CanvasQuantizationConfig"
+          },
+          "rate_limit": {
+            "$ref": "#/components/schemas/CanvasRateLimit"
+          },
+          "termination_grace_period_seconds": {
+            "type": "integer"
+          },
+          "thinking_mode_by_default": {
+            "$ref": "#/components/schemas/CanvasThinkingModes"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasModelServiceResource": {
+        "additionalProperties": false,
+        "properties": {
+          "cpu": {
+            "type": "string"
+          },
+          "gpu": {
+            "type": "integer"
+          },
+          "gpu_card_type": {
+            "type": "string"
+          },
+          "gpu_core": {
+            "type": "integer"
+          },
+          "gpu_memory": {
+            "type": "string"
+          },
+          "lm_cache_config": {
+            "$ref": "#/components/schemas/CanvasLMCacheConfig"
+          },
+          "max_replica": {
+            "type": "integer"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "pd_disaggregation_config": {
+            "$ref": "#/components/schemas/CanvasPdDisaggregationConfig"
+          },
+          "replica": {
+            "type": "integer"
           }
         },
         "required": [
-          "model_id",
-          "model_config"
+          "cpu",
+          "memory",
+          "gpu",
+          "replica"
+        ],
+        "type": "object"
+      },
+      "CanvasMultiLanguageConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "default_language": {
+            "type": "string"
+          },
+          "enable_i18_n": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "i18_n_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasLanguageConfig"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "enable_i18_n"
+        ],
+        "type": "object"
+      },
+      "CanvasMultiVoiceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "default_voice": {
+            "type": "string"
+          },
+          "enable_i18_n": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "i18_n_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "voices": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasVoiceConfig"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "enable_i18_n"
         ],
         "type": "object"
       },
@@ -1781,6 +2858,21 @@
           "ASSETS_MATCH"
         ]
       },
+      "CanvasNodeTextGenerationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "$ref": "#/components/schemas/CanvasTextGenerationCompleted"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/CanvasTextGenerationDelta"
+          },
+          "session": {
+            "$ref": "#/components/schemas/CanvasTextGenerationSession"
+          }
+        },
+        "type": "object"
+      },
       "CanvasNodeType": {
         "enum": [
           1,
@@ -1886,6 +2978,130 @@
         ],
         "type": "object"
       },
+      "CanvasParameterMapping": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "CanvasParameterRule": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "string"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/CanvasParameterMapping"
+          },
+          "max": {
+            "type": "string"
+          },
+          "min": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CanvasPdDisaggregationConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "decode_config": {
+            "$ref": "#/components/schemas/CanvasPdDisaggregationResourceConfig"
+          },
+          "prefill_config": {
+            "$ref": "#/components/schemas/CanvasPdDisaggregationResourceConfig"
+          },
+          "rdma_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "prefill_config",
+          "decode_config",
+          "rdma_enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasPdDisaggregationResourceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "cpu": {
+            "type": "string"
+          },
+          "gpu": {
+            "type": "integer"
+          },
+          "gpu_card_type": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "node_num": {
+            "type": "integer"
+          },
+          "replica": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cpu",
+          "memory",
+          "gpu",
+          "gpu_card_type",
+          "replica",
+          "node_num"
+        ],
+        "type": "object"
+      },
+      "CanvasPolicyConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "load_balance_policy": {
+            "type": "string"
+          },
+          "rate_limit_policy": {
+            "$ref": "#/components/schemas/CanvasRateLimitPolicy"
+          },
+          "retry_policy": {
+            "$ref": "#/components/schemas/CanvasRetryPolicy"
+          },
+          "review_policy": {
+            "$ref": "#/components/schemas/CanvasReviewPolicy"
+          },
+          "timeout_policy": {
+            "$ref": "#/components/schemas/CanvasTimeoutPolicy"
+          }
+        },
+        "type": "object"
+      },
       "CanvasPort": {
         "enum": [
           1,
@@ -1925,6 +3141,37 @@
           "FIRST_FRAME",
           "LAST_FRAME"
         ]
+      },
+      "CanvasPriceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "completion": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "currency"
+        ],
+        "type": "object"
       },
       "CanvasProjectCanvasSortField": {
         "description": "ProjectCanvasSortField 定义剧集列表支持的排序字段。",
@@ -2009,6 +3256,64 @@
         ],
         "type": "object"
       },
+      "CanvasProjectCanvasVideoArchiveExport": {
+        "additionalProperties": false,
+        "properties": {
+          "canvas_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": "string"
+          },
+          "input_count": {
+            "type": "integer"
+          },
+          "output_filename": {
+            "type": "string"
+          },
+          "output_size": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "retention_guaranteed_until": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CanvasVideoArchiveExportStatus"
+          },
+          "task_run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_run_id",
+          "project_id",
+          "canvas_id",
+          "status",
+          "input_count",
+          "output_filename",
+          "output_size",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "CanvasProjectCanvasVideoArchiveExportSortField": {
         "description": "ProjectCanvasVideoArchiveExportSortField 定义视频压缩包导出列表支持的排序字段。",
         "enum": [
@@ -2074,6 +3379,335 @@
         ],
         "type": "object"
       },
+      "CanvasProjectModelDuration": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "integer"
+          },
+          "max": {
+            "type": "integer"
+          },
+          "min": {
+            "type": "integer"
+          },
+          "recommend_default": {
+            "type": "integer"
+          },
+          "recommends": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasProjectModelInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "business_labels": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasLabelInfo"
+            },
+            "type": "array"
+          },
+          "create_time": {
+            "type": "string"
+          },
+          "create_user_name": {
+            "type": "string"
+          },
+          "credential_schema": {
+            "$ref": "#/components/schemas/CanvasModelCredentialSchema"
+          },
+          "custom_marker": {
+            "$ref": "#/components/schemas/CanvasMarkerDetails"
+          },
+          "custom_parameters": {
+            "type": "string"
+          },
+          "default_type": {
+            "type": "string"
+          },
+          "default_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "delete_at": {
+            "type": "string"
+          },
+          "deploy_config": {
+            "$ref": "#/components/schemas/CanvasMaaSModelServiceDeployConfig"
+          },
+          "description": {
+            "type": "string"
+          },
+          "distribute_type": {
+            "type": "string"
+          },
+          "dl_version": {
+            "type": "string"
+          },
+          "features_config": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "from_id": {
+            "type": "string"
+          },
+          "granted": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_billing": {
+            "type": "boolean"
+          },
+          "is_custom_marker_enabled": {
+            "type": "boolean"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "is_default_ltm": {
+            "type": "boolean"
+          },
+          "is_preset": {
+            "type": "boolean"
+          },
+          "is_public": {
+            "type": "boolean"
+          },
+          "is_published": {
+            "type": "boolean"
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parameter": {
+            "$ref": "#/components/schemas/CanvasModelParameter"
+          },
+          "policy_config": {
+            "$ref": "#/components/schemas/CanvasPolicyConfig"
+          },
+          "price_config": {
+            "$ref": "#/components/schemas/CanvasPriceConfig"
+          },
+          "product_code": {
+            "type": "string"
+          },
+          "prompt_config": {
+            "$ref": "#/components/schemas/CanvasPromptConfig"
+          },
+          "property": {
+            "$ref": "#/components/schemas/CanvasProjectModelProperty"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "publish_source_type": {
+            "type": "string"
+          },
+          "publish_time": {
+            "type": "string"
+          },
+          "publish_user_name": {
+            "type": "string"
+          },
+          "service_introduction": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "strategies_config": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "update_time": {
+            "type": "string"
+          },
+          "update_user_name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "workspace_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "is_public",
+          "is_default",
+          "granted",
+          "publish_source_type",
+          "create_user_name",
+          "create_time",
+          "source",
+          "delete_at",
+          "tenant_id",
+          "strategies_config",
+          "provider",
+          "model_name"
+        ],
+        "type": "object"
+      },
+      "CanvasProjectModelProperty": {
+        "additionalProperties": false,
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/CanvasAudioConfig"
+          },
+          "common": {
+            "$ref": "#/components/schemas/CanvasCommonModelConfig"
+          },
+          "embedding": {
+            "$ref": "#/components/schemas/CanvasEmbeddingConfig"
+          },
+          "llm": {
+            "$ref": "#/components/schemas/CanvasLLMConfig"
+          },
+          "vision": {
+            "$ref": "#/components/schemas/CanvasProjectModelVisionProperty"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasProjectModelRatio": {
+        "additionalProperties": false,
+        "properties": {
+          "adaptive": {
+            "type": "boolean"
+          },
+          "default": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasProjectModelVideoProperty": {
+        "additionalProperties": false,
+        "properties": {
+          "camera_fixed": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          },
+          "duration": {
+            "$ref": "#/components/schemas/CanvasProjectModelDuration"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasVisionFeature"
+            },
+            "type": "array"
+          },
+          "generate_audio": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          },
+          "negative_prompt": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          },
+          "ratio": {
+            "$ref": "#/components/schemas/CanvasProjectModelRatio"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/CanvasReferenceConfig"
+          },
+          "resolutions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tools": {
+            "$ref": "#/components/schemas/CanvasToolConfig"
+          },
+          "watermark": {
+            "$ref": "#/components/schemas/CanvasCommonBoolSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasProjectModelVisionProperty": {
+        "additionalProperties": false,
+        "properties": {
+          "guidance_scale": {
+            "$ref": "#/components/schemas/CanvasDoubleRange"
+          },
+          "image": {
+            "$ref": "#/components/schemas/CanvasImageConfig"
+          },
+          "seed": {
+            "$ref": "#/components/schemas/CanvasIntRange"
+          },
+          "video": {
+            "$ref": "#/components/schemas/CanvasProjectModelVideoProperty"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasProjectResourceStats": {
+        "additionalProperties": false,
+        "properties": {
+          "audio_count": {
+            "type": "integer"
+          },
+          "character_count": {
+            "type": "integer"
+          },
+          "prop_count": {
+            "type": "integer"
+          },
+          "scene_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "character_count",
+          "scene_count",
+          "prop_count",
+          "audio_count"
+        ],
+        "type": "object"
+      },
       "CanvasProjectSortField": {
         "description": "ProjectSortField 定义项目列表支持的排序字段。",
         "enum": [
@@ -2111,6 +3745,225 @@
         ],
         "type": "object"
       },
+      "CanvasProjectSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "cover_image_path": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "member_user_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/CanvasProjectStats"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "stats",
+          "member_user_ids"
+        ],
+        "type": "object"
+      },
+      "CanvasPromptConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "function_call_prompt": {
+            "$ref": "#/components/schemas/CanvasFunctionCallPromptConfig"
+          },
+          "react_prompt": {
+            "$ref": "#/components/schemas/CanvasReactPromptConfig"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasQuantizationConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasQueryInstructionConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "scope": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasRPMPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "rpm": {
+            "type": "integer"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasRateLimit": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "rpm": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasRateLimitPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "rpm_policy": {
+            "$ref": "#/components/schemas/CanvasRPMPolicy"
+          },
+          "tpm_policy": {
+            "$ref": "#/components/schemas/CanvasTPMPolicy"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasReactPromptConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "enable_fewshots": {
+            "type": "boolean"
+          },
+          "enable_inline_chat_histories": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "remove_stop": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasReasoningConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "effort": {
+            "$ref": "#/components/schemas/CanvasReasoningEffort"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/CanvasReasoningSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasReasoningEffort": {
+        "additionalProperties": false,
+        "properties": {
+          "default_type": {
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasReasoningSwitch": {
+        "additionalProperties": false,
+        "properties": {
+          "default_type": {
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasReferenceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/CanvasReferenceConfigDetail"
+          },
+          "image": {
+            "$ref": "#/components/schemas/CanvasReferenceConfigDetail"
+          },
+          "video": {
+            "$ref": "#/components/schemas/CanvasReferenceConfigDetail"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasReferenceConfigDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "type": "integer"
+          },
+          "supported": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "CanvasReorderStoryboardNodesResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2140,6 +3993,21 @@
         "required": [
           "resource_asset"
         ],
+        "type": "object"
+      },
+      "CanvasResolutionConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "switch": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "CanvasResource": {
@@ -2640,6 +4508,25 @@
         },
         "type": "object"
       },
+      "CanvasResourceAssetGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasResourceAsset"
+            },
+            "type": "array"
+          },
+          "resource_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "items"
+        ],
+        "type": "object"
+      },
       "CanvasResourceAssetSourceType": {
         "enum": [
           1,
@@ -2768,6 +4655,45 @@
           "AUDIO"
         ]
       },
+      "CanvasRetryPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "type": "integer"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "on_status": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasReviewPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "advanced_review_config": {
+            "$ref": "#/components/schemas/CanvasAdvancedReviewConfig"
+          },
+          "advanced_review_type": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
       "CanvasSearchCanvasNodeAssetsResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2784,6 +4710,15 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "CanvasSecurityConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "aicc": {
+            "$ref": "#/components/schemas/CanvasCommonBoolSwitch"
+          }
+        },
         "type": "object"
       },
       "CanvasSelectCanvasNodeHistoryResponse": {
@@ -2831,6 +4766,22 @@
           "DESC"
         ]
       },
+      "CanvasStagedUpload": {
+        "additionalProperties": false,
+        "properties": {
+          "blob_id": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "blob_id",
+          "size_bytes"
+        ],
+        "type": "object"
+      },
       "CanvasStartCanvasGenerationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2871,6 +4822,18 @@
         },
         "required": [
           "task_run_id"
+        ],
+        "type": "object"
+      },
+      "CanvasStartProjectCanvasVideoArchiveExportResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "export": {
+            "$ref": "#/components/schemas/CanvasProjectCanvasVideoArchiveExport"
+          }
+        },
+        "required": [
+          "export"
         ],
         "type": "object"
       },
@@ -2962,6 +4925,143 @@
         ],
         "type": "object"
       },
+      "CanvasSubmitAssetReviewItem": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "package_id": {
+            "type": "string"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/CanvasAssetReviewUpload"
+          }
+        },
+        "required": [
+          "package_id"
+        ],
+        "type": "object"
+      },
+      "CanvasSubmitAssetReviewResult": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": "string"
+          },
+          "package_id": {
+            "type": "string"
+          },
+          "review": {
+            "$ref": "#/components/schemas/CanvasAssetReview"
+          }
+        },
+        "required": [
+          "package_id"
+        ],
+        "type": "object"
+      },
+      "CanvasTPMPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "tpm": {
+            "type": "integer"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CanvasTTSConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "multi_language": {
+            "$ref": "#/components/schemas/CanvasMultiLanguageConfig"
+          },
+          "multi_voice": {
+            "$ref": "#/components/schemas/CanvasMultiVoiceConfig"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasTextGenerationCompleted": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "task_run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_run_id",
+          "content"
+        ],
+        "type": "object"
+      },
+      "CanvasTextGenerationDelta": {
+        "additionalProperties": false,
+        "properties": {
+          "delta": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "delta",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "CanvasTextGenerationSession": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CanvasGenerationStatus"
+          },
+          "task_run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_run_id",
+          "node_id",
+          "status",
+          "content"
+        ],
+        "type": "object"
+      },
       "CanvasThinkingModes": {
         "enum": [
           0,
@@ -2986,16 +5086,58 @@
           "NoThinking"
         ]
       },
-      "CanvasUpdateBasicConfigResponse": {
+      "CanvasTimeoutPolicy": {
         "additionalProperties": false,
         "properties": {
-          "default_models": {
-            "$ref": "#/components/schemas/CanvasDefaultModels"
+          "enabled": {
+            "type": "boolean"
+          },
+          "timeout": {
+            "type": "integer"
           }
         },
         "required": [
-          "default_models"
+          "enabled"
         ],
+        "type": "object"
+      },
+      "CanvasTokenConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "context_tokens": {
+            "type": "integer"
+          },
+          "max_tokens": {
+            "$ref": "#/components/schemas/CanvasMaxTokens"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasToolCallConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "streaming": {
+            "$ref": "#/components/schemas/CanvasCommonBoolSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasToolConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "web_search": {
+            "$ref": "#/components/schemas/CanvasCommonBoolSwitch"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasTranscriptionConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "multi_language": {
+            "$ref": "#/components/schemas/CanvasMultiLanguageConfig"
+          }
+        },
         "type": "object"
       },
       "CanvasUpdateCanvasNodeResponse": {
@@ -3031,6 +5173,18 @@
         },
         "required": [
           "canvas"
+        ],
+        "type": "object"
+      },
+      "CanvasUpdateProjectResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/CanvasProjectDetail"
+          }
+        },
+        "required": [
+          "project"
         ],
         "type": "object"
       },
@@ -3158,6 +5312,59 @@
           "CANVAS",
           "STORYBOARD"
         ]
+      },
+      "CanvasVisionFeature": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/CanvasCommonSwitch"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CanvasVisionUnderstandConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "image": {
+            "$ref": "#/components/schemas/CanvasImageUnderstandConfig"
+          }
+        },
+        "type": "object"
+      },
+      "CanvasVoiceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "name_i18_n": {
+            "$ref": "#/components/schemas/CanvasI18NConfig"
+          },
+          "preset": {
+            "type": "boolean"
+          },
+          "supported_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "voice": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset",
+          "voice",
+          "name"
+        ],
+        "type": "object"
       }
     }
   },
@@ -3167,15 +5374,33 @@
   },
   "openapi": "3.0.3",
   "paths": {
-    "/admin/config": {
+    "/admin/projects": {
       "get": {
-        "operationId": "canvasGetBasicConfig",
+        "operationId": "canvasAdminListProjects",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_num",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CanvasGetBasicConfigResponse"
+                  "$ref": "#/components/schemas/CanvasListProjectsResponse"
                 }
               }
             },
@@ -3201,20 +5426,33 @@
           "canvas"
         ]
       },
-      "put": {
-        "operationId": "canvasUpdateBasicConfig",
+      "post": {
+        "operationId": "canvasAdminCreateProject",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "default_models": {
-                    "$ref": "#/components/schemas/CanvasDefaultModels"
+                  "cover_image_path": {
+                    "type": "string"
+                  },
+                  "member_user_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "usage_limit": {
+                    "type": "integer"
                   }
                 },
                 "required": [
-                  "default_models"
+                  "name",
+                  "member_user_ids"
                 ],
                 "type": "object"
               }
@@ -3227,7 +5465,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CanvasUpdateBasicConfigResponse"
+                  "$ref": "#/components/schemas/CanvasCreateProjectResponse"
                 }
               }
             },
@@ -3254,15 +5492,268 @@
         ]
       }
     },
-    "/config": {
-      "get": {
-        "operationId": "canvasGetRuntimeBasicConfig",
+    "/admin/projects/{projectId}": {
+      "delete": {
+        "operationId": "canvasAdminDeleteProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CanvasGetBasicConfigResponse"
+                  "$ref": "#/components/schemas/CanvasEmpty"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      },
+      "get": {
+        "operationId": "canvasAdminGetProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasGetProjectResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      },
+      "put": {
+        "operationId": "canvasAdminUpdateProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "cover_image_path": {
+                    "type": "string"
+                  },
+                  "member_user_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "usage_limit": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "name",
+                  "member_user_ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasUpdateProjectResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/admin/projects/{projectId}/usage:export": {
+      "post": {
+        "operationId": "canvasDownloadProjectUsage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasDownloadProjectUsageXLSXResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/benefit-packages": {
+      "get": {
+        "operationId": "canvasListAvailableBenefitPackages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasListAvailableBenefitPackagesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/internal/worker/archives/{archiveId}/execute": {
+      "post": {
+        "operationId": "canvasExecuteArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasProjectCanvasVideoArchiveExport"
                 }
               }
             },
@@ -3292,6 +5783,40 @@
     "/projects": {
       "get": {
         "operationId": "canvasListProjects",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_direction",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_num",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3536,6 +6061,140 @@
         ]
       }
     },
+    "/projects/{projectId}/asset-reviews:batchGet": {
+      "post": {
+        "operationId": "canvasBatchGetAssetReviews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "asset_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "asset_ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasBatchGetAssetReviewsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/asset-reviews:batchSubmit": {
+      "post": {
+        "operationId": "canvasBatchSubmitAssetReviews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "items": {
+                    "items": {
+                      "$ref": "#/components/schemas/CanvasSubmitAssetReviewItem"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasBatchSubmitAssetReviewsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects/{projectId}/canvases": {
       "get": {
         "operationId": "canvasListCanvases",
@@ -3546,6 +6205,46 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_by_me",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_direction",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_num",
+            "required": true,
+            "schema": {
+              "type": "integer"
             }
           }
         ],
@@ -3823,6 +6522,317 @@
         ]
       }
     },
+    "/projects/{projectId}/canvases/{canvasId}/archives": {
+      "get": {
+        "operationId": "canvasListArchives",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "canvasId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_direction",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_num",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasListProjectCanvasVideoArchiveExportsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      },
+      "post": {
+        "operationId": "canvasCreateArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "canvasId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasStartProjectCanvasVideoArchiveExportResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}": {
+      "get": {
+        "operationId": "canvasGetArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "canvasId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "taskRunId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasGetProjectCanvasVideoArchiveExportResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}/content": {
+      "get": {
+        "operationId": "canvasArchiveContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "canvasId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "taskRunId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}:cancel": {
+      "post": {
+        "operationId": "canvasCancelArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "canvasId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "taskRunId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasEmpty"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects/{projectId}/canvases/{canvasId}/asset-references": {
       "post": {
         "operationId": "canvasMaterializeAssetReference",
@@ -3872,6 +6882,7 @@
                 "required": [
                   "target_node_id",
                   "target_port",
+                  "reference_type",
                   "asset_node_position"
                 ],
                 "type": "object"
@@ -4433,9 +7444,6 @@
                     "type": "string"
                   },
                   "model_service_id": {
-                    "type": "string"
-                  },
-                  "name": {
                     "type": "string"
                   },
                   "position": {
@@ -5163,6 +8171,67 @@
         ]
       }
     },
+    "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/text-generations:stream": {
+      "post": {
+        "operationId": "canvasStreamNodeTextGeneration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "canvasId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "nodeId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasNodeTextGenerationResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}:copy": {
       "post": {
         "operationId": "canvasCopyNode",
@@ -5198,9 +8267,6 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "name": {
-                    "type": "string"
-                  },
                   "position": {
                     "$ref": "#/components/schemas/CanvasNodePosition"
                   },
@@ -5374,7 +8440,8 @@
                 "required": [
                   "target_node_id",
                   "target_port",
-                  "resource_asset_node_position"
+                  "resource_asset_node_position",
+                  "reference_type"
                 ],
                 "type": "object"
               }
@@ -5446,9 +8513,6 @@
                       "$ref": "#/components/schemas/CanvasNodeDraft"
                     },
                     "type": "array"
-                  },
-                  "max_canvas_nodes": {
-                    "type": "integer"
                   },
                   "model_config": {
                     "$ref": "#/components/schemas/CanvasStoryboardModelConfig"
@@ -5791,6 +8855,134 @@
         ]
       }
     },
+    "/projects/{projectId}/models": {
+      "get": {
+        "operationId": "canvasListProjectModels",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_num",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasListProjectModelsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/resource-assets:batchList": {
+      "post": {
+        "operationId": "canvasBatchListResourceAssets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "resource_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "resource_ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasBatchListResourceAssetsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects/{projectId}/resources": {
       "get": {
         "operationId": "canvasListResources",
@@ -5801,6 +8993,46 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_direction",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_num",
+            "required": true,
+            "schema": {
+              "type": "integer"
             }
           }
         ],
@@ -6128,6 +9360,22 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_num",
+            "required": true,
+            "schema": {
+              "type": "integer"
             }
           }
         ],
@@ -6972,6 +10220,81 @@
         ]
       }
     },
+    "/projects/{projectId}/resources/{resourceId}/assets:batchDelete": {
+      "post": {
+        "operationId": "canvasBatchDeleteResourceAssets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "targets": {
+                    "items": {
+                      "$ref": "#/components/schemas/CanvasDeleteResourceAssetTarget"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "targets"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasEmpty"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects/{projectId}/resources/{resourceId}/generated-assets": {
       "post": {
         "operationId": "canvasCreateGeneratedResourceAsset",
@@ -7044,6 +10367,148 @@
         ]
       }
     },
+    "/projects/{projectId}/resources/{resourceId}/generation-states:batchGet": {
+      "post": {
+        "operationId": "canvasBatchGetResourceGenerationStates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "resource_asset_ids": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "resource_asset_ids"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasBatchGetResourceAssetGenerationStatesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/resources:batchDelete": {
+      "post": {
+        "operationId": "canvasBatchDeleteResources",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "targets": {
+                    "items": {
+                      "$ref": "#/components/schemas/CanvasDeleteResourceTarget"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "targets"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasEmpty"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
     "/projects/{projectId}/resources:fromAsset": {
       "post": {
         "operationId": "canvasCreateResourceFromAsset",
@@ -7064,6 +10529,9 @@
                 "additionalProperties": false,
                 "properties": {
                   "asset_id": {
+                    "type": "string"
+                  },
+                  "canvas_id": {
                     "type": "string"
                   },
                   "canvas_node_id": {
@@ -7096,6 +10564,86 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanvasCreateResourceFromAssetResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/resources:stats": {
+      "get": {
+        "operationId": "canvasGetProjectResourceStats",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasGetProjectResourceStatsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/uploads": {
+      "post": {
+        "operationId": "canvasStageUpload",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasStagedUpload"
                 }
               }
             },

@@ -263,14 +263,12 @@ func materialReferenceType(nodeType NodeType, explicit ReferenceType, assetID, r
 	if count != 1 {
 		return ReferenceTypeUnspecified, false
 	}
-	if explicit == ReferenceTypeUnspecified {
-		return inferred, true
-	}
 	return explicit, explicit.Valid() && explicit == inferred
 }
 
-func InferMaterialReferenceType(node CanvasNode) (ReferenceType, bool) {
-	return materialReferenceType(node.Type, ReferenceTypeUnspecified, node.AssetID, node.ResourceID, node.ResourceAssetID)
+func ValidMaterialReference(node CanvasNode) bool {
+	_, ok := materialReferenceType(node.Type, node.ReferenceType, node.AssetID, node.ResourceID, node.ResourceAssetID)
+	return ok
 }
 
 func (n *CanvasNode) Update(patch UpdatePatch, updatedBy string, now time.Time) error {

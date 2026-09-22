@@ -1489,63 +1489,6 @@ func (p *DeleteProjectRequest) String() string {
 	return fmt.Sprintf("DeleteProjectRequest(%+v)", *p)
 }
 
-// GrantProjectModelsRequest 全量替换项目模型授权。
-// ModelIDs 是前端当前全量选中模型 ID；可包含公开/默认模型，空数组取消全部显式授权。
-type GrantProjectModelsRequest struct {
-	WorkspaceID *string        `json:"WorkspaceID,omitempty"`
-	ProjectID   string         `json:"ProjectID"`
-	ModelIDs    []string       `json:"ModelIDs"`
-	Top         *base.TopParam `json:"Top,omitempty"`
-}
-
-func NewGrantProjectModelsRequest() *GrantProjectModelsRequest {
-	return &GrantProjectModelsRequest{}
-}
-
-func (p *GrantProjectModelsRequest) InitDefault() {
-}
-
-var GrantProjectModelsRequest_WorkspaceID_DEFAULT string
-
-func (p *GrantProjectModelsRequest) GetWorkspaceID() (v string) {
-	if !p.IsSetWorkspaceID() {
-		return GrantProjectModelsRequest_WorkspaceID_DEFAULT
-	}
-	return *p.WorkspaceID
-}
-
-func (p *GrantProjectModelsRequest) GetProjectID() (v string) {
-	return p.ProjectID
-}
-
-func (p *GrantProjectModelsRequest) GetModelIDs() (v []string) {
-	return p.ModelIDs
-}
-
-var GrantProjectModelsRequest_Top_DEFAULT *base.TopParam
-
-func (p *GrantProjectModelsRequest) GetTop() (v *base.TopParam) {
-	if !p.IsSetTop() {
-		return GrantProjectModelsRequest_Top_DEFAULT
-	}
-	return p.Top
-}
-
-func (p *GrantProjectModelsRequest) IsSetWorkspaceID() bool {
-	return p.WorkspaceID != nil
-}
-
-func (p *GrantProjectModelsRequest) IsSetTop() bool {
-	return p.Top != nil
-}
-
-func (p *GrantProjectModelsRequest) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("GrantProjectModelsRequest(%+v)", *p)
-}
-
 type ProjectModelListOption struct {
 	PageNumber int32 `json:"PageNumber"`
 	PageSize   int32 `json:"PageSize"`

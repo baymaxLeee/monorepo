@@ -1,4 +1,4 @@
-import { createCanvasConversation, fetchConversations } from "@repo/api";
+import { createCanvasConversation } from "@repo/api";
 import { ChatSession, ChatWorkspacePanel } from "@repo/chat";
 import { Button } from "@repo/design-system";
 import { useEffect, useState } from "react";
@@ -17,18 +17,14 @@ export function CanvasConversation({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [creating, setCreating] = useState(false);
   useEffect(() => {
     let active = true;
     setLoading(true);
     setFailed(false);
     setConversationId(null);
-    void fetchConversations()
-      .then((items) => {
-        if (active)
-          setConversationId(
-            items.find((item) => item.project_id === projectId && item.canvas_id === canvasId)?.id ?? null,
-          );
+    void createCanvasConversation(projectId, canvasId)
+      .then((conversation) => {
+        if (active) setConversationId(conversation.id);
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -40,14 +36,6 @@ export function CanvasConversation({
       active = false;
     };
   }, [projectId, canvasId, attempt]);
-  useEffect(() => {
-    if (!request || loading || failed || conversationId || creating) return;
-    setCreating(true);
-    void createCanvasConversation(projectId, canvasId)
-      .then((conversation) => setConversationId(conversation.id))
-      .catch(() => setFailed(true))
-      .finally(() => setCreating(false));
-  }, [canvasId, conversationId, creating, failed, loading, projectId, request]);
   if (loading) return <div className="p-4 text-sm text-muted-foreground">读取会话…</div>;
   if (failed)
     return (
@@ -57,23 +45,7 @@ export function CanvasConversation({
         </Button>
       </div>
     );
-  if (!conversationId)
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Button
-          disabled={creating}
-          onClick={() => {
-            setCreating(true);
-            void createCanvasConversation(projectId, canvasId)
-              .then((conversation) => setConversationId(conversation.id))
-              .catch(() => {})
-              .finally(() => setCreating(false));
-          }}
-        >
-          开始画布对话
-        </Button>
-      </div>
-    );
+  if (!conversationId) return null;
   return (
     <div className="relative flex h-full min-w-0 min-h-0 flex-col overflow-hidden [&_[role=log]>div]:[-ms-overflow-style:none] [&_[role=log]>div]:[scrollbar-width:none] [&_[role=log]>div::-webkit-scrollbar]:hidden">
       <ChatSession

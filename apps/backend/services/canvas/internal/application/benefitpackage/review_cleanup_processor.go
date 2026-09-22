@@ -3,7 +3,6 @@ package benefitpackage
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -14,10 +13,8 @@ const (
 
 type ReviewCleanupProcessor struct {
 	repository   ReviewCleanupOutboxRepository
-	provider     AssetReviewGateway
-	cipher       CredentialCipher
+	gateway      ReviewGateway
 	transactions TransactionManager
-	quota        ReviewQuota
 	clock        Clock
 	maxAttempts  int
 }
@@ -34,11 +31,8 @@ type ReviewCleanupFailure struct {
 	Err                                error
 }
 
-func NewReviewCleanupProcessor(repository ReviewCleanupOutboxRepository, provider AssetReviewGateway, cipher CredentialCipher, transactions TransactionManager, quota ReviewQuota, clock Clock, maxAttempts int) *ReviewCleanupProcessor {
-	return &ReviewCleanupProcessor{
-		repository: repository, provider: provider, cipher: cipher,
-		transactions: transactions, quota: quota, clock: clock, maxAttempts: maxAttempts,
-	}
+func NewReviewCleanupProcessor(repository ReviewCleanupOutboxRepository, gateway ReviewGateway, transactions TransactionManager, clock Clock, maxAttempts int) *ReviewCleanupProcessor {
+	return &ReviewCleanupProcessor{repository: repository, gateway: gateway, transactions: transactions, clock: clock, maxAttempts: maxAttempts}
 }
 
 func (processor *ReviewCleanupProcessor) ProcessDue(ctx context.Context, budget time.Duration) ReviewCleanupResult {
@@ -66,37 +60,22 @@ func (processor *ReviewCleanupProcessor) processBatch(ctx context.Context) Revie
 	}
 	result := ReviewCleanupResult{Claimed: len(items), Failures: make([]ReviewCleanupFailure, 0)}
 	for _, item := range items {
-		if deleteErr := processor.deleteReviewedAsset(ctx, item); deleteErr != nil {
-			if errors.Is(deleteErr, ErrAssetReviewAuthorization) || int(item.Attempts)+1 >= processor.maxAttempts {
-				message := "asset review cleanup reached maximum attempts"
-				if errors.Is(deleteErr, ErrAssetReviewAuthorization) {
-					message = "asset review cleanup authorization failed"
-				}
-				marked, markErr := processor.repository.MarkReviewCleanupDead(ctx, item, message, now)
+		if err = processor.cleanup(ctx, item); err != nil {
+			if int(item.Attempts)+1 >= processor.maxAttempts {
+				marked, markErr := processor.repository.MarkReviewCleanupDead(ctx, item, "asset review cleanup reached maximum attempts", now)
 				if markErr == nil && !marked {
 					markErr = errors.New("mark asset review cleanup dead rejected")
 				}
-				result.addFailure(item, errors.Join(deleteErr, markErr))
+				result.addFailure(item, errors.Join(err, markErr))
 				continue
 			}
-			_, rescheduleErr := processor.repository.RescheduleReviewCleanup(
-				ctx, item, now.Add(reviewCleanupRetryDelay(item.Attempts+1)), "Ark reviewed asset deletion failed", now,
-			)
-			result.addFailure(item, errors.Join(deleteErr, rescheduleErr))
+			_, retryErr := processor.repository.RescheduleReviewCleanup(ctx, item, now.Add(reviewCleanupRetryDelay(item.Attempts+1)), "Admin review cleanup failed", now)
+			result.addFailure(item, errors.Join(err, retryErr))
 			continue
 		}
-		completeErr := processor.completeCleanup(ctx, item, now)
-		if completeErr != nil {
-			rescheduled, rescheduleErr := processor.repository.RescheduleReviewCleanup(
-				ctx, item, now.Add(reviewCleanupRetryDelay(item.Attempts+1)),
-				"asset review cleanup completion failed", now,
-			)
-			if rescheduleErr != nil {
-				completeErr = errors.Join(completeErr, rescheduleErr)
-			} else if !rescheduled {
-				completeErr = errors.Join(completeErr, errors.New("reschedule asset review cleanup lease lost"))
-			}
-			result.addFailure(item, completeErr)
+		if err = processor.complete(ctx, item, now); err != nil {
+			_, retryErr := processor.repository.RescheduleReviewCleanup(ctx, item, now.Add(reviewCleanupRetryDelay(item.Attempts+1)), "review cleanup completion failed", now)
+			result.addFailure(item, errors.Join(err, retryErr))
 			continue
 		}
 		result.Completed++
@@ -104,7 +83,21 @@ func (processor *ReviewCleanupProcessor) processBatch(ctx context.Context) Revie
 	return result
 }
 
-func (processor *ReviewCleanupProcessor) completeCleanup(ctx context.Context, item ReviewCleanupOutbox, now time.Time) error {
+func (processor *ReviewCleanupProcessor) cleanup(ctx context.Context, item ReviewCleanupOutbox) error {
+	workspace := workspaceID(item.WorkspaceID)
+	if _, err := processor.gateway.BeginBenefitPackageReviewCleanup(ctx, item.TenantID, workspace, item.PackageID, item.ReservationID, item.ReviewID); err != nil {
+		return err
+	}
+	if item.ProviderAssetID != "" {
+		if err := processor.gateway.DeleteReviewedAsset(ctx, item.TenantID, workspace, item.PackageID, item.ProviderAssetID); err != nil {
+			return err
+		}
+	}
+	_, err := processor.gateway.CompleteBenefitPackageReviewCleanup(ctx, item.TenantID, workspace, item.PackageID, item.ReservationID, item.ReviewID)
+	return err
+}
+
+func (processor *ReviewCleanupProcessor) complete(ctx context.Context, item ReviewCleanupOutbox, now time.Time) error {
 	return processor.transactions.WithinTransaction(ctx, func(tx context.Context) error {
 		ok, err := processor.repository.CompleteReviewCleanup(tx, item, now)
 		if err != nil {
@@ -113,36 +106,13 @@ func (processor *ReviewCleanupProcessor) completeCleanup(ctx context.Context, it
 		if !ok {
 			return errors.New("complete asset review cleanup lease lost")
 		}
-		if item.QuotaReservationID != "" && processor.quota != nil {
-			if _, err = processor.quota.CompletePresetEntitlementCleanup(tx, item.QuotaReservationID); err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 }
 
 func (result *ReviewCleanupResult) addFailure(item ReviewCleanupOutbox, err error) {
 	result.Failed++
-	result.Failures = append(result.Failures, ReviewCleanupFailure{
-		ReviewID: item.ReviewID, AssetID: item.AssetID, ProviderAssetID: item.ProviderAssetID,
-		Attempt: item.Attempts + 1, Err: err,
-	})
-}
-
-func (processor *ReviewCleanupProcessor) deleteReviewedAsset(ctx context.Context, item ReviewCleanupOutbox) error {
-	accessKeyID, err := processor.cipher.Decrypt(item.TenantID, item.EncryptedAccessKeyID)
-	if err != nil {
-		return fmt.Errorf("decrypt asset review access key: %w", err)
-	}
-	secretAccessKey, err := processor.cipher.Decrypt(item.TenantID, item.EncryptedSecretAccessKey)
-	if err != nil {
-		return fmt.Errorf("decrypt asset review secret key: %w", err)
-	}
-	return processor.provider.DeleteAsset(ctx, DeleteReviewedAssetInput{
-		ProviderAssetID: item.ProviderAssetID, ProjectName: item.ProjectName,
-		AccessKeyID: accessKeyID, SecretAccessKey: secretAccessKey,
-	})
+	result.Failures = append(result.Failures, ReviewCleanupFailure{ReviewID: item.ReviewID, AssetID: item.AssetID, ProviderAssetID: item.ProviderAssetID, Attempt: item.Attempts + 1, Err: err})
 }
 
 func reviewCleanupRetryDelay(attempt int32) time.Duration {

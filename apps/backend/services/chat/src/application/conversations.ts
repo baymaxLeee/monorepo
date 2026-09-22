@@ -200,7 +200,7 @@ export async function createConversation(
     await canvasClient().graph(auth, input.project_id, input.canvas_id);
   }
   const id = randomBytes(6).toString("hex");
-  await db.insert(conversations).values({
+  const values = {
     id,
     userId: auth.userId,
     tenantId: auth.tenantId,
@@ -212,8 +212,23 @@ export async function createConversation(
     providerId: input.provider_id ?? "",
     createdAt: now,
     updatedAt: now,
-  });
-  const [row] = await db.select().from(conversations).where(eq(conversations.id, id));
+  };
+  const [row] = input.canvas_id
+    ? await db
+        .insert(conversations)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [
+            conversations.tenantId,
+            conversations.workspaceId,
+            conversations.userId,
+            conversations.projectId,
+            conversations.canvasId,
+          ],
+          set: { canvasId: input.canvas_id },
+        })
+        .returning()
+    : await db.insert(conversations).values(values).returning();
   return toConversation(row);
 }
 

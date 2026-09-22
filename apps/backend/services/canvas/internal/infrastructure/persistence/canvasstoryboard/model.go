@@ -29,16 +29,13 @@ type row struct {
 	ProtocolVersion              int32              `gorm:"not null;default:1"`
 	SourceBeatsJSON              *string            `gorm:"type:mediumtext"`
 	PlanJSON                     *string            `gorm:"type:mediumtext"`
-	// LegacyNextCallOrdinal preserves the released schema until a later contract migration.
-	// Runtime ordinal decisions are owned exclusively by StoryboardModelCallLedger.
-	LegacyNextCallOrdinal int32  `gorm:"column:next_call_ordinal;not null;default:0;->:false;<-:false"`
-	Status                string `gorm:"size:32;not null"`
-	DraftsJSON            string `gorm:"type:mediumtext;not null"`
-	DiagnosticsJSON       string `gorm:"type:mediumtext;not null"`
-	ErrorCode             string `gorm:"size:128;not null"`
-	ErrorMessage          string `gorm:"type:text;not null"`
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	Status                       string             `gorm:"size:32;not null"`
+	DraftsJSON                   string             `gorm:"type:mediumtext;not null"`
+	DiagnosticsJSON              string             `gorm:"type:mediumtext;not null"`
+	ErrorCode                    string             `gorm:"size:128;not null"`
+	ErrorMessage                 string             `gorm:"type:text;not null"`
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
 }
 
 func (row) TableName() string { return "canvas_storyboard_drafts" }

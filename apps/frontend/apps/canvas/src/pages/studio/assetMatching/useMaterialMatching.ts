@@ -1,19 +1,13 @@
-import { canvasCancelAssetMatch, canvasGenerationStatus, canvasGetGraph, canvasStartAssetMatch } from "@repo/api";
+import { canvasCancelNodeAssetMatch, canvasGetGraph, canvasStartNodeAssetMatch } from "@repo/api";
 import { getErrorMessage } from "@repo/shared";
 import { useAtomValue, useStore } from "jotai";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
 
 import { presentGraph } from "../domain/persistence";
-import {
-  canvasAtom,
-  canvasGraphAtom,
-  patchCanvasNodeAtom,
-  replaceCanvasNodesAtom,
-  updateCanvasRevisionAtom,
-} from "../store";
+import { canvasAtom, canvasGraphAtom, patchCanvasNodeAtom, replaceCanvasNodesAtom } from "../store";
 import { useStudioMutationCoordinator } from "../store/mutations";
 
 export function useMaterialMatching(nodeId: string) {
@@ -25,12 +19,11 @@ export function useMaterialMatching(nodeId: string) {
   const runId = node?.ActiveTaskType === canvasnode.CanvasNodeTaskType.ASSETS_MATCH ? node.ActiveTaskRunID : undefined;
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const operationId = useRef("");
   const refresh = useCallback(async () => {
-    const [graph, status] = await Promise.all([canvasGetGraph(canvasId), canvasGenerationStatus(canvasId)]);
-    store.set(replaceCanvasNodesAtom, await presentGraph(graph, status.items));
-    store.set(updateCanvasRevisionAtom, graph.canvas.revision);
-  }, [canvasId, store]);
+    if (!canvas?.ProjectID) return;
+    const graph = await canvasGetGraph(canvas.ProjectID, canvasId);
+    store.set(replaceCanvasNodesAtom, await presentGraph(graph.nodes));
+  }, [canvas?.ProjectID, canvasId, store]);
   return {
     matching: starting || Boolean(runId),
     cancelling,
@@ -43,17 +36,13 @@ export function useMaterialMatching(nodeId: string) {
         const result = await mutations.enqueue(async () => {
           const node = store.get(canvasGraphAtom).nodesById.get(nodeId);
           if (!node) throw new Error("节点已不存在，请刷新画布");
-          operationId.current ||= crypto.randomUUID();
-          return canvasStartAssetMatch(canvasId, nodeId, {
-            operation_id: operationId.current,
-            expected_revision: node.Revision,
-          });
+          if (!canvas?.ProjectID) throw new Error("缺少项目标识");
+          return canvasStartNodeAssetMatch(canvas.ProjectID, canvasId, nodeId, { revision: node.Revision });
         });
-        operationId.current = "";
         store.set(patchCanvasNodeAtom, {
           nodeId,
           patch: {
-            ActiveTaskRunID: result.id,
+            ActiveTaskRunID: result.task_run_id,
             ActiveTaskType: canvasnode.CanvasNodeTaskType.ASSETS_MATCH,
           },
         });
@@ -69,11 +58,9 @@ export function useMaterialMatching(nodeId: string) {
       if (!canvasId || !nodeId || !runId || cancelling) return;
       setCancelling(true);
       try {
-        const result = await mutations.enqueue(() => canvasCancelAssetMatch(canvasId, nodeId, runId));
-        if (result.applied) {
-          await refresh();
-          return;
-        }
+        if (!canvas?.ProjectID) throw new Error("缺少项目标识");
+        await mutations.enqueue(() => canvasCancelNodeAssetMatch(canvas.ProjectID, canvasId, nodeId, runId));
+        await refresh();
         const current = store.get(canvasGraphAtom).nodesById.get(nodeId);
         if (current?.ActiveTaskRunID === runId) {
           store.set(patchCanvasNodeAtom, {

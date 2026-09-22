@@ -1,4 +1,9 @@
-import { canvasListArchives, canvasArchiveContent, type CanvasArchive } from "@repo/api";
+import {
+  canvasListArchives,
+  fetchCanvasArchiveContent,
+  CanvasVideoArchiveExportStatus,
+  type CanvasProjectCanvasVideoArchiveExport,
+} from "@repo/api";
 import {
   History as IconAgentHistory,
   Download as IconDownloadFine,
@@ -15,7 +20,7 @@ import t from "@/utils/i18n";
 
 const PAGE_SIZE = 10;
 
-type ExportItem = CanvasArchive;
+type ExportItem = CanvasProjectCanvasVideoArchiveExport;
 
 function formatDateTime(value: string) {
   const date = new Date(value);
@@ -33,10 +38,12 @@ function formatBytes(size: number) {
 }
 
 function isActive(item: ExportItem) {
-  return item.status === "queued" || item.status === "running";
+  return (
+    item.status === CanvasVideoArchiveExportStatus.QUEUED || item.status === CanvasVideoArchiveExportStatus.RUNNING
+  );
 }
 
-function ExportStatusAction({ item, canvasId }: { item: ExportItem; canvasId: string }) {
+function ExportStatusAction({ item, canvasId, projectId }: { item: ExportItem; canvasId: string; projectId: string }) {
   if (isActive(item)) {
     return (
       <Tooltip content={t("打包中")} position="left">
@@ -47,12 +54,16 @@ function ExportStatusAction({ item, canvasId }: { item: ExportItem; canvasId: st
     );
   }
 
-  if (item.status === "failed" || item.status === "cancelled") {
-    const message = item.status === "cancelled" ? t("打包已取消") : item.error || t("打包失败");
+  if (
+    item.status === CanvasVideoArchiveExportStatus.FAILED ||
+    item.status === CanvasVideoArchiveExportStatus.CANCELLED
+  ) {
+    const cancelled = item.status === CanvasVideoArchiveExportStatus.CANCELLED;
+    const message = cancelled ? t("打包已取消") : item.error_message || t("打包失败");
     return (
       <Tooltip content={message} position="left">
         <span
-          aria-label={item.status === "cancelled" ? t("打包已取消") : t("打包失败")}
+          aria-label={cancelled ? t("打包已取消") : t("打包失败")}
           className="inline-flex size-5 items-center justify-center text-destructive"
         >
           <IconExclamationCircleRedFill className="text-[20px]" />
@@ -61,7 +72,7 @@ function ExportStatusAction({ item, canvasId }: { item: ExportItem; canvasId: st
     );
   }
 
-  const expired = !item.downloadable;
+  const expired = !item.path;
   return (
     <Tooltip content={expired ? t("下载链接已过期") : t("下载")} position="left">
       <span>
@@ -70,11 +81,11 @@ function ExportStatusAction({ item, canvasId }: { item: ExportItem; canvasId: st
           disabled={expired}
           icon={<IconDownloadFine />}
           onClick={() => {
-            if (!item.downloadable) {
+            if (!item.path) {
               return;
             }
-            void canvasArchiveContent(canvasId, item.id)
-              .then((blob) => saveBlob(blob, item.filename))
+            void fetchCanvasArchiveContent(projectId, canvasId, item.task_run_id)
+              .then((blob) => saveBlob(blob, item.output_filename))
               .catch(() => undefined);
           }}
           size={28}
@@ -97,11 +108,14 @@ export function ExportHistoryDrawer({
   visible: boolean;
 }) {
   const loadPage = async (pageNum: number, pageSize: number): Promise<FileListPage<ExportItem>> => {
-    const result = await canvasListArchives(canvasId);
-    const items = [...result.items].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const result = await canvasListArchives(projectId, canvasId, {
+      page_num: pageNum,
+      page_size: pageSize,
+      sort_direction: "desc",
+    });
     return {
-      hasMore: pageNum * pageSize < items.length,
-      items: items.slice((pageNum - 1) * pageSize, pageNum * pageSize),
+      hasMore: pageNum < result.page.total_page,
+      items: result.items,
     };
   };
 
@@ -124,14 +138,14 @@ export function ExportHistoryDrawer({
       <FileList
         emptyText={t("暂无导出记录")}
         errorText={t("导出记录加载失败")}
-        getItemKey={(item) => item.id}
+        getItemKey={(item) => item.task_run_id}
         loadPage={loadPage}
         pageSize={PAGE_SIZE}
-        renderAction={(item) => <ExportStatusAction item={item} canvasId={canvasId} />}
+        renderAction={(item) => <ExportStatusAction item={item} canvasId={canvasId} projectId={projectId} />}
         renderDescription={(item) => (
           <>
             <span>{t("{count} 个分镜", { count: item.input_count })}</span>
-            <span>{formatBytes(item.size)}</span>
+            <span>{formatBytes(item.output_size)}</span>
           </>
         )}
         renderIcon={() => <IconZip className="text-[28px] text-primary" />}

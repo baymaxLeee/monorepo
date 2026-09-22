@@ -15,6 +15,7 @@ import (
 
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
+	applicationprojectusage "github.com/example/monorepo/canvas/internal/application/projectusage"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
@@ -36,6 +37,7 @@ type Service interface {
 	applicationimagegeneration.ImageResultStore
 	ReferenceURL(context.Context, string, string, domainasset.Asset) (string, error)
 	UploadBlob(context.Context, string, string, io.Reader) (string, int64, error)
+	applicationprojectusage.TemporaryFileStore
 }
 
 type Store struct {
@@ -50,13 +52,13 @@ func New(client *storage.Client, publicGatewayURL string) Service {
 	}
 }
 
-func knowledgeNamespace(namespace string) string {
+func KnowledgeNamespace(namespace string) string {
 	digest := sha256.Sum256([]byte(strings.TrimSpace(namespace)))
 	return hex.EncodeToString(digest[:])
 }
 
 func (s *Store) Inspect(ctx context.Context, _, _ string, blobID string) (applicationasset.DetectedBlob, error) {
-	reader, err := s.client.Get(ctx, knowledgeNamespace(stagingNamespace), strings.TrimSpace(blobID))
+	reader, err := s.client.Get(ctx, KnowledgeNamespace(stagingNamespace), strings.TrimSpace(blobID))
 	if err != nil {
 		return applicationasset.DetectedBlob{}, fmt.Errorf("download staged blob: %w", err)
 	}
@@ -75,7 +77,7 @@ func (s *Store) Inspect(ctx context.Context, _, _ string, blobID string) (applic
 }
 
 func (s *Store) UploadBlob(ctx context.Context, _, _ string, reader io.Reader) (string, int64, error) {
-	stored, err := s.client.PutObject(ctx, knowledgeNamespace(stagingNamespace), reader)
+	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(stagingNamespace), reader)
 	if err != nil {
 		return "", 0, fmt.Errorf("upload staged blob: %w", err)
 	}
@@ -85,13 +87,49 @@ func (s *Store) UploadBlob(ctx context.Context, _, _ string, reader io.Reader) (
 	return stored.ArtifactID, stored.Size, nil
 }
 
+func (s *Store) UploadTemporary(
+	ctx context.Context,
+	input applicationprojectusage.TemporaryFileUpload,
+) (applicationprojectusage.TemporaryFile, error) {
+	namespace := KnowledgeNamespace("canvas:project-usage:" + strings.TrimSpace(input.TenantID))
+	stored, err := s.client.PutObject(ctx, namespace, input.Reader)
+	if err != nil {
+		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("upload project usage workbook: %w", err)
+	}
+	if stored.Size != input.Size || !strings.EqualFold(stored.SHA256, input.SHA256) {
+		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
+		return applicationprojectusage.TemporaryFile{}, errors.New("uploaded project usage workbook integrity mismatch")
+	}
+	values, err := s.client.BatchPublicURLs(ctx, []storage.Artifact{{
+		Namespace: namespace, ID: stored.ArtifactID,
+		ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	}})
+	if err != nil {
+		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
+		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("presign project usage workbook: %w", err)
+	}
+	presigned, ok := values[storage.ArtifactLookupKey(namespace, stored.ArtifactID)]
+	if !ok || strings.TrimSpace(presigned.URL) == "" {
+		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
+		return applicationprojectusage.TemporaryFile{}, errors.New("presign project usage workbook returned no URL")
+	}
+	expiresAt, err := time.Parse(time.RFC3339, presigned.ExpiresAt)
+	if err != nil {
+		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
+		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("parse project usage workbook expiry: %w", err)
+	}
+	return applicationprojectusage.TemporaryFile{
+		DownloadURL: s.absoluteURL(presigned.URL), ExpiresAt: expiresAt, Size: stored.Size,
+	}, nil
+}
+
 func (s *Store) Register(ctx context.Context, _, _ string, blobID, _ string, namespace string) (applicationasset.RegisteredArtifact, error) {
-	reader, err := s.client.Get(ctx, knowledgeNamespace(stagingNamespace), strings.TrimSpace(blobID))
+	reader, err := s.client.Get(ctx, KnowledgeNamespace(stagingNamespace), strings.TrimSpace(blobID))
 	if err != nil {
 		return applicationasset.RegisteredArtifact{}, fmt.Errorf("open staged blob: %w", err)
 	}
 	defer reader.Close()
-	stored, err := s.client.PutObject(ctx, knowledgeNamespace(namespace), reader)
+	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(namespace), reader)
 	if err != nil {
 		return applicationasset.RegisteredArtifact{}, fmt.Errorf("register artifact: %w", err)
 	}
@@ -107,14 +145,14 @@ func (s *Store) RegisterMany(ctx context.Context, tenantID, callerID, namespace 
 }
 
 func (s *Store) Delete(ctx context.Context, artifactID, namespace string) error {
-	if err := s.client.Delete(ctx, knowledgeNamespace(namespace), strings.TrimSpace(artifactID)); err != nil {
+	if err := s.client.Delete(ctx, KnowledgeNamespace(namespace), strings.TrimSpace(artifactID)); err != nil {
 		return fmt.Errorf("delete artifact: %w", err)
 	}
 	return nil
 }
 
 func (s *Store) BatchPresignArtifacts(ctx context.Context, _, _ string, namespace string, artifactIDs []string) (map[string]applicationasset.PresignedArtifact, error) {
-	resolvedNamespace := knowledgeNamespace(namespace)
+	resolvedNamespace := KnowledgeNamespace(namespace)
 	items := make([]storage.Artifact, 0, len(artifactIDs))
 	for _, artifactID := range artifactIDs {
 		if artifactID = strings.TrimSpace(artifactID); artifactID != "" {
@@ -158,7 +196,7 @@ func (s *Store) referenceURL(ctx context.Context, _, _ string, asset domainasset
 	if contentType == "" {
 		contentType = defaultContentType
 	}
-	namespace := knowledgeNamespace(asset.ArtifactNamespace)
+	namespace := KnowledgeNamespace(asset.ArtifactNamespace)
 	values, err := s.client.BatchPublicURLs(ctx, []storage.Artifact{{Namespace: namespace, ID: asset.ArtifactID, ContentType: contentType}})
 	if err != nil {
 		return "", fmt.Errorf("presign artifact: %w", err)
@@ -207,7 +245,7 @@ func (s *Store) persistRemote(ctx context.Context, tenantID string, workspaceID 
 	if err != nil {
 		return storage.StoredObject{}, "", err
 	}
-	stored, err := s.client.PutObject(ctx, knowledgeNamespace(namespace), response.Body)
+	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(namespace), response.Body)
 	if err != nil {
 		return storage.StoredObject{}, "", fmt.Errorf("persist generated media: %w", err)
 	}

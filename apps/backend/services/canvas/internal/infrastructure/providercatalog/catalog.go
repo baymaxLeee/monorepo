@@ -7,6 +7,7 @@ import (
 
 	requestcontext "github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
+	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
 )
 
@@ -15,6 +16,54 @@ import (
 type Catalog struct{ providers *admin.Directory }
 
 func New(providers *admin.Directory) *Catalog { return &Catalog{providers: providers} }
+
+func (catalog *Catalog) List(ctx context.Context, scope applicationproject.Scope, input applicationproject.ListModelsInput) (applicationproject.ProjectModelList, error) {
+	workspaceID := ""
+	if scope.WorkspaceID != nil {
+		workspaceID = *scope.WorkspaceID
+	}
+	providers, err := catalog.providers.List(ctx, scope.TenantID, workspaceID)
+	if err != nil {
+		return applicationproject.ProjectModelList{}, err
+	}
+	items := make([]json.RawMessage, 0, len(providers))
+	for _, provider := range providers {
+		if input.IsGranted != nil && *input.IsGranted && !provider.IsEnabled {
+			continue
+		}
+		value := map[string]any{
+			"ID": provider.ID, "Name": provider.Name, "ModelName": provider.Model,
+			"Provider": provider.ProviderKind, "IsPublic": true, "IsDefault": provider.IsDefault,
+			"Granted": provider.IsEnabled, "Status": map[bool]string{true: "Running", false: "Disabled"}[provider.IsEnabled],
+		}
+		switch provider.ProviderKind {
+		case "chat":
+			value["Type"], value["FeaturesConfig"] = "text-generation", []string{"tool-call"}
+		case "image":
+			value["Type"], value["FeaturesConfig"] = "vision", []string{"text2image"}
+		case "video":
+			value["Type"], value["FeaturesConfig"] = "vision", []string{"text2video"}
+		default:
+			continue
+		}
+		if capabilities, ok := provider.ExtraBody["canvas_capabilities"].(map[string]any); ok {
+			if video, exists := capabilities["video"]; exists {
+				value["Property"] = map[string]any{"Vision": map[string]any{"Video": video}}
+			}
+		}
+		encoded, marshalErr := json.Marshal(value)
+		if marshalErr != nil {
+			return applicationproject.ProjectModelList{}, marshalErr
+		}
+		items = append(items, encoded)
+	}
+	start := int(input.PageNumber-1) * int(input.PageSize)
+	if start >= len(items) {
+		return applicationproject.ProjectModelList{Total: int32(len(items))}, nil
+	}
+	end := min(start+int(input.PageSize), len(items))
+	return applicationproject.ProjectModelList{Items: items[start:end], Total: int32(len(items))}, nil
+}
 
 func (catalog *Catalog) Resolve(ctx context.Context, actor applicationmodel.Actor, requirements []applicationmodel.Requirement) ([]applicationmodel.Resolution, error) {
 	if catalog == nil || catalog.providers == nil || strings.TrimSpace(actor.TenantID) == "" || len(requirements) == 0 {
@@ -54,12 +103,19 @@ func (catalog *Catalog) Resolve(ctx context.Context, actor applicationmodel.Acto
 	return resolved, nil
 }
 
-func (catalog *Catalog) LoadSelection(ctx context.Context, tenantID string, capability applicationmodel.Capability, modelID string) (applicationmodel.Selection, error) {
-	items, err := catalog.Resolve(ctx, applicationmodel.Actor{TenantID: tenantID, UserID: "model-selection"}, []applicationmodel.Requirement{{Capability: capability, ModelID: modelID}})
+func (catalog *Catalog) LoadSelection(ctx context.Context, tenantID string, workspaceID *string, capability applicationmodel.Capability, modelID string) (applicationmodel.Selection, error) {
+	workspace := ""
+	if workspaceID != nil {
+		workspace = strings.TrimSpace(*workspaceID)
+	}
+	if catalog == nil || catalog.providers == nil || strings.TrimSpace(tenantID) == "" || workspace == "" {
+		return applicationmodel.Selection{}, applicationmodel.ErrUnavailable
+	}
+	provider, err := catalog.provider(ctx, tenantID, workspace, applicationmodel.Requirement{Capability: capability, ModelID: modelID})
 	if err != nil {
 		return applicationmodel.Selection{}, err
 	}
-	return items[0].Selection, nil
+	return applicationmodel.Selection{ModelID: provider.ID}, nil
 }
 
 func (catalog *Catalog) provider(ctx context.Context, tenantID, workspaceID string, requirement applicationmodel.Requirement) (admin.Provider, error) {

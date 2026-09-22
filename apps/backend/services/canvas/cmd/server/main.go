@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,10 +15,12 @@ import (
 	maturehttp "github.com/example/monorepo/canvas/internal/api/handler"
 	"github.com/example/monorepo/canvas/internal/api/openapi"
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
-	applicationbasicconfig "github.com/example/monorepo/canvas/internal/application/basicconfig"
+	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
+	applicationcanvasarchive "github.com/example/monorepo/canvas/internal/application/canvasarchive"
 	applicationcanvasgeneration "github.com/example/monorepo/canvas/internal/application/canvasgeneration"
 	applicationcanvasimagegeneration "github.com/example/monorepo/canvas/internal/application/canvasimagegeneration"
+	applicationcanvastextgeneration "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
 	applicationdeletion "github.com/example/monorepo/canvas/internal/application/deletion"
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
@@ -34,12 +37,18 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
 	"github.com/example/monorepo/canvas/internal/infrastructure/artifact"
 	"github.com/example/monorepo/canvas/internal/infrastructure/canvasstoryboardredis"
+	"github.com/example/monorepo/canvas/internal/infrastructure/canvastextgenerationredis"
+	executorclient "github.com/example/monorepo/canvas/internal/infrastructure/executor"
+	canvasarchivemedia "github.com/example/monorepo/canvas/internal/infrastructure/media/canvasarchive"
+	"github.com/example/monorepo/canvas/internal/infrastructure/observability"
 	assetpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/asset"
+	benefitpackagepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/benefitpackage"
 	canvaspersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvas"
+	canvasarchivepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasarchive"
 	canvasnodepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasnode"
 	canvasstatisticspersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasstatistics"
 	canvasstoryboardpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasstoryboard"
-	defaultmodelpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/defaultmodel"
+	canvastextgenerationpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvastextgeneration"
 	deletionpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/deletion"
 	imagegenerationpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/imagegeneration"
 	projectpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/project"
@@ -58,6 +67,7 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 )
 
@@ -74,6 +84,23 @@ func (uuidGenerator) NewID() (string, error) {
 type utcClock struct{}
 
 func (utcClock) Now() time.Time { return time.Now().UTC() }
+
+type archiveCanvasAccess struct {
+	canvases interface {
+		Validate(context.Context, applicationcanvas.Scope, string, string) error
+	}
+}
+
+func (access archiveCanvasAccess) Validate(
+	ctx context.Context,
+	scope applicationcanvasarchive.Scope,
+	projectID string,
+	canvasID string,
+) error {
+	return access.canvases.Validate(ctx, applicationcanvas.Scope{
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, CallerID: scope.CallerID,
+	}, projectID, canvasID)
+}
 
 const imageTaskCleanupJobKind = "image.task.cleanup.v1"
 
@@ -192,6 +219,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	shutdownTelemetry, err := observability.Configure(context.Background(), "canvas")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdownTelemetry(shutdown)
+	}()
 	db, err := bootstrap.Connect(cfg)
 	if err != nil {
 		return err
@@ -220,6 +256,7 @@ func run() error {
 	imageRepository := imagegenerationpersistence.NewRepository(db)
 	storyboardRepository := canvasstoryboardpersistence.NewRepository(db)
 	assetRepository := assetpersistence.NewRepository(db)
+	reviewRepository := benefitpackagepersistence.NewRepository(db)
 	projectRepository := projectpersistence.NewRepository(db)
 	resourceRepository := resourcepersistence.NewRepository(db)
 	resourceGenerationRepository := resourceassetgenerationpersistence.NewRepository(db)
@@ -230,15 +267,58 @@ func run() error {
 	deletionQueue := applicationdeletion.NewQueue(deletionRepository)
 	providers := &admin.Directory{URL: bootstrap.Env("ADMIN_SERVICE_URL", "http://localhost:8001"), Token: cfg.InternalToken}
 	models := modelcatalog.New(providers)
-	artifacts := artifact.New(&storage.Client{
+	storageClient := &storage.Client{
 		URL: bootstrap.Env("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"), Token: cfg.InternalToken,
-	}, cfg.PublicGatewayURL)
+	}
+	artifacts := artifact.New(storageClient, cfg.PublicGatewayURL)
+	projectUsageExporter := applicationprojectusage.NewExporter(projectUsageRepository, artifacts, uuidGenerator{}, utcClock{})
 	transactions := persistencetransaction.New(db)
+	archiveRepository := canvasarchivepersistence.NewRepository(db)
+	executorClient := &executorclient.Client{
+		URL: bootstrap.Env("EXECUTOR_SERVICE_URL", "http://localhost:8011"), Token: cfg.InternalToken,
+	}
+	archiveWorkflows := executorclient.NewArchiveWorkflowStore(db, executorClient)
+	archiveService := applicationcanvasarchive.NewService(
+		archiveRepository, archiveRepository, taskRepository, archiveWorkflows, transactions, uuidGenerator{}, utcClock{},
+		applicationcanvasarchive.WithCanvasAccessValidator(archiveCanvasAccess{canvases: canvasRepository}),
+		applicationcanvasarchive.WithCancellation(taskRepository, archiveWorkflows),
+	)
+	archiveWorkflows.Bind(archiveService)
+	archiveRuntime := canvasarchivemedia.NewRuntime(
+		archiveService, archiveRepository, taskRepository, transactions, storageClient, utcClock{}, "",
+	)
+	go archiveWorkflows.Run(ctx)
 	executions := applicationtask.NewActiveExecutions()
 	assetService := applicationasset.NewService(
 		assetRepository, assetpersistence.NewOwnerResolver(db), artifacts, uuidGenerator{}, utcClock{},
 		applicationasset.WithReferenceStore(assetRepository),
 	)
+	reviewCleanup := applicationpackage.NewReviewCleanupService(reviewRepository, taskRepository, transactions, utcClock{})
+	assetService = applicationasset.NewService(
+		assetRepository, assetpersistence.NewOwnerResolver(db), artifacts, uuidGenerator{}, utcClock{},
+		applicationasset.WithReferenceStore(assetRepository),
+		applicationasset.WithReviewReader(reviewRepository),
+		applicationasset.WithReviewCleanup(reviewCleanup, nil),
+	)
+	reviews := applicationpackage.NewReviewService(
+		reviewRepository, assetService, artifacts, resourceRepository, providers, taskRepository, transactions, uuidGenerator{}, utcClock{},
+	)
+	reviewCleanupProcessor := applicationpackage.NewReviewCleanupProcessor(reviewRepository, providers, transactions, utcClock{}, 8)
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			result := reviewCleanupProcessor.ProcessDue(ctx, 500*time.Millisecond)
+			if result.RoundError != nil {
+				slog.Error("process asset review cleanup", "error", result.RoundError)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 	providerClient := platformaigwproxy.New(providers)
 	projectStatistics := applicationprojectstatistics.NewService(
 		projectstatisticspersistence.New(db), nil,
@@ -283,8 +363,23 @@ func run() error {
 		applicationvideogeneration.WithProjectUsageCallRecorder(projectUsageCalls),
 		applicationvideogeneration.WithProjectUsageFinalizer(projectUsageFinalizer),
 	)
+	textGenerations := applicationcanvastextgeneration.NewService(
+		nodeRepository,
+		canvastextgenerationredis.New(redisClient),
+		canvastextgenerationpersistence.NewRepository(db),
+		taskRepository,
+		taskRepository,
+		executions,
+		transactions,
+		uuidGenerator{},
+		utcClock{},
+		models,
+		aigw.NewTextProvider(providerClient),
+		applicationcanvastextgeneration.WithProjectUsage(projectUsageCalls, projectUsageFinalizer),
+		applicationcanvastextgeneration.WithGenerationInputs(nodeRepository, assetService, artifacts),
+	)
 	generations := applicationcanvasgeneration.NewService(
-		nodeRepository, imageEngine, videos, assetService,
+		nodeRepository, imageEngine, videos, textGenerations, assetService,
 		applicationcanvasgeneration.WithImageModelCatalog(models),
 		applicationcanvasgeneration.WithGenerationStateReaders(nodeRepository, taskRepository, videoRepository),
 	)
@@ -337,10 +432,7 @@ func run() error {
 		applicationresourceassetgeneration.WithImageModelCatalog(models),
 		applicationresourceassetgeneration.WithUploadedReferenceReader(assetService),
 	)
-	basicConfigHandler := maturehttp.NewBasicConfigHandler(
-		applicationbasicconfig.NewService(defaultmodelpersistence.NewRepository(db), models),
-	)
-	nodeHandler := maturehttp.NewCanvasNodeHandler(nodes, assets, generations, storyboards)
+	nodeHandler := maturehttp.NewCanvasNodeHandler(nodes, assets, generations, storyboards, textGenerations)
 	resourceHandler := maturehttp.NewResourceHandler(resourceService, assetService, resourceGenerations)
 	access := projectaccesspersistence.NewChecker(db, redisClient, log)
 	canvasService := applicationcanvas.NewService(
@@ -358,6 +450,7 @@ func run() error {
 			nil,
 		),
 		applicationproject.WithProjectUsagePolicyGateway(projectusagepolicypersistence.New(db)),
+		applicationproject.WithModelPermissionGateway(models),
 		applicationproject.WithMemberCacheInvalidator(access),
 		applicationproject.WithDeletionQueue(deletionQueue),
 	)
@@ -402,7 +495,7 @@ func run() error {
 		},
 	})
 	go runDeletionProcessor(ctx, deletionProcessor)
-	processors := []applicationtask.PollProcessor{videos, imageProcessor, nodes}
+	processors := []applicationtask.PollProcessor{videos, imageProcessor, textGenerations, nodes, reviews}
 	for _, processor := range processors {
 		scheduler, schedulerErr := applicationtask.NewRunTypePollScheduler(
 			taskRepository, taskRepository, processor, executions, utcClock{}, applicationtask.PollPoolConfig{
@@ -415,9 +508,21 @@ func run() error {
 		}
 		go runPollScheduler(ctx, scheduler)
 	}
-	server := &http.Server{Addr: ":" + cfg.Port, Handler: openapi.NewRouter(
-		basicConfigHandler, maturehttp.NewProjectHandler(projectService), maturehttp.NewCanvasHandler(canvasService), nodeHandler, resourceHandler, access,
-	), ReadHeaderTimeout: 10 * time.Second}
+	handler := openapi.NewRouter(
+		cfg.InternalToken, maturehttp.NewProjectHandler(projectService), maturehttp.NewProjectUsageHandler(projectUsageExporter), maturehttp.NewCanvasHandler(canvasService), nodeHandler, resourceHandler, maturehttp.NewAssetHandler(reviews),
+		maturehttp.NewCanvasArchiveHandler(archiveService, archiveRuntime),
+		func(ctx context.Context, taskRunID string) (any, error) {
+			return archiveRuntime.Execute(ctx, taskRunID)
+		},
+		func(ctx context.Context, reader io.Reader) (string, int64, error) {
+			return artifacts.UploadBlob(ctx, "", "", reader)
+		},
+		access,
+	)
+	handler = otelhttp.NewHandler(handler, "canvas", otelhttp.WithFilter(func(request *http.Request) bool {
+		return request.URL.Path != "/livez"
+	}))
+	server := &http.Server{Addr: ":" + cfg.Port, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
 	select {

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
-	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
@@ -27,34 +26,22 @@ const (
 )
 
 type ReviewService struct {
-	packages     Repository
 	reviews      AssetReviewRepository
 	reviewReader ProjectAssetReviewReader
 	assets       ReviewAssetStore
 	references   AssetReferenceResolver
 	projects     AssetProjectValidator
-	provider     AssetReviewGateway
-	cipher       CredentialCipher
+	gateway      ReviewGateway
 	tasks        ReviewTaskStore
 	transactions TransactionManager
 	ids          IDGenerator
 	clock        Clock
-	quota        ReviewQuota
 }
 
-type ReviewOption func(*ReviewService)
-
-func WithReviewQuota(quota ReviewQuota) ReviewOption {
-	return func(service *ReviewService) { service.quota = quota }
-}
-
-func NewReviewService(packages Repository, reviews AssetReviewRepository, assets ReviewAssetStore, references AssetReferenceResolver, projects AssetProjectValidator, provider AssetReviewGateway, cipher CredentialCipher, tasks ReviewTaskStore, transactions TransactionManager, ids IDGenerator, clock Clock, options ...ReviewOption) *ReviewService {
-	service := &ReviewService{packages: packages, reviews: reviews, assets: assets, references: references, projects: projects, provider: provider, cipher: cipher, tasks: tasks, transactions: transactions, ids: ids, clock: clock}
-	if reviewReader, ok := reviews.(ProjectAssetReviewReader); ok {
-		service.reviewReader = reviewReader
-	}
-	for _, option := range options {
-		option(service)
+func NewReviewService(reviews AssetReviewRepository, assets ReviewAssetStore, references AssetReferenceResolver, projects AssetProjectValidator, gateway ReviewGateway, tasks ReviewTaskStore, transactions TransactionManager, ids IDGenerator, clock Clock) *ReviewService {
+	service := &ReviewService{reviews: reviews, assets: assets, references: references, projects: projects, gateway: gateway, tasks: tasks, transactions: transactions, ids: ids, clock: clock}
+	if reader, ok := reviews.(ProjectAssetReviewReader); ok {
+		service.reviewReader = reader
 	}
 	return service
 }
@@ -130,6 +117,17 @@ type BatchSubmitReviewResult struct {
 	ErrorCode, ErrorMessage string
 }
 
+func (s *ReviewService) ListPackages(ctx context.Context, scope ReviewScope) ([]BenefitPackage, error) {
+	if !validReviewScope(scope) {
+		return nil, errno.New(errno.ErrInvalidArgument)
+	}
+	items, err := s.gateway.ListBenefitPackages(ctx, scope.TenantID, *scope.WorkspaceID)
+	if err != nil {
+		return nil, classifyDependency(err)
+	}
+	return items, nil
+}
+
 func (s *ReviewService) BatchSubmit(ctx context.Context, input BatchSubmitReviewInput) ([]BatchSubmitReviewResult, error) {
 	if !validReviewScope(input.ReviewScope) || strings.TrimSpace(input.ProjectID) == "" || len(input.Items) == 0 || len(input.Items) > 100 {
 		return nil, errno.New(errno.ErrInvalidArgument)
@@ -137,32 +135,23 @@ func (s *ReviewService) BatchSubmit(ctx context.Context, input BatchSubmitReview
 	results := make([]BatchSubmitReviewResult, len(input.Items))
 	groups := make(map[string][]int, len(input.Items))
 	for index, item := range input.Items {
-		key := reviewSubmissionKey(item)
-		groups[key] = append(groups[key], index)
+		groups[reviewSubmissionKey(item)] = append(groups[reviewSubmissionKey(item)], index)
 	}
 	var wait sync.WaitGroup
 	wait.Add(len(groups))
 	for _, indices := range groups {
 		go func() {
 			defer wait.Done()
-			// Local admission for distinct targets can proceed independently. Keep
-			// replacements of the same current review ordered so one request cannot
-			// race its own durable SUBMITTING record.
 			for _, index := range indices {
 				item := input.Items[index]
-				result, err := s.Submit(ctx, SubmitReviewInput{
-					ReviewScope: input.ReviewScope, ProjectID: input.ProjectID,
-					AssetID: item.AssetID, PackageID: item.PackageID, Upload: item.Upload,
-				})
-				batchResult := BatchSubmitReviewResult{AssetID: item.AssetID, PackageID: item.PackageID}
+				result, err := s.Submit(ctx, SubmitReviewInput{ReviewScope: input.ReviewScope, ProjectID: input.ProjectID, AssetID: item.AssetID, PackageID: item.PackageID, Upload: item.Upload})
+				batch := BatchSubmitReviewResult{AssetID: item.AssetID, PackageID: item.PackageID}
 				if err != nil {
-					batchResult.ErrorCode = string(errno.CodeOf(err))
-					batchResult.ErrorMessage = errno.MessageOf(err)
+					batch.ErrorCode, batch.ErrorMessage = string(errno.CodeOf(err)), errno.MessageOf(err)
 				} else {
-					batchResult.AssetID = result.AssetID
-					batchResult.Review = &result.Review
+					batch.AssetID, batch.Review = result.AssetID, &result.Review
 				}
-				results[index] = batchResult
+				results[index] = batch
 			}
 		}()
 	}
@@ -181,11 +170,18 @@ func (s *ReviewService) Submit(ctx context.Context, input SubmitReviewInput) (Su
 	if !validReviewInput(input) {
 		return SubmitReviewResult{}, errno.New(errno.ErrInvalidArgument)
 	}
-	item, err := s.packages.Get(ctx, Scope{TenantID: input.TenantID, CallerID: input.CallerID}, input.PackageID)
+	packages, err := s.gateway.ListBenefitPackages(ctx, input.TenantID, *input.WorkspaceID)
 	if err != nil {
-		return SubmitReviewResult{}, classify(err)
+		return SubmitReviewResult{}, classifyDependency(err)
 	}
-	if !item.Enabled || item.AssetGroupID == "" {
+	var selected *BenefitPackage
+	for index := range packages {
+		if packages[index].ID == input.PackageID {
+			selected = &packages[index]
+			break
+		}
+	}
+	if selected == nil {
 		return SubmitReviewResult{}, errno.New(errno.ErrFailedPrecondition)
 	}
 	assetItem, err := s.resolveReviewAsset(ctx, input)
@@ -204,35 +200,21 @@ func (s *ReviewService) Submit(ctx context.Context, input SubmitReviewInput) (Su
 		return SubmitReviewResult{}, errno.Wrap(errno.ErrInternalError, err)
 	}
 	now := s.clock.Now()
-	reserveInput := ReserveAssetReviewInput{
-		ID: reviewID, TaskRunID: taskRunID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID,
-		ProjectID: input.ProjectID, PackageID: item.ID, PackageName: item.Name, AssetID: assetItem.ID,
-		ScopeType: item.ScopeType, Now: now,
+	reserve := ReserveAssetReviewInput{
+		ID: reviewID, TaskRunID: taskRunID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, ProjectID: input.ProjectID,
+		PackageID: selected.ID, PackageName: selected.Name, AssetID: assetItem.ID, ModelIDs: append([]string{}, selected.ModelIDs...),
+		SystemPresetModels: selected.IsPreset, Now: now,
 	}
 	run := domaintask.TaskRun{ID: taskRunID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CreatedBy: input.CallerID, RunType: domaintask.RunTypeAssetReview, SubjectType: domaintask.SubjectTypeAsset, SubjectID: assetItem.ID, Status: domaintask.StatusQueued, StateVersion: 1, CreatedAt: now, UpdatedAt: now}
 	run.IsInternal = true
 	schedule := domaintask.PollSchedule{TaskRunID: taskRunID, NextPollAt: now, StateVersion: 1, DeadlineAt: now.Add(reviewDeadline), CreatedAt: now, UpdatedAt: now}
-	var quotaReservation applicationquota.Reservation
-	var replacement ReplaceAssetReviewResult
 	err = s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
-		var replaceErr error
-		replacement, replaceErr = s.reviews.ReplaceAssetReview(tx, reserveInput)
+		replacement, replaceErr := s.reviews.ReplaceAssetReview(tx, reserve)
 		if replaceErr != nil {
 			return replaceErr
 		}
-		if replaceErr = cancelReviewTasks(tx, replacement.Replaced, s.tasks, s.quota, now); replaceErr != nil {
+		if replaceErr = cancelReviewTasks(tx, replacement.Replaced, s.tasks, now); replaceErr != nil {
 			return replaceErr
-		}
-		if item.IsPreset && s.quota != nil {
-			quotaReservation, replaceErr = s.quota.ReservePresetEntitlement(
-				tx, input.TenantID, reviewID, item.ID, assetItem.ID,
-			)
-			if replaceErr != nil {
-				return replaceErr
-			}
-			if replaceErr = s.reviews.SetAssetReviewQuotaReservation(tx, reviewID, quotaReservation.ID, now); replaceErr != nil {
-				return replaceErr
-			}
 		}
 		if replaceErr = s.tasks.Create(tx, run); replaceErr != nil {
 			return replaceErr
@@ -240,33 +222,16 @@ func (s *ReviewService) Submit(ctx context.Context, input SubmitReviewInput) (Su
 		return s.tasks.CreatePollSchedule(tx, schedule)
 	})
 	if err != nil {
-		if errors.Is(err, applicationquota.ErrExceeded) || errors.Is(err, applicationquota.ErrUnavailable) || errors.Is(err, applicationquota.ErrReservationInProgress) {
-			return SubmitReviewResult{}, classifyQuota(err, errno.ErrPresetEntitlementAssetQuotaExceeded)
-		}
 		return SubmitReviewResult{}, classifyReview(err)
 	}
-	return SubmitReviewResult{AssetID: assetItem.ID, Review: domainasset.Review{PackageID: item.ID, PackageName: item.Name, Status: domainasset.ReviewStatusSubmitting, CreatedAt: now, UpdatedAt: now}}, nil
-}
-
-func classifyQuota(err error, exceeded errno.ErrorCode) error {
-	switch {
-	case errors.Is(err, applicationquota.ErrExceeded):
-		return errno.Wrap(exceeded, err)
-	case errors.Is(err, applicationquota.ErrUnavailable):
-		return errno.Wrap(errno.ErrQuotaUnavailable, err)
-	case errors.Is(err, applicationquota.ErrReservationInProgress):
-		return errno.Wrap(errno.ErrConflict, err)
-	default:
-		return errno.Wrap(errno.ErrPersistenceError, err)
-	}
+	return SubmitReviewResult{AssetID: assetItem.ID, Review: domainasset.Review{PackageID: selected.ID, PackageName: selected.Name, ModelIDs: selected.ModelIDs, SystemPresetModels: selected.IsPreset, Status: domainasset.ReviewStatusSubmitting, CreatedAt: now, UpdatedAt: now}}, nil
 }
 
 func validReviewInput(input SubmitReviewInput) bool {
 	if !validReviewScope(input.ReviewScope) || strings.TrimSpace(input.ProjectID) == "" || strings.TrimSpace(input.PackageID) == "" {
 		return false
 	}
-	hasAssetID := strings.TrimSpace(input.AssetID) != ""
-	hasUpload := input.Upload != nil
+	hasAssetID, hasUpload := strings.TrimSpace(input.AssetID) != "", input.Upload != nil
 	if hasAssetID == hasUpload {
 		return false
 	}
@@ -276,11 +241,7 @@ func validReviewInput(input SubmitReviewInput) bool {
 func (s *ReviewService) resolveReviewAsset(ctx context.Context, input SubmitReviewInput) (domainasset.Asset, error) {
 	scope := applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID}
 	if input.Upload != nil {
-		item, _, err := s.assets.CreateIdempotent(ctx, applicationasset.CreateInput{
-			Scope: scope, ProjectID: &input.ProjectID, OwnerType: domainasset.OwnerProject, OwnerID: input.ProjectID,
-			BlobID: input.Upload.BlobID, FileName: input.Upload.FileName,
-			CreationKey: reviewUploadCreationKey(input.ProjectID, input.Upload.ClientID),
-		})
+		item, _, err := s.assets.CreateIdempotent(ctx, applicationasset.CreateInput{Scope: scope, ProjectID: &input.ProjectID, OwnerType: domainasset.OwnerProject, OwnerID: input.ProjectID, BlobID: input.Upload.BlobID, FileName: input.Upload.FileName, CreationKey: reviewUploadCreationKey(input.ProjectID, input.Upload.ClientID)})
 		return item, err
 	}
 	items, err := s.assets.BypassBatchGet(ctx, applicationasset.BypassBatchGetInput{Scope: scope, AssetIDs: []string{input.AssetID}})
@@ -330,35 +291,29 @@ func (s *ReviewService) ProcessPollClaim(ctx context.Context, run domaintask.Tas
 	if record.Status != domainasset.ReviewStatusProcessing {
 		return fmt.Errorf("asset review %s has unsupported scheduled status %q", record.ID, record.Status)
 	}
-	item, err := s.packages.Get(ctx, Scope{TenantID: record.TenantID}, record.PackageID)
-	if errors.Is(err, ErrNotFound) {
-		return s.finish(ctx, run, schedule, record.ID, domainasset.ReviewStatusFailed, "权益包不存在")
-	}
-	if err != nil {
-		return err
-	}
-	accessKeyID, secretAccessKey, err := s.decryptCredentials(item.TenantID, item.EncryptedAccessKeyID, item.EncryptedSecretAccessKey)
-	if err != nil {
-		return s.finish(ctx, run, schedule, record.ID, domainasset.ReviewStatusFailed, "权益包凭证不可用")
+	if record.ReservationID != "" {
+		if _, err = s.gateway.TransitionBenefitPackageReview(ctx, record.TenantID, workspaceID(record.WorkspaceID), record.PackageID, record.ReservationID, "committed"); err != nil {
+			return err
+		}
 	}
 	now := s.clock.Now()
 	if !now.Before(schedule.DeadlineAt) {
-		return s.finish(ctx, run, schedule, record.ID, domainasset.ReviewStatusFailed, "审核状态查询超时")
+		return s.finish(ctx, run, schedule, record, domainasset.ReviewStatusFailed, "审核状态查询超时")
 	}
-	result, err := s.provider.GetAsset(ctx, GetReviewedAssetInput{ProviderAssetID: record.ProviderAssetID, ProjectName: item.ProjectName, AccessKeyID: accessKeyID, SecretAccessKey: secretAccessKey})
+	result, err := s.gateway.GetReviewedAsset(ctx, record.TenantID, workspaceID(record.WorkspaceID), record.PackageID, record.ProviderAssetID)
 	if err != nil {
 		_, rescheduleErr := s.tasks.ReschedulePoll(ctx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(reviewPollInterval), PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1}, now)
 		return errors.Join(err, rescheduleErr)
 	}
 	switch result.Status {
 	case ProviderAssetActive:
-		return s.finish(ctx, run, schedule, record.ID, domainasset.ReviewStatusApproved, "")
+		return s.finish(ctx, run, schedule, record, domainasset.ReviewStatusApproved, "")
 	case ProviderAssetFailed:
 		reason := strings.TrimSpace(result.FailureReason)
 		if reason == "" {
 			reason = "素材未通过合规审核"
 		}
-		return s.finish(ctx, run, schedule, record.ID, domainasset.ReviewStatusFailed, reason)
+		return s.finish(ctx, run, schedule, record, domainasset.ReviewStatusFailed, reason)
 	default:
 		_, err = s.tasks.ReschedulePoll(ctx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(reviewPollInterval), PollAttempts: schedule.PollAttempts + 1}, now)
 		return err
@@ -373,20 +328,17 @@ func (s *ReviewService) processSubmission(ctx context.Context, run domaintask.Ta
 	if !now.Before(record.CreatedAt.Add(reviewSubmissionDeadline)) {
 		return s.finishSubmissionFailure(ctx, run, schedule, record, "素材提交审核超时")
 	}
-	item, err := s.packages.Get(ctx, Scope{TenantID: record.TenantID}, record.PackageID)
-	if errors.Is(err, ErrNotFound) {
-		return s.finishSubmissionFailure(ctx, run, schedule, record, "权益包不存在")
+	if record.ReservationID == "" {
+		reservation, err := s.gateway.ReserveBenefitPackageReview(ctx, record.TenantID, workspaceID(record.WorkspaceID), record.PackageID, record.ID, record.ProjectID, record.AssetID)
+		if err != nil {
+			return s.rescheduleSubmission(ctx, schedule)
+		}
+		if err = s.reviews.SetAssetReviewReservation(ctx, record.ID, reservation.ID, now); err != nil {
+			return err
+		}
+		record.ReservationID = reservation.ID
 	}
-	if err != nil {
-		return s.rescheduleSubmission(ctx, schedule)
-	}
-	if !item.Enabled || strings.TrimSpace(item.AssetGroupID) == "" {
-		return s.finishSubmissionFailure(ctx, run, schedule, record, "权益包不可用")
-	}
-	assets, err := s.assets.BypassBatchGet(ctx, applicationasset.BypassBatchGetInput{
-		Scope:    applicationasset.Scope{TenantID: record.TenantID, WorkspaceID: record.WorkspaceID, CallerID: run.CreatedBy},
-		AssetIDs: []string{record.AssetID},
-	})
+	assets, err := s.assets.BypassBatchGet(ctx, applicationasset.BypassBatchGetInput{Scope: applicationasset.Scope{TenantID: record.TenantID, WorkspaceID: record.WorkspaceID, CallerID: run.CreatedBy}, AssetIDs: []string{record.AssetID}})
 	if err != nil {
 		return s.rescheduleSubmission(ctx, schedule)
 	}
@@ -400,69 +352,44 @@ func (s *ReviewService) processSubmission(ctx context.Context, run domaintask.Ta
 	if !isAbsoluteHTTPURL(referenceURL) {
 		return s.finishSubmissionFailure(ctx, run, schedule, record, "送审素材地址不可用")
 	}
-	accessKeyID, secretAccessKey, err := s.decryptCredentials(item.TenantID, item.EncryptedAccessKeyID, item.EncryptedSecretAccessKey)
-	if err != nil {
-		return s.finishSubmissionFailure(ctx, run, schedule, record, "权益包凭证不可用")
-	}
 	if err = s.reviews.MarkAssetReviewSubmissionStarted(ctx, record.ID, run.ID, now); err != nil {
 		return err
 	}
-	providerAssetID, err := s.provider.CreateAsset(ctx, CreateReviewedAssetInput{
-		AssetGroupID: item.AssetGroupID, URL: referenceURL, AssetType: providerAssetType(assets[0].MediaType),
-		Name: assets[0].FileName, ProjectName: item.ProjectName,
-		AccessKeyID: accessKeyID, SecretAccessKey: secretAccessKey,
-	})
-	if errors.Is(err, ErrAssetReviewRateLimited) {
-		return s.retryRateLimitedSubmission(ctx, schedule, record)
-	}
+	providerAsset, err := s.gateway.SubmitReviewedAsset(ctx, record.TenantID, workspaceID(record.WorkspaceID), record.PackageID, referenceURL, providerAssetType(assets[0].MediaType), assets[0].FileName)
 	if err != nil {
-		return s.finishSubmissionFailure(ctx, run, schedule, record, "素材提交审核失败")
+		return s.retrySubmission(ctx, schedule, record)
 	}
 	submittedAt := s.clock.Now()
-	return s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
-		if updateErr := s.reviews.MarkAssetReviewProcessing(tx, record.ID, run.ID, providerAssetID, submittedAt); updateErr != nil {
+	err = s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
+		if updateErr := s.reviews.MarkAssetReviewProcessing(tx, record.ID, run.ID, providerAsset.ID, submittedAt); updateErr != nil {
 			return updateErr
 		}
-		won, updateErr := s.tasks.UpdateTaskRun(tx, run, applicationtask.TaskRunUpdate{
-			Status: domaintask.StatusRunning, StartedAt: &submittedAt,
-		}, submittedAt)
-		if updateErr != nil {
-			return updateErr
+		won, updateErr := s.tasks.UpdateTaskRun(tx, run, applicationtask.TaskRunUpdate{Status: domaintask.StatusRunning, StartedAt: &submittedAt}, submittedAt)
+		if updateErr != nil || !won {
+			return errors.Join(updateErr, errors.New("asset review task run lost its submission fence"))
 		}
-		if !won {
-			return errors.New("asset review task run lost its submission fence")
-		}
-		rescheduled, updateErr := s.tasks.ReschedulePoll(tx, schedule, domaintask.PollScheduleUpdate{
-			NextPollAt: submittedAt.Add(reviewPollInterval), PollAttempts: schedule.PollAttempts + 1,
-		}, submittedAt)
-		if updateErr != nil {
-			return updateErr
-		}
-		if !rescheduled {
-			return errors.New("asset review poll schedule lost its submission fence")
-		}
-		if record.QuotaReservationID != "" && s.quota != nil {
-			return s.quota.CommitReservation(tx, applicationquota.Reservation{ID: record.QuotaReservationID})
+		rescheduled, updateErr := s.tasks.ReschedulePoll(tx, schedule, domaintask.PollScheduleUpdate{NextPollAt: submittedAt.Add(reviewPollInterval), PollAttempts: schedule.PollAttempts + 1}, submittedAt)
+		if updateErr != nil || !rescheduled {
+			return errors.Join(updateErr, errors.New("asset review poll schedule lost its submission fence"))
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	_, err = s.gateway.TransitionBenefitPackageReview(ctx, record.TenantID, workspaceID(record.WorkspaceID), record.PackageID, record.ReservationID, "committed")
+	return err
 }
 
-func (s *ReviewService) retryRateLimitedSubmission(ctx context.Context, schedule domaintask.PollSchedule, record AssetReviewRecord) error {
+func (s *ReviewService) retrySubmission(ctx context.Context, schedule domaintask.PollSchedule, record AssetReviewRecord) error {
 	now := s.clock.Now()
 	return s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
 		if err := s.reviews.ResetAssetReviewSubmission(tx, record.ID, schedule.TaskRunID, now); err != nil {
 			return err
 		}
-		rescheduled, err := s.tasks.ReschedulePoll(tx, schedule, domaintask.PollScheduleUpdate{
-			NextPollAt:   now.Add(reviewSubmissionRetryDelay(schedule.ConsecutiveErrors + 1)),
-			PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1,
-		}, now)
-		if err != nil {
-			return err
-		}
-		if !rescheduled {
-			return errors.New("asset review poll schedule lost its rate-limit retry fence")
+		rescheduled, err := s.tasks.ReschedulePoll(tx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(reviewSubmissionRetryDelay(schedule.ConsecutiveErrors + 1)), PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1}, now)
+		if err != nil || !rescheduled {
+			return errors.Join(err, errors.New("asset review poll schedule lost its retry fence"))
 		}
 		return nil
 	})
@@ -470,15 +397,9 @@ func (s *ReviewService) retryRateLimitedSubmission(ctx context.Context, schedule
 
 func (s *ReviewService) rescheduleSubmission(ctx context.Context, schedule domaintask.PollSchedule) error {
 	now := s.clock.Now()
-	rescheduled, err := s.tasks.ReschedulePoll(ctx, schedule, domaintask.PollScheduleUpdate{
-		NextPollAt:   now.Add(reviewSubmissionRetryDelay(schedule.ConsecutiveErrors + 1)),
-		PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1,
-	}, now)
-	if err != nil {
-		return err
-	}
-	if !rescheduled {
-		return errors.New("asset review poll schedule lost its submission retry fence")
+	rescheduled, err := s.tasks.ReschedulePoll(ctx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(reviewSubmissionRetryDelay(schedule.ConsecutiveErrors + 1)), PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1}, now)
+	if err != nil || !rescheduled {
+		return errors.Join(err, errors.New("asset review poll schedule lost its retry fence"))
 	}
 	return nil
 }
@@ -495,75 +416,59 @@ func reviewSubmissionRetryDelay(attempt int32) time.Duration {
 }
 
 func (s *ReviewService) finishSubmissionFailure(ctx context.Context, run domaintask.TaskRun, schedule domaintask.PollSchedule, record AssetReviewRecord, reason string) error {
+	if record.ReservationID != "" {
+		if _, err := s.gateway.TransitionBenefitPackageReview(ctx, record.TenantID, workspaceID(record.WorkspaceID), record.PackageID, record.ReservationID, "released"); err != nil {
+			return err
+		}
+	}
 	now := s.clock.Now()
 	return s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
 		if err := s.reviews.MarkAssetReviewFailed(tx, record.ID, reason, now); err != nil {
 			return err
 		}
-		won, err := s.tasks.UpdateTaskRun(tx, run, applicationtask.TaskRunUpdate{
-			Status: domaintask.StatusFailed, ErrorCode: "ASSET_REVIEW_SUBMISSION_FAILED",
-			ErrorMessage: reason, StartedAt: run.StartedAt, FinishedAt: &now,
-		}, now)
-		if err != nil {
-			return err
-		}
-		if !won {
-			return errors.New("asset review task run lost its submission failure fence")
+		won, err := s.tasks.UpdateTaskRun(tx, run, applicationtask.TaskRunUpdate{Status: domaintask.StatusFailed, ErrorCode: "ASSET_REVIEW_SUBMISSION_FAILED", ErrorMessage: reason, StartedAt: run.StartedAt, FinishedAt: &now}, now)
+		if err != nil || !won {
+			return errors.Join(err, errors.New("asset review task run lost its failure fence"))
 		}
 		completed, err := s.tasks.CompletePollSchedule(tx, schedule)
-		if err != nil {
-			return err
-		}
-		if !completed {
-			return errors.New("asset review poll schedule lost its submission failure fence")
-		}
-		if record.QuotaReservationID != "" && s.quota != nil {
-			return s.quota.ReleaseReservation(tx, applicationquota.Reservation{ID: record.QuotaReservationID})
+		if err != nil || !completed {
+			return errors.Join(err, errors.New("asset review poll schedule lost its failure fence"))
 		}
 		return nil
 	})
 }
 
-func (s *ReviewService) finish(ctx context.Context, run domaintask.TaskRun, schedule domaintask.PollSchedule, reviewID string, status domainasset.ReviewStatus, reason string) error {
+func (s *ReviewService) finish(ctx context.Context, run domaintask.TaskRun, schedule domaintask.PollSchedule, record AssetReviewRecord, status domainasset.ReviewStatus, reason string) error {
 	now := s.clock.Now()
 	return s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
-		if err := s.reviews.MarkAssetReviewTerminal(tx, reviewID, status, reason, now); err != nil {
+		if err := s.reviews.MarkAssetReviewTerminal(tx, record.ID, status, reason, now); err != nil {
 			return err
 		}
-		taskStatus := domaintask.Status(domaintask.StatusSucceeded)
-		code := ""
+		taskStatus, code := domaintask.Status(domaintask.StatusSucceeded), ""
 		if status == domainasset.ReviewStatusFailed {
 			taskStatus, code = domaintask.StatusFailed, "ASSET_REVIEW_FAILED"
 		}
 		won, err := s.tasks.UpdateTaskRun(tx, run, applicationtask.TaskRunUpdate{Status: taskStatus, ErrorCode: code, ErrorMessage: reason, StartedAt: run.StartedAt, FinishedAt: &now}, now)
-		if err != nil {
-			return err
-		}
-		if !won {
-			return errors.New("asset review task run lost its update fence")
+		if err != nil || !won {
+			return errors.Join(err, errors.New("asset review task run lost its update fence"))
 		}
 		completed, err := s.tasks.CompletePollSchedule(tx, schedule)
-		if err != nil {
-			return err
-		}
-		if !completed {
-			return errors.New("asset review poll schedule lost its update fence")
+		if err != nil || !completed {
+			return errors.Join(err, errors.New("asset review poll schedule lost its update fence"))
 		}
 		return nil
 	})
 }
 
-func (s *ReviewService) decryptCredentials(tenantID, encryptedAccessKeyID, encryptedSecret string) (string, string, error) {
-	accessKeyID, err := s.cipher.Decrypt(tenantID, encryptedAccessKeyID)
-	if err != nil {
-		return "", "", err
-	}
-	secret, err := s.cipher.Decrypt(tenantID, encryptedSecret)
-	return accessKeyID, secret, err
+func validReviewScope(scope ReviewScope) bool {
+	return strings.TrimSpace(scope.TenantID) != "" && scope.WorkspaceID != nil && strings.TrimSpace(*scope.WorkspaceID) != "" && strings.TrimSpace(scope.CallerID) != ""
 }
 
-func validReviewScope(scope ReviewScope) bool {
-	return strings.TrimSpace(scope.TenantID) != "" && strings.TrimSpace(scope.CallerID) != ""
+func workspaceID(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func providerAssetType(mediaType domainasset.MediaType) string {
@@ -578,6 +483,8 @@ func providerAssetType(mediaType domainasset.MediaType) string {
 		return ""
 	}
 }
+
+func classifyDependency(err error) error { return errno.Wrap(errno.ErrExternalDependencyError, err) }
 
 func classifyReview(err error) error {
 	if errors.Is(err, ErrReviewStateConflict) {

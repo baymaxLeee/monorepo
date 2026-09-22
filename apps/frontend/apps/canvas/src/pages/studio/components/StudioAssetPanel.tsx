@@ -13,7 +13,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { agentframeService } from "@/api/index";
 import groupDownIcon from "@/assets/canvas/group-down.svg";
 import groupPlusIcon from "@/assets/canvas/group-plus.svg";
 import { Collapse } from "@/components/Collapse";
@@ -354,7 +353,7 @@ export function StudioAssetPanel({
         const pageSize = 100;
         const resources: resource.Resource[] = [];
         for (let pageNum = 1; ; pageNum += 1) {
-          const result = await listResources(agentframeService, projectId, {
+          const result = await listResources(projectId, {
             keyword: "",
             ascending: false,
             pageNum,
@@ -394,7 +393,7 @@ export function StudioAssetPanel({
         return;
       }
       loadingResourceAssetIdsRef.current.add(resourceId);
-      void listResourceFiles(agentframeService, projectId, resourceId)
+      void listResourceFiles(projectId, resourceId)
         .then((assets) => {
           if (assetLoadScopeRef.current !== scope) return;
           setResourceAssets((current) => {

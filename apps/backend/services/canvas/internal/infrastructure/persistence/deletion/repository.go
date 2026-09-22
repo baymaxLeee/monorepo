@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	application "github.com/example/monorepo/canvas/internal/application/deletion"
-	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/mysqlcompat"
 	transaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
@@ -32,18 +31,9 @@ type jobRow struct {
 func (jobRow) TableName() string { return "deletion_jobs" }
 func Models() []any              { return []any{&jobRow{}} }
 
-type Repository struct {
-	db                     *gorm.DB
-	mysqlCompatibleVersion int
-}
+type Repository struct{ db *gorm.DB }
 
-func NewRepository(db *gorm.DB, mysqlCompatibleVersion ...int) *Repository {
-	version := 5
-	if len(mysqlCompatibleVersion) > 0 {
-		version = mysqlCompatibleVersion[0]
-	}
-	return &Repository{db: db, mysqlCompatibleVersion: version}
-}
+func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 
 func (r *Repository) Enqueue(ctx context.Context, job application.Job) error {
 	row := jobRow{ID: job.ID, TenantID: job.TenantID, Kind: job.Kind, Payload: job.Payload, NextAttemptAt: job.NextAttemptAt, StateVersion: 1}
@@ -54,7 +44,7 @@ func (r *Repository) Claim(ctx context.Context, now, until time.Time, limit int)
 	var jobs []application.Job
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var rows []jobRow
-		if err := tx.Clauses(mysqlcompat.ForUpdate(r.mysqlCompatibleVersion)).
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
 			Where("completed_at IS NULL AND next_attempt_at <= ? AND (lease_until IS NULL OR lease_until <= ?)", now, now).
 			Order("next_attempt_at ASC, id ASC").Limit(limit).Find(&rows).Error; err != nil {
 			return err

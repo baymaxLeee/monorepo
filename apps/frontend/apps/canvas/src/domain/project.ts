@@ -76,12 +76,6 @@ export interface GetProjectResponse {
   Project: ProjectDetail;
 }
 
-export interface GrantProjectModelsRequest {
-  WorkspaceID?: string;
-  ProjectID: string;
-  ModelIDs: Array<string>;
-}
-
 export interface ListProjectModelsRequest {
   WorkspaceID?: string;
   ProjectID: string;

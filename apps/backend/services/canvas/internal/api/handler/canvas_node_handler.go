@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	arkmodel "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationcanvasgeneration "github.com/example/monorepo/canvas/internal/application/canvasgeneration"
+	applicationcanvastextgeneration "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domaincanvasnode "github.com/example/monorepo/canvas/internal/domain/canvas"
@@ -48,6 +50,13 @@ type canvasnodeGraphService interface {
 	BatchDeleteNodes(context.Context, applicationcanvasnode.BatchDeleteNodesInput) (int64, error)
 	DeleteEdge(context.Context, applicationcanvasnode.DeleteEdgeInput) (applicationcanvasnode.DeleteEdgeResult, error)
 	ReorderStoryboard(context.Context, applicationcanvasnode.ReorderStoryboardInput) (applicationcanvasnode.ReorderStoryboardResult, error)
+}
+
+type canvasTextGenerationService interface {
+	Start(context.Context, applicationcanvasnode.Scope, string, string, string) (applicationcanvastextgeneration.Session, error)
+	Cancel(context.Context, applicationcanvasnode.Scope, string, string, string, string) error
+	Get(context.Context, applicationcanvasnode.Scope, string, string, string, string) (applicationcanvastextgeneration.Session, error)
+	ReadDeltas(context.Context, applicationcanvasnode.Scope, string, string, string, string, string, time.Duration) ([]applicationcanvastextgeneration.Delta, error)
 }
 
 func (h *CanvasNodeHandler) MaterializeCanvasStandaloneAssetReference(ctx context.Context, r *thriftcanvasnode.MaterializeCanvasStandaloneAssetReferenceRequest) (*thriftcanvasnode.MaterializeCanvasStandaloneAssetReferenceResponse, error) {
@@ -327,11 +336,12 @@ func (h *CanvasNodeHandler) CancelCanvasNodeGeneration(ctx context.Context, r *t
 }
 
 type CanvasNodeHandler struct {
-	canvas_nodes canvasnodeService
-	graph        canvasnodeGraphService
-	assets       canvasnodeAssetService
-	generations  generationService
-	drafts       storyboardDraftService
+	canvas_nodes    canvasnodeService
+	graph           canvasnodeGraphService
+	assets          canvasnodeAssetService
+	generations     generationService
+	drafts          storyboardDraftService
+	textGenerations canvasTextGenerationService
 }
 
 func NewCanvasNodeHandler(
@@ -339,10 +349,54 @@ func NewCanvasNodeHandler(
 	assets *applicationcanvasnode.CanvasNodeAssetService,
 	generations *applicationcanvasgeneration.Service,
 	drafts *applicationcanvasnode.StoryboardService,
+	textGenerations *applicationcanvastextgeneration.Service,
 ) *CanvasNodeHandler {
 	return &CanvasNodeHandler{
-		canvas_nodes: canvas_nodes, graph: canvas_nodes, assets: assets, generations: generations, drafts: drafts,
+		canvas_nodes: canvas_nodes, graph: canvas_nodes, assets: assets, generations: generations, drafts: drafts, textGenerations: textGenerations,
 	}
+}
+
+func (h *CanvasNodeHandler) StartCanvasNodeTextGeneration(ctx context.Context, r *thriftcanvasnode.StartCanvasNodeTextGenerationRequest) (*thriftcanvasnode.CanvasNodeTextGenerationResponse, error) {
+	if err := requireAction(ctx, "StartCanvasNodeTextGeneration"); err != nil {
+		return nil, err
+	}
+	r.Top = topParam(ctx)
+	state, err := h.textGenerations.Start(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	return &thriftcanvasnode.CanvasNodeTextGenerationResponse{Session: textGenerationSessionDTO(state)}, nil
+}
+
+func (h *CanvasNodeHandler) CancelCanvasNodeTextGeneration(ctx context.Context, r *thriftcanvasnode.CancelCanvasNodeTextGenerationRequest) (*thriftbase.Empty, error) {
+	if err := requireAction(ctx, "CancelCanvasNodeTextGeneration"); err != nil {
+		return nil, err
+	}
+	r.Top = topParam(ctx)
+	if err := h.textGenerations.Cancel(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID, r.TaskRunID); err != nil {
+		return nil, err
+	}
+	return &thriftbase.Empty{}, nil
+}
+
+func textGenerationSessionDTO(state applicationcanvastextgeneration.Session) *thriftcanvasnode.CanvasTextGenerationSession {
+	status := thriftcanvasnode.CanvasGenerationStatus_QUEUED
+	switch state.Status {
+	case applicationcanvastextgeneration.StatusRunning:
+		status = thriftcanvasnode.CanvasGenerationStatus_RUNNING
+	case applicationcanvastextgeneration.StatusSucceeded:
+		status = thriftcanvasnode.CanvasGenerationStatus_SUCCEEDED
+	case applicationcanvastextgeneration.StatusFailed:
+		status = thriftcanvasnode.CanvasGenerationStatus_FAILED
+	case applicationcanvastextgeneration.StatusCancelled:
+		status = thriftcanvasnode.CanvasGenerationStatus_CANCELLED
+	}
+	dto := &thriftcanvasnode.CanvasTextGenerationSession{TaskRunID: state.ID, NodeID: state.NodeID, Status: status, Content: state.Content}
+	if state.Failure != nil {
+		dto.ErrorCode = optionalCanvasNodeString(state.Failure.Code)
+		dto.ErrorMessage = optionalCanvasNodeString(state.Failure.Message)
+	}
+	return dto
 }
 
 func (h *CanvasNodeHandler) GetCanvasGraph(
@@ -959,14 +1013,9 @@ func optionalInt64(value int64) *int64 {
 	return &value
 }
 
-func mentionReferenceTypeFromDTO(value *thriftcanvasnode.CanvasNodeMentionReferenceType) (*applicationcanvasnode.MentionReferenceType, bool) {
-	if value == nil {
-		return nil, true
-	}
+func mentionReferenceTypeFromDTO(value thriftcanvasnode.CanvasNodeMentionReferenceType) (applicationcanvasnode.MentionReferenceType, bool) {
 	var result applicationcanvasnode.MentionReferenceType
-	switch *value {
-	case thriftcanvasnode.CanvasNodeMentionReferenceType_UNSPECIFIED:
-		result = applicationcanvasnode.MentionReferenceTypeUnspecified
+	switch value {
 	case thriftcanvasnode.CanvasNodeMentionReferenceType_ASSET:
 		result = applicationcanvasnode.MentionReferenceTypeAsset
 	case thriftcanvasnode.CanvasNodeMentionReferenceType_RESOURCE:
@@ -976,9 +1025,9 @@ func mentionReferenceTypeFromDTO(value *thriftcanvasnode.CanvasNodeMentionRefere
 	case thriftcanvasnode.CanvasNodeMentionReferenceType_CANVAS_NODE:
 		result = applicationcanvasnode.MentionReferenceTypeCanvasNode
 	default:
-		return nil, false
+		return 0, false
 	}
-	return &result, true
+	return result, true
 }
 
 func optionalVideoInputMode(node domaincanvasnode.CanvasNode) *thriftcanvasnode.CanvasVideoInputMode {

@@ -4,15 +4,63 @@
  */
 
 export interface paths {
-    "/admin/config": {
+    "/admin/projects": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["canvasGetBasicConfig"];
-        put: operations["canvasUpdateBasicConfig"];
+        get: operations["canvasAdminListProjects"];
+        put?: never;
+        post: operations["canvasAdminCreateProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasAdminGetProject"];
+        put: operations["canvasAdminUpdateProject"];
+        post?: never;
+        delete: operations["canvasAdminDeleteProject"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/projects/{projectId}/usage:export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasDownloadProjectUsage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/benefit-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasListAvailableBenefitPackages"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -20,16 +68,16 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/config": {
+    "/internal/worker/archives/{archiveId}/execute": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["canvasGetRuntimeBasicConfig"];
+        get?: never;
         put?: never;
-        post?: never;
+        post: operations["canvasExecuteArchive"];
         delete?: never;
         options?: never;
         head?: never;
@@ -68,6 +116,38 @@ export interface paths {
         patch: operations["canvasUpdateProject"];
         trace?: never;
     };
+    "/projects/{projectId}/asset-reviews:batchGet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasBatchGetAssetReviews"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/asset-reviews:batchSubmit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasBatchSubmitAssetReviews"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/canvases": {
         parameters: {
             query?: never;
@@ -98,6 +178,70 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["canvasUpdateCanvas"];
+        trace?: never;
+    };
+    "/projects/{projectId}/canvases/{canvasId}/archives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasListArchives"];
+        put?: never;
+        post: operations["canvasCreateArchive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasGetArchive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasArchiveContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}:cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasCancelArchive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{projectId}/canvases/{canvasId}/asset-references": {
@@ -340,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/text-generations:stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasStreamNodeTextGeneration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}:copy": {
         parameters: {
             query?: never;
@@ -466,6 +626,38 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["canvasUpdateCanvasView"];
+        trace?: never;
+    };
+    "/projects/{projectId}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasListProjectModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/resource-assets:batchList": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasBatchListResourceAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{projectId}/resources": {
@@ -628,6 +820,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/resources/{resourceId}/assets:batchDelete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasBatchDeleteResourceAssets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/resources/{resourceId}/generated-assets": {
         parameters: {
             query?: never;
@@ -638,6 +846,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["canvasCreateGeneratedResourceAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/resources/{resourceId}/generation-states:batchGet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasBatchGetResourceGenerationStates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/resources:batchDelete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasBatchDeleteResources"];
         delete?: never;
         options?: never;
         head?: never;
@@ -660,10 +900,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/resources:stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasGetProjectResourceStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["canvasStageUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CanvasAPIConfig: {
+            chat?: components["schemas"]["CanvasAPIConfigDetails"];
+            responses?: components["schemas"]["CanvasAPIConfigDetails"];
+        };
+        CanvasAPIConfigDetails: {
+            enabled?: boolean;
+            features?: string[];
+            supported?: boolean;
+        };
+        CanvasASRConfig: {
+            multi_language?: components["schemas"]["CanvasMultiLanguageConfig"];
+        };
+        CanvasAdvancedReviewConfig: {
+            enable_model_misuse: boolean;
+            enable_pii_leakage: boolean;
+            enable_prompt: boolean;
+            enable_token: boolean;
+        };
         CanvasAsset: {
             asset_id: string;
             created_at: string;
@@ -700,21 +990,75 @@ export interface components {
          * @enum {integer}
          */
         CanvasAssetReviewStatus: 1 | 2 | 3 | 4;
+        CanvasAssetReviewUpload: {
+            blob_id: string;
+            client_id: string;
+            file_name: string;
+        };
+        CanvasAssetReviews: {
+            asset_id: string;
+            reviews: components["schemas"]["CanvasAssetReview"][];
+        };
+        CanvasAudioConfig: {
+            asr?: components["schemas"]["CanvasASRConfig"];
+            transcription?: components["schemas"]["CanvasTranscriptionConfig"];
+            tts?: components["schemas"]["CanvasTTSConfig"];
+        };
         CanvasBatchDeleteCanvasNodesResponse: {
             canvas_revision: number;
+        };
+        CanvasBatchGetAssetReviewsResponse: {
+            items: components["schemas"]["CanvasAssetReviews"][];
         };
         CanvasBatchGetCanvasNodeStatesResponse: {
             draft_sessions: components["schemas"]["CanvasNodeDraftSession"][];
             items: components["schemas"]["CanvasNodeState"][];
         };
+        CanvasBatchGetResourceAssetGenerationStatesResponse: {
+            items: components["schemas"]["CanvasResourceAssetGenerationState"][];
+        };
+        CanvasBatchListResourceAssetsResponse: {
+            groups: components["schemas"]["CanvasResourceAssetGroup"][];
+        };
+        CanvasBatchSubmitAssetReviewsResponse: {
+            items: components["schemas"]["CanvasSubmitAssetReviewResult"][];
+        };
         CanvasBatchUpdateCanvasNodePositionsResponse: {
             items: components["schemas"]["CanvasNode"][];
+        };
+        CanvasBenefitPackage: {
+            created_at: string;
+            created_by: string;
+            enabled: boolean;
+            has_access_key_id: boolean;
+            has_secret_access_key: boolean;
+            is_preset: boolean;
+            material_used: number;
+            model_ids: string[];
+            name: string;
+            package_id: string;
+            project_name: string;
+            revision: number;
+            scope_type: components["schemas"]["CanvasBenefitPackageScopeType"];
+            updated_at: string;
+            updated_by: string;
         };
         /**
          * Format: int64
          * @enum {integer}
          */
         CanvasBenefitPackageScopeType: 1 | 2;
+        CanvasCommonBoolSwitch: {
+            enabled?: boolean;
+            supported?: boolean;
+        };
+        CanvasCommonModelConfig: {
+            security?: components["schemas"]["CanvasSecurityConfig"];
+        };
+        CanvasCommonSwitch: {
+            default?: string;
+            types?: string[];
+        };
         CanvasConfirmCanvasNodeDraftsResponse: {
             canvas_node_ids: string[];
             canvas_revision: number;
@@ -773,10 +1117,20 @@ export interface components {
             resource: components["schemas"]["CanvasResource"];
             resource_assets: components["schemas"]["CanvasResourceAsset"][];
         };
-        CanvasDefaultModels: {
-            image_model: components["schemas"]["CanvasModelSelection"];
-            inference_model: components["schemas"]["CanvasModelSelection"];
-            video_model: components["schemas"]["CanvasModelSelection"];
+        CanvasCredentialFormSchema: {
+            default?: string;
+            format?: string;
+            label: string;
+            label_i18_n?: components["schemas"]["CanvasI18NConfig"];
+            max_length?: number;
+            name: string;
+            options?: string[];
+            placeholder?: string;
+            placeholder_i18_n?: components["schemas"]["CanvasI18NConfig"];
+            required: boolean;
+            tips?: string;
+            tips_i18_n?: components["schemas"]["CanvasI18NConfig"];
+            type: string;
         };
         CanvasDeleteCanvasEdgeResponse: {
             canvas_revision: number;
@@ -785,6 +1139,34 @@ export interface components {
         CanvasDeleteCanvasNodeResponse: {
             canvas_revision: number;
         };
+        CanvasDeleteResourceAssetTarget: {
+            expected_resource_asset_revision: number;
+            expected_resource_revision: number;
+            resource_asset_id: string;
+        };
+        CanvasDeleteResourceTarget: {
+            expected_revision: number;
+            resource_id: string;
+        };
+        CanvasDistributedInferenceConfig: {
+            enabled: boolean;
+            node_num: number;
+            rdma_enabled: boolean;
+        };
+        CanvasDoubleRange: {
+            default?: number;
+            max?: number;
+            min?: number;
+            switch?: components["schemas"]["CanvasCommonSwitch"];
+        };
+        CanvasDownloadProjectUsageXLSXResponse: {
+            download_url: string;
+            expires_at: string;
+            file_name: string;
+            file_size: number;
+            pending_billing_count: number;
+            row_count: number;
+        };
         CanvasEdge: {
             edge_id: string;
             source_node_id: string;
@@ -792,16 +1174,21 @@ export interface components {
             target_order: number;
             target_port: components["schemas"]["CanvasPort"];
         };
+        CanvasEmbeddingConfig: {
+            hidden_size?: components["schemas"]["CanvasHiddenSizeConfig"];
+            input?: components["schemas"]["CanvasInputConfig"];
+            query_instruction?: components["schemas"]["CanvasQueryInstructionConfig"];
+        };
         CanvasEmpty: Record<string, never>;
+        CanvasFunctionCallPromptConfig: {
+            enable_inline_chat_histories?: boolean;
+        };
         /**
          * Format: int64
          * @description CanvasGenerationStatus 是画布生成操作的即时状态。
          * @enum {integer}
          */
         CanvasGenerationStatus: 1 | 2 | 3 | 4 | 5;
-        CanvasGetBasicConfigResponse: {
-            default_models: components["schemas"]["CanvasDefaultModels"];
-        };
         CanvasGetCanvasGraphResponse: {
             nodes: components["schemas"]["CanvasNode"][];
         };
@@ -810,6 +1197,15 @@ export interface components {
         };
         CanvasGetProjectCanvasResponse: {
             canvas: components["schemas"]["CanvasProjectCanvasSummary"];
+        };
+        CanvasGetProjectCanvasVideoArchiveExportResponse: {
+            export: components["schemas"]["CanvasProjectCanvasVideoArchiveExport"];
+        };
+        CanvasGetProjectResourceStatsResponse: {
+            stats: components["schemas"]["CanvasProjectResourceStats"];
+        };
+        CanvasGetProjectResponse: {
+            project: components["schemas"]["CanvasProjectDetail"];
         };
         CanvasGetResourceAssetGenerationResponse: {
             generation: components["schemas"]["CanvasResourceAssetGeneration"];
@@ -820,15 +1216,126 @@ export interface components {
         CanvasGetResourceResponse: {
             resource: components["schemas"]["CanvasResource"];
         };
+        CanvasHWConfig: {
+            height?: components["schemas"]["CanvasIntRange"];
+            pairs?: number[][];
+            ratio?: components["schemas"]["CanvasDoubleRange"];
+            total?: components["schemas"]["CanvasIntRange"];
+            width?: components["schemas"]["CanvasIntRange"];
+        };
+        CanvasHiddenSizeConfig: {
+            default: number;
+            supports?: number[];
+        };
+        CanvasI18NConfig: {
+            languages?: components["schemas"]["CanvasLanguage"][];
+        };
+        CanvasIOConfig: {
+            input?: components["schemas"]["CanvasCommonSwitch"];
+            input_config?: components["schemas"]["CanvasIntRange"];
+            output?: components["schemas"]["CanvasCommonSwitch"];
+            output_config?: components["schemas"]["CanvasIntRange"];
+        };
+        CanvasImageConfig: {
+            hw?: components["schemas"]["CanvasHWConfig"];
+            image_to_image?: components["schemas"]["CanvasIOConfig"];
+            negative_prompt?: components["schemas"]["CanvasCommonSwitch"];
+            quality?: components["schemas"]["CanvasImageQualityConfig"];
+            resolution?: components["schemas"]["CanvasResolutionConfig"];
+            text_to_image?: components["schemas"]["CanvasIOConfig"];
+            tools?: components["schemas"]["CanvasToolConfig"];
+            watermark?: components["schemas"]["CanvasCommonBoolSwitch"];
+        };
+        CanvasImageQualityConfig: {
+            default?: string;
+            supports?: string[];
+            switch?: components["schemas"]["CanvasCommonBoolSwitch"];
+        };
+        CanvasImageUnderstandConfig: {
+            default_type?: string;
+            enabled: boolean;
+            types?: string[];
+        };
+        CanvasInputConfig: {
+            max_texts?: number;
+            single_text_token?: number;
+            total_tokens?: number;
+        };
+        CanvasIntRange: {
+            default?: number;
+            max?: number;
+            min?: number;
+            switch?: components["schemas"]["CanvasCommonSwitch"];
+        };
+        CanvasLLMConfig: {
+            api?: components["schemas"]["CanvasAPIConfig"];
+            parameter?: components["schemas"]["CanvasLLMParameterConfig"];
+            reasoning?: components["schemas"]["CanvasReasoningConfig"];
+            streaming?: boolean;
+            token?: components["schemas"]["CanvasTokenConfig"];
+            tool_call?: components["schemas"]["CanvasToolCallConfig"];
+            vision?: components["schemas"]["CanvasVisionUnderstandConfig"];
+        };
+        CanvasLLMParameterConfig: {
+            temperature?: components["schemas"]["CanvasLLMTemperatureRange"];
+            templates?: components["schemas"]["CanvasLLMParameterTemplateItem"][];
+            top_p?: components["schemas"]["CanvasLLMTopPRange"];
+        };
+        CanvasLLMParameterTemplateItem: {
+            template: string;
+        };
+        CanvasLLMTemperatureRange: {
+            default?: number;
+            max?: number;
+            min?: number;
+        };
+        CanvasLLMTopPRange: {
+            default?: number;
+            max?: number;
+            min?: number;
+        };
+        CanvasLMCacheConfig: {
+            enabled: boolean;
+            memory: string;
+        };
+        CanvasLabelInfo: {
+            code: string;
+            name?: string;
+        };
+        CanvasLanguage: {
+            code: string;
+            content: string;
+        };
+        CanvasLanguageConfig: {
+            language?: string;
+            name: string;
+            name_i18_n?: components["schemas"]["CanvasI18NConfig"];
+            preset: boolean;
+        };
+        CanvasListAvailableBenefitPackagesResponse: {
+            items: components["schemas"]["CanvasBenefitPackage"][];
+        };
         CanvasListCanvasNodeHistoriesResponse: {
             items: components["schemas"]["CanvasNodeHistory"][];
+        };
+        CanvasListProjectCanvasVideoArchiveExportsResponse: {
+            items: components["schemas"]["CanvasProjectCanvasVideoArchiveExport"][];
+            page: components["schemas"]["CanvasPageOutput"];
         };
         CanvasListProjectCanvasesResponse: {
             items: components["schemas"]["CanvasProjectCanvasSummary"][];
             page: components["schemas"]["CanvasPageOutput"];
         };
+        CanvasListProjectModelsResponse: {
+            items: components["schemas"]["CanvasProjectModelInfo"][];
+            total: number;
+        };
         CanvasListProjectsByMemberResponse: {
             items: components["schemas"]["CanvasMemberProjectSummary"][];
+            page: components["schemas"]["CanvasPageOutput"];
+        };
+        CanvasListProjectsResponse: {
+            items: components["schemas"]["CanvasProjectSummary"][];
             page: components["schemas"]["CanvasPageOutput"];
         };
         CanvasListResourceAssetsResponse: {
@@ -838,6 +1345,23 @@ export interface components {
         CanvasListResourcesResponse: {
             items: components["schemas"]["CanvasResource"][];
             page: components["schemas"]["CanvasPageOutput"];
+        };
+        CanvasMaaSModelServiceDeployConfig: {
+            config?: components["schemas"]["CanvasModelServiceConfig"];
+            distributed_inference_config?: components["schemas"]["CanvasDistributedInferenceConfig"];
+            model_id: string;
+            model_source: string;
+            model_version_id: string;
+            resource: components["schemas"]["CanvasModelServiceResource"];
+            resource_id: string;
+            resource_name: string;
+            resource_pool_type: string;
+            resource_quota_id: string;
+        };
+        CanvasMarkerDetails: {
+            color: string;
+            description?: string;
+            text: string;
         };
         CanvasMaterializeCanvasResourceAssetReferenceResponse: {
             canvas_revision: number;
@@ -850,6 +1374,11 @@ export interface components {
             canvas_revision: number;
             created_asset_node: boolean;
             target_node: components["schemas"]["CanvasNode"];
+        };
+        CanvasMaxTokens: {
+            default: number;
+            max: number;
+            min: number;
         };
         CanvasMemberProjectDetail: {
             cover_image_path?: string;
@@ -869,15 +1398,44 @@ export interface components {
             stats: components["schemas"]["CanvasProjectStats"];
             updated_at: string;
         };
-        CanvasModelConfig: {
-            max_tokens?: number;
-            reasoning_effort_type?: string;
-            temperature?: number;
-            top_p?: number;
+        CanvasModelCredentialSchema: {
+            credential_form_schemas?: components["schemas"]["CanvasCredentialFormSchema"][];
         };
-        CanvasModelSelection: {
-            model_config: components["schemas"]["CanvasModelConfig"];
-            model_id: string;
+        CanvasModelParameter: {
+            rules?: components["schemas"]["CanvasParameterRule"][];
+        };
+        CanvasModelServiceConfig: {
+            load_balance_policy?: string;
+            quantization?: components["schemas"]["CanvasQuantizationConfig"];
+            rate_limit?: components["schemas"]["CanvasRateLimit"];
+            termination_grace_period_seconds?: number;
+            thinking_mode_by_default?: components["schemas"]["CanvasThinkingModes"];
+        };
+        CanvasModelServiceResource: {
+            cpu: string;
+            gpu: number;
+            gpu_card_type?: string;
+            gpu_core?: number;
+            gpu_memory?: string;
+            lm_cache_config?: components["schemas"]["CanvasLMCacheConfig"];
+            max_replica?: number;
+            memory: string;
+            pd_disaggregation_config?: components["schemas"]["CanvasPdDisaggregationConfig"];
+            replica: number;
+        };
+        CanvasMultiLanguageConfig: {
+            default_language?: string;
+            enable_i18_n: boolean;
+            enabled: boolean;
+            i18_n_languages?: string[];
+            languages?: components["schemas"]["CanvasLanguageConfig"][];
+        };
+        CanvasMultiVoiceConfig: {
+            default_voice?: string;
+            enable_i18_n: boolean;
+            enabled: boolean;
+            i18_n_languages?: string[];
+            voices?: components["schemas"]["CanvasVoiceConfig"][];
         };
         CanvasNode: {
             active_task_run_id?: string;
@@ -1101,6 +1659,11 @@ export interface components {
          * @enum {integer}
          */
         CanvasNodeTaskType: 1 | 2;
+        CanvasNodeTextGenerationResponse: {
+            completed?: components["schemas"]["CanvasTextGenerationCompleted"];
+            delta?: components["schemas"]["CanvasTextGenerationDelta"];
+            session?: components["schemas"]["CanvasTextGenerationSession"];
+        };
         /**
          * Format: int64
          * @enum {integer}
@@ -1118,11 +1681,55 @@ export interface components {
             total: number;
             total_page: number;
         };
+        CanvasParameterMapping: {
+            name?: string;
+            type: string;
+            value?: string;
+        };
+        CanvasParameterRule: {
+            default?: string;
+            mapping?: components["schemas"]["CanvasParameterMapping"];
+            max?: string;
+            min?: string;
+            name: string;
+            path?: string;
+            required?: boolean;
+            type?: string;
+        };
+        CanvasPdDisaggregationConfig: {
+            decode_config: components["schemas"]["CanvasPdDisaggregationResourceConfig"];
+            prefill_config: components["schemas"]["CanvasPdDisaggregationResourceConfig"];
+            rdma_enabled: boolean;
+        };
+        CanvasPdDisaggregationResourceConfig: {
+            cpu: string;
+            gpu: number;
+            gpu_card_type: string;
+            memory: string;
+            node_num: number;
+            replica: number;
+        };
+        CanvasPolicyConfig: {
+            load_balance_policy?: string;
+            rate_limit_policy?: components["schemas"]["CanvasRateLimitPolicy"];
+            retry_policy?: components["schemas"]["CanvasRetryPolicy"];
+            review_policy?: components["schemas"]["CanvasReviewPolicy"];
+            timeout_policy?: components["schemas"]["CanvasTimeoutPolicy"];
+        };
         /**
          * Format: int64
          * @enum {integer}
          */
         CanvasPort: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+        CanvasPriceConfig: {
+            completion?: string;
+            currency: string;
+            input?: string;
+            output?: string;
+            prompt?: string;
+            type?: string;
+            unit: string;
+        };
         /**
          * Format: int64
          * @description ProjectCanvasSortField 定义剧集列表支持的排序字段。
@@ -1146,6 +1753,22 @@ export interface components {
             stats: components["schemas"]["CanvasProjectCanvasStats"];
             updated_at: string;
         };
+        CanvasProjectCanvasVideoArchiveExport: {
+            canvas_id: string;
+            created_at: string;
+            error_code?: string;
+            error_message?: string;
+            finished_at?: string;
+            input_count: number;
+            output_filename: string;
+            output_size: number;
+            path?: string;
+            project_id: string;
+            retention_guaranteed_until?: string;
+            started_at?: string;
+            status: components["schemas"]["CanvasVideoArchiveExportStatus"];
+            task_run_id: string;
+        };
         /**
          * Format: int64
          * @description ProjectCanvasVideoArchiveExportSortField 定义视频压缩包导出列表支持的排序字段。
@@ -1164,6 +1787,100 @@ export interface components {
             usage_limit?: number;
             used_amount?: number;
         };
+        CanvasProjectModelDuration: {
+            default?: number;
+            max?: number;
+            min?: number;
+            recommend_default?: number;
+            recommends?: number[];
+        };
+        CanvasProjectModelInfo: {
+            business_labels?: components["schemas"]["CanvasLabelInfo"][];
+            create_time: string;
+            create_user_name: string;
+            credential_schema?: components["schemas"]["CanvasModelCredentialSchema"];
+            custom_marker?: components["schemas"]["CanvasMarkerDetails"];
+            custom_parameters?: string;
+            default_type?: string;
+            default_types?: string[];
+            delete_at: string;
+            deploy_config?: components["schemas"]["CanvasMaaSModelServiceDeployConfig"];
+            description?: string;
+            distribute_type?: string;
+            dl_version?: string;
+            features_config?: string[];
+            from_id?: string;
+            granted: boolean;
+            icon?: string;
+            id: string;
+            is_billing?: boolean;
+            is_custom_marker_enabled?: boolean;
+            is_default: boolean;
+            is_default_ltm?: boolean;
+            is_preset?: boolean;
+            is_public: boolean;
+            is_published?: boolean;
+            model_name: string;
+            name: string;
+            parameter?: components["schemas"]["CanvasModelParameter"];
+            policy_config?: components["schemas"]["CanvasPolicyConfig"];
+            price_config?: components["schemas"]["CanvasPriceConfig"];
+            product_code?: string;
+            prompt_config?: components["schemas"]["CanvasPromptConfig"];
+            property?: components["schemas"]["CanvasProjectModelProperty"];
+            provider: string;
+            publish_source_type: string;
+            publish_time?: string;
+            publish_user_name?: string;
+            service_introduction?: string;
+            source: string;
+            spec?: string;
+            status?: string;
+            strategies_config: string[];
+            tenant_id: string;
+            type: string;
+            update_time?: string;
+            update_user_name?: string;
+            version?: string;
+            workspace_id?: string;
+            workspace_name?: string;
+        };
+        CanvasProjectModelProperty: {
+            audio?: components["schemas"]["CanvasAudioConfig"];
+            common?: components["schemas"]["CanvasCommonModelConfig"];
+            embedding?: components["schemas"]["CanvasEmbeddingConfig"];
+            llm?: components["schemas"]["CanvasLLMConfig"];
+            vision?: components["schemas"]["CanvasProjectModelVisionProperty"];
+        };
+        CanvasProjectModelRatio: {
+            adaptive?: boolean;
+            default?: string;
+            values?: string[];
+        };
+        CanvasProjectModelVideoProperty: {
+            camera_fixed?: components["schemas"]["CanvasCommonSwitch"];
+            duration?: components["schemas"]["CanvasProjectModelDuration"];
+            features?: components["schemas"]["CanvasVisionFeature"][];
+            generate_audio?: components["schemas"]["CanvasCommonSwitch"];
+            negative_prompt?: components["schemas"]["CanvasCommonSwitch"];
+            ratio?: components["schemas"]["CanvasProjectModelRatio"];
+            reference?: components["schemas"]["CanvasReferenceConfig"];
+            resolutions?: string[];
+            tools?: components["schemas"]["CanvasToolConfig"];
+            watermark?: components["schemas"]["CanvasCommonBoolSwitch"];
+        };
+        CanvasProjectModelVisionProperty: {
+            guidance_scale?: components["schemas"]["CanvasDoubleRange"];
+            image?: components["schemas"]["CanvasImageConfig"];
+            seed?: components["schemas"]["CanvasIntRange"];
+            video?: components["schemas"]["CanvasProjectModelVideoProperty"];
+        };
+        CanvasProjectResourceStats: {
+            audio_count: number;
+            character_count: number;
+            prop_count: number;
+            scene_count: number;
+        };
         /**
          * Format: int64
          * @description ProjectSortField 定义项目列表支持的排序字段。
@@ -1175,12 +1892,79 @@ export interface components {
             resource_count: number;
             selected_video_duration_millis: number;
         };
+        CanvasProjectSummary: {
+            cover_image_path?: string;
+            created_at: string;
+            created_by: string;
+            member_user_ids: string[];
+            name: string;
+            project_id: string;
+            stats: components["schemas"]["CanvasProjectStats"];
+            updated_at: string;
+        };
+        CanvasPromptConfig: {
+            function_call_prompt?: components["schemas"]["CanvasFunctionCallPromptConfig"];
+            react_prompt?: components["schemas"]["CanvasReactPromptConfig"];
+        };
+        CanvasQuantizationConfig: {
+            enabled: boolean;
+            type?: string;
+        };
+        CanvasQueryInstructionConfig: {
+            enabled?: boolean;
+            scope?: string[];
+        };
+        CanvasRPMPolicy: {
+            enabled: boolean;
+            rpm?: number;
+            unit?: string;
+            usage?: number;
+        };
+        CanvasRateLimit: {
+            enabled: boolean;
+            rpm?: number;
+        };
+        CanvasRateLimitPolicy: {
+            rpm_policy?: components["schemas"]["CanvasRPMPolicy"];
+            tpm_policy?: components["schemas"]["CanvasTPMPolicy"];
+        };
+        CanvasReactPromptConfig: {
+            enable_fewshots?: boolean;
+            enable_inline_chat_histories?: boolean;
+            name?: string;
+            remove_stop?: boolean;
+        };
+        CanvasReasoningConfig: {
+            effort?: components["schemas"]["CanvasReasoningEffort"];
+            switch?: components["schemas"]["CanvasReasoningSwitch"];
+        };
+        CanvasReasoningEffort: {
+            default_type?: string;
+            types?: string[];
+        };
+        CanvasReasoningSwitch: {
+            default_type?: string;
+            types?: string[];
+        };
+        CanvasReferenceConfig: {
+            audio?: components["schemas"]["CanvasReferenceConfigDetail"];
+            image?: components["schemas"]["CanvasReferenceConfigDetail"];
+            video?: components["schemas"]["CanvasReferenceConfigDetail"];
+        };
+        CanvasReferenceConfigDetail: {
+            max?: number;
+            supported?: boolean;
+        };
         CanvasReorderStoryboardNodesResponse: {
             canvas_revision: number;
             nodes: components["schemas"]["CanvasNode"][];
         };
         CanvasReplaceUploadedResourceAssetResponse: {
             resource_asset: components["schemas"]["CanvasResourceAsset"];
+        };
+        CanvasResolutionConfig: {
+            switch?: components["schemas"]["CanvasCommonSwitch"];
+            values?: string[];
         };
         CanvasResource: {
             approved_resource_asset_count: number;
@@ -1298,6 +2082,10 @@ export interface components {
             blob_id?: string;
             file_name?: string;
         };
+        CanvasResourceAssetGroup: {
+            items: components["schemas"]["CanvasResourceAsset"][];
+            resource_id: string;
+        };
         /**
          * Format: int64
          * @enum {integer}
@@ -1329,9 +2117,22 @@ export interface components {
          * @enum {integer}
          */
         CanvasResourceType: 1 | 2 | 3 | 4;
+        CanvasRetryPolicy: {
+            attempts?: number;
+            enabled: boolean;
+            on_status?: number[];
+        };
+        CanvasReviewPolicy: {
+            advanced_review_config?: components["schemas"]["CanvasAdvancedReviewConfig"];
+            advanced_review_type?: string;
+            enabled: boolean;
+        };
         CanvasSearchCanvasNodeAssetsResponse: {
             items: components["schemas"]["CanvasNodeAssetMentionNode"][];
             next_cursor?: string;
+        };
+        CanvasSecurityConfig: {
+            aicc?: components["schemas"]["CanvasCommonBoolSwitch"];
         };
         CanvasSelectCanvasNodeHistoryResponse: {
             history: components["schemas"]["CanvasNodeHistory"];
@@ -1345,6 +2146,10 @@ export interface components {
          * @enum {integer}
          */
         CanvasSortDirection: 1 | 2;
+        CanvasStagedUpload: {
+            blob_id: string;
+            size_bytes: number;
+        };
         CanvasStartCanvasGenerationResponse: {
             items: components["schemas"]["CanvasNodeGenerationStart"][];
             skipped_count: number;
@@ -1354,6 +2159,9 @@ export interface components {
         };
         CanvasStartCanvasNodeGenerationResponse: {
             task_run_id: string;
+        };
+        CanvasStartProjectCanvasVideoArchiveExportResponse: {
+            export: components["schemas"]["CanvasProjectCanvasVideoArchiveExport"];
         };
         CanvasStartResourceAssetGenerationResponse: {
             task_run_id: string;
@@ -1379,13 +2187,65 @@ export interface components {
             resolution: components["schemas"]["CanvasNodeResolution"];
             watermark: boolean;
         };
+        CanvasSubmitAssetReviewItem: {
+            asset_id?: string;
+            package_id: string;
+            upload?: components["schemas"]["CanvasAssetReviewUpload"];
+        };
+        CanvasSubmitAssetReviewResult: {
+            asset_id?: string;
+            error_code?: string;
+            error_message?: string;
+            package_id: string;
+            review?: components["schemas"]["CanvasAssetReview"];
+        };
+        CanvasTPMPolicy: {
+            enabled: boolean;
+            tpm?: number;
+            unit?: string;
+            usage?: number;
+        };
+        CanvasTTSConfig: {
+            multi_language?: components["schemas"]["CanvasMultiLanguageConfig"];
+            multi_voice?: components["schemas"]["CanvasMultiVoiceConfig"];
+        };
+        CanvasTextGenerationCompleted: {
+            content: string;
+            task_run_id: string;
+        };
+        CanvasTextGenerationDelta: {
+            delta: string;
+            offset: number;
+        };
+        CanvasTextGenerationSession: {
+            content: string;
+            error_code?: string;
+            error_message?: string;
+            node_id: string;
+            status: components["schemas"]["CanvasGenerationStatus"];
+            task_run_id: string;
+        };
         /**
          * Format: int64
          * @enum {integer}
          */
         CanvasThinkingModes: 0 | 1 | 2;
-        CanvasUpdateBasicConfigResponse: {
-            default_models: components["schemas"]["CanvasDefaultModels"];
+        CanvasTimeoutPolicy: {
+            enabled: boolean;
+            timeout?: number;
+        };
+        CanvasTokenConfig: {
+            context_tokens?: number;
+            max_tokens?: components["schemas"]["CanvasMaxTokens"];
+        };
+        CanvasToolCallConfig: {
+            streaming?: components["schemas"]["CanvasCommonBoolSwitch"];
+        };
+        CanvasToolConfig: {
+            web_search?: components["schemas"]["CanvasCommonBoolSwitch"];
+        };
+        CanvasTranscriptionConfig: {
+            multi_language?: components["schemas"]["CanvasMultiLanguageConfig"];
         };
         CanvasUpdateCanvasNodeResponse: {
             canvas_node: components["schemas"]["CanvasNode"];
@@ -1395,6 +2255,9 @@ export interface components {
         };
         CanvasUpdateProjectCanvasResponse: {
             canvas: components["schemas"]["CanvasProjectCanvasSummary"];
+        };
+        CanvasUpdateProjectResponse: {
+            project: components["schemas"]["CanvasProjectDetail"];
         };
         CanvasUpdateResourceAssetGenerationResponse: {
             generation: components["schemas"]["CanvasResourceAssetGeneration"];
@@ -1425,6 +2288,20 @@ export interface components {
          * @enum {integer}
          */
         CanvasViewMode: 1 | 2;
+        CanvasVisionFeature: {
+            name: string;
+            switch?: components["schemas"]["CanvasCommonSwitch"];
+        };
+        CanvasVisionUnderstandConfig: {
+            image?: components["schemas"]["CanvasImageUnderstandConfig"];
+        };
+        CanvasVoiceConfig: {
+            name: string;
+            name_i18_n?: components["schemas"]["CanvasI18NConfig"];
+            preset: boolean;
+            supported_languages?: string[];
+            voice: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1434,9 +2311,12 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    canvasGetBasicConfig: {
+    canvasAdminListProjects: {
         parameters: {
-            query?: never;
+            query: {
+                page_size: number;
+                page_num: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1449,7 +2329,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CanvasGetBasicConfigResponse"];
+                    "application/json": components["schemas"]["CanvasListProjectsResponse"];
                 };
             };
             /** @description Invalid input */
@@ -1489,7 +2369,7 @@ export interface operations {
             };
         };
     };
-    canvasUpdateBasicConfig: {
+    canvasAdminCreateProject: {
         parameters: {
             query?: never;
             header?: never;
@@ -1499,7 +2379,10 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    default_models: components["schemas"]["CanvasDefaultModels"];
+                    cover_image_path?: string;
+                    member_user_ids: string[];
+                    name: string;
+                    usage_limit?: number;
                 };
             };
         };
@@ -1510,7 +2393,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CanvasUpdateBasicConfigResponse"];
+                    "application/json": components["schemas"]["CanvasCreateProjectResponse"];
                 };
             };
             /** @description Invalid input */
@@ -1550,7 +2433,244 @@ export interface operations {
             };
         };
     };
-    canvasGetRuntimeBasicConfig: {
+    canvasAdminGetProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasGetProjectResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasAdminUpdateProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cover_image_path?: string;
+                    member_user_ids: string[];
+                    name: string;
+                    usage_limit?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasUpdateProjectResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasAdminDeleteProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasEmpty"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasDownloadProjectUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasDownloadProjectUsageXLSXResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasListAvailableBenefitPackages: {
         parameters: {
             query?: never;
             header?: never;
@@ -1565,7 +2685,64 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CanvasGetBasicConfigResponse"];
+                    "application/json": components["schemas"]["CanvasListAvailableBenefitPackagesResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasExecuteArchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                archiveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasProjectCanvasVideoArchiveExport"];
                 };
             };
             /** @description Invalid input */
@@ -1607,7 +2784,12 @@ export interface operations {
     };
     canvasListProjects: {
         parameters: {
-            query?: never;
+            query: {
+                keyword?: string;
+                sort_direction?: string;
+                page_size: number;
+                page_num: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1901,9 +3083,141 @@ export interface operations {
             };
         };
     };
-    canvasListCanvases: {
+    canvasBatchGetAssetReviews: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    asset_ids: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasBatchGetAssetReviewsResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasBatchSubmitAssetReviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    items: components["schemas"]["CanvasSubmitAssetReviewItem"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasBatchSubmitAssetReviewsResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasListCanvases: {
+        parameters: {
+            query: {
+                keyword?: string;
+                created_by_me?: boolean;
+                sort_direction?: string;
+                page_size: number;
+                page_num: number;
+            };
             header?: never;
             path: {
                 projectId: string;
@@ -2203,6 +3517,303 @@ export interface operations {
             };
         };
     };
+    canvasListArchives: {
+        parameters: {
+            query: {
+                sort_direction?: string;
+                page_size: number;
+                page_num: number;
+            };
+            header?: never;
+            path: {
+                projectId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasListProjectCanvasVideoArchiveExportsResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasCreateArchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasStartProjectCanvasVideoArchiveExportResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasGetArchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                canvasId: string;
+                taskRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasGetProjectCanvasVideoArchiveExportResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasArchiveContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                canvasId: string;
+                taskRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasCancelArchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                canvasId: string;
+                taskRunId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasEmpty"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     canvasMaterializeAssetReference: {
         parameters: {
             query?: never;
@@ -2218,7 +3829,7 @@ export interface operations {
                 "application/json": {
                     asset_id?: string;
                     asset_node_position: components["schemas"]["CanvasNodePosition"];
-                    reference_type?: components["schemas"]["CanvasNodeMentionReferenceType"];
+                    reference_type: components["schemas"]["CanvasNodeMentionReferenceType"];
                     target_node_id: string;
                     target_port: components["schemas"]["CanvasPort"];
                     uploaded_asset?: components["schemas"]["CanvasUploadedAsset"];
@@ -2729,7 +4340,6 @@ export interface operations {
                     after_node_id?: string;
                     asset_id?: string;
                     model_service_id?: string;
-                    name?: string;
                     position: components["schemas"]["CanvasNodePosition"];
                     resource_asset_id?: string;
                     resource_id?: string;
@@ -3350,6 +4960,65 @@ export interface operations {
             };
         };
     };
+    canvasStreamNodeTextGeneration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                canvasId: string;
+                nodeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasNodeTextGenerationResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     canvasCopyNode: {
         parameters: {
             query?: never;
@@ -3364,7 +5033,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    name?: string;
                     position: components["schemas"]["CanvasNodePosition"];
                     source_node_id: string;
                 };
@@ -3494,7 +5162,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    reference_type?: components["schemas"]["CanvasNodeMentionReferenceType"];
+                    reference_type: components["schemas"]["CanvasNodeMentionReferenceType"];
                     resource_asset_id?: string;
                     resource_asset_node_position: components["schemas"]["CanvasNodePosition"];
                     resource_id?: string;
@@ -3564,7 +5232,6 @@ export interface operations {
             content: {
                 "application/json": {
                     canvas_nodes?: components["schemas"]["CanvasNodeDraft"][];
-                    max_canvas_nodes?: number;
                     model_config: components["schemas"]["CanvasStoryboardModelConfig"];
                     planning_config: components["schemas"]["CanvasStoryboardPlanningConfig"];
                     plot: string;
@@ -3870,9 +5537,138 @@ export interface operations {
             };
         };
     };
-    canvasListResources: {
+    canvasListProjectModels: {
+        parameters: {
+            query: {
+                page_size: number;
+                page_num: number;
+            };
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasListProjectModelsResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasBatchListResourceAssets: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    resource_ids: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasBatchListResourceAssetsResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasListResources: {
+        parameters: {
+            query: {
+                keyword?: string;
+                type?: number;
+                sort_direction?: string;
+                page_size: number;
+                page_num: number;
+            };
             header?: never;
             path: {
                 projectId: string;
@@ -4183,7 +5979,10 @@ export interface operations {
     };
     canvasListResourceAssets: {
         parameters: {
-            query?: never;
+            query: {
+                page_size: number;
+                page_num: number;
+            };
             header?: never;
             path: {
                 projectId: string;
@@ -4889,6 +6688,70 @@ export interface operations {
             };
         };
     };
+    canvasBatchDeleteResourceAssets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                resourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    targets: components["schemas"]["CanvasDeleteResourceAssetTarget"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasEmpty"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     canvasCreateGeneratedResourceAsset: {
         parameters: {
             query?: never;
@@ -4953,6 +6816,133 @@ export interface operations {
             };
         };
     };
+    canvasBatchGetResourceGenerationStates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                resourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    resource_asset_ids: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasBatchGetResourceAssetGenerationStatesResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasBatchDeleteResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    targets: components["schemas"]["CanvasDeleteResourceTarget"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasEmpty"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     canvasCreateResourceFromAsset: {
         parameters: {
             query?: never;
@@ -4966,6 +6956,7 @@ export interface operations {
             content: {
                 "application/json": {
                     asset_id: string;
+                    canvas_id?: string;
                     canvas_node_id?: string;
                     description?: string;
                     name: string;
@@ -4981,6 +6972,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasCreateResourceFromAssetResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasGetProjectResourceStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasGetProjectResourceStatsResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasStageUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasStagedUpload"];
                 };
             };
             /** @description Invalid input */

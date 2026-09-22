@@ -5,6 +5,7 @@ import (
 	"time"
 
 	thriftasset "github.com/example/monorepo/canvas/internal/api/contracts/asset"
+	thriftpackage "github.com/example/monorepo/canvas/internal/api/contracts/benefitpackage"
 	thriftcommon "github.com/example/monorepo/canvas/internal/api/contracts/common"
 	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
@@ -17,6 +18,28 @@ type AssetHandler struct {
 
 func NewAssetHandler(reviews *applicationpackage.ReviewService) *AssetHandler {
 	return &AssetHandler{reviews: reviews}
+}
+
+func (h *AssetHandler) ListAvailableBenefitPackages(ctx context.Context, request *thriftpackage.ListAvailableBenefitPackagesRequest) (*thriftpackage.ListAvailableBenefitPackagesResponse, error) {
+	if err := requireAction(ctx, "ListAvailableBenefitPackages"); err != nil {
+		return nil, err
+	}
+	request.Top = topParam(ctx)
+	metadata, _ := topcontext.MetadataFromContext(ctx)
+	workspace := metadata.WorkspaceID
+	items, err := h.reviews.ListPackages(ctx, applicationpackage.ReviewScope{TenantID: metadata.TenantID, WorkspaceID: &workspace, CallerID: metadata.UserID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*thriftpackage.BenefitPackage, 0, len(items))
+	for _, item := range items {
+		scope := thriftpackage.BenefitPackageScopeType_CUSTOM_MODELS
+		if item.IsPreset {
+			scope = thriftpackage.BenefitPackageScopeType_SYSTEM_PRESET_MODELS
+		}
+		result = append(result, &thriftpackage.BenefitPackage{PackageID: item.ID, IsPreset: item.IsPreset, Name: item.Name, Enabled: true, ModelIDs: item.ModelIDs, ScopeType: scope})
+	}
+	return &thriftpackage.ListAvailableBenefitPackagesResponse{Items: result}, nil
 }
 
 func (h *AssetHandler) BatchGetAssetReviews(ctx context.Context, request *thriftasset.BatchGetAssetReviewsRequest) (*thriftasset.BatchGetAssetReviewsResponse, error) {

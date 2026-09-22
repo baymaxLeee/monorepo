@@ -7,7 +7,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { agentframeService } from "@/api/index";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
@@ -179,7 +178,7 @@ export default function ResourcesPage() {
       try {
         const blobId = await uploadResource(file);
         const name = getResourceNameFromFile(file.name);
-        await createResource(agentframeService, projectId, {
+        await createResource(projectId, {
           name,
           type: selectedType,
           files: [{ blobId, fileName: file.name, name }],
@@ -222,7 +221,7 @@ export default function ResourcesPage() {
     setPendingAudioResourceId(item.ResourceID);
     try {
       const primary = item.PrimaryResourceAsset
-        ? (await listResourceFiles(agentframeService, projectId, item.ResourceID)).find(
+        ? (await listResourceFiles(projectId, item.ResourceID)).find(
             (resourceAsset) => resourceAsset.ResourceAssetID === item.PrimaryResourceAsset?.ResourceAssetID,
           )
         : undefined;
@@ -231,13 +230,13 @@ export default function ResourcesPage() {
       }
       const blobId = await uploadResource(file);
       if (primary) {
-        await replaceUploadedResourceAsset(agentframeService, projectId, item.ResourceID, primary, item.Revision, {
+        await replaceUploadedResourceAsset(projectId, item.ResourceID, primary, item.Revision, {
           blobId,
           fileName: file.name,
         });
         Message.success(t("音频替换成功"));
       } else {
-        await addResourceFile(agentframeService, projectId, item.ResourceID, item.Revision, {
+        await addResourceFile(projectId, item.ResourceID, item.Revision, {
           blobId,
           fileName: file.name,
           name: getResourceNameFromFile(file.name),
@@ -277,7 +276,7 @@ export default function ResourcesPage() {
       className: "w-[400px]! max-w-[calc(100vw-48px)]!",
       async onOk() {
         try {
-          await deleteResource(agentframeService, projectId, item.ResourceID, item.Revision);
+          await deleteResource(projectId, item.ResourceID, item.Revision);
         } finally {
           refresh();
         }
@@ -301,7 +300,7 @@ export default function ResourcesPage() {
       className: "w-[400px]! max-w-[calc(100vw-48px)]!",
       async onOk() {
         try {
-          await batchDeleteResources(agentframeService, projectId, selectedResources);
+          await batchDeleteResources(projectId, selectedResources);
         } finally {
           setBatchSelecting(false);
           setSelectedResourceIds(new Set());

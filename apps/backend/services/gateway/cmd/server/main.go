@@ -74,27 +74,32 @@ func main() {
 		cfg.IAMServiceURL,
 		"iam-server",
 		"/api/iam-server",
+		cfg.InternalAPIToken,
 	))
 	r.Mount("/api/admin-server", handlers.NewServiceProxy(
 		cfg.AdminServiceURL,
 		"admin-server",
 		"/api/admin-server",
+		cfg.InternalAPIToken,
 	))
-	r.Mount("/api/canvas-server", handlers.NewServiceProxy(cfg.CanvasServiceURL, "canvas-server", "/api/canvas-server"))
+	r.Mount("/api/canvas-server", handlers.NewServiceProxy(cfg.CanvasServiceURL, "canvas-server", "/api/canvas-server", cfg.InternalAPIToken))
 	r.Mount("/api/chat-server", handlers.NewServiceProxy(
 		cfg.ChatServiceURL,
 		"chat-server",
 		"/api/chat-server",
+		cfg.InternalAPIToken,
 	))
 	r.Mount("/api/knowledge-server", handlers.NewServiceProxy(
 		cfg.KnowledgeServiceURL,
 		"knowledge-server",
 		"/api/knowledge-server",
+		cfg.InternalAPIToken,
 	))
 	r.Mount("/api/telemetry-server", handlers.NewServiceProxy(
 		cfg.TelemetryServiceURL,
 		"telemetry-server",
 		"/api/telemetry-server",
+		cfg.InternalAPIToken,
 	))
 
 	srv := &http.Server{

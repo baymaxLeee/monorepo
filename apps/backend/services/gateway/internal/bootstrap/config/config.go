@@ -33,6 +33,7 @@ type Config struct {
 	AllowedOrigins           []string
 	RedisURL                 string
 	AccessTokenSecret        string
+	InternalAPIToken         string
 	OptionalAuthPathPrefixes []string
 	PublicPathPrefixes       []string
 	PublicExactPaths         []string
@@ -66,6 +67,7 @@ func Load() (Config, error) {
 		AllowedOrigins:      csvOr("ALLOWED_FRONTEND_ORIGINS", []string{"http://localhost:3000", "http://localhost:3001"}),
 		RedisURL:            fmt.Sprintf("redis://%s:%s/%s", redisHost, redisPort, redisDB),
 		AccessTokenSecret:   envOr("ACCESS_TOKEN_SECRET", devAccessTokenSecret),
+		InternalAPIToken:    envOr("INTERNAL_API_TOKEN", "dev-internal-token"),
 		PublicPathPrefixes: csvOr("PUBLIC_PATH_PREFIXES", []string{
 			"/",
 			"/healthz",
@@ -88,7 +90,7 @@ func Load() (Config, error) {
 		OptionalAuthPathPrefixes: csvOr("OPTIONAL_AUTH_PATH_PREFIXES", []string{
 			"/api/telemetry-server/rum",
 		}),
-		MaxRequestBodyBytes: bytesOr("MAX_REQUEST_BODY_BYTES", 10<<20),
+		MaxRequestBodyBytes: bytesOr("MAX_REQUEST_BODY_BYTES", 512<<20),
 		ReadTimeout:         durationOr("HTTP_READ_TIMEOUT", 15*time.Second),
 		WriteTimeout:        durationOr("HTTP_WRITE_TIMEOUT", 30*time.Second),
 		IdleTimeout:         durationOr("HTTP_IDLE_TIMEOUT", 120*time.Second),
@@ -104,12 +106,18 @@ func Load() (Config, error) {
 }
 
 func (c Config) validate() error {
+	if c.Environment == EnvSingleVPS && (c.InternalAPIToken == "" || c.InternalAPIToken == "dev-internal-token") {
+		return fmt.Errorf("single-vps environment requires an explicit INTERNAL_API_TOKEN")
+	}
 	if !c.IsProduction() {
 		return nil
 	}
 	var missing []string
 	if c.AccessTokenSecret == "" || c.AccessTokenSecret == devAccessTokenSecret {
 		missing = append(missing, "ACCESS_TOKEN_SECRET")
+	}
+	if c.InternalAPIToken == "" || c.InternalAPIToken == "dev-internal-token" {
+		missing = append(missing, "INTERNAL_API_TOKEN")
 	}
 	if len(c.AllowedOrigins) == 0 {
 		missing = append(missing, "ALLOWED_FRONTEND_ORIGINS")

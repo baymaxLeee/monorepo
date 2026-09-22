@@ -1,3 +1,4 @@
+import { canvasDeleteProject, CanvasSortDirection } from "@repo/api";
 import { useDebounce, useInfiniteScroll } from "ahooks";
 import {
   RefreshCw as IconRefresh,
@@ -11,9 +12,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CanvasSortDirection } from "@repo/api";
 
-import { agentframeService } from "@/api/index";
 import { getProjectForRole, listMyProjects } from "@/api/projectAccess";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import {
@@ -197,7 +196,7 @@ export default function ProjectsPage() {
   const { data, loading, loadingMore } = useInfiniteScroll<ProjectPage>(
     async (currentPage) => {
       const pageNum = (currentPage?.pageNum ?? 0) + 1;
-      const response = await listMyProjects(agentframeService, {
+      const response = await listMyProjects({
         Filter: debouncedKeyword.trim() ? { Keyword: debouncedKeyword.trim() } : undefined,
         Sort: {
           Field: project.ProjectSortField.UPDATED_AT,
@@ -235,7 +234,7 @@ export default function ProjectsPage() {
   };
 
   const handleEdit = async (projectID: string) => {
-    const response = await getProjectForRole(agentframeService, canManageProjects, { ProjectID: projectID });
+    const response = await getProjectForRole(canManageProjects, { ProjectID: projectID });
     setDialogState({ mode: "edit", project: response.Project });
   };
 
@@ -246,7 +245,7 @@ export default function ProjectsPage() {
       info: <span className="block px-6">{t("删除项目后不可恢复，请谨慎操作。")}</span>,
       className: "w-[400px]! max-w-[calc(100vw-48px)]!",
       async onOk() {
-        await agentframeService.DeleteProject({ ProjectID: project.id });
+        await canvasDeleteProject(project.id);
         handleRefresh();
       },
     });

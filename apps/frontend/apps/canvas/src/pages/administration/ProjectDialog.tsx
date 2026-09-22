@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { listWorkspaceMembers, type WorkspaceMemberView } from "@repo/api";
+import { canvasUpdateProject, listWorkspaceMembers, type WorkspaceMemberView } from "@repo/api";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@repo/design-system";
 import { usePlatformStore } from "@repo/runtime";
 import { Image as ImageIcon, Info, Search, UserRound } from "lucide-react";
@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { agentframeService, createProjectWithUsage, updateProjectWithUsage } from "@/api";
+import { createProjectWithUsage, updateProjectWithUsage } from "@/api";
 import { Checkbox, Input, InputNumber, Message, Modal, Spin } from "@/components/ui";
 import t from "@/utils/i18n";
 
@@ -151,10 +151,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
         form.handleSubmit(async (values) => {
           if (!state) return;
           if (memberOnlyEdit && state.mode === "edit") {
-            await agentframeService.UpdateProjectByMember({
-              ProjectID: state.project.ProjectID,
-              CoverImagePath: values.CoverImagePath || "",
-            });
+            await canvasUpdateProject(state.project.ProjectID, { cover_image_path: values.CoverImagePath || "" });
             onSuccess();
             onClose();
             return;

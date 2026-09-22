@@ -53,7 +53,7 @@ export function assetFromCanvasNode(
   };
 }
 
-/** 物化响应中的节点是当前素材身份的事实来源；候选项只用于兼容旧响应。 */
+/** 物化响应中的节点是当前素材身份的事实来源；候选项只用于请求期间的本地预览。 */
 export function materializedCanvasNodeAssetId(node: canvasnode.CanvasNode, fallback?: string) {
   return node.CurrentAssetID ?? node.AssetID ?? node.SelectedAssetID ?? fallback;
 }

@@ -25,7 +25,6 @@ type projectService interface {
 	Update(context.Context, applicationproject.UpdateInput) (applicationproject.ProjectWithUsage, error)
 	UpdateByMember(context.Context, applicationproject.UpdateByMemberInput) (domainproject.Project, error)
 	Delete(context.Context, applicationproject.DeleteInput) error
-	GrantModels(context.Context, applicationproject.GrantModelsInput) error
 	ListModels(context.Context, applicationproject.ListModelsInput) (applicationproject.ProjectModelList, error)
 }
 
@@ -273,22 +272,6 @@ func (h *ProjectHandler) DeleteProject(
 	request.Top = topParam(ctx)
 	if err := h.service.Delete(ctx, applicationproject.DeleteInput{
 		Scope: requestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID,
-	}); err != nil {
-		return nil, err
-	}
-	return &thriftbase.Empty{}, nil
-}
-
-func (h *ProjectHandler) GrantProjectModels(
-	ctx context.Context,
-	request *thriftproject.GrantProjectModelsRequest,
-) (*thriftbase.Empty, error) {
-	if err := requireAction(ctx, "GrantProjectModels"); err != nil {
-		return nil, err
-	}
-	request.Top = topParam(ctx)
-	if err := h.service.GrantModels(ctx, applicationproject.GrantModelsInput{
-		Scope: requestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, ModelIDs: request.ModelIDs,
 	}); err != nil {
 		return nil, err
 	}

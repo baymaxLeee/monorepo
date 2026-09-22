@@ -1805,10 +1805,8 @@ type CreateCanvasNodeRequest struct {
 	// AfterNodeID 指定插入位置；未传时追加到末尾。
 	AfterNodeID *string `json:"AfterNodeID,omitempty"`
 	// ModelServiceID 是前端从当前环境模型列表选择的视频生成模型服务标识。
-	ModelServiceID *string        `json:"ModelServiceID,omitempty"`
-	Type           CanvasNodeType `json:"Type"`
-	// Name 是滚动升级兼容字段；Server 创建节点时忽略该值并根据节点类型或素材来源确定名称。
-	Name            *string             `json:"Name,omitempty"`
+	ModelServiceID  *string             `json:"ModelServiceID,omitempty"`
+	Type            CanvasNodeType      `json:"Type"`
 	Position        *CanvasNodePosition `json:"Position"`
 	Text            *string             `json:"Text,omitempty"`
 	AssetID         *string             `json:"AssetID,omitempty"`
@@ -1865,15 +1863,6 @@ func (p *CreateCanvasNodeRequest) GetModelServiceID() (v string) {
 
 func (p *CreateCanvasNodeRequest) GetType() (v CanvasNodeType) {
 	return p.Type
-}
-
-var CreateCanvasNodeRequest_Name_DEFAULT string
-
-func (p *CreateCanvasNodeRequest) GetName() (v string) {
-	if !p.IsSetName() {
-		return CreateCanvasNodeRequest_Name_DEFAULT
-	}
-	return *p.Name
 }
 
 var CreateCanvasNodeRequest_Position_DEFAULT *CanvasNodePosition
@@ -1949,10 +1938,6 @@ func (p *CreateCanvasNodeRequest) IsSetAfterNodeID() bool {
 
 func (p *CreateCanvasNodeRequest) IsSetModelServiceID() bool {
 	return p.ModelServiceID != nil
-}
-
-func (p *CreateCanvasNodeRequest) IsSetName() bool {
-	return p.Name != nil
 }
 
 func (p *CreateCanvasNodeRequest) IsSetPosition() bool {
@@ -2036,9 +2021,7 @@ type CopyCanvasNodeRequest struct {
 	CanvasID     string              `json:"CanvasID"`
 	SourceNodeID string              `json:"SourceNodeID"`
 	Position     *CanvasNodePosition `json:"Position"`
-	// Name 是滚动升级兼容字段；Server 复制节点时忽略该值并继承源节点的命名模式。
-	Name *string        `json:"Name,omitempty"`
-	Top  *base.TopParam `json:"Top,omitempty"`
+	Top          *base.TopParam      `json:"Top,omitempty"`
 }
 
 func NewCopyCanvasNodeRequest() *CopyCanvasNodeRequest {
@@ -2078,15 +2061,6 @@ func (p *CopyCanvasNodeRequest) GetPosition() (v *CanvasNodePosition) {
 	return p.Position
 }
 
-var CopyCanvasNodeRequest_Name_DEFAULT string
-
-func (p *CopyCanvasNodeRequest) GetName() (v string) {
-	if !p.IsSetName() {
-		return CopyCanvasNodeRequest_Name_DEFAULT
-	}
-	return *p.Name
-}
-
 var CopyCanvasNodeRequest_Top_DEFAULT *base.TopParam
 
 func (p *CopyCanvasNodeRequest) GetTop() (v *base.TopParam) {
@@ -2102,10 +2076,6 @@ func (p *CopyCanvasNodeRequest) IsSetWorkspaceID() bool {
 
 func (p *CopyCanvasNodeRequest) IsSetPosition() bool {
 	return p.Position != nil
-}
-
-func (p *CopyCanvasNodeRequest) IsSetName() bool {
-	return p.Name != nil
 }
 
 func (p *CopyCanvasNodeRequest) IsSetTop() bool {
@@ -2379,7 +2349,7 @@ type StoryboardPlanningConfig struct {
 	// 单分镜时长范围必须位于所选视频模型能力内；都不传时默认使用模型的完整能力范围。
 	CanvasNodeDurationMinSeconds *int32 `json:"CanvasNodeDurationMinSeconds,omitempty"`
 	CanvasNodeDurationMaxSeconds *int32 `json:"CanvasNodeDurationMaxSeconds,omitempty"`
-	// 总视频时长范围两个字段必须同时传入，取值为 60 至 3000 秒；都不传时保留旧客户端的无目标时长语义。
+	// 总视频时长范围两个字段必须同时传入，取值为 60 至 3000 秒；都不传表示不限制总时长。
 	TotalDurationMinSeconds *int32 `json:"TotalDurationMinSeconds,omitempty"`
 	TotalDurationMaxSeconds *int32 `json:"TotalDurationMaxSeconds,omitempty"`
 }
@@ -2579,12 +2549,10 @@ func (p *CreateCanvasNodesError) String() string {
 
 // CreateCanvasNodesRequest 创建持久化批量分镜任务；客户端通过统一画布轮询读取任务和草稿节点。
 type CreateCanvasNodesRequest struct {
-	WorkspaceID *string `json:"WorkspaceID,omitempty"`
-	ProjectID   string  `json:"ProjectID"`
-	CanvasID    string  `json:"CanvasID"`
-	Plot        string  `json:"Plot"`
-	// MaxCanvasNodes 保留用于滚动发布兼容；新任务的分镜数量由剧情自然节拍决定，客户端值会被忽略。
-	MaxCanvasNodes *int32                    `json:"MaxCanvasNodes,omitempty"`
+	WorkspaceID    *string                   `json:"WorkspaceID,omitempty"`
+	ProjectID      string                    `json:"ProjectID"`
+	CanvasID       string                    `json:"CanvasID"`
+	Plot           string                    `json:"Plot"`
 	ModelConfig    *StoryboardModelConfig    `json:"ModelConfig"`
 	PlanningConfig *StoryboardPlanningConfig `json:"PlanningConfig"`
 	// CanvasNodes is supplied by the Chat tool when the primary model already produced the structured storyboard.
@@ -2621,15 +2589,6 @@ func (p *CreateCanvasNodesRequest) GetPlot() (v string) {
 	return p.Plot
 }
 
-var CreateCanvasNodesRequest_MaxCanvasNodes_DEFAULT int32
-
-func (p *CreateCanvasNodesRequest) GetMaxCanvasNodes() (v int32) {
-	if !p.IsSetMaxCanvasNodes() {
-		return CreateCanvasNodesRequest_MaxCanvasNodes_DEFAULT
-	}
-	return *p.MaxCanvasNodes
-}
-
 var CreateCanvasNodesRequest_ModelConfig_DEFAULT *StoryboardModelConfig
 
 func (p *CreateCanvasNodesRequest) GetModelConfig() (v *StoryboardModelConfig) {
@@ -2663,10 +2622,6 @@ func (p *CreateCanvasNodesRequest) GetTop() (v *base.TopParam) {
 
 func (p *CreateCanvasNodesRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
-}
-
-func (p *CreateCanvasNodesRequest) IsSetMaxCanvasNodes() bool {
-	return p.MaxCanvasNodes != nil
 }
 
 func (p *CreateCanvasNodesRequest) IsSetModelConfig() bool {
@@ -4709,9 +4664,9 @@ type MaterializeCanvasResourceAssetReferenceRequest struct {
 	// ResourceID 动态跟随资源的主素材；当前仅用于音频资源。
 	ResourceID                *string             `json:"ResourceID,omitempty"`
 	ResourceAssetNodePosition *CanvasNodePosition `json:"ResourceAssetNodePosition"`
-	// ReferenceType 显式声明活动引用身份；旧客户端可省略，由 Server 根据唯一 ID 推断。
-	ReferenceType *CanvasNodeMentionReferenceType `json:"ReferenceType,omitempty"`
-	Top           *base.TopParam                  `json:"Top,omitempty"`
+	// ReferenceType 显式声明活动引用身份。
+	ReferenceType CanvasNodeMentionReferenceType `json:"ReferenceType"`
+	Top           *base.TopParam                 `json:"Top,omitempty"`
 }
 
 func NewMaterializeCanvasResourceAssetReferenceRequest() *MaterializeCanvasResourceAssetReferenceRequest {
@@ -4773,13 +4728,8 @@ func (p *MaterializeCanvasResourceAssetReferenceRequest) GetResourceAssetNodePos
 	return p.ResourceAssetNodePosition
 }
 
-var MaterializeCanvasResourceAssetReferenceRequest_ReferenceType_DEFAULT CanvasNodeMentionReferenceType
-
 func (p *MaterializeCanvasResourceAssetReferenceRequest) GetReferenceType() (v CanvasNodeMentionReferenceType) {
-	if !p.IsSetReferenceType() {
-		return MaterializeCanvasResourceAssetReferenceRequest_ReferenceType_DEFAULT
-	}
-	return *p.ReferenceType
+	return p.ReferenceType
 }
 
 var MaterializeCanvasResourceAssetReferenceRequest_Top_DEFAULT *base.TopParam
@@ -4805,10 +4755,6 @@ func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetResourceID() bool 
 
 func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetResourceAssetNodePosition() bool {
 	return p.ResourceAssetNodePosition != nil
-}
-
-func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetReferenceType() bool {
-	return p.ReferenceType != nil
 }
 
 func (p *MaterializeCanvasResourceAssetReferenceRequest) IsSetTop() bool {
@@ -4886,9 +4832,9 @@ type MaterializeCanvasStandaloneAssetReferenceRequest struct {
 	TargetNodeID string     `json:"TargetNodeID"`
 	AssetID      *string    `json:"AssetID,omitempty"`
 	TargetPort   CanvasPort `json:"TargetPort"`
-	// ReferenceType 新客户端固定传 ASSET；旧客户端可省略。
-	ReferenceType     *CanvasNodeMentionReferenceType `json:"ReferenceType,omitempty"`
-	AssetNodePosition *CanvasNodePosition             `json:"AssetNodePosition"`
+	// ReferenceType 固定传 ASSET。
+	ReferenceType     CanvasNodeMentionReferenceType `json:"ReferenceType"`
+	AssetNodePosition *CanvasNodePosition            `json:"AssetNodePosition"`
 	// UploadedAsset 创建 Project Asset 并在同一业务调用内物化、连接；与 AssetID 互斥。
 	UploadedAsset *CanvasUploadedAsset `json:"UploadedAsset,omitempty"`
 	Top           *base.TopParam       `json:"Top,omitempty"`
@@ -4935,13 +4881,8 @@ func (p *MaterializeCanvasStandaloneAssetReferenceRequest) GetTargetPort() (v Ca
 	return p.TargetPort
 }
 
-var MaterializeCanvasStandaloneAssetReferenceRequest_ReferenceType_DEFAULT CanvasNodeMentionReferenceType
-
 func (p *MaterializeCanvasStandaloneAssetReferenceRequest) GetReferenceType() (v CanvasNodeMentionReferenceType) {
-	if !p.IsSetReferenceType() {
-		return MaterializeCanvasStandaloneAssetReferenceRequest_ReferenceType_DEFAULT
-	}
-	return *p.ReferenceType
+	return p.ReferenceType
 }
 
 var MaterializeCanvasStandaloneAssetReferenceRequest_AssetNodePosition_DEFAULT *CanvasNodePosition
@@ -4977,10 +4918,6 @@ func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetWorkspaceID() bo
 
 func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetAssetID() bool {
 	return p.AssetID != nil
-}
-
-func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetReferenceType() bool {
-	return p.ReferenceType != nil
 }
 
 func (p *MaterializeCanvasStandaloneAssetReferenceRequest) IsSetAssetNodePosition() bool {
@@ -5502,7 +5439,7 @@ func (p *CanvasNodeAssetMentionNode) String() string {
 // Keyword 同时匹配画布节点 name/text/prompt 与项目资产 name/description。
 // Cursor 是服务端返回的不透明游标；首次查询不传，后续原样回传。
 // Limit 是本次最多返回的可选素材组/叶子数量。
-// MediaTypes 是调用方允许返回的媒体类型集合；不传时保留旧客户端的节点输入兼容规则。
+// MediaTypes 是调用方允许返回的媒体类型集合。
 type SearchCanvasNodeAssetsRequest struct {
 	WorkspaceID *string               `json:"WorkspaceID,omitempty"`
 	ProjectID   string                `json:"ProjectID"`

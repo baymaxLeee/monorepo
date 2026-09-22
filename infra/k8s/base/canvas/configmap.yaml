@@ -12,3 +12,6 @@ data:
   IAM_SERVICE_URL: "http://iam:8002"
   ADMIN_SERVICE_URL: "http://admin:8001"
   PUBLIC_GATEWAY_URL: "http://localhost:8000"
+  OTEL_SERVICE_NAME: "canvas"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"

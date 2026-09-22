@@ -1,7 +1,6 @@
 import { RefreshCw as IconRefresh, ChevronLeft as IconLeft, Plus as IconPlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { agentframeService } from "@/api/index";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import { AssetReviewModal } from "@/components/AssetReviewModal/index";
 import { AudioPlayer } from "@/components/audioPlayer/index";
@@ -196,7 +195,7 @@ export function ResourceAssetsPageContent({
     setMutating(true);
     try {
       setError("");
-      const authoritative = await getResource(agentframeService, projectId, resourceId);
+      const authoritative = await getResource(projectId, resourceId);
       setCurrentResource(authoritative);
       await operation(resourceId, authoritative.Revision);
       await load(false);
@@ -233,11 +232,11 @@ export function ResourceAssetsPageContent({
       setRenamingId("");
       return;
     }
-    void mutate((resourceId, revision) =>
-      renameResourceFile(agentframeService, projectId, resourceId, file, revision, nextName),
-    ).then((success) => {
-      if (success) setRenamingId("");
-    });
+    void mutate((resourceId, revision) => renameResourceFile(projectId, resourceId, file, revision, nextName)).then(
+      (success) => {
+        if (success) setRenamingId("");
+      },
+    );
   };
 
   const startRename = (file: resource.ResourceAsset) => {
@@ -257,7 +256,7 @@ export function ResourceAssetsPageContent({
     setUploading(true);
     await mutate(async (targetResourceId, revision) => {
       const blobId = await uploadResource(file);
-      await addResourceFile(agentframeService, projectId, targetResourceId, revision, { blobId, fileName: file.name });
+      await addResourceFile(projectId, targetResourceId, revision, { blobId, fileName: file.name });
     });
     setUploading(false);
   };
@@ -268,7 +267,7 @@ export function ResourceAssetsPageContent({
     const sequence = ++createSequenceRef.current;
     setCreatingGenerated(true);
     setCreatedSlot(undefined);
-    void createGeneratedResourceAsset(agentframeService, projectId, target.ResourceID, target.Revision)
+    void createGeneratedResourceAsset(projectId, target.ResourceID, target.Revision)
       .then((slot) => {
         if (sequence !== createSequenceRef.current) return;
         setCreatedSlot(slot);
@@ -372,7 +371,7 @@ export function ResourceAssetsPageContent({
 
   const setAsPrimary = (file: resource.ResourceAsset) =>
     void mutate((targetResourceId, revision) =>
-      setPrimaryResourceFile(agentframeService, projectId, targetResourceId, file.ResourceAssetID, revision),
+      setPrimaryResourceFile(projectId, targetResourceId, file.ResourceAssetID, revision),
     );
 
   const confirmRemove = (file: resource.ResourceAsset) => {
@@ -381,9 +380,7 @@ export function ResourceAssetsPageContent({
       targetName: file.Name,
       info: <span className="block px-6">{t("移除后不可恢复，请谨慎操作。")}</span>,
       async onOk() {
-        await mutate((targetResourceId, revision) =>
-          deleteResourceFile(agentframeService, projectId, targetResourceId, file, revision),
-        );
+        await mutate((targetResourceId, revision) => deleteResourceFile(projectId, targetResourceId, file, revision));
       },
     });
   };
@@ -400,14 +397,8 @@ export function ResourceAssetsPageContent({
         setMutating(true);
         setError("");
         try {
-          const authoritative = await getResource(agentframeService, projectId, resourceId);
-          await batchDeleteResourceFiles(
-            agentframeService,
-            projectId,
-            resourceId,
-            selectedFiles,
-            authoritative.Revision,
-          );
+          const authoritative = await getResource(projectId, resourceId);
+          await batchDeleteResourceFiles(projectId, resourceId, selectedFiles, authoritative.Revision);
           setSelectedFileIds(new Set());
           setBatchSelecting(false);
           onChange();
@@ -659,7 +650,7 @@ export function ResourceAssetsPageContent({
               ? undefined
               : (name) =>
                   mutate((resourceId, revision) =>
-                    renameResourceFile(agentframeService, projectId, resourceId, detailFile, revision, name),
+                    renameResourceFile(projectId, resourceId, detailFile, revision, name),
                   )
           }
           onReplace={
@@ -674,7 +665,7 @@ export function ResourceAssetsPageContent({
                   setUploading(true);
                   await mutate(async (resourceId, revision) => {
                     const blobId = await uploadResource(file);
-                    await replaceUploadedResourceAsset(agentframeService, projectId, resourceId, detailFile, revision, {
+                    await replaceUploadedResourceAsset(projectId, resourceId, detailFile, revision, {
                       blobId,
                       fileName: file.name,
                     });
@@ -688,13 +679,7 @@ export function ResourceAssetsPageContent({
               ? undefined
               : () =>
                   mutate((resourceId, revision) =>
-                    setPrimaryResourceFile(
-                      agentframeService,
-                      projectId,
-                      resourceId,
-                      detailFile.ResourceAssetID,
-                      revision,
-                    ),
+                    setPrimaryResourceFile(projectId, resourceId, detailFile.ResourceAssetID, revision),
                   )
           }
         />
@@ -728,13 +713,13 @@ export function ResourceAssetsPageContent({
               ? undefined
               : (name) =>
                   mutate((resourceId, revision) =>
-                    renameResourceFile(agentframeService, projectId, resourceId, createdSlot, revision, name),
+                    renameResourceFile(projectId, resourceId, createdSlot, revision, name),
                   )
           }
           onReview={() => setReviewFiles([createdSlot])}
           onSetPrimary={() =>
             mutate((resourceId, revision) =>
-              setPrimaryResourceFile(agentframeService, projectId, resourceId, createdSlot.ResourceAssetID, revision),
+              setPrimaryResourceFile(projectId, resourceId, createdSlot.ResourceAssetID, revision),
             )
           }
         />

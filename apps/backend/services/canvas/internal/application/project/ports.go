@@ -76,7 +76,6 @@ type Repository interface {
 }
 
 type ModelPermissionGateway interface {
-	Grant(context.Context, Scope, string, []string) error
 	List(context.Context, Scope, ListModelsInput) (ProjectModelList, error)
 }
 

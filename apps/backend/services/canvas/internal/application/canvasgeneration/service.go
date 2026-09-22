@@ -9,6 +9,7 @@ import (
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationcanvasimagegeneration "github.com/example/monorepo/canvas/internal/application/canvasimagegeneration"
+	applicationtextgeneration "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
@@ -75,6 +76,7 @@ type Service struct {
 	nodes           NodeReader
 	images          ImageEngine
 	videos          *applicationvideogeneration.Service
+	texts           *applicationtextgeneration.Service
 	assets          AssetPreviewer
 	models          ImageModelCatalog
 	generationNodes GenerationNodeBatchReader
@@ -102,9 +104,9 @@ func WithGenerationStateReaders(
 	}
 }
 
-func NewService(nodes NodeReader, images ImageEngine, videos *applicationvideogeneration.Service, assets AssetPreviewer, options ...ServiceOption) *Service {
+func NewService(nodes NodeReader, images ImageEngine, videos *applicationvideogeneration.Service, texts *applicationtextgeneration.Service, assets AssetPreviewer, options ...ServiceOption) *Service {
 	service := &Service{
-		nodes: nodes, images: images, videos: videos, assets: assets,
+		nodes: nodes, images: images, videos: videos, texts: texts, assets: assets,
 	}
 	for _, option := range options {
 		option(service)
@@ -260,6 +262,9 @@ func (s *Service) BatchGetLatestFailures(ctx context.Context, scope applicationc
 		var subject applicationtask.TaskRunSubject
 		subject.SubjectID = node.ID
 		switch node.Type {
+		case domaincanvas.NodeTypeTextGeneration:
+			subject.RunType = domaintask.RunTypeCanvasNodeTextGeneration
+			subject.SubjectType = domaintask.SubjectTypeCanvasNode
 		case domaincanvas.NodeTypeImageGeneration:
 			subject.RunType = domaintask.RunTypeImageGeneration
 			subject.SubjectType = domaintask.SubjectTypeImageGeneration
@@ -317,6 +322,8 @@ func generationRunMatchesNode(runType domaintask.RunType, nodeType domaincanvas.
 		return nodeType == domaincanvas.NodeTypeImageGeneration || nodeType == domaincanvas.NodeTypeVideoGeneration
 	}
 	switch nodeType {
+	case domaincanvas.NodeTypeTextGeneration:
+		return runType == domaintask.RunTypeCanvasNodeTextGeneration
 	case domaincanvas.NodeTypeImageGeneration:
 		return runType == domaintask.RunTypeImageGeneration
 	case domaincanvas.NodeTypeVideoGeneration:
@@ -373,6 +380,9 @@ func (s *Service) Cancel(ctx context.Context, scope applicationcanvas.Scope, pro
 	if node.Type == domaincanvas.NodeTypeVideoGeneration {
 		return s.videos.Cancel(ctx, scope, projectID, canvasID, nodeID, taskRunID)
 	}
+	if node.Type == domaincanvas.NodeTypeTextGeneration {
+		return s.texts.Cancel(ctx, scope, projectID, canvasID, nodeID, taskRunID)
+	}
 	if node.Type != domaincanvas.NodeTypeImageGeneration {
 		return errno.New(errno.ErrInvalidArgument)
 	}
@@ -388,6 +398,8 @@ func (s *Service) CancelActive(ctx context.Context, scope applicationcanvas.Scop
 		return s.videos.CancelActive(ctx, scope, node)
 	case domaincanvas.NodeTypeImageGeneration:
 		return classify(s.images.Cancel(ctx, applicationimagegeneration.CancelInput{Scope: imageScope(scope), TargetType: domainimagegeneration.TargetCanvasNode, TargetID: node.ID, TaskRunID: node.ActiveTaskRunID}))
+	case domaincanvas.NodeTypeTextGeneration:
+		return s.texts.Cancel(ctx, scope, node.ProjectID, node.CanvasID, node.ID, node.ActiveTaskRunID)
 	default:
 		return nil
 	}
@@ -426,6 +438,16 @@ func (s *Service) List(ctx context.Context, scope applicationcanvas.Scope, proje
 			result[index].VideoURL = urls[result[index].OutputAssetID]
 		}
 		return result, nil
+	case domaincanvas.NodeTypeTextGeneration:
+		sessions, listErr := s.texts.List(ctx, scope, projectID, canvasID, nodeID)
+		if listErr != nil {
+			return nil, listErr
+		}
+		result := make([]applicationvideogeneration.TaskRun, 0, len(sessions))
+		for _, session := range sessions {
+			result = append(result, textRun(session))
+		}
+		return result, nil
 	default:
 		return nil, errno.New(errno.ErrInvalidArgument)
 	}
@@ -460,13 +482,19 @@ func (s *Service) Select(ctx context.Context, scope applicationcanvas.Scope, pro
 		}
 		item.VideoURL = urls[item.OutputAssetID]
 		return item, nil
+	case domaincanvas.NodeTypeTextGeneration:
+		session, selectErr := s.texts.Select(ctx, scope, projectID, canvasID, nodeID, historyID)
+		if selectErr != nil {
+			return applicationvideogeneration.TaskRun{}, selectErr
+		}
+		return textRun(session), nil
 	default:
 		return applicationvideogeneration.TaskRun{}, errno.New(errno.ErrInvalidArgument)
 	}
 }
 
 func (s *Service) node(ctx context.Context, scope applicationcanvas.Scope, projectID, canvasID, nodeID string) (domaincanvas.CanvasNode, error) {
-	if s == nil || s.nodes == nil || s.images == nil || s.videos == nil || s.assets == nil || strings.TrimSpace(projectID) == "" || strings.TrimSpace(canvasID) == "" || strings.TrimSpace(nodeID) == "" {
+	if s == nil || s.nodes == nil || s.images == nil || s.videos == nil || s.texts == nil || s.assets == nil || strings.TrimSpace(projectID) == "" || strings.TrimSpace(canvasID) == "" || strings.TrimSpace(nodeID) == "" {
 		return domaincanvas.CanvasNode{}, errno.New(errno.ErrInvalidArgument)
 	}
 	node, err := s.nodes.Get(ctx, scope, projectID, canvasID, nodeID)
@@ -513,6 +541,32 @@ func imageRun(view applicationimagegeneration.RunView, node domaincanvas.CanvasN
 		provider = domainvideo.ProviderStatusCancelled
 	}
 	return applicationvideogeneration.TaskRun{TaskRunID: view.TaskRun.ID, TenantID: view.TaskRun.TenantID, WorkspaceID: view.TaskRun.WorkspaceID, ProjectID: node.ProjectID, CanvasID: node.CanvasID, NodeID: node.ID, CallerID: view.TaskRun.CreatedBy, Status: string(view.TaskRun.Status), ErrorCode: view.TaskRun.ErrorCode, ErrorMessage: view.TaskRun.ErrorMessage, ProviderStatus: provider, NodeType: domaincanvas.NodeTypeImageGeneration, OutputAssetID: view.Detail.OutputAssetID, ModelServiceID: view.Detail.Config.ModelID, Prompt: view.Detail.Config.Prompt, Inputs: view.Detail.InputSnapshots, Resolution: imageResolutionHistory(view.Detail.Config.Resolution), AspectRatio: imageAspectRatioHistory(view.Detail.Config.AspectRatio), Watermark: view.Detail.Config.Watermark, CreatedAt: view.TaskRun.CreatedAt, UpdatedAt: view.TaskRun.UpdatedAt, FinishedAt: view.TaskRun.FinishedAt}
+}
+
+func textRun(session applicationtextgeneration.Session) applicationvideogeneration.TaskRun {
+	item := applicationvideogeneration.TaskRun{
+		TaskRunID: session.ID, ProjectID: session.ProjectID, CanvasID: session.CanvasID, NodeID: session.NodeID,
+		Status: string(session.Status), NodeType: domaincanvas.NodeTypeTextGeneration, ModelServiceID: session.ModelServiceID,
+		Prompt: session.Prompt, OutputText: session.Content, Inputs: session.Inputs,
+		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt, FinishedAt: session.FinishedAt,
+	}
+	switch session.Status {
+	case domaintask.StatusRunning:
+		item.ProviderStatus = domainvideo.ProviderStatusRunning
+	case domaintask.StatusSucceeded:
+		item.ProviderStatus = domainvideo.ProviderStatusSucceeded
+	case domaintask.StatusFailed:
+		item.ProviderStatus = domainvideo.ProviderStatusFailed
+	case domaintask.StatusCancelled:
+		item.ProviderStatus = domainvideo.ProviderStatusCancelled
+	default:
+		item.ProviderStatus = domainvideo.ProviderStatusPending
+	}
+	if session.Failure != nil {
+		item.ErrorCode = session.Failure.Code
+		item.ErrorMessage = session.Failure.Message
+	}
+	return item
 }
 
 func imageResolutionHistory(value domainimagegeneration.Resolution) domainvideo.Resolution {

@@ -440,8 +440,6 @@ export interface CopyCanvasNodeRequest {
   CanvasID: string;
   SourceNodeID: string;
   Position: CanvasNodePosition;
-  /** Name 是滚动升级兼容字段；Server 复制节点时忽略该值并继承源节点的命名模式。 */
-  Name?: string;
 }
 
 export interface CopyCanvasNodeResponse {
@@ -473,8 +471,6 @@ export interface CreateCanvasNodeRequest {
   /** ModelServiceID 是前端从当前环境模型列表选择的视频生成模型服务标识。 */
   ModelServiceID?: string;
   Type: CanvasNodeType;
-  /** Name 是滚动升级兼容字段；Server 创建节点时忽略该值并根据节点类型或素材来源确定名称。 */
-  Name?: string;
   Position: CanvasNodePosition;
   Text?: string;
   AssetID?: string;
@@ -507,8 +503,6 @@ export interface CreateCanvasNodesRequest {
   ProjectID: string;
   CanvasID: string;
   Plot: string;
-  /** MaxCanvasNodes 保留用于滚动发布兼容；新任务的分镜数量由剧情自然节拍决定，客户端值会被忽略。 */
-  MaxCanvasNodes?: number;
   ModelConfig: StoryboardModelConfig;
   PlanningConfig: StoryboardPlanningConfig;
 }
@@ -600,8 +594,8 @@ export interface MaterializeCanvasResourceAssetReferenceRequest {
   /** ResourceID 动态跟随资源的主素材；当前仅用于音频资源。 */
   ResourceID?: string;
   ResourceAssetNodePosition: CanvasNodePosition;
-  /** ReferenceType 显式声明活动引用身份；旧客户端可省略，由 Server 根据唯一 ID 推断。 */
-  ReferenceType?: CanvasNodeMentionReferenceType;
+  /** ReferenceType 显式声明活动引用身份。 */
+  ReferenceType: CanvasNodeMentionReferenceType;
 }
 
 export interface MaterializeCanvasResourceAssetReferenceResponse {
@@ -618,8 +612,8 @@ export interface MaterializeCanvasStandaloneAssetReferenceRequest {
   TargetNodeID: string;
   AssetID?: string;
   TargetPort: CanvasPort;
-  /** ReferenceType 新客户端固定传 ASSET；旧客户端可省略。 */
-  ReferenceType?: CanvasNodeMentionReferenceType;
+  /** ReferenceType 固定传 ASSET。 */
+  ReferenceType: CanvasNodeMentionReferenceType;
   AssetNodePosition: CanvasNodePosition;
   /** UploadedAsset 创建 Project Asset 并在同一业务调用内物化、连接；与 AssetID 互斥。 */
   UploadedAsset?: CanvasUploadedAsset;
@@ -726,7 +720,7 @@ export interface StoryboardPlanningConfig {
   /** 单分镜时长范围必须位于所选视频模型能力内；都不传时默认使用模型的完整能力范围。 */
   CanvasNodeDurationMinSeconds?: number;
   CanvasNodeDurationMaxSeconds?: number;
-  /** 总视频时长范围两个字段必须同时传入，取值为 60 至 3000 秒；都不传时保留旧客户端的无目标时长语义。 */
+  /** 总视频时长范围两个字段必须同时传入，取值为 60 至 3000 秒；都不传表示不限制总时长。 */
   TotalDurationMinSeconds?: number;
   TotalDurationMaxSeconds?: number;
 }

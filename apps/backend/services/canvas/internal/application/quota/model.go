@@ -103,11 +103,3 @@ type Usage struct {
 	Used     int64
 	Reserved int64
 }
-
-type StorageBackfillResult struct {
-	Incomplete int64
-}
-
-func (r StorageBackfillResult) Ready() bool {
-	return r.Incomplete == 0
-}
