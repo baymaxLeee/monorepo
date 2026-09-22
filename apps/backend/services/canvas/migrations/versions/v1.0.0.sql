@@ -46,7 +46,7 @@ CREATE TABLE public.asset_gc_candidates (
 --
 
 CREATE TABLE public.asset_references (
-    asset_id uuid NOT NULL,
+    asset_id character(36) NOT NULL,
     owner_type character varying(60) NOT NULL,
     owner_key character varying(60) NOT NULL,
     created_at timestamp with time zone NOT NULL,
