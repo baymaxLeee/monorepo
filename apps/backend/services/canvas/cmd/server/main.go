@@ -56,7 +56,6 @@ import (
 	platformaigwproxy "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 	"github.com/example/monorepo/canvas/internal/infrastructure/providercatalog"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
-	"github.com/example/monorepo/canvas/internal/infrastructure/usageobserver"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -293,7 +292,6 @@ func run() error {
 		nodeRepository, uuidGenerator{}, utcClock{},
 		applicationcanvas.WithMutationDependencies(transactions, canvasstatisticspersistence.New(db)),
 		applicationcanvas.WithCanvasStatisticsProjector(canvasStatistics),
-		applicationcanvas.WithStoryboardSplitter(aigw.NewStoryboardSplitter(providerClient, log)),
 		applicationcanvas.WithPromptAssetMatcher(aigw.NewPromptAssetMatcher(providerClient)),
 		applicationcanvas.WithAssetMatchTasks(nodeRepository, taskRepository, taskRepository, taskRepository),
 		applicationcanvas.WithModelCatalog(models),
@@ -317,8 +315,6 @@ func run() error {
 	storyboards := applicationcanvas.NewStoryboardService(
 		nodes, canvasstoryboardredis.New(redisClient), storyboardRepository, taskRepository, taskRepository,
 		executions, transactions, uuidGenerator{}, utcClock{},
-		applicationcanvas.WithStoryboardModelCallLedger(usageobserver.NewStoryboardObserver(projectUsageCalls)),
-		applicationcanvas.WithStoryboardProjectUsage(projectUsageCalls, projectUsageFinalizer),
 		applicationcanvas.WithStoryboardCanvasAccess(canvasRepository),
 	)
 	assets := applicationcanvas.NewCanvasNodeAssetService(
@@ -406,7 +402,7 @@ func run() error {
 		},
 	})
 	go runDeletionProcessor(ctx, deletionProcessor)
-	processors := []applicationtask.PollProcessor{videos, storyboards, imageProcessor, nodes}
+	processors := []applicationtask.PollProcessor{videos, imageProcessor, nodes}
 	for _, processor := range processors {
 		scheduler, schedulerErr := applicationtask.NewRunTypePollScheduler(
 			taskRepository, taskRepository, processor, executions, utcClock{}, applicationtask.PollPoolConfig{
