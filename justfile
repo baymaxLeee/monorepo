@@ -35,7 +35,7 @@ install:
     @./scripts/install-deps.sh
 
 # ─── Dev ────────────────────────────────────────────────────
-# Prereq: `just up` first. URLs: platform :3000, mfe-admin :3001, gateway :8000, svc-admin :8001, telemetry :8008
+# Prereq: `just up` first. Run `just dev-urls` for the complete service and MFE URL list.
 dev:
     @just dev-preflight
     @./scripts/dev-orchestrator.sh

@@ -10,17 +10,20 @@
 #                 ├─ /             → SPA platform dist
 #                 ├─ /mfe-admin/   → MFE admin dist
 #                 ├─ /mfe-chat/    → MFE chat dist
+#                 ├─ /mfe-canvas/  → MFE canvas dist
 #                 └─ /api/*        → reverse-proxy → gateway:8000
 #                                     ├─ iam:8002
 #                                     ├─ admin:8001
 #                                     ├─ chat:8009
+#                                     ├─ canvas:8012
+#                                     ├─ executor:8011 (internal only)
 #                                     ├─ knowledge:8010
 #                                     └─ telemetry:8008
 #                                         ↓
 #                                    postgres + redis (internal)
 #
 # One shared Postgres instance (pgvector image) holds every service database
-# (iam / admin / chat / executor / telemetry business schemas, knowledge rows +
+# (iam / admin / canvas / chat / executor / telemetry business schemas, knowledge rows +
 # RAG vectors, and executor's Workflow DevKit World) — see docs/ADR/0029.
 #
 # Image source: ghcr.io/<owner>/<repo>/<service>:<tag>
@@ -277,12 +280,14 @@ services:
       EXECUTOR_SERVICE_URL: http://executor:8011
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       PORT: "8012"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: canvas
       POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: canvas
+      POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
     <<: *restart_policy
@@ -406,6 +411,7 @@ services:
   #   /usr/share/nginx/html             ← platform dist
   #   /usr/share/nginx/html/mfe-admin/  ← admin (MFE remote) dist
   #   /usr/share/nginx/html/mfe-chat/   ← chat  (MFE remote) dist
+  #   /usr/share/nginx/html/mfe-canvas/ ← canvas (MFE remote) dist
   #   /etc/nginx/conf.d/default.conf    ← nginx.conf from this directory
   web:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/web:${IMAGE_TAG:-main}

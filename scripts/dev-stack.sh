@@ -101,12 +101,14 @@ track_last_pid
 track_last_pid
 (
   cd apps/backend/services/canvas
-  PORT=8012 go run ./cmd/server
+  PORT=8012 go run ./cmd/server 2>&1 | sed 's/^/[canvas]     /'
 ) &
+track_last_pid
 (
   cd apps/frontend
-  PORT=3006 pnpm -F canvas dev
+  PORT=3006 pnpm -F canvas dev 2>&1 | sed 's/^/[mfe-canvas] /'
 ) &
+track_last_pid
 (
   cd apps/frontend
   PORT=3005 pnpm -F chat dev 2>&1 | sed 's/^/[mfe-chat]   /'
@@ -115,6 +117,7 @@ track_last_pid
 (
   ./scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json mfe-admin 2>&1 | sed 's/^/[wait]      /'
   ./scripts/wait-for-url.sh http://localhost:3005/mf-manifest.json mfe-chat 2>&1 | sed 's/^/[wait]      /'
+  ./scripts/wait-for-url.sh http://localhost:3006/mf-manifest.json mfe-canvas 2>&1 | sed 's/^/[wait]      /'
   cd apps/frontend
   PORT=3000 pnpm -F platform dev 2>&1 | sed 's/^/[platform]  /'
 ) &

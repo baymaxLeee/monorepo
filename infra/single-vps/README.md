@@ -34,6 +34,8 @@ browser
 │  │ nginx (the `web` image — also serves SPA dist)   │     │
 │  │   ├─ /              → platform dist (host SPA)   │     │
 │  │   ├─ /mfe-admin/    → admin dist (MFE remote)    │     │
+│  │   ├─ /mfe-chat/     → chat dist (MFE remote)     │     │
+│  │   ├─ /mfe-canvas/   → canvas dist (MFE remote)   │     │
 │  │   └─ /api/*         → gateway:8000               │     │
 │  └─────────────────────────────────────────────────┘     │
 │                  │                                        │
@@ -41,7 +43,7 @@ browser
 │      ▼                       ▼                            │
 │  gateway:8000          (db-init runs once)                │
 │      ├─ iam:8002 / admin:8001 / telemetry:8008            │
-│      ├─ chat:8009 / knowledge:8010                        │
+│      ├─ chat:8009 / canvas:8012 / knowledge:8010          │
 │      └─ executor:8011                                     │
 │                                                           │
 │  redis:6379    postgres+pgvector:5432 (all service DBs)   │

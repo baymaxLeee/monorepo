@@ -138,7 +138,7 @@ Custom domain: `mfe-admin.your-domain.com`
 
 把 2 个 endpoint(PostgreSQL host、Redis host)+ 各自账号密码记录下来。
 所有后端业务服务复用同一个 PostgreSQL 实例,各用自己的 database(iam / admin /
-chat / executor / knowledge / telemetry)和同名登录 role。`workflow` database/role
+canvas / chat / executor / knowledge / telemetry)和同名登录 role。`workflow` database/role
 只供 Workflow World 与实例初始化使用。首次部署前用云数据库管理员创建这些 role
 和 database,将 database owner 设为同名 role,撤销 `PUBLIC` 的 database 权限和
 `public` schema CREATE 权限;仅在 `knowledge` database 启用 `vector` 扩展。
@@ -176,6 +176,13 @@ kubectl -n monorepo-prod create secret generic admin-secrets \
   --from-literal=POSTGRES_USER=admin \
   --from-literal=POSTGRES_PASSWORD=<from-1Password> \
   --from-literal=REDIS_HOST=<redis-endpoint>
+
+kubectl -n monorepo-prod create secret generic canvas-secrets \
+  --from-literal=POSTGRES_HOST=<rds-endpoint> \
+  --from-literal=POSTGRES_USER=canvas \
+  --from-literal=POSTGRES_PASSWORD=<from-1Password> \
+  --from-literal=REDIS_URL=<redis-connection-uri> \
+  --from-literal=INTERNAL_API_TOKEN=<SAME shared internal token>
 
 kubectl -n monorepo-prod create secret generic telemetry-secrets \
   --from-literal=POSTGRES_HOST=<rds-endpoint> \

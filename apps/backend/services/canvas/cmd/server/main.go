@@ -269,10 +269,10 @@ func run() error {
 	projectUsageFinalizer := applicationprojectusage.NewFinalizer(projectUsageRepository, utcClock{})
 	deletionRepository := deletionpersistence.NewRepository(db)
 	deletionQueue := applicationdeletion.NewQueue(deletionRepository)
-	providers := &admin.Directory{URL: bootstrap.Env("ADMIN_SERVICE_URL", "http://localhost:8001"), Token: cfg.InternalToken}
+	providers := &admin.Directory{URL: cfg.AdminServiceURL, Token: cfg.InternalToken}
 	models := modelcatalog.New(providers)
 	storageClient := &storage.Client{
-		URL: bootstrap.Env("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"), Token: cfg.InternalToken,
+		URL: cfg.KnowledgeServiceURL, Token: cfg.InternalToken,
 	}
 	artifacts := artifact.New(storageClient, cfg.PublicGatewayURL)
 	coverImages := coverimagestore.New(storageClient, uuidGenerator{}, cfg.PublicGatewayURL)
@@ -280,7 +280,7 @@ func run() error {
 	transactions := persistencetransaction.New(db)
 	archiveRepository := canvasarchivepersistence.NewRepository(db)
 	executorClient := &executorclient.Client{
-		URL: bootstrap.Env("EXECUTOR_SERVICE_URL", "http://localhost:8011"), Token: cfg.InternalToken,
+		URL: cfg.ExecutorServiceURL, Token: cfg.InternalToken,
 	}
 	archiveWorkflows := executorclient.NewArchiveWorkflowStore(db, executorClient)
 	archiveService := applicationcanvasarchive.NewService(
@@ -555,10 +555,18 @@ func run() error {
 		func(ctx context.Context, reader io.Reader) (string, int64, error) {
 			return artifacts.UploadBlob(ctx, "", "", reader)
 		},
+		func(ctx context.Context) error {
+			return errors.Join(sql.PingContext(ctx), redisClient.Ping(ctx).Err())
+		},
 		access,
 	)
 	handler = otelhttp.NewHandler(handler, "canvas", otelhttp.WithFilter(func(request *http.Request) bool {
-		return request.URL.Path != "/livez"
+		switch request.URL.Path {
+		case "/livez", "/readyz", "/healthz":
+			return false
+		default:
+			return true
+		}
 	}))
 	server := &http.Server{Addr: ":" + cfg.Port, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	done := make(chan error, 1)

@@ -7,13 +7,14 @@
 
 | 服务 | 语言 | 端口 | 公开面 | 数据所有权 | 出站 binding | 说明 |
 |---|---|---|---|---|---|---|
-| gateway | Go | 8000 | `/*`（唯一后端公网入口） | 无业务库 | iam, admin, chat, knowledge, telemetry | 边缘反向代理 BFF |
+| gateway | Go | 8000 | `/*`（唯一后端公网入口） | 无业务库 | iam, admin, chat, canvas, knowledge, telemetry | 边缘反向代理 BFF |
 | iam | Go | 8002 | `/api/iam-server/*` | PostgreSQL `iam` | — | 身份 / 会话 |
 | admin | Python | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | — | 管理与配置平面 |
-| chat | TypeScript | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | admin, knowledge, executor | 对话 / Agent runtime |
+| chat | TypeScript | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | admin, knowledge, executor, canvas | 对话 / Agent runtime |
+| canvas | Go | 8012 | `/api/canvas-server/*` | PostgreSQL `canvas` | admin, executor, knowledge | 项目 / 画布 / 素材与生成编排 |
 | knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin | 知识库 / ingest / artifact |
 | telemetry | Python | 8008 | `/api/telemetry-server/*` | PostgreSQL `telemetry` | — | 可观测 / RUM |
-| executor | TypeScript | 8011 | **internal-only**（无公网 route） | PostgreSQL `executor` (+ `workflow`) | admin, knowledge | 长任务 durable executor |
+| executor | TypeScript | 8011 | **internal-only**（无公网 route） | PostgreSQL `executor` (+ `workflow`) | admin, knowledge, canvas | 长任务 durable executor |
 
 Failure 责任（摘要）：同步 HTTP binding 的 timeout / 错误映射由 **caller 的 transport client** 负责；gateway 不对 proxied/SSE 请求做 body 重试。长任务重试与跨请求状态在 executor / Workflow，不藏在普通 HTTP handler。
 
@@ -104,6 +105,7 @@ chunk 都打 sibling。
 
 ## 服务文档
 
+- [canvas](./canvas.md)
 - [chat](./chat.md)
 - [knowledge](./knowledge.md)
 - [executor](./executor.md)

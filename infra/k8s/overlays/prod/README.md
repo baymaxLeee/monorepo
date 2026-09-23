@@ -28,6 +28,12 @@ this without first completing the checklist below.
      --from-literal=POSTGRES_USER=<svc-user> \
      --from-literal=POSTGRES_PASSWORD=<from-1Password> \
      --from-literal=ACCESS_TOKEN_SECRET=<256-bit-random>
+   kubectl -n monorepo-prod create secret generic canvas-secrets \
+     --from-literal=POSTGRES_HOST=<pg-host> \
+     --from-literal=POSTGRES_USER=canvas \
+     --from-literal=POSTGRES_PASSWORD=<from-1Password> \
+     --from-literal=REDIS_URL=<redis-connection-uri> \
+     --from-literal=INTERNAL_API_TOKEN=<shared-internal-token>
    # repeat for admin/canvas/chat/executor/knowledge/telemetry service Secrets.
    # Every service-facing Secret must use the same INTERNAL_API_TOKEN;
    # chat-secrets must also include TOOL_APPROVAL_SECRET.
@@ -56,11 +62,11 @@ GitHub Actions deploy job:
 
 1. Build & push image with tag = `${GITHUB_SHA::8}` to 火山 CR
 2. Apply service and Workflow World schema migrations out-of-band.
-3. Pin all eight images (`gateway`, `iam`, `admin`, `chat`, `executor`,
+3. Pin all nine images (`gateway`, `iam`, `admin`, `canvas`, `chat`, `executor`,
    `knowledge`, `telemetry`, `web`) in the prod overlay.
 4. Run the idempotent IAM identity bootstrap Job and wait for completion.
 5. Render/apply the prod overlay; placeholder Secrets are removed by the overlay.
-6. Wait for all eight Deployment rollouts.
+6. Wait for all nine Deployment rollouts.
 
 ## Rollback
 

@@ -14,7 +14,10 @@ case "$TARGET" in
   frontend) just build-frontend ;;
   backend) just build-backend ;;
   *)
-    if [ -d "apps/frontend/apps/$TARGET" ]; then
+    if [ -d "apps/frontend/apps/$TARGET" ] && [ -d "apps/backend/services/$TARGET" ]; then
+      (cd apps/frontend && just build "$TARGET")
+      (cd apps/backend && just build "$TARGET")
+    elif [ -d "apps/frontend/apps/$TARGET" ]; then
       cd apps/frontend && just build "$TARGET"
     elif [ -d "apps/backend/services/$TARGET" ]; then
       cd apps/backend && just build "$TARGET"

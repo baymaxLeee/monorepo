@@ -2,10 +2,10 @@
 # Each line = one process. Prefix becomes the label in the multiplexer.
 #
 # Startup ordering note:
-#   - platform depends on mfe-admin's mf-manifest.json at boot.
+#   - platform depends on each MFE's mf-manifest.json at boot.
 #   - We don't wait for backend (gateway/svc-admin) — frontend can render before they
 #     come online; the API call only fires when the user clicks/loads the list.
-#   - We DO wait for mfe-admin's manifest before starting platform.
+#   - We DO wait for every MFE manifest before starting platform.
 
 svc-admin: cd apps/backend/services/admin && uv run uvicorn main:app --app-dir src --reload --port 8001
 svc-chat:  cd apps/backend/services/chat && PORT=8009 pnpm dev
@@ -14,9 +14,8 @@ knowledge: cd apps/backend/services/knowledge && uv run uvicorn main:app --app-d
 telemetry: cd apps/backend/services/telemetry && uv run uvicorn main:app --app-dir src --reload --port 8008
 iam:  cd apps/backend/services/iam && PORT=8002 IAM_POSTGRES_DATABASE=iam go run ./cmd/server
 gateway:   cd apps/backend/services/gateway && PORT=8000 go run ./cmd/server
+canvas: cd apps/backend/services/canvas && PORT=8012 go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
 mfe-chat:  cd apps/frontend && PORT=3005 pnpm -F chat dev
-platform:  ./scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json mfe-admin && ./scripts/wait-for-url.sh http://localhost:3005/mf-manifest.json mfe-chat && cd apps/frontend && PORT=3000 pnpm -F platform dev
-
-canvas: cd apps/backend/services/canvas && PORT=8012 go run ./cmd/server
 mfe-canvas: cd apps/frontend && PORT=3006 pnpm -F canvas dev
+platform:  ./scripts/wait-for-url.sh http://localhost:3001/mf-manifest.json mfe-admin && ./scripts/wait-for-url.sh http://localhost:3005/mf-manifest.json mfe-chat && ./scripts/wait-for-url.sh http://localhost:3006/mf-manifest.json mfe-canvas && cd apps/frontend && PORT=3000 pnpm -F platform dev

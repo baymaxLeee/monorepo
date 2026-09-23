@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/go-chi/chi/v5"
@@ -44,16 +45,19 @@ type Router struct {
 	executeArchive func(context.Context, string) (any, error)
 	executeFrames  func(context.Context, string) (any, error)
 	uploadBlob     func(context.Context, io.Reader) (string, int64, error)
+	readiness      func(context.Context) error
 	access         applicationprojectaccess.MemberChecker
 }
 
-func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), access applicationprojectaccess.MemberChecker) http.Handler {
-	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, executeFrames: executeFrames, uploadBlob: uploadBlob, access: access}
+func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), readiness func(context.Context) error, access applicationprojectaccess.MemberChecker) http.Handler {
+	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, executeFrames: executeFrames, uploadBlob: uploadBlob, readiness: readiness, access: access}
 	router := chi.NewRouter()
 	router.Use(serviceAuthentication(internalToken))
 	router.Get("/livez", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	router.Get("/readyz", transport.readinessRoute())
+	router.Get("/healthz", transport.readinessRoute())
 	router.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
 	router.Post("/internal/worker/video-generations/{taskRunId}/extract-frames", transport.internalFrameRoute())
 	router.Post("/uploads", transport.uploadRoute())
@@ -760,7 +764,7 @@ func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projec
 func serviceAuthentication(expectedToken string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			if request.URL.Path == "/livez" {
+			if request.URL.Path == "/livez" || request.URL.Path == "/readyz" || request.URL.Path == "/healthz" {
 				next.ServeHTTP(w, request)
 				return
 			}
@@ -772,6 +776,18 @@ func serviceAuthentication(expectedToken string) func(http.Handler) http.Handler
 			}
 			next.ServeHTTP(w, request)
 		})
+	}
+}
+
+func (transport *Router) readinessRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		ctx, cancel := context.WithTimeout(request.Context(), 3*time.Second)
+		defer cancel()
+		if transport.readiness == nil || transport.readiness(ctx) != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "degraded"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 }
 

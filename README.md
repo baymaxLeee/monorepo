@@ -53,10 +53,10 @@ Codex CLI 使用官方 standalone 安装（`curl -fsSL https://chatgpt.com/codex
 
 ```
 浏览器 :3000
-  └─ platform 通过 Module Federation 加载 mfe-chat / mfe-admin
-       └─ mfe-chat 调 gateway http://localhost:8000/v1/...
-            └─ gateway 反向代理到 chat / admin / knowledge / executor
-                 └─ chat agent 流式返回，artifact 写入 knowledge
+  └─ platform 通过 Module Federation 加载 mfe-chat / mfe-admin / mfe-canvas
+       └─ remotes 调 gateway http://localhost:8000/api/...
+            └─ gateway 反向代理到 chat / admin / canvas / knowledge
+                 └─ 长任务由 executor 执行，artifact 写入 knowledge
 ```
 
 | 服务 | URL | 角色 |
@@ -64,12 +64,14 @@ Codex CLI 使用官方 standalone 安装（`curl -fsSL https://chatgpt.com/codex
 | platform | http://localhost:3000 | 微前端 host（主壳） |
 | mfe-admin | http://localhost:3001 | 管理台 remote |
 | mfe-chat | http://localhost:3005 | 对话 remote |
+| mfe-canvas | http://localhost:3006 | 画布 remote |
 | gateway | http://localhost:8000 | Go API 网关 |
 | iam | http://localhost:8002/healthz | 身份 / 组织 |
 | svc-admin | http://localhost:8001/docs | 配置平面（providers / skills） |
 | svc-chat | http://localhost:8009/docs | Agent 运行时 |
 | knowledge | http://localhost:8010/healthz | 文档 / RAG / artifact 存储 |
 | executor | http://localhost:8011/healthz | 长任务（HTML artifact / 视频） |
+| canvas | http://localhost:8012/healthz | 项目 / 画布 / 素材编排 |
 
 > 不想装 mise?自己装齐 `node@24.18.0 / pnpm@12.5.1 / python@3.14.5 / uv / go@1.26.3 / just / docker / jq` 也行。
 > 不想装 overmind?`just dev` 会自动回退到纯 shell 模式,功能一样,只是日志混在一起。
@@ -83,7 +85,7 @@ Codex CLI 使用官方 standalone 安装（`curl -fsSL https://chatgpt.com/codex
 ```bash
 just install # 首次 clone:装齐 mise/pnpm/uv/go 与所有 workspace 依赖
 just up      # 起 Docker + 建库 + schema
-just dev     # 起全套服务(platform + mfe-admin + mfe-chat + gateway + 后端微服务),Ctrl+C 全停
+just dev     # 起全套服务(platform + 三个 MFE + gateway + 后端微服务),Ctrl+C 全停
 just down    # 收工,关 docker
 ```
 

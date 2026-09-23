@@ -7,8 +7,9 @@ Module Federation 2.0 + Rspack，配合 React Router data router。platform 是
 
 ```
 platform (host @ :3000)
-  ├── loads → admin (remote @ :3001)  routes: /platform/admin/*
-  └── loads → chat  (remote @ :3005)  routes: /platform/chat/*
+  ├── loads → admin  (remote @ :3001)  routes: /platform/admin/*
+  ├── loads → chat   (remote @ :3005)  routes: /platform/chat/*
+  └── loads → canvas (remote @ :3006)  routes: /platform/canvas/*
 ```
 
 Capability packages（next-forge 风格，非业务服务模板）：
@@ -23,6 +24,7 @@ Capability packages（next-forge 风格，非业务服务模板）：
 | platform  | 3000 | `/`、`/login`、`/platform/*`                          | n/a           |
 | admin     | 3001 | 仅提供 `mf-manifest.json` / `remoteEntry.js` / chunks | admin service |
 | chat      | 3005 | 仅提供 `mf-manifest.json` / `remoteEntry.js` / chunks | chat service  |
+| canvas    | 3006 | 仅提供 `mf-manifest.json` / `remoteEntry.js` / chunks | canvas service |
 
 用户入口只有 platform。remote app 可以独立部署、独立启动 dev server，但 remote
 root URL 不是业务入口，也不提供状态页；本地与生产都通过 platform 路由渲染业务页面。
