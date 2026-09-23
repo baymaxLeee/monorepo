@@ -114,7 +114,6 @@ type CanvasNodeToolbarProps = {
   onLargePreview: (item: canvasnode.CanvasNode) => void;
   onReview: (item: canvasnode.CanvasNode) => void;
   textContent: string;
-  visible?: boolean;
 };
 
 export function CanvasNodeToolbar({
@@ -126,10 +125,9 @@ export function CanvasNodeToolbar({
   onLargePreview,
   onReview,
   textContent,
-  visible,
 }: CanvasNodeToolbarProps) {
   const dragging = useCanvasDragging();
-  if (item.ReferenceStatus === canvasnode.CanvasNodeReferenceStatus.DELETED) {
+  if (dragging || item.ReferenceStatus === canvasnode.CanvasNodeReferenceStatus.DELETED) {
     return null;
   }
   const textNode = isTextNode(item.Type);
@@ -204,7 +202,7 @@ export function CanvasNodeToolbar({
     <NodeToolbar
       className={styles.contentNodeToolbar}
       data-canvas-node-id={item.NodeID}
-      isVisible={dragging ? false : visible}
+      isVisible
       offset={4}
       position={Position.Top}
     >

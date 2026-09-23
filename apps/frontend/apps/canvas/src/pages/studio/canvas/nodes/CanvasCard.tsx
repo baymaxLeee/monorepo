@@ -51,6 +51,11 @@ export function DeletedReferenceNotice({ item }: { item: canvasnode.CanvasNode }
   );
 }
 
+// XYFlow moves the outer wrapper itself; position-only NodeProps changes must not rerender the heavy card subtree.
+function canvasCardPropsEqual(previous: NodeProps<CanvasFlowNode>, next: NodeProps<CanvasFlowNode>) {
+  return previous.data === next.data && previous.dragging === next.dragging && previous.selected === next.selected;
+}
+
 export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useContext(CanvasEditingContext);
   const actions = useContext(CanvasContentActionsContext);
@@ -126,7 +131,7 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
   );
   return (
     <>
-      {!isStoryboardDraft ? (
+      {!isStoryboardDraft && isEditing ? (
         <CanvasNodeToolbar
           item={item}
           mediaURL={mediaURL ?? ""}
@@ -136,7 +141,6 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
           onLargePreview={() => editor.openLargeTextPreview(item.NodeID)}
           onReview={actions.review}
           textContent={nodeTextContent}
-          visible={isEditing}
         />
       ) : null}
       <CanvasNodeHeader item={item} onPatch={onPatch} reviewAsset={data.reviewAsset} />
@@ -366,6 +370,6 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
       ) : null}
     </>
   );
-});
+}, canvasCardPropsEqual);
 
 export const nodeTypes: NodeTypes = { canvasNode: CanvasCard };
