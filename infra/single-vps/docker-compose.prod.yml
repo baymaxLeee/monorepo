@@ -267,6 +267,7 @@ services:
     container_name: monorepo-canvas
     depends_on:
       postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
@@ -282,6 +283,7 @@ services:
       POSTGRES_USER: canvas
       POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: canvas
+      REDIS_URL: redis://redis:6379/3
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
     <<: *restart_policy
 
