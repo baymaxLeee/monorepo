@@ -5,6 +5,8 @@ import { XIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import type * as React from "react";
 
+import { ModalLayerProvider, useModalLayer } from "./portal-layer";
+
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
 }
@@ -37,16 +39,22 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<typeof Sheet
 function SheetContent({
   className,
   children,
+  popupZIndex,
   side = "right",
   showCloseButton = true,
+  style,
+  zIndex,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
+  popupZIndex?: number;
   side?: "top" | "right" | "bottom" | "left";
   showCloseButton?: boolean;
+  zIndex?: number;
 }) {
+  const layer = useModalLayer({ popupZIndex, zIndex });
   return (
     <SheetPortal>
-      <SheetOverlay />
+      <SheetOverlay style={{ zIndex: layer.modalZIndex - 1 }} />
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
@@ -61,15 +69,18 @@ function SheetContent({
             "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
           className,
         )}
+        style={{ ...style, zIndex: layer.modalZIndex }}
         {...props}
       >
-        {children}
-        {showCloseButton && (
-          <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity outline-hidden hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none data-[state=open]:bg-secondary">
-            <XIcon className="size-4" />
-            <span className="sr-only">Close</span>
-          </SheetPrimitive.Close>
-        )}
+        <ModalLayerProvider layer={layer}>
+          {children}
+          {showCloseButton && (
+            <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity outline-hidden hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none data-[state=open]:bg-secondary">
+              <XIcon className="size-4" />
+              <span className="sr-only">Close</span>
+            </SheetPrimitive.Close>
+          )}
+        </ModalLayerProvider>
       </SheetPrimitive.Content>
     </SheetPortal>
   );

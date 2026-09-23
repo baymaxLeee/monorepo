@@ -115,22 +115,31 @@
 .nodeHeader {
   display: flex;
   width: 100%;
+  min-width: 0;
   height: 24px;
   align-items: center;
+  overflow: hidden;
   padding: 0;
   color: var(--muted-foreground);
   font-size: 13px;
   font-weight: 500;
 }
 
+.autoSizedMediaNode .nodeHeader {
+  // Keep long editable names out of the media node's intrinsic width calculation.
+  contain: inline-size;
+}
+
 .nodeHeaderContent {
   display: flex;
   box-sizing: border-box;
   width: fit-content;
+  min-width: 0;
   max-width: 100%;
   height: 24px;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
   padding: 0 6px;
   border-radius: 8px;
   background-color: color-mix(in srgb, @canvas-background-color 70%, transparent);
@@ -139,6 +148,7 @@
 
 .nodeHeaderContent .nodeTitleGroup {
   width: auto;
+  max-width: 100%;
   flex: 0 1 auto;
 }
 
@@ -172,13 +182,19 @@
   width: 0;
   height: 24px;
   min-width: 0;
+  max-width: 100%;
   flex: 1;
   align-items: center;
   gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .nodeTitleButton {
+  display: block;
+  min-width: 0;
   max-width: 100%;
+  overflow: hidden;
   padding: 0;
   cursor: text;
   border: 0;
@@ -186,6 +202,8 @@
   color: inherit;
   font: inherit;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nodeNameInput.nodeNameInput {
@@ -194,6 +212,7 @@
   height: 24px;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -217,8 +236,26 @@
 }
 
 .nodeNameInput.nodeNameInput :global([data-ui-input-control]) {
+  width: 100%;
+  height: 24px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   color: inherit;
   font: inherit;
+  outline: none;
+}
+
+.nodeNameInput.nodeNameInput :global([data-ui-input-control]):hover,
+.nodeNameInput.nodeNameInput :global([data-ui-input-control]):focus,
+.nodeNameInput.nodeNameInput :global([data-ui-input-control]):focus-visible {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
 }
 
 .textEditorShell {
@@ -1080,7 +1117,8 @@
   display: none;
 }
 
-.canvasMeta {
+.canvasMeta,
+.canvasMetaCollapsed {
   position: absolute;
   z-index: 5;
   bottom: 8px;
@@ -1094,10 +1132,19 @@
   backdrop-filter: blur(16px);
   color: #0c0d0e;
   font-size: 12px;
+  transition: left 300ms ease-in-out;
+}
+
+.canvasMeta {
+  left: 310px;
+}
+
+.canvasMetaCollapsed {
   left: 44px;
 }
 
-.canvasMeta button {
+.canvasMeta button,
+.canvasMetaCollapsed button {
   display: flex;
   width: 24px;
   height: 24px;
@@ -1111,11 +1158,14 @@
 }
 
 .canvasMeta button:hover,
-.canvasMeta .metaButtonActive {
+.canvasMetaCollapsed button:hover,
+.canvasMeta .metaButtonActive,
+.canvasMetaCollapsed .metaButtonActive {
   background: rgb(26 27 30 / 5%);
 }
 
-.canvasMeta svg {
+.canvasMeta svg,
+.canvasMetaCollapsed svg {
   display: block;
   width: 16px;
   height: 16px;
@@ -1125,12 +1175,14 @@
   transform: rotate(90deg) scaleY(-1);
 }
 
-.canvasMeta button:disabled {
+.canvasMeta button:disabled,
+.canvasMetaCollapsed button:disabled {
   cursor: not-allowed;
   opacity: 0.4;
 }
 
-.canvasMeta .zoomPercent {
+.canvasMeta .zoomPercent,
+.canvasMetaCollapsed .zoomPercent {
   display: inline-flex;
   width: auto;
   min-width: 24px;
@@ -1146,7 +1198,8 @@
   letter-spacing: 0.036px;
 }
 
-.canvasMeta .zoomPercent > span {
+.canvasMeta .zoomPercent > span,
+.canvasMetaCollapsed .zoomPercent > span {
   display: inline;
 }
 

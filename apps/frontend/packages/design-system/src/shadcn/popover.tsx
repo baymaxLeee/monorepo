@@ -3,6 +3,7 @@ import { Popover as PopoverPrimitive } from "radix-ui";
 import * as React from "react";
 
 import { type HoverTriggerHandlers, type TriggerKind, useHoverTrigger } from "../utils/useHoverTrigger";
+import { usePortalLayerStyle } from "./portal-layer";
 
 const PopoverHoverContext = React.createContext<HoverTriggerHandlers | null>(null);
 const usePopoverHoverHandlers = () => React.useContext(PopoverHoverContext);
@@ -91,17 +92,20 @@ function PopoverContent({
   container,
   onMouseEnter,
   onMouseLeave,
+  style,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content> & {
   container?: HTMLElement | null;
 }) {
   const hover = usePopoverHoverHandlers();
+  const layerStyle = usePortalLayerStyle(style);
   return (
     <PopoverPrimitive.Portal container={container ?? undefined}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}
         sideOffset={sideOffset}
+        style={layerStyle}
         onMouseEnter={(event) => {
           hover?.onMouseEnter();
           onMouseEnter?.(event);

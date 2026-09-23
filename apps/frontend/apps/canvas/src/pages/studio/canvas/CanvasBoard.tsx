@@ -37,6 +37,7 @@ import type { CanvasStatePubSub } from "../domain/canvasStatePubSub";
 import { assetFromCanvasNode, projectCanvasNodeAssets } from "../domain/model";
 import { canvasAssetDetailsAtom, useStudioAssetStore } from "../store/assets";
 import {
+  assetsPanelOpenAtom,
   canvasGraphLoadedAtom,
   canvasNodesAtom,
   defaultImageModelIdAtom,
@@ -102,6 +103,7 @@ import { nodeTypes } from "./nodes/CanvasCard";
 import styles from "./CanvasBoard.module.less";
 
 function CanvasBoardInner({
+  assetsOpen,
   canvasId,
   controllerRef,
   defaultVideoModelId,
@@ -115,6 +117,7 @@ function CanvasBoardInner({
   projectId,
   statePubSub,
 }: {
+  assetsOpen: boolean;
   canvasId: string;
   controllerRef: Ref<CanvasBoardHandle>;
   defaultVideoModelId: string;
@@ -990,6 +993,7 @@ function CanvasBoardInner({
         </CanvasContentActionsContext.Provider>
 
         <CanvasBoardControls
+          assetsOpen={assetsOpen}
           graphLoaded={graphLoaded}
           nodeCount={nodes.length}
           canArrange={nodes.length > 0 && hasMeasuredCanvasNodes(nodes)}
@@ -1180,6 +1184,7 @@ export const CanvasBoard = forwardRef<
   ref,
 ) {
   const { projectId = "", canvasId = "" } = useParams();
+  const assetsOpen = useAtomValue(assetsPanelOpenAtom);
   const defaultVideoModelId = useAtomValue(defaultVideoModelIdAtom);
   const defaultImageModelId = useAtomValue(defaultImageModelIdAtom);
   const defaultTextModelId = useAtomValue(defaultTextModelIdAtom);
@@ -1188,6 +1193,7 @@ export const CanvasBoard = forwardRef<
   return (
     <ReactFlowProvider>
       <CanvasBoardInner
+        assetsOpen={assetsOpen}
         canvasId={canvasId}
         controllerRef={ref}
         defaultImageModelId={defaultImageModelId}

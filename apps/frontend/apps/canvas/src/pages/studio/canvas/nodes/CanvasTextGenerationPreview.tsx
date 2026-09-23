@@ -6,8 +6,6 @@ import t from "@/utils/i18n";
 
 import styles from "./CanvasTextGenerationPreview.module.less";
 
-const PREVIEW_MODAL_Z_INDEX = 100;
-
 export function CanvasTextGenerationPreview({
   content,
   onClose,
@@ -20,7 +18,7 @@ export function CanvasTextGenerationPreview({
   visible: boolean;
 }) {
   return (
-    <GenerationEditorDialog onClose={onClose} visible={visible} zIndex={PREVIEW_MODAL_Z_INDEX}>
+    <GenerationEditorDialog onClose={onClose} visible={visible}>
       <section
         className="nodrag nopan nowheel flex h-full w-full flex-col gap-5"
         onDoubleClick={(event) => event.stopPropagation()}

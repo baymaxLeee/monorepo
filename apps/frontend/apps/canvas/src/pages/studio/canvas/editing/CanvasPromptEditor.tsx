@@ -24,10 +24,6 @@ import styles from "./CanvasPromptEditor.module.less";
 
 export type CanvasPromptEditorVariant = "text" | "image" | "video";
 
-// 编辑器浮层跟随弹窗容器挂载，并始终高于编辑弹窗和画布节点。
-const EDITOR_MODAL_Z_INDEX = 100;
-const EDITOR_POPUP_Z_INDEX = EDITOR_MODAL_Z_INDEX + 1;
-
 export interface CanvasPromptEditorProps {
   actionDisabled?: boolean;
   matchProjectId?: string;
@@ -240,7 +236,6 @@ export function CanvasPromptEditor({
             codeBlock: false,
           }}
           onChange={changeValue}
-          popupConfig={{ zIndex: EDITOR_POPUP_Z_INDEX }}
           value={value}
         />
       </div>
@@ -262,7 +257,7 @@ export function CanvasPromptEditor({
   return (
     <>
       {renderEditor(false)}
-      <GenerationEditorDialog onClose={() => setExpanded(false)} visible={expanded} zIndex={EDITOR_MODAL_Z_INDEX}>
+      <GenerationEditorDialog onClose={() => setExpanded(false)} visible={expanded}>
         {renderEditor(true)}
       </GenerationEditorDialog>
     </>

@@ -3,8 +3,8 @@ import {
   History as IconAgentHistory,
   PackageOpen as IconBatchExport,
   ChevronLeft as IconLeft,
-  LayoutDashboard as IconCanvasMode,
-  Rows3 as IconStoryboardMode,
+  Palette as IconCanvasMode,
+  Presentation as IconStoryboardMode,
   Sparkles as IconWkfOptimization,
   MessageCircle as IconChat,
 } from "lucide-react";

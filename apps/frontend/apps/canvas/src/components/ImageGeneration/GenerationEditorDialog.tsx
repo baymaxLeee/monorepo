@@ -7,19 +7,17 @@ export function GenerationEditorDialog({
   children,
   onClose,
   visible,
-  zIndex,
 }: {
   children: ReactNode;
   onClose: () => void;
   visible: boolean;
-  zIndex?: number;
 }) {
   return (
     <Dialog open={visible} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${styles.modal}`}
         showCloseButton={false}
-        style={{ maxWidth: "92vw", zIndex }}
+        style={{ maxWidth: "92vw" }}
       >
         <DialogTitle className="sr-only">编辑生成内容</DialogTitle>
         <DialogDescription className="sr-only">编辑当前生成内容</DialogDescription>

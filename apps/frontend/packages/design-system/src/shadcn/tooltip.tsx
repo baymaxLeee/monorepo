@@ -2,6 +2,8 @@ import { cn } from "@repo/shared";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { forwardRef } from "react";
 
+import { usePortalLayerStyle } from "./portal-layer";
+
 function TooltipProvider({ delayDuration = 0, ...props }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />;
 }
@@ -22,15 +24,18 @@ function TooltipContent({
   sideOffset = 0,
   children,
   container,
+  style,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content> & {
   container?: HTMLElement | null;
 }) {
+  const layerStyle = usePortalLayerStyle(style);
   return (
     <TooltipPrimitive.Portal container={container ?? undefined}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}
+        style={layerStyle}
         className={cn(
           "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-foreground px-3 py-1.5 text-xs text-balance text-background fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className,

@@ -2,6 +2,8 @@ import { cn } from "@repo/shared";
 import type * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
+import { ModalLayerProvider, useModalLayer } from "./portal-layer";
+
 function Drawer({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
   return <DrawerPrimitive.Root data-slot="drawer" {...props} />;
 }
@@ -31,10 +33,18 @@ function DrawerOverlay({ className, ...props }: React.ComponentProps<typeof Draw
   );
 }
 
-function DrawerContent({ className, children, ...props }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+function DrawerContent({
+  className,
+  children,
+  popupZIndex,
+  style,
+  zIndex,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Content> & { popupZIndex?: number; zIndex?: number }) {
+  const layer = useModalLayer({ popupZIndex, zIndex });
   return (
     <DrawerPortal data-slot="drawer-portal">
-      <DrawerOverlay />
+      <DrawerOverlay style={{ zIndex: layer.modalZIndex - 1 }} />
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
@@ -45,10 +55,13 @@ function DrawerContent({ className, children, ...props }: React.ComponentProps<t
           "data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-3/4 data-[vaul-drawer-direction=left]:border-r data-[vaul-drawer-direction=left]:sm:max-w-sm",
           className,
         )}
+        style={{ ...style, zIndex: layer.modalZIndex }}
         {...props}
       >
-        <div className="mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
-        {children}
+        <ModalLayerProvider layer={layer}>
+          <div className="mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+          {children}
+        </ModalLayerProvider>
       </DrawerPrimitive.Content>
     </DrawerPortal>
   );

@@ -34,7 +34,6 @@ export interface AssetReviewDialogProps {
   onPartialSuccess?: (results: asset.SubmitAssetReviewResponse[]) => Promise<void> | void;
   onRetry?: () => void;
   onSuccess: (results: asset.SubmitAssetReviewResponse[]) => Promise<void> | void;
-  zIndex?: number;
 }
 
 export function AssetReviewDialog({
@@ -48,7 +47,6 @@ export function AssetReviewDialog({
   onPartialSuccess,
   onRetry,
   onSuccess,
-  zIndex,
 }: AssetReviewDialogProps) {
   const loadSequenceRef = useRef(0);
   const [packages, setPackages] = useState<benefit_package.BenefitPackage[]>([]);
@@ -144,7 +142,7 @@ export function AssetReviewDialog({
         onEscapeKeyDown={(event) => busy && event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
         showCloseButton={!busy}
-        style={{ maxWidth: "92vw", zIndex }}
+        style={{ maxWidth: "92vw" }}
       >
         <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">
           <DialogTitle className="canvas-modal-title">{t("合规审核")}</DialogTitle>

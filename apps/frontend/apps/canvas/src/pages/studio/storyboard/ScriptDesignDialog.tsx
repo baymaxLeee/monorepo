@@ -77,7 +77,6 @@ export interface ScriptDesignModelOption {
 
 const VIDEO_DURATION_LIMIT_MIN_MINUTES = 1;
 const VIDEO_DURATION_LIMIT_MAX_MINUTES = 50;
-const MODAL_CHILD_POPUP_Z_INDEX = 1002;
 const STORYBOARD_RECOMMENDED_PLOT_CHARACTERS = 6000;
 const STORYBOARD_HARD_PLOT_CHARACTERS = 30000;
 
@@ -437,7 +436,6 @@ export function ScriptDesignDialog({
                   modelOptions={modelOptions}
                   onVideoSettingsChange={emitSettings}
                   parameters="video"
-                  popupZIndex={MODAL_CHILD_POPUP_Z_INDEX}
                   showDuration={false}
                   showModel={false}
                   summaryKeys={[...PARAM_SUMMARY_KEYS]}

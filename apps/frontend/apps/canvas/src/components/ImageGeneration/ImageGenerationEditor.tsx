@@ -39,7 +39,6 @@ export interface ImageGenerationEditorProps {
   onSettingsChange: (settings: ImageGenerationSettings) => void;
   onSettingsValidationChange?: (error: string | undefined) => void;
   popupPosition?: PopupPosition;
-  popupZIndex?: number;
   prompt: string;
   promptPlaceholder: string;
   referenceImageLimit: number;
@@ -68,7 +67,6 @@ export function ImageGenerationEditor({
   onSettingsChange,
   onSettingsValidationChange,
   popupPosition,
-  popupZIndex,
   prompt,
   promptPlaceholder,
   referenceImageLimit,
@@ -118,7 +116,6 @@ export function ImageGenerationEditor({
               }
               onRemove={onReferenceRemove}
               onUpload={onReferenceUpload}
-              popupZIndex={popupZIndex}
               showStats={expanded}
               statsLabel={t("参考图统计")}
             />
@@ -158,7 +155,6 @@ export function ImageGenerationEditor({
             onValidationChange={onSettingsValidationChange}
             parameters="image"
             popupPosition={popupPosition}
-            popupZIndex={popupZIndex}
           />
         </div>
         <div className="flex items-center gap-2">

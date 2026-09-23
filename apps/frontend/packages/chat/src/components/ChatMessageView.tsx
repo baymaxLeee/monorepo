@@ -9,7 +9,6 @@ import {
   ConfirmationTitle,
   MessageContent,
   MessageResponse,
-  mergeReasoningParts,
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
@@ -17,7 +16,6 @@ import {
   ToolContent,
   ToolHeader,
   ToolJsonBlock,
-  withoutReasoningParts,
 } from "@repo/ai-elements";
 import type { ConversationDocument } from "@repo/api";
 import { Badge } from "@repo/design-system";
@@ -80,10 +78,6 @@ export function ChatMessageView({
   planExecutedIds,
   planBusy,
 }: ChatMessageViewProps) {
-  const reasoning = mergeReasoningParts(message.parts, {
-    isMessageStreaming: streaming,
-  });
-  const allVisibleParts = withoutReasoningParts(message.parts);
   const isUser = message.role === "user";
   const variant = isUser ? "user" : "assistant";
 
@@ -109,15 +103,15 @@ export function ChatMessageView({
 
   return (
     <AiMessage from={message.role} className={cn(!isUser && "max-w-full items-stretch")}>
-      <MessageContent className={cn(!isUser && "w-full")}>
+      <MessageContent
+        className={cn(
+          isUser
+            ? "scrollbar-thin max-h-[min(24rem,50vh)] overflow-x-hidden overflow-y-auto! overscroll-contain"
+            : "w-full",
+        )}
+      >
         <div className={cn(isUser ? "flex flex-wrap items-center gap-x-1 gap-y-2 leading-relaxed" : "space-y-3")}>
-          {reasoning ? (
-            <Reasoning isStreaming={reasoning.isStreaming}>
-              <ReasoningTrigger />
-              <ReasoningContent>{reasoning.text}</ReasoningContent>
-            </Reasoning>
-          ) : null}
-          {allVisibleParts.map(({ part, index }) => (
+          {message.parts.map((part, index) => (
             <MessagePartView
               key={partKey(message.id, part, index)}
               part={part}
@@ -147,6 +141,9 @@ export function ChatMessageView({
 function partKey(messageId: string, part: UIMessage["parts"][number], index: number) {
   if (isToolUIPart(part)) {
     return `${messageId}-${part.toolCallId}`;
+  }
+  if (part.type === "reasoning" && part.id) {
+    return `${messageId}-${part.id}`;
   }
   return `${messageId}-${part.type}-${index}`;
 }
@@ -186,15 +183,24 @@ function MessagePartView({
   planExecutedIds: ReadonlySet<string>;
   planBusy: boolean;
 }) {
+  if (part.type === "reasoning") {
+    const isReasoningStreaming = streaming && part.state === "streaming";
+    if (!isReasoningStreaming && !part.text.trim()) {
+      return null;
+    }
+    return (
+      <Reasoning autoCloseOnFinish autoOpenOnStream isStreaming={isReasoningStreaming}>
+        <ReasoningTrigger />
+        <ReasoningContent>{part.text}</ReasoningContent>
+      </Reasoning>
+    );
+  }
+
   if (part.type === "text") {
     if (variant === "user") {
       return <span className="whitespace-pre-wrap break-words">{part.text}</span>;
     }
     return <MessageResponse isAnimating={streaming}>{part.text}</MessageResponse>;
-  }
-
-  if (part.type === "reasoning") {
-    return null;
   }
 
   if (part.type === "data-skill-activation") {

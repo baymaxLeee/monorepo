@@ -15,7 +15,6 @@ import t from "@/utils/i18n";
 
 import { SearchInput } from "../../../components/SearchInput";
 import { BatchActionBar } from "../components/BatchActionBar";
-import { RESOURCE_ASSETS_POPUP_Z_INDEX, RESOURCE_ASSET_DETAIL_MODAL_Z_INDEX } from "../components/resourceAssetsLayers";
 import {
   addResourceFile,
   batchDeleteResourceFiles,
@@ -496,10 +495,7 @@ export function ResourceAssetsPageContent({
                       }
                       position="bl"
                       trigger="click"
-                      triggerProps={{
-                        autoAlignPopupWidth: true,
-                        style: { zIndex: RESOURCE_ASSETS_POPUP_Z_INDEX },
-                      }}
+                      triggerProps={{ autoAlignPopupWidth: true }}
                     >
                       <Button disabled={busy || batchSelecting} icon={<IconPlus />} loading={uploading} type="primary">
                         {t("添加{materialName}", { materialName })}
@@ -642,7 +638,6 @@ export function ResourceAssetsPageContent({
           busy={busy}
           materialName={materialName}
           resourceType={resourceType ?? resource.ResourceType.CHARACTER}
-          zIndex={RESOURCE_ASSET_DETAIL_MODAL_Z_INDEX}
           onClose={backToList}
           onDownload={() => downloadAsset(detailFile)}
           onRename={
@@ -746,7 +741,6 @@ export function ResourceAssetsPageContent({
           }}
           projectId={projectId}
           visible
-          zIndex={RESOURCE_ASSET_DETAIL_MODAL_Z_INDEX}
         />
       ) : null}
       {batchSelecting ? (

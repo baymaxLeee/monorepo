@@ -72,6 +72,7 @@ export function CanvasNodeName({
   if (editing) {
     return (
       <Input
+        autoFocus
         className={`${styles.nodeNameInput} nodrag nopan`}
         onBlur={finish}
         onChange={setValue}

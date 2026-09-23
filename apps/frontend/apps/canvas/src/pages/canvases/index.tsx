@@ -98,7 +98,7 @@ function CanvasCard({
             </div>
           )}
           <span className="absolute bottom-2 left-2 inline-flex h-6 items-center gap-1 rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[13px] font-medium leading-5.5 text-white">
-            <IconClockCircle className="text-[14px]" />
+            <IconClockCircle aria-hidden size={14} strokeWidth={1.5} />
             {hasVideo ? formatDurationMillis(item.Stats.SelectedVideoDurationMillis) : "--:--"}
           </span>
         </div>

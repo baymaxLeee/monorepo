@@ -34,7 +34,6 @@ export function ResourceAssetDetailDialog({
   onReview,
   onSetPrimary,
   onStopGeneration,
-  zIndex,
 }: {
   asset: resource.ResourceAsset;
   busy?: boolean;
@@ -55,7 +54,6 @@ export function ResourceAssetDetailDialog({
   onReview?: () => void;
   onSetPrimary?: () => unknown | Promise<unknown>;
   onStopGeneration?: () => void | Promise<void>;
-  zIndex?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +99,7 @@ export function ResourceAssetDetailDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${styles.modal}`}
-        style={{ maxWidth: "92vw", zIndex }}
+        style={{ maxWidth: "92vw" }}
       >
         <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">
           <DialogTitle className="canvas-modal-title">

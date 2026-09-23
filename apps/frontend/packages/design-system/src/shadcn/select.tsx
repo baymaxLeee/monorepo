@@ -5,6 +5,8 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import * as React from "react";
 
+import { usePortalLayerStyle } from "./portal-layer";
+
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />;
 }
@@ -48,10 +50,12 @@ function SelectContent({
   position = "item-aligned",
   align = "center",
   container,
+  style,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content> & {
   container?: HTMLElement | null;
 }) {
+  const layerStyle = usePortalLayerStyle(style);
   return (
     <SelectPrimitive.Portal container={container ?? undefined}>
       <SelectPrimitive.Content
@@ -64,6 +68,7 @@ function SelectContent({
         )}
         position={position}
         align={align}
+        style={layerStyle}
         {...props}
       >
         <SelectScrollUpButton />

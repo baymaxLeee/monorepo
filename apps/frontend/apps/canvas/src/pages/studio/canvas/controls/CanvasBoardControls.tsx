@@ -33,6 +33,7 @@ function CanvasZoomPercent() {
 }
 
 export function CanvasBoardControls({
+  assetsOpen,
   graphLoaded,
   nodeCount,
   canArrange,
@@ -47,6 +48,7 @@ export function CanvasBoardControls({
   activateInteractionMode,
   openToolbarAddMenu,
 }: {
+  assetsOpen: boolean;
   graphLoaded: boolean;
   nodeCount: number;
   canArrange: boolean;
@@ -119,7 +121,7 @@ export function CanvasBoardControls({
 
   return (
     <>
-      <div className={styles.canvasMeta}>
+      <div className={assetsOpen ? styles.canvasMeta : styles.canvasMetaCollapsed}>
         <Tooltip
           content={
             <span className={styles.tooltipContent}>

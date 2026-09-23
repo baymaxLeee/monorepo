@@ -83,13 +83,6 @@ export {
   type MessageToolbarProps,
 } from "./message";
 export {
-  type IndexedUIMessagePart,
-  type MergedReasoningPart,
-  mergeReasoningParts,
-  type UIMessagePart,
-  withoutReasoningParts,
-} from "./message-parts";
-export {
   ModelSelector,
   ModelSelectorGroup,
   type ModelSelectorGroupProps,

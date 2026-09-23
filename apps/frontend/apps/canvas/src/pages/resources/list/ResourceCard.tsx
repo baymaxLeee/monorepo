@@ -138,7 +138,7 @@ export function ResourceCard({
                 aria-label={t("{count} 个素材", {
                   count: item.ResourceAssetCount,
                 })}
-                className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] border border-foreground bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
+                className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
               >
                 <span className="inline-flex text-[14px]">{typeIcon}</span>
                 {item.ResourceAssetCount}

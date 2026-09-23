@@ -129,11 +129,11 @@ function ProjectCard({
         </div>
         <div className="flex h-6 items-center gap-3 px-3">
           <span className="inline-flex items-center gap-1 rounded-[8px] border border-border bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
-            <IconClockCircle className="text-[14px]" />
+            <IconClockCircle aria-hidden size={14} strokeWidth={1.5} />
             {project.duration}
           </span>
           <span className="inline-flex items-center gap-1 rounded-[8px] border border-border bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
-            <IconProjectFill className="text-[14px]" />
+            <IconProjectFill aria-hidden size={14} strokeWidth={1.5} />
             {t("{count} 个资产", { count: project.assets })}
           </span>
         </div>

@@ -1,5 +1,7 @@
 # Frontend Monorepo — Micro-frontends (Module Federation 2.0)
 
+For UI, design-system, component primitive, or overlay work, read the repository-root `DESIGN.md` before editing. It is the current executable design specification; ADRs only preserve decision history.
+
 React 18 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
 
 ## Architecture
@@ -103,6 +105,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - **State**: shared cross-MFE state primitives live in `@repo/runtime`; `zustand`, `zustand/middleware`, and shallow selector helpers are host-provided MF singletons. Private MFE stores may import `create` / `useShallow` directly from `zustand` packages; do not wrap static Zustand APIs in `@repo/runtime`.
 - **Shell 布局（Codex 式左右布局）**: platform `Layout` 是**透明 host**——只做埋点，不渲染任何全局 chrome DOM（无顶栏/侧栏）。认证、组织准入与应用权限统一由 platform route `middleware` 处理，业务组件不得自行实现首屏路由守卫。可见外壳由各 MFE 自持：`chat` 是主壳（左侧栏含品牌 + 会话列表 + 左下角用户区，用户区下拉聚合设置/记忆/团队切换/退出），`admin` 是「设置」壳（左侧「返回应用」+ 分组菜单 + 内容区）。登录落地 `/platform/chat`；跨 app 跳转走 chat 用户区（→ admin）与 admin 的「返回应用」（→ chat）。不要把顶栏加回 platform。
 - **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `@repo/design-system` 导出）
+- **浮层层级**: Dialog / AlertDialog / Sheet / Drawer 及其 portalled popup 必须遵循根 `DESIGN.md#overlay-layering`。业务代码不得维护 z-index 数字表或向子组件逐层透传 popup z-index；新增或修改浮层原语时先读该规范。
 - **MFE 内 Provider**: 每个 remote 的 `App` 也要挂载自己的 `TooltipProvider`；`Toaster` 保持由 platform 统一挂载
 - **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
 - **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`

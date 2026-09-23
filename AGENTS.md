@@ -23,7 +23,8 @@ while descending into the target directory.
 
 | Task | Required route |
 |---|---|
-| Frontend app/package | `apps/frontend/AGENTS.md` → closest app/package `AGENTS.md` |
+| Frontend UI, design-system, or overlay | `apps/frontend/AGENTS.md` → `DESIGN.md` → closest app/package `AGENTS.md` |
+| Frontend app/package (non-UI) | `apps/frontend/AGENTS.md` → closest app/package `AGENTS.md` |
 | Backend service/library | `apps/backend/AGENTS.md` → service `AGENTS.md` when present |
 | Contracts/codegen | `schemas/AGENTS.md` |
 | Infrastructure/deployment | `infra/AGENTS.md` |

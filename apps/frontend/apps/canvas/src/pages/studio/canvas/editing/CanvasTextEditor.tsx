@@ -9,8 +9,6 @@ import { ScriptEditor } from "../../components/ScriptEditor";
 
 import styles from "./CanvasTextEditor.module.less";
 
-const EDITOR_MODAL_Z_INDEX = 100;
-
 export interface CanvasTextEditorProps {
   expanded: boolean;
   initialValue: string;
@@ -58,7 +56,7 @@ export function CanvasTextEditor({
   return (
     <>
       {renderEditor()}
-      <GenerationEditorDialog onClose={onCollapse} visible={expanded} zIndex={EDITOR_MODAL_Z_INDEX}>
+      <GenerationEditorDialog onClose={onCollapse} visible={expanded}>
         <section
           className="nodrag nopan nowheel flex h-full w-full flex-col gap-5"
           onDoubleClick={(event) => event.stopPropagation()}

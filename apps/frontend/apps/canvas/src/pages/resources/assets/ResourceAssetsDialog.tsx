@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/des
 
 import type { resource } from "@/domain";
 
-import { RESOURCE_ASSETS_MODAL_Z_INDEX } from "../components/resourceAssetsLayers";
 import { type ResourceAssetsInitialAction, ResourceAssetsPageContent } from "./ResourceAssetsPage";
 
 import styles from "./ResourceAssetsDialog.module.less";
@@ -25,7 +24,7 @@ export function ResourceAssetsDialog({
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${styles.modal}`}
         onPointerDownOutside={(event) => event.preventDefault()}
-        style={{ maxWidth: "92vw", zIndex: RESOURCE_ASSETS_MODAL_Z_INDEX }}
+        style={{ maxWidth: "92vw" }}
       >
         <DialogTitle className="sr-only">资产详情</DialogTitle>
         <DialogDescription className="sr-only">查看和管理资产详情</DialogDescription>

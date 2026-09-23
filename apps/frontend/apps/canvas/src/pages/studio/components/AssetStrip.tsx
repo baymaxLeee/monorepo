@@ -45,14 +45,10 @@ const ADD_ASSET_BUTTON_CLASS =
   "flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[12px] border border-dashed border-muted-foreground/40 bg-background p-0 text-[27px] text-muted-foreground outline-hidden focus-visible:border-ring focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 const ACTIVE_ADD_ASSET_BUTTON_CLASS = "cursor-pointer hover:border-muted-foreground/70 hover:text-foreground";
 
-// AssetStrip 挂载到 body 的浮层需要高于宿主弹窗。
-const MODAL_POPUP_Z_INDEX = 1002;
-
 function AssetThumb({
   interactionDisabled = false,
   editable,
   asset,
-  popupZIndex,
   reviewAsset,
   onAddToLibrary,
   onRemove,
@@ -60,7 +56,6 @@ function AssetThumb({
   editable: boolean;
   interactionDisabled?: boolean;
   asset: StoryboardAsset;
-  popupZIndex: number;
   reviewAsset?: NonNullable<AssetMentionSource["review"]>;
   onAddToLibrary?: () => void;
   onRemove: (id: string) => void;
@@ -124,12 +119,7 @@ function AssetThumb({
        * 的 onClick 再次 setPreviewVisible(true)，导致预览关不掉。
        */}
       {previewable ? (
-        <ImagePreview
-          src={asset.previewUrl as string}
-          style={{ zIndex: popupZIndex }}
-          visible={previewVisible}
-          onVisibleChange={setPreviewVisible}
-        />
+        <ImagePreview src={asset.previewUrl as string} visible={previewVisible} onVisibleChange={setPreviewVisible} />
       ) : null}
     </>
   );
@@ -148,7 +138,6 @@ export function AssetStrip({
   categories = ALL_ASSET_CATEGORIES,
   emptyHint = t("键入 @ 可快速调整镜头时长、引用资产"),
   reserveEmptySpace = false,
-  popupZIndex = MODAL_POPUP_Z_INDEX,
   showStats = true,
   statsLabel,
   onRemove,
@@ -169,8 +158,6 @@ export function AssetStrip({
   /** 故事板始终预留素材行，避免切换空分镜或编辑态时正文跳动。 */
   reserveEmptySpace?: boolean;
   assets: StoryboardAsset[];
-  /** Portal 浮层需要高于当前宿主弹窗；未传时保持普通弹窗层级。 */
-  popupZIndex?: number;
   /** 紧凑生成面板可隐藏统计行；默认保留分镜编辑器现有展示。 */
   showStats?: boolean;
   statsPrefix?: ReactNode;
@@ -225,7 +212,6 @@ export function AssetStrip({
                       interactionDisabled={interactionDisabled}
                       asset={frame}
                       editable={editable}
-                      popupZIndex={popupZIndex}
                       onAddToLibrary={
                         addAssetToLibrary &&
                         frame.source === "canvasnode" &&
@@ -297,7 +283,6 @@ export function AssetStrip({
                   editable={editable}
                   key={asset.draftId ?? asset.id}
                   asset={asset}
-                  popupZIndex={popupZIndex}
                   onAddToLibrary={
                     addAssetToLibrary &&
                     asset.source === "canvasnode" &&
@@ -320,12 +305,7 @@ export function AssetStrip({
 
         {(editable || (reserveEmptySpace && assets.length === 0)) && !firstLastFrame ? (
           <>
-            <Tooltip
-              className={FORMAT_TIP_POPUP}
-              content={formatTip(categories)}
-              position="bottom"
-              triggerProps={{ style: { zIndex: popupZIndex } }}
-            >
+            <Tooltip className={FORMAT_TIP_POPUP} content={formatTip(categories)} position="bottom">
               <span className="inline-flex shrink-0">
                 <button
                   aria-label={t("上传资产")}

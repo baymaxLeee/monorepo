@@ -52,7 +52,6 @@ interface CommonProps {
   modelOptions?: GenerationModelOption[];
   modelsLoading?: boolean;
   popupPosition?: PopupPosition;
-  popupZIndex?: number;
   renderModelOption?: (model: GenerationModelOption) => ReactNode;
 }
 
@@ -207,7 +206,6 @@ function VideoParameters({
   fillWidth,
   modelOptions,
   popupPosition,
-  popupZIndex,
   settings,
   showDuration,
   showRatio,
@@ -219,7 +217,6 @@ function VideoParameters({
   fillWidth: boolean;
   modelOptions: GenerationModelOption[];
   popupPosition?: PopupPosition;
-  popupZIndex?: number;
   settings: GenerationSettings;
   showDuration: boolean;
   showRatio: boolean;
@@ -253,7 +250,6 @@ function VideoParameters({
       }
       position={popupPosition ?? "bl"}
       trigger="click"
-      triggerProps={popupZIndex === undefined ? undefined : { style: { zIndex: popupZIndex } }}
     >
       <span
         className={`${CHIP_CLASS} min-w-[88px] shrink overflow-hidden ${fillWidth ? "w-full" : ""} ${compact ? "gap-1 px-2 text-[11px]" : ""} ${disabled ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer"}`}
@@ -274,7 +270,6 @@ export function GenerationConfiguration(props: GenerationConfigurationProps) {
     modelOptions = [],
     modelsLoading = false,
     popupPosition,
-    popupZIndex,
     renderModelOption,
   } = props;
   const model = props.parameters === "image" ? props.imageSettings.model : props.videoSettings.model;
@@ -431,7 +426,6 @@ export function GenerationConfiguration(props: GenerationConfigurationProps) {
               showWatermark={selectedImageModel?.capabilities.watermarkSupported === true}
             />
           )}
-          style={popupZIndex === undefined ? undefined : { zIndex: popupZIndex }}
           trigger="click"
         >
           <span className={`${CHIP_CLASS} ${disabled ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer"}`}>
@@ -459,7 +453,6 @@ export function GenerationConfiguration(props: GenerationConfigurationProps) {
           modelOptions={modelOptions}
           onChange={emitVideo}
           popupPosition={popupPosition}
-          popupZIndex={popupZIndex}
           settings={props.videoSettings}
           showDuration={props.showDuration !== false}
           showRatio={showRatio}

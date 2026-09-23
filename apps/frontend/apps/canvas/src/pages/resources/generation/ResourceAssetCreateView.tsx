@@ -17,11 +17,6 @@ import type { StoryboardAsset } from "../../studio/domain/types";
 import { ResourceAssetDetailDialog } from "../assets/ResourceAssetDetailDialog";
 import { useResourceUpload } from "../assets/useResourceUpload";
 import {
-  RESOURCE_ASSET_DETAIL_MODAL_Z_INDEX,
-  RESOURCE_GENERATION_EDITOR_MODAL_Z_INDEX,
-  RESOURCE_GENERATION_EDITOR_POPUP_Z_INDEX,
-} from "../components/resourceAssetsLayers";
-import {
   ASPECT_RATIO_FROM_API,
   ASPECT_RATIO_TO_API,
   RESOLUTION_FROM_API,
@@ -490,7 +485,6 @@ export function ResourceAssetCreateView({
     onSettingsChange: handleSettingsChange,
     onSettingsValidationChange: setSettingsError,
     popupPosition: "top" as const,
-    popupZIndex: RESOURCE_GENERATION_EDITOR_POPUP_Z_INDEX,
     prompt,
     promptPlaceholder: getResourceGenerationPromptPlaceholder(resourceType, materialName),
     referenceImageLimit: referenceLimit,
@@ -511,7 +505,6 @@ export function ResourceAssetCreateView({
       loading={generating && !previewUrl}
       materialName={materialName}
       resourceType={resource.ResourceType.CHARACTER}
-      zIndex={RESOURCE_ASSET_DETAIL_MODAL_Z_INDEX}
       onClose={onBack}
       onDownload={onDownload}
       onRename={onRename}
@@ -529,7 +522,6 @@ export function ResourceAssetCreateView({
         }}
         title={name}
         visible={editorExpanded}
-        zIndex={RESOURCE_GENERATION_EDITOR_MODAL_Z_INDEX}
       />
     </ResourceAssetDetailDialog>
   );

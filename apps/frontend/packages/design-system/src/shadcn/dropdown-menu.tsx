@@ -4,6 +4,7 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import { createContext, forwardRef, useContext } from "react";
 
 import { type HoverTriggerHandlers, type TriggerKind, useHoverTrigger } from "../utils/useHoverTrigger";
+import { usePortalLayerStyle } from "./portal-layer";
 
 const DropdownHoverContext = createContext<HoverTriggerHandlers | null>(null);
 const useDropdownHoverHandlers = () => useContext(DropdownHoverContext);
@@ -94,15 +95,18 @@ export function DropdownMenuContent({
   container,
   onMouseEnter,
   onMouseLeave,
+  style,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
   container?: HTMLElement | null;
 }) {
   const hover = useDropdownHoverHandlers();
+  const layerStyle = usePortalLayerStyle(style);
   return (
     <DropdownMenuPrimitive.Portal container={container ?? undefined}>
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
+        style={layerStyle}
         onMouseEnter={(event) => {
           hover?.onMouseEnter();
           onMouseEnter?.(event);
@@ -239,14 +243,17 @@ export function DropdownMenuSubTrigger({
 
 export function DropdownMenuSubContent({
   className,
+  style,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>) {
+  const layerStyle = usePortalLayerStyle(style);
   return (
     <DropdownMenuPrimitive.SubContent
       className={cn(
         "z-50 min-w-32 overflow-hidden rounded-md border bg-background p-1 text-foreground shadow-lg",
         className,
       )}
+      style={layerStyle}
       {...props}
     />
   );
