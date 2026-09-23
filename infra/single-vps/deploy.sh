@@ -3,7 +3,7 @@
 #
 # Secrets model (docs/ADR/0031): the VPS assembles its own compose `.env`, so
 # this script ships NO plaintext secrets. It only:
-#   - passes IMAGE_REGISTRY / IMAGE_TAG / PUBLIC_PORT through the environment
+#   - passes IMAGE_REGISTRY / IMAGE_TAG / PUBLIC_PORT / PUBLIC_GATEWAY_URL through the environment
 #   - rsyncs the ops files (compose + render-env.sh + the SOPS-encrypted
 #     secrets.sops.env) to the VPS
 #   - runs render-env.sh on the VPS (generates internal secrets, decrypts the
@@ -23,6 +23,7 @@
 #   IMAGE_REGISTRY  (required)     registry path images were pushed to
 #   IMAGE_TAG       (default main) which tag to deploy
 #   PUBLIC_PORT     (default 8080) host port nginx binds
+#   PUBLIC_GATEWAY_URL (default http://<remote-host>:<public-port>) browser-reachable gateway origin
 #   DEPLOY_DIR      (default /opt/monorepo) remote path
 
 set -euo pipefail
@@ -40,6 +41,15 @@ IMAGE_REGISTRY="${IMAGE_REGISTRY:?set IMAGE_REGISTRY, e.g. ghcr.io/owner/repo}"
 IMAGE_TAG="${IMAGE_TAG:-main}"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
 REMOTE_HOST="${REMOTE#*@}"
+PUBLIC_GATEWAY_URL="${PUBLIC_GATEWAY_URL:-http://${REMOTE_HOST}:${PUBLIC_PORT}}"
+
+case "${PUBLIC_GATEWAY_URL}" in
+    http://* | https://*) ;;
+    *)
+        echo "✗ PUBLIC_GATEWAY_URL must be an absolute http(s) URL: ${PUBLIC_GATEWAY_URL}" >&2
+        exit 1
+        ;;
+esac
 
 if [ ! -f "${HERE}/secrets.sops.env" ]; then
     echo "✗ ${HERE}/secrets.sops.env missing." >&2
@@ -66,7 +76,7 @@ rsync -avz --delete \
     "${HERE}/" "${REMOTE}:${DEPLOY_DIR}/"
 
 echo "→ rendering .env on remote (generate internal secrets + decrypt operator secrets)"
-ssh "${REMOTE}" "cd ${DEPLOY_DIR} && IMAGE_REGISTRY='${IMAGE_REGISTRY}' IMAGE_TAG='${IMAGE_TAG}' PUBLIC_PORT='${PUBLIC_PORT}' bash render-env.sh"
+ssh "${REMOTE}" "cd ${DEPLOY_DIR} && IMAGE_REGISTRY='${IMAGE_REGISTRY}' IMAGE_TAG='${IMAGE_TAG}' PUBLIC_PORT='${PUBLIC_PORT}' PUBLIC_GATEWAY_URL='${PUBLIC_GATEWAY_URL}' bash render-env.sh"
 
 # Compose validates every required interpolation as the final source of truth.
 echo "→ validating compose config on remote"

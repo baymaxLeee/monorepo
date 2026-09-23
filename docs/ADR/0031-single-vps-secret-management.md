@@ -39,9 +39,9 @@ Accepted — 2026-07-06
 VPS 成为"生成型密钥的 source of truth"，compose 的 `.env` **在 VPS 上按三段拼装**
 （`infra/single-vps/render-env.sh`）：
 
-1. **运行时变量**（`IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT`）——由
+1. **运行时变量**（`IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` / `PUBLIC_GATEWAY_URL`）——由
    `deploy.sh` / CI 通过环境变量传入。
-2. **机器内部密钥**（7 个 Postgres 密码 + `INTERNAL_API_TOKEN`）——VPS 上
+2. **机器内部密钥**（每个服务的 Postgres 密码 + `INTERNAL_API_TOKEN`）——VPS 上
    `openssl rand -hex 24` **生成一次并持久化**到 `${DEPLOY_DIR}/.env.secrets`
    （0600，永不进 git/CI），后续部署缺失才补、否则复用。
 3. **运维/外部密钥**（super-admin 登录、`EXA_API_KEY` / `TAVILY_API_KEY`、

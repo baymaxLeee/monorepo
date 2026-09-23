@@ -1,6 +1,6 @@
 name: build-images
 
-# Builds container images for all 6 service/infra targets and pushes them.
+# Builds all backend, frontend, and migration container images and pushes them.
 #
 # Push targets:
 #   1. GHCR — always. Free, public-friendly, no extra config required;
@@ -23,23 +23,29 @@ name: build-images
 on:
   push:
     branches: [main]
-    tags: ['v*.*.*']
+    tags: ["v*.*.*"]
     paths:
-      - 'apps/backend/**'
-      - 'apps/frontend/**'
-      - 'infra/single-vps/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'mise.toml'
+      - "apps/backend/**"
+      - "apps/frontend/**"
+      - "infra/single-vps/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "mise.toml"
       # db-init bakes scripts/db-migrate.sh (see Dockerfile.db-init); a change
       # there MUST rebuild images or the deployed migrator stays stale.
-      - 'scripts/**'
-      - '.github/workflows/build-images.yml'
+      - "scripts/**"
+      - ".github/workflows/build-images.yml"
   workflow_dispatch:
     inputs:
       tag:
         description: "Custom tag to push (overrides default tag strategy)"
         required: false
+
+# Only the newest build for a branch can deploy. Besides avoiding duplicate
+# registry uploads, this prevents a slow older run from deploying after a newer commit.
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   typecheck-typescript:
@@ -59,11 +65,14 @@ jobs:
   build:
     needs: typecheck-typescript
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
-      packages: write   # required to push to ghcr.io
+      packages: write # required to push to ghcr.io
     strategy:
       fail-fast: false
+      # Personal registries throttle many simultaneous layer uploads.
+      max-parallel: 3
       matrix:
         # gateway / iam / knowledge / admin / chat / executor / telemetry → backend service images
         # web                                      → nginx + bundled frontend SPA dist
@@ -164,7 +173,7 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to:   type=gha,scope=${{ matrix.service }},mode=max
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
           provenance: false
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

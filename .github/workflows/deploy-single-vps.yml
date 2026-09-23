@@ -18,6 +18,7 @@ name: deploy-single-vps
 #                              on the VPS (OpenSSH format, including the
 #                              BEGIN/END lines)
 #   vars.PUBLIC_PORT         — port the host exposes (default 8080)
+#   vars.PUBLIC_GATEWAY_URL  — optional public origin (default http://VPS_HOST:PUBLIC_PORT)
 #   vars.DEPLOY_DIR          — remote dir (default /opt/monorepo)
 #   vars.IMAGE_REGISTRY      — (optional) override default ghcr.io path
 
@@ -100,6 +101,7 @@ jobs:
           IMAGE_REGISTRY: ${{ steps.vars.outputs.registry }}
           IMAGE_TAG: ${{ steps.vars.outputs.tag }}
           PUBLIC_PORT: ${{ steps.vars.outputs.port }}
+          PUBLIC_GATEWAY_URL: ${{ vars.PUBLIC_GATEWAY_URL }}
           DEPLOY_DIR: ${{ steps.vars.outputs.deploy_dir }}
         run: |
           # deploy.sh rsyncs the ops files (incl. the SOPS-encrypted

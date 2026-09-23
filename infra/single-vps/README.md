@@ -75,7 +75,7 @@ hand-manage the middle-column "operator" secrets:
 
 | Bucket | Who sets it | Where it lives |
 |---|---|---|
-| `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` | CI / `deploy.sh` | passed in the environment |
+| `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` / `PUBLIC_GATEWAY_URL` | CI / `deploy.sh` | passed in the environment |
 | Database passwords + `INTERNAL_API_TOKEN` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
 | super-admin login, `EXA_API_KEY` / `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
 
@@ -151,7 +151,7 @@ git push origin main
 # wait ~5 minutes — watch GitHub Actions → build-images go green
 ```
 
-You should see 9 images in your registry: `gateway`, `iam`, `admin`, `chat`, `executor`, `knowledge`, `telemetry`, `web`, `db-init`.
+You should see 10 images in your registry: `gateway`, `iam`, `canvas`, `admin`, `chat`, `executor`, `knowledge`, `telemetry`, `web`, `db-init`.
 
 ### 5. Deploy (run on your laptop)
 
@@ -165,7 +165,7 @@ Output ends with the URL to open in a browser.
 
 ## (Optional but strongly recommended for China-hosted VPS) Mirror images to Tencent TCR
 
-GHCR is in the US. From a 3Mbps Tencent-Cloud Lighthouse box, the first pull of all 6 images is **~30 minutes** (limited by trans-Pacific link, not your bandwidth). Subsequent pulls are tiny because only the changed layer comes down, but every "first" pull on a fresh VPS hurts.
+GHCR is in the US. From a 3Mbps Tencent-Cloud Lighthouse box, the first pull of all 10 images is **~30 minutes** (limited by trans-Pacific link, not your bandwidth). Subsequent pulls are tiny because only the changed layer comes down, but every "first" pull on a fresh VPS hurts.
 
 Solution: have the CI also push every image to a **Tencent Container Registry (TCR) Personal Edition** in your TCR namespace. The VPS then pulls from intra-Tencent-Cloud (MB/s scale, **first pull drops to ~1–3 minutes**). The CI already supports this — it's just opt-in.
 
@@ -189,7 +189,7 @@ GitHub repo → Settings → Secrets and variables → Actions:
 | Secret | `TCR_USERNAME` | Tencent Cloud account ID (digits) |
 | Secret | `TCR_PASSWORD` | TCR access credential from step 1.4 |
 
-Next `build-images` run will mirror all 6 images to both GHCR and TCR.
+Next `build-images` run will mirror all 10 images to both GHCR and TCR.
 
 ### 3. One-time `docker login` on the VPS
 
@@ -238,11 +238,12 @@ And optionally these **Variables**:
 | Variable | Default |
 |---|---|
 | `PUBLIC_PORT` | `8080` |
+| `PUBLIC_GATEWAY_URL` | `http://<VPS_HOST>:<PUBLIC_PORT>` |
 | `DEPLOY_DIR` | `/opt/monorepo` |
 | `IMAGE_REGISTRY` | (auto-derived from repo) |
 
 Done. Now every `git push origin main`:
-1. `build-images.yml` builds & pushes the 9 images
+1. `build-images.yml` builds & pushes the 10 images
 2. `deploy-single-vps.yml` waits for build-images success, then SSH's to the VPS and runs the deploy
 3. After the health check succeeds, the deploy removes images not referenced by any container
 
@@ -326,7 +327,7 @@ The persistent data is in three named Docker volumes:
 - `monorepo_redis_data`
 - `monorepo_knowledge_data`
 
-Backup the volumes, copy to a bigger box / K8s cluster, restore. The 6 images are immutable so you can re-tag and push elsewhere without rebuilding.
+Backup the volumes, copy to a bigger box / K8s cluster, restore. The 10 images are immutable so you can re-tag and push elsewhere without rebuilding.
 
 When you eventually move to `infra/k8s/`, the manifests there use the same
 images and environment contracts.

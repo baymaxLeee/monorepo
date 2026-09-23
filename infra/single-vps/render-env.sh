@@ -6,7 +6,7 @@
 # into ${DEPLOY_DIR}/.env:
 #
 #   1. Runtime vars from the environment (set by deploy.sh / CI):
-#        IMAGE_REGISTRY, IMAGE_TAG, PUBLIC_PORT
+#        IMAGE_REGISTRY, IMAGE_TAG, PUBLIC_PORT, PUBLIC_GATEWAY_URL
 #   2. Machine-internal secrets — database passwords + INTERNAL_API_TOKEN —
 #      auto-generated ONCE and persisted in ./.env.secrets. Humans never see
 #      or type them. Regenerating is safe only on a fresh data volume, so we
@@ -33,6 +33,7 @@ INTERNAL_KEYS=(
   WORKFLOW_POSTGRES_PASSWORD
   IAM_POSTGRES_PASSWORD
   ADMIN_POSTGRES_PASSWORD
+  CANVAS_POSTGRES_PASSWORD
   CHAT_POSTGRES_PASSWORD
   EXECUTOR_POSTGRES_PASSWORD
   KNOWLEDGE_POSTGRES_PASSWORD
@@ -88,7 +89,7 @@ operator_env="$(sops --decrypt --input-type dotenv --output-type dotenv "${SOPS_
 # Enforce the classification boundary: operator secrets must not shadow the
 # runtime/internal keys (a duplicate would override the generated/injected value
 # since it is appended last), and must not still hold a CHANGE_ME placeholder.
-RESERVED=(IMAGE_REGISTRY IMAGE_TAG PUBLIC_PORT "${INTERNAL_KEYS[@]}")
+RESERVED=(IMAGE_REGISTRY IMAGE_TAG PUBLIC_PORT PUBLIC_GATEWAY_URL "${INTERNAL_KEYS[@]}")
 while IFS='=' read -r k v; do
   case "${k}" in ''|\#*) continue ;; esac
   for r in "${RESERVED[@]}"; do
@@ -114,6 +115,7 @@ EOF
   echo "IMAGE_REGISTRY=${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}"
   echo "IMAGE_TAG=${IMAGE_TAG:-main}"
   echo "PUBLIC_PORT=${PUBLIC_PORT:-8080}"
+  echo "PUBLIC_GATEWAY_URL=${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}"
   cat "${SECRETS_FILE}"
   printf '%s\n' "${operator_env}"
 } > "${OUT}"

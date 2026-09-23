@@ -18,6 +18,10 @@ BACKEND_JUSTFILE_PATH = ROOT / "apps" / "backend" / "justfile"
 ROOT_JUSTFILE_PATH = ROOT / "justfile"
 DEV_PREFLIGHT_PATH = ROOT / "scripts" / "dev-preflight.sh"
 SINGLE_VPS_PATH = ROOT / "infra" / "single-vps" / "docker-compose.prod.yml"
+SINGLE_VPS_RENDER_ENV_PATH = ROOT / "infra" / "single-vps" / "render-env.sh"
+SINGLE_VPS_OPERATOR_ENV_EXAMPLE_PATH = (
+    ROOT / "infra" / "single-vps" / "secrets.sops.env.example"
+)
 GATEWAY_MAIN_PATH = (
     ROOT / "apps" / "backend" / "services" / "gateway" / "cmd" / "server" / "main.go"
 )
@@ -277,6 +281,47 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
                     )
 
 
+def dotenv_keys(path: Path) -> set[str]:
+    return {
+        match.group(1)
+        for line in path.read_text().splitlines()
+        if (match := re.match(r"^([A-Z][A-Z0-9_]*)=", line))
+    }
+
+
+def validate_single_vps_environment(services: dict[str, dict[str, Any]]) -> None:
+    render_env = SINGLE_VPS_RENDER_ENV_PATH.read_text()
+    internal_match = re.search(r"(?ms)^INTERNAL_KEYS=\(\n(?P<body>.*?)^\)", render_env)
+    if not internal_match:
+        fail("single-vps render-env.sh missing INTERNAL_KEYS")
+    internal_keys = set(re.findall(r"(?m)^\s+([A-Z][A-Z0-9_]*)\s*$", internal_match.group("body")))
+
+    expected_database_keys = {"WORKFLOW_POSTGRES_PASSWORD"}
+    expected_database_keys.update(
+        f"{service_id.upper().replace('-', '_')}_POSTGRES_PASSWORD"
+        for service_id, config in services.items()
+        if config["databases"]
+    )
+    missing_database_keys = expected_database_keys - internal_keys
+    if missing_database_keys:
+        fail(
+            "single-vps render-env.sh does not generate database passwords: "
+            f"{sorted(missing_database_keys)}"
+        )
+
+    runtime_keys = {"IMAGE_REGISTRY", "IMAGE_TAG", "PUBLIC_PORT", "PUBLIC_GATEWAY_URL"}
+    operator_keys = dotenv_keys(SINGLE_VPS_OPERATOR_ENV_EXAMPLE_PATH)
+    required_compose_keys = set(
+        re.findall(r"\$\{([A-Z][A-Z0-9_]*):\?", SINGLE_VPS_PATH.read_text())
+    )
+    missing_sources = required_compose_keys - runtime_keys - internal_keys - operator_keys
+    if missing_sources:
+        fail(
+            "single-vps compose requires variables with no render-env source: "
+            f"{sorted(missing_sources)}"
+        )
+
+
 def validate_k8s_ports(services: dict[str, dict[str, Any]]) -> None:
     for service_id, config in services.items():
         port = config["port"]
@@ -333,6 +378,7 @@ def main() -> None:
     validate_procfile(services)
     validate_dev_entrypoints(services)
     validate_binding_environment(services)
+    validate_single_vps_environment(services)
     validate_k8s_ports(services)
     validate_gateway_routes(services)
     print(
