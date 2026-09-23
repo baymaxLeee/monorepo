@@ -29,7 +29,6 @@ export function stageUpload(options: UploadOptions) {
       options.onError(error instanceof Error ? error : new Error(String(error)));
     });
   return {
-    id: crypto.randomUUID(),
     abort: () => {
       if (controller.signal.aborted) return;
       controller.abort();

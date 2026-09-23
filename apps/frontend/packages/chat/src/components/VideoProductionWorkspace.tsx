@@ -7,7 +7,7 @@ import {
   type VideoShotPlan,
 } from "@repo/api";
 import { Badge, Button, ScrollArea, Separator, toast } from "@repo/design-system";
-import { getErrorMessage } from "@repo/shared";
+import { getErrorMessage, randomId } from "@repo/shared";
 import { Loader2Icon, RefreshCwIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -112,7 +112,7 @@ export function VideoProductionWorkspace({
     try {
       await submitDecision({
         action: "revise_storyboard",
-        action_id: crypto.randomUUID(),
+        action_id: randomId(),
         expected_version: production.version,
         shot_plan: shotPlan,
       });
@@ -130,7 +130,7 @@ export function VideoProductionWorkspace({
     try {
       await submitDecision({
         action: "request_take",
-        action_id: crypto.randomUUID(),
+        action_id: randomId(),
         expected_version: production.version,
         shot_id: shotId,
       });
@@ -147,7 +147,7 @@ export function VideoProductionWorkspace({
     try {
       await submitDecision({
         action: "approve_takes",
-        action_id: crypto.randomUUID(),
+        action_id: randomId(),
         expected_version: production.version,
         selections: selections.map((selection) => ({
           shot_id: selection.shotId,
@@ -166,7 +166,7 @@ export function VideoProductionWorkspace({
     }
     try {
       const common = {
-        action_id: crypto.randomUUID(),
+        action_id: randomId(),
         expected_version: production.version,
       };
       if (production.awaitingAction === "storyboard_approval") {
