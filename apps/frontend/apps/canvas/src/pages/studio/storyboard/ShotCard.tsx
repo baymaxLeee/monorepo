@@ -6,7 +6,7 @@ import {
   Video as IconVideoDefault,
 } from "lucide-react";
 
-import { openDeleteConfirmDialog } from "@/components/compat";
+import { openDeleteConfirmDialog } from "@/components/common";
 import { Tooltip } from "@/components/ui";
 import t from "@/utils/i18n";
 

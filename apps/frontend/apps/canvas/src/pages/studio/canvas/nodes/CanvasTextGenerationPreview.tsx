@@ -1,6 +1,6 @@
 import { Minimize2 as IconAbbreviation } from "lucide-react";
 
-import { Markdown as MarkDown } from "@/components/compat";
+import { Markdown } from "@/components/common";
 import { GenerationEditorDialog } from "@/components/ImageGeneration/GenerationEditorDialog";
 import t from "@/utils/i18n";
 
@@ -36,7 +36,7 @@ export function CanvasTextGenerationPreview({
           </button>
         </div>
         <div className={styles.content}>
-          <MarkDown className={styles.markdown} data={content} />
+          <Markdown className={styles.markdown} data={content} />
         </div>
       </section>
     </GenerationEditorDialog>

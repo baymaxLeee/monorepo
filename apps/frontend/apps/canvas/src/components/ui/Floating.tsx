@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@repo/design-system";
-import type { CSSProperties, ReactNode } from "react";
+import { isValidElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 type Position = "top" | "bottom" | "left" | "right" | "tl" | "tr" | "bl" | "br" | "lt" | "lb" | "rt" | "rb";
 function placement(position: Position = "bottom") {
@@ -49,9 +49,11 @@ export function Tooltip({
   triggerProps,
 }: TooltipProps) {
   if (disabled || content == null || content === "") return <>{children}</>;
+  const child = isValidElement<{ disabled?: boolean }>(children) ? children : undefined;
+  const render = child && !child.props.disabled ? (child as ReactElement) : <span className="inline-flex max-w-full" />;
   return (
     <PrimitiveTooltip open={popupVisible} onOpenChange={onVisibleChange}>
-      <TooltipTrigger render={<span className="inline-flex max-w-full" />}>{children}</TooltipTrigger>
+      <TooltipTrigger render={render}>{render === child ? undefined : children}</TooltipTrigger>
       <TooltipContent
         {...placement(position)}
         className={`canvas-web-theme ${className ?? ""}`}
@@ -118,6 +120,7 @@ export function Trigger({
         delay={mouseEnterDelay == null ? undefined : mouseEnterDelay * 1000}
         closeDelay={mouseLeaveDelay == null ? undefined : mouseLeaveDelay * 1000}
         render={<span className="inline-flex max-w-full" />}
+        nativeButton={false}
       >
         {children}
       </PopoverTrigger>

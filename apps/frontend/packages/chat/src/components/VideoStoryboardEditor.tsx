@@ -1,19 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { VideoShotPlan } from "@repo/api";
-import {
-  Button,
-  Field,
-  FieldError,
-  FieldLabel,
-  Form,
-  FormControl,
-  FormField,
-  Input,
-  Textarea,
-} from "@repo/design-system";
+import { Button, Field, FieldError, FieldLabel, Input, Textarea } from "@repo/design-system";
 import { SaveIcon } from "lucide-react";
 import { useEffect } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 const shotFormSchema = z.object({
@@ -84,185 +74,161 @@ export function VideoStoryboardEditor({
   useEffect(() => form.reset(defaults(plan)), [form, plan]);
 
   return (
-    <Form {...form}>
-      <form
-        className="space-y-3"
-        onSubmit={form.handleSubmit(async (values) => {
-          await onSave({
-            version: plan.version,
-            shots: plan.shots.map((shot, index) => {
-              const value = values.shots[index]!;
-              return {
-                ...shot,
-                narrativeBeat: value.narrativeBeat,
-                action: value.action,
-                seconds: value.seconds,
-                camera: {
-                  shotSize: value.shotSize,
-                  movement: value.movement,
-                  ...(value.focus ? { focus: value.focus } : {}),
-                },
-                environment: value.environment,
-                lightingPalette: value.lightingPalette,
-                audioDirection: value.audioDirection,
-                subjectAnchors: lines(value.subjectAnchors),
-                continuityContract: lines(value.continuityContract),
-                acceptanceCriteria: lines(value.acceptanceCriteria),
-              };
-            }),
-          });
-        })}
-      >
-        {fields.map((field, index) => (
-          <article key={field.id} className="space-y-3 rounded-lg border p-3">
-            <div className="text-xs font-medium">镜头 {index + 1}</div>
-            <FormField
+    <form
+      className="space-y-3"
+      onSubmit={form.handleSubmit(async (values) => {
+        await onSave({
+          version: plan.version,
+          shots: plan.shots.map((shot, index) => {
+            const value = values.shots[index]!;
+            return {
+              ...shot,
+              narrativeBeat: value.narrativeBeat,
+              action: value.action,
+              seconds: value.seconds,
+              camera: {
+                shotSize: value.shotSize,
+                movement: value.movement,
+                ...(value.focus ? { focus: value.focus } : {}),
+              },
+              environment: value.environment,
+              lightingPalette: value.lightingPalette,
+              audioDirection: value.audioDirection,
+              subjectAnchors: lines(value.subjectAnchors),
+              continuityContract: lines(value.continuityContract),
+              acceptanceCriteria: lines(value.acceptanceCriteria),
+            };
+          }),
+        });
+      })}
+    >
+      {fields.map((field, index) => (
+        <article key={field.id} className="space-y-3 rounded-lg border p-3">
+          <div className="text-xs font-medium">镜头 {index + 1}</div>
+          <Controller
+            control={form.control}
+            name={`shots.${index}.narrativeBeat`}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>剧情节拍</FieldLabel>
+                <Textarea id={field.name} aria-invalid={fieldState.invalid} {...field} rows={2} />
+                <FieldError errors={[form.formState.errors.shots?.[index]?.narrativeBeat]} />
+              </Field>
+            )}
+          />
+          <Controller
+            control={form.control}
+            name={`shots.${index}.action`}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>连续动作</FieldLabel>
+                <Textarea id={field.name} aria-invalid={fieldState.invalid} {...field} rows={2} />
+                <FieldError errors={[form.formState.errors.shots?.[index]?.action]} />
+              </Field>
+            )}
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <Controller
               control={form.control}
-              name={`shots.${index}.narrativeBeat`}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>剧情节拍</FieldLabel>
-                  <FormControl>
-                    <Textarea {...field} rows={2} />
-                  </FormControl>
-                  <FieldError errors={[form.formState.errors.shots?.[index]?.narrativeBeat]} />
+              name={`shots.${index}.seconds`}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>秒数</FieldLabel>
+                  <Input
+                    id={field.name}
+                    aria-invalid={fieldState.invalid}
+                    {...field}
+                    type="number"
+                    min={4}
+                    max={15}
+                    onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
+                  />
                 </Field>
               )}
             />
-            <FormField
+            <Controller
               control={form.control}
-              name={`shots.${index}.action`}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>连续动作</FieldLabel>
-                  <FormControl>
-                    <Textarea {...field} rows={2} />
-                  </FormControl>
-                  <FieldError errors={[form.formState.errors.shots?.[index]?.action]} />
+              name={`shots.${index}.shotSize`}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>景别</FieldLabel>
+                  <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
                 </Field>
               )}
             />
-            <div className="grid grid-cols-3 gap-2">
-              <FormField
-                control={form.control}
-                name={`shots.${index}.seconds`}
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>秒数</FieldLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type="number"
-                        min={4}
-                        max={15}
-                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
-                      />
-                    </FormControl>
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name={`shots.${index}.shotSize`}
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>景别</FieldLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name={`shots.${index}.movement`}
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>运镜</FieldLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                  </Field>
-                )}
-              />
-            </div>
-            <FormField
+            <Controller
               control={form.control}
-              name={`shots.${index}.focus`}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>焦点（可选）</FieldLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+              name={`shots.${index}.movement`}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>运镜</FieldLabel>
+                  <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
                 </Field>
               )}
             />
-            <FormField
+          </div>
+          <Controller
+            control={form.control}
+            name={`shots.${index}.focus`}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>焦点（可选）</FieldLabel>
+                <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
+              </Field>
+            )}
+          />
+          <Controller
+            control={form.control}
+            name={`shots.${index}.environment`}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>环境</FieldLabel>
+                <Textarea id={field.name} aria-invalid={fieldState.invalid} {...field} rows={2} />
+              </Field>
+            )}
+          />
+          <Controller
+            control={form.control}
+            name={`shots.${index}.lightingPalette`}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>灯光与色彩</FieldLabel>
+                <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
+              </Field>
+            )}
+          />
+          <Controller
+            control={form.control}
+            name={`shots.${index}.audioDirection`}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>声音</FieldLabel>
+                <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
+              </Field>
+            )}
+          />
+          {(["subjectAnchors", "continuityContract", "acceptanceCriteria"] as const).map((name) => (
+            <Controller
+              key={name}
               control={form.control}
-              name={`shots.${index}.environment`}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>环境</FieldLabel>
-                  <FormControl>
-                    <Textarea {...field} rows={2} />
-                  </FormControl>
+              name={`shots.${index}.${name}`}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>
+                    {name === "subjectAnchors" ? "主体锚点" : name === "continuityContract" ? "连续性约束" : "验收标准"}
+                    （每行一项）
+                  </FieldLabel>
+                  <Textarea id={field.name} aria-invalid={fieldState.invalid} {...field} rows={2} />
                 </Field>
               )}
             />
-            <FormField
-              control={form.control}
-              name={`shots.${index}.lightingPalette`}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>灯光与色彩</FieldLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                </Field>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name={`shots.${index}.audioDirection`}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>声音</FieldLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                </Field>
-              )}
-            />
-            {(["subjectAnchors", "continuityContract", "acceptanceCriteria"] as const).map((name) => (
-              <FormField
-                key={name}
-                control={form.control}
-                name={`shots.${index}.${name}`}
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>
-                      {name === "subjectAnchors"
-                        ? "主体锚点"
-                        : name === "continuityContract"
-                          ? "连续性约束"
-                          : "验收标准"}
-                      （每行一项）
-                    </FieldLabel>
-                    <FormControl>
-                      <Textarea {...field} rows={2} />
-                    </FormControl>
-                  </Field>
-                )}
-              />
-            ))}
-          </article>
-        ))}
-        <Button type="submit" variant="outline" className="w-full" disabled={disabled || form.formState.isSubmitting}>
-          <SaveIcon className="mr-2 size-4" />
-          保存新分镜版本
-        </Button>
-      </form>
-    </Form>
+          ))}
+        </article>
+      ))}
+      <Button type="submit" variant="outline" className="w-full" disabled={disabled || form.formState.isSubmitting}>
+        <SaveIcon className="mr-2 size-4" />
+        保存新分镜版本
+      </Button>
+    </form>
   );
 }

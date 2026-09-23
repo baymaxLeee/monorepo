@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from "react";
 const DEFAULT_MODAL_Z_INDEX = 1000;
 const MODAL_LAYER_STEP = 100;
 const POPUP_LAYER_OFFSET = 50;
+const GLOBAL_TOAST_Z_INDEX = 2147483647;
 
 interface PortalLayer {
   modalZIndex: number;
@@ -18,9 +19,16 @@ function ModalLayerProvider({ children, layer }: { children: ReactNode; layer: P
   return <PortalLayerContext.Provider value={layer}>{children}</PortalLayerContext.Provider>;
 }
 
-function useModalLayer(): PortalLayer {
+function getExplicitZIndex<State>(style: StatefulStyle<State> | undefined): number | undefined {
+  if (typeof style === "function" || style?.zIndex === undefined) return undefined;
+  const zIndex = Number(style.zIndex);
+  return Number.isFinite(zIndex) ? zIndex : undefined;
+}
+
+function useModalLayer<State>(style?: StatefulStyle<State>): PortalLayer {
   const parentLayer = useContext(PortalLayerContext);
-  const modalZIndex = parentLayer ? parentLayer.modalZIndex + MODAL_LAYER_STEP : DEFAULT_MODAL_Z_INDEX;
+  const inheritedZIndex = parentLayer ? parentLayer.modalZIndex + MODAL_LAYER_STEP : DEFAULT_MODAL_Z_INDEX;
+  const modalZIndex = getExplicitZIndex(style) ?? inheritedZIndex;
   return {
     modalZIndex,
     popupZIndex: modalZIndex + POPUP_LAYER_OFFSET,
@@ -49,4 +57,4 @@ function usePortalLayerStyle<State>(style?: StatefulStyle<State>) {
   return withLayerZIndex(style, layer.popupZIndex);
 }
 
-export { ModalLayerProvider, useModalLayer, useModalLayerStyle, usePortalLayerStyle };
+export { GLOBAL_TOAST_Z_INDEX, ModalLayerProvider, useModalLayer, useModalLayerStyle, usePortalLayerStyle };

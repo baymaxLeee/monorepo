@@ -30,16 +30,19 @@ echo "→ building frontend app: ${APP}"
 cd "${ROOT}/apps/frontend"
 
 # Corepack uses the repository root packageManager declaration.
-if ! command -v pnpm >/dev/null 2>&1; then
+PNPM=(pnpm)
+if command -v mise >/dev/null 2>&1; then
+  PNPM=(mise exec -- pnpm)
+elif ! command -v pnpm >/dev/null 2>&1; then
   echo "→ pnpm not on PATH, enabling via corepack..."
   corepack enable
   corepack prepare --activate
 fi
 
 # --frozen-lockfile to guarantee reproducible builds.
-pnpm install --frozen-lockfile
+"${PNPM[@]}" install --frozen-lockfile
 
-NODE_ENV=production pnpm -F "${APP}" build
+NODE_ENV=production "${PNPM[@]}" -F "${APP}" build
 
 DIST="$APP_DIR/dist"
 echo ""

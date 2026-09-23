@@ -13,9 +13,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Form,
-  FormControl,
-  FormField,
   Input,
   Select,
   SelectContent,
@@ -30,7 +27,7 @@ import {
   toast,
 } from "@repo/design-system";
 import { useEffect } from "react";
-import { type Control, useForm } from "react-hook-form";
+import { Controller, type Control, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { BotSkillsPanel } from "./BotSkillsPanel";
@@ -89,27 +86,29 @@ function ModelField({
   options: ModelProvider[];
 }) {
   return (
-    <FormField
+    <Controller
       control={control}
       name={name}
-      render={({ field }) => (
-        <Field>
-          <FieldLabel>{label}</FieldLabel>
-          <FormControl>
-            <Select value={field.value} onValueChange={(value) => value !== null && field.onChange(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="未设置" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>未设置</SelectItem>
-                {options.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {provider.name}（{provider.model}）
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormControl>
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+          <Select
+            name={field.name}
+            value={field.value}
+            onValueChange={(value) => value !== null && field.onChange(value)}
+          >
+            <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+              <SelectValue placeholder="未设置" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>未设置</SelectItem>
+              {options.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {provider.name}（{provider.model}）
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
       )}
     />
@@ -210,196 +209,187 @@ export function AgentModelDialog({
             <TabsTrigger value="presentation">展示</TabsTrigger>
           </TabsList>
           <div className="scrollbar-thin -mx-4 min-h-0 flex-1 overflow-y-auto px-4">
-            <Form {...form}>
-              <form id="agent-model-form" onSubmit={form.handleSubmit(onSubmit)}>
-                <TabsContent value="identity" className="mt-0">
-                  <FieldGroup>
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel htmlFor="agent-name">名称</FieldLabel>
-                          <FormControl>
-                            <Input id="agent-name" {...field} />
-                          </FormControl>
-                          <FieldError errors={[form.formState.errors.name]} />
-                        </Field>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="status"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel>发布状态</FieldLabel>
-                          <FormControl>
-                            <Select
-                              value={field.value}
-                              onValueChange={(value) => value !== null && field.onChange(value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {STATUS_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                          <FieldDescription>仅「已发布」的智能体会对终端用户可见。</FieldDescription>
-                        </Field>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="role_description"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel htmlFor="agent-role">角色描述</FieldLabel>
-                          <FormControl>
-                            <Textarea
-                              id="agent-role"
-                              rows={4}
-                              placeholder="这个智能体扮演什么角色、负责什么、如何作答。例如：团队 Oncall 事故排查助手，按 根因 / 排查 / 验证 / 修复 四段作答。"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FieldError errors={[form.formState.errors.role_description]} />
-                        </Field>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="domain_description"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel htmlFor="agent-domain">领域范围</FieldLabel>
-                          <FormControl>
-                            <Textarea
-                              id="agent-domain"
-                              rows={3}
-                              placeholder="这个智能体覆盖的知识领域。例如：团队线上事故排查、SOP、Runbook、架构与配置知识。"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FieldError errors={[form.formState.errors.domain_description]} />
-                        </Field>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="audience"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel htmlFor="agent-audience">目标受众</FieldLabel>
-                          <FormControl>
-                            <Input id="agent-audience" placeholder="例如：一线值班与运维工程师" {...field} />
-                          </FormControl>
-                          <FieldError errors={[form.formState.errors.audience]} />
-                        </Field>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="tone"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel>语气</FieldLabel>
-                          <FormControl>
-                            <Select
-                              value={field.value}
-                              onValueChange={(value) => value !== null && field.onChange(value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TONE_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </FormControl>
-                        </Field>
-                      )}
-                    />
-                  </FieldGroup>
-                </TabsContent>
+            <form id="agent-model-form" onSubmit={form.handleSubmit(onSubmit)}>
+              <TabsContent value="identity" className="mt-0">
+                <FieldGroup>
+                  <Controller
+                    control={form.control}
+                    name="name"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="agent-name">名称</FieldLabel>
+                        <Input id="agent-name" aria-invalid={fieldState.invalid} {...field} />
+                        <FieldError errors={[form.formState.errors.name]} />
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    control={form.control}
+                    name="status"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor={field.name}>发布状态</FieldLabel>
+                        <Select
+                          name={field.name}
+                          value={field.value}
+                          onValueChange={(value) => value !== null && field.onChange(value)}
+                        >
+                          <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>仅「已发布」的智能体会对终端用户可见。</FieldDescription>
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    control={form.control}
+                    name="role_description"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="agent-role">角色描述</FieldLabel>
+                        <Textarea
+                          id="agent-role"
+                          aria-invalid={fieldState.invalid}
+                          rows={4}
+                          placeholder="这个智能体扮演什么角色、负责什么、如何作答。例如：团队 Oncall 事故排查助手，按 根因 / 排查 / 验证 / 修复 四段作答。"
+                          {...field}
+                        />
+                        <FieldError errors={[form.formState.errors.role_description]} />
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    control={form.control}
+                    name="domain_description"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="agent-domain">领域范围</FieldLabel>
+                        <Textarea
+                          id="agent-domain"
+                          aria-invalid={fieldState.invalid}
+                          rows={3}
+                          placeholder="这个智能体覆盖的知识领域。例如：团队线上事故排查、SOP、Runbook、架构与配置知识。"
+                          {...field}
+                        />
+                        <FieldError errors={[form.formState.errors.domain_description]} />
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    control={form.control}
+                    name="audience"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="agent-audience">目标受众</FieldLabel>
+                        <Input
+                          id="agent-audience"
+                          aria-invalid={fieldState.invalid}
+                          placeholder="例如：一线值班与运维工程师"
+                          {...field}
+                        />
+                        <FieldError errors={[form.formState.errors.audience]} />
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    control={form.control}
+                    name="tone"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor={field.name}>语气</FieldLabel>
+                        <Select
+                          name={field.name}
+                          value={field.value}
+                          onValueChange={(value) => value !== null && field.onChange(value)}
+                        >
+                          <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TONE_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    )}
+                  />
+                </FieldGroup>
+              </TabsContent>
 
-                <TabsContent value="models" className="mt-0">
-                  <FieldGroup>
-                    <ModelField
-                      control={form.control}
-                      name="text_provider_id"
-                      label="文本模型"
-                      options={byKind("chat")}
-                    />
-                    <ModelField
-                      control={form.control}
-                      name="image_provider_id"
-                      label="图片模型"
-                      options={byKind("image")}
-                    />
-                    <ModelField
-                      control={form.control}
-                      name="video_provider_id"
-                      label="视频模型"
-                      options={byKind("video")}
-                    />
-                    <FieldDescription>模型留空表示不启用该能力。仅列出已启用的 provider。</FieldDescription>
-                  </FieldGroup>
-                </TabsContent>
+              <TabsContent value="models" className="mt-0">
+                <FieldGroup>
+                  <ModelField
+                    control={form.control}
+                    name="text_provider_id"
+                    label="文本模型"
+                    options={byKind("chat")}
+                  />
+                  <ModelField
+                    control={form.control}
+                    name="image_provider_id"
+                    label="图片模型"
+                    options={byKind("image")}
+                  />
+                  <ModelField
+                    control={form.control}
+                    name="video_provider_id"
+                    label="视频模型"
+                    options={byKind("video")}
+                  />
+                  <FieldDescription>模型留空表示不启用该能力。仅列出已启用的 provider。</FieldDescription>
+                </FieldGroup>
+              </TabsContent>
 
-                <TabsContent value="presentation" className="mt-0">
-                  <FieldGroup>
-                    <FormField
-                      control={form.control}
-                      name="welcome_message"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel htmlFor="agent-welcome">欢迎语</FieldLabel>
-                          <FormControl>
-                            <Textarea
-                              id="agent-welcome"
-                              rows={2}
-                              placeholder="用户进入对话时看到的开场白。"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FieldError errors={[form.formState.errors.welcome_message]} />
-                        </Field>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="suggested_questions"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel htmlFor="agent-questions">推荐问题</FieldLabel>
-                          <FormControl>
-                            <Textarea
-                              id="agent-questions"
-                              rows={4}
-                              placeholder={
-                                "服务 5xx 突然升高，如何快速定位根因？\n数据库连接池被打满，怎么一步步排查？"
-                              }
-                              {...field}
-                            />
-                          </FormControl>
-                          <FieldDescription>每行一条，最多 6 条。欢迎语与推荐问题仅用于前端展示。</FieldDescription>
-                        </Field>
-                      )}
-                    />
-                  </FieldGroup>
-                </TabsContent>
-              </form>
-            </Form>
+              <TabsContent value="presentation" className="mt-0">
+                <FieldGroup>
+                  <Controller
+                    control={form.control}
+                    name="welcome_message"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="agent-welcome">欢迎语</FieldLabel>
+                        <Textarea
+                          id="agent-welcome"
+                          aria-invalid={fieldState.invalid}
+                          rows={2}
+                          placeholder="用户进入对话时看到的开场白。"
+                          {...field}
+                        />
+                        <FieldError errors={[form.formState.errors.welcome_message]} />
+                      </Field>
+                    )}
+                  />
+                  <Controller
+                    control={form.control}
+                    name="suggested_questions"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="agent-questions">推荐问题</FieldLabel>
+                        <Textarea
+                          id="agent-questions"
+                          aria-invalid={fieldState.invalid}
+                          rows={4}
+                          placeholder={"服务 5xx 突然升高，如何快速定位根因？\n数据库连接池被打满，怎么一步步排查？"}
+                          {...field}
+                        />
+                        <FieldDescription>每行一条，最多 6 条。欢迎语与推荐问题仅用于前端展示。</FieldDescription>
+                      </Field>
+                    )}
+                  />
+                </FieldGroup>
+              </TabsContent>
+            </form>
 
             <TabsContent value="skills" className="mt-0">
               {bot ? (

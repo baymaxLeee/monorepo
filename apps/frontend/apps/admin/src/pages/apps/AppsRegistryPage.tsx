@@ -21,9 +21,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Form,
-  FormControl,
-  FormField,
   Input,
   Muted,
   Page,
@@ -44,7 +41,7 @@ import {
 } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 const appSchema = z.object({
@@ -225,12 +222,17 @@ export function AppsRegistryPage() {
                     </TableCell>
                     <TableCell className="text-center">
                       <Switch
+                        aria-label={`${app.title}：对普通用户开放`}
                         checked={!app.requires_admin}
                         onCheckedChange={(open) => patch(app, { requires_admin: !open })}
                       />
                     </TableCell>
                     <TableCell className="text-center">
-                      <Switch checked={app.is_enabled} onCheckedChange={(v) => patch(app, { is_enabled: v })} />
+                      <Switch
+                        aria-label={`${app.title}：启用`}
+                        checked={app.is_enabled}
+                        onCheckedChange={(v) => patch(app, { is_enabled: v })}
+                      />
                     </TableCell>
                     <TableCell className="space-x-1 text-right">
                       <Button variant="link" size="sm" onClick={() => openEdit(app)}>
@@ -284,20 +286,20 @@ function AppFormDialog({
   title: string;
 }) {
   const textField = (name: keyof AppValues, label: string, opts: { disabled?: boolean; placeholder?: string } = {}) => (
-    <FormField
+    <Controller
       control={form.control}
       name={name}
-      render={({ field }) => (
-        <Field>
-          <FieldLabel>{label}</FieldLabel>
-          <FormControl>
-            <Input
-              {...field}
-              value={String(field.value ?? "")}
-              disabled={opts.disabled}
-              placeholder={opts.placeholder}
-            />
-          </FormControl>
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+          <Input
+            id={field.name}
+            aria-invalid={fieldState.invalid}
+            {...field}
+            value={String(field.value ?? "")}
+            disabled={opts.disabled}
+            placeholder={opts.placeholder}
+          />
           <FieldError errors={[form.formState.errors[name]]} />
         </Field>
       )}
@@ -312,54 +314,64 @@ function AppFormDialog({
           <DialogDescription>维护微前端入口的挂载信息与可见性。</DialogDescription>
         </DialogHeader>
         <div>
-          <Form {...form}>
-            <form id="app-registry-form" onSubmit={form.handleSubmit(onSubmit)}>
-              <FieldGroup>
-                {textField("id", "标识（slug）", {
-                  disabled: editing,
-                  placeholder: "admin",
-                })}
-                {textField("title", "名称", { placeholder: "后台管理" })}
-                {textField("base_path", "挂载路径", {
-                  placeholder: "/platform/admin",
-                })}
-                {textField("remote_name", "Remote 名", {
-                  placeholder: "mfe_admin",
-                })}
-                {textField("expose_key", "Expose Key", {
-                  placeholder: "./routes",
-                })}
-                {textField("entry", "Manifest 入口 URL", {
-                  placeholder: "/mfe-admin/mf-manifest.json",
-                })}
-                {textField("sort_order", "排序")}
-                <FormField
-                  control={form.control}
-                  name="requires_admin"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel className="flex items-center gap-2">
-                        <Switch checked={!field.value} onCheckedChange={(open) => field.onChange(!open)} />
-                        对普通用户开放
-                      </FieldLabel>
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="is_enabled"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel className="flex items-center gap-2">
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        启用
-                      </FieldLabel>
-                    </Field>
-                  )}
-                />
-              </FieldGroup>
-            </form>
-          </Form>
+          <form id="app-registry-form" onSubmit={form.handleSubmit(onSubmit)}>
+            <FieldGroup>
+              {textField("id", "标识（slug）", {
+                disabled: editing,
+                placeholder: "admin",
+              })}
+              {textField("title", "名称", { placeholder: "后台管理" })}
+              {textField("base_path", "挂载路径", {
+                placeholder: "/platform/admin",
+              })}
+              {textField("remote_name", "Remote 名", {
+                placeholder: "mfe_admin",
+              })}
+              {textField("expose_key", "Expose Key", {
+                placeholder: "./routes",
+              })}
+              {textField("entry", "Manifest 入口 URL", {
+                placeholder: "/mfe-admin/mf-manifest.json",
+              })}
+              {textField("sort_order", "排序")}
+              <Controller
+                control={form.control}
+                name="requires_admin"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name} className="flex items-center gap-2">
+                      <Switch
+                        id={field.name}
+                        name={field.name}
+                        aria-invalid={fieldState.invalid}
+                        checked={!field.value}
+                        onCheckedChange={(open) => field.onChange(!open)}
+                      />
+                      对普通用户开放
+                    </FieldLabel>
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="is_enabled"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name} className="flex items-center gap-2">
+                      <Switch
+                        id={field.name}
+                        name={field.name}
+                        aria-invalid={fieldState.invalid}
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                      启用
+                    </FieldLabel>
+                  </Field>
+                )}
+              />
+            </FieldGroup>
+          </form>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

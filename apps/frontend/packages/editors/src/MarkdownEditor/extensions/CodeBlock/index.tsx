@@ -84,24 +84,26 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({ editor, node, upda
           {!isCollapsed && (
             <div className="flex h-6 items-center gap-1">
               <Tooltip>
-                <TooltipTrigger render={<div />}>
-                  <Select
-                    value={language || ""}
-                    onValueChange={(value) => updateAttributes({ language: value })}
-                    disabled={!editable}
+                <Select
+                  value={language || ""}
+                  onValueChange={(value) => updateAttributes({ language: value })}
+                  disabled={!editable}
+                >
+                  <TooltipTrigger
+                    render={
+                      <SelectTrigger className="h-6 w-[120px] border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 focus-visible:ring-0" />
+                    }
                   >
-                    <SelectTrigger className="h-6 w-[120px] border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 focus-visible:ring-0">
-                      <SelectValue placeholder="语言" />
-                    </SelectTrigger>
-                    <SelectContent container={popupContainer} positionerStyle={{ zIndex: popupConfig.zIndex }}>
-                      {supportedLanguages.map((lang) => (
-                        <SelectItem key={lang} value={lang}>
-                          {lang}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TooltipTrigger>
+                    <SelectValue placeholder="语言" />
+                  </TooltipTrigger>
+                  <SelectContent container={popupContainer} positionerStyle={{ zIndex: popupConfig.zIndex }}>
+                    {supportedLanguages.map((lang) => (
+                      <SelectItem key={lang} value={lang}>
+                        {lang}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <EditorTooltipContent>切换代码语言</EditorTooltipContent>
               </Tooltip>
 

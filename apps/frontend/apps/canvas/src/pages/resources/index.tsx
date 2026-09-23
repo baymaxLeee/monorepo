@@ -10,7 +10,7 @@ import { useParams } from "react-router-dom";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
-import { Pagination, Result, openDeleteConfirmDialog } from "@/components/compat";
+import { Pagination, Result, openDeleteConfirmDialog } from "@/components/common";
 import { Dropdown, Message, Spin, Menu, Button } from "@/components/ui";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";

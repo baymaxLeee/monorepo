@@ -39,7 +39,6 @@
     "@swc/helpers": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@typescript/native": "catalog:",
-    "typescript": "catalog:"
+    "@typescript/native": "catalog:"
   }
 }

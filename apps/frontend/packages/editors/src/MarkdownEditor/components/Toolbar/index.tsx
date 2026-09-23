@@ -116,7 +116,7 @@ function triggerCls(opts?: { isActive?: boolean; isDisabled?: boolean }) {
     "[&>svg]:size-4 [&>svg.icon-down]:size-3 [&>svg.icon-down]:text-muted-foreground [&>svg.icon-down]:transition-transform",
     isDisabled
       ? "pointer-events-none cursor-not-allowed text-muted-foreground/50 opacity-50"
-      : "cursor-pointer hover:bg-accent data-[state=open]:bg-accent data-[state=open]:[&>svg.icon-down]:rotate-180",
+      : "cursor-pointer hover:bg-accent data-popup-open:bg-accent data-popup-open:[&>svg.icon-down]:rotate-180",
     isActive && !isDisabled && "text-blue-600",
   );
 }

@@ -6,6 +6,10 @@ on:
       - 'schemas/**'
       - 'apps/backend/libs/transport-ts/**'
       - 'apps/backend/services/**'
+      - 'package.json'
+      - 'mise.toml'
+      - 'apps/backend/package.json'
+      - 'apps/backend/pnpm-lock.yaml'
       - '.github/workflows/contracts.yml'
 
 jobs:
@@ -19,6 +23,7 @@ jobs:
         working-directory: apps/backend
         run: |
           uv sync --all-packages
+          pnpm install --frozen-lockfile
           just gen-openapi-all
           if ! git diff --exit-code ../../schemas/openapi/; then
             echo "::error::OpenAPI specs out of sync. Run 'just sync' from root."

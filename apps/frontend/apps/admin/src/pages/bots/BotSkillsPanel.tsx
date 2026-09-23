@@ -1,5 +1,6 @@
 import { attachBotSkill, detachBotSkill, fetchBotSkills, fetchSkills, type SkillSummary } from "@repo/api";
-import { Badge, Button, Skeleton, Switch, toast } from "@repo/design-system";
+import { Badge, buttonVariants, Skeleton, Switch, toast } from "@repo/design-system";
+import { cn } from "@repo/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -64,9 +65,12 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
         <p className="text-xs text-muted-foreground">
           已挂载 {boundIds.size} 个 · 仅「已发布且已启用」的技能会进入模型
         </p>
-        <Button variant="link" size="sm" className="h-auto shrink-0 p-0" render={<Link to="/platform/admin/skills" />}>
+        <Link
+          to="/platform/admin/skills"
+          className={cn(buttonVariants({ variant: "link", size: "sm" }), "h-auto shrink-0 p-0")}
+        >
           管理技能 →
-        </Button>
+        </Link>
       </div>
       {loading ? (
         <div className="space-y-2">

@@ -1,7 +1,7 @@
 import { Toaster, TooltipProvider } from "@repo/design-system";
 import { Outlet } from "react-router-dom";
 
-import { ConfirmDialogHost } from "./components/compat";
+import { ConfirmDialogHost } from "./components/common";
 
 export function App() {
   return (

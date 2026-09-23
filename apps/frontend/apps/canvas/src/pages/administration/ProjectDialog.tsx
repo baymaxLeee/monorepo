@@ -8,17 +8,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldLegend,
+  FieldSet,
 } from "@repo/design-system";
 import { usePlatformStore } from "@repo/runtime";
 import { Image as ImageIcon, Info, Search, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { createProjectWithUsage, updateProjectWithUsage } from "@/api";
@@ -151,6 +150,26 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
   }, [directory, memberIds, memberQuery]);
 
   const invalid = !form.formState.isValid || membersLoading || coverUploading;
+  const submit = async (values: ProjectValues) => {
+    if (!state) return;
+    if (memberOnlyEdit && state.mode === "edit") {
+      await canvasUpdateProject(state.project.ProjectID, { cover_image_path: values.CoverImagePath });
+      onSuccess();
+      onClose();
+      return;
+    }
+    if (state.mode === "edit") {
+      await updateProjectWithUsage({
+        ProjectID: state.project.ProjectID,
+        ...values,
+        CoverImagePath: values.CoverImagePath,
+      });
+    } else {
+      await createProjectWithUsage(values);
+    }
+    onSuccess();
+    onClose();
+  };
 
   return (
     <Dialog
@@ -175,184 +194,161 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
           <DialogDescription className="sr-only">{t("编辑项目设置")}</DialogDescription>
         </DialogHeader>
         <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">
-          <Form {...form}>
-            <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
-              <FormField
-                control={form.control}
-                name="Name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1">
-                      {t("项目名称")}
-                      <span className="text-destructive">*</span>
-                      <span title={t("不能以连接符（-、_）和空格开头或结尾")}>
-                        <Info aria-hidden className={styles.nameInfoIcon} size={14} strokeWidth={1.5} />
-                      </span>
-                      <span className={styles.nameCount}>{name.length}/20</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        disabled={memberOnlyEdit}
-                        maxLength={20}
-                        onChange={field.onChange}
-                        placeholder={t("请输入")}
-                        value={field.value}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <form id="project-form" className={styles.form} onSubmit={form.handleSubmit(submit)}>
+            <Controller
+              control={form.control}
+              name="Name"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name} className="flex items-center gap-1">
+                    {t("项目名称")}
+                    <span className="text-destructive">*</span>
+                    <span title={t("不能以连接符（-、_）和空格开头或结尾")}>
+                      <Info aria-hidden className={styles.nameInfoIcon} size={14} strokeWidth={1.5} />
+                    </span>
+                    <span className={styles.nameCount}>{name.length}/20</span>
+                  </FieldLabel>
+                  <Input
+                    id={field.name}
+                    aria-invalid={fieldState.invalid}
+                    disabled={memberOnlyEdit}
+                    maxLength={20}
+                    onChange={field.onChange}
+                    placeholder={t("请输入")}
+                    value={field.value}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
 
-              {!memberOnlyEdit ? (
-                <FormField
-                  control={form.control}
-                  name="MemberUserIDs"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {t("项目成员")} <span className="text-destructive">*</span>
-                      </FormLabel>
-                      <Input
-                        allowClear
-                        onChange={setMemberQuery}
-                        placeholder={t("请输入用户姓名或账号搜索")}
-                        prefix={<Search className="size-4" />}
-                        value={memberQuery}
-                      />
-                      <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-2">
-                        {membersLoading ? (
-                          <div className="flex h-20 items-center justify-center">
-                            <Spin />
-                          </div>
-                        ) : visibleMembers.length ? (
-                          visibleMembers.map((member) => (
-                            <Checkbox
-                              checked={field.value.includes(member.userId)}
-                              key={member.userId}
-                              onChange={(checked) =>
-                                field.onChange(
-                                  checked
-                                    ? [...new Set([...field.value, member.userId])]
-                                    : field.value.filter((id) => id !== member.userId),
-                                )
-                              }
-                            >
-                              <span className="flex min-w-0 items-center gap-2 py-1">
-                                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                                  <UserRound className="size-4" />
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block truncate">{member.displayName || member.account}</span>
-                                  <span className="block truncate text-xs font-normal text-muted-foreground">
-                                    {member.account}
-                                  </span>
+            {!memberOnlyEdit ? (
+              <Controller
+                control={form.control}
+                name="MemberUserIDs"
+                render={({ field, fieldState }) => (
+                  <FieldSet data-invalid={fieldState.invalid}>
+                    <FieldLegend variant="label">
+                      {t("项目成员")} <span className="text-destructive">*</span>
+                    </FieldLegend>
+                    <Input
+                      aria-label={t("搜索项目成员")}
+                      allowClear
+                      onChange={setMemberQuery}
+                      placeholder={t("请输入用户姓名或账号搜索")}
+                      prefix={<Search className="size-4" />}
+                      value={memberQuery}
+                    />
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-2">
+                      {membersLoading ? (
+                        <div className="flex h-20 items-center justify-center">
+                          <Spin />
+                        </div>
+                      ) : visibleMembers.length ? (
+                        visibleMembers.map((member) => (
+                          <Checkbox
+                            name={field.name}
+                            value={member.userId}
+                            aria-invalid={fieldState.invalid}
+                            checked={field.value.includes(member.userId)}
+                            key={member.userId}
+                            onChange={(checked) =>
+                              field.onChange(
+                                checked
+                                  ? [...new Set([...field.value, member.userId])]
+                                  : field.value.filter((id) => id !== member.userId),
+                              )
+                            }
+                          >
+                            <span className="flex min-w-0 items-center gap-2 py-1">
+                              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
+                                <UserRound className="size-4" />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate">{member.displayName || member.account}</span>
+                                <span className="block truncate text-xs font-normal text-muted-foreground">
+                                  {member.account}
                                 </span>
                               </span>
-                            </Checkbox>
-                          ))
-                        ) : (
-                          <div className="py-6 text-center text-sm text-muted-foreground">{t("暂无匹配成员")}</div>
-                        )}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : null}
-
-              {!memberOnlyEdit ? (
-                <FormField
-                  control={form.control}
-                  name="UsageLimit"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("项目用量限额")}</FormLabel>
-                      <FormControl>
-                        <div className={styles.usageLimitField}>
-                          <InputNumber
-                            max={PROJECT_USAGE_LIMIT_MAX}
-                            min={1}
-                            onChange={field.onChange}
-                            placeholder={t("请输入正整数，为空则无上限")}
-                            step={1}
-                            value={field.value}
-                          />
-                          <div className={styles.usageAmountInfo}>
-                            {t("当前项目已用金额：")}
-                            {usedAmount.toFixed(2)}
-                          </div>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : null}
-
-              <FormField
-                control={form.control}
-                name="CoverImagePath"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("项目封面")}</FormLabel>
-                    <FormControl>
-                      <ProjectCoverUploader
-                        key={state?.mode === "edit" ? state.project.ProjectID : (state?.mode ?? "closed")}
-                        className={styles.coverUploader}
-                        emptyContent={
-                          <div className={styles.coverEmpty}>
-                            <ImageIcon className={styles.coverIcon} />
-                            <div className={styles.coverHint}>
-                              <span className={styles.coverHintTitle}>{t("点击或拖拽图片到此处上传")}</span>
-                              <span className={styles.coverHintDescription}>{t("支持 png、jpg、jpeg，最大 2M")}</span>
-                            </div>
-                          </div>
-                        }
-                        imageClassName={styles.coverImageContain}
-                        onChange={field.onChange}
-                        onUploadingChange={setCoverUploading}
-                        previewURL={state?.mode === "edit" ? state.project.CoverImageURL : undefined}
-                        showReplaceAction
-                        value={field.value}
-                      />
-                    </FormControl>
-                  </FormItem>
+                            </span>
+                          </Checkbox>
+                        ))
+                      ) : (
+                        <div className="py-6 text-center text-sm text-muted-foreground">{t("暂无匹配成员")}</div>
+                      )}
+                    </div>
+                    <FieldError errors={[fieldState.error]} />
+                  </FieldSet>
                 )}
               />
-            </form>
-          </Form>
+            ) : null}
+
+            {!memberOnlyEdit ? (
+              <Controller
+                control={form.control}
+                name="UsageLimit"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>{t("项目用量限额")}</FieldLabel>
+                    <div className={styles.usageLimitField}>
+                      <InputNumber
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        max={PROJECT_USAGE_LIMIT_MAX}
+                        min={1}
+                        onChange={field.onChange}
+                        placeholder={t("请输入正整数，为空则无上限")}
+                        step={1}
+                        value={field.value}
+                      />
+                      <div className={styles.usageAmountInfo}>
+                        {t("当前项目已用金额：")}
+                        {usedAmount.toFixed(2)}
+                      </div>
+                    </div>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
+            ) : null}
+
+            <Controller
+              control={form.control}
+              name="CoverImagePath"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>{t("项目封面")}</FieldLabel>
+                  <ProjectCoverUploader
+                    key={state?.mode === "edit" ? state.project.ProjectID : (state?.mode ?? "closed")}
+                    className={styles.coverUploader}
+                    emptyContent={
+                      <div className={styles.coverEmpty}>
+                        <ImageIcon className={styles.coverIcon} />
+                        <div className={styles.coverHint}>
+                          <span className={styles.coverHintTitle}>{t("点击或拖拽图片到此处上传")}</span>
+                          <span className={styles.coverHintDescription}>{t("支持 png、jpg、jpeg，最大 2M")}</span>
+                        </div>
+                      </div>
+                    }
+                    imageClassName={styles.coverImageContain}
+                    inputId={field.name}
+                    invalid={fieldState.invalid}
+                    onChange={field.onChange}
+                    onUploadingChange={setCoverUploading}
+                    previewURL={state?.mode === "edit" ? state.project.CoverImageURL : undefined}
+                    showReplaceAction
+                    value={field.value}
+                  />
+                </Field>
+              )}
+            />
+          </form>
         </div>
         <DialogFooter className="canvas-modal-footer shrink-0 px-6 py-4">
           <DialogButton disabled={form.formState.isSubmitting} onClick={onClose} type="button" variant="outline">
             {t("取消")}
           </DialogButton>
-          <DialogButton
-            disabled={form.formState.isSubmitting || invalid}
-            onClick={() =>
-              void form.handleSubmit(async (values) => {
-                if (!state) return;
-                if (memberOnlyEdit && state.mode === "edit") {
-                  await canvasUpdateProject(state.project.ProjectID, { cover_image_path: values.CoverImagePath });
-                  onSuccess();
-                  onClose();
-                  return;
-                }
-                if (state.mode === "edit") {
-                  await updateProjectWithUsage({
-                    ProjectID: state.project.ProjectID,
-                    ...values,
-                    CoverImagePath: values.CoverImagePath,
-                  });
-                } else {
-                  await createProjectWithUsage(values);
-                }
-                onSuccess();
-                onClose();
-              })()
-            }
-            type="button"
-          >
+          <DialogButton disabled={form.formState.isSubmitting || invalid} form="project-form" type="submit">
             {t("确定")}
           </DialogButton>
         </DialogFooter>

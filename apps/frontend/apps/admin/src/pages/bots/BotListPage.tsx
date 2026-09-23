@@ -30,9 +30,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Form,
-  FormControl,
-  FormField,
   InlineCode,
   Input,
   Muted,
@@ -53,7 +50,7 @@ import {
 } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { useShallow } from "zustand/react/shallow";
 
@@ -176,25 +173,26 @@ export function BotListPage() {
                 <DialogDescription>先创建智能体，再在「配置」中选择其使用的模型。</DialogDescription>
               </DialogHeader>
               <div>
-                <Form {...form}>
-                  <form id="bot-create-form" onSubmit={form.handleSubmit(onCreate)}>
-                    <FieldGroup>
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <Field>
-                            <FieldLabel htmlFor="bot-name">名称</FieldLabel>
-                            <FormControl>
-                              <Input id="bot-name" placeholder="例如：客服助手" {...field} />
-                            </FormControl>
-                            <FieldError errors={[form.formState.errors.name]} />
-                          </Field>
-                        )}
-                      />
-                    </FieldGroup>
-                  </form>
-                </Form>
+                <form id="bot-create-form" onSubmit={form.handleSubmit(onCreate)}>
+                  <FieldGroup>
+                    <Controller
+                      control={form.control}
+                      name="name"
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor="bot-name">名称</FieldLabel>
+                          <Input
+                            id="bot-name"
+                            aria-invalid={fieldState.invalid}
+                            placeholder="例如：客服助手"
+                            {...field}
+                          />
+                          <FieldError errors={[form.formState.errors.name]} />
+                        </Field>
+                      )}
+                    />
+                  </FieldGroup>
+                </form>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>

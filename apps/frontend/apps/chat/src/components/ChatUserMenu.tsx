@@ -7,6 +7,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -82,38 +83,43 @@ export function ChatUserMenu() {
         <ChevronsUpDownIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-56">
-        <DropdownMenuLabel className="truncate">{user.displayName}</DropdownMenuLabel>
-        {user.activeWorkspace && (
-          <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
-            团队：{user.activeWorkspace.workspaceName}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate">{user.displayName}</span>
+            {user.activeWorkspace && (
+              <span className="truncate font-normal text-muted-foreground">
+                团队：{user.activeWorkspace.workspaceName}
+              </span>
+            )}
           </DropdownMenuLabel>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/platform/admin/profile")}>
-          <UserIcon aria-hidden="true" className="mr-2 size-4" />
-          个人资料
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate("/platform/admin/dashboard")}>
-          <SettingsIcon aria-hidden="true" className="mr-2 size-4" />
-          设置
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setMemoryPanelOpen(true)}>
-          <BrainIcon aria-hidden="true" className="mr-2 size-4" />
-          记忆
-        </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/platform/admin/profile")}>
+            <UserIcon aria-hidden="true" className="mr-2 size-4" />
+            个人资料
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/platform/admin/dashboard")}>
+            <SettingsIcon aria-hidden="true" className="mr-2 size-4" />
+            设置
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setMemoryPanelOpen(true)}>
+            <BrainIcon aria-hidden="true" className="mr-2 size-4" />
+            记忆
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
         {canSwitchWorkspace && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">切换团队</DropdownMenuLabel>
-            {workspaces.map((m) => (
-              <DropdownMenuItem key={m.workspaceId} onClick={() => handleSwitchWorkspace(m.workspaceId)}>
-                <CheckIcon
-                  aria-hidden="true"
-                  className={`mr-2 size-4 ${m.workspaceId === user.activeWorkspace?.workspaceId ? "opacity-100" : "opacity-0"}`}
-                />
-                <span className="truncate">{m.workspaceName}</span>
-              </DropdownMenuItem>
-            ))}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">切换团队</DropdownMenuLabel>
+              {workspaces.map((m) => (
+                <DropdownMenuItem key={m.workspaceId} onClick={() => handleSwitchWorkspace(m.workspaceId)}>
+                  <CheckIcon
+                    aria-hidden="true"
+                    className={`mr-2 size-4 ${m.workspaceId === user.activeWorkspace?.workspaceId ? "opacity-100" : "opacity-0"}`}
+                  />
+                  <span className="truncate">{m.workspaceName}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
           </>
         )}
         <DropdownMenuSeparator />

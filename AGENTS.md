@@ -112,6 +112,14 @@ recipe is broken.
 
 ## Definition of done
 
+For rapid local iteration, run only the checks needed for the changed behavior
+and reuse passing results until a later edit invalidates them. Follow an
+explicit user request to narrow verification or review; state any remaining
+unverified gate instead of claiming it passed. Report changes and verification
+briefly in the conversation. Do not create a separate validation report or
+perform an additional broad review unless the user requests one or a concrete
+failure requires it.
+
 1. Run the affected unit/integration tests and add coverage for changed behavior.
 2. Run scoped checks, then root `just lint` for repository-wide changes.
 3. Run `just sync` after contract changes and verify both producer and consumer.

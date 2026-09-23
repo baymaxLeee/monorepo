@@ -8,12 +8,17 @@
     "./rspack": "./rspack.mjs"
   },
   "scripts": {
-    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/build-config && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/build-config/**/*.{js,mjs,cjs,json,jsonc}'",
-    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/build-config/**/*.{js,mjs,cjs,json,jsonc}'"
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/build-config && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/build-config/**/*.{js,mjs,cjs,mts,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/build-config/**/*.{js,mjs,cjs,mts,json,jsonc}'",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@tailwindcss/webpack": "catalog:",
     "css-loader": "^7.1.2",
     "style-loader": "^4.0.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@typescript/native": "catalog:"
   }
 }

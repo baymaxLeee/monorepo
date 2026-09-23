@@ -16,13 +16,13 @@ import { Link } from "react-router-dom";
 import { getProjectForRole, listMyProjects } from "@/api/projectAccess";
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import {
-  EllipsisText as CEllipsis,
-  LegacySkeleton as Skeleton,
-  OperationMenu as COperationMenu,
+  EllipsisText,
+  ContentSkeleton,
+  OperationMenu,
   openDeleteConfirmDialog,
-  UserLabel as UserAuto,
+  UserLabel,
   formatDateByCurrentYear,
-} from "@/components/compat";
+} from "@/components/common";
 import { Spin, Button } from "@/components/ui";
 import { project } from "@/domain";
 import { useCanManageProjects } from "@/hooks/useCanManageProjects";
@@ -113,18 +113,18 @@ function ProjectCard({
 
         <div className="flex flex-col gap-1 px-3">
           <h2 className="m-0 min-w-0 text-[18px] font-medium leading-7 text-foreground group-hover:text-primary">
-            <CEllipsis showPopover="auto" className={`w-full ${styles.projectTitle}`}>
+            <EllipsisText showPopover="auto" className={`w-full ${styles.projectTitle}`}>
               {project.title}
-            </CEllipsis>
+            </EllipsisText>
           </h2>
           <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-muted-foreground">
-            <UserAuto id={project.createdBy} stableSign={true} prefix="@" showIcon={false} />
+            <UserLabel id={project.createdBy} stableSign={true} prefix="@" showIcon={false} />
             <span>·</span>
-            <CEllipsis className="min-w-0 flex-1">
+            <EllipsisText className="min-w-0 flex-1">
               <time>
                 {t("更新时间")} {formatDateByCurrentYear(project.updatedAt, PROJECT_UPDATED_AT_FORMAT)}
               </time>
-            </CEllipsis>
+            </EllipsisText>
           </div>
         </div>
         <div className="flex h-6 items-center gap-3 px-3">
@@ -139,7 +139,7 @@ function ProjectCard({
         </div>
       </Link>
       <div className={styles.cardOperations}>
-        <COperationMenu
+        <OperationMenu
           className={styles.cardOperationMenu}
           defaultButtonType="outline"
           displayNum={1}
@@ -165,7 +165,7 @@ function ProjectCard({
 function ProjectCardSkeleton() {
   return (
     <div aria-hidden className="min-w-0 rounded-[12px] bg-white p-2">
-      <Skeleton
+      <ContentSkeleton
         animation
         className="aspect-video w-full shrink-0"
         image={{
@@ -178,7 +178,7 @@ function ProjectCardSkeleton() {
         }}
         text={false}
       />
-      <Skeleton animation className="mt-3" text={{ rows: 4, width: ["72%", "92%", "48%", "64%"] }} />
+      <ContentSkeleton animation className="mt-3" text={{ rows: 4, width: ["72%", "92%", "48%", "64%"] }} />
     </div>
   );
 }

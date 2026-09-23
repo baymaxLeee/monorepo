@@ -48,7 +48,7 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left";
   showCloseButton?: boolean;
 }) {
-  const layer = useModalLayer();
+  const layer = useModalLayer(style);
   const popupStyle = useModalLayerStyle(style, layer.modalZIndex);
   return (
     <SheetPortal container={container}>

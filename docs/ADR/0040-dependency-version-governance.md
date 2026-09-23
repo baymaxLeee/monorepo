@@ -15,7 +15,7 @@ Python 已有单一 `uv.lock`，Go 服务则必须保持可独立构建。
 ## Decision
 
 - Node.js 统一固定为 `24.18.0` Active LTS：本地和项目外默认版本均由 mise 管理，
-  pnpm 固定为 `11.9.0`；根、前端、后端 workspace 的 `engines` 与所有 Node
+  pnpm 固定为 `12.5.1`；根、前端、后端 workspace 的 `engines` 与所有 Node
   容器基础镜像使用同一 Node 补丁版本。Codex CLI 使用官方 standalone 安装，避免
   npm 全局包随 Node 安装目录重复升级。
 - 前端 pnpm workspace 使用 `catalog:` 管理共享的直接依赖；React、Router、Zustand、

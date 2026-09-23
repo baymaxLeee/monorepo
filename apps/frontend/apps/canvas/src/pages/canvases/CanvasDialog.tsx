@@ -7,16 +7,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+  Field,
+  FieldLabel,
+  FieldError,
 } from "@repo/design-system";
 import { Image as ImageIcon, Info } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { CoverImageUploader } from "@/components/CoverImageUploader";
@@ -54,6 +51,12 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
     defaultValues: { Name: "", CoverImagePath: undefined },
   });
   const name = form.watch("Name");
+  const submit = async (values: CanvasValues) => {
+    if (!state) return;
+    await saveCanvas(projectId, state, values);
+    onSuccess();
+    onClose();
+  };
 
   useEffect(() => {
     form.reset({
@@ -87,62 +90,67 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
           <DialogDescription className="sr-only">{t("编辑视频设置")}</DialogDescription>
         </DialogHeader>
         <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">
-          <Form {...form}>
-            <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
-              <FormField
-                control={form.control}
-                name="Name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className={`${styles.fieldLabel} flex items-center gap-1`}>
-                      {t("视频名称")}
-                      <span className="text-destructive">*</span>
-                      <span title={t("名称长度为 2-20 个字，不能以连接符或空格开头、结尾")}>
-                        <Info aria-hidden className={styles.nameInfoIcon} size={14} strokeWidth={1.5} />
-                      </span>
-                      <span className={styles.nameCount}>{name.length}/20</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input maxLength={20} onChange={field.onChange} placeholder={t("请输入")} value={field.value} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="CoverImagePath"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className={styles.fieldLabel}>{t("视频封面")}</FormLabel>
-                    <FormControl>
-                      <CoverImageUploader
-                        key={state?.mode === "edit" ? state.canvas.CanvasID : (state?.mode ?? "closed")}
-                        className={styles.coverUploader}
-                        emptyContent={
-                          <div className={styles.coverEmpty}>
-                            <ImageIcon className={styles.coverIcon} />
-                            <div className={styles.coverHint}>
-                              <span className={styles.coverHintTitle}>{t("点击或拖拽图片到此处上传")}</span>
-                              <span className={styles.coverHintDescription}>{t("支持 png、jpg、jpeg，最大 2M")}</span>
-                            </div>
-                          </div>
-                        }
-                        imageAlt={t("视频封面")}
-                        imageClassName={styles.coverImageContain}
-                        onChange={field.onChange}
-                        onUploadingChange={setCoverUploading}
-                        previewURL={state?.mode === "edit" ? state.canvas.CoverImageURL : undefined}
-                        removeAriaLabel={t("移除视频封面")}
-                        showReplaceAction
-                        value={field.value}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </form>
-          </Form>
+          <form id="canvas-form" className={styles.form} onSubmit={form.handleSubmit(submit)}>
+            <Controller
+              control={form.control}
+              name="Name"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name} className={`${styles.fieldLabel} flex items-center gap-1`}>
+                    {t("视频名称")}
+                    <span className="text-destructive">*</span>
+                    <span title={t("名称长度为 2-20 个字，不能以连接符或空格开头、结尾")}>
+                      <Info aria-hidden className={styles.nameInfoIcon} size={14} strokeWidth={1.5} />
+                    </span>
+                    <span className={styles.nameCount}>{name.length}/20</span>
+                  </FieldLabel>
+                  <Input
+                    id={field.name}
+                    aria-invalid={fieldState.invalid}
+                    maxLength={20}
+                    onChange={field.onChange}
+                    placeholder={t("请输入")}
+                    value={field.value}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="CoverImagePath"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name} className={styles.fieldLabel}>
+                    {t("视频封面")}
+                  </FieldLabel>
+                  <CoverImageUploader
+                    key={state?.mode === "edit" ? state.canvas.CanvasID : (state?.mode ?? "closed")}
+                    className={styles.coverUploader}
+                    emptyContent={
+                      <div className={styles.coverEmpty}>
+                        <ImageIcon className={styles.coverIcon} />
+                        <div className={styles.coverHint}>
+                          <span className={styles.coverHintTitle}>{t("点击或拖拽图片到此处上传")}</span>
+                          <span className={styles.coverHintDescription}>{t("支持 png、jpg、jpeg，最大 2M")}</span>
+                        </div>
+                      </div>
+                    }
+                    imageAlt={t("视频封面")}
+                    imageClassName={styles.coverImageContain}
+                    inputId={field.name}
+                    invalid={fieldState.invalid}
+                    onChange={field.onChange}
+                    onUploadingChange={setCoverUploading}
+                    previewURL={state?.mode === "edit" ? state.canvas.CoverImageURL : undefined}
+                    removeAriaLabel={t("移除视频封面")}
+                    showReplaceAction
+                    value={field.value}
+                  />
+                </Field>
+              )}
+            />
+          </form>
         </div>
         <DialogFooter className="canvas-modal-footer shrink-0 px-6 py-4">
           <Button disabled={form.formState.isSubmitting} onClick={onClose} type="button" variant="outline">
@@ -150,15 +158,8 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
           </Button>
           <Button
             disabled={form.formState.isSubmitting || !form.formState.isValid || coverUploading}
-            onClick={() =>
-              void form.handleSubmit(async (values) => {
-                if (!state) return;
-                await saveCanvas(projectId, state, values);
-                onSuccess();
-                onClose();
-              })()
-            }
-            type="button"
+            form="canvas-form"
+            type="submit"
           >
             {t("确定")}
           </Button>

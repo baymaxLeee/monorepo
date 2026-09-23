@@ -2,7 +2,7 @@ import { Play as IconPlay } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { AudioPlayer } from "@/components/audioPlayer/index";
-import { Markdown as MarkDown } from "@/components/compat";
+import { Markdown } from "@/components/common";
 import { VideoPlayer } from "@/components/videoPlayer/index";
 import t from "@/utils/i18n";
 
@@ -28,7 +28,7 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
   if (asset.category === "text") {
     return (
       <div className="h-[218px] w-full overflow-auto rounded-[8px] bg-muted p-3 text-[13px] leading-5.5 text-foreground">
-        <MarkDown data={asset.description || asset.title} />
+        <Markdown data={asset.description || asset.title} />
       </div>
     );
   }

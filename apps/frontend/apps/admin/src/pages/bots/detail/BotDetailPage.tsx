@@ -1,7 +1,7 @@
 import { type Bot, fetchBot } from "@repo/api";
 import {
   Badge,
-  Button,
+  buttonVariants,
   Card,
   CardContent,
   CardDescription,
@@ -44,9 +44,9 @@ export function BotDetailPage() {
 
   return (
     <Page>
-      <Button variant="ghost" size="sm" render={<Link to=".." relative="path" />}>
+      <Link to=".." relative="path" className={buttonVariants({ variant: "ghost", size: "sm" })}>
         ← 返回列表
-      </Button>
+      </Link>
       {loading && (
         <Card className="max-w-lg">
           <CardHeader>

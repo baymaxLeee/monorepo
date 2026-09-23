@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { EllipsisText as CEllipsis } from "@/components/compat";
+import { EllipsisText } from "@/components/common";
 import { Input, Message } from "@/components/ui";
 import t from "@/utils/i18n";
 
@@ -86,7 +86,7 @@ export function ShotTitle({
 
   const visibleName = pendingName ?? label;
   return (
-    <CEllipsis
+    <EllipsisText
       className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-foreground cursor-text"
       maxWidth={200}
       onClick={
@@ -100,6 +100,6 @@ export function ShotTitle({
       useCursorPointer={false}
     >
       {visibleName}
-    </CEllipsis>
+    </EllipsisText>
   );
 }

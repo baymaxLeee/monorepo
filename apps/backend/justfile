@@ -42,7 +42,7 @@ dev service:
 # Image tags default to local/<svc>:latest. Override with positional args.
 build target="":
     @if [ -z "{{ target }}" ]; then \
-        just build-go && just build-images; \
+        just build-go && just build-node && just build-images; \
     elif [ -d "services/{{ target }}" ]; then \
         if [ -f "services/{{ target }}/go.mod" ]; then just build-go-svc {{ target }}; \
         elif [ -f "services/{{ target }}/package.json" ]; then just build-node-svc {{ target }}; \
@@ -53,6 +53,13 @@ build target="":
 build-go:
     @for s in {{ GO_SERVICES }}; do just build-go-svc $s; done
     @echo "✓ Go binaries → services/<svc>/bin/server"
+
+# Build and typecheck all Node services from the shared backend workspace.
+build-node:
+    pnpm install --frozen-lockfile
+    pnpm --filter chat run build
+    pnpm --filter executor run typecheck
+    pnpm --filter executor run build
 
 build-go-svc service:
     @echo "→ Building Go service: {{ service }}"
@@ -71,7 +78,10 @@ build-py-svc service:
 # "Build" a Node service = typecheck + OpenAPI export.
 build-node-svc service:
     @echo "→ Pre-flighting Node service: {{ service }}"
-    cd services/{{ service }} && pnpm install && pnpm run build && pnpm run gen-openapi
+    pnpm install --frozen-lockfile
+    pnpm --filter {{ service }} run --if-present typecheck
+    pnpm --filter {{ service }} run build
+    pnpm --filter {{ service }} run gen-openapi
     @echo "✓ {{ service }} ready (run as image via: just build-image {{ service }})"
 
 # Build a single service's docker image. Usage:

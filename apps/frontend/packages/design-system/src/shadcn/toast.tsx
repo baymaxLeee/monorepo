@@ -6,6 +6,8 @@ import { cn } from "cn";
 import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react";
 import * as React from "react";
 
+import { GLOBAL_TOAST_Z_INDEX } from "./portal-layer";
+
 const toast = ToastPrimitive.createToastManager();
 
 function ToastProvider({ ...props }: ToastPrimitive.Provider.Props) {
@@ -16,12 +18,13 @@ function ToastPortal({ ...props }: ToastPrimitive.Portal.Props) {
   return <ToastPrimitive.Portal data-slot="toast-portal" {...props} />;
 }
 
-function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
+function ToastViewport({ className, style, ...props }: ToastPrimitive.Viewport.Props) {
   return (
     <ToastPrimitive.Viewport
       data-slot="toast-viewport"
+      style={{ ...style, zIndex: GLOBAL_TOAST_Z_INDEX }}
       className={cn(
-        "pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full",
+        "pointer-events-none fixed inset-x-4 bottom-4 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full",
         className,
       )}
       {...props}

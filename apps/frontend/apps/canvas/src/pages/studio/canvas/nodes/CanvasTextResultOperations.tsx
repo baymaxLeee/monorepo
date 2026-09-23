@@ -1,7 +1,7 @@
 import copyToClipboard from "copy-to-clipboard";
 import { Copy as IconCopyLine } from "lucide-react";
 
-import { OperationMenu as COperationMenu } from "@/components/compat";
+import { OperationMenu } from "@/components/common";
 import { Message } from "@/components/ui";
 import t from "@/utils/i18n";
 
@@ -29,7 +29,7 @@ export function CanvasTextResultOperations({
       onDoubleClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <COperationMenu
+      <OperationMenu
         defaultButtonType="outline"
         displayNum={1}
         operations={[

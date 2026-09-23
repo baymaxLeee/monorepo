@@ -11,8 +11,6 @@ import {
   FieldLabel,
   FieldError,
   Input,
-  Form,
-  FormField,
   Select,
   SelectContent,
   SelectItem,
@@ -20,7 +18,7 @@ import {
   SelectValue,
 } from "@repo/design-system";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 const schema = z.object({
@@ -31,7 +29,17 @@ const schema = z.object({
     .max(64),
 });
 
-export function TenantField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function TenantField({
+  id,
+  invalid,
+  value,
+  onChange,
+}: {
+  id: string;
+  invalid?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [open, setOpen] = useState(false);
   const form = useForm<z.infer<typeof schema>>({
@@ -55,8 +63,8 @@ export function TenantField({ value, onChange }: { value: string; onChange: (val
   return (
     <>
       <div className="flex gap-2">
-        <Select value={value} onValueChange={(value) => value !== null && onChange(value)}>
-          <SelectTrigger className="flex-1">
+        <Select name={id} value={value} onValueChange={(value) => value !== null && onChange(value)}>
+          <SelectTrigger id={id} aria-invalid={invalid} className="flex-1">
             <SelectValue placeholder="选择公司" />
           </SelectTrigger>
           <SelectContent>
@@ -76,32 +84,30 @@ export function TenantField({ value, onChange }: { value: string; onChange: (val
           <DialogHeader>
             <DialogTitle>新建公司</DialogTitle>
           </DialogHeader>
-          <Form {...form}>
-            <div className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>公司名称</FieldLabel>
-                    <Input {...field} />
-                    <FieldError errors={[form.formState.errors.name]} />
-                  </Field>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="slug"
-                render={({ field }) => (
-                  <Field>
-                    <FieldLabel>Slug</FieldLabel>
-                    <Input {...field} />
-                    <FieldError errors={[form.formState.errors.slug]} />
-                  </Field>
-                )}
-              />
-            </div>
-          </Form>
+          <div className="space-y-4">
+            <Controller
+              control={form.control}
+              name="name"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>公司名称</FieldLabel>
+                  <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
+                  <FieldError errors={[form.formState.errors.name]} />
+                </Field>
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="slug"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Slug</FieldLabel>
+                  <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
+                  <FieldError errors={[form.formState.errors.slug]} />
+                </Field>
+              )}
+            />
+          </div>
           <DialogFooter>
             <Button type="button" disabled={form.formState.isSubmitting} onClick={form.handleSubmit(submit)}>
               创建

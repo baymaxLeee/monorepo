@@ -5,6 +5,9 @@ on:
     paths:
       - 'apps/backend/**'
       - 'schemas/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'mise.toml'
       - '.github/workflows/backend.yml'
   push:
     branches: [main]
@@ -52,9 +55,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.9.0
+      - name: Install root lint tooling
+        working-directory: .
+        run: pnpm install --frozen-lockfile
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run build

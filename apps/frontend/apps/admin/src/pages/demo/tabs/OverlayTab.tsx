@@ -10,6 +10,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -47,10 +48,11 @@ export function OverlayTab() {
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" className="w-fit" />}>打开菜单</DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuLabel>账户</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>个人资料</DropdownMenuItem>
-              <DropdownMenuItem>设置</DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>账户</DropdownMenuLabel>
+                <DropdownMenuItem>个人资料</DropdownMenuItem>
+                <DropdownMenuItem>设置</DropdownMenuItem>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem checked={notify} onCheckedChange={(v) => setNotify(v === true)}>
                 通知

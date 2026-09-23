@@ -9,10 +9,14 @@ cd "$ROOT"
 # `just install` should reconcile package.json → lockfile; CI must stay frozen.
 pnpm_install() {
   local dir="$1"
+  local -a pnpm_cmd=(pnpm)
+  if command -v mise >/dev/null 2>&1; then
+    pnpm_cmd=(mise exec -- pnpm)
+  fi
   if [ "${CI:-}" = "true" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
-    (cd "$dir" && pnpm install --frozen-lockfile)
+    (cd "$dir" && "${pnpm_cmd[@]}" install --frozen-lockfile)
   else
-    (cd "$dir" && pnpm install)
+    (cd "$dir" && "${pnpm_cmd[@]}" install)
   fi
 }
 
@@ -35,8 +39,9 @@ if ! command -v pnpm >/dev/null 2>&1 && command -v corepack >/dev/null 2>&1; the
 fi
 
 echo ""
-echo "── 3. Frontend (pnpm workspace) ──"
+echo "── 3. Root tooling + frontend (pnpm workspaces) ──"
 if command -v pnpm >/dev/null 2>&1; then
+  pnpm_install .
   pnpm_install apps/frontend
 else
   echo "  ✗ pnpm not found; install via mise or brew" >&2

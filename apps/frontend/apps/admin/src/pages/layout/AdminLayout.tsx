@@ -1,4 +1,5 @@
-import { Aside, Button, Layout, Main, Section } from "@repo/design-system";
+import { Aside, buttonVariants, Layout, Main, Section } from "@repo/design-system";
+import { cn } from "@repo/shared";
 import {
   AppWindowIcon,
   ArrowLeftIcon,
@@ -76,15 +77,14 @@ function MenuList({ items }: { items: AdminMenuItem[] }) {
         const active = location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
 
         return (
-          <Button
+          <Link
             key={item.href}
-            render={<Link to={item.href} />}
-            variant={active ? "secondary" : "ghost"}
-            className="h-8 justify-start gap-2 px-2"
+            to={item.href}
+            className={cn(buttonVariants({ variant: active ? "secondary" : "ghost" }), "h-8 justify-start gap-2 px-2")}
           >
             <Icon aria-hidden="true" className="size-4" />
             {item.title}
-          </Button>
+          </Link>
         );
       })}
     </nav>
@@ -125,15 +125,16 @@ export function AdminLayout() {
   return (
     <Layout className="h-svh min-h-0 flex-row overflow-hidden">
       <Aside className="w-52 shrink-0 gap-2 overflow-y-auto p-2">
-        <Button
-          render={<Link to="/platform/chat" />}
-          variant="ghost"
-          size="sm"
-          className="h-8 justify-start gap-2 self-start px-2 text-muted-foreground"
+        <Link
+          to="/platform/chat"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "h-8 justify-start gap-2 self-start px-2 text-muted-foreground",
+          )}
         >
           <ArrowLeftIcon aria-hidden="true" className="size-4" />
           返回应用
-        </Button>
+        </Link>
         <Section>
           <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">个人</div>
           <MenuList items={personalMenus} />

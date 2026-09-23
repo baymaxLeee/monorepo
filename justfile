@@ -70,8 +70,8 @@ build-frontend:
     cd apps/frontend && just build
 
 build-backend:
-    @echo "Building backend Go binaries..."
-    cd apps/backend && just build-go
+    @echo "Building backend Go and Node services..."
+    cd apps/backend && just build-go && just build-node
 
 build-images registry="local" tag="latest":
     cd apps/backend && just build-images {{ registry }} {{ tag }}

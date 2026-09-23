@@ -122,8 +122,9 @@ export function PlatformRolesPage() {
         <CardContent className="space-y-4">
           <div className="flex items-end gap-3">
             <Field className="flex-1">
-              <FieldLabel>用户 ID</FieldLabel>
+              <FieldLabel htmlFor="platform-role-user-id">用户 ID</FieldLabel>
               <Input
+                id="platform-role-user-id"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && query()}

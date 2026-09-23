@@ -18,11 +18,10 @@ platform (host @ :3000)
 
 ## Internal package imports
 
-Every internal package is scoped `@repo/*` and is imported by its real pnpm
-workspace package name — that name is the single module identity:
+Every internal package is scoped `@repo/*` and is imported by its real pnpm workspace package name — that name is the single module identity:
 
 | Package | Tag | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `@repo/design-system` | `ui` | shadcn/ui primitives, layout, Tailwind v4 theme (`styles.css`) |
 | `@repo/ai-elements` | `ui` | AI Elements primitives + reusable Chat UI; host injects transport/state via props |
 | `@repo/editors` | `ui` | Authoring surfaces: markdown (tiptap), code (CodeMirror), file workspace |
@@ -35,17 +34,11 @@ workspace package name — that name is the single module identity:
 | `@repo/build-config` | `util` | Shared Rspack rules + Module Federation shared registry |
 | `@repo/typescript-config` | `util` | Shared `tsconfig` base |
 
-Every consumer must declare the workspace dependency in its own `package.json`
-using `"workspace:*"`. An app depends only on the UI packages it actually uses —
-`platform` needs `design-system` only, `chat` does not pull `viewers`, `admin`
-does not pull `ai-elements`.
+Every consumer must declare the workspace dependency in its own `package.json` using `"workspace:*"`. An app depends only on the UI packages it actually uses — `platform` needs `design-system` only, `chat` does not pull `viewers`, `admin` does not pull `ai-elements`.
 
-包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入 `<包名>/src/...`。
-如果一个包需要新增对外 API，先在该包 `package.json#exports` 声明子路径，再从包名使用。
+包内模块必须从该包公开入口 re-export 出去；禁止业务代码导入 `<包名>/src/...`。如果一个包需要新增对外 API，先在该包 `package.json#exports` 声明子路径，再从包名使用。
 
-重型组件走子路径入口（不进主 barrel，避免拖慢 tree-shaking / dev 冷启动）：
-`@repo/editors/markdown-editor`、`/code-editor`、`/file-workspace`、
-`@repo/viewers/pdf-previewer`、`/xmind-previewer`、`@repo/ai-elements/prompt-input`。
+重型组件走子路径入口（不进主 barrel，避免拖慢 tree-shaking / dev 冷启动）： `@repo/editors/markdown-editor`、`/code-editor`、`/file-workspace`、 `@repo/viewers/pdf-previewer`、`/xmind-previewer`、`@repo/ai-elements/prompt-input`。
 
 ## Layout
 
@@ -54,18 +47,15 @@ does not pull `ai-elements`.
 
 ### Boundaries are enforced, not documented
 
-`turbo.json` declares tag rules; each package declares its tag in its own
-`turbo.json`. Run `turbo boundaries` (part of `just lint`) to verify:
+`turbo.json` declares tag rules; each package declares its tag in its own `turbo.json`. Run `turbo boundaries` (part of `just lint`) to verify:
 
-- `app` → may depend on `feature` / `ui` / `data` / `runtime` / `util`; **nothing may depend on an `app`**
-  (this is what makes "MFEs never import each other" mechanical)
+- `app` → may depend on `feature` / `ui` / `data` / `runtime` / `util`; **nothing may depend on an `app`** (this is what makes "MFEs never import each other" mechanical)
 - `feature` → `ui` / `data` / `runtime` / `util`; shared feature orchestration may consume API and UI, but never an app.
 - `ui` → `ui` / `util` only — a UI package must not reach into `@repo/api` or `@repo/runtime`
 - `data` → `runtime` / `util`
 - `runtime` → `util`
 
-Adding a package means adding its `turbo.json` with a tag; an untagged package
-would silently escape these rules.
+Adding a package means adding its `turbo.json` with a tag; an untagged package would silently escape these rules.
 
 ## Hard rules
 
@@ -107,7 +97,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - **全局浮层**: platform `AppProviders` 挂载 `TooltipProvider` + `Toaster`（`toast` 从 `@repo/design-system` 导出）
 - **浮层层级**: Dialog / AlertDialog / Sheet / Drawer 及其 portalled popup 必须遵循根 `DESIGN.md#overlay-layering`。业务代码不得维护 z-index 数字表或向子组件逐层透传 popup z-index；新增或修改浮层原语时先读该规范。
 - **MFE 内 Provider**: 每个 remote 的 `App` 也要挂载自己的 `TooltipProvider`；`Toaster` 保持由 platform 统一挂载
-- **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
+- **表单**: 直接使用 `react-hook-form` 的 `Controller` + Base Nova `Field` + `zod`；官方 `Form` registry 文件保持完整，但业务代码不与 `Field` 混用其旧 `FormControl` 组合，业务页勿手写裸 `Label`+`useState` 校验
 - **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`
 - **原语约定（shadcn v4 / Base Nova / Tailwind v4）**: shadcn 原语一律**扁平 kebab-case 文件**放在 `packages/design-system/src/shadcn/`，命名导出，以 `@base-ui/react` 作为唯一行为底座。Base UI 组合统一使用 `render={<Element />}`，禁止新写 Radix `asChild`。原语间交叉引用写作 `@repo/design-system/shadcn/<name>`；`src/shadcn/index.ts` 与 `src/index.ts` 统一公开。业务消费方从 `@repo/design-system` 导入，重型组件归入 `@repo/ai-elements` / `@repo/editors` / `@repo/viewers`。
 - **完整 registry 基线**: design-system 保持官方 Base Nova registry 的完整组件集合；`message-scroller` 与 `questionnaire` 是 shadcn 官方复合组件，行为来自 `@shadcn/react`，不是 Base UI 原语。`@shadcn/react` 要求 React 19，因此不得回退 React 主版本或移除这两个组件。
@@ -115,7 +105,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - **shadcn CLI / MCP（已接入）**: 根 `.cursor/mcp.json` 注册 `shadcn` server（cwd=`apps/frontend/packages/design-system`，`components.json#style=base-nova`、`ui` 别名=`@repo/design-system/shadcn`→`src/shadcn`）。CLI 在 monorepo 里要求 `packages/shared` 也有有效 `components.json` + `tsconfig.json`，勿删。新增多个标准原语时在一条 `pnpm ui:add <component...> --overwrite -y` 中批量生成，避免逐文件手写。
   - **registry 取舍**: 优先官方 shadcn/Base Nova registry；不要引入另一套 Radix、Arco、Ant Design 或 MUI primitive。第三方 registry 必须适配现有 Base UI、主题和公共 API，不能带入第二套底座。
 - **组件升级/新增流程**（在 `apps/frontend/packages/design-system`）:
-  1. **必须 Node 24.18.0 环境**（pnpm 11 依赖 `node:sqlite`；用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，否则 CLI 内部 `pnpm add` 会崩/落到错误 store）。
+  1. **必须 Node 24.18.0 + pnpm 12.5.1 环境**（用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，避免 CLI 内部 `pnpm add` 落到错误版本或 store）。
   2. 全量升级使用 `pnpm exec shadcn add --all --overwrite -y`；新增一批组件使用 `pnpm ui:add <component...> --overwrite -y`（或经 shadcn MCP `add`）。两者都集中生成到 `src/shadcn/`，不要逐文件手抄。
   3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。Base UI Toast 的命令式 `toast` 与 `Toaster` 也从该公共入口导出。
   4. `mise exec -- pnpm -F @repo/design-system typecheck` + 受影响 app `typecheck` + `pnpm -F platform build`。
@@ -142,23 +132,22 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 
 - Oxfmt + Oxlint use the repository root configs; the default line width is 120.
 - Components: PascalCase, ≤ 250 LoC, no default exports in libs
-- ESM public APIs: named exports only. Private lazy chunks may default-export the component loaded by `React.lazy`;
-  React Router lazy entries export `Component`, and Module Federation route entries export `routes`.
+- ESM public APIs: named exports only. Private lazy chunks may default-export the component loaded by `React.lazy`; React Router lazy entries export `Component`, and Module Federation route entries export `routes`.
 - Hooks: `use*`, named exports only
 - Types: no `any`, prefer `unknown` + narrow
 - Styles: Tailwind utilities from the `@repo/design-system` theme; avoid arbitrary values
 
 ## Commands (from `apps/frontend/`)
 
-| Command             | Purpose                                      |
-| ------------------- | -------------------------------------------- |
-| `just dev platform` | Start platform only (port 3000)              |
-| `just dev <mfe>`    | Start a single MFE (port from PORTS map)     |
-| `just dev-all`      | Start platform + all MFEs (heavy)            |
+| Command             | Purpose                                           |
+| ------------------- | ------------------------------------------------- |
+| `just dev platform` | Start platform only (port 3000)                   |
+| `just dev <mfe>`    | Start a single MFE (port from PORTS map)          |
+| `just dev-all`      | Start platform + all MFEs (heavy)                 |
 | `just lint`         | Oxlint + Oxfmt check + TS7 typecheck + boundaries |
-| `just boundaries`   | Package dependency-tag rules only            |
-| `just fmt`          | Oxfmt rewrite (auto-run, no need to ask)     |
-| `just gen-client`   | Regen `@repo/api` from `schemas/openapi/`    |
+| `just boundaries`   | Package dependency-tag rules only                 |
+| `just fmt`          | Oxfmt rewrite (auto-run, no need to ask)          |
+| `just gen-client`   | Regen `@repo/api` from `schemas/openapi/`         |
 
 ## Size limits
 

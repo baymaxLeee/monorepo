@@ -5,7 +5,7 @@ import emptyIllustration from "@/assets/storyboard-empty.png";
 import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
-import { Pagination, Result, openDeleteConfirmDialog } from "@/components/compat";
+import { Pagination, Result, openDeleteConfirmDialog } from "@/components/common";
 import { Message, Spin, Button, Dropdown, Menu } from "@/components/ui";
 import { asset, resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";

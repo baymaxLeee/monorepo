@@ -41,7 +41,7 @@ function AlertDialogContent({
   container?: AlertDialogPrimitive.Portal.Props["container"];
   size?: "default" | "sm";
 }) {
-  const layer = useModalLayer();
+  const layer = useModalLayer(style);
   const popupStyle = useModalLayerStyle(style, layer.modalZIndex);
   return (
     <AlertDialogPortal container={container}>

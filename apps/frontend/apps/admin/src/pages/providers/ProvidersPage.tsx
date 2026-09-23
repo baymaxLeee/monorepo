@@ -32,9 +32,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Form,
-  FormControl,
-  FormField,
   Input,
   Muted,
   Page,
@@ -61,7 +58,7 @@ import {
 } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import { resolveChatTokenBudget } from "./provider-token-budgets";
@@ -575,278 +572,300 @@ function ProviderFormDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="scrollbar-thin -mx-4 min-h-0 flex-1 overflow-y-auto px-4">
-          <Form {...form}>
-            <form id="provider-form" onSubmit={form.handleSubmit(onSubmit)}>
-              <FieldGroup>
-                <FormField
-                  control={form.control}
-                  name="provider_kind"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>类型</FieldLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={(value) => {
-                          if (value === null) return;
-                          field.onChange(value);
-                          if (value !== "chat") {
-                            form.setValue("is_default", false);
-                          }
-                          if (!isEditing) {
-                            applyKindPreset(value);
-                          }
-                        }}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="选择 Provider 类型" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="chat">对话 (chat)</SelectItem>
-                          <SelectItem value="image">图片生成 (Seedream)</SelectItem>
-                          <SelectItem value="video">视频生成 (Seedance)</SelectItem>
-                          <SelectItem value="embedding">向量嵌入 (Embedding · RAG)</SelectItem>
-                          <SelectItem value="rerank">重排 (Rerank · RAG)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FieldError errors={[form.formState.errors.provider_kind]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>名称</FieldLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="例如：DeepSeek V4（个人）" />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.name]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="model"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>模型 (model)</FieldLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          onBlur={(event) => {
-                            field.onBlur();
-                            if (!isEditing) {
-                              applyChatTokenBudgetForModel(event.target.value);
-                            }
-                          }}
-                          placeholder={
-                            providerKind === "image"
-                              ? "doubao-seedream-5-0-260128"
-                              : providerKind === "video"
-                                ? "doubao-seedance-2-0-260128"
-                                : "deepseek-v4-pro-260425 / glm-5-2-260617 / doubao-seed-2-1-pro-260628"
-                          }
-                        />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.model]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="base_url"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>Base URL</FieldLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder={providerKind === "chat" ? "https://api.deepseek.com" : ARK_BASE_URL}
-                        />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.base_url]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="api_key"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>
-                        API Key{" "}
-                        {isEditing && (
-                          <span className="text-xs font-normal text-muted-foreground">（留空 = 保留原 key）</span>
-                        )}
-                      </FieldLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="password"
-                          autoComplete="off"
-                          placeholder={isEditing ? "保持不变请留空" : "sk-..."}
-                        />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.api_key]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="extra_body"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>extra_body（可选 JSON 对象）</FieldLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          rows={providerKind === "video" ? 8 : 4}
-                          className="font-mono text-xs"
-                          placeholder={kindPresets[providerKind].extra_body}
-                        />
-                      </FormControl>
-                      {providerKind === "video" ? (
-                        <Muted className="text-xs">
-                          视频输出：ratio（16:9 / 9:16 / 1:1 等）、resolution（480p / 720p /
-                          1080p）、generate_audio、watermark、framespersecond（24 / 25 / 30 / 60）；同时影响 Ark
-                          生成与拼接规格。
-                        </Muted>
-                      ) : null}
-                      <FieldError errors={[form.formState.errors.extra_body]} />
-                    </Field>
-                  )}
-                />
-                {providerKind === "image" || providerKind === "video" ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="pricing_currency"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel>计费币种</FieldLabel>
-                          <FormControl>
-                            <Input {...field} maxLength={3} placeholder="CNY" />
-                          </FormControl>
-                          <FieldError errors={[form.formState.errors.pricing_currency]} />
-                        </Field>
-                      )}
+          <form id="provider-form" onSubmit={form.handleSubmit(onSubmit)}>
+            <FieldGroup>
+              <Controller
+                control={form.control}
+                name="provider_kind"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>类型</FieldLabel>
+                    <Select
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={(value) => {
+                        if (value === null) return;
+                        field.onChange(value);
+                        if (value !== "chat") {
+                          form.setValue("is_default", false);
+                        }
+                        if (!isEditing) {
+                          applyKindPreset(value);
+                        }
+                      }}
+                    >
+                      <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                        <SelectValue placeholder="选择 Provider 类型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="chat">对话 (chat)</SelectItem>
+                        <SelectItem value="image">图片生成 (Seedream)</SelectItem>
+                        <SelectItem value="video">视频生成 (Seedance)</SelectItem>
+                        <SelectItem value="embedding">向量嵌入 (Embedding · RAG)</SelectItem>
+                        <SelectItem value="rerank">重排 (Rerank · RAG)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FieldError errors={[form.formState.errors.provider_kind]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="name"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>名称</FieldLabel>
+                    <Input
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      {...field}
+                      placeholder="例如：DeepSeek V4（个人）"
                     />
-                    <FormField
-                      control={form.control}
-                      name="unit_price_micros"
-                      render={({ field }) => (
-                        <Field>
-                          <FieldLabel>
-                            {providerKind === "image" ? "每张图片单价（微单位）" : "每生成秒单价（微单位）"}
-                          </FieldLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              type="number"
-                              min={1}
-                              onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
-                            />
-                          </FormControl>
-                          <Muted className="text-xs">1,000,000 微单位 = 1.00 币种单位</Muted>
-                          <FieldError errors={[form.formState.errors.unit_price_micros]} />
-                        </Field>
-                      )}
+                    <FieldError errors={[form.formState.errors.name]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="model"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>模型 (model)</FieldLabel>
+                    <Input
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      {...field}
+                      onBlur={(event) => {
+                        field.onBlur();
+                        if (!isEditing) {
+                          applyChatTokenBudgetForModel(event.target.value);
+                        }
+                      }}
+                      placeholder={
+                        providerKind === "image"
+                          ? "doubao-seedream-5-0-260128"
+                          : providerKind === "video"
+                            ? "doubao-seedance-2-0-260128"
+                            : "deepseek-v4-pro-260425 / glm-5-2-260617 / doubao-seed-2-1-pro-260628"
+                      }
                     />
-                  </div>
-                ) : null}
+                    <FieldError errors={[form.formState.errors.model]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="base_url"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Base URL</FieldLabel>
+                    <Input
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      {...field}
+                      placeholder={providerKind === "chat" ? "https://api.deepseek.com" : ARK_BASE_URL}
+                    />
+                    <FieldError errors={[form.formState.errors.base_url]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="api_key"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>
+                      API Key{" "}
+                      {isEditing && (
+                        <span className="text-xs font-normal text-muted-foreground">（留空 = 保留原 key）</span>
+                      )}
+                    </FieldLabel>
+                    <Input
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      {...field}
+                      type="password"
+                      autoComplete="off"
+                      placeholder={isEditing ? "保持不变请留空" : "sk-..."}
+                    />
+                    <FieldError errors={[form.formState.errors.api_key]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="extra_body"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>extra_body（可选 JSON 对象）</FieldLabel>
+                    <Textarea
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      {...field}
+                      rows={providerKind === "video" ? 8 : 4}
+                      className="font-mono text-xs"
+                      placeholder={kindPresets[providerKind].extra_body}
+                    />
+                    {providerKind === "video" ? (
+                      <Muted className="text-xs">
+                        视频输出：ratio（16:9 / 9:16 / 1:1 等）、resolution（480p / 720p /
+                        1080p）、generate_audio、watermark、framespersecond（24 / 25 / 30 / 60）；同时影响 Ark
+                        生成与拼接规格。
+                      </Muted>
+                    ) : null}
+                    <FieldError errors={[form.formState.errors.extra_body]} />
+                  </Field>
+                )}
+              />
+              {providerKind === "image" || providerKind === "video" ? (
                 <div className="grid grid-cols-2 gap-3">
-                  <FormField
+                  <Controller
                     control={form.control}
-                    name="context_window_k"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel>Context window (K tokens)</FieldLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="number"
-                            min={1}
-                            max={2048}
-                            step={0.25}
-                            onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
-                          />
-                        </FormControl>
-                        <FieldError errors={[form.formState.errors.context_window_k]} />
+                    name="pricing_currency"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor={field.name}>计费币种</FieldLabel>
+                        <Input
+                          id={field.name}
+                          aria-invalid={fieldState.invalid}
+                          {...field}
+                          maxLength={3}
+                          placeholder="CNY"
+                        />
+                        <FieldError errors={[form.formState.errors.pricing_currency]} />
                       </Field>
                     )}
                   />
-                  <FormField
+                  <Controller
                     control={form.control}
-                    name="max_output_tokens_k"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel>Max output (K tokens)</FieldLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="number"
-                            min={0.25}
-                            max={1024}
-                            step={0.25}
-                            onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
-                          />
-                        </FormControl>
-                        <FieldError errors={[form.formState.errors.max_output_tokens_k]} />
+                    name="unit_price_micros"
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor={field.name}>
+                          {providerKind === "image" ? "每张图片单价（微单位）" : "每生成秒单价（微单位）"}
+                        </FieldLabel>
+                        <Input
+                          id={field.name}
+                          aria-invalid={fieldState.invalid}
+                          {...field}
+                          type="number"
+                          min={1}
+                          onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
+                        />
+                        <Muted className="text-xs">1,000,000 微单位 = 1.00 币种单位</Muted>
+                        <FieldError errors={[form.formState.errors.unit_price_micros]} />
                       </Field>
                     )}
                   />
                 </div>
-                <Muted className="text-xs">统一按 1K = 1024 tokens 配置，支持 0.25K 步进。</Muted>
-                {providerKind === "chat" && (
-                  <FormField
-                    control={form.control}
-                    name="supports_image_input"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel className="flex items-center gap-2">
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          支持图片输入（多模态视觉）
-                          <span className="text-xs font-normal text-muted-foreground">
-                            关闭时上传图片自动降级为文本引用
-                          </span>
-                        </FieldLabel>
-                      </Field>
-                    )}
-                  />
-                )}
-                {providerKind === "chat" && (
-                  <FormField
-                    control={form.control}
-                    name="is_default"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel className="flex items-center gap-2">
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          设为默认对话模型
-                        </FieldLabel>
-                        <FieldError errors={[form.formState.errors.is_default]} />
-                      </Field>
-                    )}
-                  />
-                )}
-                <FormField
+              ) : null}
+              <div className="grid grid-cols-2 gap-3">
+                <Controller
                   control={form.control}
-                  name="is_enabled"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel className="flex items-center gap-2">
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        启用
+                  name="context_window_k"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>Context window (K tokens)</FieldLabel>
+                      <Input
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                        type="number"
+                        min={1}
+                        max={2048}
+                        step={0.25}
+                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
+                      />
+                      <FieldError errors={[form.formState.errors.context_window_k]} />
+                    </Field>
+                  )}
+                />
+                <Controller
+                  control={form.control}
+                  name="max_output_tokens_k"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>Max output (K tokens)</FieldLabel>
+                      <Input
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        {...field}
+                        type="number"
+                        min={0.25}
+                        max={1024}
+                        step={0.25}
+                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
+                      />
+                      <FieldError errors={[form.formState.errors.max_output_tokens_k]} />
+                    </Field>
+                  )}
+                />
+              </div>
+              <Muted className="text-xs">统一按 1K = 1024 tokens 配置，支持 0.25K 步进。</Muted>
+              {providerKind === "chat" && (
+                <Controller
+                  control={form.control}
+                  name="supports_image_input"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name} className="flex items-center gap-2">
+                        <Switch
+                          id={field.name}
+                          name={field.name}
+                          aria-invalid={fieldState.invalid}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                        支持图片输入（多模态视觉）
+                        <span className="text-xs font-normal text-muted-foreground">
+                          关闭时上传图片自动降级为文本引用
+                        </span>
                       </FieldLabel>
                     </Field>
                   )}
                 />
-              </FieldGroup>
-            </form>
-          </Form>
+              )}
+              {providerKind === "chat" && (
+                <Controller
+                  control={form.control}
+                  name="is_default"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name} className="flex items-center gap-2">
+                        <Switch
+                          id={field.name}
+                          name={field.name}
+                          aria-invalid={fieldState.invalid}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                        设为默认对话模型
+                      </FieldLabel>
+                      <FieldError errors={[form.formState.errors.is_default]} />
+                    </Field>
+                  )}
+                />
+              )}
+              <Controller
+                control={form.control}
+                name="is_enabled"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name} className="flex items-center gap-2">
+                      <Switch
+                        id={field.name}
+                        name={field.name}
+                        aria-invalid={fieldState.invalid}
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                      启用
+                    </FieldLabel>
+                  </Field>
+                )}
+              />
+            </FieldGroup>
+          </form>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

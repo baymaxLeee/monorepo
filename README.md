@@ -14,7 +14,7 @@ cd /Users/bytedance/projects/project/monorepo
 
 # 1. 装工具版本管理器(强烈推荐,仅需一次)
 brew install mise                                          # 或 curl https://mise.run | sh
-mise use --global node@24.18.0 pnpm@11.9.0
+mise use --global node@24.18.0 pnpm@12.5.1
 grep -qxF 'eval "$(mise activate zsh --shims)"' ~/.zprofile 2>/dev/null || echo 'eval "$(mise activate zsh --shims)"' >> ~/.zprofile
 grep -qxF 'eval "$(mise activate zsh)"' ~/.zshrc 2>/dev/null || echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
 eval "$(mise activate zsh)"
@@ -71,7 +71,7 @@ Codex CLI 使用官方 standalone 安装（`curl -fsSL https://chatgpt.com/codex
 | knowledge | http://localhost:8010/healthz | 文档 / RAG / artifact 存储 |
 | executor | http://localhost:8011/healthz | 长任务（HTML artifact / 视频） |
 
-> 不想装 mise?自己装齐 `node@24.18.0 / pnpm@11.9.0 / python@3.14.5 / uv / go@1.26.3 / just / docker / jq` 也行。
+> 不想装 mise?自己装齐 `node@24.18.0 / pnpm@12.5.1 / python@3.14.5 / uv / go@1.26.3 / just / docker / jq` 也行。
 > 不想装 overmind?`just dev` 会自动回退到纯 shell 模式,功能一样,只是日志混在一起。
 
 ---
@@ -91,7 +91,7 @@ just down    # 收工,关 docker
 
 ## 🧰 技术栈速览
 
-- **前端**:React 18 + TypeScript + Rspack + **Module Federation 2.0**(`platform` host + `admin` / `chat` remotes)
+- **前端**:React 19 + TypeScript + Rspack + **Module Federation 2.0**(`platform` host + `admin` / `chat` / `canvas` remotes)
 - **后端**:Python 3.14 + FastAPI(微服务) + Go 1.26 + chi(API Gateway)
 - **包管理**:pnpm(FE) · uv(Py) · go.work
 - **任务编排**:[just](https://just.systems) + [mise](https://mise.jdx.dev)
@@ -233,7 +233,7 @@ overmind kill                  # 全部干掉
 
 | 层 | 包 | 用途 |
 |---|---|---|
-| Tier 1:框架级 | `react`、`react-dom`、`react-router` | React 18 生态,**必须 singleton** |
+| Tier 1:框架级 | `react`、`react-dom`、`react-router` | React 19 生态,**必须 singleton** |
 | Tier 2:平台基础设施 | `@repo/shared`、`@repo/runtime`、`@repo/observability` | 跨 MFE 运行时身份 |
 | Tier 3:共享状态 | `zustand`、`@tanstack/react-query`、`sonner` | host 持有 context/全局发射器 |
 | Tier 4:编辑器运行时 | `@tiptap/*`、`@tiptap/pm/*` | 编辑器状态与插件带运行时对象身份 |
@@ -404,7 +404,7 @@ overmind connect svc-admin
 
 ```bash
 node -v   # 应该是 v24.18.0
-pnpm -v   # 应该是 11.9.0
+pnpm -v   # 应该是 12.5.1
 mise install   # 重新装一遍
 ```
 

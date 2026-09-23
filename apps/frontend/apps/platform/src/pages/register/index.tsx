@@ -11,9 +11,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Form,
-  FormControl,
-  FormField,
   Input,
   Select,
   SelectContent,
@@ -26,7 +23,7 @@ import { setUser as setObservabilityUser } from "@repo/observability";
 import { usePlatformStore } from "@repo/runtime";
 import { getErrorMessage } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
@@ -156,123 +153,132 @@ function RegisterPage() {
           <CardDescription>创建 Platform 账号</CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <FieldGroup>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="name">Name</FieldLabel>
-                      <FormControl>
-                        <Input
-                          id="name"
-                          autoComplete="username"
-                          {...field}
-                          onBlur={(event) => {
-                            field.onBlur();
-                            void validateNameAvailable(event.target.value);
-                          }}
-                          onChange={(event) => {
-                            lastCheckedName.current = null;
-                            field.onChange(event);
-                          }}
-                        />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.name]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="password">Password</FieldLabel>
-                      <FormControl>
-                        <Input id="password" type="password" autoComplete="new-password" {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.password]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="workspaceId"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="workspaceId">申请加入其他工作空间（可选）</FieldLabel>
-                      <Select value={field.value} onValueChange={(value) => value !== null && field.onChange(value)}>
-                        <FormControl>
-                          <SelectTrigger id="workspaceId" className="w-full">
-                            <SelectValue placeholder={workspacesError ? "工作空间列表加载失败" : "选择目标工作空间"} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="guest-only">暂不申请，直接体验</SelectItem>
-                          {workspaces.map((workspace) => (
-                            <SelectItem key={workspace.id} value={workspace.id}>
-                              {workspace.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldError errors={[form.formState.errors.workspaceId]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="avatar"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="avatar">Avatar</FieldLabel>
-                      <FormControl>
-                        <Input id="avatar" type="url" placeholder="https://example.com/avatar.png" {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.avatar]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="email">Email</FieldLabel>
-                      <FormControl>
-                        <Input id="email" type="email" autoComplete="email" {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.email]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phoneNumber"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel htmlFor="phoneNumber">Phone Number</FieldLabel>
-                      <FormControl>
-                        <Input id="phoneNumber" type="tel" autoComplete="tel" {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.phoneNumber]} />
-                    </Field>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "创建中…" : "创建账号"}
-                </Button>
-                <div className="text-center text-sm text-muted-foreground">
-                  已有账号？
-                  <Link to="/login" className="ml-1 font-medium text-foreground underline-offset-4 hover:underline">
-                    去登录
-                  </Link>
-                </div>
-              </FieldGroup>
-            </form>
-          </Form>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <FieldGroup>
+              <Controller
+                control={form.control}
+                name="name"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="name">Name</FieldLabel>
+                    <Input
+                      id="name"
+                      aria-invalid={fieldState.invalid}
+                      autoComplete="username"
+                      {...field}
+                      onBlur={(event) => {
+                        field.onBlur();
+                        void validateNameAvailable(event.target.value);
+                      }}
+                      onChange={(event) => {
+                        lastCheckedName.current = null;
+                        field.onChange(event);
+                      }}
+                    />
+                    <FieldError errors={[form.formState.errors.name]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="password"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="password">Password</FieldLabel>
+                    <Input
+                      id="password"
+                      aria-invalid={fieldState.invalid}
+                      type="password"
+                      autoComplete="new-password"
+                      {...field}
+                    />
+                    <FieldError errors={[form.formState.errors.password]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="workspaceId"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="workspaceId">申请加入其他工作空间（可选）</FieldLabel>
+                    <Select
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={(value) => value !== null && field.onChange(value)}
+                    >
+                      <SelectTrigger id="workspaceId" aria-invalid={fieldState.invalid} className="w-full">
+                        <SelectValue placeholder={workspacesError ? "工作空间列表加载失败" : "选择目标工作空间"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="guest-only">暂不申请，直接体验</SelectItem>
+                        {workspaces.map((workspace) => (
+                          <SelectItem key={workspace.id} value={workspace.id}>
+                            {workspace.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldError errors={[form.formState.errors.workspaceId]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="avatar"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="avatar">Avatar</FieldLabel>
+                    <Input
+                      id="avatar"
+                      aria-invalid={fieldState.invalid}
+                      type="url"
+                      placeholder="https://example.com/avatar.png"
+                      {...field}
+                    />
+                    <FieldError errors={[form.formState.errors.avatar]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="email"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="email">Email</FieldLabel>
+                    <Input id="email" aria-invalid={fieldState.invalid} type="email" autoComplete="email" {...field} />
+                    <FieldError errors={[form.formState.errors.email]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="phoneNumber"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="phoneNumber">Phone Number</FieldLabel>
+                    <Input
+                      id="phoneNumber"
+                      aria-invalid={fieldState.invalid}
+                      type="tel"
+                      autoComplete="tel"
+                      {...field}
+                    />
+                    <FieldError errors={[form.formState.errors.phoneNumber]} />
+                  </Field>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "创建中…" : "创建账号"}
+              </Button>
+              <div className="text-center text-sm text-muted-foreground">
+                已有账号？
+                <Link to="/login" className="ml-1 font-medium text-foreground underline-offset-4 hover:underline">
+                  去登录
+                </Link>
+              </div>
+            </FieldGroup>
+          </form>
         </CardContent>
       </Card>
     </div>

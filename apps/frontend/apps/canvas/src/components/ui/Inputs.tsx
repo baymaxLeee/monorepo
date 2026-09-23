@@ -42,6 +42,7 @@ const TextInput = forwardRef<HTMLInputElement, InputProps>(function TextInput(
     allowClear,
     onClear,
     error,
+    "aria-invalid": ariaInvalid,
     onPressEnter,
     className,
     style,
@@ -60,7 +61,7 @@ const TextInput = forwardRef<HTMLInputElement, InputProps>(function TextInput(
       <NativeInput
         {...props}
         ref={ref}
-        aria-invalid={error}
+        aria-invalid={error || ariaInvalid || undefined}
         className={`${prefix ? "pl-9!" : ""} ${allowClear || suffix ? "pr-8!" : ""}`}
         data-ui-input-control
         onChange={(event) => onChange?.(event.target.value, event)}
@@ -201,6 +202,8 @@ function Option<V extends Value>({ children }: OptionProps<V>) {
   return <>{children}</>;
 }
 interface SelectProps<V extends Value> {
+  id?: string;
+  name?: string;
   value?: V;
   defaultValue?: V;
   onChange?: (value: V) => void;
@@ -226,8 +229,11 @@ interface SelectProps<V extends Value> {
   renderFormat?: (option?: OptionProps<V>) => ReactNode;
   filterOption?: (input: string, option: ReactElement<OptionProps<V>>) => boolean;
   "aria-label"?: string;
+  "aria-invalid"?: boolean;
 }
 function Selection<V extends Value>({
+  id,
+  name,
   value,
   defaultValue,
   onChange,
@@ -246,6 +252,7 @@ function Selection<V extends Value>({
   renderFormat,
   filterOption,
   "aria-label": ariaLabel,
+  "aria-invalid": ariaInvalid,
 }: SelectProps<V>) {
   const [query, setQuery] = useState("");
   const items: OptionProps<V>[] = options
@@ -275,6 +282,7 @@ function Selection<V extends Value>({
   ));
   return (
     <NativeSelect
+      name={name}
       value={encode(value)}
       defaultValue={encode(defaultValue)}
       disabled={disabled}
@@ -287,7 +295,9 @@ function Selection<V extends Value>({
       }}
     >
       <SelectTrigger
+        id={id}
         aria-label={ariaLabel}
+        aria-invalid={ariaInvalid}
         className={`${bordered ? "" : "border-0 shadow-none"} ${className ?? ""}`}
         style={style}
       >

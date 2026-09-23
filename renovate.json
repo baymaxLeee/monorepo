@@ -4,13 +4,17 @@
   "dependencyDashboard": true,
   "packageRules": [
     {
+      "groupName": "pnpm toolchain",
+      "matchManagers": ["npm", "mise", "github-actions"],
+      "matchPackageNames": ["pnpm", "pnpm/action-setup"]
+    },
+    {
       "groupName": "React Module Federation runtime",
       "matchManagers": ["npm"],
       "matchPackageNames": [
         "react",
         "react-dom",
         "react-router-dom",
-        "react-compiler-runtime",
         "zustand",
         "@module-federation/enhanced",
         "@rspack/core",

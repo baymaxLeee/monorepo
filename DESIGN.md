@@ -61,7 +61,7 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 | Official composites | `@shadcn/react` | shadcn 官方的 React 19 复合行为，仅由 registry 组件封装 |
 | AI interfaces | `@repo/ai-elements` | 消息、推理、来源、工具、工作流、附件、产物和输入框 |
 | Icons | `lucide-react` | 默认图标集，保持一致的笔画和命名 |
-| Forms | `Form` + `Field` + React Hook Form + Zod | 表单状态、校验、描述和错误的统一路径 |
+| Forms | `Controller` + `Field` + React Hook Form + Zod | 表单状态、校验、描述和错误的统一路径 |
 | Notifications | design-system 导出的 `toast` / `Toaster` | 全局短时反馈；不可替代页面内可恢复错误 |
 
 ### 组件选择顺序
@@ -152,6 +152,7 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 ### 链接、按钮与菜单
 
 - 路由和可分享位置使用 link；会改变当前状态的操作使用 button。修饰键点击 link 必须仍可在新标签打开。
+- 链接需要按钮视觉时，直接给 `Link` / `a` 使用 `buttonVariants()`；禁止用 `Button render={<Link />}` 伪装链接。Base UI 的非 button trigger 必须显式 `nativeButton={false}`，菜单 `Label` 必须放在对应的 `Group` 或 `RadioGroup` 内。
 - 主操作每个局部区域通常只有一个。危险操作使用 destructive variant，并在影响难以恢复时确认。
 - 按钮文案使用具体动词，如“保存配置”“重新生成”，避免含糊的“确定”。
 - dropdown/context menu 用于低频、同类动作，不隐藏当前流程的唯一主操作。菜单项顺序稳定，危险操作与普通操作分组。
@@ -192,7 +193,7 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 
 ## Forms、validation 与 feedback
 
-- 标准表单使用 `Form`、`Field`、React Hook Form 和 Zod；错误与 schema 保持一致，不在多个 `useState` 中重复校验规则。
+- 标准表单直接使用 React Hook Form 的 `Controller` 和 Base Nova `Field` / `FieldLabel` / `FieldError`；错误与 schema 保持一致。官方 registry 的 `Form` 组件保留完整基线，但业务代码不与 `Field` 混用其旧 `FormControl` 组合，也不在多个 `useState` 中重复校验规则。
 - label、description、control、error 通过 id/ARIA 正确关联。必填、格式和限制应在输入前或输入时可理解。
 - 在 blur 或 submit 后显示字段错误；不要在用户尚未完成输入时持续报错。提交失败后聚焦或滚动到首个错误，并保留用户输入。
 - 选择合适的 `type`、`inputMode`、`name` 和 `autocomplete`，让浏览器提供正确键盘和自动填充。
@@ -230,8 +231,8 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 | 用户意图或数据                   | 首选能力                              |
 | -------------------------------- | ------------------------------------- |
 | 会话滚动、空状态、回到底部、下载 | `Conversation*`                       |
-| 长会话自动跟随与回到底部按钮       | `MessageScroller*`                    |
-| Agent 向用户收集结构化选择/输入     | `Questionnaire*`                      |
+| 长会话自动跟随与回到底部按钮     | `MessageScroller*`                    |
+| Agent 向用户收集结构化选择/输入  | `Questionnaire*`                      |
 | 用户/助手消息与流式 Markdown     | `Message*`, `MessageResponse`         |
 | 推理摘要或可披露过程             | `Reasoning*`                          |
 | 来源与行内引用                   | `Sources`, `Source`, `InlineCitation` |
@@ -284,10 +285,11 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 | modal overlay      |     当前 modal - 1 |    `999` |
 | modal 内 popup     |    当前 modal + 50 |   `1050` |
 | 嵌套 modal         |     父 modal + 100 |   `1100` |
+| 全局 toast         | design-system 顶层 | `2147483647` |
 
-这些数字是 design-system 私有实现，不是业务 token。modal 原语通过 `useModalLayer()` 建立作用域，portalled popup 通过 `usePortalLayerStyle()` 消费层级。显式 popup `style.zIndex` 优先，但只作为第三方集成逃生口。
+这些数字是 design-system 私有实现，不是业务 token。modal 原语通过 `useModalLayer()` 建立作用域，portalled popup 通过 `usePortalLayerStyle()` 消费层级。显式 modal `style.zIndex` 会成为整个 modal scope 的基准，同步驱动 overlay、content 与子 popup；显式 popup `style.zIndex` 仅作为第三方集成逃生口。
 
-`container` / `getPopupContainer` 仅用于滚动裁剪、iframe、shadow root 或真实 DOM 边界，不用于修复普通层级。Sonner Toaster 是 platform 唯一挂载的跨 modal 通知层，不参与业务 modal 深度计算。
+`container` / `getPopupContainer` 仅用于滚动裁剪、iframe、shadow root 或真实 DOM 边界，不用于修复普通层级。Base UI Toaster 是 platform 唯一挂载的全局通知层，固定高于 modal scope，不参与业务 modal 深度计算。
 
 ### 允许的覆盖与禁止项
 
@@ -347,6 +349,7 @@ rg 'zIndex|z-index|popupZIndex|Portal' apps/frontend --glob '*.{ts,tsx,css,less}
 rg 'from "radix-ui"|from "@radix-ui/' apps/frontend --glob '*.{ts,tsx,json}'
 rg '\basChild\b|onOpenAutoFocus|onPointerDownOutside|onEscapeKeyDown' apps/frontend --glob '*.{ts,tsx}'
 rg 'from "@repo/.+/src/' apps/frontend --glob '*.{ts,tsx}'
+pnpm lint:ui-contracts
 ```
 
 这些命令是审计入口，不代表所有匹配都是错误。品牌色、媒体内容、编辑器内部几何和已记录第三方集成都可能是合法边界。

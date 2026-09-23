@@ -21,9 +21,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Form,
-  FormControl,
-  FormField,
   Input,
   Muted,
   Page,
@@ -44,7 +41,7 @@ import {
 } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
@@ -193,38 +190,37 @@ export function SkillsPage() {
             <DialogDescription>创建后进入文件工作区，系统会生成标准 SKILL.md。</DialogDescription>
           </DialogHeader>
           <div>
-            <Form {...form}>
-              <form id="create-skill" onSubmit={form.handleSubmit(create)}>
-                <FieldGroup>
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel>名称</FieldLabel>
-                        <FormControl>
-                          <Input placeholder="product-launch" {...field} />
-                        </FormControl>
-                        <FieldError errors={[form.formState.errors.name]} />
-                      </Field>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel>描述（做什么、何时使用）</FieldLabel>
-                        <FormControl>
-                          <Textarea rows={3} {...field} />
-                        </FormControl>
-                        <FieldError errors={[form.formState.errors.description]} />
-                      </Field>
-                    )}
-                  />
-                </FieldGroup>
-              </form>
-            </Form>
+            <form id="create-skill" onSubmit={form.handleSubmit(create)}>
+              <FieldGroup>
+                <Controller
+                  control={form.control}
+                  name="name"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>名称</FieldLabel>
+                      <Input
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="product-launch"
+                        {...field}
+                      />
+                      <FieldError errors={[form.formState.errors.name]} />
+                    </Field>
+                  )}
+                />
+                <Controller
+                  control={form.control}
+                  name="description"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>描述（做什么、何时使用）</FieldLabel>
+                      <Textarea id={field.name} aria-invalid={fieldState.invalid} rows={3} {...field} />
+                      <FieldError errors={[form.formState.errors.description]} />
+                    </Field>
+                  )}
+                />
+              </FieldGroup>
+            </form>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>

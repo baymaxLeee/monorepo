@@ -48,7 +48,7 @@ function DialogContent({
   container?: DialogPrimitive.Portal.Props["container"];
   showCloseButton?: boolean;
 }) {
-  const layer = useModalLayer();
+  const layer = useModalLayer(style);
   const popupStyle = useModalLayerStyle(style, layer.modalZIndex);
   return (
     <DialogPortal container={container}>

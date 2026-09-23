@@ -28,6 +28,9 @@ on:
       - 'apps/backend/**'
       - 'apps/frontend/**'
       - 'infra/single-vps/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'mise.toml'
       # db-init bakes scripts/db-migrate.sh (see Dockerfile.db-init); a change
       # there MUST rebuild images or the deployed migrator stays stale.
       - 'scripts/**'
@@ -39,7 +42,22 @@ on:
         required: false
 
 jobs:
+  typecheck-typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - working-directory: apps/frontend
+        run: pnpm install --frozen-lockfile
+      - working-directory: apps/frontend
+        run: pnpm typecheck
+      - working-directory: apps/backend
+        run: pnpm install --frozen-lockfile
+      - working-directory: apps/backend
+        run: pnpm --filter chat run build && pnpm --filter executor run typecheck
+
   build:
+    needs: typecheck-typescript
     runs-on: ubuntu-latest
     permissions:
       contents: read

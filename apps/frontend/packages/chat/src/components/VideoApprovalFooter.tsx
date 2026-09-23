@@ -1,19 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { VideoProduction } from "@repo/api";
-import {
-  Button,
-  Field,
-  FieldError,
-  FieldLabel,
-  Form,
-  FormControl,
-  FormField,
-  Input,
-  Textarea,
-} from "@repo/design-system";
+import { Button, Field, FieldError, FieldLabel, Input, Textarea } from "@repo/design-system";
 import { CheckIcon, Loader2Icon, XIcon } from "lucide-react";
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 const approvalSchema = z.object({
@@ -75,64 +65,66 @@ export function VideoApprovalFooter({
 
   return (
     <footer className="shrink-0 border-t p-3">
-      <Form {...form}>
-        <form className="space-y-2" onSubmit={submit}>
-          {production.awaitingAction === "storyboard_approval" ? (
-            <FormField
-              control={form.control}
-              name="budgetUnits"
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>预算上限（{production.cost.currency ?? "币种"}）</FieldLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="number"
-                      min={estimate / 1_000_000}
-                      step="0.01"
-                      disabled={disabled}
-                      onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
-                    />
-                  </FormControl>
-                  <FieldError errors={[form.formState.errors.budgetUnits]} />
-                  <p className="text-xs text-muted-foreground">提高预算上限后才有余量进行局部重拍。</p>
-                </Field>
-              )}
-            />
-          ) : null}
-          {production.awaitingAction === "publish_approval" && needsWaiver(production) ? (
-            <FormField
-              control={form.control}
-              name="waiverReason"
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>语义质检豁免理由</FieldLabel>
-                  <FormControl>
-                    <Textarea {...field} maxLength={1000} disabled={disabled} />
-                  </FormControl>
-                  <FieldError errors={[form.formState.errors.waiverReason]} />
-                </Field>
-              )}
-            />
-          ) : null}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              disabled={disabled}
-              onClick={() => void onDecision(false, {})}
-            >
-              <XIcon className="mr-2 size-4" />
-              拒绝
-            </Button>
-            <Button type="submit" className="flex-1" disabled={disabled}>
-              {disabled ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <CheckIcon className="mr-2 size-4" />}
-              {production.awaitingAction === "publish_approval" ? "批准发布" : "批准分镜并开始生成"}
-            </Button>
-          </div>
-        </form>
-      </Form>
+      <form className="space-y-2" onSubmit={submit}>
+        {production.awaitingAction === "storyboard_approval" ? (
+          <Controller
+            control={form.control}
+            name="budgetUnits"
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>预算上限（{production.cost.currency ?? "币种"}）</FieldLabel>
+                <Input
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  {...field}
+                  type="number"
+                  min={estimate / 1_000_000}
+                  step="0.01"
+                  disabled={disabled}
+                  onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
+                />
+                <FieldError errors={[form.formState.errors.budgetUnits]} />
+                <p className="text-xs text-muted-foreground">提高预算上限后才有余量进行局部重拍。</p>
+              </Field>
+            )}
+          />
+        ) : null}
+        {production.awaitingAction === "publish_approval" && needsWaiver(production) ? (
+          <Controller
+            control={form.control}
+            name="waiverReason"
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>语义质检豁免理由</FieldLabel>
+                <Textarea
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  {...field}
+                  maxLength={1000}
+                  disabled={disabled}
+                />
+                <FieldError errors={[form.formState.errors.waiverReason]} />
+              </Field>
+            )}
+          />
+        ) : null}
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            disabled={disabled}
+            onClick={() => void onDecision(false, {})}
+          >
+            <XIcon className="mr-2 size-4" />
+            拒绝
+          </Button>
+          <Button type="submit" className="flex-1" disabled={disabled}>
+            {disabled ? <Loader2Icon className="mr-2 size-4 animate-spin" /> : <CheckIcon className="mr-2 size-4" />}
+            {production.awaitingAction === "publish_approval" ? "批准发布" : "批准分镜并开始生成"}
+          </Button>
+        </div>
+      </form>
     </footer>
   );
 }

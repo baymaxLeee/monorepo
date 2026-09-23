@@ -8,7 +8,7 @@ catalogMode: strict
 
 catalog:
   ai: ^7.0.111
-  "@typescript/native": npm:typescript@^7.0.2
+  "@typescript/native": npm:typescript@7.0.2
   "@ai-sdk/openai": ^4.0.72
   "@ai-sdk/provider": ^4.0.17
   "@ai-sdk/provider-utils": ^5.0.45

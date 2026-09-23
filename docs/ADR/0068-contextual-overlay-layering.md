@@ -17,8 +17,9 @@ Base UI portals append DOM under `document.body` by default, but React context s
 - modal overlay: modal - 1;
 - child popup: modal + 50;
 - nested modal: parent modal + 100.
+- global toast viewport: 2147483647 (the CSS maximum, reserved by the design system).
 
-The numbers are private implementation details. Business code expresses JSX ownership and nesting, not numeric layer topology. Popup `style.zIndex` and portal `container` remain narrow interoperability escape hatches for third-party surfaces and real DOM boundaries.
+The numbers are private implementation details. Business code expresses JSX ownership and nesting, not numeric layer topology. A modal's explicit numeric `style.zIndex` resets the complete scope so its backdrop and child popups remain synchronized. Popup `style.zIndex` and portal `container` remain narrow interoperability escape hatches for third-party surfaces and real DOM boundaries. The global toast viewport stays above modal scopes so feedback remains visible while a modal is open.
 
 This mechanism is implemented on the shadcn Base Nova components backed by `@base-ui/react`. It covers Dialog, AlertDialog, Sheet, Drawer, ImagePreview, Select, Popover, DropdownMenu, Tooltip, ContextMenu, HoverCard, and Menubar. `Portal.container` remains independent from layer calculation, while popup positioning belongs to `Positioner`. New portalled primitives must join the same scope before use.
 

@@ -2,7 +2,7 @@ import copyToClipboard from "copy-to-clipboard";
 import { Copy as IconCopyFine } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { EllipsisText as CEllipsis } from "@/components/compat";
+import { EllipsisText } from "@/components/common";
 import { Message } from "@/components/ui";
 import t from "@/utils/i18n";
 
@@ -36,7 +36,7 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
 
   return (
     <div className="flex max-w-[310px] items-end gap-1 text-[12px] leading-5 text-muted-foreground" ref={containerRef}>
-      <CEllipsis
+      <EllipsisText
         popoverProps={{ position: "top" }}
         className={styles.reason}
         popoverContent={<span className="whitespace-pre-wrap">{reason}</span>}
@@ -44,7 +44,7 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
         useCursorPointer={false}
       >
         {reason}
-      </CEllipsis>
+      </EllipsisText>
       <button
         aria-label={t("复制错误原因")}
         className="mb-[3px] flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-muted-foreground hover:text-primary"

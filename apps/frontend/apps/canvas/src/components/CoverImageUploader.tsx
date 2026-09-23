@@ -33,6 +33,8 @@ export function CoverImageUploader({
   imageClassName,
   emptyContent,
   showReplaceAction = false,
+  inputId,
+  invalid,
 }: {
   value?: string;
   previewURL?: string;
@@ -44,6 +46,8 @@ export function CoverImageUploader({
   imageClassName?: string;
   emptyContent?: ReactNode;
   showReplaceAction?: boolean;
+  inputId?: string;
+  invalid?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<AbortController | undefined>(undefined);
@@ -141,7 +145,15 @@ export function CoverImageUploader({
           (emptyContent ?? <ImagePlus />)
         )}
       </button>
-      <input ref={inputRef} accept="image/png,image/jpeg" className="sr-only" onChange={select} type="file" />
+      <input
+        ref={inputRef}
+        id={inputId}
+        accept="image/png,image/jpeg"
+        aria-invalid={invalid}
+        className="sr-only"
+        onChange={select}
+        type="file"
+      />
       {(localPreviewURL || previewURL) && showReplaceAction ? (
         <div className={styles.replaceMask}>
           <ImagePlus className="size-10" />

@@ -69,20 +69,29 @@ export function CreateWorkspaceAdminDialog({ onClose, onDone, workspace }: Dialo
         <div>
           <FieldGroup>
             <Field>
-              <FieldLabel>账号</FieldLabel>
-              <Input value={account} onChange={(e) => setAccount(e.target.value)} />
+              <FieldLabel htmlFor="workspace-admin-account">账号</FieldLabel>
+              <Input id="workspace-admin-account" value={account} onChange={(e) => setAccount(e.target.value)} />
             </Field>
             <Field>
-              <FieldLabel>密码</FieldLabel>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <FieldLabel htmlFor="workspace-admin-password">密码</FieldLabel>
+              <Input
+                id="workspace-admin-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </Field>
             <Field>
-              <FieldLabel>邮箱</FieldLabel>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <FieldLabel htmlFor="workspace-admin-email">邮箱</FieldLabel>
+              <Input id="workspace-admin-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
             <Field>
-              <FieldLabel>昵称（可选）</FieldLabel>
-              <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              <FieldLabel htmlFor="workspace-admin-display-name">昵称（可选）</FieldLabel>
+              <Input
+                id="workspace-admin-display-name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
             </Field>
           </FieldGroup>
         </div>
@@ -136,8 +145,12 @@ export function TransferOwnerDialog({ onClose, onDone, workspace }: DialogProps)
         <div>
           <FieldGroup>
             <Field>
-              <FieldLabel>新负责人用户 ID</FieldLabel>
-              <Input value={newOwnerUserId} onChange={(e) => setNewOwnerUserId(e.target.value)} />
+              <FieldLabel htmlFor="workspace-owner-user-id">新负责人用户 ID</FieldLabel>
+              <Input
+                id="workspace-owner-user-id"
+                value={newOwnerUserId}
+                onChange={(e) => setNewOwnerUserId(e.target.value)}
+              />
             </Field>
           </FieldGroup>
         </div>

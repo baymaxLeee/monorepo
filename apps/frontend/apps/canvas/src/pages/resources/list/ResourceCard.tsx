@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import { AudioSpectrum } from "@/components/AudioSpectrum/index";
-import { EllipsisText as CEllipsis, OperationMenu as COperationMenu } from "@/components/compat";
+import { EllipsisText, OperationMenu } from "@/components/common";
 import { Checkbox, Button, Tooltip } from "@/components/ui";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
@@ -124,7 +124,7 @@ export function ResourceCard({
         </div>
         <div className="flex flex-col gap-2 px-3">
           <h2 className="m-0 text-[16px] font-medium leading-6 text-foreground group-hover:text-primary">
-            <CEllipsis>{item.Name}</CEllipsis>
+            <EllipsisText>{item.Name}</EllipsisText>
           </h2>
           <div className="flex items-center gap-2">
             <Tooltip
@@ -210,7 +210,7 @@ export function ResourceCard({
             </Tooltip>
           ) : null}
           {!isOfficial ? (
-            <COperationMenu
+            <OperationMenu
               className={styles.cardOperationMenu}
               defaultButtonType="outline"
               displayNum={0}

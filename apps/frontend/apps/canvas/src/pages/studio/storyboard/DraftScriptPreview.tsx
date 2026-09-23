@@ -1,4 +1,4 @@
-import { Markdown as MarkDown } from "@/components/compat";
+import { Markdown } from "@/components/common";
 
 import type { StoryboardAsset } from "../domain/types";
 
@@ -21,7 +21,7 @@ function toPreviewMarkdown(script: string, references: readonly StoryboardAsset[
 export function DraftScriptPreview({ references, script }: { references: readonly StoryboardAsset[]; script: string }) {
   return (
     <div className="w-full">
-      <MarkDown data={toPreviewMarkdown(script, references)} />
+      <Markdown data={toPreviewMarkdown(script, references)} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { Conversation } from "@repo/api";
 import {
   Aside,
   Button,
+  buttonVariants,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -131,14 +132,16 @@ export function ChatConversationSidebar({
                       key={conversation.id}
                       className="group flex min-w-0 items-center gap-0.5 rounded-lg hover:bg-muted/50"
                     >
-                      <Button
-                        render={<Link to={`/platform/chat/conversations/${conversation.id}`} />}
-                        variant={active ? "secondary" : "ghost"}
-                        className="h-auto min-w-0 flex-1 justify-start gap-1.5 rounded-md px-1.5 py-1.5 text-left shadow-none"
+                      <Link
+                        to={`/platform/chat/conversations/${conversation.id}`}
+                        className={cn(
+                          buttonVariants({ variant: active ? "secondary" : "ghost" }),
+                          "h-auto min-w-0 flex-1 justify-start gap-1.5 rounded-md px-1.5 py-1.5 text-left shadow-none",
+                        )}
                       >
                         <MessageSquareIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
                         <span className="truncate text-xs font-normal">{conversation.title}</span>
-                      </Button>
+                      </Link>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -147,7 +150,7 @@ export function ChatConversationSidebar({
                               size="icon"
                               variant="ghost"
                               aria-label={`${conversation.title} 更多操作`}
-                              className="size-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100"
+                              className="size-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-popup-open:opacity-100"
                             />
                           }
                         >

@@ -11,7 +11,7 @@ import {
 import { type CSSProperties, type RefObject } from "react";
 
 import { AudioSpectrum } from "@/components/AudioSpectrum/index";
-import { EllipsisText as CEllipsis } from "@/components/compat";
+import { EllipsisText } from "@/components/common";
 import {
   renderAssetReviewTooltipContent,
   reviewStatusText,
@@ -418,13 +418,13 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
       </div>
       <div className="flex min-w-0 flex-col items-start justify-center px-3 py-4">
         {batchSelecting || isOfficial ? (
-          <CEllipsis
+          <EllipsisText
             popoverProps={{ position: "top" }}
             className="w-full text-[16px] font-medium leading-6 text-foreground"
             useCursorPointer={false}
           >
             {file.Name}
-          </CEllipsis>
+          </EllipsisText>
         ) : renaming ? (
           <input
             aria-label={t("重命名{materialName}：{fileName}", {
@@ -465,9 +465,9 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
             role="button"
             tabIndex={0}
           >
-            <CEllipsis popoverProps={{ position: "top" }} className="w-full" useCursorPointer={false}>
+            <EllipsisText popoverProps={{ position: "top" }} className="w-full" useCursorPointer={false}>
               {file.Name}
-            </CEllipsis>
+            </EllipsisText>
           </div>
         )}
       </div>

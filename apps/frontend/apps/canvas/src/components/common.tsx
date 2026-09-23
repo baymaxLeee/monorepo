@@ -160,41 +160,6 @@ export function Result({
   );
 }
 
-export function FormItem({
-  children,
-  label,
-  required,
-  help,
-  labelExtra,
-  className,
-}: {
-  children?: ReactNode;
-  label?: ReactNode;
-  required?: boolean;
-  help?: ReactNode;
-  validateStatus?: string;
-  className?: string;
-  labelExtra?: ReactNode;
-  layout?: string;
-  requiredSymbol?: unknown;
-}) {
-  return (
-    <label className={`grid gap-2 text-sm font-medium ${className ?? ""}`}>
-      {label ? (
-        <span className="flex items-center justify-between">
-          <span>
-            {label}
-            {required ? <span className="text-destructive"> *</span> : null}
-          </span>
-          {labelExtra}
-        </span>
-      ) : null}
-      {children}
-      {help ? <span className="text-xs text-destructive">{help}</span> : null}
-    </label>
-  );
-}
-
 export function ImagePreview({
   src,
   visible,
@@ -216,7 +181,7 @@ export function ImagePreview({
   );
 }
 
-export function LegacySkeleton({
+export function ContentSkeleton({
   className,
   style,
   image,

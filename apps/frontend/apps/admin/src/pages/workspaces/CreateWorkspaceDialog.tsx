@@ -12,9 +12,6 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Form,
-  FormControl,
-  FormField,
   Input,
   Select,
   SelectContent,
@@ -23,7 +20,7 @@ import {
   SelectValue,
   toast,
 } from "@repo/design-system";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { NewWorkspaceOwnerFields } from "./NewWorkspaceOwnerFields";
@@ -130,86 +127,85 @@ export function CreateWorkspaceDialog({
           <DialogDescription>每个工作空间都必须有一个负责人（workspace_admin）。</DialogDescription>
         </DialogHeader>
         <div>
-          <Form {...form}>
-            <form id="workspace-form" onSubmit={form.handleSubmit(submit)}>
-              <FieldGroup>
-                <FormField
-                  control={form.control}
-                  name="tenantId"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>所属公司</FieldLabel>
-                      <TenantField value={field.value} onChange={field.onChange} />
-                      <FieldError errors={[form.formState.errors.tenantId]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>工作空间名称</FieldLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.name]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="slug"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>Slug</FieldLabel>
-                      <FormControl>
-                        <Input placeholder="acme-inc" {...field} />
-                      </FormControl>
-                      <FieldError errors={[form.formState.errors.slug]} />
-                    </Field>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="ownerMode"
-                  render={({ field }) => (
-                    <Field>
-                      <FieldLabel>负责人</FieldLabel>
-                      <Select value={field.value} onValueChange={(value) => value !== null && field.onChange(value)}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="new">新建账号作为负责人</SelectItem>
-                          <SelectItem value="existing">使用已有用户 ID</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  )}
-                />
-                {ownerMode === "existing" ? (
-                  <FormField
-                    control={form.control}
-                    name="ownerUserId"
-                    render={({ field }) => (
-                      <Field>
-                        <FieldLabel>负责人用户 ID</FieldLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FieldError errors={[form.formState.errors.ownerUserId]} />
-                      </Field>
-                    )}
-                  />
-                ) : (
-                  <NewWorkspaceOwnerFields form={form} />
+          <form id="workspace-form" onSubmit={form.handleSubmit(submit)}>
+            <FieldGroup>
+              <Controller
+                control={form.control}
+                name="tenantId"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>所属公司</FieldLabel>
+                    <TenantField
+                      id={field.name}
+                      invalid={fieldState.invalid}
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                    <FieldError errors={[form.formState.errors.tenantId]} />
+                  </Field>
                 )}
-              </FieldGroup>
-            </form>
-          </Form>
+              />
+              <Controller
+                control={form.control}
+                name="name"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>工作空间名称</FieldLabel>
+                    <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
+                    <FieldError errors={[form.formState.errors.name]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="slug"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Slug</FieldLabel>
+                    <Input id={field.name} aria-invalid={fieldState.invalid} placeholder="acme-inc" {...field} />
+                    <FieldError errors={[form.formState.errors.slug]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="ownerMode"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>负责人</FieldLabel>
+                    <Select
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={(value) => value !== null && field.onChange(value)}
+                    >
+                      <SelectTrigger id={field.name} aria-invalid={fieldState.invalid} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">新建账号作为负责人</SelectItem>
+                        <SelectItem value="existing">使用已有用户 ID</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+              />
+              {ownerMode === "existing" ? (
+                <Controller
+                  control={form.control}
+                  name="ownerUserId"
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor={field.name}>负责人用户 ID</FieldLabel>
+                      <Input id={field.name} aria-invalid={fieldState.invalid} {...field} />
+                      <FieldError errors={[form.formState.errors.ownerUserId]} />
+                    </Field>
+                  )}
+                />
+              ) : (
+                <NewWorkspaceOwnerFields form={form} />
+              )}
+            </FieldGroup>
+          </form>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

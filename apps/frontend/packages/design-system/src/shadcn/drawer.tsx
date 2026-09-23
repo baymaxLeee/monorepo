@@ -4,7 +4,7 @@ import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 import { cn } from "cn";
 import * as React from "react";
 
-import { ModalLayerProvider, useModalLayer } from "./portal-layer";
+import { ModalLayerProvider, useModalLayer, useModalLayerStyle } from "./portal-layer";
 
 type DrawerContextProps = {
   hasSnapPoints: boolean;
@@ -102,7 +102,8 @@ function DrawerContent({
   container?: DrawerPrimitive.Portal.Props["container"];
 }) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
-  const layer = useModalLayer();
+  const layer = useModalLayer(style);
+  const popupStyle = useModalLayerStyle(style, layer.modalZIndex);
   const swipeAxis = swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
 
   return (
@@ -147,7 +148,7 @@ function DrawerContent({
             "data-[swipe-direction=right]:right-0 data-[swipe-direction=right]:origin-right data-[swipe-direction=right]:[--closed-transform:translate3d(calc(100%+var(--drawer-inset,0px)+2px),0,0)] data-[swipe-direction=right]:[--translate-x:calc(var(--drawer-swipe-movement-x)-var(--stack-peek-offset)-(var(--stack-shrink)*100%))]",
             className,
           )}
-          style={style}
+          style={popupStyle}
           {...props}
         >
           <ModalLayerProvider layer={layer}>

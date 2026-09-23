@@ -1,5 +1,5 @@
 import {
-  Button,
+  buttonVariants,
   Page,
   PageActions,
   PageDescription,
@@ -23,7 +23,9 @@ function NotFoundPage() {
         </PageHeaderContent>
       </PageHeader>
       <PageActions>
-        <Button render={<Link to={target} />}>{user ? "返回首页" : "返回登录"}</Button>
+        <Link to={target} className={buttonVariants()}>
+          {user ? "返回首页" : "返回登录"}
+        </Link>
       </PageActions>
     </Page>
   );

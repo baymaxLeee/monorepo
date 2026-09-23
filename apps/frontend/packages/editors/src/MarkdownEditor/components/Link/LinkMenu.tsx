@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "@repo/design-system";
 import { Button } from "@repo/design-system/shadcn/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@repo/design-system/shadcn/form";
+import { Field, FieldError, FieldLabel } from "@repo/design-system/shadcn/field";
 import { Input } from "@repo/design-system/shadcn/input";
 import { Popover, PopoverContent } from "@repo/design-system/shadcn/popover";
 import { Tooltip, TooltipTrigger } from "@repo/design-system/shadcn/tooltip";
@@ -9,7 +9,7 @@ import { type Editor, getMarkRange } from "@tiptap/core";
 import { Copy, Pencil, Unlink } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { URL_REGEX } from "../../constants";
@@ -274,50 +274,54 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
           </div>
         ) : (
           <div className="w-[250px] p-2">
-            <Form {...form}>
-              <form
-                autoComplete="off"
-                className="grid gap-3"
-                onSubmit={form.handleSubmit(handleSubmit)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.stopPropagation();
-                  }
-                }}
-              >
-                <FormField
-                  control={form.control}
-                  name="text"
-                  render={({ field }) => (
-                    <FormItem className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
-                      <FormLabel className="text-right text-xs">文本</FormLabel>
-                      <FormControl>
-                        <Input className="h-8" {...field} />
-                      </FormControl>
-                      <FormMessage className="col-start-2" />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="href"
-                  render={({ field }) => (
-                    <FormItem className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
-                      <FormLabel className="text-right text-xs">链接</FormLabel>
-                      <FormControl>
-                        <Input className="h-8" placeholder="粘贴或输入链接" {...field} />
-                      </FormControl>
-                      <FormMessage className="col-start-2" />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end">
-                  <Button type="submit" size="sm" disabled={!form.formState.isValid}>
-                    确认
-                  </Button>
-                </div>
-              </form>
-            </Form>
+            <form
+              autoComplete="off"
+              className="grid gap-3"
+              onSubmit={form.handleSubmit(handleSubmit)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.stopPropagation();
+                }
+              }}
+            >
+              <Controller
+                control={form.control}
+                name="text"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid} className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
+                    <FieldLabel htmlFor={field.name} className="text-right text-xs">
+                      文本
+                    </FieldLabel>
+                    <Input id={field.name} aria-invalid={fieldState.invalid} className="h-8" {...field} />
+                    <FieldError className="col-start-2" errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
+              <Controller
+                control={form.control}
+                name="href"
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid} className="grid grid-cols-[3rem_1fr] items-center gap-x-2">
+                    <FieldLabel htmlFor={field.name} className="text-right text-xs">
+                      链接
+                    </FieldLabel>
+                    <Input
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      className="h-8"
+                      placeholder="粘贴或输入链接"
+                      {...field}
+                    />
+                    <FieldError className="col-start-2" errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
+              <div className="flex justify-end">
+                <Button type="submit" size="sm" disabled={!form.formState.isValid}>
+                  确认
+                </Button>
+              </div>
+            </form>
           </div>
         )}
       </PopoverContent>

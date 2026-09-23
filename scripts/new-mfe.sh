@@ -57,7 +57,6 @@ cat > "$MFE_DIR/package.json" <<EOF
     "@repo/runtime": "workspace:*",
     "@repo/shared": "workspace:*",
     "react": "catalog:",
-    "react-compiler-runtime": "catalog:",
     "react-dom": "catalog:",
     "react-router-dom": "catalog:"
   },
@@ -71,8 +70,7 @@ cat > "$MFE_DIR/package.json" <<EOF
     "@swc/helpers": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@typescript/native": "catalog:",
-    "typescript": "catalog:"
+    "@typescript/native": "catalog:"
   }
 }
 EOF
@@ -132,7 +130,7 @@ export default defineConfig({
   },
   module: {
     rules: [
-      createSwcRule({ reactCompiler: { target: "18" } }),
+      createSwcRule({ reactCompiler: { target: "19" } }),
       createRemoteCssRule(),
     ],
   },

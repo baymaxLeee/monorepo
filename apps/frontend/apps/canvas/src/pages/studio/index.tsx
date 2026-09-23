@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { CanvasConversation } from "@/components/CanvasConversation";
-import { EllipsisText as CEllipsis } from "@/components/compat";
+import { EllipsisText } from "@/components/common";
 import {
   getVideoModelParamConfigByOption,
   sanitizeGenerationSettings,
@@ -2475,12 +2475,12 @@ function StudioContent() {
                               shotId={currentShot.id}
                             />
                           ) : (
-                            <CEllipsis
+                            <EllipsisText
                               className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-foreground"
                               maxWidth={200}
                             >
                               {t("分镜脚本")}
-                            </CEllipsis>
+                            </EllipsisText>
                           )}
                           <StoryboardToolbar
                             dirty={dirty}

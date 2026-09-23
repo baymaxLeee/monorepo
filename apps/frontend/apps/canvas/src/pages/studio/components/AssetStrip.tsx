@@ -1,7 +1,7 @@
 import { X as IconClose, Plus as IconPlus, ArrowLeftRight as IconSwitchover } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 
-import { ImagePreview } from "@/components/compat";
+import { ImagePreview } from "@/components/common";
 import { AssetAvatar, type AssetMentionSource } from "@/components/promptEditor/index";
 import { AddAssetToLibraryDialog } from "@/components/promptEditor/plugins/assetMention/AddAssetToLibraryDialog";
 import { AssetPreviewCard } from "@/components/promptEditor/plugins/assetMention/AssetPreviewCard";

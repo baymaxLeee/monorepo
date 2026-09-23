@@ -1,5 +1,5 @@
-import { Field, FieldError, FieldLabel, FormControl, FormField, Input } from "@repo/design-system";
-import type { UseFormReturn } from "react-hook-form";
+import { Field, FieldError, FieldLabel, Input } from "@repo/design-system";
+import { Controller, type UseFormReturn } from "react-hook-form";
 
 import type { CreateWorkspaceValues } from "./CreateWorkspaceDialog";
 
@@ -12,16 +12,14 @@ const fields = [
 
 export function NewWorkspaceOwnerFields({ form }: { form: UseFormReturn<CreateWorkspaceValues> }) {
   return fields.map(([name, label, type]) => (
-    <FormField
+    <Controller
       key={name}
       control={form.control}
       name={name}
-      render={({ field }) => (
-        <Field>
-          <FieldLabel>{label}</FieldLabel>
-          <FormControl>
-            <Input type={type} {...field} />
-          </FormControl>
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+          <Input id={field.name} aria-invalid={fieldState.invalid} type={type} {...field} />
           <FieldError errors={[form.formState.errors[name]]} />
         </Field>
       )}

@@ -4,7 +4,7 @@ import { CircleAlert as IconExclamationCircleRedFill, LoaderCircle, Music as Ico
 import { memo, useContext } from "react";
 
 import { AudioPlayer } from "@/components/audioPlayer/index";
-import { Markdown as MarkDown } from "@/components/compat";
+import { Markdown } from "@/components/common";
 import { GenerationConfiguration } from "@/components/GenerationConfiguration/index";
 import { canvasnode } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
@@ -166,7 +166,7 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
                     ? t("分镜脚本待确认")
                     : t("分镜脚本生成中")}
               </strong>
-              <MarkDown className={styles.textPreviewMarkdown} data={item.Prompt ?? ""} />
+              <Markdown className={styles.textPreviewMarkdown} data={item.Prompt ?? ""} />
             </div>
           ) : generationFailure && !item.ActiveTaskRunID ? (
             <CanvasGenerationFailureState
@@ -247,7 +247,7 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
               <div
                 className={`${styles.textPreview} ${isEmptyText ? styles.textPreviewPlaceholder : ""} nopan nowheel`}
               >
-                <MarkDown className={styles.textPreviewMarkdown} data={content} />
+                <Markdown className={styles.textPreviewMarkdown} data={content} />
               </div>
               {nodeTextContent ? (
                 <CanvasTextResultOperations className={styles.textResultOperations} text={nodeTextContent} />

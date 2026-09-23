@@ -13,13 +13,13 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import {
-  EllipsisText as CEllipsis,
-  OperationMenu as COperationMenu,
+  EllipsisText,
+  OperationMenu,
   Result,
-  UserLabel as UserAuto,
+  UserLabel,
   openDeleteConfirmDialog,
   formatDateByCurrentYear,
-} from "@/components/compat";
+} from "@/components/common";
 import { Spin, Button } from "@/components/ui";
 import type { canvas } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
@@ -104,16 +104,16 @@ function CanvasCard({
         </div>
         <div className="flex flex-col gap-1 px-3">
           <h2 className="m-0 flex items-center text-[18px] font-medium leading-7 text-foreground group-hover:text-primary">
-            <CEllipsis className="min-w-0 flex-1">{item.Name}</CEllipsis>
+            <EllipsisText className="min-w-0 flex-1">{item.Name}</EllipsisText>
           </h2>
           <div className="flex items-center gap-1 truncate text-[13px] leading-5.5 text-muted-foreground">
-            <UserAuto id={item.CreatedBy} prefix="@" showIcon={false} stableSign />
+            <UserLabel id={item.CreatedBy} prefix="@" showIcon={false} stableSign />
             <span>·</span>
-            <CEllipsis className="min-w-0 flex-1">
+            <EllipsisText className="min-w-0 flex-1">
               <time>
                 {t("更新时间")} {formatDateByCurrentYear(item.UpdatedAt, VIDEO_UPDATED_AT_FORMAT)}
               </time>
-            </CEllipsis>
+            </EllipsisText>
           </div>
         </div>
       </Link>
@@ -122,7 +122,7 @@ function CanvasCard({
           <span>{t("{count} 个分镜", { count: item.Stats.CanvasNodeCount })}</span>
         </div>
         <div className={styles.cardOperations}>
-          <COperationMenu
+          <OperationMenu
             className={styles.cardOperationMenu}
             displayNum={1}
             defaultButtonType="outline"
