@@ -8,6 +8,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
+import { Upload as IconUpload } from "lucide-react";
 import {
   Fragment,
   type Ref,
@@ -21,7 +22,6 @@ import {
 } from "react";
 import { useParams } from "react-router-dom";
 
-import menuUploadIcon from "@/assets/canvas/menu-upload.svg";
 import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { type AssetMentionItem, type AssetMentionSource } from "@/components/promptEditor/index";
 import { Message, Spin } from "@/components/ui";
@@ -59,6 +59,7 @@ import {
 
 import "@xyflow/react/dist/style.css";
 
+import { CanvasNodeIcon } from "./components/CanvasNodeIcon";
 import { CanvasBoardControls } from "./controls/CanvasBoardControls";
 import { canvasNodeDoubleClickAction } from "./controls/nodeDoubleClick";
 import { selectNodesForDrag } from "./controls/nodeDragSelection";
@@ -107,6 +108,8 @@ function CanvasBoardInner({
   defaultImageModelId,
   defaultTextModelId,
   onCanvasRevisionChange,
+  onDeleteStoryboardDraft,
+  onOpenStoryboardDraft,
   onRefreshGraph,
   nodePubSub,
   projectId,
@@ -118,6 +121,8 @@ function CanvasBoardInner({
   defaultImageModelId: string;
   defaultTextModelId: string;
   onCanvasRevisionChange: (revision: number) => void;
+  onDeleteStoryboardDraft: (nodeId: string) => Promise<boolean>;
+  onOpenStoryboardDraft: (nodeId: string) => void;
   onRefreshGraph: () => Promise<void>;
   nodePubSub: CanvasNodeStore;
   projectId: string;
@@ -407,6 +412,7 @@ function CanvasBoardInner({
     setNodes,
     setEdges,
     resolveConnection,
+    onDeleteStoryboardDraft,
     onCanvasRevisionChange,
   });
 
@@ -908,6 +914,10 @@ function CanvasBoardInner({
                     );
                     setEdges((current) => current.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)));
                     if (isDeletedReferenceNode(node.data.item)) return;
+                    if (node.data.item.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT) {
+                      onOpenStoryboardDraft(node.id);
+                      return;
+                    }
                     nodeClickTimerRef.current = window.setTimeout(() => {
                       nodeClickTimerRef.current = undefined;
                       void openEditor(node.data.item);
@@ -1013,7 +1023,7 @@ function CanvasBoardInner({
                 <Fragment key={type}>
                   {type === canvasnode.CanvasNodeType.TEXT ? <div className={styles.menuDivider} /> : null}
                   <button className={styles.addItem} onClick={() => void createNode(type)} type="button">
-                    <img alt="" src={protocol.menuIcon} />
+                    <CanvasNodeIcon aria-hidden nodeType={type} size={16} strokeWidth={1.5} />
                     {t(protocol.createLabel)}
                   </button>
                 </Fragment>
@@ -1022,7 +1032,7 @@ function CanvasBoardInner({
             {!addMenu.types ? (
               <>
                 <button className={styles.addItem} onClick={() => fileInputRef.current?.click()} type="button">
-                  <img alt="" src={menuUploadIcon} />
+                  <IconUpload aria-hidden size={16} strokeWidth={1.5} />
                   {t("上传")}
                 </button>
                 <div className={styles.menuDivider} />
@@ -1031,7 +1041,7 @@ function CanvasBoardInner({
                   onClick={() => void createNode(canvasnode.CanvasNodeType.TEXT)}
                   type="button"
                 >
-                  <img alt="" src={canvasNodeProtocol(canvasnode.CanvasNodeType.TEXT).menuIcon} />
+                  <CanvasNodeIcon aria-hidden nodeType={canvasnode.CanvasNodeType.TEXT} size={16} strokeWidth={1.5} />
                   {t(canvasNodeProtocol(canvasnode.CanvasNodeType.TEXT).createLabel)}
                 </button>
               </>
@@ -1158,8 +1168,17 @@ export interface CanvasBoardHandle {
 
 export const CanvasBoard = forwardRef<
   CanvasBoardHandle,
-  { nodePubSub: CanvasNodeStore; onRefreshGraph: () => Promise<void>; statePubSub: CanvasStatePubSub }
->(function CanvasBoard({ nodePubSub, onRefreshGraph, statePubSub }, ref) {
+  {
+    nodePubSub: CanvasNodeStore;
+    onDeleteStoryboardDraft: (nodeId: string) => Promise<boolean>;
+    onOpenStoryboardDraft: (nodeId: string) => void;
+    onRefreshGraph: () => Promise<void>;
+    statePubSub: CanvasStatePubSub;
+  }
+>(function CanvasBoard(
+  { nodePubSub, onDeleteStoryboardDraft, onOpenStoryboardDraft, onRefreshGraph, statePubSub },
+  ref,
+) {
   const { projectId = "", canvasId = "" } = useParams();
   const defaultVideoModelId = useAtomValue(defaultVideoModelIdAtom);
   const defaultImageModelId = useAtomValue(defaultImageModelIdAtom);
@@ -1176,6 +1195,8 @@ export const CanvasBoard = forwardRef<
         defaultVideoModelId={defaultVideoModelId}
         nodePubSub={nodePubSub}
         onCanvasRevisionChange={onCanvasRevisionChange}
+        onDeleteStoryboardDraft={onDeleteStoryboardDraft}
+        onOpenStoryboardDraft={onOpenStoryboardDraft}
         onRefreshGraph={onRefreshGraph}
         projectId={projectId}
         statePubSub={statePubSub}

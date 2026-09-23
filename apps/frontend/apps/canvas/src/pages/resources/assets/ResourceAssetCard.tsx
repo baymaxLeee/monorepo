@@ -111,7 +111,7 @@ function ResourceAssetReviewStatus({ file }: { file: resource.ResourceAsset }) {
         })}
         className={`${styles.reviewStatus} inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[16px]`}
       >
-        <IconCompliancePlanarity />
+        <IconCompliancePlanarity aria-hidden size={16} strokeWidth={1.5} />
       </span>
     </Tooltip>
   );
@@ -302,7 +302,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
                   type="button"
                 >
                   <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconEdit className="text-white" style={{ color: "#fff" }} />
+                    <IconEdit aria-hidden className="text-white" size={16} strokeWidth={1.5} />
                   </span>
                 </button>
               </Tooltip>
@@ -321,9 +321,11 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
                   >
                     <span style={MATERIAL_ACTION_ICON_STYLE}>
                       <IconComplianceLine
+                        aria-hidden
                         className="text-white"
+                        size={16}
+                        strokeWidth={1.5}
                         style={{
-                          color: "#fff",
                           transform: "translateY(0.5px)",
                         }}
                       />
@@ -345,7 +347,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
                     type="button"
                   >
                     <span style={MATERIAL_ACTION_ICON_STYLE}>
-                      <IconDeleteLine className="text-white" style={{ color: "#fff" }} />
+                      <IconDeleteLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
                     </span>
                   </button>
                 </Tooltip>
@@ -368,7 +370,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
                   type="button"
                 >
                   <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconDownloadFine className="text-white" style={{ color: "#fff" }} />
+                    <IconDownloadFine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
                   </span>
                 </button>
               </Tooltip>
@@ -387,7 +389,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
                   type="button"
                 >
                   <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconComplianceLine className="text-white" style={{ color: "#fff" }} />
+                    <IconComplianceLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
                   </span>
                 </button>
               </Tooltip>
@@ -406,7 +408,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
                   type="button"
                 >
                   <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconDeleteLine className="text-white" style={{ color: "#fff" }} />
+                    <IconDeleteLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
                   </span>
                 </button>
               </Tooltip>

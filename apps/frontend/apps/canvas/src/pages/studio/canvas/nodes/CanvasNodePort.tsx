@@ -1,4 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
+import { Plus } from "lucide-react";
 import { useContext } from "react";
 
 import type { canvasnode } from "@/domain";
@@ -38,6 +39,8 @@ export function CanvasNodePort({ item, side }: { item: canvasnode.CanvasNode; si
       position={side === "input" ? Position.Left : Position.Right}
       title={inputLocked ? t("生成中，不允许添加连线或节点") : undefined}
       type={side === "input" ? "target" : "source"}
-    />
+    >
+      <Plus aria-hidden size={16} strokeWidth={1.5} />
+    </Handle>
   );
 }

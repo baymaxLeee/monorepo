@@ -90,7 +90,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
                       {t("视频名称")}
                       <span className="text-destructive">*</span>
                       <span title={t("名称长度为 2-20 个字，不能以连接符或空格开头、结尾")}>
-                        <Info className={styles.nameInfoIcon} />
+                        <Info aria-hidden className={styles.nameInfoIcon} size={14} strokeWidth={1.5} />
                       </span>
                       <span className={styles.nameCount}>{name.length}/20</span>
                     </FormLabel>

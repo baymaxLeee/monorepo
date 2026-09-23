@@ -1,14 +1,16 @@
 import { MiniMap, type Edge, type ReactFlowInstance, useStore } from "@xyflow/react";
-import { MousePointer2 as IconCursor, Mouse as IconWirelessMouse } from "lucide-react";
+import {
+  Hand as IconHand,
+  Keyboard as IconKeyboard,
+  LayoutDashboard as IconLayout,
+  Map as IconMap,
+  MousePointer2 as IconCursor,
+  Mouse as IconWirelessMouse,
+  Plus as IconPlus,
+  Scan as IconFit,
+} from "lucide-react";
 import { useState, type Dispatch, type MouseEvent, type SetStateAction } from "react";
 
-import canvasFitIcon from "@/assets/canvas/canvas-fit.svg";
-import canvasLayoutIcon from "@/assets/canvas/canvas-layout.svg";
-import canvasMapIcon from "@/assets/canvas/canvas-map.svg";
-import toolbarCursorIcon from "@/assets/canvas/toolbar-cursor.svg";
-import toolbarHandIcon from "@/assets/canvas/toolbar-hand.svg";
-import toolbarKeyboardIcon from "@/assets/canvas/toolbar-keyboard.svg";
-import toolbarPlusIcon from "@/assets/canvas/toolbar-plus.svg";
 import { Dropdown, Message, Tooltip, Trigger } from "@/components/ui";
 import t from "@/utils/i18n";
 
@@ -142,7 +144,7 @@ export function CanvasBoardControls({
             }}
             type="button"
           >
-            <img alt="" className={styles.canvasLayoutIcon} src={canvasLayoutIcon} />
+            <IconLayout aria-hidden className={styles.canvasLayoutIcon} strokeWidth={1.5} />
           </button>
         </Tooltip>
         <Tooltip
@@ -156,7 +158,7 @@ export function CanvasBoardControls({
           position="top"
         >
           <button aria-label={t("适应画布")} onClick={() => instance?.fitView({ duration: 240 })} type="button">
-            <img alt="" src={canvasFitIcon} />
+            <IconFit aria-hidden strokeWidth={1.5} />
           </button>
         </Tooltip>
         <Tooltip content={t("画布小地图")} popupVisible={miniMapOpen ? false : undefined} position="top">
@@ -186,7 +188,7 @@ export function CanvasBoardControls({
               className={miniMapOpen ? styles.metaButtonActive : undefined}
               type="button"
             >
-              <img alt="" src={canvasMapIcon} />
+              <IconMap aria-hidden strokeWidth={1.5} />
             </button>
           </Trigger>
         </Tooltip>
@@ -306,7 +308,7 @@ export function CanvasBoardControls({
             onClick={openToolbarAddMenu}
             type="button"
           >
-            <img alt="" src={toolbarPlusIcon} />
+            <IconPlus aria-hidden strokeWidth={1.5} />
           </button>
         </Tooltip>
         <Tooltip content={interactionMode === "select" ? t("移动") : t("抓手工具")} position="top">
@@ -324,7 +326,11 @@ export function CanvasBoardControls({
             }}
             type="button"
           >
-            <img alt="" src={interactionMode === "select" ? toolbarCursorIcon : toolbarHandIcon} />
+            {interactionMode === "select" ? (
+              <IconCursor aria-hidden strokeWidth={1.5} />
+            ) : (
+              <IconHand aria-hidden strokeWidth={1.5} />
+            )}
           </button>
         </Tooltip>
         {modeMenuOpen ? (
@@ -337,7 +343,7 @@ export function CanvasBoardControls({
               type="button"
             >
               <span>
-                <img alt="" src={toolbarCursorIcon} />
+                <IconCursor aria-hidden strokeWidth={1.5} />
                 {t("移动")}
               </span>
               <kbd>V</kbd>
@@ -350,7 +356,7 @@ export function CanvasBoardControls({
               type="button"
             >
               <span>
-                <img alt="" src={toolbarHandIcon} />
+                <IconHand aria-hidden strokeWidth={1.5} />
                 {t("抓手工具")}
               </span>
               <kbd>H</kbd>
@@ -370,7 +376,7 @@ export function CanvasBoardControls({
             }}
             type="button"
           >
-            <img alt="" src={toolbarKeyboardIcon} />
+            <IconKeyboard aria-hidden strokeWidth={1.5} />
           </button>
         </Tooltip>
       </div>

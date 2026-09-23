@@ -1,9 +1,9 @@
 import { canvasCreateArchive, canvasUpdateCanvasView, fetchCanvasSettings } from "@repo/api";
 import { Provider, useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import panelCollapseIcon from "@/assets/canvas/panel-collapse.svg";
 import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { CanvasConversation } from "@/components/CanvasConversation";
 import { EllipsisText as CEllipsis } from "@/components/compat";
@@ -65,7 +65,6 @@ import {
   deleteCanvasNode,
   generationConfigPatch,
   getCanvasNodeAssets,
-  listStoryboardDraftShots,
   materializeCanvasResourceAssetReference,
   materializeCanvasStandaloneAssetReference,
   queryMentionTree,
@@ -121,7 +120,6 @@ import {
   replaceCanvasNodesAtom,
   setCanvasGenerationFailureAtom,
   setCanvasGenerationRuntimeStateAtom,
-  storyboardDraftShotsAtom,
   storyboardModelsAtom,
   storyboardOptimisticShotsAtom,
   storyboardShotsAtom,
@@ -188,7 +186,6 @@ function StudioContent() {
   const canvasGenerationRuntimeStates = useAtomValue(canvasGenerationRuntimeStatesAtom);
   useCanvasStatePolling({ canvasId, nodePubSub, projectId, statePubSub });
   useStudioAssetReviewPolling(projectId, canvasGraphLoaded);
-  const [, setDraftShots] = useAtom(storyboardDraftShotsAtom);
   const setOptimisticShots = useSetAtom(storyboardOptimisticShotsAtom);
 
   useEffect(() => () => chatResizeCleanupRef.current?.(), []);
@@ -470,7 +467,6 @@ function StudioContent() {
 
   useEffect(() => {
     if (!studioReady || !canvasGraphLoaded) return;
-    let active = true;
     storyboardRequestIDRef.current += 1;
     storyboardAbortRef.current?.abort();
     storyboardAbortRef.current = undefined;
@@ -481,26 +477,8 @@ function StudioContent() {
     setStoryboardDraftStatus("running");
     setPreviewShots([]);
     setPreviewGenerating(false);
-    setLoading(true);
-    const loadCurrentSnapshot = async () => {
-      await mutationCoordinator.waitForIdle();
-      const result = await listStoryboardDraftShots(nodePubSub);
-      if (!active) return;
-      setDraftShots(result);
-    };
-    loadCurrentSnapshot()
-      .catch(() => {
-        // 请求层已统一提示，这里留在空态让用户重新进入。
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [mutationCoordinator, canvasGraphLoaded, nodePubSub, setDraftShots, studioReady]);
+    setLoading(false);
+  }, [canvasGraphLoaded, studioReady]);
 
   /** 正式关系已可同步投影；异步请求只补充签名 URL、审核等展示信息。 */
   useEffect(() => {
@@ -648,9 +626,7 @@ function StudioContent() {
         }
         setPreviewGenerating(false);
         setStoryboardDraftStatus("completed");
-        setDraftShots((current) =>
-          current.map((item) => (item.id === target.id ? { ...item, timelineStatus: "pending-confirmation" } : item)),
-        );
+        void refreshCanvasGraph();
       })
       .catch((error) => {
         if (
@@ -662,9 +638,7 @@ function StudioContent() {
         }
         setPreviewGenerating(false);
         setStoryboardDraftStatus("failed");
-        setDraftShots((current) =>
-          current.map((item) => (item.id === target.id ? { ...item, timelineStatus: "failed" } : item)),
-        );
+        void refreshCanvasGraph();
         Message.error(error instanceof Error ? error.message : t("恢复分镜草稿失败"));
       });
   };
@@ -1570,7 +1544,6 @@ function StudioContent() {
 
     void (async () => {
       let sessionReceived = false;
-      let activeTaskRunId = "";
       const modelServiceId = batchSettings.model || defaultVideoModelId;
       if (!modelServiceId) {
         Message.error(t("暂无可用视频模型"));
@@ -1598,7 +1571,6 @@ function StudioContent() {
           (session) => {
             const firstSession = !sessionReceived;
             sessionReceived = true;
-            activeTaskRunId = session.taskRunId;
             if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
               return;
             }
@@ -1624,21 +1596,6 @@ function StudioContent() {
             setStoryboardDraftStatus(session.status);
             setPreviewGenerating(session.generating);
             if (firstSession) void refreshCanvasGraph();
-            setDraftShots((current) => {
-              if (current.some((item) => item.id === session.taskRunId)) {
-                return current;
-              }
-              const placeholder: Shot = {
-                id: session.taskRunId,
-                timelineStatus: "generating",
-                storyboardTaskRunId: session.taskRunId,
-                duration: frontendSettings.duration,
-                status: "empty",
-                script: session.plot,
-                settings: frontendSettings,
-              };
-              return [...current, placeholder];
-            });
           },
           (shot) => {
             if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
@@ -1656,11 +1613,7 @@ function StudioContent() {
         }
         setPreviewGenerating(false);
         setStoryboardDraftStatus("completed");
-        setDraftShots((current) =>
-          current.map((item) =>
-            item.id === activeTaskRunId ? { ...item, timelineStatus: "pending-confirmation" } : item,
-          ),
-        );
+        await refreshCanvasGraph();
       } catch (error) {
         if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
           return;
@@ -1669,11 +1622,7 @@ function StudioContent() {
         setPreviewGenerating(false);
         setStoryboardDraftStatus("failed");
         if (sessionReceived) {
-          setDraftShots((current) =>
-            current.map((item) =>
-              item.storyboardTaskRunId === activeTaskRunId ? { ...item, timelineStatus: "failed" } : item,
-            ),
-          );
+          void refreshCanvasGraph();
         }
         // 已入库的失败草稿节点必须显式放弃后才能重建；建节点前失败才回设计页。
         setStoryboardStep(sessionReceived ? "preview" : "design");
@@ -1688,7 +1637,6 @@ function StudioContent() {
     try {
       await mutationCoordinator.enqueue(() => cancelCanvasNodeDrafts(projectId, canvasId, storyboardTaskRunId));
       await refreshCanvasGraph();
-      setDraftShots((current) => current.filter((item) => item.id !== storyboardTaskRunId));
       storyboardRequestIDRef.current += 1;
       resetStoryboardFlow();
     } catch {
@@ -1727,7 +1675,6 @@ function StudioContent() {
       );
       setCanvas((current) => (current ? { ...current, Revision: confirmed.canvasRevision } : current));
       await refreshCanvasGraph();
-      setDraftShots((current) => current.filter((item) => item.id !== storyboardTaskRunId));
       requestCanvasLayout({
         requestId: Date.now(),
         seedNodeIds: confirmed.canvasNodeIds,
@@ -1796,8 +1743,8 @@ function StudioContent() {
       const targetTaskRunId = target.storyboardTaskRunId;
       void mutationCoordinator
         .enqueue(() => cancelCanvasNodeDrafts(projectId, canvasId, targetTaskRunId))
-        .then(() => {
-          setDraftShots((current) => current.filter((item) => item.id !== id));
+        .then(async () => {
+          await refreshCanvasGraph();
           if (storyboardTaskRunId === target.storyboardTaskRunId) {
             resetStoryboardFlow();
           }
@@ -2451,13 +2398,11 @@ function StudioContent() {
                 onClick={() => setAssetsOpen((open) => !open)}
                 type="button"
               >
-                <img
-                  alt=""
-                  className={`h-4 w-4 scale-y-[-1] transition-transform duration-300 ${
-                    assetsOpen ? "rotate-90" : "rotate-[-90deg]"
-                  }`}
-                  src={panelCollapseIcon}
-                />
+                {assetsOpen ? (
+                  <PanelLeftClose aria-hidden className="h-4 w-4" strokeWidth={1.5} />
+                ) : (
+                  <PanelLeftOpen aria-hidden className="h-4 w-4" strokeWidth={1.5} />
+                )}
               </button>
             </Tooltip>
           </div>
@@ -2472,6 +2417,20 @@ function StudioContent() {
               >
                 <CanvasBoard
                   nodePubSub={nodePubSub}
+                  onDeleteStoryboardDraft={async (nodeId) => {
+                    try {
+                      await mutationCoordinator.enqueue(() => cancelCanvasNodeDrafts(projectId, canvasId, nodeId));
+                      await refreshCanvasGraph();
+                      if (storyboardTaskRunId === nodeId) resetStoryboardFlow();
+                      return true;
+                    } catch {
+                      return false;
+                    }
+                  }}
+                  onOpenStoryboardDraft={(nodeId) => {
+                    const task = shots.find((shot) => shot.storyboardTaskRunId === nodeId);
+                    if (task) openStoryboardTask(task);
+                  }}
                   onRefreshGraph={refreshCanvasGraph}
                   ref={canvasBoardRef}
                   statePubSub={statePubSub}
@@ -2763,9 +2722,6 @@ function StudioContent() {
                 canvasId={canvasId}
                 onChange={() => {
                   void refreshCanvasGraph();
-                  void listStoryboardDraftShots(nodePubSub)
-                    .then(setDraftShots)
-                    .catch(() => undefined);
                 }}
               />
             </aside>

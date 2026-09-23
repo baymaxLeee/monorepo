@@ -204,7 +204,7 @@ export function ResourceAssetDetailDialog({
             <div className={styles.actions}>
               <Button
                 disabled={busy || Boolean(generationFailure) || !onDownload || !previewUrl}
-                icon={<IconDownloadFine />}
+                icon={<IconDownloadFine aria-hidden size={16} strokeWidth={1.5} />}
                 onClick={onDownload}
                 type="outline"
               >
@@ -224,7 +224,7 @@ export function ResourceAssetDetailDialog({
               </Button>
               <Button
                 disabled={busy || Boolean(generationFailure) || !onReview || !asset.CurrentAssetID}
-                icon={<IconComplianceLine />}
+                icon={<IconComplianceLine aria-hidden size={16} strokeWidth={1.5} />}
                 onClick={onReview}
                 type="outline"
               >

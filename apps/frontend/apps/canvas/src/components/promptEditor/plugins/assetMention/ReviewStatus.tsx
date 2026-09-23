@@ -1,4 +1,4 @@
-import { ShieldCheck as IconCompliancePlanarity } from "lucide-react";
+import { ArrowRight, ShieldCheck as IconCompliancePlanarity } from "lucide-react";
 
 import { Tooltip } from "@/components/ui";
 import { asset as assetIDL } from "@/domain";
@@ -29,16 +29,7 @@ export function ReviewShield({ tone }: { tone: ShieldTone }) {
 }
 
 function ReviewActionArrow() {
-  return (
-    <svg aria-hidden fill="none" height={14} viewBox="0 0 14 14" width={14}>
-      <path
-        clipRule="evenodd"
-        d="M8.633 9.749a.583.583 0 0 1-.007-.825l1.924-1.955-1.917-1.886a.583.583 0 1 1 .818-.832l2.225 2.189a.742.742 0 0 1 .009 1.039L9.457 9.742a.583.583 0 0 1-.824.007ZM2.042 7c0-.322.261-.583.583-.583h7.92a.583.583 0 1 1 0 1.166h-7.92A.583.583 0 0 1 2.042 7Z"
-        fill="currentColor"
-        fillRule="evenodd"
-      />
-    </svg>
-  );
+  return <ArrowRight aria-hidden size={14} strokeWidth={1.5} />;
 }
 
 function reviewTone(review?: assetIDL.AssetReview): ShieldTone {

@@ -1,8 +1,6 @@
-import { LoaderCircle as IconLoading } from "lucide-react";
+import { LoaderCircle as IconLoading, WandSparkles as IconMaterialMatch } from "lucide-react";
 
 import { Button, Tooltip } from "@/components/ui";
-
-import matchIcon from "./material-match.svg";
 
 import styles from "./MaterialMatchButton.module.less";
 
@@ -41,7 +39,7 @@ export function MaterialMatchButton({
               size={compact ? "mini" : "small"}
               disabled={empty || disabled}
               onClick={onMatch}
-              icon={<img alt="" className={styles.icon} src={matchIcon} />}
+              icon={<IconMaterialMatch aria-hidden className={styles.icon} strokeWidth={1.5} />}
             >
               素材匹配
             </Button>

@@ -22,6 +22,7 @@ export function useCanvasConnections({
   setNodes,
   setEdges,
   resolveConnection,
+  onDeleteStoryboardDraft,
   onCanvasRevisionChange,
 }: {
   canvasId: string;
@@ -35,6 +36,7 @@ export function useCanvasConnections({
     source: canvasnode.CanvasNode,
     target: canvasnode.CanvasNode,
   ) => ReturnType<typeof resolveCanvasConnection>;
+  onDeleteStoryboardDraft: (nodeId: string) => Promise<boolean>;
   onCanvasRevisionChange: (revision: number) => void;
 }) {
   const enqueueCanvasMutation = useStudioMutationCoordinator().enqueue;
@@ -44,12 +46,14 @@ export function useCanvasConnections({
   const deleteNodes = useCallback(
     async (items: canvasnode.CanvasNode[]) => {
       if (!items.length) return false;
-      if (items.some((item) => item.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT)) {
-        Message.warning(t("请在故事板中确认或取消批量分镜"));
-        return false;
+      const draftItems = items.filter((item) => item.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT);
+      for (const item of draftItems) {
+        if (!(await onDeleteStoryboardDraft(item.NodeID))) return false;
       }
-      const nodeIDs = new Set(items.map((item) => item.NodeID));
-      if (items.some((item) => item.ActiveTaskRunID)) {
+      const regularItems = items.filter((item) => item.Type !== canvasnode.CanvasNodeType.STORYBOARD_DRAFT);
+      if (regularItems.length === 0) return true;
+      const nodeIDs = new Set(regularItems.map((item) => item.NodeID));
+      if (regularItems.some((item) => item.ActiveTaskRunID)) {
         Message.warning(t("生成中的节点不可删除"));
         return false;
       }
@@ -86,7 +90,16 @@ export function useCanvasConnections({
         return false;
       }
     },
-    [canvasId, enqueueCanvasMutation, onCanvasRevisionChange, projectId, removeCanvasNode, setEdges, setNodes],
+    [
+      canvasId,
+      enqueueCanvasMutation,
+      onCanvasRevisionChange,
+      onDeleteStoryboardDraft,
+      projectId,
+      removeCanvasNode,
+      setEdges,
+      setNodes,
+    ],
   );
 
   const persistConnection = useCallback(

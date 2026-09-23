@@ -8,9 +8,9 @@ import t from "@/utils/i18n";
 
 import { validateCanvasNodeName } from "../../domain/canvasNodeNames";
 import type { StoryboardAsset } from "../../domain/types";
+import { CanvasNodeIcon } from "../components/CanvasNodeIcon";
 import { isDeletedReferenceNode } from "../graph/canvasNodeHelpers";
 import type { CanvasNodeData } from "../graph/canvasNodeTypes";
-import { canvasNodeProtocol } from "../graph/nodeProtocol";
 
 import styles from "../CanvasBoard.module.less";
 export function CanvasNodeName({
@@ -127,9 +127,9 @@ export function CanvasNodeHeader({
         onDoubleClick={(event) => event.stopPropagation()}
       >
         {item.Type === canvasnode.CanvasNodeType.AUDIO_ASSET ? (
-          <IconMusic className={styles.nodeKind} />
+          <IconMusic aria-hidden className={styles.nodeKind} strokeWidth={1.5} />
         ) : (
-          <img alt="" className={styles.nodeKind} src={canvasNodeProtocol(item.Type).placeholderIcon} />
+          <CanvasNodeIcon aria-hidden className={styles.nodeKind} nodeType={item.Type} strokeWidth={1.5} />
         )}
         <CanvasNodeName item={item} onPatch={onPatch} reviewAsset={reviewAsset} />
       </div>

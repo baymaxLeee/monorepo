@@ -1,7 +1,3 @@
-import menuImageGenerationIcon from "@/assets/canvas/menu-image-generation.svg";
-import menuTextGenerationIcon from "@/assets/canvas/menu-text-generation.svg";
-import menuTextIcon from "@/assets/canvas/menu-text.svg";
-import menuVideoGenerationIcon from "@/assets/canvas/menu-video-generation.svg";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -31,9 +27,7 @@ export type CanvasNodeProtocol = {
   createLabel: string;
   inputs: CanvasNodeInputPorts;
   label: string;
-  menuIcon: string;
   output: CanvasOutputPort;
-  placeholderIcon: string;
   quickCreateAsSource: boolean;
   quickCreateAsTarget: boolean;
   videoInputModes?: Partial<Record<canvasnode.CanvasVideoInputMode, CanvasNodeInputProfile>>;
@@ -62,9 +56,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
     createLabel: "图片",
     inputs: NO_INPUT_PORTS,
     label: "图片",
-    menuIcon: menuImageGenerationIcon,
     output: { dataType: "image", port: OUTPUT_PORT },
-    placeholderIcon: menuImageGenerationIcon,
     quickCreateAsSource: false,
     quickCreateAsTarget: false,
   },
@@ -72,9 +64,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
     createLabel: "视频",
     inputs: NO_INPUT_PORTS,
     label: "视频",
-    menuIcon: menuVideoGenerationIcon,
     output: { dataType: "video", port: OUTPUT_PORT },
-    placeholderIcon: menuVideoGenerationIcon,
     quickCreateAsSource: false,
     quickCreateAsTarget: false,
   },
@@ -82,9 +72,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
     createLabel: "音频",
     inputs: NO_INPUT_PORTS,
     label: "音频",
-    menuIcon: menuVideoGenerationIcon,
     output: { dataType: "audio", port: OUTPUT_PORT },
-    placeholderIcon: menuVideoGenerationIcon,
     quickCreateAsSource: false,
     quickCreateAsTarget: false,
   },
@@ -95,9 +83,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
       material: REFERENCE_MEDIA_PORTS,
     },
     label: "文本",
-    menuIcon: menuTextIcon,
     output: { dataType: "text", port: OUTPUT_PORT },
-    placeholderIcon: menuTextGenerationIcon,
     quickCreateAsSource: true,
     quickCreateAsTarget: false,
   },
@@ -108,9 +94,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
       material: [canvasnode.CanvasPort.REFERENCE_IMAGE, canvasnode.CanvasPort.REFERENCE_TEXT],
     },
     label: "图片生成",
-    menuIcon: menuImageGenerationIcon,
     output: { dataType: "image", port: OUTPUT_PORT },
-    placeholderIcon: menuImageGenerationIcon,
     quickCreateAsSource: true,
     quickCreateAsTarget: true,
   },
@@ -121,9 +105,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
       material: REFERENCE_MEDIA_PORTS,
     },
     label: "视频生成",
-    menuIcon: menuVideoGenerationIcon,
     output: { dataType: "video", port: OUTPUT_PORT },
-    placeholderIcon: menuVideoGenerationIcon,
     quickCreateAsSource: true,
     quickCreateAsTarget: true,
     videoInputModes: {
@@ -141,9 +123,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
       material: REFERENCE_VISUAL_TEXT_PORTS,
     },
     label: "文本生成",
-    menuIcon: menuTextGenerationIcon,
     output: { dataType: "text", port: OUTPUT_PORT },
-    placeholderIcon: menuTextGenerationIcon,
     quickCreateAsSource: true,
     quickCreateAsTarget: true,
   },
@@ -151,9 +131,7 @@ export const CANVAS_NODE_PROTOCOLS: Record<canvasnode.CanvasNodeType, CanvasNode
     createLabel: "批量分镜",
     inputs: NO_INPUT_PORTS,
     label: "批量分镜",
-    menuIcon: menuTextGenerationIcon,
     output: { dataType: "text", port: OUTPUT_PORT },
-    placeholderIcon: menuTextGenerationIcon,
     quickCreateAsSource: false,
     quickCreateAsTarget: false,
   },

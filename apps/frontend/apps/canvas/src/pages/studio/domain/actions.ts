@@ -11,7 +11,6 @@ import {
 
 import type { MentionNode, MentionReferenceIdentity, MentionTreeResult } from "@/components/promptEditor";
 import { asset, canvasnode } from "@/domain";
-import type { CanvasNodeStore } from "@/pages/studio/canvas/graph/CanvasNodeStore";
 import {
   StartCanvasNodeGeneration,
   StartCanvasGeneration,
@@ -267,21 +266,20 @@ const SILENT_POLL: ApiRequestConfig = { skipErrorNotify: true };
 
 const SILENT_REQUEST = SILENT_POLL;
 
-export async function listStoryboardDraftShots(nodeStore: CanvasNodeStore) {
-  return nodeStore
-    .getNodes()
-    .flatMap((node) => (node.DraftSession ? [node.DraftSession] : []))
-    .flatMap((item) =>
-      (item.canvas_nodes ?? []).map(
-        (draft) =>
-          ({
-            ...shotFromDraftSession(item, draft),
-            id: draft.draft_id,
-            detailLoaded: true,
-            storyboardTaskRunId: item.task_run_id,
-          }) satisfies Shot,
-      ),
-    );
+export function storyboardDraftShotFromNode(node: canvasnode.CanvasNode): Shot | undefined {
+  if (node.Type !== canvasnode.CanvasNodeType.STORYBOARD_DRAFT) return undefined;
+  const session = node.DraftSession;
+  const settings = session ? storyboardSettings(session) : { ...DEFAULT_SETTINGS };
+  return {
+    id: node.NodeID,
+    detailLoaded: true,
+    timelineStatus: session?.status === 3 ? "failed" : session?.status === 2 ? "pending-confirmation" : "generating",
+    storyboardTaskRunId: session?.task_run_id ?? node.NodeID,
+    duration: settings.duration,
+    status: "empty",
+    script: session?.plot ?? node.Prompt ?? "",
+    settings,
+  };
 }
 
 export async function getCanvasNodeAssets(target: canvasnode.CanvasNode, graphNodes: canvasnode.CanvasNode[]) {

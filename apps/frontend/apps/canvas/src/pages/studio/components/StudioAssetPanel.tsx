@@ -1,4 +1,5 @@
 import {
+  ChevronDown as IconGroupDown,
   Library as IconAssetLibrary,
   FolderOpen as IconFolderAssetLibrary,
   ImagePlus as IconGenerationImage,
@@ -13,8 +14,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import groupDownIcon from "@/assets/canvas/group-down.svg";
-import groupPlusIcon from "@/assets/canvas/group-plus.svg";
 import { Collapse } from "@/components/Collapse";
 import { AssetPreviewCard } from "@/components/promptEditor/plugins/assetMention/AssetPreviewCard";
 import { splitHighlight } from "@/components/promptEditor/plugins/assetMention/mentionTree";
@@ -681,7 +680,7 @@ export function StudioAssetPanel({
                   activeKey={[...expandedGroupIds]}
                   bordered={false}
                   className={styles.groupCollapse}
-                  expandIcon={<img alt="" className={styles.groupArrow} src={groupDownIcon} />}
+                  expandIcon={<IconGroupDown aria-hidden className={styles.groupArrow} strokeWidth={1.5} />}
                   lazyload={false}
                   onChange={(_, activeKeys) => {
                     setExpandedGroupIds(new Set(activeKeys));
@@ -717,7 +716,7 @@ export function StudioAssetPanel({
                               trigger="click"
                             >
                               <button aria-label={t("新增资产")} className={styles.groupAdd} type="button">
-                                <img alt="" className={styles.groupPlus} src={groupPlusIcon} />
+                                <IconPluginListedAdd aria-hidden className={styles.groupPlus} strokeWidth={1.5} />
                               </button>
                             </Dropdown>
                           </div>

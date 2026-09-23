@@ -123,6 +123,8 @@ export function useCanvasGeneration({
             ...state.RelatedNodes.filter((node) => !nodePubSub.store.get(canvasGraphAtom).nodesById.has(node.NodeID)),
             {
               ...state.Node,
+              ActiveTaskRunID: terminal ? undefined : state.Node.ActiveTaskRunID,
+              ActiveTaskType: terminal ? undefined : state.Node.ActiveTaskType,
               CurrentAssetID: state.Node.CurrentAssetID ?? state.Node.SelectedAssetID,
               CanvasNodeNo: current.CanvasNodeNo,
               LatestGenerationFailure: matching ? current.LatestGenerationFailure : state.Node.LatestGenerationFailure,

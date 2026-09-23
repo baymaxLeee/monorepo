@@ -14,7 +14,7 @@ import {
   type CanvasNodeState,
 } from "@repo/api";
 
-import type { canvasnode as view } from "@/domain";
+import { canvasnode as view } from "@/domain";
 
 export const ratios: Record<number, string> = {
   1: "21:9",
@@ -45,6 +45,23 @@ function presentGenerationConfig(
 }
 
 export function presentNode(node: CanvasNodeDTO, state?: CanvasNodeState): view.CanvasNode {
+  const stateIsTerminal =
+    state?.status === view.CanvasGenerationStatus.SUCCEEDED ||
+    state?.status === view.CanvasGenerationStatus.FAILED ||
+    state?.status === view.CanvasGenerationStatus.CANCELLED;
+  const serverStartedNewerTask = Boolean(
+    stateIsTerminal && node.active_task_run_id && node.active_task_run_id !== state?.task_run_id,
+  );
+  const activeTaskRunID = serverStartedNewerTask
+    ? node.active_task_run_id
+    : stateIsTerminal
+      ? undefined
+      : (state?.task_run_id ?? node.active_task_run_id);
+  const activeTaskType = serverStartedNewerTask
+    ? node.active_task_type
+    : stateIsTerminal
+      ? undefined
+      : (state?.task_type ?? node.active_task_type);
   return {
     NodeID: node.node_id,
     CanvasID: node.canvas_id,
@@ -74,8 +91,8 @@ export function presentNode(node: CanvasNodeDTO, state?: CanvasNodeState): view.
     UpdatedAt: node.updated_at,
     CreatedBy: node.created_by,
     UpdatedBy: node.updated_by,
-    ActiveTaskRunID: state?.task_run_id ?? node.active_task_run_id,
-    ActiveTaskType: state?.task_type ?? node.active_task_type,
+    ActiveTaskRunID: activeTaskRunID,
+    ActiveTaskType: activeTaskType,
     FirstFrameAssetID: node.first_frame_asset_id,
     FirstFrameURL: node.first_frame_url,
     LastFrameAssetID: node.last_frame_asset_id,

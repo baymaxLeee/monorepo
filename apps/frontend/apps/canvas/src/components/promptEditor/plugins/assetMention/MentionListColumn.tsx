@@ -1,6 +1,6 @@
+import { ChevronDown } from "lucide-react";
 import { Fragment, type Ref } from "react";
 
-import groupDownIcon from "@/assets/canvas/group-down.svg";
 import { Tooltip } from "@/components/ui";
 import { HIDDEN_SCROLLBAR_CLASS, HIDDEN_SCROLLBAR_STYLE } from "@/hooks/useHorizontalScrollFade";
 import t from "@/utils/i18n";
@@ -31,16 +31,14 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 
 function ChevronIcon({ expanded, section = false }: { expanded: boolean; section?: boolean }) {
   return (
-    <img
-      alt=""
+    <ChevronDown
       aria-hidden
       className="shrink-0 transition-transform"
-      height={16}
-      src={groupDownIcon}
+      size={16}
+      strokeWidth={1.5}
       style={{
         transform: section ? (expanded ? "rotate(180deg)" : undefined) : expanded ? undefined : "rotate(-90deg)",
       }}
-      width={16}
     />
   );
 }

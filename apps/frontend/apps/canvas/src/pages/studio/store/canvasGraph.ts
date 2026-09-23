@@ -2,7 +2,7 @@ import { atom } from "jotai";
 
 import { canvasnode } from "@/domain";
 
-import { shotFromDTO } from "../domain/actions";
+import { shotFromDTO, storyboardDraftShotFromNode } from "../domain/actions";
 import type { CanvasGenerationRuntimeState } from "../domain/generationCancellation";
 import type { CanvasGenerationFailure, Shot } from "../domain/types";
 
@@ -198,7 +198,6 @@ export const reorderStoryboardNodesAtom = atom(null, (get, set, orderedIds: stri
   set(canvasGraphAtom, { ...current, nodesById });
 });
 
-export const storyboardDraftShotsAtom = atom<Shot[]>([]);
 export const storyboardOptimisticShotsAtom = atom<Shot[]>([]);
 
 export const storyboardShotsAtom = atom((get) => {
@@ -233,13 +232,16 @@ export const storyboardShotsAtom = atom((get) => {
     const insertIndex = shot.optimisticAfterNodeId ? (afterIndex >= 0 ? afterIndex + 1 : projected.length) : 0;
     projected.splice(insertIndex, 0, shot);
   }
-  return [...projected, ...get(storyboardDraftShotsAtom)];
+  const draftTasks = get(canvasNodesAtom).flatMap((node) => {
+    const task = storyboardDraftShotFromNode(node);
+    return task ? [task] : [];
+  });
+  return [...projected, ...draftTasks];
 });
 
 export const resetCanvasGraphAtom = atom(null, (_get, set) => {
   set(canvasGraphAtom, emptyGraph());
   set(canvasGraphLoadedAtom, false);
-  set(storyboardDraftShotsAtom, []);
   set(storyboardOptimisticShotsAtom, []);
   set(canvasGenerationFailuresAtom, new Map());
   set(canvasGenerationRuntimeStatesAtom, new Map());

@@ -1,9 +1,8 @@
 import { type NodeProps, type NodeTypes } from "@xyflow/react";
 import { useAtomValue } from "jotai";
-import { CircleAlert as IconExclamationCircleRedFill, Music as IconMusic } from "lucide-react";
+import { CircleAlert as IconExclamationCircleRedFill, LoaderCircle, Music as IconMusic } from "lucide-react";
 import { memo, useContext } from "react";
 
-import textGenerationLoadingIcon from "@/assets/canvas/text-generation-loading.svg";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { Markdown as MarkDown } from "@/components/compat";
 import { GenerationConfiguration } from "@/components/GenerationConfiguration/index";
@@ -20,6 +19,7 @@ import {
   defaultImageModelIdAtom,
 } from "../../store/index";
 import { CanvasContentActionsContext, CanvasEditingContext, TextGenerationWaitingContext } from "../CanvasNodeContexts";
+import { CanvasNodeIcon } from "../components/CanvasNodeIcon";
 import { CanvasModelSelect, useCanvasModelOptions } from "../editing/CanvasModelSelect";
 import { CanvasPromptEditor } from "../editing/CanvasPromptEditor";
 import { CanvasTextEditor } from "../editing/CanvasTextEditor";
@@ -126,10 +126,6 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
     : undefined;
   const generationLoadingContainerClass =
     item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION ? styles.textGenerationWaiting : styles.placeholder;
-  const generationLoadingIcon =
-    item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION
-      ? textGenerationLoadingIcon
-      : canvasNodeProtocol(item.Type).placeholderIcon;
   const isAutoSizedMedia = isImage || isVideo;
   const mediaPreview = useMediaNodePreviewSize(
     item.NodeID,
@@ -163,7 +159,13 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
         >
           {isStoryboardDraft ? (
             <div className={`${styles.textPreview} nopan nowheel`}>
-              <strong>{item.ActiveTaskRunID ? t("分镜脚本生成中") : t("分镜脚本待确认")}</strong>
+              <strong>
+                {item.DraftSession?.status === 3
+                  ? t("分镜脚本生成失败")
+                  : item.DraftSession?.status === 2
+                    ? t("分镜脚本待确认")
+                    : t("分镜脚本生成中")}
+              </strong>
               <MarkDown className={styles.textPreviewMarkdown} data={item.Prompt ?? ""} />
             </div>
           ) : generationFailure && !item.ActiveTaskRunID ? (
@@ -186,11 +188,25 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
             </>
           ) : previewMode === "loading" ? (
             <div className={`${generationLoadingContainerClass} ${styles.generationLoading}`}>
-              <img alt="" src={generationLoadingIcon} />
+              {item.Type === canvasnode.CanvasNodeType.TEXT_GENERATION ? (
+                <LoaderCircle aria-hidden className={styles.loadingNodeIcon} strokeWidth={1.5} />
+              ) : (
+                <CanvasNodeIcon
+                  aria-hidden
+                  className={styles.placeholderNodeIcon}
+                  nodeType={item.Type}
+                  strokeWidth={1.5}
+                />
+              )}
             </div>
           ) : previewMode === "empty" ? (
             <div className={styles.placeholder}>
-              <img alt="" src={canvasNodeProtocol(item.Type).placeholderIcon} />
+              <CanvasNodeIcon
+                aria-hidden
+                className={styles.placeholderNodeIcon}
+                nodeType={item.Type}
+                strokeWidth={1.5}
+              />
             </div>
           ) : mediaURL && isVideo ? (
             <CanvasNodeVideoPlayer
@@ -239,7 +255,12 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
             </>
           ) : (
             <div className={styles.placeholder}>
-              <img alt="" src={canvasNodeProtocol(item.Type).placeholderIcon} />
+              <CanvasNodeIcon
+                aria-hidden
+                className={styles.placeholderNodeIcon}
+                nodeType={item.Type}
+                strokeWidth={1.5}
+              />
             </div>
           )}
           {materialMatching.matching ? (

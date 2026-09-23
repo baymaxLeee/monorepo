@@ -3,12 +3,12 @@ import {
   History as IconAgentHistory,
   PackageOpen as IconBatchExport,
   ChevronLeft as IconLeft,
+  LayoutDashboard as IconCanvasMode,
+  Rows3 as IconStoryboardMode,
   Sparkles as IconWkfOptimization,
   MessageCircle as IconChat,
 } from "lucide-react";
 
-import canvasModeIcon from "@/assets/canvas/canvas-mode.svg";
-import storyboardModeIcon from "@/assets/canvas/storyboard-mode.svg";
 import { ActionButton } from "@/components/ActionButton";
 import { Popconfirm } from "@/components/ui";
 import t from "@/utils/i18n";
@@ -79,7 +79,7 @@ export function StudioHeader({
             onClick={() => view !== "canvas" && onViewChange("canvas")}
             type="button"
           >
-            <img alt="" className={styles.viewIcon} src={canvasModeIcon} />
+            <IconCanvasMode aria-hidden className={styles.viewIcon} strokeWidth={1.5} />
             {view === "canvas" ? t("画布") : null}
           </button>
           <button
@@ -91,7 +91,7 @@ export function StudioHeader({
             onClick={() => view !== "storyboard" && onViewChange("storyboard")}
             type="button"
           >
-            <img alt="" className={styles.viewIcon} src={storyboardModeIcon} />
+            <IconStoryboardMode aria-hidden className={styles.viewIcon} strokeWidth={1.5} />
             {view === "storyboard" ? t("故事板") : null}
           </button>
         </div>

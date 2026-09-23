@@ -192,7 +192,7 @@ export function FileList<T>({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 bg-[#f4f7ff] px-6 py-2 text-[13px] leading-5.5 text-foreground">
-        <IconInfoCircleFill className="shrink-0 text-[20px] text-primary" />
+        <IconInfoCircleFill aria-hidden className="shrink-0 text-primary" size={16} strokeWidth={1.5} />
         <span>{t("下载链接有效期为 {retentionDays} 天。", { retentionDays })}</span>
         <Button
           className="ml-auto text-[13px] text-primary"

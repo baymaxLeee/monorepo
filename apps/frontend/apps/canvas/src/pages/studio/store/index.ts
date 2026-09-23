@@ -62,7 +62,6 @@ export {
   reorderStoryboardNodesAtom,
   replaceCanvasNodesAtom,
   resetCanvasGraphAtom,
-  storyboardDraftShotsAtom,
   storyboardOptimisticShotsAtom,
   storyboardShotsAtom,
   setCanvasGenerationFailureAtom,

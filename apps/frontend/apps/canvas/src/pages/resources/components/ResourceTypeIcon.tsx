@@ -1,6 +1,6 @@
 import {
   Music as IconMusic,
-  Briefcase as IconPropsAsset,
+  Package as IconPropsAsset,
   UserRound as IconRole,
   Building2 as IconScene,
 } from "lucide-react";
@@ -8,14 +8,16 @@ import {
 import { resource } from "@/domain";
 
 export function ResourceTypeIcon({ className, type }: { className?: string; type: resource.ResourceType }) {
+  const iconProps = { "aria-hidden": true, className, size: "1em", strokeWidth: 1.5 } as const;
+
   switch (type) {
     case resource.ResourceType.CHARACTER:
-      return <IconRole className={className} />;
+      return <IconRole {...iconProps} />;
     case resource.ResourceType.SCENE:
-      return <IconScene className={className} />;
+      return <IconScene {...iconProps} />;
     case resource.ResourceType.PROP:
-      return <IconPropsAsset className={className} />;
+      return <IconPropsAsset {...iconProps} />;
     case resource.ResourceType.AUDIO:
-      return <IconMusic className={className} />;
+      return <IconMusic {...iconProps} />;
   }
 }

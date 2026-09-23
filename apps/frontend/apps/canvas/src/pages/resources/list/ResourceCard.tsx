@@ -159,7 +159,7 @@ export function ResourceCard({
                   className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
                 >
                   <span className="inline-flex text-[14px]">
-                    <IconComplianceLine />
+                    <IconComplianceLine aria-hidden size="1em" strokeWidth={1.5} />
                   </span>
                   {approvedResourceAssetCount}
                 </span>

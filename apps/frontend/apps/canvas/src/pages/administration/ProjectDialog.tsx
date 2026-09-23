@@ -178,7 +178,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                       {t("项目名称")}
                       <span className="text-destructive">*</span>
                       <span title={t("不能以连接符（-、_）和空格开头或结尾")}>
-                        <Info className={styles.nameInfoIcon} />
+                        <Info aria-hidden className={styles.nameInfoIcon} size={14} strokeWidth={1.5} />
                       </span>
                       <span className={styles.nameCount}>{name.length}/20</span>
                     </FormLabel>

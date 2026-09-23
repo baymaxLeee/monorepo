@@ -66,14 +66,14 @@ export default function ProjectLayout() {
               className={({ isActive }) => `${styles.navigation} ${isActive ? styles.selectedNavigation : ""}`}
               to={`/platform/canvas/projects/${projectId}/canvases`}
             >
-              <IconVideoCreation className="text-[18px]" />
+              <IconVideoCreation aria-hidden size={18} strokeWidth={1.5} />
               {t("视频创作")}
             </NavLink>
             <NavLink
               className={({ isActive }) => `${styles.navigation} ${isActive ? styles.selectedNavigation : ""}`}
               to={`/platform/canvas/projects/${projectId}/resources`}
             >
-              <IconAssetLibrary className="text-[18px]" />
+              <IconAssetLibrary aria-hidden size={18} strokeWidth={1.5} />
               {t("资产库")}
             </NavLink>
           </nav>
