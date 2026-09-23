@@ -206,7 +206,7 @@ export function AssetReviewDialog({
             </div>
           )}
         </div>
-        <DialogFooter className="canvas-modal-footer shrink-0 px-6 py-4">
+        <DialogFooter className="canvas-modal-footer mx-0 mb-0 shrink-0 px-6 py-4">
           <DialogButton disabled={busy} onClick={onClose} type="button" variant="outline">
             {t("取消")}
           </DialogButton>

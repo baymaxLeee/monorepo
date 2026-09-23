@@ -84,7 +84,7 @@ export function CanvasAddToLibraryDialog({
             </label>
           </div>
         </div>
-        <DialogFooter className="canvas-modal-footer shrink-0 px-6 py-4">
+        <DialogFooter className="canvas-modal-footer mx-0 mb-0 shrink-0 px-6 py-4">
           <Button disabled={submitting} onClick={onClose} type="button" variant="outline">
             {t("取消")}
           </Button>

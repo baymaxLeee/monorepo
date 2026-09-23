@@ -344,7 +344,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
             />
           </form>
         </div>
-        <DialogFooter className="canvas-modal-footer shrink-0 px-6 py-4">
+        <DialogFooter className="canvas-modal-footer mx-0 mb-0 shrink-0 px-6 py-4">
           <DialogButton disabled={form.formState.isSubmitting} onClick={onClose} type="button" variant="outline">
             {t("取消")}
           </DialogButton>
