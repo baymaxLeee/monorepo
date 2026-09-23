@@ -64,12 +64,20 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
   }, [form, state]);
 
   return (
-    <Dialog open={Boolean(state)} onOpenChange={(open) => !open && !form.formState.isSubmitting && onClose()}>
+    <Dialog
+      open={Boolean(state)}
+      disablePointerDismissal
+      onOpenChange={(open, details) => {
+        if (!open && details.reason === "escape-key" && form.formState.isSubmitting) {
+          details.cancel();
+          return;
+        }
+        if (!open && !form.formState.isSubmitting) onClose();
+      }}
+    >
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[428px] flex-col gap-0 p-0 sm:max-w-none ${styles.dialog}`}
-        onEscapeKeyDown={(event) => form.formState.isSubmitting && event.preventDefault()}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
+        initialFocus={false}
         style={{ maxWidth: "92vw" }}
       >
         <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">

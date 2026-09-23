@@ -17,11 +17,11 @@ export type AudioSpectrumState = {
   prepare: () => Promise<void>;
 };
 
-export function useAudioSpectrum(audioRef: RefObject<HTMLAudioElement>): AudioSpectrumState {
+export function useAudioSpectrum(audioRef: RefObject<HTMLAudioElement | null>): AudioSpectrumState {
   const [fallback, setFallback] = useState(false);
   const [heights, setHeights] = useState(STATIC_AUDIO_SPECTRUM_HEIGHTS);
-  const graphRef = useRef<AudioGraph>();
-  const animationFrameRef = useRef<number>();
+  const graphRef = useRef<AudioGraph | undefined>(undefined);
+  const animationFrameRef = useRef<number | undefined>(undefined);
   const lastUpdateRef = useRef(0);
   const mountedRef = useRef(true);
 

@@ -27,7 +27,6 @@ import {
   CardTitle,
   Checkbox,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -177,7 +176,7 @@ export function BenefitPackages({ editable, workspaceKey }: { editable: boolean;
                     void retryBenefitPackageAssetGroupCleanup(item.id)
                       .then((next) => {
                         setCleanups((current) => current.map((entry) => (entry.id === next.id ? next : entry)));
-                        toast.success("素材组已清理");
+                        toast.add({ type: "success", title: "素材组已清理" });
                       })
                       .catch(() => setAttempt((value) => value + 1));
                   }}
@@ -214,7 +213,7 @@ export function BenefitPackages({ editable, workspaceKey }: { editable: boolean;
                 void deleteBenefitPackage(deleting.id, { expected_revision: deleting.revision }).then(() => {
                   setItems((current) => current?.filter((item) => item.id !== deleting.id) ?? []);
                   setDeleting(null);
-                  toast.success("权益包已删除");
+                  toast.add({ type: "success", title: "权益包已删除" });
                 });
               }}
             >
@@ -262,15 +261,15 @@ function PackageDialog({
 
   async function save() {
     if (!draft.access_key_id && creating) {
-      toast.error("请输入 AccessKey ID");
+      toast.add({ type: "error", title: "请输入 AccessKey ID" });
       return;
     }
     if (!draft.secret_access_key && creating) {
-      toast.error("请输入 SecretAccessKey");
+      toast.add({ type: "error", title: "请输入 SecretAccessKey" });
       return;
     }
     if (!preset && (!draft.name.trim() || draft.model_ids.length === 0)) {
-      toast.error("请填写名称并至少选择一个模型");
+      toast.add({ type: "error", title: "请填写名称并至少选择一个模型" });
       return;
     }
     setSaving(true);
@@ -288,7 +287,7 @@ function PackageDialog({
             material_limit: draft.material_limit,
           });
       onSaved(next, creating);
-      toast.success(creating ? "权益包已创建" : "权益包已更新");
+      toast.add({ type: "success", title: creating ? "权益包已创建" : "权益包已更新" });
     } finally {
       setSaving(false);
     }
@@ -301,7 +300,7 @@ function PackageDialog({
           <DialogTitle>{creating ? (preset ? "配置预置权益包" : "新增权益包") : "编辑权益包"}</DialogTitle>
           <DialogDescription>凭证保存后不会再次回显。留空表示编辑时保留原凭证。</DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-4">
+        <div className="space-y-4">
           {!preset ? (
             <>
               <Field label="权益包名称" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
@@ -365,7 +364,7 @@ function PackageDialog({
               ))}
             </div>
           ) : null}
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             取消

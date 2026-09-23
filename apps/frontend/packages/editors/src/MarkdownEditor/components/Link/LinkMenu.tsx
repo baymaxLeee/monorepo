@@ -1,15 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "@repo/design-system";
 import { Button } from "@repo/design-system/shadcn/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@repo/design-system/shadcn/form";
 import { Input } from "@repo/design-system/shadcn/input";
-import { Popover, PopoverAnchor, PopoverContent } from "@repo/design-system/shadcn/popover";
+import { Popover, PopoverContent } from "@repo/design-system/shadcn/popover";
 import { Tooltip, TooltipTrigger } from "@repo/design-system/shadcn/tooltip";
 import { type Editor, getMarkRange } from "@tiptap/core";
 import { Copy, Pencil, Unlink } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { z } from "zod";
 
 import { URL_REGEX } from "../../constants";
@@ -173,7 +173,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
 
   const handleCopy = () => {
     navigator.clipboard.writeText(currentLink.href).then(() => {
-      toast.success("链接已复制");
+      toast.add({ type: "success", title: "链接已复制" });
     });
   };
 
@@ -235,10 +235,10 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
         }
       }}
     >
-      <PopoverAnchor virtualRef={{ current: anchorEl }} />
       <PopoverContent
+        anchor={anchorEl}
         container={popupConfig.getContainer(editor.view.dom)}
-        style={{ zIndex: popupConfig.zIndex }}
+        positionerStyle={{ zIndex: popupConfig.zIndex }}
         ref={menuRef}
         side={mode === "preview" ? "top" : "bottom"}
         align="start"
@@ -246,36 +246,28 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
         className="w-auto rounded-lg border bg-popover p-0 text-popover-foreground shadow-md"
         onMouseEnter={handleMenuMouseEnter}
         onMouseLeave={handleMenuMouseLeave}
-        onOpenAutoFocus={(e) => {
-          if (mode === "preview") {
-            e.preventDefault();
-          }
-        }}
+        initialFocus={mode === "preview" ? false : undefined}
       >
         {mode === "preview" ? (
           <div className="flex items-center justify-center gap-1 px-2 py-1">
             <span className="inline-block w-[150px] truncate text-sm">{currentLink.href}</span>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <button type="button" className={ICON_BTN_CLS} onClick={() => setMode("edit")}>
-                  <Pencil className="size-4" />
-                </button>
+              <TooltipTrigger
+                render={<button type="button" className={ICON_BTN_CLS} onClick={() => setMode("edit")} />}
+              >
+                <Pencil className="size-4" />
               </TooltipTrigger>
               <EditorTooltipContent>编辑链接</EditorTooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <button type="button" className={ICON_BTN_CLS} onClick={handleUnlink}>
-                  <Unlink className="size-4" />
-                </button>
+              <TooltipTrigger render={<button type="button" className={ICON_BTN_CLS} onClick={handleUnlink} />}>
+                <Unlink className="size-4" />
               </TooltipTrigger>
               <EditorTooltipContent>移除链接</EditorTooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <button type="button" className={ICON_BTN_CLS} onClick={handleCopy}>
-                  <Copy className="size-4" />
-                </button>
+              <TooltipTrigger render={<button type="button" className={ICON_BTN_CLS} onClick={handleCopy} />}>
+                <Copy className="size-4" />
               </TooltipTrigger>
               <EditorTooltipContent>复制链接</EditorTooltipContent>
             </Tooltip>

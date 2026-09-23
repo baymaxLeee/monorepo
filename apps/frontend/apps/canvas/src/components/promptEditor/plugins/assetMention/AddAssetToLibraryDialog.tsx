@@ -71,11 +71,19 @@ export function AddAssetToLibraryDialog({
   };
 
   return (
-    <Dialog open={Boolean(asset)} onOpenChange={(open) => !open && !submitting && onClose()}>
+    <Dialog
+      open={Boolean(asset)}
+      disablePointerDismissal
+      onOpenChange={(open, details) => {
+        if (!open && details.reason === "escape-key" && submitting) {
+          details.cancel();
+          return;
+        }
+        if (!open && !submitting) onClose();
+      }}
+    >
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${dialogSizing.small} ${ASSET_LIBRARY_DIALOG_CLASS}`}
-        onEscapeKeyDown={(event) => submitting && event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
         showCloseButton={!submitting}
         style={{ maxWidth: "92vw" }}
       >

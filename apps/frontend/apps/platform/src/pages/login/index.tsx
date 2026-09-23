@@ -48,7 +48,7 @@ function LoginPage() {
         userId: session.user.id,
         username: session.user.displayName,
       });
-      toast.success("登录成功");
+      toast.add({ type: "success", title: "登录成功" });
       navigate(landingPath(session.user), { replace: true });
     } catch {}
   }

@@ -2,7 +2,6 @@ import { createWorkspaceAdmin, type WorkspaceAdminView, transferWorkspaceOwner }
 import {
   Button,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -40,7 +39,7 @@ export function CreateWorkspaceAdminDialog({ onClose, onDone, workspace }: Dialo
 
   async function submit() {
     if (!workspace || !account.trim() || !email.trim() || !password) {
-      toast.error("请填写账号、邮箱与密码");
+      toast.add({ type: "error", title: "请填写账号、邮箱与密码" });
       return;
     }
     setBusy(true);
@@ -51,7 +50,7 @@ export function CreateWorkspaceAdminDialog({ onClose, onDone, workspace }: Dialo
         email: email.trim(),
         displayName: displayName.trim() || undefined,
       });
-      toast.success("工作空间管理员已创建");
+      toast.add({ type: "success", title: "工作空间管理员已创建" });
       onClose();
       onDone();
     } catch {
@@ -67,7 +66,7 @@ export function CreateWorkspaceAdminDialog({ onClose, onDone, workspace }: Dialo
           <DialogTitle>新建工作空间管理员</DialogTitle>
           <DialogDescription>为「{workspace?.name}」创建一个 active 的 workspace_admin 账号。</DialogDescription>
         </DialogHeader>
-        <DialogBody>
+        <div>
           <FieldGroup>
             <Field>
               <FieldLabel>账号</FieldLabel>
@@ -86,7 +85,7 @@ export function CreateWorkspaceAdminDialog({ onClose, onDone, workspace }: Dialo
               <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </Field>
           </FieldGroup>
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
             取消
@@ -112,13 +111,13 @@ export function TransferOwnerDialog({ onClose, onDone, workspace }: DialogProps)
 
   async function submit() {
     if (!workspace || !newOwnerUserId.trim()) {
-      toast.error("请填写新负责人用户 ID");
+      toast.add({ type: "error", title: "请填写新负责人用户 ID" });
       return;
     }
     setBusy(true);
     try {
       await transferWorkspaceOwner(workspace.id, newOwnerUserId.trim());
-      toast.success("负责人已转让");
+      toast.add({ type: "success", title: "负责人已转让" });
       onClose();
       onDone();
     } catch {
@@ -134,14 +133,14 @@ export function TransferOwnerDialog({ onClose, onDone, workspace }: DialogProps)
           <DialogTitle>转让负责人</DialogTitle>
           <DialogDescription>将「{workspace?.name}」的负责人转给一位已是该工作空间成员的用户。</DialogDescription>
         </DialogHeader>
-        <DialogBody>
+        <div>
           <FieldGroup>
             <Field>
               <FieldLabel>新负责人用户 ID</FieldLabel>
               <Input value={newOwnerUserId} onChange={(e) => setNewOwnerUserId(e.target.value)} />
             </Field>
           </FieldGroup>
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
             取消

@@ -464,6 +464,10 @@ func (r *Repository) Update(ctx context.Context, item domain.CanvasNode, patch d
 	if current.Revision != patch.ExpectedRevision {
 		return 0, 0, "", app.ErrRevisionConflict
 	}
+	row.NodeData, err = encodeCanvasNodeDataForUpdate(item, current.NodeData)
+	if err != nil {
+		return 0, 0, "", err
+	}
 	revokedTaskRunID := optionalUUIDString(current.ActiveTaskRunID)
 	revision := current.Revision + 1
 	updates := map[string]any{

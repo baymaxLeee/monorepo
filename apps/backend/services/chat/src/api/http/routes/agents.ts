@@ -37,7 +37,7 @@ agentsRoutes.post(
   "/:conversationId/agents/run/stream",
   zValidator("json", runSchema, (result) => {
     if (!result.success) {
-      logger.warn({ issues: result.error.flatten() }, "invalid run request");
+      logger.warn({ issues: z.flattenError(result.error) }, "invalid run request");
     }
   }),
   async (c) => {

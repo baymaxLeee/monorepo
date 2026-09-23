@@ -3,7 +3,6 @@ import { type Bot, type BotStatus, type BotTone, type ModelProvider, updateBot }
 import {
   Button,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -97,7 +96,7 @@ function ModelField({
         <Field>
           <FieldLabel>{label}</FieldLabel>
           <FormControl>
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select value={field.value} onValueChange={(value) => value !== null && field.onChange(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="未设置" />
               </SelectTrigger>
@@ -187,7 +186,7 @@ export function AgentModelDialog({
         image_provider_id: toId(values.image_provider_id),
         video_provider_id: toId(values.video_provider_id),
       });
-      toast.success("配置已保存");
+      toast.add({ type: "success", title: "配置已保存" });
       onOpenChange(false);
       onSaved();
     } catch {}
@@ -195,7 +194,7 @@ export function AgentModelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>配置智能体</DialogTitle>
           <DialogDescription>
@@ -210,7 +209,7 @@ export function AgentModelDialog({
             <TabsTrigger value="skills">技能</TabsTrigger>
             <TabsTrigger value="presentation">展示</TabsTrigger>
           </TabsList>
-          <DialogBody>
+          <div className="scrollbar-thin -mx-4 min-h-0 flex-1 overflow-y-auto px-4">
             <Form {...form}>
               <form id="agent-model-form" onSubmit={form.handleSubmit(onSubmit)}>
                 <TabsContent value="identity" className="mt-0">
@@ -235,7 +234,10 @@ export function AgentModelDialog({
                         <Field>
                           <FieldLabel>发布状态</FieldLabel>
                           <FormControl>
-                            <Select value={field.value} onValueChange={field.onChange}>
+                            <Select
+                              value={field.value}
+                              onValueChange={(value) => value !== null && field.onChange(value)}
+                            >
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
@@ -308,7 +310,10 @@ export function AgentModelDialog({
                         <Field>
                           <FieldLabel>语气</FieldLabel>
                           <FormControl>
-                            <Select value={field.value} onValueChange={field.onChange}>
+                            <Select
+                              value={field.value}
+                              onValueChange={(value) => value !== null && field.onChange(value)}
+                            >
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
@@ -403,7 +408,7 @@ export function AgentModelDialog({
                 <p className="text-sm text-muted-foreground">请先保存智能体后再配置技能。</p>
               )}
             </TabsContent>
-          </DialogBody>
+          </div>
         </Tabs>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -90,7 +90,7 @@ export function ResourceAssetsPageContent({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const mutationRef = useRef(false);
   const createSequenceRef = useRef(0);
-  const handledInitialActionIdRef = useRef<number>();
+  const handledInitialActionIdRef = useRef<number | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [reviewFiles, setReviewFiles] = useState<resource.ResourceAsset[]>([]);

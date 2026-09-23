@@ -98,7 +98,7 @@ export function ChatLayout() {
       setConversations(list);
       return list;
     } catch (error) {
-      toast.error(`加载会话失败：${String(error)}`);
+      toast.add({ type: "error", title: `加载会话失败：${String(error)}` });
       setConversations([]);
       return [] as Conversation[];
     }
@@ -132,7 +132,7 @@ export function ChatLayout() {
       setConversations((prev) => (prev ? [conv, ...prev] : [conv]));
       navigate(`/platform/chat/conversations/${conv.id}`);
     } catch (error) {
-      toast.error(`新建会话失败：${String(error)}`);
+      toast.add({ type: "error", title: `新建会话失败：${String(error)}` });
     } finally {
       setCreating(false);
     }
@@ -147,7 +147,7 @@ export function ChatLayout() {
         navigate(next ? `/platform/chat/conversations/${next.id}` : "/platform/chat/conversations", { replace: true });
       }
     } catch (error) {
-      toast.error(`删除会话失败：${String(error)}`);
+      toast.add({ type: "error", title: `删除会话失败：${String(error)}` });
     }
   }
 
@@ -163,7 +163,7 @@ export function ChatLayout() {
       const safeTitle = (conversation?.title ?? detail.title).replace(/[\\/:*?"<>|]/g, "-").trim();
       downloadConversationMarkdown(messages, `${safeTitle || "conversation"}.md`);
     } catch (error) {
-      toast.error(`导出会话失败：${String(error)}`);
+      toast.add({ type: "error", title: `导出会话失败：${String(error)}` });
     }
   }
 

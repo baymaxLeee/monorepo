@@ -22,7 +22,7 @@
     "hono": "catalog:",
     "postgres": "^3.4.5",
     "workflow": "catalog:",
-    "zod": "^3.25.76"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

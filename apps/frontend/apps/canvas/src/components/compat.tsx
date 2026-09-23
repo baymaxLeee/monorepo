@@ -108,21 +108,23 @@ export function OperationMenu({
       ))}
       {overflowOperations.length ? (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <CanvasButton
-              aria-label="更多操作"
-              className="c-m-operation-menu-dropdown-button"
-              icon={<Ellipsis />}
-              {...menuButtonProps}
-            />
-          </DropdownMenuTrigger>
+          <DropdownMenuTrigger
+            render={
+              <CanvasButton
+                aria-label="更多操作"
+                className="c-m-operation-menu-dropdown-button"
+                icon={<Ellipsis />}
+                {...menuButtonProps}
+              />
+            }
+          />
           <DropdownMenuContent align="end">
             {overflowOperations.map((operation, index) => (
               <DropdownMenuItem
                 className={operation.buttonProps?.status === "danger" ? "text-destructive" : undefined}
                 disabled={operation.disabled}
                 key={`${String(operation.name)}-${index}`}
-                onSelect={operation.onClick}
+                onClick={operation.onClick}
               >
                 {operation.name}
               </DropdownMenuItem>
@@ -367,8 +369,8 @@ export function ConfirmDialogHost() {
             确认删除{options?.name ? ` ${String(options.name)}` : ""}
             {options?.targetName ? `「${String(options.targetName)}」` : ""}？
           </AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div>{options?.info ?? "删除后不可恢复，请谨慎操作。"}</div>
+          <AlertDialogDescription render={<div />}>
+            {options?.info ?? "删除后不可恢复，请谨慎操作。"}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {requiredConfirmation ? (

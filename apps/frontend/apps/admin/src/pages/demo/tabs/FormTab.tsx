@@ -30,7 +30,7 @@ export function FormTab() {
           </div>
           <div className="grid gap-2">
             <Label>角色</Label>
-            <Select value={role} onValueChange={setRole}>
+            <Select value={role} onValueChange={(value) => value !== null && setRole(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="选择角色" />
               </SelectTrigger>

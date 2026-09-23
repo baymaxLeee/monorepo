@@ -41,10 +41,8 @@ export function BasicTab() {
               <AvatarFallback>AD</AvatarFallback>
             </Avatar>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline">悬停查看</Button>
-              </TooltipTrigger>
-              <TooltipContent>Tooltip 来自 Radix + Tailwind</TooltipContent>
+              <TooltipTrigger render={<Button variant="outline" />}>悬停查看</TooltipTrigger>
+              <TooltipContent>Tooltip 来自 Base UI + Tailwind</TooltipContent>
             </Tooltip>
           </div>
         </section>

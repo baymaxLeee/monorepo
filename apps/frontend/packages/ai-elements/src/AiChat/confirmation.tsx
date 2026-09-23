@@ -45,16 +45,28 @@ export function ConfirmationTitle(props: ConfirmationTitleProps) {
   return <AlertDescription {...props} />;
 }
 
-export function ConfirmationRequest({ children }: { children?: ReactNode }) {
+export interface ConfirmationRequestProps {
+  children?: ReactNode;
+}
+
+export function ConfirmationRequest({ children }: ConfirmationRequestProps) {
   return useConfirmation().state === "approval-requested" ? children : null;
 }
 
-export function ConfirmationAccepted({ children }: { children?: ReactNode }) {
+export interface ConfirmationAcceptedProps {
+  children?: ReactNode;
+}
+
+export function ConfirmationAccepted({ children }: ConfirmationAcceptedProps) {
   const { approval, state } = useConfirmation();
   return approval?.approved === true && ["approval-responded", "output-available"].includes(state) ? children : null;
 }
 
-export function ConfirmationRejected({ children }: { children?: ReactNode }) {
+export interface ConfirmationRejectedProps {
+  children?: ReactNode;
+}
+
+export function ConfirmationRejected({ children }: ConfirmationRejectedProps) {
   const { approval, state } = useConfirmation();
   return approval?.approved === false && ["approval-responded", "output-denied", "output-available"].includes(state)
     ? children

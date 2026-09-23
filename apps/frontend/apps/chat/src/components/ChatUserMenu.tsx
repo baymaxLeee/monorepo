@@ -59,25 +59,27 @@ export function ChatUserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-auto w-full justify-start gap-2 px-1.5 py-1.5"
-          aria-label={user.displayName}
-        >
-          <Avatar className="size-7 shrink-0">
-            <AvatarImage src={user.avatarUrl} alt={user.displayName} />
-            <AvatarFallback className="text-xs">{getUserInitials(user.displayName)}</AvatarFallback>
-          </Avatar>
-          <span className="flex min-w-0 flex-1 flex-col text-left">
-            <span className="truncate text-xs font-medium">{user.displayName}</span>
-            {user.activeWorkspace && (
-              <span className="truncate text-[11px] text-muted-foreground">{user.activeWorkspace.workspaceName}</span>
-            )}
-          </span>
-          <ChevronsUpDownIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-auto w-full justify-start gap-2 px-1.5 py-1.5"
+            aria-label={user.displayName}
+          />
+        }
+      >
+        <Avatar className="size-7 shrink-0">
+          <AvatarImage src={user.avatarUrl} alt={user.displayName} />
+          <AvatarFallback className="text-xs">{getUserInitials(user.displayName)}</AvatarFallback>
+        </Avatar>
+        <span className="flex min-w-0 flex-1 flex-col text-left">
+          <span className="truncate text-xs font-medium">{user.displayName}</span>
+          {user.activeWorkspace && (
+            <span className="truncate text-[11px] text-muted-foreground">{user.activeWorkspace.workspaceName}</span>
+          )}
+        </span>
+        <ChevronsUpDownIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-56">
         <DropdownMenuLabel className="truncate">{user.displayName}</DropdownMenuLabel>
@@ -87,15 +89,15 @@ export function ChatUserMenu() {
           </DropdownMenuLabel>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => navigate("/platform/admin/profile")}>
+        <DropdownMenuItem onClick={() => navigate("/platform/admin/profile")}>
           <UserIcon aria-hidden="true" className="mr-2 size-4" />
           个人资料
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => navigate("/platform/admin/dashboard")}>
+        <DropdownMenuItem onClick={() => navigate("/platform/admin/dashboard")}>
           <SettingsIcon aria-hidden="true" className="mr-2 size-4" />
           设置
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setMemoryPanelOpen(true)}>
+        <DropdownMenuItem onClick={() => setMemoryPanelOpen(true)}>
           <BrainIcon aria-hidden="true" className="mr-2 size-4" />
           记忆
         </DropdownMenuItem>
@@ -104,7 +106,7 @@ export function ChatUserMenu() {
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">切换团队</DropdownMenuLabel>
             {workspaces.map((m) => (
-              <DropdownMenuItem key={m.workspaceId} onSelect={() => handleSwitchWorkspace(m.workspaceId)}>
+              <DropdownMenuItem key={m.workspaceId} onClick={() => handleSwitchWorkspace(m.workspaceId)}>
                 <CheckIcon
                   aria-hidden="true"
                   className={`mr-2 size-4 ${m.workspaceId === user.activeWorkspace?.workspaceId ? "opacity-100" : "opacity-0"}`}
@@ -115,7 +117,7 @@ export function ChatUserMenu() {
           </>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={handleLogout}>
+        <DropdownMenuItem onClick={handleLogout}>
           <LogOutIcon aria-hidden="true" className="mr-2 size-4" />
           退出
         </DropdownMenuItem>

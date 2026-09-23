@@ -9,7 +9,6 @@ import {
   Button,
   Checkbox,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -48,12 +47,12 @@ export function ProjectDialog({
   async function save() {
     const trimmed = name.trim();
     if (!trimmed || trimmed.length > 20 || /^[-_\s]|[-_\s]$/u.test(name)) {
-      toast.error("项目名称为 1-20 个字，且不能以连接符或空格开头/结尾");
+      toast.add({ type: "error", title: "项目名称为 1-20 个字，且不能以连接符或空格开头/结尾" });
       return;
     }
     const yuan = limit.trim() === "" ? undefined : Number(limit);
     if (yuan !== undefined && (!Number.isInteger(yuan) || yuan <= 0 || yuan > 1_000_000_000)) {
-      toast.error("项目额度请输入正整数，且不超过 10 亿元");
+      toast.add({ type: "error", title: "项目额度请输入正整数，且不超过 10 亿元" });
       return;
     }
     setSaving(true);
@@ -66,7 +65,7 @@ export function ProjectDialog({
       };
       if (value) await canvasAdminUpdateProject(value.project_id, input);
       else await canvasAdminCreateProject(input);
-      toast.success(editing ? "项目已更新" : "项目已创建");
+      toast.add({ type: "success", title: editing ? "项目已更新" : "项目已创建" });
       onSaved();
       onClose();
     } finally {
@@ -81,7 +80,7 @@ export function ProjectDialog({
           <DialogTitle>{editing ? "编辑项目" : "创建项目"}</DialogTitle>
           <DialogDescription>设置项目名称、成员和生成额度。</DialogDescription>
         </DialogHeader>
-        <DialogBody className="space-y-4">
+        <div className="space-y-4">
           <label className="grid gap-2 text-sm">
             <Label>项目名称</Label>
             <Input maxLength={20} value={name} onChange={(event) => setName(event.target.value)} />
@@ -121,7 +120,7 @@ export function ProjectDialog({
               })}
             </div>
           </div>
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             取消

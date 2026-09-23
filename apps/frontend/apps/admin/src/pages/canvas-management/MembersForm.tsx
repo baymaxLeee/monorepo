@@ -32,7 +32,7 @@ export function MembersForm({
         cover_image_path: project.cover_image_path,
       });
       onSaved(response.project);
-      toast.success("项目成员已保存");
+      toast.add({ type: "success", title: "项目成员已保存" });
     } finally {
       setSaving(false);
     }

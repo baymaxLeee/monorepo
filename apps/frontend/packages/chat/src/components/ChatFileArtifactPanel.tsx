@@ -141,7 +141,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      toast.error(getErrorMessage(error, "下载失败"));
+      toast.add({ type: "error", title: getErrorMessage(error, "下载失败") });
     } finally {
       setDownloading(false);
     }

@@ -65,7 +65,7 @@ const XMindPreviewerInner = forwardRef<XMindPreviewerRef, XMindPreviewerProps>(
     const autoFitFrameRef = useRef<number | null>(null);
     const autoFitInnerFrameRef = useRef<number | null>(null);
     const layoutRenderEndHandlerRef = useRef<(() => void) | null>(null);
-    const prevEffectiveDataRef = useRef<XMindNode | XMindFullData | null | undefined>();
+    const prevEffectiveDataRef = useRef<XMindNode | XMindFullData | null | undefined>(undefined);
     const prevFitRef = useRef(fit);
     const onReadyRef = useRef(onReady);
     const onNodeClickRef = useRef(onNodeClick);
@@ -562,18 +562,20 @@ interface ToolbarIconButtonProps {
 function ToolbarIconButton({ icon: Icon, label, disabled, onClick, tooltipContainer }: ToolbarIconButtonProps) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          onClick={onClick}
-          aria-label={label}
-          className="size-7 rounded-none p-0"
-        >
-          <Icon className="size-3.5" />
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={onClick}
+            aria-label={label}
+            className="size-7 rounded-none p-0"
+          />
+        }
+      >
+        <Icon className="size-3.5" />
       </TooltipTrigger>
       <TooltipContent container={tooltipContainer}>{label}</TooltipContent>
     </Tooltip>

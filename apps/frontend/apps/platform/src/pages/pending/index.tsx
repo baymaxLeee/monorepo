@@ -124,7 +124,7 @@ function PendingPage() {
   async function handleReapply(workspaceId: string) {
     try {
       await applyToWorkspace(workspaceId);
-      toast.success("已重新提交申请");
+      toast.add({ type: "success", title: "已重新提交申请" });
       await refresh();
     } catch {}
   }
@@ -136,7 +136,7 @@ function PendingPage() {
     setApplying(true);
     try {
       await applyToWorkspace(selectedWorkspace);
-      toast.success("申请已提交");
+      toast.add({ type: "success", title: "申请已提交" });
       setSelectedWorkspace("");
       await refresh();
     } catch {
@@ -194,7 +194,10 @@ function PendingPage() {
             <div className="space-y-2 border-t pt-4">
               <Muted className="text-xs">申请加入其他工作空间</Muted>
               <div className="flex items-center gap-2">
-                <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
+                <Select
+                  value={selectedWorkspace}
+                  onValueChange={(value) => value !== null && setSelectedWorkspace(value)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="选择工作空间" />
                   </SelectTrigger>

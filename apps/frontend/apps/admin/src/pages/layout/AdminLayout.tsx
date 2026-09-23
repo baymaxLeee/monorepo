@@ -78,14 +78,12 @@ function MenuList({ items }: { items: AdminMenuItem[] }) {
         return (
           <Button
             key={item.href}
-            asChild
+            render={<Link to={item.href} />}
             variant={active ? "secondary" : "ghost"}
             className="h-8 justify-start gap-2 px-2"
           >
-            <Link to={item.href}>
-              <Icon aria-hidden="true" className="size-4" />
-              {item.title}
-            </Link>
+            <Icon aria-hidden="true" className="size-4" />
+            {item.title}
           </Button>
         );
       })}
@@ -128,15 +126,13 @@ export function AdminLayout() {
     <Layout className="h-svh min-h-0 flex-row overflow-hidden">
       <Aside className="w-52 shrink-0 gap-2 overflow-y-auto p-2">
         <Button
-          asChild
+          render={<Link to="/platform/chat" />}
           variant="ghost"
           size="sm"
           className="h-8 justify-start gap-2 self-start px-2 text-muted-foreground"
         >
-          <Link to="/platform/chat">
-            <ArrowLeftIcon aria-hidden="true" className="size-4" />
-            返回应用
-          </Link>
+          <ArrowLeftIcon aria-hidden="true" className="size-4" />
+          返回应用
         </Button>
         <Section>
           <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">个人</div>

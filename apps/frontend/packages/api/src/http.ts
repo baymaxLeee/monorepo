@@ -1,6 +1,6 @@
 import { attachAxios, type MinimalAxiosInstance } from "@repo/observability";
+import { emit, Events } from "@repo/runtime";
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from "axios";
-import { toast } from "sonner";
 
 import { getToken, isAccessTokenValid } from "./storage";
 
@@ -118,7 +118,7 @@ apiHttp.interceptors.response.use(
 
     const apiError = toApiError(error);
     if (!config?.skipErrorNotify) {
-      toast.error(apiError.message);
+      emit(Events.ApiError, apiError.message);
     }
     throw apiError;
   },

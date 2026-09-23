@@ -44,12 +44,9 @@ export function BotDetailPage() {
 
   return (
     <Page>
-      <Button variant="ghost" size="sm" asChild>
-        <Link to=".." relative="path">
-          ← 返回列表
-        </Link>
+      <Button variant="ghost" size="sm" render={<Link to=".." relative="path" />}>
+        ← 返回列表
       </Button>
-
       {loading && (
         <Card className="max-w-lg">
           <CardHeader>
@@ -62,7 +59,6 @@ export function BotDetailPage() {
           </CardContent>
         </Card>
       )}
-
       {bot && (
         <>
           <Card className="max-w-lg">

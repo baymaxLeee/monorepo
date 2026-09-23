@@ -20,10 +20,9 @@ export function ResourceAssetsDialog({
   projectId: string;
 }) {
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open disablePointerDismissal onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${styles.modal}`}
-        onPointerDownOutside={(event) => event.preventDefault()}
         style={{ maxWidth: "92vw" }}
       >
         <DialogTitle className="sr-only">资产详情</DialogTitle>

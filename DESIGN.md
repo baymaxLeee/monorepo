@@ -2,7 +2,7 @@
 
 本文件是仓库级 UI 设计规范，也是 code agent 处理前端界面的首要设计上下文。它定义产品视觉语言、组件选型、交互与无障碍规则、AI 界面模式以及浮层策略。`AGENTS.md` 负责把相关任务路由到这里；ADR 记录历史决策，不覆盖本文件中的当前规则。
 
-本规范以仓库现状为事实基础，并将 Vercel Web Interface Guidelines、AI Elements、shadcn/ui 与 Radix Primitives 的成熟实践改写为本项目可执行的约束。不要为了“更像 Vercel”复制私有样式或创造第二套 token；应复用相同的设计原则和本仓库的公共组件。
+本规范以仓库现状为事实基础，并将 Vercel Web Interface Guidelines、AI Elements、shadcn/ui 与 Base UI 的成熟实践改写为本项目可执行的约束。不要为了“更像 Vercel”复制私有样式或创造第二套 token；应复用相同的设计原则和本仓库的公共组件。
 
 ## 规则级别与优先级
 
@@ -35,14 +35,29 @@
 7. **AI 行为可见且可控**：区分用户内容、模型输出、工具调用和系统状态；高影响动作必须让用户确认。
 8. **语义优先于数值**：使用 token、variant、状态和组件关系，不在业务代码散落颜色、尺寸与 `z-index` 魔法数字。
 
+### Vercel guideline baseline
+
+本仓库直接采用 Vercel Web Interface Guidelines 的通用规则，但不复制其品牌专属视觉。以下规则视为默认验收标准：
+
+- 键盘路径完整，焦点环始终可见且不被 sticky/overlay 遮挡；弹层负责移动和归还焦点。
+- 控件视觉目标小于 24 px 时扩展命中区域到至少 24 px；移动端目标至少 44 px。移动端文本输入字号至少 16 px，且不得禁用浏览器缩放或粘贴。
+- loading 按钮保留原文案与宽度；可能闪烁的 skeleton/spinner 延迟约 150–300 ms 展示，出现后保持约 300–500 ms，除非真实流式状态本身已提供连续反馈。
+- URL 承载可分享和可恢复状态；乐观更新必须可回滚或提供 Undo；破坏性操作必须确认或提供安全撤销窗口。
+- 动画优先级为 CSS、Web Animations API、JavaScript library，只动画明确属性，优先 `transform`/`opacity`，并支持 `prefers-reduced-motion`。
+- Skeleton 与最终布局同构；页面覆盖 empty、sparse、dense、loading 和 error，不产生无下一步的 dead end。
+- 表单提交前保持按钮可用以暴露校验错误，提交中再禁用并防止重复；错误就近展示并告诉用户如何恢复。
+- 性能判断基于测量；避免主线程长任务、无界列表和图片 CLS，并在 iOS Low Power Mode 与 Safari 上覆盖关键交互。
+
+Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到中文产品；中文界面沿用本仓库术语与语气。
+
 ## 标准 UI 栈
 
 | 层级 | 本仓库标准 | 使用边界 |
 | --- | --- | --- |
 | Theme / utility | Tailwind CSS v4 + `@repo/design-system/styles.css` | 唯一全局主题入口，由 platform host 注入 |
 | Application components | `@repo/design-system` | 业务代码的默认 UI 入口 |
-| Component recipes | shadcn/ui，Radix 风格，`new-york` 视觉取向 | 复制进仓库后由项目维护，不依赖远端运行时 |
-| Behavior primitives | `radix-ui` | 只在 design-system 或 UI capability package 内用于封装公共 primitive |
+| Component recipes | shadcn/ui v4，`base-nova` 风格 | 使用最新稳定 CLI 批量生成，复制进仓库后由项目维护 |
+| Behavior primitives | `@base-ui/react` | 唯一 headless primitive 底座，只在 design-system 或 UI capability package 内封装 |
 | AI interfaces | `@repo/ai-elements` | 消息、推理、来源、工具、工作流、附件、产物和输入框 |
 | Icons | `lucide-react` | 默认图标集，保持一致的笔画和命名 |
 | Forms | `Form` + `Field` + React Hook Form + Zod | 表单状态、校验、描述和错误的统一路径 |
@@ -54,11 +69,11 @@
 
 1. 查找 `@repo/design-system` 已公开的组件。
 2. AI 场景查找 `@repo/ai-elements` 及其 `prompt-input` 子路径。
-3. design-system 缺失时，从官方 shadcn registry 按需引入 Radix 版本，并适配现有主题、exports 和浮层规则。
-4. 只有公共行为无法由现有 primitive 组合时，才在合适的 UI package 中封装 Radix。
+3. design-system 缺失时，从官方 shadcn registry 引入 Base Nova 版本，并适配现有主题、exports 和浮层规则。
+4. 只有公共行为无法由现有 primitive 组合时，才在合适的 UI package 中封装 Base UI。
 5. 纯业务组合留在业务模块；跨两个以上产品场景且契约稳定后再提升为公共组件。
 
-业务代码必须从 package 公共入口导入，不得导入 `src` 私有路径。业务代码不得直接使用 Radix、vaul portal 或另一个完整 UI 框架绕开 design-system。不要并存 Arco、Ant Design、MUI 等视觉组件；它们只可作为行为和 API 设计参考。
+业务代码必须从 package 公共入口导入，不得导入 `src` 私有路径。业务代码不得直接使用 Base UI、Radix、vaul portal 或另一个完整 UI 框架绕开 design-system。Radix 不作为兼容层保留；不要并存 Arco、Ant Design、MUI 等视觉组件，它们只可作为行为和 API 设计参考。
 
 ## Theme 与 design tokens
 
@@ -154,7 +169,7 @@
 
 - 所有功能必须可仅用键盘完成，焦点顺序与视觉阅读顺序一致。
 - 不移除 focus outline。使用 design-system 的 `ring-ring` / `focus-visible` 样式，避免点击后持续出现无意义焦点装饰。
-- 自定义复合控件必须复用 Radix 的键盘和焦点模型，不手写残缺的 menu、listbox、tabs 或 dialog。
+- 自定义复合控件必须复用 Base UI 的键盘和焦点模型，不手写残缺的 menu、listbox、tabs 或 dialog。
 - 打开临时表面后焦点进入其中，关闭后回到触发点；动态插入内容不得无故抢焦点。
 - 快捷键不能覆盖浏览器/系统惯例；展示快捷键时使用平台可理解的符号或文本，并提供普通 UI 路径。
 
@@ -265,13 +280,13 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 | modal 内 popup     |    当前 modal + 50 |   `1050` |
 | 嵌套 modal         |     父 modal + 100 |   `1100` |
 
-这些数字是 design-system 私有实现，不是业务 token。modal 原语通过 `useModalLayer()` 建立作用域，portalled popup 通过 `usePortalLayerStyle()` 消费层级。显式 popup `style.zIndex` 优先，但只作为集成逃生口。
+这些数字是 design-system 私有实现，不是业务 token。modal 原语通过 `useModalLayer()` 建立作用域，portalled popup 通过 `usePortalLayerStyle()` 消费层级。显式 popup `style.zIndex` 优先，但只作为第三方集成逃生口。
 
 `container` / `getPopupContainer` 仅用于滚动裁剪、iframe、shadow root 或真实 DOM 边界，不用于修复普通层级。Sonner Toaster 是 platform 唯一挂载的跨 modal 通知层，不参与业务 modal 深度计算。
 
 ### 允许的覆盖与禁止项
 
-只有无法迁移的第三方 overlay、已有跨 MFE 宿主契约或短期迁移边界，才可给 modal content 设置数字型 `zIndex`，并在相邻注释或 ADR 中说明被跨越的层。子 popup 和嵌套 modal 会继续相对计算。
+只有无法迁移的第三方 overlay 或已有跨 MFE 宿主契约，才可给 popup 设置数字型 `style.zIndex`，并在相邻注释或 ADR 中说明被跨越的层。modal content 不暴露数值层级 API；嵌套关系一律自动计算。
 
 - 禁止在业务目录建立 `*_Z_INDEX` 常量表。
 - 禁止逐层透传 `popupZIndex` 或用 `9999` 等大数竞争。
@@ -285,7 +300,7 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 
 - 首屏优先稳定结构和关键内容。图片提供尺寸，动态区域预留空间，避免 layout shift。
 - 大型 editor、viewer、Artifact 和低频面板使用现有重型 subpath 与 lazy boundary，不进入通用主 barrel。
-- 不为微小交互引入新的大型依赖。优先浏览器能力、已有 Radix primitive 和公共工具。
+- 不为微小交互引入新的大型依赖。优先浏览器能力、已有 Base UI primitive 和公共工具。
 - 长列表、日志、trace 和会话历史必须采用分页、窗口化或增量加载，不一次渲染无界数据。
 - 输入、拖拽、缩放和流式更新避免高频全树重渲染；先测量瓶颈，再使用 memoization。
 - 网络动作提供 pending、timeout/failure 和 retry 语义。不要用人为延时让 skeleton 或动画“看起来更顺”。
@@ -324,7 +339,8 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 ```bash
 rg 'text-black|bg-white|#[0-9a-fA-F]{3,8}|transition-all' apps/frontend --glob '*.{ts,tsx,css,less}'
 rg 'zIndex|z-index|popupZIndex|Portal' apps/frontend --glob '*.{ts,tsx,css,less}'
-rg 'from "radix-ui"|from "@radix-ui/' apps/frontend/apps apps/frontend/packages/chat --glob '*.{ts,tsx}'
+rg 'from "radix-ui"|from "@radix-ui/' apps/frontend --glob '*.{ts,tsx,json}'
+rg '\basChild\b|onOpenAutoFocus|onPointerDownOutside|onEscapeKeyDown' apps/frontend --glob '*.{ts,tsx}'
 rg 'from "@repo/.+/src/' apps/frontend --glob '*.{ts,tsx}'
 ```
 
@@ -345,14 +361,15 @@ rg 'from "@repo/.+/src/' apps/frontend --glob '*.{ts,tsx}'
 
 ## 上游依据
 
-本规范会吸收上游实践，但本仓库的 token、公共 API 和可访问性契约优先。升级上游组件时应 review diff，不得直接覆盖本仓库的定制 fork。
+本规范会吸收上游实践，但本仓库的 token、公共 API 和可访问性契约优先。升级上游组件时使用最新稳定 shadcn CLI 对目标集合做一次性生成或覆盖，再集中恢复少量仓库级集成并审查完整 diff；不要逐组件手抄上游代码。
 
 - Vercel Web Interface Guidelines：https://vercel.com/design/guidelines
 - Vercel Web Interface Guidelines source：https://github.com/vercel-labs/web-interface-guidelines
 - Vercel Geist：https://vercel.com/geist
 - Vercel AI Elements：https://ai-sdk.dev/elements/overview
 - shadcn/ui：https://ui.shadcn.com/docs
-- Radix Primitives：https://www.radix-ui.com/primitives/docs/overview/introduction
+- Base UI：https://base-ui.com/react/overview/quick-start
+- Base UI composition：https://base-ui.com/react/handbook/composition
 - React portals：https://react.dev/reference/react-dom/createPortal
 - Ant Design contextual z-index：https://github.com/ant-design/ant-design/discussions/45154
 - Arco Modal：https://arco.design/react/components/modal

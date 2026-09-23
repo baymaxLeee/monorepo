@@ -12,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -97,7 +96,7 @@ export function SkillsPage() {
 
   async function create(values: Values) {
     const skill = await createSkill(values);
-    toast.success("技能工作区已创建");
+    toast.add({ type: "success", title: "技能工作区已创建" });
     setCreateOpen(false);
     form.reset();
     navigate(skill.id);
@@ -108,7 +107,7 @@ export function SkillsPage() {
       return;
     }
     await deleteSkill(skill.id);
-    toast.success("技能已删除");
+    toast.add({ type: "success", title: "技能已删除" });
     load();
   }
 
@@ -193,7 +192,7 @@ export function SkillsPage() {
             <DialogTitle>新建技能</DialogTitle>
             <DialogDescription>创建后进入文件工作区，系统会生成标准 SKILL.md。</DialogDescription>
           </DialogHeader>
-          <DialogBody>
+          <div>
             <Form {...form}>
               <form id="create-skill" onSubmit={form.handleSubmit(create)}>
                 <FieldGroup>
@@ -226,7 +225,7 @@ export function SkillsPage() {
                 </FieldGroup>
               </form>
             </Form>
-          </DialogBody>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               取消

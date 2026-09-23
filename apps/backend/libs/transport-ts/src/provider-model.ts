@@ -1,11 +1,6 @@
 import { createOpenAI, type OpenAIResponsesProviderOptions } from "@ai-sdk/openai";
-import type {
-  ImageModelV4,
-  JSONObject,
-  JSONValue,
-  LanguageModelV4,
-  LanguageModelV4CallOptions,
-} from "@ai-sdk/provider";
+import type { ImageModelV4, JSONObject, JSONValue, LanguageModelV4, LanguageModelV4Middleware } from "@ai-sdk/provider";
+import { wrapLanguageModel } from "ai";
 
 import { secureProviderFetch } from "./provider-url.js";
 
@@ -240,68 +235,37 @@ function createResponsesFetch(extraBody: JSONObject): typeof fetch {
   };
 }
 
-interface AdminResponsesModelSnapshot {
-  provider: LanguageProviderSnapshot;
-  parallelToolCalls?: boolean | null;
-}
-
-class AdminResponsesModel implements LanguageModelV4 {
-  readonly specificationVersion = "v4" as const;
-  readonly provider: string;
-  readonly modelId: string;
-  readonly supportedUrls = {};
-
-  constructor(private readonly snapshot: AdminResponsesModelSnapshot) {
-    this.provider = providerName(snapshot.provider.id);
-    this.modelId = snapshot.provider.model;
-  }
-
-  doGenerate(options: LanguageModelV4CallOptions): ReturnType<LanguageModelV4["doGenerate"]> {
-    return this.delegate().doGenerate(this.withProviderOptions(options));
-  }
-
-  doStream(options: LanguageModelV4CallOptions): ReturnType<LanguageModelV4["doStream"]> {
-    return this.delegate().doStream(this.withProviderOptions(options));
-  }
-
-  private delegate(): LanguageModelV4 {
-    const provider = this.snapshot.provider;
-    const { requestBody } = providerBodyOptions(provider, this.snapshot);
-    const openai = createOpenAI({
-      name: this.provider,
-      baseURL: normalizeOpenAIBaseUrl(provider.baseUrl),
-      apiKey: provider.apiKey,
-      fetch: createResponsesFetch(requestBody),
-    });
-    return openai.responses(provider.model);
-  }
-
-  private withProviderOptions(options: LanguageModelV4CallOptions): LanguageModelV4CallOptions {
-    const providerOptions = options.providerOptions ?? {};
-    const existing = providerOptions.openai ?? {};
-    const { providerOptions: configured } = providerBodyOptions(this.snapshot.provider, this.snapshot);
-    return {
-      ...options,
-      providerOptions: {
-        ...providerOptions,
-        openai: {
-          ...configured,
-          ...existing,
-        },
-      },
-    };
-  }
-}
-
 export function createProviderModel(
   provider: LanguageProviderSnapshot,
   options: {
     parallelToolCalls?: boolean | null;
   } = {},
 ): LanguageModelV4 {
-  return new AdminResponsesModel({
-    provider,
-    parallelToolCalls: options.parallelToolCalls ?? null,
+  const name = providerName(provider.id);
+  const { requestBody, providerOptions: configured } = providerBodyOptions(provider, options);
+  const openai = createOpenAI({
+    name,
+    baseURL: normalizeOpenAIBaseUrl(provider.baseUrl),
+    apiKey: provider.apiKey,
+    fetch: createResponsesFetch(requestBody),
+  });
+  const providerSettings: LanguageModelV4Middleware = {
+    specificationVersion: "v4",
+    transformParams: async ({ params }) => ({
+      ...params,
+      providerOptions: {
+        ...params.providerOptions,
+        openai: {
+          ...configured,
+          ...params.providerOptions?.openai,
+        },
+      },
+    }),
+  };
+  return wrapLanguageModel({
+    model: openai.responses(provider.model),
+    middleware: providerSettings,
+    providerId: name,
   });
 }
 

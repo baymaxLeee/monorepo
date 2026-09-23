@@ -88,7 +88,7 @@ export default function ResourcesPage() {
   const uploadResource = useResourceUpload();
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const audioUploadInputRef = useRef<HTMLInputElement>(null);
-  const audioUploadTargetRef = useRef<resource.Resource>();
+  const audioUploadTargetRef = useRef<resource.Resource | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioSpectrum = useAudioSpectrum(audioRef);
   const activeAudioResourceIdRef = useRef("");

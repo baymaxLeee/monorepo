@@ -28,6 +28,7 @@ export function on<T = unknown>(event: string, handler: Handler<T>): () => void 
 }
 
 export const Events = {
+  ApiError: "api:error",
   AuthChanged: "auth:changed",
   BotPublished: "bot:published",
 } as const;

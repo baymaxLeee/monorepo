@@ -64,7 +64,7 @@ export function VideoParametersPanel({
   const manualDuration =
     committedDuration > 0 ? committedDuration : limits.durationDefaultSeconds || limits.durationMinSeconds;
   const [durationDraft, setDurationDraft] = useState<number | undefined>();
-  const durationDraftRef = useRef<number | undefined>();
+  const durationDraftRef = useRef<number | undefined>(undefined);
 
   const commitDurationNow = () => {
     const draft = durationDraftRef.current;

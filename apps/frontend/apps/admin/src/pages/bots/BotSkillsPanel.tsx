@@ -48,7 +48,7 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
     try {
       const list = next ? await attachBotSkill(botId, skill.id) : await detachBotSkill(botId, skill.id);
       setAttached(list);
-      toast.success(next ? "已挂载技能" : "已移除技能");
+      toast.add({ type: "success", title: next ? "已挂载技能" : "已移除技能" });
     } catch {
     } finally {
       setBusyId(null);
@@ -64,11 +64,10 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
         <p className="text-xs text-muted-foreground">
           已挂载 {boundIds.size} 个 · 仅「已发布且已启用」的技能会进入模型
         </p>
-        <Button variant="link" size="sm" className="h-auto shrink-0 p-0" asChild>
-          <Link to="/platform/admin/skills">管理技能 →</Link>
+        <Button variant="link" size="sm" className="h-auto shrink-0 p-0" render={<Link to="/platform/admin/skills" />}>
+          管理技能 →
         </Button>
       </div>
-
       {loading ? (
         <div className="space-y-2">
           <Skeleton className="h-14 w-full" />

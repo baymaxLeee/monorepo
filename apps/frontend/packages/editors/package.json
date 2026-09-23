@@ -53,7 +53,6 @@
     "lucide-react": "catalog:",
     "react-compiler-runtime": "catalog:",
     "react-hook-form": "catalog:",
-    "sonner": "catalog:",
     "uuid": "^14.0.0",
     "zod": "catalog:"
   },

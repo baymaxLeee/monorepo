@@ -315,7 +315,11 @@ function ToolPartView({
   if (part.state === "approval-requested") {
     return (
       <Tool open>
-        <ToolHeader title={toolName} state={part.state} />
+        <ToolHeader
+          type={part.type}
+          toolName={part.type === "dynamic-tool" ? toolName : undefined}
+          state={part.state}
+        />
         <ToolContent>
           <ToolJsonBlock value={input} />
           {part.approval.isAutomatic ? (
@@ -341,7 +345,11 @@ function ToolPartView({
   if (part.state === "approval-responded" || part.state === "output-denied") {
     return (
       <Tool open={part.state === "output-denied"}>
-        <ToolHeader title={toolName} state={part.state} />
+        <ToolHeader
+          type={part.type}
+          toolName={part.type === "dynamic-tool" ? toolName : undefined}
+          state={part.state}
+        />
         <ToolContent>
           <Confirmation approval={part.approval} state={part.state}>
             <ConfirmationAccepted>
@@ -425,7 +433,11 @@ function ToolPartView({
 
   return (
     <Tool open={isOpenByDefault || outputErrorReason != null}>
-      <ToolHeader title={toolName} state={displayState} />
+      <ToolHeader
+        type={part.type}
+        toolName={part.type === "dynamic-tool" ? toolName : undefined}
+        state={displayState}
+      />
       <ToolContent>
         {part.state === "input-available" && askUserInput ? (
           <AskUserToolCard

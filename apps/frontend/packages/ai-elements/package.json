@@ -16,8 +16,13 @@
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@repo/design-system": "workspace:*",
     "@repo/shared": "workspace:*",
+    "@streamdown/cjk": "catalog:",
+    "@streamdown/code": "catalog:",
+    "@streamdown/math": "catalog:",
+    "@streamdown/mermaid": "catalog:",
     "@tiptap/core": "^3.22.3",
     "@tiptap/pm": "^3.22.3",
     "@tiptap/react": "^3.22.3",
@@ -25,7 +30,6 @@
     "@tiptap/suggestion": "^3.27.1",
     "ai": "catalog:",
     "lucide-react": "catalog:",
-    "radix-ui": "^1.4.3",
     "react-compiler-runtime": "catalog:",
     "streamdown": "catalog:",
     "use-stick-to-bottom": "^1.1.6"

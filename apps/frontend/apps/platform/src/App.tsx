@@ -1,6 +1,6 @@
 import { onSessionChange } from "@repo/api";
-import { ErrorBoundary, Toaster, TooltipProvider } from "@repo/design-system";
-import { usePlatformStore } from "@repo/runtime";
+import { ErrorBoundary, toast, Toaster, TooltipProvider } from "@repo/design-system";
+import { Events, on, usePlatformStore } from "@repo/runtime";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
@@ -31,6 +31,8 @@ export function App() {
     });
   }, [resetPlatformState, setUser]);
 
+  useEffect(() => on<string>(Events.ApiError, (message) => toast.add({ type: "error", title: message })), []);
+
   return (
     <ErrorBoundary
       onError={(error, info) => {
@@ -40,7 +42,7 @@ export function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <RouterProvider router={router} />
-          <Toaster richColors closeButton position="top-right" />
+          <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -116,9 +116,9 @@ export function VideoProductionWorkspace({
         expected_version: production.version,
         shot_plan: shotPlan,
       });
-      toast.success("已保存新分镜版本，旧审批已失效");
+      toast.add({ type: "success", title: "已保存新分镜版本，旧审批已失效" });
     } catch (error) {
-      toast.error(getErrorMessage(error, "保存分镜失败"));
+      toast.add({ type: "error", title: getErrorMessage(error, "保存分镜失败") });
     }
   }
 
@@ -135,7 +135,7 @@ export function VideoProductionWorkspace({
         shot_id: shotId,
       });
     } catch (error) {
-      toast.error(getErrorMessage(error, "重拍失败"));
+      toast.add({ type: "error", title: getErrorMessage(error, "重拍失败") });
     }
   }
 
@@ -155,7 +155,7 @@ export function VideoProductionWorkspace({
         })),
       });
     } catch (error) {
-      toast.error(getErrorMessage(error, "Take 审批失败"));
+      toast.add({ type: "error", title: getErrorMessage(error, "Take 审批失败") });
     }
   }
 
@@ -210,7 +210,7 @@ export function VideoProductionWorkspace({
         );
       }
     } catch (error) {
-      toast.error(getErrorMessage(error, "审批失败"));
+      toast.add({ type: "error", title: getErrorMessage(error, "审批失败") });
     }
   }
 

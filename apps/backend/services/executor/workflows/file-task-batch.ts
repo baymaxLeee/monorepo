@@ -42,14 +42,14 @@ export const fileTaskBatchInputSchema = z
     for (const [index, task] of input.tasks.entries()) {
       if (ids.has(task.id)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["tasks", index, "id"],
           message: "task ids must be unique",
         });
       }
       if (paths.has(task.outputPath)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["tasks", index, "outputPath"],
           message: "output paths must be unique",
         });

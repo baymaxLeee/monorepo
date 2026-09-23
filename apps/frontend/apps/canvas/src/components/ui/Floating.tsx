@@ -35,7 +35,7 @@ export interface TooltipProps extends FloatingProps {
   triggerProps?: { style?: CSSProperties };
 }
 
-/** Keep the source placement contract while using the shared Radix tooltip. */
+/** Keep the source placement contract while using the shared Base UI tooltip. */
 export function Tooltip({
   children,
   content,
@@ -51,9 +51,7 @@ export function Tooltip({
   if (disabled || content == null || content === "") return <>{children}</>;
   return (
     <PrimitiveTooltip open={popupVisible} onOpenChange={onVisibleChange}>
-      <TooltipTrigger asChild>
-        <span className="inline-flex max-w-full">{children}</span>
-      </TooltipTrigger>
+      <TooltipTrigger render={<span className="inline-flex max-w-full" />}>{children}</TooltipTrigger>
       <TooltipContent
         {...placement(position)}
         className={`canvas-web-theme ${className ?? ""}`}
@@ -105,15 +103,23 @@ export function Trigger({
   const sideOffset = typeof offset === "number" ? offset : offset?.[1];
   return (
     <PrimitivePopover
-      trigger={hover ? "hover" : "click"}
-      hoverEnterDelay={mouseEnterDelay == null ? undefined : mouseEnterDelay * 1000}
-      hoverCloseDelay={mouseLeaveDelay == null ? undefined : mouseLeaveDelay * 1000}
       open={disabled ? false : popupVisible}
       defaultOpen={defaultPopupVisible}
-      onOpenChange={onVisibleChange}
+      onOpenChange={(open, details) => {
+        if (!clickOutsideToClose && details.reason === "outside-press") {
+          details.cancel();
+          return;
+        }
+        onVisibleChange?.(open);
+      }}
     >
-      <PopoverTrigger asChild>
-        <span className="inline-flex max-w-full">{children}</span>
+      <PopoverTrigger
+        openOnHover={hover}
+        delay={mouseEnterDelay == null ? undefined : mouseEnterDelay * 1000}
+        closeDelay={mouseLeaveDelay == null ? undefined : mouseLeaveDelay * 1000}
+        render={<span className="inline-flex max-w-full" />}
+      >
+        {children}
       </PopoverTrigger>
       <PopoverContent
         {...resolvedPlacement}
@@ -122,14 +128,11 @@ export function Trigger({
         container={getPopupContainer?.()}
         className={`canvas-web-theme w-auto rounded-xl p-0 ${className ?? ""}`}
         style={{
-          ...(autoAlignPopupWidth ? { width: "var(--radix-popover-trigger-width)" } : {}),
-          ...(autoAlignPopupMinWidth ? { minWidth: "var(--radix-popover-trigger-width)" } : {}),
+          ...(autoAlignPopupWidth ? { width: "var(--anchor-width)" } : {}),
+          ...(autoAlignPopupMinWidth ? { minWidth: "var(--anchor-width)" } : {}),
           ...style,
         }}
-        onInteractOutside={(event) => {
-          if (!clickOutsideToClose) event.preventDefault();
-        }}
-        onOpenAutoFocus={(event) => event.preventDefault()}
+        initialFocus={false}
       >
         {popup()}
       </PopoverContent>

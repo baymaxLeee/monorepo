@@ -114,7 +114,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
   const isNearBottomRef = useRef(true);
   const isAutoScrollingRef = useRef(false);
   const externalSyncFrameRef = useRef<number | null>(null);
-  const lastSyncValueRef = useRef<string | undefined>();
+  const lastSyncValueRef = useRef<string | undefined>(undefined);
   const stableExtensions = useShallowStableExtensions(extensions);
   const codeBlockEnabled = features?.codeBlock !== false;
   const blockMenuEnabled = features?.blockMenu !== false;

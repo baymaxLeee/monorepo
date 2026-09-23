@@ -1,6 +1,6 @@
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@repo/shared";
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, Loader2Icon, XIcon } from "lucide-react";
-import { Dialog as DialogPrimitive } from "radix-ui";
 import { useCallback, useEffect } from "react";
 
 import { ModalLayerProvider, useModalLayer } from "../shadcn/portal-layer";
@@ -59,14 +59,14 @@ export function ImagePreview({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
-          className="fixed inset-0 z-50 bg-black/90 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0"
+        <DialogPrimitive.Backdrop
+          className="fixed inset-0 z-50 bg-black/90 data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0"
           style={{ zIndex: layer.modalZIndex - 1 }}
         />
-        <DialogPrimitive.Content
+        <DialogPrimitive.Popup
           aria-describedby={undefined}
           className={cn(
-            "pointer-events-none fixed inset-0 z-50 flex flex-col outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+            "pointer-events-none fixed inset-0 z-50 flex flex-col outline-none data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0",
             className,
           )}
           style={{ zIndex: layer.modalZIndex }}
@@ -137,7 +137,7 @@ export function ImagePreview({
               <div className="pointer-events-auto px-4 pb-5 text-center text-sm text-white/80">{current.caption}</div>
             ) : null}
           </ModalLayerProvider>
-        </DialogPrimitive.Content>
+        </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );

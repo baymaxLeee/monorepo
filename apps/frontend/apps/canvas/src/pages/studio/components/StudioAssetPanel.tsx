@@ -331,7 +331,7 @@ export function StudioAssetPanel({
     : undefined;
   const resourceActionIdRef = useRef(0);
   const resourceUploadInputRef = useRef<HTMLInputElement>(null);
-  const resourceUploadTargetRef = useRef<resource.Resource>();
+  const resourceUploadTargetRef = useRef<resource.Resource | undefined>(undefined);
 
   const openResourceAction = (item: resource.Resource, action: ResourceAssetsActionInput) => {
     resourceActionIdRef.current += 1;

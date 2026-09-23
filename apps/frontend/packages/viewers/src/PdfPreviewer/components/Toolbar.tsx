@@ -134,19 +134,23 @@ const PdfToolbar = ({
       {enabled.outline || enabled.thumbnail ? (
         <DropdownMenu>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={!canOperate}
-                  aria-label="toggle-sidebar"
-                  className="size-7 p-0"
-                >
-                  <Menu className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
+            <TooltipTrigger
+              render={
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={!canOperate}
+                      aria-label="toggle-sidebar"
+                      className="size-7 p-0"
+                    />
+                  }
+                />
+              }
+            >
+              <Menu className="size-3.5" />
             </TooltipTrigger>
             <TooltipContent container={popupContainer}>侧边栏</TooltipContent>
           </Tooltip>
@@ -158,7 +162,7 @@ const PdfToolbar = ({
                   key={preset.key}
                   data-active={active || undefined}
                   className={cn(active && "bg-accent text-accent-foreground", "justify-between")}
-                  onSelect={() => {
+                  onClick={() => {
                     onSetSidebar(preset.key === "none" ? null : preset.key);
                   }}
                 >
@@ -169,7 +173,6 @@ const PdfToolbar = ({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-
       {enabled.pageNav ? (
         <ToolbarGroup>
           <ToolbarIconButton
@@ -191,7 +194,6 @@ const PdfToolbar = ({
           />
         </ToolbarGroup>
       ) : null}
-
       {enabled.zoom ? (
         <ToolbarGroup>
           <ToolbarIconButton
@@ -203,20 +205,22 @@ const PdfToolbar = ({
             ariaLabel="zoom-out"
           />
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!canOperate}
-                className="h-7 min-w-14 rounded-none px-2 font-mono text-xs"
-              >
-                {Math.round(scale * 100)}%
-              </Button>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canOperate}
+                  className="h-7 min-w-14 rounded-none px-2 font-mono text-xs"
+                />
+              }
+            >
+              {Math.round(scale * 100)}%
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" container={popupContainer} className="min-w-32">
               {FIT_PRESETS.map((preset) => (
-                <DropdownMenuItem key={preset.key} onSelect={() => onFit(preset.key)}>
+                <DropdownMenuItem key={preset.key} onClick={() => onFit(preset.key)}>
                   {preset.label}
                 </DropdownMenuItem>
               ))}
@@ -225,7 +229,7 @@ const PdfToolbar = ({
                 <DropdownMenuItem
                   key={String(value)}
                   className="justify-end font-mono"
-                  onSelect={() => onSetScale(value)}
+                  onClick={() => onSetScale(value)}
                 >
                   {Math.round(value * 100)}%
                 </DropdownMenuItem>
@@ -242,7 +246,6 @@ const PdfToolbar = ({
           />
         </ToolbarGroup>
       ) : null}
-
       {enabled.rotate ? (
         <ToolbarIconButton
           icon={RotateCw}
@@ -253,7 +256,6 @@ const PdfToolbar = ({
           ariaLabel="rotate"
         />
       ) : null}
-
       {enabled.download ? (
         <ToolbarIconButton
           icon={Download}
@@ -264,7 +266,6 @@ const PdfToolbar = ({
           ariaLabel="download"
         />
       ) : null}
-
       {enabled.fullscreen ? (
         <ToolbarIconButton
           icon={fullscreen ? Minimize : Maximize}
@@ -275,7 +276,6 @@ const PdfToolbar = ({
           ariaLabel="toggle-fullscreen"
         />
       ) : null}
-
       {extra ? <div className="ml-auto flex items-center gap-1.5">{extra}</div> : null}
     </div>
   );
@@ -312,18 +312,20 @@ function ToolbarIconButton({
 }: ToolbarIconButtonProps) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          onClick={onClick}
-          aria-label={ariaLabel ?? label}
-          className="size-7 rounded-none p-0"
-        >
-          <Icon className="size-3.5" />
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={onClick}
+            aria-label={ariaLabel ?? label}
+            className="size-7 rounded-none p-0"
+          />
+        }
+      >
+        <Icon className="size-3.5" />
       </TooltipTrigger>
       <TooltipContent container={popupContainer}>{label}</TooltipContent>
     </Tooltip>

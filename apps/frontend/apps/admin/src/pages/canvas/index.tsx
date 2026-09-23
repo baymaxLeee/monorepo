@@ -107,7 +107,7 @@ function SettingsForm({
           try {
             const next = await saveCanvasSettings({ expected_revision: settings.revision, defaults });
             onSaved(next);
-            toast.success("创作设置已保存");
+            toast.add({ type: "success", title: "创作设置已保存" });
           } catch {
             /* Keep the unsaved selection on failure. */
           }

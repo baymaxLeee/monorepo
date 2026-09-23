@@ -173,7 +173,7 @@ export function AssetStrip({
   videoInputMode?: canvasnode.CanvasVideoInputMode;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const pendingFramePortRef = useRef<canvasnode.CanvasPort>();
+  const pendingFramePortRef = useRef<canvasnode.CanvasPort | undefined>(undefined);
   const [libraryAsset, setLibraryAsset] = useState<StoryboardAsset>();
   const { contentRef, maskImage, scrollRef } = useHorizontalScrollFade();
 

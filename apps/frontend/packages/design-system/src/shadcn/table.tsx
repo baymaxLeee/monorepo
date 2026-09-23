@@ -1,34 +1,16 @@
-"use client";
+import { cn } from "cn";
+import * as React from "react";
 
-import { cn } from "@repo/shared";
-import type * as React from "react";
-
-function Table({
-  className,
-  containerClassName,
-  ...props
-}: React.ComponentProps<"table"> & {
-  /**
-   * Extra classes for the scroll container (`data-slot=table-container`), NOT
-   * the `<table>`. The container defaults to `max-h-[65vh]` and `TableHeader`
-   * is sticky, so long tables scroll inside their own box (pinned header)
-   * instead of overflowing the page — every caller gets this for free, nothing
-   * to pass. Use this prop only to tune the default, e.g. `max-h-none` to opt
-   * out of the cap or `max-h-[80vh]` to raise it (twMerge lets it win).
-   */
-  containerClassName?: string;
-}) {
+function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div data-slot="table-container" className={cn("relative max-h-[65vh] w-full overflow-x-auto", containerClassName)}>
+    <div data-slot="table-container" className="relative w-full overflow-x-auto">
       <table data-slot="table" className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   );
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
-  return (
-    <thead data-slot="table-header" className={cn("sticky top-0 z-10 bg-card [&_tr]:border-b", className)} {...props} />
-  );
+  return <thead data-slot="table-header" className={cn("[&_tr]:border-b", className)} {...props} />;
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
@@ -63,7 +45,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -75,10 +57,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
-      className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-        className,
-      )}
+      className={cn("p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0", className)}
       {...props}
     />
   );
@@ -90,4 +69,4 @@ function TableCaption({ className, ...props }: React.ComponentProps<"caption">) 
   );
 }
 
-export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow };
+export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };

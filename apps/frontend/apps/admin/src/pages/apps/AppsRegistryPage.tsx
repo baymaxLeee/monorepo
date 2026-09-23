@@ -12,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -138,11 +137,11 @@ export function AppsRegistryPage() {
           is_enabled: values.is_enabled,
           sort_order: values.sort_order,
         });
-        toast.success("应用已更新");
+        toast.add({ type: "success", title: "应用已更新" });
         setEditing(null);
       } else {
         await createApp(values);
-        toast.success("应用已创建");
+        toast.add({ type: "success", title: "应用已创建" });
         setCreateOpen(false);
       }
       form.reset(defaults);
@@ -162,7 +161,7 @@ export function AppsRegistryPage() {
       return;
     }
     await deleteApp(app.id);
-    toast.success("应用已删除");
+    toast.add({ type: "success", title: "应用已删除" });
     load();
   }
 
@@ -312,7 +311,7 @@ function AppFormDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>维护微前端入口的挂载信息与可见性。</DialogDescription>
         </DialogHeader>
-        <DialogBody>
+        <div>
           <Form {...form}>
             <form id="app-registry-form" onSubmit={form.handleSubmit(onSubmit)}>
               <FieldGroup>
@@ -361,7 +360,7 @@ function AppFormDialog({
               </FieldGroup>
             </form>
           </Form>
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             取消

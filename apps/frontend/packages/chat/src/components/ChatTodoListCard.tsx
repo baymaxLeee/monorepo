@@ -29,7 +29,7 @@ function uiKind(part: ToolPart) {
     return null;
   }
   const agent = part.toolMetadata.agent;
-  if (!agent || typeof agent !== "object" || Array.isArray(agent)) {
+  if (!agent || typeof agent !== "object" || !("uiKind" in agent)) {
     return null;
   }
   return typeof agent.uiKind === "string" ? agent.uiKind : null;

@@ -55,7 +55,7 @@ export function TenantField({ value, onChange }: { value: string; onChange: (val
   return (
     <>
       <div className="flex gap-2">
-        <Select value={value} onValueChange={onChange}>
+        <Select value={value} onValueChange={(value) => value !== null && onChange(value)}>
           <SelectTrigger className="flex-1">
             <SelectValue placeholder="选择公司" />
           </SelectTrigger>

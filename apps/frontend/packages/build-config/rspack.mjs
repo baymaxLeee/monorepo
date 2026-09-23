@@ -14,9 +14,8 @@ const tailwindLoader = require.resolve("@tailwindcss/webpack");
  * Shared TS/TSX rule via Rspack's native SWC loader.
  *
  * React Compiler runs inside `builtin:swc-loader` (Rust port, Rspack ≥ 2.1) —
- * no Babel pass. On React 18 the compiled output imports the memoization cache
- * helper (`_c`) from the `react-compiler-runtime` polyfill, so pass
- * `reactCompiler: { target: "18" }` and keep that package installed + shared.
+ * no Babel pass. React 18 output imports `_c` from the shared
+ * `react-compiler-runtime` polyfill, so every application targets React 18.
  *
  * @param {{ reactCompiler?: boolean | Record<string, unknown> }} [opts]
  */

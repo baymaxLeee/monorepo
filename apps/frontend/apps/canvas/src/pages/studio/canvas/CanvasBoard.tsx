@@ -156,8 +156,8 @@ function CanvasBoardInner({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nodesRef = useRef<CanvasFlowNode[]>([]);
   const edgesRef = useRef<Edge[]>([]);
-  const nodeClickTimerRef = useRef<number>();
-  const invalidConnectionWarningRef = useRef<string>();
+  const nodeClickTimerRef = useRef<number | undefined>(undefined);
+  const invalidConnectionWarningRef = useRef<string | undefined>(undefined);
   const resolveConnection = useCallback(
     (source: canvasnode.CanvasNode, target: canvasnode.CanvasNode) =>
       resolveCanvasConnection(source, target, edgesRef.current),

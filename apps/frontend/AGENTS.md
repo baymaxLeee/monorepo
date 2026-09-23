@@ -83,7 +83,7 @@ would silently escape these rules.
 Host provides only runtime-critical shared packages:
 
 - `react`, `react-dom`, `react-router-dom`
-- `zustand`, `@tanstack/react-query`, `sonner`
+- `zustand`, `@tanstack/react-query`
 - `@repo/runtime`, `@repo/shared`, `@repo/observability`
 
 Remotes consume these from the host with `import: false`; they must not bundle fallback copies of React, router, or platform runtime infra. UI packages and API clients (`@repo/design-system`, `@repo/api`, …) remain normal workspace dependencies so each app can tree-shake the imports it actually uses. MFE remotes are independently deployed asset bundles, but platform is the only user-facing entry.
@@ -109,22 +109,21 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - **MFE 内 Provider**: 每个 remote 的 `App` 也要挂载自己的 `TooltipProvider`；`Toaster` 保持由 platform 统一挂载
 - **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
 - **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`
-- **原语约定（官方 shadcn 风格 / new-york / Tailwind v4）**: shadcn 原语一律**扁平 kebab-case 文件**放在 `packages/design-system/src/shadcn/`（如 `button.tsx`、`dropdown-menu.tsx`、`command.tsx`），命名导出，`cn` 从 `@repo/shared` 导入，统一 `radix-ui` 包（非分散的 `@radix-ui/react-*`）。原语间交叉引用写作 `@repo/design-system/shadcn/<name>`（靠 `package.json#exports` 的 `"./shadcn/*"` + `tsconfig` `moduleResolution:"Bundler"` 解析，tsc/rspack 均通）。`src/shadcn/index.ts` 是子 barrel（`export *`），`src/index.ts` 再 `export * from "./shadcn"` 统一对外——消费方只用 `import { Button } from "@repo/design-system"`，不走内部子路径。重型组件归入 `@repo/ai-elements` / `@repo/editors` / `@repo/viewers`，用 PascalCase 目录 + subpath export（见各包 `package.json#exports`）。
-- **禁止覆盖的定制 fork（`add --overwrite` 时务必保留）**: `popover.tsx` / `dropdown-menu.tsx` / `tooltip.tsx` 是**刻意 fork**——arco 风格 `trigger`(hover) API（`../utils/useHoverTrigger`）+ `*Content` 的 `container` portal 透传 + `Trigger` 的 forwardRef（React18 asChild 嵌套所需），被 MarkdownEditor/PdfPreviewer/XmindPreviewer 等 ~15 处调用点依赖；`sonner.tsx`（自定义 lucide 图标、无 `next-themes`）、`menu.tsx`（非 registry 组件）同样自维护。CLI 覆盖它们后 typecheck 会红——用 `git checkout -- <file>` 恢复我们的版本。
-- **shadcn CLI / MCP（已接入）**: 根 `.cursor/mcp.json` 注册 `shadcn` server（cwd=`apps/frontend/packages/design-system`，`base=radix`、`ui` 别名=`@repo/design-system/shadcn`→`src/shadcn`）。CLI 在 monorepo 里要求 `packages/shared` 也有**有效** `components.json` + `tsconfig.json`（`utils/lib` 别名指向 `@repo/shared`，勿删）。CRUD 所需 `table/form/field/dialog/alert-dialog/card/tabs/sheet/command/pagination/breadcrumb/…` 已全量补齐。
-  - **registry 取舍**: Origin UI 已迁 Base UI（`@base-ui/react`），与本仓库 `radix-ui` 底座冲突，**不接入**；`shadcn add --all` 会顺带拉 `@base-ui/react`/`recharts`/`embla` 等，**别用 `--all`**，按需精选 radix 系组件。tablecn data-table 假设 vanilla 布局 + `nuqs`(Next)，如需引入走**裁剪式移植**（复用现有原语，URL 状态用 react-router `useSearchParams`）。
+- **原语约定（shadcn v4 / Base Nova / Tailwind v4）**: shadcn 原语一律**扁平 kebab-case 文件**放在 `packages/design-system/src/shadcn/`，命名导出，以 `@base-ui/react` 作为唯一行为底座。Base UI 组合统一使用 `render={<Element />}`，禁止新写 Radix `asChild`。原语间交叉引用写作 `@repo/design-system/shadcn/<name>`；`src/shadcn/index.ts` 与 `src/index.ts` 统一公开。业务消费方从 `@repo/design-system` 导入，重型组件归入 `@repo/ai-elements` / `@repo/editors` / `@repo/viewers`。
+- **仓库级集成**: registry 生成文件只保留少量集中扩展：modal/popup 接入 `portal-layer.tsx`，`*Content` 把 `container` 传给 Base UI `Portal`，定位 props 传给 `Positioner`；`form.tsx` 保持 React Hook Form 组合。升级后统一重放这些集成并用全仓 typecheck 验证，不恢复旧 Radix fork。
+- **shadcn CLI / MCP（已接入）**: 根 `.cursor/mcp.json` 注册 `shadcn` server（cwd=`apps/frontend/packages/design-system`，`components.json#style=base-nova`、`ui` 别名=`@repo/design-system/shadcn`→`src/shadcn`）。CLI 在 monorepo 里要求 `packages/shared` 也有有效 `components.json` + `tsconfig.json`，勿删。新增多个标准原语时在一条 `pnpm ui:add <component...> --overwrite -y` 中批量生成，避免逐文件手写。
+  - **registry 取舍**: 优先官方 shadcn/Base Nova registry；不要引入另一套 Radix、Arco、Ant Design 或 MUI primitive。第三方 registry 必须适配现有 Base UI、主题和公共 API，不能带入第二套底座。
 - **组件升级/新增流程**（在 `apps/frontend/packages/design-system`）:
   1. **必须 Node 24.18.0 环境**（pnpm 11 依赖 `node:sqlite`；用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，否则 CLI 内部 `pnpm add` 会崩/落到错误 store）。
-  2. `pnpm ui:add <component>`（= `shadcn add`，cwd 已默认 `.`；或经 shadcn MCP `add`）——原语落 `src/shadcn/<name>.tsx`。若覆盖到上面「禁止覆盖的 fork」，`git checkout --` 恢复。
-  3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。`toast` 这类第三方命令式 API 仍在 `src/index.ts` 单独 `export { toast } from "sonner"`。
+  2. `pnpm ui:add <component...> --overwrite -y`（= `shadcn add`，cwd 已默认 `.`；或经 shadcn MCP `add`）——将同一批原语一次性生成到 `src/shadcn/`。
+  3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。Base UI Toast 的命令式 `toast` 与 `Toaster` 也从该公共入口导出。
   4. `mise exec -- pnpm -F @repo/design-system typecheck` + 受影响 app `typecheck` + `pnpm -F platform build`。
   5. 新 MFE 通过 admin 应用注册中心登记 `base_path`、`remote_name`、`./routes` 与 manifest `entry`；platform 无需静态改源码。
 - **MFE 路由契约**: platform 是唯一 `RouterProvider`。remote 的 `./routes` 命名导出相对 `RouteObject[]`，页面入口按 `route.lazy` 约定命名导出 `Component`；禁止 remote 再建 router 或调用 `useRoutes`。
 
 ### React Compiler（build-time 自动记忆化，已启用）
 
-- **原生 SWC 路线，无 Babel**: Rspack **≥ 2.1** 把 React Compiler 用 Rust 移植进 `builtin:swc-loader`，通过 `jsc.transform.reactCompiler` 开启。统一封装在 `@repo/build-config/rspack` 的 `createSwcRule({ reactCompiler })`，三个 app 均以 `createSwcRule({ reactCompiler: { target: "18" } })` 接入——**别再各自内联 swc rule**，改配置改这一处。
-- **React 18 → 需要 runtime polyfill**: 编译产物 import `react-compiler-runtime` 的缓存槽（`_c`）。该包必须在 `dependencies`（apps + 每个 `ui` 包，因为原语经 symlink 真实路径也会被编译），并在 `@repo/build-config/mf-shared` 作为 **singleton** 共享（与 react 同级；产物走 `webpack/sharing/consume/default/react-compiler-runtime`，不重复打包）。升级到 React 19 后可去掉此包与 `target`。
+- **原生 SWC 路线，无 Babel**: Rspack **≥ 2.1** 把 React Compiler 用 Rust 移植进 `builtin:swc-loader`，通过 `jsc.transform.reactCompiler` 开启。统一封装在 `@repo/build-config/rspack` 的 `createSwcRule({ reactCompiler })`，四个 app 均以 `createSwcRule({ reactCompiler: { target: "18" } })` 接入——**别再各自内联 swc rule**。React 18 需要安装并共享 `react-compiler-runtime` polyfill。
 - **模式**: 默认 `infer`（全量自动记忆化）；`panicThreshold` 默认 `none`——违反 Rules of React 的文件会被**安全跳过**、不炸构建。若要单文件退出用 `"use no memo"`，单文件强制用 `"use memo"`。
 - **约束**: 记忆化正确性依赖遵守 Rules of React（不要在渲染期 mutate props/state、hooks 只在顶层调用）。新组件若出现 stale/异常，先怀疑规则违背，用 `"use no memo"` 临时隔离再修。
 - **版本**: `@rspack/core`/`@rspack/cli` ≥ `2.1.2`；勿降回 2.0.x（会丢失 `reactCompiler` 支持）。

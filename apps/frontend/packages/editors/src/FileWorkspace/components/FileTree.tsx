@@ -1,10 +1,10 @@
+import { toast } from "@repo/design-system";
 import { FileIcon } from "@repo/design-system/file-icon";
 import { Input } from "@repo/design-system/shadcn/input";
 import { cn } from "@repo/shared";
 import { FilePlus, FolderClosed, FolderOpen, FolderPlus, Search, X } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 
 import { ChangeAction, type FileChange, type FileNode } from "../interface";
@@ -344,7 +344,7 @@ export const FileTree: React.FC<FileTreeProps> = ({
       }
 
       if (src && hasDuplicateName(targetId, src.name, srcId)) {
-        toast.warning(`目标位置已存在同名文件或文件夹「${src.name}」，无法移动`);
+        toast.add({ type: "warning", title: `目标位置已存在同名文件或文件夹「${src.name}」，无法移动` });
         return;
       }
 

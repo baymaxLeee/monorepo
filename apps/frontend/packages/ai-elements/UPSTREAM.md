@@ -4,6 +4,11 @@ Reusable AI Chat UI capability package. Official AI Elements primitives live her
 plus composable Chat UI that stays free of app router / store / API / tenant coupling.
 Product domain state machines (video production, todo execution, memory) stay in apps.
 
+The complete public API of every locally owned AI Elements component was rebased
+against the AI Elements 1.9 registry on 2026-09-23. Components with no product
+caller remain registry-installable instead of being copied into this package as
+dead code.
+
 | Local module | Upstream reference |
 |---|---|
 | `src/AiChat/artifact.tsx` | https://elements.ai-sdk.dev/components/artifact |
@@ -16,11 +21,16 @@ Product domain state machines (video production, todo execution, memory) stay in
 | `src/AiChat/sources.tsx` | https://elements.ai-sdk.dev/components/sources |
 | `src/AiChat/suggestion.tsx` | https://elements.ai-sdk.dev/components/suggestion |
 | `src/AiChat/tool.tsx` | https://elements.ai-sdk.dev/components/tool |
-| `src/AiChat/message-parts.ts` | Local helper for AI SDK `reasoning` part merging (no registry page) |
 | `src/AiChat/context.tsx` | Adapted from https://elements.ai-sdk.dev/components/context ; categories via props |
 | `src/AiChat/workflow.tsx` | Generic Plan/Task/Queue presentation primitives (no product state machine) |
 | `src/PromptInput/**` | Local TipTap prompt composer; host injects skills/mentions/submit via props |
 
-Adaptations vs upstream: Radix/`@repo/design-system` primitives, Tailwind v4 tokens,
-and Streamdown for streaming markdown. Host apps inject transport, state, and
-product behavior through props / slots / callbacks.
+Adaptations vs upstream: Base UI/`@repo/design-system` primitives, Tailwind v4 tokens,
+safe external URLs, artifact previews, persisted AI SDK tool parts, and bounded
+reasoning/tool content with streaming auto-scroll. Message and reasoning markdown
+share the upstream Streamdown CJK, code, math, and Mermaid plugin baseline. Host apps
+inject transport, state, and product behavior through props / slots / callbacks.
+
+The upstream composition APIs are retained even when the current product does not yet
+render them: message actions/branches, attachment hover/empty states, source
+collapsibles, tool input/output, and the command-dialog model selector.

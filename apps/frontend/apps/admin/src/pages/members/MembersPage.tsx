@@ -134,7 +134,7 @@ export function MembersPage() {
     setBusyUser(userId);
     try {
       await fn();
-      toast.success(ok);
+      toast.add({ type: "success", title: ok });
       load();
     } catch {
     } finally {

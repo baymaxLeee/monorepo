@@ -83,11 +83,18 @@ export function StoryboardPreviewDialog({
   };
 
   return (
-    <Dialog open={visible} onOpenChange={(open) => !open && handleCancel()}>
+    <Dialog
+      open={visible}
+      onOpenChange={(open, details) => {
+        if (!open && confirming && (details.reason === "escape-key" || details.reason === "outside-press")) {
+          details.cancel();
+          return;
+        }
+        if (!open) handleCancel();
+      }}
+    >
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${dialogSizing.storyboard} ${styles.modal}`}
-        onEscapeKeyDown={(event) => confirming && event.preventDefault()}
-        onPointerDownOutside={(event) => confirming && event.preventDefault()}
         style={{ maxWidth: "92vw" }}
       >
         <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">

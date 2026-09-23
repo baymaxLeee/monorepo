@@ -1,4 +1,4 @@
-import { TooltipProvider } from "@repo/design-system";
+import { Toaster, TooltipProvider } from "@repo/design-system";
 import { Outlet } from "react-router-dom";
 
 import { ConfirmDialogHost } from "./components/compat";
@@ -10,6 +10,7 @@ export function App() {
         <Outlet />
         <ConfirmDialogHost />
       </div>
+      <Toaster />
     </TooltipProvider>
   );
 }

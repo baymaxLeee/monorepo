@@ -132,40 +132,40 @@ export function ChatConversationSidebar({
                       className="group flex min-w-0 items-center gap-0.5 rounded-lg hover:bg-muted/50"
                     >
                       <Button
-                        asChild
+                        render={<Link to={`/platform/chat/conversations/${conversation.id}`} />}
                         variant={active ? "secondary" : "ghost"}
                         className="h-auto min-w-0 flex-1 justify-start gap-1.5 rounded-md px-1.5 py-1.5 text-left shadow-none"
                       >
-                        <Link to={`/platform/chat/conversations/${conversation.id}`}>
-                          <MessageSquareIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
-                          <span className="truncate text-xs font-normal">{conversation.title}</span>
-                        </Link>
+                        <MessageSquareIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
+                        <span className="truncate text-xs font-normal">{conversation.title}</span>
                       </Button>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            aria-label={`${conversation.title} 更多操作`}
-                            className="size-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100"
-                          >
-                            <MoreHorizontalIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-                          </Button>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`${conversation.title} 更多操作`}
+                              className="size-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100"
+                            />
+                          }
+                        >
+                          <MoreHorizontalIcon aria-hidden="true" className="size-4 text-muted-foreground" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem onSelect={() => onOpenTrace(conversation.id)}>
+                          <DropdownMenuItem onClick={() => onOpenTrace(conversation.id)}>
                             <RouteIcon aria-hidden="true" className="mr-2 size-4" />
                             执行轨迹
                           </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => onExport(conversation.id)}>
+                          <DropdownMenuItem onClick={() => onExport(conversation.id)}>
                             <DownloadIcon aria-hidden="true" className="mr-2 size-4" />
                             导出 Markdown
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
-                            onSelect={() => onDelete(conversation.id)}
+                            onClick={() => onDelete(conversation.id)}
                           >
                             <Trash2Icon aria-hidden="true" className="mr-2 size-4" />
                             删除
@@ -194,7 +194,6 @@ export function ChatConversationSidebar({
           onDragEnd={onResizeEnd}
         />
       </Aside>
-
       {!open && showToggle ? (
         <Button
           type="button"

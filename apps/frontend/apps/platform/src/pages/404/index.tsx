@@ -23,9 +23,7 @@ function NotFoundPage() {
         </PageHeaderContent>
       </PageHeader>
       <PageActions>
-        <Button asChild>
-          <Link to={target}>{user ? "返回首页" : "返回登录"}</Link>
-        </Button>
+        <Button render={<Link to={target} />}>{user ? "返回首页" : "返回登录"}</Button>
       </PageActions>
     </Page>
   );

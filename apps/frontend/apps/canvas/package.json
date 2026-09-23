@@ -53,7 +53,6 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@typescript/native": "catalog:",
-    "html-webpack-plugin": "^5.6.0",
     "less": "catalog:",
     "less-loader": "catalog:",
     "typescript": "catalog:"

@@ -28,9 +28,7 @@ export function OverlayTab() {
         <section className="grid gap-3">
           <h3 className="text-sm font-medium">Dialog</h3>
           <Dialog>
-            <DialogTrigger asChild>
-              <Button className="w-fit">打开 Dialog</Button>
-            </DialogTrigger>
+            <DialogTrigger render={<Button className="w-fit" />}>打开 Dialog</DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>确认操作</DialogTitle>
@@ -47,11 +45,7 @@ export function OverlayTab() {
         <section className="grid gap-3">
           <h3 className="text-sm font-medium">DropdownMenu</h3>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-fit">
-                打开菜单
-              </Button>
-            </DropdownMenuTrigger>
+            <DropdownMenuTrigger render={<Button variant="outline" className="w-fit" />}>打开菜单</DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               <DropdownMenuLabel>账户</DropdownMenuLabel>
               <DropdownMenuSeparator />

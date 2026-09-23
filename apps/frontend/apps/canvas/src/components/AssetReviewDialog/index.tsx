@@ -136,11 +136,19 @@ export function AssetReviewDialog({
   };
 
   return (
-    <Dialog open={visible} onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog
+      open={visible}
+      disablePointerDismissal
+      onOpenChange={(open, details) => {
+        if (!open && details.reason === "escape-key" && busy) {
+          details.cancel();
+          return;
+        }
+        if (!open && !busy) onClose();
+      }}
+    >
       <DialogContent
         className={`canvas-web-theme canvas-modal flex max-h-[90dvh] w-[520px] flex-col gap-0 p-0 sm:max-w-none ${dialogSizing.compact}`}
-        onEscapeKeyDown={(event) => busy && event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
         showCloseButton={!busy}
         style={{ maxWidth: "92vw" }}
       >

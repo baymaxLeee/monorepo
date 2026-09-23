@@ -20,7 +20,6 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -132,7 +131,7 @@ export function BotListPage() {
     }
     try {
       await deleteBot(deleting.id);
-      toast.success("智能体已删除");
+      toast.add({ type: "success", title: "智能体已删除" });
       setDeleting(null);
       load();
     } catch {}
@@ -141,7 +140,7 @@ export function BotListPage() {
   async function onCreate(values: CreateBotValues) {
     try {
       await createBot({ name: values.name.trim() });
-      toast.success("智能体已创建");
+      toast.add({ type: "success", title: "智能体已创建" });
       form.reset();
       setCreateOpen(false);
       load();
@@ -170,15 +169,13 @@ export function BotListPage() {
               }
             }}
           >
-            <DialogTrigger asChild>
-              <Button>新建智能体</Button>
-            </DialogTrigger>
+            <DialogTrigger render={<Button />}>新建智能体</DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>新建智能体</DialogTitle>
                 <DialogDescription>先创建智能体，再在「配置」中选择其使用的模型。</DialogDescription>
               </DialogHeader>
-              <DialogBody>
+              <div>
                 <Form {...form}>
                   <form id="bot-create-form" onSubmit={form.handleSubmit(onCreate)}>
                     <FieldGroup>
@@ -198,7 +195,7 @@ export function BotListPage() {
                     </FieldGroup>
                   </form>
                 </Form>
-              </DialogBody>
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                   取消
@@ -211,7 +208,6 @@ export function BotListPage() {
           </Dialog>
         </PageActions>
       </PageHeader>
-
       {error && (
         <Alert variant="destructive">
           <AlertTitle>请求失败</AlertTitle>
@@ -224,7 +220,6 @@ export function BotListPage() {
           </AlertDescription>
         </Alert>
       )}
-
       <Card>
         <CardHeader>
           <CardTitle>全部智能体</CardTitle>
@@ -279,7 +274,6 @@ export function BotListPage() {
           )}
         </CardContent>
       </Card>
-
       <AgentModelDialog
         bot={editing}
         open={editing !== null}
@@ -291,7 +285,6 @@ export function BotListPage() {
         providers={providers}
         onSaved={load}
       />
-
       <AlertDialog
         open={deleting !== null}
         onOpenChange={(open) => {

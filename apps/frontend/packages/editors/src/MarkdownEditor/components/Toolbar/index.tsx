@@ -1,3 +1,4 @@
+import { toast } from "@repo/design-system";
 import { Button } from "@repo/design-system/shadcn/button";
 import {
   DropdownMenu,
@@ -59,7 +60,6 @@ import {
   Wand2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 
 import {
@@ -303,60 +303,62 @@ export const ColorPickerContent = ({ editor, onClose }: { editor: Editor; onClos
         <div className="grid grid-cols-8 gap-1.5 px-1">
           {FONT_COLORS.map((item) => (
             <Tooltip key={item.color}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex size-6 cursor-pointer items-center justify-center rounded border border-border transition-all",
-                    isColorActive(item.color) ? "border-blue-600" : "hover:border-blue-600/60",
-                  )}
-                  onClick={() => handleSetColor(item.color)}
-                >
-                  <span className="text-sm font-medium leading-none" style={{ color: item.color }}>
-                    A
-                  </span>
-                </button>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex size-6 cursor-pointer items-center justify-center rounded border border-border transition-all",
+                      isColorActive(item.color) ? "border-blue-600" : "hover:border-blue-600/60",
+                    )}
+                    onClick={() => handleSetColor(item.color)}
+                  />
+                }
+              >
+                <span className="text-sm font-medium leading-none" style={{ color: item.color }}>
+                  A
+                </span>
               </TooltipTrigger>
               <EditorTooltipContent>{item.label}</EditorTooltipContent>
             </Tooltip>
           ))}
         </div>
       </div>
-
       <div>
         <div className="mb-2 px-1 text-xs text-muted-foreground">背景颜色</div>
         <div className="grid grid-cols-8 gap-1.5 px-1">
           {BG_COLORS.map((item) => (
             <Tooltip key={item.color}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "group/bg relative flex size-6 cursor-pointer items-center justify-center overflow-hidden rounded border border-transparent transition-all",
-                    isBgActive(item.color)
-                      ? "scale-[0.85] border-blue-600"
-                      : "hover:scale-[0.85] hover:border-blue-600/60",
-                  )}
-                  onClick={() => handleSetBg(item.color)}
-                >
-                  <div
-                    className="absolute inset-0 rounded-sm transition-transform group-hover/bg:scale-95 group-hover/bg:outline group-hover/bg:outline-2 group-hover/bg:outline-white group-active/bg:scale-90"
-                    style={{ backgroundColor: item.color }}
-                  >
-                    {item.color === "transparent" && (
-                      <div className="relative size-full overflow-hidden rounded-sm border border-border">
-                        <div className="absolute left-0 top-0 h-px w-[141%] origin-top-left rotate-45 bg-muted-foreground" />
-                      </div>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    className={cn(
+                      "group/bg relative flex size-6 cursor-pointer items-center justify-center overflow-hidden rounded border border-transparent transition-all",
+                      isBgActive(item.color)
+                        ? "scale-[0.85] border-blue-600"
+                        : "hover:scale-[0.85] hover:border-blue-600/60",
                     )}
-                  </div>
-                </button>
+                    onClick={() => handleSetBg(item.color)}
+                  />
+                }
+              >
+                <div
+                  className="absolute inset-0 rounded-sm transition-transform group-hover/bg:scale-95 group-hover/bg:outline group-hover/bg:outline-2 group-hover/bg:outline-white group-active/bg:scale-90"
+                  style={{ backgroundColor: item.color }}
+                >
+                  {item.color === "transparent" && (
+                    <div className="relative size-full overflow-hidden rounded-sm border border-border">
+                      <div className="absolute left-0 top-0 h-px w-[141%] origin-top-left rotate-45 bg-muted-foreground" />
+                    </div>
+                  )}
+                </div>
               </TooltipTrigger>
               <EditorTooltipContent>{item.label}</EditorTooltipContent>
             </Tooltip>
           ))}
         </div>
       </div>
-
       <div className="px-1">
         <Button
           variant="outline"
@@ -593,9 +595,9 @@ export const AIPolishContent = ({
       statusRef.current = s;
     }
   };
-  const snapshotRef = useRef<SelectionSnapshot>();
+  const snapshotRef = useRef<SelectionSnapshot | undefined>(undefined);
   const promptRef = useRef<string>("");
-  const actionTypeRef = useRef<RewriteActionType | undefined>();
+  const actionTypeRef = useRef<RewriteActionType | undefined>(undefined);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { setMaskVisible, onAiPolish, popupConfig } = useEditorContext(
     ({ onAiPolish, setMaskVisible, popupConfig }) => ({
@@ -629,14 +631,14 @@ export const AIPolishContent = ({
 
   const handlePolish = async () => {
     if (actionTypeRef.current === RewriteActionType.ChatInDoc && !promptRef.current) {
-      toast.warning("请输入指令");
+      toast.add({ type: "warning", title: "请输入指令" });
       return;
     }
     try {
       const snapshot = extractSelectionToBlocks(editor);
       snapshotRef.current = snapshot;
       if (snapshot.blocks.length === 0) {
-        toast.warning("未选中文本");
+        toast.add({ type: "warning", title: "未选中文本" });
         return;
       }
 
@@ -692,7 +694,7 @@ export const AIPolishContent = ({
       if (error.name === "AbortError") {
         return;
       }
-      toast.warning(error.message || "AI 润色失败，请稍后重试");
+      toast.add({ type: "warning", title: error.message || "AI 润色失败，请稍后重试" });
       handleReset();
     }
   };
@@ -702,7 +704,7 @@ export const AIPolishContent = ({
       return;
     }
     applyBlocksToSelection(editor, snapshotRef.current, newTexts);
-    toast.success("AI 润色成功");
+    toast.add({ type: "success", title: "AI 润色成功" });
     handleReset();
   };
 
@@ -716,7 +718,7 @@ export const AIPolishContent = ({
     }
 
     editor.chain().insertContentAt(snapshotRef.current.range.to, text).run();
-    toast.success("AI 插入成功");
+    toast.add({ type: "success", title: "AI 插入成功" });
     handleReset();
   };
 
@@ -754,13 +756,13 @@ export const AIPolishContent = ({
   const handleStop = () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    toast.warning("已终止");
+    toast.add({ type: "warning", title: "已终止" });
     handleReset(false);
   };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(getInputValue()).then(() => {
-      toast.success("复制成功");
+      toast.add({ type: "success", title: "复制成功" });
     });
   };
 
@@ -789,10 +791,10 @@ export const AIPolishContent = ({
     if (status === AiPolishStatus.Pending) {
       return (
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleSend}>
-              <Send className="size-3.5" />
-            </Button>
+          <TooltipTrigger
+            render={<Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleSend} />}
+          >
+            <Send className="size-3.5" />
           </TooltipTrigger>
           <EditorTooltipContent>发送</EditorTooltipContent>
         </Tooltip>
@@ -800,10 +802,10 @@ export const AIPolishContent = ({
     } else if (status === AiPolishStatus.Loading) {
       return (
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleStop}>
-              <Square className="size-3 fill-current" />
-            </Button>
+          <TooltipTrigger
+            render={<Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleStop} />}
+          >
+            <Square className="size-3 fill-current" />
           </TooltipTrigger>
           <EditorTooltipContent>终止</EditorTooltipContent>
         </Tooltip>
@@ -828,26 +830,22 @@ export const AIPolishContent = ({
         </div>
         <div className="flex items-center gap-2">
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" variant="outline" className="size-7" onClick={handleCopy}>
-                <Copy className="size-3.5" />
-              </Button>
+            <TooltipTrigger render={<Button size="icon" variant="outline" className="size-7" onClick={handleCopy} />}>
+              <Copy className="size-3.5" />
             </TooltipTrigger>
             <EditorTooltipContent>复制</EditorTooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" variant="outline" className="size-7" onClick={handleRetry}>
-                <RefreshCw className="size-3.5" />
-              </Button>
+            <TooltipTrigger render={<Button size="icon" variant="outline" className="size-7" onClick={handleRetry} />}>
+              <RefreshCw className="size-3.5" />
             </TooltipTrigger>
             <EditorTooltipContent>重试</EditorTooltipContent>
           </Tooltip>
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" variant="outline" className="size-7" onClick={() => handleReset(false)}>
-                <RotateCcw className="size-3.5" />
-              </Button>
+            <TooltipTrigger
+              render={<Button size="icon" variant="outline" className="size-7" onClick={() => handleReset(false)} />}
+            >
+              <RotateCcw className="size-3.5" />
             </TooltipTrigger>
             <EditorTooltipContent>重置</EditorTooltipContent>
           </Tooltip>
@@ -858,44 +856,43 @@ export const AIPolishContent = ({
 
   return (
     <Popover open={triggerVisible} onOpenChange={setTriggerVisible}>
-      <PopoverTrigger asChild>
-        <div className="flex w-[600px] flex-wrap items-center gap-2 px-3 py-2">
-          <div
-            ref={inputRef}
-            className={cn(
-              "max-h-60 min-h-[1em] flex-grow-[9999] overflow-y-auto break-words leading-normal outline-none",
-              "[&>p]:m-0",
-              "before:hidden data-[empty=true]:before:block data-[empty=true]:before:cursor-text data-[empty=true]:before:text-muted-foreground data-[empty=true]:before:content-[attr(data-placeholder)]",
-            )}
-            data-empty="true"
-            spellCheck
-            suppressContentEditableWarning
-            contentEditable={status === AiPolishStatus.Pending}
-            data-placeholder="输入优化文本指令"
-            tabIndex={0}
-            role="textbox"
-            aria-label="开始输入以编辑文本"
-            inputMode="text"
-            onFocus={onInputFocus}
-            onInput={handleInput}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <div className="flex max-w-full flex-grow justify-between gap-2">{render()}</div>
-        </div>
-      </PopoverTrigger>
+      <div className="flex w-[600px] flex-wrap items-center gap-2 px-3 py-2">
+        <div
+          ref={inputRef}
+          className={cn(
+            "max-h-60 min-h-[1em] flex-grow-[9999] overflow-y-auto break-words leading-normal outline-none",
+            "[&>p]:m-0",
+            "before:hidden data-[empty=true]:before:block data-[empty=true]:before:cursor-text data-[empty=true]:before:text-muted-foreground data-[empty=true]:before:content-[attr(data-placeholder)]",
+          )}
+          data-empty="true"
+          spellCheck
+          suppressContentEditableWarning
+          contentEditable={status === AiPolishStatus.Pending}
+          data-placeholder="输入优化文本指令"
+          tabIndex={0}
+          role="textbox"
+          aria-label="开始输入以编辑文本"
+          inputMode="text"
+          onFocus={onInputFocus}
+          onInput={handleInput}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+        />
+        <div className="flex max-w-full flex-grow justify-between gap-2">{render()}</div>
+      </div>
       <PopoverContent
+        anchor={inputRef}
         side="bottom"
         align="start"
         sideOffset={4}
         className="w-auto rounded-lg border bg-popover p-1 shadow-md"
         container={overlayContainer}
-        style={{ zIndex: popupConfig.zIndex }}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        positionerStyle={{ zIndex: popupConfig.zIndex }}
+        initialFocus={false}
       >
         <Menu inline>
           <MenuItemGroup label="快捷指令">
@@ -1053,7 +1050,7 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
       return;
     }
     if (!comment.trim()) {
-      toast.warning("请输入评论内容");
+      toast.add({ type: "warning", title: "请输入评论内容" });
       return;
     }
     editor.chain().focus().addComment(uuidv4()).run();
@@ -1076,22 +1073,24 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
     onClick: () => void;
   }) => (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          aria-pressed={!!isActive}
-          aria-disabled={!!isDisabled}
-          className={btnCls({ isActive, isDisabled })}
-          onClick={() => {
-            if (isDisabled) {
-              return;
-            }
-            onClick();
-          }}
-        >
-          {icon}
-        </button>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            aria-pressed={!!isActive}
+            aria-disabled={!!isDisabled}
+            className={btnCls({ isActive, isDisabled })}
+            onClick={() => {
+              if (isDisabled) {
+                return;
+              }
+              onClick();
+            }}
+          />
+        }
+      >
+        {icon}
       </TooltipTrigger>
       <EditorTooltipContent>{label}</EditorTooltipContent>
     </Tooltip>
@@ -1108,23 +1107,24 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
         editorState.selectionTextLength <= 500 && (
           <>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="AI 润色"
-                  className={cn(triggerCls(), "text-blue-600 [&>svg]:size-4")}
-                  onClick={() => onOpenPolish?.()}
-                >
-                  <Sparkles />
-                  <span className="text-xs">AI 润色</span>
-                </button>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label="AI 润色"
+                    className={cn(triggerCls(), "text-blue-600 [&>svg]:size-4")}
+                    onClick={() => onOpenPolish?.()}
+                  />
+                }
+              >
+                <Sparkles />
+                <span className="text-xs">AI 润色</span>
               </TooltipTrigger>
               <EditorTooltipContent>AI 润色</EditorTooltipContent>
             </Tooltip>
             <span className={dividerCls} />
           </>
         )}
-
       {toolbarMode === "fixed" && (
         <>
           <IconBtn
@@ -1142,9 +1142,9 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           <span className={dividerCls} />
         </>
       )}
-
-      <DropdownMenu trigger="hover">
+      <DropdownMenu>
         <DropdownMenuTrigger
+          openOnHover
           type="button"
           aria-label="节点类型"
           disabled={!editorState.canChangeType}
@@ -1159,7 +1159,7 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           align="start"
           className="min-w-32"
           container={overlayContainer}
-          style={{ zIndex: popupConfig.zIndex }}
+          positionerStyle={{ zIndex: popupConfig.zIndex }}
         >
           <NodeTypeDropdownItems
             editor={editor}
@@ -1168,12 +1168,12 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           />
         </DropdownMenuContent>
       </DropdownMenu>
-
       {contentType !== "markdown" && (
         <>
           <span className={dividerCls} />
-          <DropdownMenu trigger="hover">
+          <DropdownMenu>
             <DropdownMenuTrigger
+              openOnHover
               type="button"
               aria-label="对齐方式"
               disabled={!editorState.canAlign}
@@ -1188,16 +1188,14 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
               align="start"
               className="min-w-28"
               container={overlayContainer}
-              style={{ zIndex: popupConfig.zIndex }}
+              positionerStyle={{ zIndex: popupConfig.zIndex }}
             >
               <AlignDropdownItems editor={editor} textAlign={editorState.textAlign} />
             </DropdownMenuContent>
           </DropdownMenu>
         </>
       )}
-
       <span className={dividerCls} />
-
       <IconBtn
         label="加粗"
         icon={<Bold />}
@@ -1233,7 +1231,6 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
         isDisabled={!editorState.canCode}
         onClick={() => editor.chain().focus().toggleCode().run()}
       />
-
       <Popover
         open={linkVisible}
         onOpenChange={(v) => {
@@ -1244,18 +1241,20 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
         }}
       >
         <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger
-              type="button"
-              disabled={!editorState.canLink}
-              aria-label="链接"
-              className={btnCls({
-                isActive: editorState.isLink,
-                isDisabled: !editorState.canLink,
-              })}
-            >
-              <Link2 />
-            </PopoverTrigger>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger
+                type="button"
+                disabled={!editorState.canLink}
+                aria-label="链接"
+                className={btnCls({
+                  isActive: editorState.isLink,
+                  isDisabled: !editorState.canLink,
+                })}
+              />
+            }
+          >
+            <Link2 />
           </TooltipTrigger>
           <EditorTooltipContent>链接</EditorTooltipContent>
         </Tooltip>
@@ -1263,10 +1262,8 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           align="start"
           className="w-64 p-3"
           container={overlayContainer}
-          style={{ zIndex: popupConfig.zIndex }}
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-          }}
+          positionerStyle={{ zIndex: popupConfig.zIndex }}
+          initialFocus={false}
         >
           <Input
             autoFocus
@@ -1298,10 +1295,10 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           </div>
         </PopoverContent>
       </Popover>
-
       {contentType !== "markdown" && (
-        <Popover trigger="hover" open={colorPickerVisible} onOpenChange={setColorPickerVisible}>
+        <Popover open={colorPickerVisible} onOpenChange={setColorPickerVisible}>
           <PopoverTrigger
+            openOnHover
             type="button"
             disabled={!editorState.canColor}
             aria-label="字体与背景色"
@@ -1324,15 +1321,13 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
             align="start"
             className="w-auto p-3"
             container={overlayContainer}
-            style={{ zIndex: popupConfig.zIndex }}
+            positionerStyle={{ zIndex: popupConfig.zIndex }}
           >
             <ColorPickerContent editor={editor} onClose={() => setColorPickerVisible(false)} />
           </PopoverContent>
         </Popover>
       )}
-
       <span className={dividerCls} />
-
       {toolbarMode === "fixed" && (
         <>
           <IconBtn
@@ -1382,10 +1377,8 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           ) : (
             <Popover>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <PopoverTrigger type="button" aria-label="插入表格" className={btnCls()}>
-                    <TableIcon />
-                  </PopoverTrigger>
+                <TooltipTrigger render={<PopoverTrigger type="button" aria-label="插入表格" className={btnCls()} />}>
+                  <TableIcon />
                 </TooltipTrigger>
                 <EditorTooltipContent>插入表格</EditorTooltipContent>
               </Tooltip>
@@ -1393,7 +1386,7 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
                 align="start"
                 className="w-auto p-2"
                 container={overlayContainer}
-                style={{ zIndex: popupConfig.zIndex }}
+                positionerStyle={{ zIndex: popupConfig.zIndex }}
               >
                 <TableSelector
                   onSelect={(rows, cols) => {
@@ -1413,7 +1406,6 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           )}
         </>
       )}
-
       {toolbarMode === "bubble" && (
         <>
           <IconBtn
@@ -1430,7 +1422,6 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           />
         </>
       )}
-
       {commentEnable && (
         <>
           <span className={dividerCls} />
@@ -1444,17 +1435,19 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
             }}
           >
             <Tooltip>
-              <TooltipTrigger asChild>
-                <PopoverTrigger
-                  type="button"
-                  disabled={!editorState.canAddComment}
-                  aria-label="评论"
-                  className={btnCls({
-                    isDisabled: !editorState.canAddComment,
-                  })}
-                >
-                  <MessageSquare />
-                </PopoverTrigger>
+              <TooltipTrigger
+                render={
+                  <PopoverTrigger
+                    type="button"
+                    disabled={!editorState.canAddComment}
+                    aria-label="评论"
+                    className={btnCls({
+                      isDisabled: !editorState.canAddComment,
+                    })}
+                  />
+                }
+              >
+                <MessageSquare />
               </TooltipTrigger>
               <EditorTooltipContent>评论</EditorTooltipContent>
             </Tooltip>
@@ -1462,7 +1455,7 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
               align="end"
               className="w-64 p-3"
               container={overlayContainer}
-              style={{ zIndex: popupConfig.zIndex }}
+              positionerStyle={{ zIndex: popupConfig.zIndex }}
             >
               <Textarea
                 placeholder="输入评论"
@@ -1482,14 +1475,12 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           </Popover>
         </>
       )}
-
       {toolbarRender && (
         <>
           <span className={dividerCls} />
           {toolbarRender(editor)}
         </>
       )}
-
       <input
         type="file"
         ref={imageInputRef}

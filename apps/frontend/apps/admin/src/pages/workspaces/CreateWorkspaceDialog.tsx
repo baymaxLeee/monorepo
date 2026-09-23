@@ -3,7 +3,6 @@ import { type CreateWorkspaceInput, createWorkspace } from "@repo/api";
 import {
   Button,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -108,7 +107,7 @@ export function CreateWorkspaceDialog({
     }
     try {
       await createWorkspace(payload);
-      toast.success("工作空间已创建");
+      toast.add({ type: "success", title: "工作空间已创建" });
       form.reset(defaults);
       onOpenChange(false);
       onDone();
@@ -130,7 +129,7 @@ export function CreateWorkspaceDialog({
           <DialogTitle>新建工作空间</DialogTitle>
           <DialogDescription>每个工作空间都必须有一个负责人（workspace_admin）。</DialogDescription>
         </DialogHeader>
-        <DialogBody>
+        <div>
           <Form {...form}>
             <form id="workspace-form" onSubmit={form.handleSubmit(submit)}>
               <FieldGroup>
@@ -177,7 +176,7 @@ export function CreateWorkspaceDialog({
                   render={({ field }) => (
                     <Field>
                       <FieldLabel>负责人</FieldLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select value={field.value} onValueChange={(value) => value !== null && field.onChange(value)}>
                         <FormControl>
                           <SelectTrigger className="w-full">
                             <SelectValue />
@@ -211,7 +210,7 @@ export function CreateWorkspaceDialog({
               </FieldGroup>
             </form>
           </Form>
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             取消

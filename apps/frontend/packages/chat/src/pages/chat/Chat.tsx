@@ -314,7 +314,7 @@ export function ChatSession({
         if (/abort|aborted/i.test(error.message)) {
           return;
         }
-        toast.error(error.message);
+        toast.add({ type: "error", title: error.message });
       },
       onData: (dataPart) => {
         if (dataPart.type !== "data-conversation-title") {
@@ -479,7 +479,7 @@ export function ChatSession({
         return;
       }
       // resumeStream 走 SSE(不经 axios 拦截器),错误在此提示
-      toast.error(message);
+      toast.add({ type: "error", title: message });
     });
   }, [busy, detail?.id, detail?.active_run_id, id, loading, resumeStream]);
 
@@ -680,7 +680,7 @@ export function ChatSession({
           placeholder={mode === "plan" ? "描述要规划的任务，/ 引用技能，@ 添加上下文" : "要求后续变更"}
           maxFiles={8}
           maxFileSize={10 * 1024 * 1024}
-          onError={(message) => toast.error(message)}
+          onError={(message) => toast.add({ type: "error", title: message })}
           onStop={() => void stopRun()}
           onFilesAdded={(items) => {
             if (!id) {
@@ -713,7 +713,7 @@ export function ChatSession({
                       ingestError: failure.error,
                     },
                   });
-                  toast.error(`上传失败：${failure.error}`);
+                  toast.add({ type: "error", title: `上传失败：${failure.error}` });
                 }
               })
               .catch((error) => {
@@ -726,7 +726,7 @@ export function ChatSession({
                     },
                   });
                 }
-                toast.error(message);
+                toast.add({ type: "error", title: message });
               });
           }}
           onSubmit={(value) => void submit(value).catch(() => {})}
@@ -747,7 +747,7 @@ export function ChatSession({
           onSkillsLoad={loadSkills}
           onSlashCommand={(command) => {
             setActivatedSkillName(command.id);
-            toast(`已选择技能：${command.title}`);
+            toast.add({ title: `已选择技能：${command.title}` });
           }}
           footerRender={() => (
             <>

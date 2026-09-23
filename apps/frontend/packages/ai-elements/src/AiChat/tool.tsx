@@ -1,7 +1,9 @@
 import { Badge } from "@repo/design-system/shadcn/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@repo/design-system/shadcn/collapsible";
 import { cn } from "@repo/shared";
-import { CheckCircleIcon, ChevronRightIcon, CircleIcon, ClockIcon, WrenchIcon, XCircleIcon } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import type { DynamicToolUIPart, ToolUIPart } from "ai";
+import { CheckCircleIcon, ChevronDownIcon, CircleIcon, ClockIcon, WrenchIcon, XCircleIcon } from "lucide-react";
+import { isValidElement, type ComponentProps, type ReactNode } from "react";
 
 export type ToolState =
   | "approval-requested"
@@ -12,6 +14,7 @@ export type ToolState =
   | "output-denied"
   | "output-error"
   | (string & {});
+export type ToolPart = ToolUIPart | DynamicToolUIPart;
 
 const STATUS_LABELS: Record<string, string> = {
   "approval-requested": "Awaiting Approval",
@@ -53,45 +56,51 @@ export function getToolStatusBadge(status: ToolState) {
   );
 }
 
-export type ToolProps = ComponentProps<"details">;
+export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export function Tool({ className, ...props }: ToolProps) {
-  return <details className={cn("group not-prose w-full rounded-md border bg-background/80", className)} {...props} />;
+  return (
+    <Collapsible className={cn("group not-prose w-full rounded-md border bg-background/80", className)} {...props} />
+  );
 }
 
-export type ToolHeaderProps = ComponentProps<"summary"> & {
+export type ToolHeaderProps = Omit<ComponentProps<typeof CollapsibleTrigger>, "type"> & {
   title?: string;
+  type: ToolPart["type"];
   state: ToolState;
+  toolName?: string;
 };
 
-export function ToolHeader({ className, title, state, children, ...props }: ToolHeaderProps) {
+export function ToolHeader({ className, title, type, state, toolName, children, ...props }: ToolHeaderProps) {
+  const derivedName = type === "dynamic-tool" ? toolName : type.split("-").slice(1).join("-");
   return (
-    <summary
-      className={cn(
-        "flex cursor-pointer list-none items-center justify-between gap-4 p-3 marker:hidden",
-        "[&::-webkit-details-marker]:hidden",
-        className,
-      )}
+    <CollapsibleTrigger
+      className={cn("flex w-full cursor-pointer items-center justify-between gap-4 p-3", className)}
       {...props}
     >
       {children ?? (
         <>
           <div className="flex min-w-0 items-center gap-2">
             <WrenchIcon className="size-4 shrink-0 text-muted-foreground" />
-            <span className="truncate text-sm font-medium">{title}</span>
+            <span className="truncate text-sm font-medium">{title ?? derivedName}</span>
             {getToolStatusBadge(state)}
           </div>
-          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />
         </>
       )}
-    </summary>
+    </CollapsibleTrigger>
   );
 }
 
-export type ToolContentProps = ComponentProps<"div">;
+export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 
 export function ToolContent({ className, ...props }: ToolContentProps) {
-  return <div className={cn("max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto p-4 pt-0", className)} {...props} />;
+  return (
+    <CollapsibleContent
+      className={cn("max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto p-4 pt-0 outline-none", className)}
+      {...props}
+    />
+  );
 }
 
 export type ToolJsonBlockProps = ComponentProps<"pre"> & {
@@ -111,3 +120,44 @@ export function ToolJsonBlock({ className, value, ...props }: ToolJsonBlockProps
     </pre>
   );
 }
+
+export type ToolInputProps = ComponentProps<"div"> & { input: ToolPart["input"] };
+
+export function ToolInput({ className, input, ...props }: ToolInputProps) {
+  return (
+    <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
+      <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Parameters</h4>
+      <ToolJsonBlock value={input} />
+    </div>
+  );
+}
+
+export type ToolOutputProps = ComponentProps<"div"> & {
+  output: ToolPart["output"];
+  errorText: ToolPart["errorText"];
+};
+
+export function ToolOutput({ className, output, errorText, ...props }: ToolOutputProps) {
+  if (output == null && !errorText) {
+    return null;
+  }
+  const renderedOutput = isValidElement(output) ? output : <ToolJsonBlock value={output} />;
+  return (
+    <div className={cn("space-y-2", className)} {...props}>
+      <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {errorText ? "Error" : "Result"}
+      </h4>
+      <div
+        className={cn(
+          "overflow-x-auto rounded-md text-xs [&_table]:w-full",
+          errorText && "bg-destructive/10 text-destructive",
+        )}
+      >
+        {errorText ? <div className="p-2">{errorText}</div> : null}
+        {renderedOutput}
+      </div>
+    </div>
+  );
+}
+
+export const getStatusBadge = getToolStatusBadge;

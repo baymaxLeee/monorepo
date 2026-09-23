@@ -109,17 +109,19 @@ function ModelSelectChip({
 
   return (
     <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger asChild>
-        <Button
-          aria-expanded={open}
-          className={styles.modelComboboxTrigger}
-          disabled={options.length === 0}
-          role="combobox"
-          variant="outline"
-        >
-          <span className={styles.modelComboboxValue}>{selected?.name ?? t("选择模型")}</span>
-          <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            aria-expanded={open}
+            className={styles.modelComboboxTrigger}
+            disabled={options.length === 0}
+            role="combobox"
+            variant="outline"
+          />
+        }
+      >
+        <span className={styles.modelComboboxValue}>{selected?.name ?? t("选择模型")}</span>
+        <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent align="start" className={styles.modelComboboxContent}>
         <Command>

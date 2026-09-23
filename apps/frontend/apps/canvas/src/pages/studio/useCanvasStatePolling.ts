@@ -24,7 +24,7 @@ export function useCanvasStatePolling({
     ReadonlyMap<string, { count: number; target: CanvasStateSnapshot["Targets"][number] }>
   >(new Map());
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const inFlightRef = useRef<Promise<CanvasStateSnapshot>>();
+  const inFlightRef = useRef<Promise<CanvasStateSnapshot> | undefined>(undefined);
   const handledRefreshVersionRef = useRef(0);
   const targets = dedupeTargets([...graphTargets, ...[...watchedTargets.values()].map(({ target }) => target)]);
   const targetsRef = useRef(targets);

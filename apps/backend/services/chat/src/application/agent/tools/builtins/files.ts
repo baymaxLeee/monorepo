@@ -126,21 +126,21 @@ const delegateInput = z
     for (const [index, task] of input.tasks.entries()) {
       if (!task.output_path.startsWith(prefix)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["tasks", index, "output_path"],
           message: "output_path must be inside root",
         });
       }
       if (ids.has(task.id)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["tasks", index, "id"],
           message: "task ids must be unique",
         });
       }
       if (paths.has(task.output_path)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["tasks", index, "output_path"],
           message: "output paths must be unique",
         });

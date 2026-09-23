@@ -137,11 +137,13 @@ function RegisterPage() {
         userId: session.user.id,
         username: session.user.displayName,
       });
-      toast.success(
-        values.workspaceId === "guest-only"
-          ? "注册成功，已进入游客工作空间"
-          : "注册成功，已进入游客工作空间；目标工作空间等待审批",
-      );
+      toast.add({
+        type: "success",
+        title:
+          values.workspaceId === "guest-only"
+            ? "注册成功，已进入游客工作空间"
+            : "注册成功，已进入游客工作空间；目标工作空间等待审批",
+      });
       navigate(landingPath(session.user), { replace: true });
     } catch {}
   }
@@ -201,7 +203,7 @@ function RegisterPage() {
                   render={({ field }) => (
                     <Field>
                       <FieldLabel htmlFor="workspaceId">申请加入其他工作空间（可选）</FieldLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select value={field.value} onValueChange={(value) => value !== null && field.onChange(value)}>
                         <FormControl>
                           <SelectTrigger id="workspaceId" className="w-full">
                             <SelectValue placeholder={workspacesError ? "工作空间列表加载失败" : "选择目标工作空间"} />

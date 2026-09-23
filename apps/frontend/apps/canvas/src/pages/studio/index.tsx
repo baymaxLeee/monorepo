@@ -227,7 +227,7 @@ function StudioContent() {
     useState<ScriptDurationRange>(DEFAULT_SHOT_DURATION_RANGE);
   const [storyboardVideoDuration, setStoryboardVideoDuration] =
     useState<ScriptDurationRange>(DEFAULT_VIDEO_DURATION_RANGE);
-  const storyboardAbortRef = useRef<AbortController>();
+  const storyboardAbortRef = useRef<AbortController | undefined>(undefined);
   const storyboardRequestIDRef = useRef(0);
   const [selectedShotId, setSelectedShotId] = useState("");
   const [draftScript, setDraftScript] = useState("");
@@ -247,7 +247,7 @@ function StudioContent() {
   const [playingShotId, setPlayingShotId] = useState<string>();
   const [playing, setPlaying] = useState(false);
   const storyboardEditorRegionRef = useRef<HTMLElement>(null);
-  const finishEditingPromiseRef = useRef<Promise<void>>();
+  const finishEditingPromiseRef = useRef<Promise<void> | undefined>(undefined);
   const [reviewRequest, setReviewRequest] = useState<{
     item: AssetMentionItem;
     error?: string;
@@ -264,10 +264,13 @@ function StudioContent() {
   /** 已移除或取消的 draft，禁止后台写回 store。 */
   const cancelledDraftRef = useRef(new Set<string>());
   /** 编辑开始时的正式输入关系，用于取消编辑或保存失败时恢复素材连线。 */
-  const draftInputBaselineRef = useRef<{
-    edges: canvasnode.CanvasEdge[];
-    shotId: string;
-  }>();
+  const draftInputBaselineRef = useRef<
+    | {
+        edges: canvasnode.CanvasEdge[];
+        shotId: string;
+      }
+    | undefined
+  >(undefined);
   /** 当前编辑会话中新建的素材节点；移除引用时一起删除，避免留下孤立节点。 */
   const draftCreatedNodeIdsRef = useRef(new Set<string>());
   /** Start 返回 TaskRunID 前仍允许用户终止；取消请求会排在 Start 之后执行。 */

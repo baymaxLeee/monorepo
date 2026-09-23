@@ -185,7 +185,8 @@ export function Checkbox({
     <label className="inline-flex cursor-pointer items-center gap-2">
       <NativeCheckbox
         {...props}
-        checked={indeterminate ? "indeterminate" : checked}
+        checked={checked}
+        indeterminate={indeterminate}
         defaultChecked={defaultChecked}
         onCheckedChange={(next) => onChange?.(next === true)}
       />
@@ -265,7 +266,7 @@ function Selection<V extends Value>({
           )
         : items;
   const selected = items.find((item) => item.value === value);
-  // Prefix values because Radix reserves the empty string for clearing selection.
+  // Prefix values so the empty string remains reserved for clearing selection.
   const encode = (item: V | undefined) => (item === undefined ? undefined : `value:${String(item)}`);
   const menu = visibleItems.map((item) => (
     <SelectItem key={String(item.value)} value={encode(item.value)!} disabled={item.disabled}>
@@ -294,11 +295,7 @@ function Selection<V extends Value>({
           {selected && renderFormat ? renderFormat(selected) : undefined}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent
-        className={`canvas-web-theme ${dropdownMenuClassName ?? ""}`}
-        position="popper"
-        style={triggerProps?.style}
-      >
+      <SelectContent className={`canvas-web-theme ${dropdownMenuClassName ?? ""}`} style={triggerProps?.style}>
         {showSearch ? (
           <div className="sticky top-0 z-10 bg-popover p-1">
             <NativeInput
@@ -345,11 +342,15 @@ export function Slider({
       {...props}
       value={current === undefined ? undefined : Array.isArray(current) ? current : [current]}
       onValueChange={(values) => {
-        const next = range ? values : (values[0] ?? 0);
+        const next = range ? values : Array.isArray(values) ? (values[0] ?? 0) : values;
         setInternal(next);
         onChange?.(next);
       }}
-      onValueCommit={(values) => onAfterChange?.(range ? values : (values[0] ?? 0))}
+      onValueCommitted={(values) =>
+        onAfterChange?.(
+          range ? [...(Array.isArray(values) ? values : [values])] : Array.isArray(values) ? (values[0] ?? 0) : values,
+        )
+      }
     />
   );
 }

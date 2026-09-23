@@ -63,7 +63,7 @@ export function ProjectDetails({
     if (!project) return;
     const yuan = usageLimit.trim() === "" ? undefined : Number(usageLimit);
     if (yuan !== undefined && (!Number.isInteger(yuan) || yuan <= 0 || yuan > 1_000_000_000)) {
-      toast.error("项目用量限额应为正整数且不超过 10 亿元");
+      toast.add({ type: "error", title: "项目用量限额应为正整数且不超过 10 亿元" });
       return;
     }
     setSavingLimit(true);
@@ -75,7 +75,7 @@ export function ProjectDetails({
         cover_image_path: project.cover_image_path,
       });
       setProject(response.project);
-      toast.success("项目额度已保存");
+      toast.add({ type: "success", title: "项目额度已保存" });
     } finally {
       setSavingLimit(false);
     }

@@ -186,6 +186,31 @@ func encodeCanvasNodeData(node domain.CanvasNode) ([]byte, error) {
 	return encoded, nil
 }
 
+func encodeCanvasNodeDataForUpdate(node domain.CanvasNode, persisted []byte) ([]byte, error) {
+	encoded, err := encodeCanvasNodeData(node)
+	if err != nil || node.Type != domain.NodeTypeStoryboardDraft {
+		return encoded, err
+	}
+
+	currentDocument, _, err := decodeCanvasNodeData(node.Type, persisted)
+	if err != nil {
+		return nil, err
+	}
+	var updatedDocument canvasNodeData
+	if err = json.Unmarshal(encoded, &updatedDocument); err != nil {
+		return nil, fmt.Errorf("decode updated canvas node data: %w", err)
+	}
+	updatedDocument.Payload = currentDocument.Payload
+	encoded, err = json.Marshal(updatedDocument)
+	if err != nil {
+		return nil, fmt.Errorf("encode updated canvas node data: %w", err)
+	}
+	if err = validateCanvasNodeData(encoded); err != nil {
+		return nil, err
+	}
+	return encoded, nil
+}
+
 func decodeCanvasNodeData(nodeType domain.NodeType, encoded []byte) (canvasNodeData, any, error) {
 	persistedVersion, _, err := canvasNodeDataPersistedPayloadVersion(encoded)
 	if err != nil {

@@ -33,7 +33,7 @@ const RESOURCE_TYPE: Record<NonNullable<AssetMentionItem["resourceType"]>, resou
  * 和 Cursor / Codex 附件预览一样，用户感知不到后台上传。
  */
 export function useStickyBlobUrl(src?: string, identity?: string) {
-  const blobUrl = useRef<string>();
+  const blobUrl = useRef<string | undefined>(undefined);
   const previousIdentity = useRef(identity);
   if (previousIdentity.current !== identity) {
     previousIdentity.current = identity;

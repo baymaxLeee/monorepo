@@ -42,11 +42,11 @@ import { useNavigate, useParams } from "react-router-dom";
 
 function notifyValidationResult(result: SkillValidationResult) {
   if (result.ok) {
-    toast.success("验证通过，当前工作区可以发布");
+    toast.add({ type: "success", title: "验证通过，当前工作区可以发布" });
     return;
   }
   const detail = (result.issues ?? []).map((issue) => `${issue.path}: ${issue.message}`).join("；");
-  toast.error(detail || "验证未通过");
+  toast.add({ type: "error", title: detail || "验证未通过" });
 }
 
 export function SkillWorkspacePage() {
@@ -133,7 +133,7 @@ export function SkillWorkspacePage() {
     setDirty(false);
     setSkill(await fetchSkill(id));
     if (!options?.silent) {
-      toast.success("工作区已保存");
+      toast.add({ type: "success", title: "工作区已保存" });
     }
     return nextWorkspaceSeq;
   }
@@ -241,7 +241,7 @@ export function SkillWorkspacePage() {
                   notifyValidationResult(result.validation);
                   return;
                 }
-                toast.success("技能已发布");
+                toast.add({ type: "success", title: "技能已发布" });
               })
             }
           >

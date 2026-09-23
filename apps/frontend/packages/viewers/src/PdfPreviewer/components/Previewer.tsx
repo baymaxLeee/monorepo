@@ -1,11 +1,11 @@
+import { toast } from "@repo/design-system";
 import { cn } from "@repo/shared";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
-import { toast } from "sonner";
+import { Document, Page, pdfjs } from "react-pdf";
 
 import type {
   ManagedDocumentKeys,
@@ -963,7 +963,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>((props,
 
       throw new Error("Unsupported PDF file source");
     } catch {
-      toast.error("下载失败");
+      toast.add({ type: "error", title: "下载失败" });
     }
   };
 
@@ -1064,7 +1064,7 @@ const PdfPreviewerInner = forwardRef<PdfPreviewerRef, PdfPreviewerProps>((props,
   /**
    * Tooltip / DropdownMenu 等 portal 的容器：
    * - 全屏时挂到 root（否则全屏元素覆盖 body 后浮层不可见）
-   * - 非全屏时返回 null，走 radix 默认（document.body）
+   * - 非全屏时返回 null，走 Base UI 默认（document.body）
    */
   const popupContainer = isFullscreen ? rootRef.current : null;
 

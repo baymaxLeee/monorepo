@@ -6,8 +6,13 @@ catalogMode: strict
 
 catalog:
   "@xyflow/react": 12.11.3
-  "@ai-sdk/react": ^4.0.67
-  "@hookform/resolvers": ^5.4.0
+  "@ai-sdk/react": ^4.0.114
+  "@base-ui/react": ^1.8.0
+  "@hookform/resolvers": ^5.9.1
+  "@streamdown/cjk": ^1.0.3
+  "@streamdown/code": ^1.1.1
+  "@streamdown/math": ^1.0.2
+  "@streamdown/mermaid": ^1.0.2
   "@module-federation/enhanced": ^2.4.0
   "@rspack/cli": ^2.1.2
   "@rspack/core": ^2.1.2
@@ -18,19 +23,18 @@ catalog:
   "@tanstack/react-query": ^5.101.2
   "@types/react": ^18.3.0
   "@types/react-dom": ^18.3.0
-  ai: ^7.0.64
-  html-webpack-plugin: ^5.6.0
+  ai: ^7.0.111
   lucide-react: ^0.468.0
   react: ^18.3.0
   react-compiler-runtime: ^1.0.0
   react-dom: ^18.3.0
-  react-hook-form: ^7.76.0
+  react-hook-form: ^7.88.0
   react-router-dom: ^7.18.1
-  sonner: ^2.0.7
-  streamdown: ^2.5.0
+  streamdown: ^2.6.0
   tailwindcss: ^4.1.0
   typescript: ^5.4.0
-  zod: ^4.4.3
+  zod: ^4.6.5
+  shadcn: ^4.21.0
   jotai: 2.20.3
   zustand: ^5.0.2
   '@tiptap/core': 3.27.1
@@ -43,13 +47,19 @@ catalog:
   '@dagrejs/dagre': 3.1.1
   ahooks: 3.8.5
   copy-to-clipboard: 3.3.3
+  cn: ^0.3.2
+  next-themes: ^0.4.6
+  react-day-picker: ^10.0.1
+  embla-carousel-react: ^8.6.0
+  recharts: ^3.10.1
 
 overrides:
   '@tiptap/core': 3.27.1
   '@tiptap/pm': 3.27.1
+  '@types/react': "catalog:"
+  '@types/react-dom': "catalog:"
   ai: "catalog:"
   react: "catalog:"
-  react-compiler-runtime: "catalog:"
   react-dom: "catalog:"
   react-router-dom: "catalog:"
   zustand: "catalog:"
@@ -60,8 +70,6 @@ allowBuilds:
   msw: false
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.51'
-  - '@ai-sdk/mcp@2.0.31'
-  - '@ai-sdk/provider-utils@5.0.27'
-  - '@ai-sdk/react@4.0.67'
-  - ai@7.0.64
+  - '@ai-sdk/gateway@4.0.89'
+  - '@ai-sdk/react@4.0.114'
+  - ai@7.0.111

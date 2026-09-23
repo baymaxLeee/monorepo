@@ -84,10 +84,10 @@ export function ResourceAssetCreateView({
   // 槽位与草稿 Revision：默认保存的乐观锁基准，每次落库后更新。
   const slotRef = useRef(slot);
   const revisionRef = useRef<number>(0);
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const pollTimer = useRef<ReturnType<typeof setTimeout>>();
-  const activeRunRef = useRef<string>();
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const activeRunRef = useRef<string | undefined>(undefined);
   const onGeneratingChangeRef = useRef(onGeneratingChange);
   onGeneratingChangeRef.current = onGeneratingChange;
   const uploadResourceFile = useResourceUpload();

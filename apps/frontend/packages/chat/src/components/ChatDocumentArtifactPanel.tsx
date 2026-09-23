@@ -179,7 +179,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
         editable ? draftRef.current : artifact.content_md,
       );
     } catch (error) {
-      toast.error(getErrorMessage(error, "下载失败"));
+      toast.add({ type: "error", title: getErrorMessage(error, "下载失败") });
     } finally {
       setDownloading(false);
     }

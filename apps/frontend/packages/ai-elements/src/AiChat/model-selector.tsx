@@ -1,83 +1,117 @@
-import { Badge } from "@repo/design-system/shadcn/badge";
-import { Button } from "@repo/design-system/shadcn/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@repo/design-system/shadcn/dropdown-menu";
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from "@repo/design-system/shadcn/command";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@repo/design-system/shadcn/dialog";
 import { cn } from "@repo/shared";
-import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import type { ComponentProps, HTMLAttributes } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
-export type ModelSelectorOption = {
-  id: string;
-  label: string;
-  description?: string;
-  badge?: string;
-};
+export type ModelSelectorProps = ComponentProps<typeof Dialog>;
+export function ModelSelector(props: ModelSelectorProps) {
+  return <Dialog {...props} />;
+}
 
-export type ModelSelectorProps = {
-  value?: string | null;
-  options: ModelSelectorOption[];
-  onValueChange?: (value: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  className?: string;
-};
+export type ModelSelectorTriggerProps = ComponentProps<typeof DialogTrigger>;
+export function ModelSelectorTrigger(props: ModelSelectorTriggerProps) {
+  return <DialogTrigger {...props} />;
+}
 
-export function ModelSelector({
-  value,
-  options,
-  onValueChange,
-  placeholder = "Select model",
-  disabled,
+export type ModelSelectorContentProps = ComponentProps<typeof DialogContent> & { title?: ReactNode };
+export function ModelSelectorContent({
   className,
-}: ModelSelectorProps) {
-  const selected = options.find((option) => option.id === value);
+  children,
+  title = "Model Selector",
+  ...props
+}: ModelSelectorContentProps) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          className={cn("h-8 max-w-72 justify-between gap-2 text-muted-foreground hover:text-foreground", className)}
-          disabled={disabled}
-          type="button"
-          variant="ghost"
-        >
-          <span className="min-w-0 truncate">{selected?.label ?? placeholder}</span>
-          <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-72">
-        {options.map((option) => (
-          <DropdownMenuItem key={option.id} onClick={() => onValueChange?.(option.id)}>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm">{option.label}</span>
-              {option.description ? (
-                <span className="truncate text-xs text-muted-foreground">{option.description}</span>
-              ) : null}
-            </div>
-            {option.badge ? (
-              <Badge variant="outline" className="h-5 text-[10px]">
-                {option.badge}
-              </Badge>
-            ) : null}
-            {option.id === value ? <CheckIcon className="size-4" /> : null}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DialogContent
+      aria-describedby={undefined}
+      className={cn("border-none p-0 outline outline-border", className)}
+      {...props}
+    >
+      <DialogTitle className="sr-only">{title}</DialogTitle>
+      <Command className="**:data-[slot=command-input-wrapper]:h-auto">{children}</Command>
+    </DialogContent>
   );
 }
 
-export type ModelSelectorGroupProps = HTMLAttributes<HTMLDivElement>;
-
-export function ModelSelectorGroup({ className, ...props }: ModelSelectorGroupProps) {
-  return <div className={cn("flex flex-wrap items-center gap-2", className)} {...props} />;
+export type ModelSelectorDialogProps = ComponentProps<typeof CommandDialog>;
+export function ModelSelectorDialog(props: ModelSelectorDialogProps) {
+  return <CommandDialog {...props} />;
 }
 
-export type ModelSelectorLabelProps = ComponentProps<"span">;
+export type ModelSelectorInputProps = ComponentProps<typeof CommandInput>;
+export function ModelSelectorInput({ className, ...props }: ModelSelectorInputProps) {
+  return <CommandInput className={cn("h-auto py-3.5", className)} {...props} />;
+}
 
-export function ModelSelectorLabel({ className, ...props }: ModelSelectorLabelProps) {
-  return <span className={cn("text-xs text-muted-foreground", className)} {...props} />;
+export type ModelSelectorListProps = ComponentProps<typeof CommandList>;
+export function ModelSelectorList(props: ModelSelectorListProps) {
+  return <CommandList {...props} />;
+}
+
+export type ModelSelectorEmptyProps = ComponentProps<typeof CommandEmpty>;
+export function ModelSelectorEmpty(props: ModelSelectorEmptyProps) {
+  return <CommandEmpty {...props} />;
+}
+
+export type ModelSelectorGroupProps = ComponentProps<typeof CommandGroup>;
+export function ModelSelectorGroup(props: ModelSelectorGroupProps) {
+  return <CommandGroup {...props} />;
+}
+
+export type ModelSelectorItemProps = ComponentProps<typeof CommandItem>;
+export function ModelSelectorItem(props: ModelSelectorItemProps) {
+  return <CommandItem {...props} />;
+}
+
+export type ModelSelectorShortcutProps = ComponentProps<typeof CommandShortcut>;
+export function ModelSelectorShortcut(props: ModelSelectorShortcutProps) {
+  return <CommandShortcut {...props} />;
+}
+
+export type ModelSelectorSeparatorProps = ComponentProps<typeof CommandSeparator>;
+export function ModelSelectorSeparator(props: ModelSelectorSeparatorProps) {
+  return <CommandSeparator {...props} />;
+}
+
+export type ModelSelectorLogoProps = Omit<ComponentProps<"img">, "src" | "alt"> & {
+  provider: string;
+};
+export function ModelSelectorLogo({ provider, className, ...props }: ModelSelectorLogoProps) {
+  return (
+    <img
+      {...props}
+      alt={`${provider} logo`}
+      className={cn("size-3 dark:invert", className)}
+      height={12}
+      src={`https://models.dev/logos/${encodeURIComponent(provider)}.svg`}
+      width={12}
+    />
+  );
+}
+
+export type ModelSelectorLogoGroupProps = ComponentProps<"div">;
+export function ModelSelectorLogoGroup({ className, ...props }: ModelSelectorLogoGroupProps) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center -space-x-1 [&>img]:rounded-full [&>img]:bg-background [&>img]:p-px [&>img]:ring-1 dark:[&>img]:bg-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export type ModelSelectorNameProps = ComponentProps<"span">;
+export function ModelSelectorName({ className, ...props }: ModelSelectorNameProps) {
+  return <span className={cn("flex-1 truncate text-left", className)} {...props} />;
 }

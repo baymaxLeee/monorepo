@@ -70,7 +70,7 @@ export function PlatformRolesPage() {
   async function query() {
     const id = userId.trim();
     if (!id) {
-      toast.error("请输入用户 ID");
+      toast.add({ type: "error", title: "请输入用户 ID" });
       return;
     }
     setLoading(true);
@@ -93,10 +93,10 @@ export function PlatformRolesPage() {
     try {
       if (hasSuper) {
         await removeUserRole(queried, superRole.id);
-        toast.success("已撤销 super_admin");
+        toast.add({ type: "success", title: "已撤销 super_admin" });
       } else {
         await assignUserRole(queried, superRole.id);
-        toast.success("已授予 super_admin");
+        toast.add({ type: "success", title: "已授予 super_admin" });
       }
       setUserRoles(await listUserPlatformRoles(queried));
     } catch {

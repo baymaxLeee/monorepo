@@ -1,3 +1,4 @@
+import { toast } from "@repo/design-system";
 import { Input } from "@repo/design-system/shadcn/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@repo/design-system/shadcn/select";
 import { Tooltip, TooltipTrigger } from "@repo/design-system/shadcn/tooltip";
@@ -9,7 +10,6 @@ import { common, createLowlight } from "lowlight";
 import { ChevronDown, ChevronRight, Copy, WrapText } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { EditorTooltipContent } from "../../components/EditorTooltipContent";
 import { useEditorContext } from "../../context";
@@ -40,7 +40,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({ editor, node, upda
     const content = node.textContent;
 
     navigator.clipboard.writeText(content).then(() => {
-      toast.success("复制成功");
+      toast.add({ type: "success", title: "复制成功" });
     });
   };
 
@@ -84,25 +84,23 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({ editor, node, upda
           {!isCollapsed && (
             <div className="flex h-6 items-center gap-1">
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <div>
-                    <Select
-                      value={language || ""}
-                      onValueChange={(value) => updateAttributes({ language: value })}
-                      disabled={!editable}
-                    >
-                      <SelectTrigger className="h-6 w-[120px] border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 focus-visible:ring-0">
-                        <SelectValue placeholder="语言" />
-                      </SelectTrigger>
-                      <SelectContent container={popupContainer} style={{ zIndex: popupConfig.zIndex }}>
-                        {supportedLanguages.map((lang) => (
-                          <SelectItem key={lang} value={lang}>
-                            {lang}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <TooltipTrigger render={<div />}>
+                  <Select
+                    value={language || ""}
+                    onValueChange={(value) => updateAttributes({ language: value })}
+                    disabled={!editable}
+                  >
+                    <SelectTrigger className="h-6 w-[120px] border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus:ring-0 focus-visible:ring-0">
+                      <SelectValue placeholder="语言" />
+                    </SelectTrigger>
+                    <SelectContent container={popupContainer} positionerStyle={{ zIndex: popupConfig.zIndex }}>
+                      {supportedLanguages.map((lang) => (
+                        <SelectItem key={lang} value={lang}>
+                          {lang}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </TooltipTrigger>
                 <EditorTooltipContent>切换代码语言</EditorTooltipContent>
               </Tooltip>

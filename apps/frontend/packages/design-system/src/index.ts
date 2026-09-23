@@ -1,4 +1,3 @@
-export { toast } from "sonner";
 export {
   ErrorBoundary,
   type ErrorBoundaryFallback,

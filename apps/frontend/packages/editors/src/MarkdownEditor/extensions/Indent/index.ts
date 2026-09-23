@@ -1,5 +1,5 @@
+import { toast } from "@repo/design-system";
 import { Extension } from "@tiptap/core";
-import { toast } from "sonner";
 
 import type { ContentType } from "../../interface";
 
@@ -96,7 +96,7 @@ export const createIndentExtension = () =>
               return true;
             });
             if (!changed) {
-              toast.warning("已达到最大缩进层级");
+              toast.add({ type: "warning", title: "已达到最大缩进层级" });
             }
             return true;
           },
@@ -123,7 +123,7 @@ export const createIndentExtension = () =>
               return true;
             });
             if (!changed && !options?.silent) {
-              toast.warning("已达到最小缩进层级");
+              toast.add({ type: "warning", title: "已达到最小缩进层级" });
             }
             return changed;
           },

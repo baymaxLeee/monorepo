@@ -11,11 +11,10 @@ import * as React from "react";
  * 上下文（右键）菜单请使用 `ContextMenu` / shadcn 标准方案。
  *
  * 注意：本组件**不内置键盘导航**，若需要请在 trigger 一体的 `DropdownMenu`
- * 体系中实现，或后续升级为 Radix Roving Focus 模式。
+ * 体系中实现，或直接使用 Base UI 的 roving focus 行为。
  *
- * MenuItem 使用 `forwardRef` —— 用于支持作为 `<DropdownMenuTrigger asChild>` /
- * `<PopoverTrigger asChild>` 的 children；Radix 的 asChild 模式必须能拿到
- * 底层 DOM 的 ref，否则定位会失败 / 事件无法注入。
+ * MenuItem 使用 `forwardRef`，用于作为 Base UI trigger 的 `render` 元素；
+ * 原语需要底层 DOM ref 来完成定位、焦点与键盘交互。
  */
 
 export interface MenuProps extends React.HTMLAttributes<HTMLDivElement> {

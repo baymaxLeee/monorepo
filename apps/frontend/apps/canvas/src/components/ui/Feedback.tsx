@@ -5,7 +5,7 @@ import { forwardRef, type ComponentProps, type CSSProperties, type ReactNode } f
 type Notice = ReactNode | { content: ReactNode; duration?: number; id?: string };
 function notice(value: Notice, kind: "success" | "error" | "warning" | "info" | "loading") {
   const config = value && typeof value === "object" && "content" in value ? value : { content: value };
-  return toast[kind](config.content, { id: config.id, duration: config.duration });
+  return toast.add({ id: config.id, timeout: config.duration, title: config.content, type: kind });
 }
 export const Message = {
   success: (value: Notice) => notice(value, "success"),
@@ -13,7 +13,7 @@ export const Message = {
   warning: (value: Notice) => notice(value, "warning"),
   info: (value: Notice) => notice(value, "info"),
   loading: (value: Notice) => notice(value, "loading"),
-  clear: () => toast.dismiss(),
+  clear: () => toast.close(),
 };
 
 export function Spin({

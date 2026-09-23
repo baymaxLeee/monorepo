@@ -29,10 +29,10 @@ export function useCanvasEditor({
   const [largeTextEditorNodeId, setLargeTextEditorNodeId] = useState("");
   const [largeTextPreviewNodeId, setLargeTextPreviewNodeId] = useState("");
   const [editorSaving, setEditorSaving] = useState(false);
-  const frameSwapRef = useRef<Promise<void>>();
-  const editingItemRef = useRef<canvasnode.CanvasNode>();
+  const frameSwapRef = useRef<Promise<void> | undefined>(undefined);
+  const editingItemRef = useRef<canvasnode.CanvasNode | undefined>(undefined);
   const editingDraftRef = useRef("");
-  const editorClosingRef = useRef<Promise<boolean>>();
+  const editorClosingRef = useRef<Promise<boolean> | undefined>(undefined);
   const editorRequestRef = useRef(0);
 
   useEffect(() => {

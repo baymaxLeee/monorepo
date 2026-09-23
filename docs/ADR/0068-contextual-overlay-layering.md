@@ -7,7 +7,7 @@
 
 Canvas had modal and popup constants for each screen depth and passed `popupZIndex` through reusable editors, configuration controls, and asset strips. This copied a visual infrastructure concern into domain components. It also failed compositionally: every new nested dialog required another pair of numbers, only selected popup primitives honored them, and changing content z-index could leave its overlay behind.
 
-Radix portals append DOM under `document.body`, but React context still follows the logical component tree across a portal. Ant Design and Arco Design expose a base modal/popup z-index, popup-container control, and contextual behavior for popup children. Material Design and Atlassian likewise model elevation as a small set of semantic layers.
+Base UI portals append DOM under `document.body` by default, but React context still follows the logical component tree across a portal. Ant Design and Arco Design expose a base modal/popup z-index, popup-container control, and contextual behavior for popup children. Material Design and Atlassian likewise model elevation as a small set of semantic layers.
 
 ## Decision
 
@@ -18,16 +18,17 @@ Radix portals append DOM under `document.body`, but React context still follows 
 - child popup: modal + 50;
 - nested modal: parent modal + 100.
 
-The numbers are private implementation details. Business code expresses JSX ownership and nesting, not numeric layer topology. Modal `zIndex` and `popupZIndex`, popup `style.zIndex`, and portal `container` remain narrow interoperability escape hatches.
+The numbers are private implementation details. Business code expresses JSX ownership and nesting, not numeric layer topology. Popup `style.zIndex` and portal `container` remain narrow interoperability escape hatches for third-party surfaces and real DOM boundaries.
 
-This mechanism covers Dialog, AlertDialog, Sheet, Drawer, ImagePreview, Select, Popover, DropdownMenu, Tooltip, ContextMenu, HoverCard, and Menubar. New portalled primitives must join the same scope before use.
+This mechanism is implemented on the shadcn Base Nova components backed by `@base-ui/react`. It covers Dialog, AlertDialog, Sheet, Drawer, ImagePreview, Select, Popover, DropdownMenu, Tooltip, ContextMenu, HoverCard, and Menubar. `Portal.container` remains independent from layer calculation, while popup positioning belongs to `Positioner`. New portalled primitives must join the same scope before use.
 
 ## Alternatives rejected
 
 - A repository-wide list of named numeric tokens still requires callers to select and thread the correct depth, and grows with feature-specific nesting.
 - DOM-order-only stacking is unstable when multiple primitive implementations and custom containers coexist.
 - Always portalling into the nearest modal avoids some z-index work but introduces overflow clipping, positioning, focus, and stacking-context coupling. Container selection remains an independent layout decision.
-- Native top-layer migration is not used now because the current Radix primitives, dismissal behavior, and browser interaction contracts are already established. It can replace the implementation later without changing the business-facing composition rule.
+- Retaining Radix beside Base UI was rejected because two equivalent primitive stacks duplicate accessibility behavior, composition APIs, dependencies, and agent decision paths. This repository has no legacy-compatibility requirement.
+- Native top-layer migration is not used now because Base UI provides the required focus, dismissal, positioning, portal, and nested-composition contracts. It can replace the implementation later without changing the business-facing composition rule.
 
 ## Consequences
 

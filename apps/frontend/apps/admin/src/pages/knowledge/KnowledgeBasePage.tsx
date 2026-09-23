@@ -131,13 +131,13 @@ export function KnowledgeBasePage() {
     try {
       const result = await ingestKnowledgeDocuments(files);
       for (const failure of result.failed) {
-        toast.error(`导入失败：${failure.error}`);
+        toast.add({ type: "error", title: `导入失败：${failure.error}` });
       }
       if (result.documents.length > 0) {
-        toast.success(`已接收 ${result.documents.length} 个文档，正在后台解析与索引`);
+        toast.add({ type: "success", title: `已接收 ${result.documents.length} 个文档，正在后台解析与索引` });
       }
     } catch (e) {
-      toast.error(getErrorMessage(e));
+      toast.add({ type: "error", title: getErrorMessage(e) });
     } finally {
       setUploading(false);
       load();
@@ -161,10 +161,10 @@ export function KnowledgeBasePage() {
   async function retryIndex(doc: KnowledgeDocument) {
     try {
       await reindexKnowledgeDocument(doc.id);
-      toast.success("已重新提交索引");
+      toast.add({ type: "success", title: "已重新提交索引" });
       load();
     } catch (e) {
-      toast.error(getErrorMessage(e));
+      toast.add({ type: "error", title: getErrorMessage(e) });
     }
   }
 
@@ -174,7 +174,7 @@ export function KnowledgeBasePage() {
     }
     try {
       await deleteKnowledgeDocument(doc.id);
-      toast.success("已删除");
+      toast.add({ type: "success", title: "已删除" });
       load();
     } catch {}
   }
@@ -189,7 +189,7 @@ export function KnowledgeBasePage() {
     }
     try {
       const res = await batchDeleteKnowledgeDocuments(ids);
-      toast.success(`已删除 ${res.deleted} 个文档`);
+      toast.add({ type: "success", title: `已删除 ${res.deleted} 个文档` });
       load();
     } catch {}
   }

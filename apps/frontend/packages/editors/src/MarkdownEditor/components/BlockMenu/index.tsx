@@ -37,8 +37,8 @@ interface BlockMenuProps {
  * - "+" trigger 24×24 方块 / 1px border / 圆角 4 / hover 浅蓝放大 / active 缩小
  * - popup 圆角 8 / max-height 600 / 内部滚动 / 隐藏滚动条
  * - MenuItem 32px 高 / icon 16px / 与文字 8px 间距
- * - "其他标题" / "表格" 两处 hover 弹出二级面板（原 arco SubMenu / Trigger trigger="hover"），
- *   现统一用 `Popover trigger="hover"` —— 与 toolbar 内 NodeType / Align / 颜色保持一致。
+ * - "其他标题" / "表格" 两处 hover 弹出二级面板，统一使用 Base UI
+ *   `PopoverTrigger openOnHover`，与 toolbar 内 NodeType / Align / 颜色保持一致。
  */
 export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
   const [visible, setVisible] = useState(false);
@@ -50,7 +50,7 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
     popupConfig: ctx.popupConfig,
   }));
   const popupContainer = popupConfig.getContainer(editor.view.dom);
-  const popupStyle = { zIndex: popupConfig.zIndex };
+  const positionerStyle = { zIndex: popupConfig.zIndex };
 
   const handleInsert = (command: () => void) => {
     command();
@@ -73,21 +73,23 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
     <FloatingMenu editor={editor}>
       <div className="-translate-x-[2.4em]">
         <Popover open={visible} onOpenChange={setVisible}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-label="插入块"
-              className="group/blockmenu-trigger flex size-6 cursor-pointer select-none items-center justify-center rounded border bg-background transition-all hover:scale-105 hover:border-blue-500 hover:bg-blue-50 active:scale-95"
-            >
-              <span className="font-serif text-lg font-light leading-none text-muted-foreground transition-colors group-hover/blockmenu-trigger:text-blue-600">
-                +
-              </span>
-            </button>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                aria-label="插入块"
+                className="group/blockmenu-trigger flex size-6 cursor-pointer select-none items-center justify-center rounded border bg-background transition-all hover:scale-105 hover:border-blue-500 hover:bg-blue-50 active:scale-95"
+              />
+            }
+          >
+            <span className="font-serif text-lg font-light leading-none text-muted-foreground transition-colors group-hover/blockmenu-trigger:text-blue-600">
+              +
+            </span>
           </PopoverTrigger>
 
           <PopoverContent
             container={popupContainer}
-            style={popupStyle}
+            positionerStyle={positionerStyle}
             side="bottom"
             align="start"
             sideOffset={4}
@@ -113,13 +115,13 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                 >
                   三级标题
                 </MenuItem>
-                <Popover trigger="hover">
-                  <PopoverTrigger asChild>
-                    <MenuItem icon={<Heading />}>其他标题</MenuItem>
+                <Popover>
+                  <PopoverTrigger openOnHover render={<MenuItem icon={<Heading />} />}>
+                    其他标题
                   </PopoverTrigger>
                   <PopoverContent
                     container={popupContainer}
-                    style={popupStyle}
+                    positionerStyle={positionerStyle}
                     side="right"
                     align="start"
                     sideOffset={8}
@@ -196,13 +198,13 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                     图片
                   </MenuItem>
                 )}
-                <Popover trigger="hover">
-                  <PopoverTrigger asChild>
-                    <MenuItem icon={<TableIcon />}>表格</MenuItem>
+                <Popover>
+                  <PopoverTrigger openOnHover render={<MenuItem icon={<TableIcon />} />}>
+                    表格
                   </PopoverTrigger>
                   <PopoverContent
                     container={popupContainer}
-                    style={popupStyle}
+                    positionerStyle={positionerStyle}
                     side="right"
                     align="start"
                     sideOffset={8}
@@ -222,7 +224,6 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
           </PopoverContent>
         </Popover>
       </div>
-
       <input
         type="file"
         ref={fileInputRef}

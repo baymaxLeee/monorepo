@@ -63,34 +63,36 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
 
   return (
     <Popover {...props}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="rounded-full"
-          aria-label={percent != null ? `上下文已使用 ${percent}%` : "查看上下文用量"}
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="rounded-full"
+            aria-label={percent != null ? `上下文已使用 ${percent}%` : "查看上下文用量"}
+          />
+        }
+      >
+        <svg
+          aria-hidden="true"
+          className={cn("size-5 -rotate-90", ringClass, loading && "animate-pulse")}
+          viewBox="0 0 24 24"
         >
-          <svg
-            aria-hidden="true"
-            className={cn("size-5 -rotate-90", ringClass, loading && "animate-pulse")}
-            viewBox="0 0 24 24"
-          >
-            <circle cx="12" cy="12" r={RADIUS} fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-            <circle
-              cx="12"
-              cy="12"
-              r={RADIUS}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              opacity="0.7"
-              strokeDasharray={hasUsage && utilization == null ? "2 4" : CIRCUMFERENCE}
-              strokeDashoffset={hasUsage && utilization == null ? 0 : CIRCUMFERENCE * (1 - fraction)}
-            />
-          </svg>
-        </Button>
+          <circle cx="12" cy="12" r={RADIUS} fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+          <circle
+            cx="12"
+            cy="12"
+            r={RADIUS}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            opacity="0.7"
+            strokeDasharray={hasUsage && utilization == null ? "2 4" : CIRCUMFERENCE}
+            strokeDashoffset={hasUsage && utilization == null ? 0 : CIRCUMFERENCE * (1 - fraction)}
+          />
+        </svg>
       </PopoverTrigger>
       <PopoverContent align="center" side="top" className="w-72 space-y-2.5 p-3">
         <h3 className="text-sm font-medium">Context Usage</h3>

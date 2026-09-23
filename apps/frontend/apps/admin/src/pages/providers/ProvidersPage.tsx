@@ -23,7 +23,6 @@ import {
   CardHeader,
   CardTitle,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -290,7 +289,7 @@ export function ProvidersPage() {
           patch.api_key = values.api_key.trim();
         }
         await updateModelProvider(editing.id, patch);
-        toast.success("模型已更新");
+        toast.add({ type: "success", title: "模型已更新" });
         setEditing(null);
       } else {
         if (!values.api_key.trim()) {
@@ -312,7 +311,7 @@ export function ProvidersPage() {
           is_enabled: values.is_enabled,
         };
         await createModelProvider(payload);
-        toast.success("模型已创建");
+        toast.add({ type: "success", title: "模型已创建" });
         setCreateOpen(false);
       }
       form.reset(defaults);
@@ -325,14 +324,14 @@ export function ProvidersPage() {
       return;
     }
     await deleteModelProvider(provider.id);
-    toast.success("已删除");
+    toast.add({ type: "success", title: "已删除" });
     load();
   }
 
   async function markDefault(provider: ModelProvider) {
     try {
       await setDefaultModelProvider(provider.id);
-      toast.success(`「${provider.name}」已设为默认`);
+      toast.add({ type: "success", title: `「${provider.name}」已设为默认` });
       load();
     } catch {}
   }
@@ -344,9 +343,9 @@ export function ProvidersPage() {
       const result = await testModelProvider(provider.id, {});
       setTestResult({ provider, result });
       if (result.ok) {
-        toast.success(`连通成功（${result.latency_ms ?? "?"} ms）`);
+        toast.add({ type: "success", title: `连通成功（${result.latency_ms ?? "?"} ms）` });
       } else {
-        toast.error(`连通失败：${result.error ?? "unknown"}`);
+        toast.add({ type: "error", title: `连通失败：${result.error ?? "unknown"}` });
       }
     } catch {
     } finally {
@@ -371,14 +370,12 @@ export function ProvidersPage() {
           <Button onClick={openCreate}>新增模型</Button>
         </PageActions>
       </PageHeader>
-
       {error && (
         <Alert variant="destructive">
           <AlertTitle>请求失败</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-
       <Card>
         <CardHeader>
           <CardTitle>全部 Provider</CardTitle>
@@ -450,7 +447,6 @@ export function ProvidersPage() {
           )}
         </CardContent>
       </Card>
-
       <ProviderFormDialog
         open={createOpen || Boolean(editing)}
         title={editing ? "编辑模型 Provider" : "新增模型 Provider"}
@@ -465,7 +461,6 @@ export function ProvidersPage() {
         }}
         onSubmit={save}
       />
-
       <Dialog open={Boolean(testResult)} onOpenChange={(open) => !open && setTestResult(null)}>
         <DialogContent>
           <DialogHeader>
@@ -481,7 +476,7 @@ export function ProvidersPage() {
             </DialogTitle>
             <DialogDescription>连通性测试结果</DialogDescription>
           </DialogHeader>
-          <DialogBody>
+          <div>
             {testResult && (
               <div className="space-y-2 text-sm">
                 {testResult.result.ok ? (
@@ -518,7 +513,7 @@ export function ProvidersPage() {
                 )}
               </div>
             )}
-          </DialogBody>
+          </div>
         </DialogContent>
       </Dialog>
     </Page>
@@ -570,7 +565,7 @@ function ProviderFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-xl flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -579,7 +574,7 @@ function ProviderFormDialog({
             鉴权，不创建生成任务。
           </DialogDescription>
         </DialogHeader>
-        <DialogBody>
+        <div className="scrollbar-thin -mx-4 min-h-0 flex-1 overflow-y-auto px-4">
           <Form {...form}>
             <form id="provider-form" onSubmit={form.handleSubmit(onSubmit)}>
               <FieldGroup>
@@ -591,7 +586,8 @@ function ProviderFormDialog({
                       <FieldLabel>类型</FieldLabel>
                       <Select
                         value={field.value}
-                        onValueChange={(value: ProviderKind) => {
+                        onValueChange={(value) => {
+                          if (value === null) return;
                           field.onChange(value);
                           if (value !== "chat") {
                             form.setValue("is_default", false);
@@ -851,7 +847,7 @@ function ProviderFormDialog({
               </FieldGroup>
             </form>
           </Form>
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             取消

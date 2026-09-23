@@ -18,19 +18,35 @@ function ModalLayerProvider({ children, layer }: { children: ReactNode; layer: P
   return <PortalLayerContext.Provider value={layer}>{children}</PortalLayerContext.Provider>;
 }
 
-function useModalLayer({ popupZIndex, zIndex }: { popupZIndex?: number; zIndex?: number } = {}): PortalLayer {
+function useModalLayer(): PortalLayer {
   const parentLayer = useContext(PortalLayerContext);
-  const modalZIndex = zIndex ?? (parentLayer ? parentLayer.modalZIndex + MODAL_LAYER_STEP : DEFAULT_MODAL_Z_INDEX);
+  const modalZIndex = parentLayer ? parentLayer.modalZIndex + MODAL_LAYER_STEP : DEFAULT_MODAL_Z_INDEX;
   return {
     modalZIndex,
-    popupZIndex: popupZIndex ?? modalZIndex + POPUP_LAYER_OFFSET,
+    popupZIndex: modalZIndex + POPUP_LAYER_OFFSET,
   };
 }
 
-function usePortalLayerStyle(style?: CSSProperties) {
-  const layer = useContext(PortalLayerContext);
-  if (!layer || style?.zIndex !== undefined) return style;
-  return { ...style, zIndex: layer.popupZIndex };
+type StatefulStyle<State> = CSSProperties | ((state: State) => CSSProperties | undefined);
+
+function withLayerZIndex<State>(style: StatefulStyle<State> | undefined, zIndex: number): StatefulStyle<State> {
+  if (typeof style === "function") {
+    return (state) => {
+      const resolved = style(state);
+      return resolved?.zIndex === undefined ? { ...resolved, zIndex } : resolved;
+    };
+  }
+  return style?.zIndex === undefined ? { ...style, zIndex } : style;
 }
 
-export { ModalLayerProvider, useModalLayer, usePortalLayerStyle };
+function useModalLayerStyle<State>(style: StatefulStyle<State> | undefined, zIndex: number) {
+  return withLayerZIndex(style, zIndex);
+}
+
+function usePortalLayerStyle<State>(style?: StatefulStyle<State>) {
+  const layer = useContext(PortalLayerContext);
+  if (!layer) return style;
+  return withLayerZIndex(style, layer.popupZIndex);
+}
+
+export { ModalLayerProvider, useModalLayer, useModalLayerStyle, usePortalLayerStyle };

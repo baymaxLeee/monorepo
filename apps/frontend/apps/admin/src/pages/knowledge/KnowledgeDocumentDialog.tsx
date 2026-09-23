@@ -68,7 +68,7 @@ export function KnowledgeDocumentDialog({ documentId, onOpenChange, onSaved }: K
         title: title.trim() || filename,
         content_md: content,
       });
-      toast.success("文档已保存，知识库索引已更新");
+      toast.add({ type: "success", title: "文档已保存，知识库索引已更新" });
       onSaved();
       onOpenChange(false);
     } catch {

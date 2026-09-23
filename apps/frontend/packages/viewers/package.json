@@ -21,7 +21,6 @@
     "react-compiler-runtime": "catalog:",
     "react-pdf": "^10",
     "simple-mind-map": "0.14.0-fix.2",
-    "sonner": "catalog:",
     "xml-js": "^1.6.11"
   },
   "devDependencies": {

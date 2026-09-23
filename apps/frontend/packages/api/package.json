@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@repo/observability": "workspace:*",
-    "axios": "^1.13.0",
-    "sonner": "catalog:"
+    "@repo/runtime": "workspace:*",
+    "axios": "^1.13.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

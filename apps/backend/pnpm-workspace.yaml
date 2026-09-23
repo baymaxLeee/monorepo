@@ -4,18 +4,21 @@ packages:
   - "services/chat"
   - "services/executor"
 
+catalogMode: strict
+
 catalog:
-  ai: ^7.0.64
+  ai: ^7.0.111
   "@typescript/native": npm:typescript@^7.0.2
-  "@ai-sdk/openai": ^4.0.41
-  "@ai-sdk/provider": ^4.0.7
-  "@ai-sdk/provider-utils": ^5.0.27
-  "@hono/node-server": ^2.1.0
-  "@hono/zod-validator": ^0.9.0
-  "@workflow/world-postgres": ^4.3.3
-  hono: ^4.13.1
-  nitro: 3.0.260610-beta
-  workflow: ^4.8.2
+  "@ai-sdk/openai": ^4.0.72
+  "@ai-sdk/provider": ^4.0.17
+  "@ai-sdk/provider-utils": ^5.0.45
+  "@hono/node-server": ^2.1.1
+  "@hono/zod-validator": ^0.9.1
+  "@workflow/world-postgres": ^4.3.7
+  hono: ^4.13.8
+  nitro: 3.0.260903-beta
+  workflow: ^4.8.9
+  zod: ^4.6.5
 
 # These packages ship usable prebuilt/JS fallbacks; no install scripts needed.
 allowBuilds:
@@ -25,16 +28,8 @@ allowBuilds:
   protobufjs: false
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/openai@4.0.41'
-  - '@ai-sdk/provider-utils@5.0.27'
-  - '@ai-sdk/provider@4.0.7'
-  - ai@7.0.64
-  - '@aws-sdk/core@3.974.25'
-  - '@aws-sdk/nested-clients@3.997.25'
-  - '@aws-sdk/signature-v4-multi-region@3.996.37'
-  - crossws@0.4.7
-  - env-runner@0.1.15
-  - httpxy@0.5.4
-  - srvx@0.11.18
-  - '@ai-sdk/gateway@4.0.51'
-  - nf3@0.3.19
+  - '@ai-sdk/gateway@4.0.89'
+  - ai@7.0.111
+
+overrides:
+  zod: "catalog:"

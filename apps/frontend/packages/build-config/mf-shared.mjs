@@ -49,8 +49,6 @@ const TIER1 = {
     requiredVersion: "^18.0.0",
     strictVersion: true,
   },
-  // React Compiler memoization polyfill (React 18). Wraps React hooks, so it
-  // must share the single React instance — keep it a singleton like react.
   "react-compiler-runtime": {
     singleton: true,
     requiredVersion: "^1.0.0",
@@ -96,7 +94,6 @@ const TIER3 = {
     requiredVersion: "^5.0.0",
     strictVersion: false,
   },
-  sonner: { singleton: true, requiredVersion: "^2.0.0", strictVersion: false },
 };
 
 const EDITOR_SINGLETON_SPEC = {
