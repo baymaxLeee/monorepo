@@ -181,7 +181,7 @@ export function CanvasPromptEditor({
       <div
         className={styles.body}
         data-matching={matching.matching || undefined}
-        {...(matching.matching ? { inert: "" } : {})}
+        inert={matching.matching || undefined}
       >
         {references.length > 0 ? (
           <div className={styles.referenceRow}>
@@ -240,7 +240,7 @@ export function CanvasPromptEditor({
         />
       </div>
       <div className={styles.footer}>
-        <div className={styles.settings} {...(matching.matching ? { inert: "" } : {})}>
+        <div className={styles.settings} inert={matching.matching || undefined}>
           {footer}
         </div>
         {generating && cancelDisabled ? (

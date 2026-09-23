@@ -10,5 +10,5 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "workflows/**/*.ts", "nitro.config.ts"]
+  "include": ["src/**/*.ts", "workflows/**/*.ts", "scripts/**/*.ts", "nitro.config.ts"]
 }

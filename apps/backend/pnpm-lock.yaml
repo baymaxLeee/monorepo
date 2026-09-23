@@ -24,6 +24,9 @@ catalogs:
     '@typescript/native':
       specifier: npm:typescript@^7.0.2
       version: 7.0.2
+    '@workflow/builders':
+      specifier: ^4.1.14
+      version: 4.1.14
     '@workflow/world-postgres':
       specifier: ^4.3.7
       version: 4.3.7
@@ -172,6 +175,9 @@ importers:
       '@backend/transport-ts':
         specifier: workspace:*
         version: link:../../libs/transport-ts
+      '@hono/node-server':
+        specifier: 'catalog:'
+        version: 2.1.1(hono@4.13.8)
       '@hono/zod-validator':
         specifier: 'catalog:'
         version: 0.9.1(hono@4.13.8)(zod@4.6.5)
@@ -203,6 +209,9 @@ importers:
       '@typescript/native':
         specifier: 'catalog:'
         version: typescript@7.0.2
+      '@workflow/builders':
+        specifier: 'catalog:'
+        version: 4.1.14(@opentelemetry/api@1.9.1)
       nitro:
         specifier: 'catalog:'
         version: 3.0.260903-beta

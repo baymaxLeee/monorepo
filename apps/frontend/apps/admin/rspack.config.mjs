@@ -33,7 +33,7 @@ export default defineConfig({
     alias: createAppResolveAlias(appDir),
   },
   module: {
-    rules: [createSwcRule({ reactCompiler: { target: "18" } }), createRemoteCssRule()],
+    rules: [createSwcRule({ reactCompiler: { target: "19" } }), createRemoteCssRule()],
   },
   plugins: [
     new ModuleFederationPlugin({

@@ -28,7 +28,7 @@ export default defineConfig({
   },
   module: {
     rules: [
-      createSwcRule({ reactCompiler: { target: "18" } }),
+      createSwcRule({ reactCompiler: { target: "19" } }),
       createRemoteCssRule(),
       {
         ...createRemoteCssRule(),

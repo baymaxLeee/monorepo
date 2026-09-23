@@ -54,7 +54,7 @@ export default defineConfig({
   },
   module: {
     rules: [
-      createSwcRule({ reactCompiler: { target: "18" } }),
+      createSwcRule({ reactCompiler: { target: "19" } }),
       createHostCssRule({
         loader: isProduction ? rspack.CssExtractRspackPlugin.loader : "style-loader",
       }),

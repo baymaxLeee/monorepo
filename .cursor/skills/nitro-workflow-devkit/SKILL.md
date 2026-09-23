@@ -27,11 +27,9 @@ class of bugs.
 
 ## Known bug 1: `nf3`/`@vercel/nft` ESM/CJS interop breaks `nitro build`
 
-**Status: fixed upstream in `nf3@0.3.19`.** This repo now pins `nf3: 0.3.19`
-via `overrides` in `apps/backend/pnpm-workspace.yaml` (nitro only requires
-`^0.3.17`, so without the pin pnpm could resolve back to the broken 0.3.18) and
-carries **no** local patch. The rest of this section is kept as the fallback
-recipe in case a future `nitro`/`nf3` bump reintroduces it.
+**Status: fixed upstream in `nf3@0.3.19`.** The current
+`nitro@3.0.260903-beta` requires `nf3@^0.3.24`, and this repo resolves
+`nf3@0.3.24` without an override or local patch.
 
 **Symptom**: `nitro build` (production bundling) fails with
 `SyntaxError: Named export 'nodeFileTrace' not found` (or similar) coming
@@ -42,24 +40,17 @@ but `@vercel/nft` ships as CommonJS; that named-export form doesn't reliably
 interop through Nitro/rollup's bundling. `nf3@0.3.19` switched to a
 default-import destructure and resolves it.
 
-**Fix (only if it reappears on a version without the upstream fix)**: first try
-bumping/pinning `nf3` to a fixed release. If none exists, `pnpm patch` the exact
-`nf3` version pinned in your lockfile — change the import to a default-import +
-destructure:
+**Do not reintroduce the local patch.** If this symptom returns, first verify
+the resolved Nitro and `nf3` versions, reproduce it against the newest official
+release, and upgrade or report the regression upstream. A workspace-wide pnpm
+patch couples every backend Docker build to the patch file before `--filter`
+narrows the install, so it is not an accepted long-term fix in this repo.
 
-```js
-import __vercelNftPkg from "@vercel/nft";
-const { nodeFileTrace } = __vercelNftPkg;
-```
+## Former bug 2: `nf3` miscalculates `../` depth copying `@vercel/oidc`
 
-A patch would live at `apps/backend/patches/nf3@<version>.patch`, wired via
-`patchedDependencies` in `apps/backend/pnpm-workspace.yaml`. Note that a
-workspace-wide patch forces every backend `Dockerfile` running `pnpm install`
-to `COPY apps/backend/patches` first (pnpm hashes referenced patch files before
-`--filter` narrows anything) — which is exactly the coupling we removed by
-moving to the upstream fix.
-
-## Known bug 2: `nf3` miscalculates `../` depth copying `@vercel/oidc`
+**Status: fixed in the current Nitro/nf3 stack.** A clean Executor production
+build places `@vercel/oidc` in `.output/server/_libs`; the former
+`fix-oidc-trace.mjs` post-build copy/rewrite script has been deleted.
 
 **Symptom**: The build succeeds, but the built server crashes at boot with
 `MODULE_NOT_FOUND` for something like
@@ -74,18 +65,10 @@ built `_runtime.mjs` looks for it. `noExternals: [...]` in `nitro.config.ts`
 does **not** fix this — the tracer's copy step runs independently of that
 option.
 
-**Fix**: a `postbuild` script that copies the missing files to the exact
-(miscalculated) path the built runtime expects. Reference implementation:
-`apps/backend/services/executor/scripts/fix-oidc-trace.mjs`, wired as
-`"build": "nitro build && node scripts/fix-oidc-trace.mjs"` in
-`package.json` — always runs automatically, never a manual step. Adapt the
-path-depth constant in that script if the new service sits at a different
-nesting depth than `executor`.
-
-**Before assuming this bug is still present**: re-run a clean build first.
-Both bugs are specific to a young Nitro v3 beta + this monorepo's nesting
-depth, not to Workflow DevKit itself — check if they're still reproducible
-whenever `nitro`/`workflow`/`ai` get bumped.
+**Do not restore the post-build rewrite.** If the failure returns, reproduce it
+with a clean build, inspect the generated `_libs` tree, and move to an upstream
+Nitro/nf3 fix. Do not make the bundle depend on the build machine's pnpm-store
+path depth.
 
 ## pnpm monorepo trap: shared lib re-exporting `@ai-sdk/*` types
 
@@ -153,7 +136,7 @@ dedicated investigation. Weigh this against the extra container/memory cost
 before defaulting a new service to Local World "for a lighter `just up`" —
 that lightness has a real cost in coverage.
 
-## Known bug 3: Postgres World's queue never starts on this Nitro version
+## Known bug 3: Postgres World's queue is not started automatically
 
 **Symptom**: `WORKFLOW_TARGET_WORLD=@workflow/world-postgres` +
 `WORKFLOW_POSTGRES_URL` are set correctly, `npx workflow-postgres-setup` ran
@@ -166,14 +149,13 @@ anything — the graphile-worker queue that actually processes steps only
 begins polling once something calls `getWorld().start()`. The docs' Nitro
 example wires this via a plugin importing `defineNitroPlugin` from
 `"nitro/~internal/runtime/plugin"` — but that subpath is not in
-`nitro@3.0.260610-beta`'s own `exports` map (confirm with
+`nitro@3.0.260903-beta`'s own `exports` map (confirm with
 `node -e "console.log(Object.keys(require('nitro/package.json').exports))"`),
 so the official example fails to resolve at build time.
 
-**Fix**: skip Nitro's plugin system and call `getWorld().start()` directly at
-module scope in your Nitro-mounted entry file (the same file that already
-does anything else at boot, e.g. `reconcilePendingTasks()` in this repo's
-`executor/src/index.ts`):
+**Fix**: skip Nitro's plugin system and call `getWorld().start()` directly
+during service bootstrap (the same path that already performs boot recovery,
+`executor/src/bootstrap/runtime.ts` in this repo):
 
 ```ts
 import { getWorld } from "workflow/runtime";

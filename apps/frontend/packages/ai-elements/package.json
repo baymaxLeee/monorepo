@@ -30,7 +30,6 @@
     "@tiptap/suggestion": "^3.27.1",
     "ai": "catalog:",
     "lucide-react": "catalog:",
-    "react-compiler-runtime": "catalog:",
     "streamdown": "catalog:",
     "use-stick-to-bottom": "^1.1.6"
   },
@@ -41,7 +40,7 @@
     "@typescript/native": "catalog:"
   },
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

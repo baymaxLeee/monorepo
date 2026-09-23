@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm build && pnpm start",
+    "dev": "pnpm dev:prepare && tsx src/dev.ts",
+    "dev:prepare": "tsx scripts/build-workflows.ts",
     "dev:watch": "nitro dev",
     "build": "nitro build",
     "start": "node --env-file=.env .output/server/index.mjs",
@@ -15,6 +16,7 @@
   "dependencies": {
     "@backend/kernel-ts": "workspace:*",
     "@backend/transport-ts": "workspace:*",
+    "@hono/node-server": "catalog:",
     "@hono/zod-validator": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "ai": "catalog:",
@@ -27,6 +29,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@typescript/native": "catalog:",
+    "@workflow/builders": "catalog:",
     "nitro": "catalog:",
     "rollup": "^4.62.2",
     "tsx": "^4.19.0",

@@ -28,31 +28,26 @@
 
 // react core must singleton
 const TIER1 = {
-  react: { singleton: true, requiredVersion: "^18.0.0", strictVersion: true },
+  react: { singleton: true, requiredVersion: "^19.0.0", strictVersion: true },
   "react/jsx-runtime": {
     singleton: true,
-    requiredVersion: "^18.0.0",
+    requiredVersion: "^19.0.0",
     strictVersion: true,
   },
   "react/jsx-dev-runtime": {
     singleton: true,
-    requiredVersion: "^18.0.0",
+    requiredVersion: "^19.0.0",
     strictVersion: true,
   },
   "react-dom": {
     singleton: true,
-    requiredVersion: "^18.0.0",
+    requiredVersion: "^19.0.0",
     strictVersion: true,
   },
   "react-dom/client": {
     singleton: true,
-    requiredVersion: "^18.0.0",
+    requiredVersion: "^19.0.0",
     strictVersion: true,
-  },
-  "react-compiler-runtime": {
-    singleton: true,
-    requiredVersion: "^1.0.0",
-    strictVersion: false,
   },
   "react-router": {
     singleton: true,

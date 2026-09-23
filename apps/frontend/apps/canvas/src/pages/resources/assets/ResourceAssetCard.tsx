@@ -46,7 +46,7 @@ type ResourceAssetCardProps = {
   rename: {
     renaming: boolean;
     renameValue: string;
-    renameInputRef: RefObject<HTMLInputElement>;
+    renameInputRef: RefObject<HTMLInputElement | null>;
     setRenameValue: (value: string) => void;
     cancelRename: () => void;
     saveRename: (file: resource.ResourceAsset) => void;

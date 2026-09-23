@@ -18,7 +18,6 @@
     "jszip": "3.10.1",
     "lucide-react": "catalog:",
     "pdfjs-dist": "5.4.296",
-    "react-compiler-runtime": "catalog:",
     "react-pdf": "^10",
     "simple-mind-map": "0.14.0-fix.2",
     "xml-js": "^1.6.11"
@@ -30,7 +29,7 @@
     "@typescript/native": "catalog:"
   },
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

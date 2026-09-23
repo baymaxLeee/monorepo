@@ -1,7 +1,7 @@
-import { canvasArchiveInputSchema, canvasArchiveWorkflow } from "../../../workflows/canvas-archive.js";
-import { canvasVideoFramesInputSchema, canvasVideoFramesWorkflow } from "../../../workflows/canvas-video-frames.js";
-import { fileTaskBatchInputSchema, fileTaskBatchWorkflow } from "../../../workflows/file-task-batch.js";
-import { videoGenerationInputSchema, videoGenerationWorkflow } from "../../../workflows/video-generation.js";
+import { canvasArchiveInputSchema } from "../../../workflows/canvas-archive.js";
+import { canvasVideoFramesInputSchema } from "../../../workflows/canvas-video-frames.js";
+import { fileTaskBatchInputSchema } from "../../../workflows/file-task-batch.js";
+import { videoGenerationInputSchema } from "../../../workflows/video-generation.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
 import type { TaskTypeDefinition } from "./types.js";
 
@@ -21,20 +21,24 @@ export function getTaskType(name: string): TaskTypeDefinition | undefined {
 registerTaskType({
   name: "file-task-batch",
   inputSchema: fileTaskBatchInputSchema,
-  workflow: fileTaskBatchWorkflow,
+  workflow: { workflowId: "workflow//./workflows/file-task-batch//fileTaskBatchWorkflow" },
 });
 
 registerTaskType({
   name: "video-generation",
   inputSchema: videoGenerationInputSchema,
-  workflow: videoGenerationWorkflow,
+  workflow: { workflowId: "workflow//./workflows/video-generation//videoGenerationWorkflow" },
   cancel: cancelVideoGeneration,
 });
 
-registerTaskType({ name: "canvas-archive", inputSchema: canvasArchiveInputSchema, workflow: canvasArchiveWorkflow });
+registerTaskType({
+  name: "canvas-archive",
+  inputSchema: canvasArchiveInputSchema,
+  workflow: { workflowId: "workflow//./workflows/canvas-archive//canvasArchiveWorkflow" },
+});
 
 registerTaskType({
   name: "canvas-video-frames",
   inputSchema: canvasVideoFramesInputSchema,
-  workflow: canvasVideoFramesWorkflow,
+  workflow: { workflowId: "workflow//./workflows/canvas-video-frames//canvasVideoFramesWorkflow" },
 });

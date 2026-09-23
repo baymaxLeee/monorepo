@@ -2,7 +2,7 @@
 
 For UI, design-system, component primitive, or overlay work, read the repository-root `DESIGN.md` before editing. It is the current executable design specification; ADRs only preserve decision history.
 
-React 18 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
+React 19 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
 
 ## Architecture
 
@@ -110,12 +110,13 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - **表单**: `Form` + `Field` + `react-hook-form` + `zod`；业务页勿手写裸 `Label`+`useState` 校验
 - **页面布局**: `Page` / `PageHeader`；加载态用 `Skeleton`
 - **原语约定（shadcn v4 / Base Nova / Tailwind v4）**: shadcn 原语一律**扁平 kebab-case 文件**放在 `packages/design-system/src/shadcn/`，命名导出，以 `@base-ui/react` 作为唯一行为底座。Base UI 组合统一使用 `render={<Element />}`，禁止新写 Radix `asChild`。原语间交叉引用写作 `@repo/design-system/shadcn/<name>`；`src/shadcn/index.ts` 与 `src/index.ts` 统一公开。业务消费方从 `@repo/design-system` 导入，重型组件归入 `@repo/ai-elements` / `@repo/editors` / `@repo/viewers`。
+- **完整 registry 基线**: design-system 保持官方 Base Nova registry 的完整组件集合；`message-scroller` 与 `questionnaire` 是 shadcn 官方复合组件，行为来自 `@shadcn/react`，不是 Base UI 原语。`@shadcn/react` 要求 React 19，因此不得回退 React 主版本或移除这两个组件。
 - **仓库级集成**: registry 生成文件只保留少量集中扩展：modal/popup 接入 `portal-layer.tsx`，`*Content` 把 `container` 传给 Base UI `Portal`，定位 props 传给 `Positioner`；`form.tsx` 保持 React Hook Form 组合。升级后统一重放这些集成并用全仓 typecheck 验证，不恢复旧 Radix fork。
 - **shadcn CLI / MCP（已接入）**: 根 `.cursor/mcp.json` 注册 `shadcn` server（cwd=`apps/frontend/packages/design-system`，`components.json#style=base-nova`、`ui` 别名=`@repo/design-system/shadcn`→`src/shadcn`）。CLI 在 monorepo 里要求 `packages/shared` 也有有效 `components.json` + `tsconfig.json`，勿删。新增多个标准原语时在一条 `pnpm ui:add <component...> --overwrite -y` 中批量生成，避免逐文件手写。
   - **registry 取舍**: 优先官方 shadcn/Base Nova registry；不要引入另一套 Radix、Arco、Ant Design 或 MUI primitive。第三方 registry 必须适配现有 Base UI、主题和公共 API，不能带入第二套底座。
 - **组件升级/新增流程**（在 `apps/frontend/packages/design-system`）:
   1. **必须 Node 24.18.0 环境**（pnpm 11 依赖 `node:sqlite`；用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，否则 CLI 内部 `pnpm add` 会崩/落到错误 store）。
-  2. `pnpm ui:add <component...> --overwrite -y`（= `shadcn add`，cwd 已默认 `.`；或经 shadcn MCP `add`）——将同一批原语一次性生成到 `src/shadcn/`。
+  2. 全量升级使用 `pnpm exec shadcn add --all --overwrite -y`；新增一批组件使用 `pnpm ui:add <component...> --overwrite -y`（或经 shadcn MCP `add`）。两者都集中生成到 `src/shadcn/`，不要逐文件手抄。
   3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。Base UI Toast 的命令式 `toast` 与 `Toaster` 也从该公共入口导出。
   4. `mise exec -- pnpm -F @repo/design-system typecheck` + 受影响 app `typecheck` + `pnpm -F platform build`。
   5. 新 MFE 通过 admin 应用注册中心登记 `base_path`、`remote_name`、`./routes` 与 manifest `entry`；platform 无需静态改源码。
@@ -123,10 +124,10 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 
 ### React Compiler（build-time 自动记忆化，已启用）
 
-- **原生 SWC 路线，无 Babel**: Rspack **≥ 2.1** 把 React Compiler 用 Rust 移植进 `builtin:swc-loader`，通过 `jsc.transform.reactCompiler` 开启。统一封装在 `@repo/build-config/rspack` 的 `createSwcRule({ reactCompiler })`，四个 app 均以 `createSwcRule({ reactCompiler: { target: "18" } })` 接入——**别再各自内联 swc rule**。React 18 需要安装并共享 `react-compiler-runtime` polyfill。
+- **原生 SWC 路线，无 Babel**: Rspack **≥ 2.2** 把 React Compiler 用 Rust 移植进 `builtin:swc-loader`，通过 `jsc.transform.reactCompiler` 开启。统一封装在 `@repo/build-config/rspack` 的 `createSwcRule({ reactCompiler })`，四个 app 均以 `createSwcRule({ reactCompiler: { target: "19" } })` 接入——**别再各自内联 swc rule**。React 19 原生包含 compiler runtime；禁止重新加入 `react-compiler-runtime`。
 - **模式**: 默认 `infer`（全量自动记忆化）；`panicThreshold` 默认 `none`——违反 Rules of React 的文件会被**安全跳过**、不炸构建。若要单文件退出用 `"use no memo"`，单文件强制用 `"use memo"`。
 - **约束**: 记忆化正确性依赖遵守 Rules of React（不要在渲染期 mutate props/state、hooks 只在顶层调用）。新组件若出现 stale/异常，先怀疑规则违背，用 `"use no memo"` 临时隔离再修。
-- **版本**: `@rspack/core`/`@rspack/cli` ≥ `2.1.2`；勿降回 2.0.x（会丢失 `reactCompiler` 支持）。
+- **版本**: `@rspack/core`/`@rspack/cli` ≥ `2.2.7`；Module Federation Enhanced ≥ `2.9.1`。React 及其 JSX runtimes、React DOM 均保持 `^19.0.0` strict singleton；勿降回旧基线或允许 remote 打包 fallback React。
 
 ### TypeScript 7（原生检查器双轨过渡）
 

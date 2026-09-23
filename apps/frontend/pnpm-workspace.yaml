@@ -13,21 +13,21 @@ catalog:
   "@streamdown/code": ^1.1.1
   "@streamdown/math": ^1.0.2
   "@streamdown/mermaid": ^1.0.2
-  "@module-federation/enhanced": ^2.4.0
-  "@rspack/cli": ^2.1.2
-  "@rspack/core": ^2.1.2
-  "@rspack/dev-server": ^2.0.5
-  "@swc/helpers": ^0.5.0
+  "@module-federation/enhanced": ^2.9.1
+  "@rspack/cli": ^2.2.7
+  "@rspack/core": ^2.2.7
+  "@rspack/dev-server": ^2.2.1
+  "@shadcn/react": ^0.3.1
+  "@swc/helpers": ^0.5.23
   "@tailwindcss/webpack": ^4.3.0
   "@typescript/native": npm:typescript@^7.0.2
   "@tanstack/react-query": ^5.101.2
-  "@types/react": ^18.3.0
-  "@types/react-dom": ^18.3.0
+  "@types/react": ^19.3.0
+  "@types/react-dom": ^19.3.0
   ai: ^7.0.111
   lucide-react: ^0.468.0
-  react: ^18.3.0
-  react-compiler-runtime: ^1.0.0
-  react-dom: ^18.3.0
+  react: ^19.3.0
+  react-dom: ^19.3.0
   react-hook-form: ^7.88.0
   react-router-dom: ^7.18.1
   streamdown: ^2.6.0
@@ -73,3 +73,20 @@ minimumReleaseAgeExclude:
   - '@ai-sdk/gateway@4.0.89'
   - '@ai-sdk/react@4.0.114'
   - ai@7.0.111
+  - '@rspack/binding-darwin-arm64@2.2.7'
+  - '@rspack/binding-darwin-x64@2.2.7'
+  - '@rspack/binding-linux-arm64-gnu@2.2.7'
+  - '@rspack/binding-linux-arm64-musl@2.2.7'
+  - '@rspack/binding-linux-ppc64-gnu@2.2.7'
+  - '@rspack/binding-linux-riscv64-gnu@2.2.7'
+  - '@rspack/binding-linux-riscv64-musl@2.2.7'
+  - '@rspack/binding-linux-s390x-gnu@2.2.7'
+  - '@rspack/binding-linux-x64-gnu@2.2.7'
+  - '@rspack/binding-linux-x64-musl@2.2.7'
+  - '@rspack/binding-wasm32-wasi@2.2.7'
+  - '@rspack/binding-win32-arm64-msvc@2.2.7'
+  - '@rspack/binding-win32-ia32-msvc@2.2.7'
+  - '@rspack/binding-win32-x64-msvc@2.2.7'
+  - '@rspack/binding@2.2.7'
+  - '@rspack/cli@2.2.7'
+  - '@rspack/core@2.2.7'

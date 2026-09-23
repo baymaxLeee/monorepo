@@ -234,3 +234,21 @@ Chat now supplies a complete typed HTML or video execution plan through the
 native tool call before Executor accepts a task. Executor retains durable
 generation, compilation, cancellation, approval and publishing, but no longer
 uses an LLM to derive an outline, script or storyboard from a brief.
+
+## Update — low-resource local development
+
+Executor local development no longer requires a full Nitro build before every
+start and does not keep a compiler watcher resident by default. `pnpm dev`
+runs one Workflow-only compilation through the official `@workflow/builders`
+API with `watch: false`, then executes the TypeScript Hono application through
+`tsx` and `@hono/node-server`. The generated flow, step, and webhook handlers
+remain mounted at the standard `/.well-known/workflow/v1/*` endpoints, so this
+changes only the local server/build lifecycle; Workflow directive transforms,
+durability, and protocol behavior remain intact. Source changes take effect on
+manual restart. `pnpm dev:watch` remains an explicit opt-in, while production
+continues to use `workflow/nitro`, `nitro build`, and the generated Nitro server.
+
+The historical local `nf3@0.3.18` and OIDC post-build workarounds described
+above are also superseded. The current `nitro@3.0.260903-beta` stack resolves
+`nf3@0.3.24` and emits the OIDC runtime correctly without an override, pnpm
+patch, or output rewrite.

@@ -51,7 +51,6 @@
     "@tiptap/starter-kit": "^3.22.3",
     "lowlight": "3.3.0",
     "lucide-react": "catalog:",
-    "react-compiler-runtime": "catalog:",
     "react-hook-form": "catalog:",
     "uuid": "^14.0.0",
     "zod": "catalog:"
@@ -63,7 +62,7 @@
     "@typescript/native": "catalog:"
   },
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

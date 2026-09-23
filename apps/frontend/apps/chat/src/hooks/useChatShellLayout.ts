@@ -12,7 +12,7 @@ const COMPACT_BREAKPOINT = 640;
 type PanelEdge = "left-panel" | "right-panel";
 
 export type ChatShellLayout = {
-  containerRef: RefObject<HTMLDivElement>;
+  containerRef: RefObject<HTMLDivElement | null>;
   leftWidth: number;
   panelLeftWidth: number;
   rightWidth: number;

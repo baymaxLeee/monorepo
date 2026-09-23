@@ -58,6 +58,7 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 | Application components | `@repo/design-system` | 业务代码的默认 UI 入口 |
 | Component recipes | shadcn/ui v4，`base-nova` 风格 | 使用最新稳定 CLI 批量生成，复制进仓库后由项目维护 |
 | Behavior primitives | `@base-ui/react` | 唯一 headless primitive 底座，只在 design-system 或 UI capability package 内封装 |
+| Official composites | `@shadcn/react` | shadcn 官方的 React 19 复合行为，仅由 registry 组件封装 |
 | AI interfaces | `@repo/ai-elements` | 消息、推理、来源、工具、工作流、附件、产物和输入框 |
 | Icons | `lucide-react` | 默认图标集，保持一致的笔画和命名 |
 | Forms | `Form` + `Field` + React Hook Form + Zod | 表单状态、校验、描述和错误的统一路径 |
@@ -74,6 +75,8 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 5. 纯业务组合留在业务模块；跨两个以上产品场景且契约稳定后再提升为公共组件。
 
 业务代码必须从 package 公共入口导入，不得导入 `src` 私有路径。业务代码不得直接使用 Base UI、Radix、vaul portal 或另一个完整 UI 框架绕开 design-system。Radix 不作为兼容层保留；不要并存 Arco、Ant Design、MUI 等视觉组件，它们只可作为行为和 API 设计参考。
+
+`@shadcn/react` 是 shadcn/ui 官方 registry 为 `MessageScroller`、`Questionnaire` 等复合组件提供的 React 19 行为包，不是另一套视觉系统或 Base UI 替代品。业务代码仍只消费 `@repo/design-system` 的封装。
 
 ## Theme 与 design tokens
 
@@ -227,6 +230,8 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 | 用户意图或数据                   | 首选能力                              |
 | -------------------------------- | ------------------------------------- |
 | 会话滚动、空状态、回到底部、下载 | `Conversation*`                       |
+| 长会话自动跟随与回到底部按钮       | `MessageScroller*`                    |
+| Agent 向用户收集结构化选择/输入     | `Questionnaire*`                      |
 | 用户/助手消息与流式 Markdown     | `Message*`, `MessageResponse`         |
 | 推理摘要或可披露过程             | `Reasoning*`                          |
 | 来源与行内引用                   | `Sources`, `Source`, `InlineCitation` |

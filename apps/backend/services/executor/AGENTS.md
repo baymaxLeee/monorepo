@@ -162,6 +162,9 @@ for the full rationale.
 - `nitro.config.ts` — Nitro + `workflow/nitro` build config; routes `/**` to
   `src/index.ts`.
 - `src/index.ts` — Nitro-mounted Hono app entry + boot-time task reconciler.
+- `src/dev.ts` — low-resource local entry: serves Hono directly after the
+  one-shot Workflow compilation performed by `pnpm dev:prepare`; it never
+  watches source files.
 - `src/bootstrap/app.ts` — route wiring, auth, error mapping.
 - `src/api/http/routes/tasks.ts` — Task API (start/get/watch/cancel).
 - `src/application/tasks/service.ts` — task lifecycle, idempotency, completion watching.
@@ -172,19 +175,21 @@ for the full rationale.
 
 ## Known operational notes (Nitro v3 beta / Workflow World gotchas)
 
-All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
+Resolved or deliberately handled, and all re-check-worthy whenever
+`nitro`/`workflow`/`ai` are bumped:
 
 1. **`nf3`/`@vercel/nft` ESM interop and OIDC tracing bugs are fixed upstream.**
    Nitro's production bundle now contains `@vercel/oidc` in its generated
    `_libs` tree, so the former pnpm override, local patch, and post-build copy/
    rewrite script have all been removed.
-2. **`nitro/~internal/runtime/plugin` isn't exported** by
-   `nitro@3.0.260610-beta` (checked: it's absent from the package's own
+2. **`nitro/~internal/runtime/plugin` still isn't exported** by
+   `nitro@3.0.260903-beta` (checked: it's absent from the package's own
    `exports` map), so the Postgres World doc's official "Starting the World"
    Nitro-plugin example cannot be used as written. Worked around by calling
-   `getWorld().start()` directly at module scope in `src/index.ts` instead —
-   this is the same mechanism a Nitro plugin would trigger, it just doesn't
-   go through Nitro's plugin system. This one matters more than the other
+   `getWorld().start()` during `bootstrapExecutor()` in
+   `src/bootstrap/runtime.ts` instead — this is the same mechanism a Nitro
+   plugin would trigger, it just doesn't go through Nitro's plugin system.
+   This one matters more than the other
    two: without it, a deployment on the Postgres World would create workflow
    runs whose steps never advance (the docs are explicit that setting
    `WORKFLOW_TARGET_WORLD` alone does not start the graphile-worker queue
@@ -208,18 +213,24 @@ All fixed, all re-check-worthy whenever `nitro`/`workflow`/`ai` are bumped:
    vars directly, never through a `.env` file — but it matters for local
    testing: don't assume `.env` "just works" for every way of running this.
 
-4. **Local dev runs the built server, not a watcher (no hot reload).** `pnpm
-   dev` is `pnpm build && pnpm start` — a one-shot `nitro build` then the
-   `--env-file` node run above. This is deliberate: `nitro dev`'s file watcher
-   is expensive and, more importantly, returns HTTP **503/500** from its dev
-   proxy for the seconds it takes to rebuild on every save — which surfaced as
+4. **Local dev runs TypeScript directly after one Workflow-only compilation
+   (no Nitro build, no watcher).** `pnpm dev` invokes the official Workflow
+   builder once with `watch: false`, then starts `src/dev.ts` through `tsx`
+   and `@hono/node-server`. The dev entry
+   mounts the generated `flow`, `step`, and `webhook` Web handlers under
+   `/.well-known/workflow/v1/`; the task registry uses the Workflow SDK's
+   supported explicit `{ workflowId }` metadata form because untransformed TS
+   functions do not carry client-mode metadata. This is deliberate:
+   `nitro dev`'s file watcher is expensive and, more importantly, returns HTTP
+   **503/500** from its dev proxy for the seconds it takes to rebuild on every save — which surfaced as
    a `TransportError: executor request failed: 503` in chat once
    `write_file`/`edit_file` originally began foreground-polling
    `GET /tasks/:id` across a whole generation (Chat now watches the
    Workflow-backed status stream and falls back on transient transport
-   failures, but the rebuild churn is still pointless). Edit executor code →
-   restart the process to pick it up.
-   Use `pnpm dev:watch` only if you specifically want the watcher back.
+   failures, but the rebuild churn is still pointless). Edit Executor code,
+   then restart the process to pick it up. Use
+   `pnpm dev:watch` only if you specifically want the watcher back. Production
+   remains `nitro build` plus `.output/server/index.mjs`.
 
 6. **`video-generation` needs ffmpeg, and the `"use workflow"` orchestrator
    must stay Node-module-free.** The Dockerfile installs `ffmpeg` via `apt`

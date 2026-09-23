@@ -2539,7 +2539,7 @@ function StudioContent() {
                             videoInputMode={videoInputMode}
                           />
                           <div
-                            {...(materialMatching.matching ? { inert: "" } : {})}
+                            inert={materialMatching.matching || undefined}
                             style={
                               materialMatching.matching
                                 ? {

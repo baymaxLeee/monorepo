@@ -1,9 +1,13 @@
 import type { z } from "zod";
 
+export interface WorkflowReference {
+  readonly workflowId: string;
+}
+
 export interface TaskTypeDefinition<TInput = unknown, TOutput = unknown> {
   readonly name: string;
   readonly inputSchema: z.ZodType<TInput, unknown>;
-  readonly workflow: (input: TInput, taskId: string) => Promise<TOutput>;
+  readonly workflow: WorkflowReference;
   readonly cancel?: (input: TInput, progress: TaskProgress | null, context: { taskId: string }) => Promise<void>;
 }
 

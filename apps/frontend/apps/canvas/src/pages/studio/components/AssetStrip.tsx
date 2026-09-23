@@ -198,7 +198,7 @@ export function AssetStrip({
     <div className="shrink-0">
       <div
         style={interactionDisabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}
-        {...(interactionDisabled ? { inert: "" } : {})}
+        inert={interactionDisabled || undefined}
         className={`flex items-start gap-3 ${reserveEmptySpace ? "min-h-[58px]" : ""}`}
       >
         {firstLastFrame ? (
