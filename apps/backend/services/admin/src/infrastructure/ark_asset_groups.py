@@ -20,6 +20,16 @@ class AssetGroupDependencyError(BaseError):
     code = "asset_group_dependency_error"
 
 
+class AssetGroupRateLimitedError(BaseError):
+    status_code = 429
+    code = "asset_group_rate_limited"
+
+
+class AssetGroupQuotaExceededError(BaseError):
+    status_code = 429
+    code = "asset_group_quota_exceeded"
+
+
 class AssetGroupClient:
     def __init__(self, endpoint: str = _DEFAULT_ENDPOINT, client: httpx.AsyncClient | None = None) -> None:
         self._endpoint = endpoint.rstrip("/")
@@ -128,14 +138,59 @@ class AssetGroupClient:
                 response = await self._client.post(self._endpoint, params=params, headers=headers, content=body)
             if action == "DeleteAsset" and response.status_code == 404:
                 return {}
+            if response.status_code == 429:
+                provider_code, request_id = _error_metadata(response)
+                error_type = (
+                    AssetGroupQuotaExceededError
+                    if provider_code == "QuotaSharedPoolExceeded"
+                    else AssetGroupRateLimitedError
+                )
+                raise error_type(
+                    f"Ark {action} request was rate limited",
+                    details={
+                        "provider_code": provider_code,
+                        "provider_request_id": request_id,
+                    },
+                )
             response.raise_for_status()
             decoded = response.json()
+        except BaseError:
+            raise
         except (httpx.HTTPError, ValueError) as exc:
             raise AssetGroupDependencyError(f"Ark {action} 调用失败") from exc
         result = decoded.get("Result") if isinstance(decoded, dict) else None
         if not isinstance(result, dict):
             raise AssetGroupDependencyError(f"Ark {action} 响应缺少 Result")
         return result
+
+
+def _error_metadata(response: httpx.Response) -> tuple[str, str]:
+    try:
+        decoded = response.json()
+    except ValueError:
+        return "", ""
+    if not isinstance(decoded, dict):
+        return "", ""
+    metadata = decoded.get("ResponseMetadata")
+    if not isinstance(metadata, dict):
+        metadata = decoded.get("response_metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    error = metadata.get("Error")
+    if not isinstance(error, dict):
+        error = metadata.get("error")
+    if not isinstance(error, dict):
+        error = {}
+    provider_code = error.get("Code") or error.get("code") or decoded.get("Code") or decoded.get("code")
+    request_id = (
+        metadata.get("RequestId")
+        or metadata.get("RequestID")
+        or metadata.get("request_id")
+        or decoded.get("RequestId")
+        or decoded.get("RequestID")
+        or decoded.get("request_id")
+    )
+    return (str(provider_code).strip() if provider_code else "", str(request_id).strip() if request_id else "")
 
 
 def _signed_headers(

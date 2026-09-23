@@ -102,12 +102,12 @@ func (r *Repository) MarkAssetReviewSubmissionStarted(ctx context.Context, revie
 	return reviewUpdateResult(persistencetransaction.DB(ctx, r.db).Model(&assetReviewRow{}).Where("id = ? AND task_run_id = ? AND status = ? AND submission_started_at IS NULL", id, taskRunID, domainasset.ReviewStatusSubmitting).Updates(map[string]any{"submission_started_at": now.UTC(), "updated_at": now.UTC()}))
 }
 
-func (r *Repository) ResetAssetReviewSubmission(ctx context.Context, reviewID, taskRunID string, now time.Time) error {
+func (r *Repository) ResetAssetReviewSubmission(ctx context.Context, reviewID, taskRunID, reason string, now time.Time) error {
 	id, err := persistenceid.Parse(reviewID)
 	if err != nil {
 		return applicationpackage.ErrReviewNotFound
 	}
-	return reviewUpdateResult(persistencetransaction.DB(ctx, r.db).Model(&assetReviewRow{}).Where("id = ? AND task_run_id = ? AND status = ? AND submission_started_at IS NOT NULL", id, taskRunID, domainasset.ReviewStatusSubmitting).Updates(map[string]any{"submission_started_at": nil, "updated_at": now.UTC()}))
+	return reviewUpdateResult(persistencetransaction.DB(ctx, r.db).Model(&assetReviewRow{}).Where("id = ? AND task_run_id = ? AND status = ? AND submission_started_at IS NOT NULL", id, taskRunID, domainasset.ReviewStatusSubmitting).Updates(map[string]any{"submission_started_at": nil, "failure_reason": reason, "updated_at": now.UTC()}))
 }
 
 func (r *Repository) MarkAssetReviewProcessing(ctx context.Context, reviewID, taskRunID, providerAssetID string, submittedAt time.Time) error {
@@ -115,7 +115,7 @@ func (r *Repository) MarkAssetReviewProcessing(ctx context.Context, reviewID, ta
 	if err != nil {
 		return applicationpackage.ErrReviewNotFound
 	}
-	return reviewUpdateResult(persistencetransaction.DB(ctx, r.db).Model(&assetReviewRow{}).Where("id = ? AND task_run_id = ? AND status = ?", id, taskRunID, domainasset.ReviewStatusSubmitting).Updates(map[string]any{"provider_asset_id": providerAssetID, "status": domainasset.ReviewStatusProcessing, "submitted_at": submittedAt.UTC(), "updated_at": submittedAt.UTC()}))
+	return reviewUpdateResult(persistencetransaction.DB(ctx, r.db).Model(&assetReviewRow{}).Where("id = ? AND task_run_id = ? AND status = ?", id, taskRunID, domainasset.ReviewStatusSubmitting).Updates(map[string]any{"provider_asset_id": providerAssetID, "status": domainasset.ReviewStatusProcessing, "failure_reason": "", "submitted_at": submittedAt.UTC(), "updated_at": submittedAt.UTC()}))
 }
 
 func (r *Repository) MarkAssetReviewFailed(ctx context.Context, reviewID, reason string, now time.Time) error {

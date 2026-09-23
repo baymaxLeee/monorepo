@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"log/slog"
+	"math/rand/v2"
 	"net/url"
 	"strings"
 	"sync"
@@ -18,11 +20,13 @@ import (
 )
 
 const (
-	reviewPollInterval       = 3 * time.Second
-	reviewDeadline           = 24 * time.Hour
-	reviewSubmissionDeadline = 10 * time.Minute
-	reviewSubmissionBackoff  = 5 * time.Second
-	reviewSubmissionMaxDelay = time.Minute
+	reviewPollInterval                = 3 * time.Second
+	reviewDeadline                    = 24 * time.Hour
+	reviewSubmissionDeadline          = 10 * time.Minute
+	reviewSubmissionBackoff           = 5 * time.Second
+	reviewSubmissionMaxDelay          = time.Minute
+	assetReviewRateLimitWaitingReason = "Ark 限流等待中"
+	assetReviewSharedPoolQuotaReason  = "方舟账号权益或素材额度不足，请检查套餐是否过期及素材额度"
 )
 
 type ReviewService struct {
@@ -356,8 +360,15 @@ func (s *ReviewService) processSubmission(ctx context.Context, run domaintask.Ta
 		return err
 	}
 	providerAsset, err := s.gateway.SubmitReviewedAsset(ctx, record.TenantID, workspaceID(record.WorkspaceID), record.PackageID, referenceURL, providerAssetType(assets[0].MediaType), assets[0].FileName)
+	if errors.Is(err, ErrAssetReviewQuotaExceeded) {
+		s.logProviderSubmissionFailure(ctx, "Ark asset submission quota exhausted", record, err)
+		return s.finishSubmissionFailure(ctx, run, schedule, record, assetReviewSharedPoolQuotaReason)
+	}
+	if errors.Is(err, ErrAssetReviewRateLimited) {
+		return s.retrySubmission(ctx, schedule, record, assetReviewRateLimitWaitingReason, err)
+	}
 	if err != nil {
-		return s.retrySubmission(ctx, schedule, record)
+		return s.retrySubmission(ctx, schedule, record, "", nil)
 	}
 	submittedAt := s.clock.Now()
 	err = s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
@@ -381,30 +392,53 @@ func (s *ReviewService) processSubmission(ctx context.Context, run domaintask.Ta
 	return err
 }
 
-func (s *ReviewService) retrySubmission(ctx context.Context, schedule domaintask.PollSchedule, record AssetReviewRecord) error {
+func (s *ReviewService) retrySubmission(ctx context.Context, schedule domaintask.PollSchedule, record AssetReviewRecord, reason string, providerErr error) error {
 	now := s.clock.Now()
-	return s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
-		if err := s.reviews.ResetAssetReviewSubmission(tx, record.ID, schedule.TaskRunID, now); err != nil {
+	attempt := schedule.ConsecutiveErrors + 1
+	delay := reviewSubmissionNominalDelay(attempt)
+	if providerErr != nil {
+		delay = reviewSubmissionRetryDelay(attempt, rand.Float64())
+	}
+	err := s.transactions.WithinTransaction(ctx, func(tx context.Context) error {
+		if err := s.reviews.ResetAssetReviewSubmission(tx, record.ID, schedule.TaskRunID, reason, now); err != nil {
 			return err
 		}
-		rescheduled, err := s.tasks.ReschedulePoll(tx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(reviewSubmissionRetryDelay(schedule.ConsecutiveErrors + 1)), PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1}, now)
+		rescheduled, err := s.tasks.ReschedulePoll(tx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(delay), PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: attempt}, now)
 		if err != nil || !rescheduled {
 			return errors.Join(err, errors.New("asset review poll schedule lost its retry fence"))
 		}
 		return nil
 	})
+	if err == nil && providerErr != nil {
+		s.logProviderSubmissionFailure(ctx, "Ark asset submission rate limited; waiting to retry", record, providerErr, "attempt", attempt, "next_retry_at", now.Add(delay))
+	}
+	return err
 }
 
 func (s *ReviewService) rescheduleSubmission(ctx context.Context, schedule domaintask.PollSchedule) error {
 	now := s.clock.Now()
-	rescheduled, err := s.tasks.ReschedulePoll(ctx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(reviewSubmissionRetryDelay(schedule.ConsecutiveErrors + 1)), PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1}, now)
+	rescheduled, err := s.tasks.ReschedulePoll(ctx, schedule, domaintask.PollScheduleUpdate{NextPollAt: now.Add(reviewSubmissionNominalDelay(schedule.ConsecutiveErrors + 1)), PollAttempts: schedule.PollAttempts + 1, ConsecutiveErrors: schedule.ConsecutiveErrors + 1}, now)
 	if err != nil || !rescheduled {
 		return errors.Join(err, errors.New("asset review poll schedule lost its retry fence"))
 	}
 	return nil
 }
 
-func reviewSubmissionRetryDelay(attempt int32) time.Duration {
+func reviewSubmissionRetryDelay(attempt int32, jitterUnit float64) time.Duration {
+	delay := reviewSubmissionNominalDelay(attempt)
+	if jitterUnit < 0 {
+		jitterUnit = 0
+	} else if jitterUnit > 1 {
+		jitterUnit = 1
+	}
+	jittered := time.Duration(float64(delay) * (1 + 0.2*jitterUnit))
+	if jittered > reviewSubmissionMaxDelay {
+		return reviewSubmissionMaxDelay
+	}
+	return jittered
+}
+
+func reviewSubmissionNominalDelay(attempt int32) time.Duration {
 	delay := reviewSubmissionBackoff
 	for current := int32(1); current < attempt && delay < reviewSubmissionMaxDelay; current++ {
 		delay *= 2
@@ -413,6 +447,16 @@ func reviewSubmissionRetryDelay(attempt int32) time.Duration {
 		return reviewSubmissionMaxDelay
 	}
 	return delay
+}
+
+func (s *ReviewService) logProviderSubmissionFailure(ctx context.Context, message string, record AssetReviewRecord, err error, extra ...any) {
+	fields := []any{"tenant_id", record.TenantID, "review_id", record.ID, "package_id", record.PackageID, "task_run_id", record.TaskRunID}
+	var providerError *AssetReviewProviderError
+	if errors.As(err, &providerError) {
+		fields = append(fields, "provider_code", providerError.Code, "provider_request_id", providerError.RequestID)
+	}
+	fields = append(fields, extra...)
+	slog.WarnContext(ctx, message, fields...)
 }
 
 func (s *ReviewService) finishSubmissionFailure(ctx context.Context, run domaintask.TaskRun, schedule domaintask.PollSchedule, record AssetReviewRecord, reason string) error {

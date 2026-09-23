@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -41,13 +42,20 @@ type reviewCleanupResponse struct {
 }
 
 type DependencyError struct {
-	Status int
-	Detail string
+	Status  int
+	Code    string
+	Detail  string
+	Details map[string]any
 }
 
 func (e *DependencyError) Error() string {
 	return fmt.Sprintf("admin benefit package returned status %d: %s", e.Status, e.Detail)
 }
+
+const (
+	assetGroupRateLimitedCode   = "asset_group_rate_limited"
+	assetGroupQuotaExceededCode = "asset_group_quota_exceeded"
+)
 
 func (d *Directory) ListBenefitPackages(ctx context.Context, tenantID, workspaceID string) ([]applicationpackage.BenefitPackage, error) {
 	var response []benefitPackageResponse
@@ -78,7 +86,36 @@ func (d *Directory) SubmitReviewedAsset(ctx context.Context, tenantID, workspace
 	payload := map[string]string{"url": referenceURL, "asset_type": assetType, "name": name}
 	var response reviewedAssetResponse
 	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/reviewed-assets", tenantID, workspaceID, payload, &response)
-	return applicationpackage.ReviewedAsset{ID: response.ID, Status: applicationpackage.ProviderAssetStatus(response.Status), FailureReason: response.FailureReason}, err
+	if err != nil {
+		return applicationpackage.ReviewedAsset{}, classifyAssetSubmissionError(err)
+	}
+	return applicationpackage.ReviewedAsset{ID: response.ID, Status: applicationpackage.ProviderAssetStatus(response.Status), FailureReason: response.FailureReason}, nil
+}
+
+func classifyAssetSubmissionError(err error) error {
+	var dependency *DependencyError
+	if !errors.As(err, &dependency) {
+		return err
+	}
+	var cause error
+	switch {
+	case dependency.Code == assetGroupQuotaExceededCode:
+		cause = applicationpackage.ErrAssetReviewQuotaExceeded
+	case dependency.Code == assetGroupRateLimitedCode, dependency.Status == http.StatusTooManyRequests:
+		cause = applicationpackage.ErrAssetReviewRateLimited
+	default:
+		return err
+	}
+	return &applicationpackage.AssetReviewProviderError{
+		Cause:     cause,
+		Code:      stringDetail(dependency.Details, "provider_code"),
+		RequestID: stringDetail(dependency.Details, "provider_request_id"),
+	}
+}
+
+func stringDetail(details map[string]any, key string) string {
+	value, _ := details[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func (d *Directory) GetReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) (applicationpackage.ReviewedAsset, error) {
@@ -129,13 +166,19 @@ func (d *Directory) benefitPackageRequest(ctx context.Context, method, path, ten
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		var problem struct {
-			Detail string `json:"detail"`
+			Code    string         `json:"code"`
+			Message string         `json:"message"`
+			Detail  string         `json:"detail"`
+			Details map[string]any `json:"details"`
 		}
 		_ = json.NewDecoder(res.Body).Decode(&problem)
 		if problem.Detail == "" {
+			problem.Detail = problem.Message
+		}
+		if problem.Detail == "" {
 			problem.Detail = http.StatusText(res.StatusCode)
 		}
-		return &DependencyError{Status: res.StatusCode, Detail: problem.Detail}
+		return &DependencyError{Status: res.StatusCode, Code: problem.Code, Detail: problem.Detail, Details: problem.Details}
 	}
 	if output == nil || res.StatusCode == http.StatusNoContent {
 		return nil

@@ -12,9 +12,36 @@ import (
 )
 
 var (
-	ErrReviewStateConflict = errors.New("asset review state conflict")
-	ErrReviewNotFound      = errors.New("asset review not found")
+	ErrReviewStateConflict      = errors.New("asset review state conflict")
+	ErrReviewNotFound           = errors.New("asset review not found")
+	ErrAssetReviewRateLimited   = errors.New("asset review provider rate limited")
+	ErrAssetReviewQuotaExceeded = errors.New("asset review provider quota exceeded")
 )
+
+// AssetReviewProviderError retains only safe provider diagnostics. Credentials,
+// signed URLs, request payloads, and raw provider responses must never be added.
+type AssetReviewProviderError struct {
+	Cause     error
+	Code      string
+	RequestID string
+}
+
+func (e *AssetReviewProviderError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Cause == nil {
+		return "asset review provider error"
+	}
+	return e.Cause.Error()
+}
+
+func (e *AssetReviewProviderError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
 
 type IDGenerator interface{ NewID() (string, error) }
 type Clock interface{ Now() time.Time }
@@ -92,7 +119,7 @@ type AssetReviewRepository interface {
 	ReplaceAssetReview(context.Context, ReserveAssetReviewInput) (ReplaceAssetReviewResult, error)
 	SetAssetReviewReservation(context.Context, string, string, time.Time) error
 	MarkAssetReviewSubmissionStarted(context.Context, string, string, time.Time) error
-	ResetAssetReviewSubmission(context.Context, string, string, time.Time) error
+	ResetAssetReviewSubmission(context.Context, string, string, string, time.Time) error
 	MarkAssetReviewProcessing(context.Context, string, string, string, time.Time) error
 	MarkAssetReviewFailed(context.Context, string, string, time.Time) error
 	GetAssetReviewByTaskRun(context.Context, string) (AssetReviewRecord, error)
