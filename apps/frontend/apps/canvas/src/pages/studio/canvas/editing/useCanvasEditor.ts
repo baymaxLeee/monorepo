@@ -5,11 +5,10 @@ import type { canvasnode } from "@/domain";
 import { useStudioAssetStore } from "../../store/assets";
 import type { CanvasEditingContextValue } from "../CanvasNodeContexts";
 import { contentPatch, editableContent, isDeletedReferenceNode } from "../graph/canvasNodeHelpers";
-import type { CanvasFlowNode, CanvasNodeData } from "../graph/canvasNodeTypes";
+import type { CanvasNodeData } from "../graph/canvasNodeTypes";
 
 export function useCanvasEditor({
   projectId,
-  nodes,
   graphNodes,
   patchNode,
   generateNode,
@@ -17,7 +16,6 @@ export function useCanvasEditor({
   swapNodeFrames,
 }: {
   projectId?: string;
-  nodes: CanvasFlowNode[];
   graphNodes: canvasnode.CanvasNode[];
   patchNode: CanvasNodeData["onPatch"];
   generateNode: (item: canvasnode.CanvasNode) => Promise<void>;
@@ -119,7 +117,7 @@ export function useCanvasEditor({
     [assetStore, closeEditingSession],
   );
 
-  const editingNode = nodes.find((node) => node.id === editingNodeId)?.data.item;
+  const editingNode = graphNodes.find((node) => node.NodeID === editingNodeId);
 
   useEffect(() => {
     if (!editingNode) {

@@ -63,8 +63,9 @@ export function projectCanvasNodeAssets(
   nodes: readonly canvasnode.CanvasNode[],
   targetNodeId: string,
   detailsByNodeId: ReadonlyMap<string, StoryboardAsset> = new Map(),
+  indexedNodes?: ReadonlyMap<string, canvasnode.CanvasNode>,
 ) {
-  const nodesById = new Map(nodes.map((node) => [node.NodeID, node]));
+  const nodesById = indexedNodes ?? new Map(nodes.map((node) => [node.NodeID, node]));
   const target = nodesById.get(targetNodeId);
   if (!target) return [];
   return target.IncomingEdges.flatMap((edge) => {

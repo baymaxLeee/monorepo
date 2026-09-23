@@ -12,12 +12,8 @@ import t from "@/utils/i18n";
 
 import { useMaterialMatching } from "../../assetMatching/useMaterialMatching";
 import { generationConfigPatch, settingsFromDTO } from "../../domain/actions";
-import { isVideoGenerationCancellationDisabled, videoProviderStatusForRun } from "../../domain/generationCancellation";
-import {
-  canvasGenerationFailuresAtom,
-  canvasGenerationRuntimeStatesAtom,
-  defaultImageModelIdAtom,
-} from "../../store/index";
+import { isVideoGenerationCancellationDisabled } from "../../domain/generationCancellation";
+import { defaultImageModelIdAtom } from "../../store/index";
 import { CanvasContentActionsContext, CanvasEditingContext, TextGenerationWaitingContext } from "../CanvasNodeContexts";
 import { CanvasNodeIcon } from "../components/CanvasNodeIcon";
 import { CanvasModelSelect, useCanvasModelOptions } from "../editing/CanvasModelSelect";
@@ -61,15 +57,12 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
   const textGenerationWaitingNodeIDs = useContext(TextGenerationWaitingContext);
   const { image: imageModelOptions, selected: modelOptions } = useCanvasModelOptions(data.item.Type);
   const defaultImageModelId = useAtomValue(defaultImageModelIdAtom);
-  const generationFailures = useAtomValue(canvasGenerationFailuresAtom);
-  const generationRuntimeStates = useAtomValue(canvasGenerationRuntimeStatesAtom);
   const { item: storedItem, onHistory, onPatch, previewURL, queryTree, selectAsset, thumbnailURL } = data;
+  const nodeSnapshot = useCanvasNodeSnapshot(data.nodePubSub, storedItem.NodeID);
+  const generationFailure = nodeSnapshot.failure;
+  const generationRuntimeState = nodeSnapshot.runtimeState;
   const isStoryboardDraft = storedItem.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT;
-  const item = useCanvasNodeSnapshot(
-    data.nodePubSub,
-    storedItem,
-    isGenerationType(storedItem.Type) || isStoryboardDraft,
-  );
+  const item = (isGenerationType(storedItem.Type) || isStoryboardDraft ? nodeSnapshot.node : undefined) ?? storedItem;
   const persistedMediaURL =
     resolveArtifactURL(item.SelectedOutputURL ?? "") || resolveArtifactURL(item.PreviewURL ?? "");
   const mediaURL = isGenerationType(item.Type) ? persistedMediaURL || previewURL : previewURL || persistedMediaURL;
@@ -82,14 +75,13 @@ export const CanvasCard = memo(function CanvasCard({ data, dragging, selected }:
     item.Type === canvasnode.CanvasNodeType.IMAGE_ASSET || item.Type === canvasnode.CanvasNodeType.IMAGE_GENERATION;
   const isImageGeneration = item.Type === canvasnode.CanvasNodeType.IMAGE_GENERATION;
   const isGeneration = isGenerationType(item.Type);
-  const materialMatching = useMaterialMatching(item.NodeID);
+  const materialMatching = useMaterialMatching(item.NodeID, nodeSnapshot.node ?? item);
   const cancellationDisabled =
     !materialMatching.matching &&
     item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION &&
     isVideoGenerationCancellationDisabled(
-      videoProviderStatusForRun(generationRuntimeStates, item.NodeID, item.ActiveTaskRunID),
+      generationRuntimeState?.taskRunId === item.ActiveTaskRunID ? generationRuntimeState?.providerStatus : undefined,
     );
-  const generationFailure = isGeneration ? generationFailures.get(item.NodeID) : undefined;
   const currentSettings = settingsFromDTO(item.GenerationConfig);
   const imageSettings = {
     model: imageModelOptions.some((model) => model.id === currentSettings.model)

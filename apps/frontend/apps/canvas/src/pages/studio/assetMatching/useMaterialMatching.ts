@@ -10,12 +10,11 @@ import { presentGraph } from "../domain/persistence";
 import { canvasAtom, canvasGraphAtom, patchCanvasNodeAtom, replaceCanvasNodesAtom } from "../store";
 import { useStudioMutationCoordinator } from "../store/mutations";
 
-export function useMaterialMatching(nodeId: string) {
+export function useMaterialMatching(nodeId: string, node?: canvasnode.CanvasNode) {
   const mutations = useStudioMutationCoordinator();
   const store = useStore();
   const canvas = useAtomValue(canvasAtom);
   const canvasId = canvas?.CanvasID ?? "";
-  const node = useAtomValue(canvasGraphAtom).nodesById.get(nodeId);
   const runId = node?.ActiveTaskType === canvasnode.CanvasNodeTaskType.ASSETS_MATCH ? node.ActiveTaskRunID : undefined;
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);

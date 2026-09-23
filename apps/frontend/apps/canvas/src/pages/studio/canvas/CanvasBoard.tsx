@@ -156,6 +156,14 @@ function CanvasBoardInner({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nodesRef = useRef<CanvasFlowNode[]>([]);
   const edgesRef = useRef<Edge[]>([]);
+  const previousProjectionRef = useRef<
+    | {
+        nodesByID: Map<string, canvasnode.CanvasNode>;
+        assetDetails: typeof assetDetails;
+        callbacks: unknown[];
+      }
+    | undefined
+  >(undefined);
   const nodeClickTimerRef = useRef<number | undefined>(undefined);
   const invalidConnectionWarningRef = useRef<string | undefined>(undefined);
   const resolveConnection = useCallback(
@@ -296,7 +304,6 @@ function CanvasBoardInner({
     setLargeTextEditorNodeId,
   } = useCanvasEditor({
     projectId,
-    nodes,
     graphNodes,
     patchNode,
     generateNode,
@@ -341,43 +348,76 @@ function CanvasBoardInner({
 
   useEffect(() => {
     if (!graphLoaded) return;
-    nodePubSub.retain(graphNodes.map((item) => item.NodeID));
+    const graphNodesByID = new Map(graphNodes.map((item) => [item.NodeID, item]));
+    const callbacks = [nodePubSub, openHistory, patchNode, queryNodeAssets, selectNodeAssetWithFeedback];
+    const previousProjection = previousProjectionRef.current;
+    const callbacksUnchanged = callbacks.every((callback, index) => callback === previousProjection?.callbacks[index]);
     const currentByID = new Map(nodesRef.current.map((node) => [node.id, node]));
-    setNodes(
-      graphNodes.map((item) => {
-        const detail = assetFromCanvasNode(item, assetDetails.get(item.NodeID));
-        const referenceAssets = projectCanvasNodeAssets(graphNodes, item.NodeID, assetDetails);
-        const current = currentByID.get(item.NodeID);
-        if (current) {
-          return {
-            ...current,
-            className: canvasNodeClassName(item),
-            data: {
-              ...current.data,
-              item,
-              previewURL: detail.previewUrl,
-              referenceAssets,
-              reviewAsset: detail,
-              thumbnailURL:
-                item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ? item.FirstFrameURL : detail.thumbnail,
-            },
-          };
-        }
-        return dtoToNode(
-          item,
-          nodePubSub,
-          openHistory,
-          (itemToPatch, patch) => patchNode(itemToPatch, patch),
-          (...args) => queryNodeAssets(item.NodeID, ...args),
-          (candidate) => selectNodeAssetWithFeedback(item, candidate),
-          detail.previewUrl,
-          item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ? item.FirstFrameURL : detail.thumbnail,
-          referenceAssets,
-          detail,
-        );
-      }),
+    const nextNodes = graphNodes.map((item) => {
+      const current = currentByID.get(item.NodeID);
+      if (
+        current?.data.item === item &&
+        previousProjection !== undefined &&
+        callbacksUnchanged &&
+        previousProjection.assetDetails.get(item.NodeID) === assetDetails.get(item.NodeID) &&
+        item.IncomingEdges.every(
+          (edge) =>
+            previousProjection.nodesByID.get(edge.SourceNodeID) === graphNodesByID.get(edge.SourceNodeID) &&
+            previousProjection.assetDetails.get(edge.SourceNodeID) === assetDetails.get(edge.SourceNodeID),
+        )
+      ) {
+        return current;
+      }
+      const detail = assetFromCanvasNode(item, assetDetails.get(item.NodeID));
+      const referenceAssets = projectCanvasNodeAssets(graphNodes, item.NodeID, assetDetails, graphNodesByID);
+      if (current) {
+        return {
+          ...current,
+          className: canvasNodeClassName(item),
+          data: {
+            ...current.data,
+            item,
+            previewURL: detail.previewUrl,
+            referenceAssets,
+            reviewAsset: detail,
+            thumbnailURL:
+              item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ? item.FirstFrameURL : detail.thumbnail,
+          },
+        };
+      }
+      return dtoToNode(
+        item,
+        nodePubSub,
+        openHistory,
+        (itemToPatch, patch) => patchNode(itemToPatch, patch),
+        (...args) => queryNodeAssets(item.NodeID, ...args),
+        (candidate) => selectNodeAssetWithFeedback(item, candidate),
+        detail.previewUrl,
+        item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ? item.FirstFrameURL : detail.thumbnail,
+        referenceAssets,
+        detail,
+      );
+    });
+    setNodes((current) =>
+      current.length === nextNodes.length && current.every((node, index) => node === nextNodes[index])
+        ? current
+        : nextNodes,
     );
-    setEdges(dtoToEdges(graphNodes));
+    setEdges((current) => {
+      const next = dtoToEdges(graphNodes);
+      return current.length === next.length &&
+        current.every(
+          (edge, index) =>
+            edge.id === next[index].id &&
+            edge.source === next[index].source &&
+            edge.target === next[index].target &&
+            edge.sourceHandle === next[index].sourceHandle &&
+            edge.targetHandle === next[index].targetHandle,
+        )
+        ? current
+        : next;
+    });
+    previousProjectionRef.current = { nodesByID: graphNodesByID, assetDetails, callbacks };
   }, [
     assetDetails,
     graphLoaded,
@@ -404,7 +444,7 @@ function CanvasBoardInner({
     onRefreshGraph,
   });
 
-  const byID = useMemo(() => new Map(nodes.map((node) => [node.id, node.data.item])), [nodes]);
+  const byID = useMemo(() => new Map(graphNodes.map((node) => [node.NodeID, node])), [graphNodes]);
 
   const { connect, persistConnection, deleteSelectedElements } = useCanvasConnections({
     canvasId,

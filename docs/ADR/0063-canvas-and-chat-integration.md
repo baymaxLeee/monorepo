@@ -35,6 +35,8 @@ Canvas 不运行 HiBot、个人 Agent 或租户 Agent。右侧对话唯一 runti
 
 Canvas 保留 Jotai，按 ProjectID + CanvasID 挂载页面级 Provider。正式图规范化为节点 ID 列表与节点映射，故事板派生自视频节点；节点组件按 ID 订阅。XYFlow 临时坐标、选择和表单草稿留在对应交互层。手动写入共用串行队列，入队推进 epoch；整图刷新等待队尾并丢弃过期响应，队列失败不阻断后续操作。Agent 通过服务端同一 mutation 用例写入，完成事件触发重新读取，而非把模型输出直接写入 atoms。
 
+节点卡片经 Studio 页面级订阅桥接按 NodeID 读取正式图和任务状态。桥接从 Jotai Store 获取稳定快照，只向实际变化的 NodeID 发布通知，并在最后一个订阅者卸载时释放监听；PubSub 不保存第二份正式图。React 组件通过 `useSyncExternalStore` 订阅，避免单节点更新使所有卡片重渲染。
+
 Studio 顶层只有一个 3 秒任务状态轮询器。它从正式图派生全部 `ActiveTaskRunID` 目标，批量读取后通过页面级 typed PubSub 发布快照；节点生成和分镜预览只订阅，不自行启动定时器。快照只更新匹配 `NodeID + TaskRunID` 且 revision 不落后的节点，避免整图替换和局部任务互相覆盖。
 
 左侧保留节点/素材面板，中间为画布或故事板，右侧为可收起、可调宽的共享 Chat。节点编辑留在画布内。Chat 消息流使用既有 AI SDK 状态，不建立 Jotai 消息副本。Jotai 仅由 Canvas 消费，不升级为平台全局状态库或跨 MFE singleton；共享 Chat 保持原来的 Zustand 实现。

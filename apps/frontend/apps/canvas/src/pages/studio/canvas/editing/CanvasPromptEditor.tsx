@@ -77,7 +77,7 @@ export function CanvasPromptEditor({
 }: CanvasPromptEditorProps) {
   const dragging = useCanvasDragging();
   const assetStore = useStudioAssetStore();
-  const matching = useMaterialMatching(matchTarget?.NodeID ?? "");
+  const matching = useMaterialMatching(matchTarget?.NodeID ?? "", matchTarget);
   const showMatch = Boolean(
     matchTarget && variant !== "text" && videoInputMode !== canvasnode.CanvasVideoInputMode.FIRST_LAST_FRAME,
   );

@@ -190,6 +190,7 @@ function StudioContent() {
 
   useEffect(() => () => chatResizeCleanupRef.current?.(), []);
   useEffect(() => () => statePubSub.clear(), [statePubSub]);
+  useEffect(() => () => nodePubSub.clear(), [nodePubSub]);
   const upsertCanvasNodes = useSetAtom(upsertCanvasNodesAtom);
   const replaceCanvasNodes = useSetAtom(replaceCanvasNodesAtom);
   const patchCanvasNode = useSetAtom(patchCanvasNodeAtom);
@@ -287,7 +288,10 @@ function StudioContent() {
   const videoInputMode = editing
     ? draftVideoInputMode
     : (currentShot?.videoInputMode ?? canvasnode.CanvasVideoInputMode.REFERENCE);
-  const materialMatching = useMaterialMatching(selectedShotId);
+  const materialMatching = useMaterialMatching(
+    selectedShotId,
+    canvasNodes.find((node) => node.NodeID === selectedShotId),
+  );
   const editorScript = editing ? draftScript : (currentShot?.script ?? "");
   const hasCurrentScript = hasStoryboardScript(editorScript);
   const hasVideoModels = videoModels.length > 0;
