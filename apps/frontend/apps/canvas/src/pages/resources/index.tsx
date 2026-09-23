@@ -11,7 +11,7 @@ import emptyIllustration from "@/assets/storyboard-empty.png";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { Pagination, Result, openDeleteConfirmDialog } from "@/components/common";
-import { Dropdown, Message, Spin, Menu, Button } from "@/components/ui";
+import { ActionDropdown, Message, Spin, Button } from "@/components/ui";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { downloadWithFetch } from "@/utils/download";
@@ -373,36 +373,22 @@ export default function ResourcesPage() {
           <Button disabled={batchSelecting || !selectableItems.length} onClick={() => setBatchSelecting(true)}>
             {batchSelecting ? t("批量操作中") : t("批量操作")}
           </Button>
-          <Dropdown
+          <ActionDropdown
             disabled={batchSelecting}
-            droplist={
-              <Menu
-                onClickMenuItem={(key) => {
-                  if (key === "upload") uploadInputRef.current?.click();
-                  else setDialogState({ mode: "create", type: selectedType });
-                }}
-              >
-                <Menu.Item key="upload">
-                  <span className="flex items-center gap-[6px]">
-                    <IconLocalAddition style={{ height: 16, width: 16 }} />
-                    {t("从本地上传")}
-                  </span>
-                </Menu.Item>
-                <Menu.Item key="blank">
-                  <span className="flex items-center gap-[6px]">
-                    <IconBlankAssets style={{ height: 16, width: 16 }} />
-                    {t("新建空白资产")}
-                  </span>
-                </Menu.Item>
-              </Menu>
-            }
+            items={[
+              { key: "upload", label: t("从本地上传"), icon: <IconLocalAddition /> },
+              { key: "blank", label: t("新建空白资产"), icon: <IconBlankAssets /> },
+            ]}
+            onSelect={(key) => {
+              if (key === "upload") uploadInputRef.current?.click();
+              else setDialogState({ mode: "create", type: selectedType });
+            }}
             position="bl"
-            trigger="click"
           >
             <Button disabled={batchSelecting} icon={<IconPlus />} loading={creatingFromFiles} type="primary">
               {t("创建资产")}
             </Button>
-          </Dropdown>
+          </ActionDropdown>
           <Button
             aria-label={t("刷新资产库")}
             data-ea="asset-library-list-refresh"

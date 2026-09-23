@@ -6,7 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@repo/design-system";
-import { isValidElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { isValidElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 type Position = "top" | "bottom" | "left" | "right" | "tl" | "tr" | "bl" | "br" | "lt" | "lb" | "rt" | "rb";
 function placement(position: Position = "bottom") {
@@ -41,6 +41,7 @@ export function Tooltip({
   content,
   position = "top",
   popupVisible,
+  defaultPopupVisible,
   onVisibleChange,
   disabled,
   className,
@@ -48,11 +49,18 @@ export function Tooltip({
   getPopupContainer,
   triggerProps,
 }: TooltipProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultPopupVisible ?? false);
   if (disabled || content == null || content === "") return <>{children}</>;
   const child = isValidElement<{ disabled?: boolean }>(children) ? children : undefined;
   const render = child && !child.props.disabled ? (child as ReactElement) : <span className="inline-flex max-w-full" />;
   return (
-    <PrimitiveTooltip open={popupVisible} onOpenChange={onVisibleChange}>
+    <PrimitiveTooltip
+      open={popupVisible ?? uncontrolledOpen}
+      onOpenChange={(open) => {
+        if (popupVisible === undefined) setUncontrolledOpen(open);
+        onVisibleChange?.(open);
+      }}
+    >
       <TooltipTrigger render={render}>{render === child ? undefined : children}</TooltipTrigger>
       <TooltipContent
         {...placement(position)}
@@ -79,6 +87,14 @@ export interface TriggerProps extends FloatingProps {
   popupHoverStay?: boolean;
 }
 
+function resolveTrigger(children: ReactNode) {
+  const element = isValidElement(children) ? (children as ReactElement) : <button type="button">{children}</button>;
+  return {
+    element,
+    nativeButton: typeof element.type !== "string" || element.type === "button",
+  };
+}
+
 export function Trigger({
   children,
   popup,
@@ -98,32 +114,40 @@ export function Trigger({
   clickOutsideToClose = true,
   popupAlign,
 }: TriggerProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultPopupVisible ?? false);
   const hover = Array.isArray(trigger) ? trigger.includes("hover") : trigger === "hover";
   const resolvedPlacement = placement(position);
   const offset = popupAlign?.[position ?? "bottom"] ?? popupAlign?.[resolvedPlacement.side];
   const alignOffset = typeof offset === "number" ? 0 : offset?.[0];
   const sideOffset = typeof offset === "number" ? offset : offset?.[1];
+  const resolvedTrigger = resolveTrigger(children);
+  useEffect(() => {
+    if (disabled) setUncontrolledOpen(false);
+  }, [disabled]);
   return (
     <PrimitivePopover
-      open={disabled ? false : popupVisible}
-      defaultOpen={defaultPopupVisible}
+      open={disabled ? false : (popupVisible ?? uncontrolledOpen)}
       onOpenChange={(open, details) => {
+        if (disabled) {
+          details.cancel();
+          return;
+        }
         if (!clickOutsideToClose && details.reason === "outside-press") {
           details.cancel();
           return;
         }
+        if (popupVisible === undefined) setUncontrolledOpen(open);
         onVisibleChange?.(open);
       }}
     >
       <PopoverTrigger
+        disabled={disabled}
         openOnHover={hover}
         delay={mouseEnterDelay == null ? undefined : mouseEnterDelay * 1000}
         closeDelay={mouseLeaveDelay == null ? undefined : mouseLeaveDelay * 1000}
-        render={<span className="inline-flex max-w-full" />}
-        nativeButton={false}
-      >
-        {children}
-      </PopoverTrigger>
+        render={resolvedTrigger.element}
+        nativeButton={resolvedTrigger.nativeButton}
+      />
       <PopoverContent
         {...resolvedPlacement}
         alignOffset={alignOffset}

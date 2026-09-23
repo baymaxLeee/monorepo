@@ -1,7 +1,7 @@
 import { Plus as IconPlus } from "lucide-react";
 import { type DragEvent, type ReactNode, useState } from "react";
 
-import { Dropdown, Menu, Popconfirm, Tooltip } from "@/components/ui";
+import { ActionDropdown, Popconfirm, Tooltip } from "@/components/ui";
 import {
   HIDDEN_SCROLLBAR_CLASS,
   HIDDEN_SCROLLBAR_STYLE,
@@ -102,16 +102,14 @@ export function ShotTimeline({
     );
   };
   const addShotButton = (
-    <Dropdown
+    <ActionDropdown
       disabled={lockAdd}
-      droplist={
-        <Menu onClickMenuItem={(key) => onAdd(shots.length, key as AddShotMode)}>
-          <Menu.Item key="single">{t("单个分镜")}</Menu.Item>
-          <Menu.Item key="batch">{t("批量分镜")}</Menu.Item>
-        </Menu>
-      }
+      items={[
+        { key: "single", label: t("单个分镜") },
+        { key: "batch", label: t("批量分镜") },
+      ]}
+      onSelect={(key) => onAdd(shots.length, key as AddShotMode)}
       position="tr"
-      trigger="click"
     >
       <button
         aria-label={t("新增分镜")}
@@ -120,7 +118,7 @@ export function ShotTimeline({
       >
         <IconPlus />
       </button>
-    </Dropdown>
+    </ActionDropdown>
   );
 
   const getInsertSide = (shotId: string, event: DragEvent<HTMLElement>) => {

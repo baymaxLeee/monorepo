@@ -223,7 +223,7 @@ interface SelectProps<V extends Value> {
     autoAlignPopupMinWidth?: boolean;
     autoAlignPopupWidth?: boolean;
     style?: CSSProperties;
-    position?: string;
+    position?: "top" | "bottom" | "left" | "right" | "tl" | "tr" | "bl" | "br" | "lt" | "lb" | "rt" | "rb";
   };
   dropdownRender?: (menu: ReactNode) => ReactNode;
   renderFormat?: (option?: OptionProps<V>) => ReactNode;
@@ -273,10 +273,20 @@ function Selection<V extends Value>({
           )
         : items;
   const selected = items.find((item) => item.value === value);
+  const popupPosition = triggerProps?.position ?? "bottom";
+  const popupSide = ({ t: "top", b: "bottom", l: "left", r: "right" } as const)[
+    popupPosition[0] as "t" | "b" | "l" | "r"
+  ];
+  const popupAlign = popupPosition.length === 2 ? ("lt".includes(popupPosition[1]) ? "start" : "end") : "center";
   // Prefix values so the empty string remains reserved for clearing selection.
   const encode = (item: V | undefined) => (item === undefined ? undefined : `value:${String(item)}`);
   const menu = visibleItems.map((item) => (
-    <SelectItem key={String(item.value)} value={encode(item.value)!} disabled={item.disabled}>
+    <SelectItem
+      className="h-9 px-2.5 py-0"
+      key={String(item.value)}
+      value={encode(item.value)!}
+      disabled={item.disabled}
+    >
       {item.children ?? item.label}
     </SelectItem>
   ));
@@ -302,10 +312,23 @@ function Selection<V extends Value>({
         style={style}
       >
         <SelectValue placeholder={placeholder}>
-          {selected && renderFormat ? renderFormat(selected) : undefined}
+          {selected
+            ? renderFormat
+              ? renderFormat(selected)
+              : (selected.children ?? selected.label ?? String(selected.value))
+            : undefined}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent className={`canvas-web-theme ${dropdownMenuClassName ?? ""}`} style={triggerProps?.style}>
+      <SelectContent
+        align={popupAlign}
+        alignItemWithTrigger={false}
+        className={`canvas-web-theme p-1 ${triggerProps?.autoAlignPopupWidth === false ? "w-max" : ""} ${dropdownMenuClassName ?? ""}`}
+        side={popupSide}
+        style={{
+          ...(triggerProps?.autoAlignPopupMinWidth ? { minWidth: "var(--anchor-width)" } : {}),
+          ...triggerProps?.style,
+        }}
+      >
         {showSearch ? (
           <div className="sticky top-0 z-10 bg-popover p-1">
             <NativeInput

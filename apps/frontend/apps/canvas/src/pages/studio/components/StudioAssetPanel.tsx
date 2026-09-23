@@ -9,6 +9,8 @@ import {
   Image as IconPic,
   Play as IconPlay,
   Plus as IconPluginListedAdd,
+  FilePlus2 as IconCreate,
+  Upload as IconUpload,
   Video as IconVideoDefault,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,7 +22,7 @@ import { splitHighlight } from "@/components/promptEditor/plugins/assetMention/m
 import { AssetReviewMark } from "@/components/promptEditor/plugins/assetMention/ReviewStatus";
 import type { AssetMentionItem } from "@/components/promptEditor/plugins/assetMention/types";
 import { SearchInput } from "@/components/SearchInput";
-import { Dropdown, Menu, Spin, Trigger } from "@/components/ui";
+import { ActionDropdown, Spin, Trigger } from "@/components/ui";
 import { asset as assetIDL, canvasnode, resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
@@ -483,37 +485,21 @@ export function StudioAssetPanel({
         </button>
         {tab === "assets" ? (
           <span className={styles.assetActions}>
-            <Dropdown
-              droplist={
-                <Menu
-                  onClickMenuItem={(key) => {
-                    if (key === "create") setDialogType(selectedType);
-                    else if (key === "manage") {
-                      void navigate(`/platform/canvas/projects/${projectId}/resources`);
-                    }
-                  }}
-                >
-                  <Menu.Item key="create">
-                    <span className={styles.assetActionItem}>
-                      <IconPluginListedAdd />
-                      {t("新建资产")}
-                    </span>
-                  </Menu.Item>
-                  <Menu.Item key="manage">
-                    <span className={styles.assetActionItem}>
-                      <IconAssetLibrary />
-                      {t("打开资产库管理")}
-                    </span>
-                  </Menu.Item>
-                </Menu>
-              }
+            <ActionDropdown
+              items={[
+                { key: "create", label: t("新建资产"), icon: <IconPluginListedAdd /> },
+                { key: "manage", label: t("打开资产库管理"), icon: <IconAssetLibrary /> },
+              ]}
+              onSelect={(key) => {
+                if (key === "create") setDialogType(selectedType);
+                else if (key === "manage") void navigate(`/platform/canvas/projects/${projectId}/resources`);
+              }}
               position="br"
-              trigger="click"
             >
               <button aria-label={t("资产操作")} className={styles.assetActionsButton} type="button">
                 <IconFolderAssetLibrary />
               </button>
-            </Dropdown>
+            </ActionDropdown>
           </span>
         ) : null}
       </div>
@@ -691,34 +677,28 @@ export function StudioAssetPanel({
                       extra={
                         item.OwnerType === resource.ResourceOwnerType.OFFICIAL ? null : (
                           <div onClick={(event) => event.stopPropagation()}>
-                            <Dropdown
-                              droplist={
-                                <Menu
-                                  onClickMenuItem={(key) => {
-                                    if (key === "upload") {
-                                      resourceUploadTargetRef.current = item;
-                                      if (resourceUploadInputRef.current) {
-                                        resourceUploadInputRef.current.accept = getResourceFileConfig(item.Type).accept;
-                                      }
-                                      resourceUploadInputRef.current?.click();
-                                    } else if (key === "create") {
-                                      openResourceAction(item, {
-                                        type: "create",
-                                      });
-                                    }
-                                  }}
-                                >
-                                  <Menu.Item key="upload">{t("本地上传")}</Menu.Item>
-                                  <Menu.Item key="create">{t("新建")}</Menu.Item>
-                                </Menu>
-                              }
+                            <ActionDropdown
+                              items={[
+                                { key: "upload", label: t("本地上传"), icon: <IconUpload /> },
+                                { key: "create", label: t("新建"), icon: <IconCreate /> },
+                              ]}
+                              onSelect={(key) => {
+                                if (key === "upload") {
+                                  resourceUploadTargetRef.current = item;
+                                  if (resourceUploadInputRef.current) {
+                                    resourceUploadInputRef.current.accept = getResourceFileConfig(item.Type).accept;
+                                  }
+                                  resourceUploadInputRef.current?.click();
+                                } else if (key === "create") {
+                                  openResourceAction(item, { type: "create" });
+                                }
+                              }}
                               position="br"
-                              trigger="click"
                             >
                               <button aria-label={t("新增资产")} className={styles.groupAdd} type="button">
                                 <IconPluginListedAdd aria-hidden className={styles.groupPlus} strokeWidth={1.5} />
                               </button>
-                            </Dropdown>
+                            </ActionDropdown>
                           </div>
                         )
                       }

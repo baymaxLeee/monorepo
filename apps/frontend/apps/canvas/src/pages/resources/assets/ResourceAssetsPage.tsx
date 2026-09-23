@@ -1,4 +1,10 @@
-import { RefreshCw as IconRefresh, ChevronLeft as IconLeft, Plus as IconPlus } from "lucide-react";
+import {
+  RefreshCw as IconRefresh,
+  ChevronLeft as IconLeft,
+  FilePlus2 as IconCreate,
+  Plus as IconPlus,
+  Upload as IconUpload,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import emptyIllustration from "@/assets/storyboard-empty.png";
@@ -6,7 +12,7 @@ import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { Pagination, Result, openDeleteConfirmDialog } from "@/components/common";
-import { Message, Spin, Button, Dropdown, Menu } from "@/components/ui";
+import { ActionDropdown, Message, Spin, Button } from "@/components/ui";
 import { asset, resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
@@ -480,27 +486,22 @@ export function ResourceAssetsPageContent({
                     >
                       {batchSelecting ? t("批量操作中") : t("批量操作")}
                     </Button>
-                    <Dropdown
+                    <ActionDropdown
                       disabled={busy || batchSelecting}
-                      droplist={
-                        <Menu
-                          onClickMenuItem={(key) => {
-                            if (key === "upload") inputRef.current?.click();
-                            else if (key === "create") openCreate();
-                          }}
-                        >
-                          <Menu.Item key="upload">{t("本地上传")}</Menu.Item>
-                          <Menu.Item key="create">{t("新建")}</Menu.Item>
-                        </Menu>
-                      }
+                      items={[
+                        { key: "upload", label: t("本地上传"), icon: <IconUpload /> },
+                        { key: "create", label: t("新建"), icon: <IconCreate /> },
+                      ]}
+                      onSelect={(key) => {
+                        if (key === "upload") inputRef.current?.click();
+                        else if (key === "create") openCreate();
+                      }}
                       position="bl"
-                      trigger="click"
-                      triggerProps={{ autoAlignPopupWidth: true }}
                     >
                       <Button disabled={busy || batchSelecting} icon={<IconPlus />} loading={uploading} type="primary">
                         {t("添加{materialName}", { materialName })}
                       </Button>
-                    </Dropdown>
+                    </ActionDropdown>
                   </>
                 )}
                 <Button
