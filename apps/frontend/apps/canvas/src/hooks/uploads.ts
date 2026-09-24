@@ -1,4 +1,5 @@
 import { executeAssetUploadPlan, prepareCanvasUpload } from "@repo/api";
+import { randomId } from "@repo/shared";
 
 export interface UploadAssetResult {
   SourceAssetID: string;
@@ -19,7 +20,7 @@ export interface UseUploadAsset {
 }
 export function stageUpload(options: UploadOptions) {
   const controller = new AbortController();
-  const clientRef = crypto.randomUUID();
+  const clientRef = randomId();
   void prepareCanvasUpload({ clientRef, purpose: "source", file: options.file })
     .then(async (plan) => {
       await executeAssetUploadPlan(plan, options.file, controller.signal);

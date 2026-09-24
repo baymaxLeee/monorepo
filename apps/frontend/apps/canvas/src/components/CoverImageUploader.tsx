@@ -1,5 +1,6 @@
 import { executeAssetUploadPlan, prepareCanvasUpload, type AssetRevisionRef } from "@repo/api";
 import { Spinner, toast, Button } from "@repo/design-system";
+import { randomId } from "@repo/shared";
 import { ImagePlus, X } from "lucide-react";
 import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
@@ -98,7 +99,7 @@ export function CoverImageUploader({
     uploadRef.current = controller;
     setUploading(true);
     onUploadingChange?.(true);
-    const clientRef = crypto.randomUUID();
+    const clientRef = randomId();
     void prepareCanvasUpload({ clientRef, purpose: "cover", file })
       .then(async (plan) => {
         await executeAssetUploadPlan(plan, file, controller.signal);

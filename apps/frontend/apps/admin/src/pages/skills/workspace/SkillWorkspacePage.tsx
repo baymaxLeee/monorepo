@@ -40,7 +40,7 @@ import {
   FileWorkspace,
   type FileWorkspaceRef,
 } from "@repo/editors/file-workspace";
-import { getErrorMessage } from "@repo/shared";
+import { getErrorMessage, randomId } from "@repo/shared";
 import { UploadIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -215,7 +215,7 @@ export function SkillWorkspacePage() {
         if (dirty) {
           throw new Error("请先保存当前工作区修改，再导入 ZIP");
         }
-        const clientRef = crypto.randomUUID();
+        const clientRef = randomId();
         const plan = await prepareSkillUpload(id, {
           clientRef,
           purpose: "skill-archive",
@@ -242,7 +242,7 @@ export function SkillWorkspacePage() {
         if (dirty) {
           throw new Error("请先保存当前工作区修改，再上传附件");
         }
-        const nodeId = crypto.randomUUID().replaceAll("-", "");
+        const nodeId = randomId().replaceAll("-", "");
         const plan = await prepareSkillUpload(id, {
           clientRef: nodeId,
           purpose: "skill-attachment",
