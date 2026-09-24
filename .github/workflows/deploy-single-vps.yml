@@ -32,6 +32,11 @@ on:
       tag:
         description: "Image tag to deploy (default: sha-<current short sha>)"
         required: false
+      reset_data:
+        description: "Destroy and recreate every VPS data volume before deploy"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-single-vps
@@ -103,6 +108,7 @@ jobs:
           PUBLIC_PORT: ${{ steps.vars.outputs.port }}
           PUBLIC_GATEWAY_URL: ${{ vars.PUBLIC_GATEWAY_URL }}
           DEPLOY_DIR: ${{ steps.vars.outputs.deploy_dir }}
+          RESET_DATA: ${{ inputs.reset_data || 'false' }}
         run: |
           # deploy.sh rsyncs the ops files (incl. the SOPS-encrypted
           # secrets.sops.env) and runs render-env.sh on the VPS, which
