@@ -1,4 +1,5 @@
 import { canvasCreateArchive, canvasUpdateCanvasView, fetchCanvasSettings } from "@repo/api";
+import { toast, Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import { Provider, useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -11,12 +12,12 @@ import {
   getVideoModelParamConfigByOption,
   sanitizeGenerationSettings,
 } from "@/components/GenerationConfiguration/videoModelConfig";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import {
   type AssetMentionItem,
   type AssetMentionSource,
   mentionReferenceIdentity,
 } from "@/components/promptEditor/index";
-import { Message, Spin, Tooltip } from "@/components/ui";
 import { type asset, canvas as canvasIDL, canvasnode } from "@/domain";
 import type { UploadBlobResult } from "@/hooks/uploads";
 import useSilentUploadBlob from "@/hooks/useSilentUploadBlob";
@@ -428,7 +429,10 @@ function StudioContent() {
       .catch(() => {
         if (active) {
           setDefaultModels({});
-          Message.warning(t("默认模型配置加载失败，已使用项目可用模型"));
+          toast.add({
+            type: "warning",
+            title: t("默认模型配置加载失败，已使用项目可用模型"),
+          });
         }
       });
     setImageModels([]);
@@ -646,7 +650,10 @@ function StudioContent() {
         setPreviewGenerating(false);
         setStoryboardDraftStatus("failed");
         void refreshCanvasGraph();
-        Message.error(error instanceof Error ? error.message : t("恢复分镜草稿失败"));
+        toast.add({
+          type: "error",
+          title: error instanceof Error ? error.message : t("恢复分镜草稿失败"),
+        });
       });
   };
 
@@ -751,7 +758,10 @@ function StudioContent() {
           },
         );
         if (!resolution.accepted) {
-          Message.warning(canvasNodeInputWarning(resolution));
+          toast.add({
+            type: "warning",
+            title: canvasNodeInputWarning(resolution),
+          });
           throw new Error("canvas node input rejected");
         }
         const targetPort = resolution.targetPort;
@@ -812,7 +822,10 @@ function StudioContent() {
         preferredPort: candidate.targetPort,
       });
       if (!resolution.accepted) {
-        Message.warning(canvasNodeInputWarning(resolution));
+        toast.add({
+          type: "warning",
+          title: canvasNodeInputWarning(resolution),
+        });
         throw new Error("canvas node input rejected");
       }
       const targetPort = resolution.targetPort;
@@ -947,7 +960,10 @@ function StudioContent() {
       try {
         return await selectMentionAsset(candidate);
       } catch (error) {
-        Message.error(canvasRequestErrorMessage(error, t("添加素材失败，请重试")));
+        toast.add({
+          type: "error",
+          title: canvasRequestErrorMessage(error, t("添加素材失败，请重试")),
+        });
         throw error;
       }
     },
@@ -1057,7 +1073,10 @@ function StudioContent() {
           ]);
         }
       }
-      Message.success(t("已添加到资产库"));
+      toast.add({
+        type: "success",
+        title: t("已添加到资产库"),
+      });
     },
     [assetStore, canvasId, projectId, studioStore, upsertCanvasNodes],
   );
@@ -1124,7 +1143,10 @@ function StudioContent() {
     const items = assetStore.getForShot(shotId);
     const failed = items.filter((item) => item.syncStatus === "failed");
     if (failed.length) {
-      Message.error(t("部分资产同步失败，请移除后重新上传"));
+      toast.add({
+        type: "error",
+        title: t("部分资产同步失败，请移除后重新上传"),
+      });
       throw new Error("asset sync failed");
     }
     await Promise.all(
@@ -1135,7 +1157,10 @@ function StudioContent() {
         const key = item.draftId ?? item.id;
         const task = assetTaskRef.current.get(key);
         if (!task) {
-          Message.error(t("资产尚未就绪，请稍后重试"));
+          toast.add({
+            type: "error",
+            title: t("资产尚未就绪，请稍后重试"),
+          });
           throw new Error("asset task missing");
         }
         await task;
@@ -1322,7 +1347,10 @@ function StudioContent() {
           ...(draftVideoInputMode !== currentShot.videoInputMode ? { VideoInputMode: draftVideoInputMode } : {}),
         });
       } catch (error) {
-        Message.error(canvasRequestErrorMessage(error, t("分镜保存失败，请重试")));
+        toast.add({
+          type: "error",
+          title: canvasRequestErrorMessage(error, t("分镜保存失败，请重试")),
+        });
         throw error;
       }
       nodeNeedsRestore = true;
@@ -1437,7 +1465,10 @@ function StudioContent() {
   const addSingleShot = async (index: number) => {
     const modelServiceId = resolveModelServiceId();
     if (!modelServiceId) {
-      Message.error(t("暂无可用视频模型"));
+      toast.add({
+        type: "error",
+        title: t("暂无可用视频模型"),
+      });
       return;
     }
     const afterCanvasNodeId = canvasnodeIDBefore(index);
@@ -1490,7 +1521,10 @@ function StudioContent() {
 
   const handleAddShot = (index: number, mode: AddShotMode) => {
     if (!hasVideoModels || (mode === "batch" && !hasStoryboardModels)) {
-      Message.warning(t("当前工作空间暂无可用模型，请先在管理端配置并启用模型"));
+      toast.add({
+        type: "warning",
+        title: t("当前工作空间暂无可用模型，请先在管理端配置并启用模型"),
+      });
       return;
     }
     if (mode === "single") {
@@ -1553,7 +1587,10 @@ function StudioContent() {
       let sessionReceived = false;
       const modelServiceId = batchSettings.model || defaultVideoModelId;
       if (!modelServiceId) {
-        Message.error(t("暂无可用视频模型"));
+        toast.add({
+          type: "error",
+          title: t("暂无可用视频模型"),
+        });
         setStoryboardStep("design");
         setPreviewGenerating(false);
         return;
@@ -1625,7 +1662,10 @@ function StudioContent() {
         if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
           return;
         }
-        Message.error(error instanceof Error ? error.message : t("分镜生成失败"));
+        toast.add({
+          type: "error",
+          title: error instanceof Error ? error.message : t("分镜生成失败"),
+        });
         setPreviewGenerating(false);
         setStoryboardDraftStatus("failed");
         if (sessionReceived) {
@@ -1661,7 +1701,10 @@ function StudioContent() {
 
   const handleStoryboardAdopt = async (items: Shot[]) => {
     if (storyboardDraftStatus !== "completed") {
-      Message.error(t("分镜尚未完整生成，无法采纳"));
+      toast.add({
+        type: "error",
+        title: t("分镜尚未完整生成，无法采纳"),
+      });
       return;
     }
     setPreviewConfirming(true);
@@ -1692,11 +1735,13 @@ function StudioContent() {
       }
       setEditing(false);
       setDirty(false);
-      Message.success(
-        t("已创建 {count} 个分镜", {
+      toast.add({
+        type: "success",
+
+        title: t("已创建 {count} 个分镜", {
           count: confirmed.canvasNodeIds.length,
         }),
-      );
+      });
       resetStoryboardFlow();
     } finally {
       setPreviewConfirming(false);
@@ -1732,7 +1777,10 @@ function StudioContent() {
       const saved = await updateCanvasNodePartially(id, { Name: name });
       return saved.shot.name || name;
     } catch (error) {
-      Message.error(canvasRequestErrorMessage(error, t("节点保存失败，请刷新后重试")));
+      toast.add({
+        type: "error",
+        title: canvasRequestErrorMessage(error, t("节点保存失败，请刷新后重试")),
+      });
       throw error;
     }
   };
@@ -1758,13 +1806,21 @@ function StudioContent() {
         });
       return;
     }
-    void removeShot(id).catch(() => Message.error(t("分镜删除失败，请重试")));
+    void removeShot(id).catch(() =>
+      toast.add({
+        type: "error",
+        title: t("分镜删除失败，请重试"),
+      }),
+    );
   };
 
   const handleGenerate = async () => {
     const selectedModelID = resolveModelServiceId();
     if (!selectedModelID || !videoModels.some((model) => model.id === selectedModelID)) {
-      Message.warning(t("当前分镜选择的模型未获项目授权，请重新选择模型"));
+      toast.add({
+        type: "warning",
+        title: t("当前分镜选择的模型未获项目授权，请重新选择模型"),
+      });
       return;
     }
     if (!currentShot || currentShot.status === "generating" || !hasStoryboardScript(currentShot.script)) {
@@ -1804,7 +1860,10 @@ function StudioContent() {
 
   const handleCompose = async () => {
     if (!hasVideoModels) {
-      Message.warning(t("当前工作空间暂无可用视频模型，请先在管理端配置并启用视频模型"));
+      toast.add({
+        type: "warning",
+        title: t("当前工作空间暂无可用视频模型，请先在管理端配置并启用视频模型"),
+      });
       return;
     }
     if (composing || !hasGeneratableShot) {
@@ -1830,20 +1889,27 @@ function StudioContent() {
         });
       }
       if (accepted.size === 0) {
-        Message.warning(t("当前没有符合生成条件的分镜"));
+        toast.add({
+          type: "warning",
+          title: t("当前没有符合生成条件的分镜"),
+        });
       } else if (response.SkippedCount > 0) {
-        Message.success(
-          t("已接纳 {acceptedCount} 个分镜，跳过 {skippedCount} 个", {
+        toast.add({
+          type: "success",
+
+          title: t("已接纳 {acceptedCount} 个分镜，跳过 {skippedCount} 个", {
             acceptedCount: accepted.size,
             skippedCount: response.SkippedCount,
           }),
-        );
+        });
       } else {
-        Message.success(
-          t("已接纳 {acceptedCount} 个分镜生成任务", {
+        toast.add({
+          type: "success",
+
+          title: t("已接纳 {acceptedCount} 个分镜生成任务", {
             acceptedCount: accepted.size,
           }),
-        );
+        });
       }
     } catch {
       // 请求层已统一提示。
@@ -1881,7 +1947,10 @@ function StudioContent() {
       });
       clearCanvasGenerationFailure(currentShot.id);
       setHistoryOpen(false);
-      Message.success(t("已选用该视频"));
+      toast.add({
+        type: "success",
+        title: t("已选用该视频"),
+      });
     } catch {
       // 请求层已统一提示，保留当前选中视频。
     } finally {
@@ -1931,7 +2000,10 @@ function StudioContent() {
     const shotId = currentShot.id;
     const runIdOrPromise = currentShot.activeGenerationRunId ?? generationStartRef.current.get(shotId);
     if (!runIdOrPromise) {
-      Message.warning(t("生成任务尚未就绪，请稍后重试"));
+      toast.add({
+        type: "warning",
+        title: t("生成任务尚未就绪，请稍后重试"),
+      });
       return;
     }
     const generationStatus = videoProviderStatusForRun(
@@ -1940,7 +2012,10 @@ function StudioContent() {
       currentShot.activeGenerationRunId,
     );
     if (isVideoGenerationCancellationDisabled(generationStatus)) {
-      Message.info(t("视频已开始生成，无法取消"));
+      toast.add({
+        type: "info",
+        title: t("视频已开始生成，无法取消"),
+      });
       return;
     }
     if (stoppingGenerationShotId === shotId) {
@@ -1965,9 +2040,15 @@ function StudioContent() {
       }
       if (!result.cancelled) {
         if (isVideoGenerationCancellationDisabled(result.providerStatus)) {
-          Message.info(t("视频已开始生成，无法取消"));
+          toast.add({
+            type: "info",
+            title: t("视频已开始生成，无法取消"),
+          });
         } else {
-          Message.warning(t("生成任务尚未就绪，请稍后重试"));
+          toast.add({
+            type: "warning",
+            title: t("生成任务尚未就绪，请稍后重试"),
+          });
         }
         return;
       }
@@ -1976,9 +2057,15 @@ function StudioContent() {
         activeGenerationRunId: undefined,
       });
       clearCanvasGenerationFailure(shotId);
-      Message.success(t("已终止视频生成"));
+      toast.add({
+        type: "success",
+        title: t("已终止视频生成"),
+      });
     } catch {
-      Message.error(t("终止视频生成失败，请重试"));
+      toast.add({
+        type: "error",
+        title: t("终止视频生成失败，请重试"),
+      });
     } finally {
       setStoppingGenerationShotId((current) => (current === shotId ? undefined : current));
     }
@@ -2052,7 +2139,12 @@ function StudioContent() {
       slotCounts[resolution.targetPort] = (slotCounts[resolution.targetPort] ?? 0) + 1;
       acceptedFiles.push({ file, targetPort: resolution.targetPort });
     }
-    warnings.forEach((message) => Message.warning(message));
+    warnings.forEach((message) =>
+      toast.add({
+        type: "warning",
+        title: message,
+      }),
+    );
     if (!acceptedFiles.length) return;
     const entries = acceptedFiles.map(({ file, targetPort }, offset) => {
       const placeholderId = `draft-${Date.now()}-${offset}`;
@@ -2100,7 +2192,10 @@ function StudioContent() {
     assetStore.updateDraft(shotId, (current) => current.filter((asset) => asset.id !== id && asset.draftId !== id));
     revokeUnusedAssetBlobUrls([removed], assetStore.listAll());
     setDirty(true);
-    Message.info(t("资产将在保存后移除，取消编辑可撤销"));
+    toast.add({
+      type: "info",
+      title: t("资产将在保存后移除，取消编辑可撤销"),
+    });
   };
 
   const handleSwapFrameAssets = () => {
@@ -2191,10 +2286,16 @@ function StudioContent() {
     setExporting(true);
     try {
       await canvasCreateArchive(projectId, canvasId);
-      Message.success(t("已开始导出"));
+      toast.add({
+        type: "success",
+        title: t("已开始导出"),
+      });
       setExportHistoryOpen(true);
     } catch {
-      Message.error(t("发起批量导出失败，请重试"));
+      toast.add({
+        type: "error",
+        title: t("发起批量导出失败，请重试"),
+      });
     } finally {
       setExporting(false);
     }
@@ -2240,7 +2341,10 @@ function StudioContent() {
       );
     } catch {
       setView(previous);
-      Message.error(t("视图切换保存失败"));
+      toast.add({
+        type: "error",
+        title: t("视图切换保存失败"),
+      });
     } finally {
       setViewChanging(false);
     }
@@ -2274,7 +2378,10 @@ function StudioContent() {
       upsertCanvasNodes(response.Nodes);
     } catch {
       reorderStoryboardNodes(previousIds);
-      Message.error(t("分镜排序保存失败，请重试"));
+      toast.add({
+        type: "error",
+        title: t("分镜排序保存失败，请重试"),
+      });
     }
   };
 
@@ -2318,7 +2425,7 @@ function StudioContent() {
 
   return (
     <main
-      className="relative flex h-full min-w-[1440px] min-h-0 flex-col overflow-hidden bg-[#FDFDFD]"
+      className="relative flex h-full min-w-[1440px] min-h-0 flex-col overflow-hidden bg-background"
       onPointerDownCapture={(event) => {
         const target = event.target;
         if (
@@ -2351,7 +2458,6 @@ function StudioContent() {
         shotCount={formalShotCount}
         title={canvas?.Name || t("剧集创作")}
       />
-
       {!modelsLoading && (!hasVideoModels || !hasStoryboardModels) ? (
         <div
           className={`bg-[color:oklch(0.987 0.022 95.277)] px-6 py-2 text-[13px] text-[color:oklch(0.555 0.163 48.998)] ${
@@ -2363,24 +2469,22 @@ function StudioContent() {
             : t("当前工作空间暂无可用分镜推理模型，批量创建分镜暂不可用，请先在管理端配置并启用文本模型。")}
         </div>
       ) : null}
-
       <ExportHistoryDrawer
         canvasId={canvasId}
         onClose={() => setExportHistoryOpen(false)}
         projectId={projectId}
         visible={exportHistoryOpen}
       />
-
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="relative flex min-h-0 flex-1">
           <div
             aria-hidden={!assetsOpen}
-            className={`box-border flex min-h-0 shrink-0 flex-col overflow-hidden bg-white transition-[width] duration-300 ease-in-out ${
+            className={`box-border flex min-h-0 shrink-0 flex-col overflow-hidden bg-background transition-[width] duration-300 ease-in-out ${
               view === "canvas" ? "absolute inset-y-0 left-0 z-10" : "relative"
             } ${assetsOpen ? "w-[300px]" : "w-0 pointer-events-none"}`}
           >
             <div
-              className={`box-border flex w-[300px] min-w-[300px] min-h-0 flex-1 shrink-0 flex-col bg-white ${
+              className={`box-border flex w-[300px] min-w-[300px] min-h-0 flex-1 shrink-0 flex-col bg-background ${
                 view === "canvas" ? "pt-[48px]" : ""
               }`}
             >
@@ -2394,23 +2498,29 @@ function StudioContent() {
           </div>
 
           <div className="absolute bottom-2 left-[10px] z-10 flex h-10 w-10 items-center justify-center">
-            <Tooltip content={t(assetsOpen ? "折叠项目资产" : "展开项目资产")} position="top">
-              <button
-                aria-label={t(assetsOpen ? "折叠项目资产" : "展开项目资产")}
-                className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-[8px] border-0 ${
-                  assetsOpen
-                    ? "bg-[transparent]"
-                    : "bg-[color-mix(in_srgb,#f6f6f6_70%,transparent)] backdrop-blur-[16px]"
-                }`}
-                onClick={() => setAssetsOpen((open) => !open)}
-                type="button"
-              >
-                {assetsOpen ? (
-                  <PanelLeftClose aria-hidden className="h-4 w-4" strokeWidth={1.5} />
-                ) : (
-                  <PanelLeftOpen aria-hidden className="h-4 w-4" strokeWidth={1.5} />
-                )}
-              </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    aria-label={t(assetsOpen ? "折叠项目资产" : "展开项目资产")}
+                    className={`flex h-6 w-6 cursor-pointer items-center justify-center rounded-[8px] border-0 ${
+                      assetsOpen
+                        ? "bg-[transparent]"
+                        : "bg-[color-mix(in_srgb,#f6f6f6_70%,transparent)] backdrop-blur-[16px]"
+                    }`}
+                    onClick={() => setAssetsOpen((open) => !open)}
+                    type="button"
+                  >
+                    {assetsOpen ? (
+                      <PanelLeftClose aria-hidden className="h-4 w-4" strokeWidth={1.5} />
+                    ) : (
+                      <PanelLeftOpen aria-hidden className="h-4 w-4" strokeWidth={1.5} />
+                    )}
+                  </Button>
+                }
+              />
+              <TooltipContent side={"top"}>{t(assetsOpen ? "折叠项目资产" : "展开项目资产")}</TooltipContent>
             </Tooltip>
           </div>
 
@@ -2447,7 +2557,7 @@ function StudioContent() {
 
             {!studioReady ? (
               <div className="flex h-full items-center justify-center">
-                <Spin size={28} />
+                <LoadingIndicator className="size-[28px]" />
               </div>
             ) : view === "canvas" ? null : (
               <>
@@ -2458,7 +2568,7 @@ function StudioContent() {
                   >
                     {loading ? (
                       <div className="flex min-h-0 flex-1 items-center justify-center">
-                        <Spin size={32} />
+                        <LoadingIndicator className="size-[32px]" />
                       </div>
                     ) : shots.length === 0 ? (
                       <EmptyStoryboard
@@ -2689,7 +2799,7 @@ function StudioContent() {
           {view === "canvas" && chatOpen ? (
             <aside
               aria-label={t("画布 AI 助手")}
-              className={`z-20 min-h-0 shrink-0 overflow-hidden bg-white ${
+              className={`z-20 min-h-0 shrink-0 overflow-hidden bg-background ${
                 view === "canvas" ? "absolute inset-y-0 right-0" : "relative"
               }`}
               style={{ width: chatWidth }}

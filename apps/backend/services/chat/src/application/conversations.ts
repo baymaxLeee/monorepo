@@ -17,11 +17,12 @@ import { getDb } from "../infrastructure/persistence/index.js";
 import {
   agentRuns,
   conversationArtifactCleanupOutbox,
+  conversationRunLeases,
   conversations,
   messages,
   type PersistedMessageContent,
 } from "../infrastructure/persistence/schema.js";
-import { NotFoundError } from "./errors.js";
+import { ConflictError, NotFoundError } from "./errors.js";
 
 export interface Conversation {
   id: string;
@@ -260,6 +261,16 @@ export async function deleteConversation(auth: AuthContext, conversationId: stri
   const db = getDb();
   const now = new Date();
   await db.transaction(async (tx) => {
+    const [activeLease] = await tx
+      .select({ runId: conversationRunLeases.runId })
+      .from(conversationRunLeases)
+      .where(eq(conversationRunLeases.conversationId, row.id))
+      .for("update");
+    if (activeLease) {
+      throw new ConflictError("conversation has an active agent run; cancel it before deleting", "active_run_exists", {
+        run_id: activeLease.runId,
+      });
+    }
     await tx
       .insert(conversationArtifactCleanupOutbox)
       .values({

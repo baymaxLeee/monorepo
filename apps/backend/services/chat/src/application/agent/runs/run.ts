@@ -115,23 +115,7 @@ function describeStreamError(error: unknown): string {
   ) {
     return "已取消。";
   }
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : (() => {
-            try {
-              return JSON.stringify(error);
-            } catch {
-              return String(error);
-            }
-          })();
-  const trimmed = message.trim();
-  if (!trimmed) {
-    return "模型调用失败，未返回具体原因。";
-  }
-  return `模型调用失败：${trimmed.slice(0, 600)}`;
+  return "模型调用失败，请稍后重试。";
 }
 
 function assertRunAccess(

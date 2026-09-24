@@ -1,3 +1,4 @@
+import { toast, Button } from "@repo/design-system";
 import {
   RefreshCw as IconRefresh,
   ImageOff as IconBlankAssets,
@@ -8,10 +9,12 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import emptyIllustration from "@/assets/storyboard-empty.png";
+import { ActionDropdown } from "@/components/ActionDropdown";
+import { AsyncButton } from "@/components/AsyncButton";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { Pagination, Result, openDeleteConfirmDialog } from "@/components/common";
-import { ActionDropdown, Message, Spin, Button } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { downloadWithFetch } from "@/utils/download";
@@ -172,7 +175,10 @@ export default function ResourcesPage() {
       const validationError = validateResourceFile(selectedType, file);
       if (validationError) {
         failedCount += 1;
-        Message.error(`${file.name}：${validationError}`);
+        toast.add({
+          type: "error",
+          title: `${file.name}：${validationError}`,
+        });
         continue;
       }
       try {
@@ -190,10 +196,16 @@ export default function ResourcesPage() {
     }
     if (createdCount) {
       refresh();
-      Message.success(t("成功创建 {count} 个资产", { count: createdCount }));
+      toast.add({
+        type: "success",
+        title: t("成功创建 {count} 个资产", { count: createdCount }),
+      });
     }
     if (failedCount) {
-      Message.error(t("{count} 个文件创建失败", { count: failedCount }));
+      toast.add({
+        type: "error",
+        title: t("{count} 个文件创建失败", { count: failedCount }),
+      });
     }
     setCreatingFromFiles(false);
     if (uploadInputRef.current) uploadInputRef.current.value = "";
@@ -213,7 +225,10 @@ export default function ResourcesPage() {
     if (!file || !item || pendingAudioResourceId) return;
     const validationError = validateResourceFile(resource.ResourceType.AUDIO, file);
     if (validationError) {
-      Message.error(`${file.name}：${validationError}`);
+      toast.add({
+        type: "error",
+        title: `${file.name}：${validationError}`,
+      });
       audioUploadTargetRef.current = undefined;
       if (audioUploadInputRef.current) audioUploadInputRef.current.value = "";
       return;
@@ -234,18 +249,27 @@ export default function ResourcesPage() {
           blobId,
           fileName: file.name,
         });
-        Message.success(t("音频替换成功"));
+        toast.add({
+          type: "success",
+          title: t("音频替换成功"),
+        });
       } else {
         await addResourceFile(projectId, item.ResourceID, item.Revision, {
           blobId,
           fileName: file.name,
           name: getResourceNameFromFile(file.name),
         });
-        Message.success(t("音频上传成功"));
+        toast.add({
+          type: "success",
+          title: t("音频上传成功"),
+        });
       }
       refresh();
     } catch {
-      Message.error(item.PrimaryResourceAsset ? t("音频替换失败") : t("音频上传失败"));
+      toast.add({
+        type: "error",
+        title: item.PrimaryResourceAsset ? t("音频替换失败") : t("音频上传失败"),
+      });
     } finally {
       setPendingAudioResourceId("");
       audioUploadTargetRef.current = undefined;
@@ -370,7 +394,11 @@ export default function ResourcesPage() {
           />
         </div>
         <div className="flex items-center gap-3">
-          <Button disabled={batchSelecting || !selectableItems.length} onClick={() => setBatchSelecting(true)}>
+          <Button
+            disabled={batchSelecting || !selectableItems.length}
+            onClick={() => setBatchSelecting(true)}
+            variant="outline"
+          >
             {batchSelecting ? t("批量操作中") : t("批量操作")}
           </Button>
           <ActionDropdown
@@ -385,21 +413,20 @@ export default function ResourcesPage() {
             }}
             position="bl"
           >
-            <Button disabled={batchSelecting} icon={<IconPlus />} loading={creatingFromFiles} type="primary">
+            <AsyncButton disabled={batchSelecting} loading={creatingFromFiles}>
+              <IconPlus />
               {t("创建资产")}
-            </Button>
+            </AsyncButton>
           </ActionDropdown>
           <Button
             aria-label={t("刷新资产库")}
             data-ea="asset-library-list-refresh"
-            icon={
-              <span className={loading ? "animate-spin" : ""}>
-                <IconRefresh />
-              </span>
-            }
             onClick={refresh}
             title={t("刷新资产库")}
-          />
+            variant="outline"
+          >
+            <IconRefresh className={loading ? "animate-spin" : undefined} />
+          </Button>
         </div>
       </div>
       <input
@@ -434,15 +461,18 @@ export default function ResourcesPage() {
         ref={audioRef}
         style={{ display: "none" }}
       />
-
       <div aria-label={t("资产列表内容")} className="min-h-0 flex-1 overflow-y-auto" role="region">
         {loading ? (
           <div className="flex h-full min-h-[320px] items-center justify-center">
-            <Spin />
+            <LoadingIndicator />
           </div>
         ) : error && !items.length ? (
           <Result
-            extra={<Button onClick={refresh}>{t("重新加载")}</Button>}
+            extra={
+              <Button onClick={refresh} variant="outline">
+                {t("重新加载")}
+              </Button>
+            }
             status="error"
             title={t("资产加载失败")}
             subTitle={t("请稍后重试")}

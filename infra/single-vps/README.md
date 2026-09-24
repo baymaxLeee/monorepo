@@ -78,7 +78,7 @@ hand-manage the middle-column "operator" secrets:
 | Bucket | Who sets it | Where it lives |
 |---|---|---|
 | `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` / `PUBLIC_GATEWAY_URL` | CI / `deploy.sh` | passed in the environment |
-| Database passwords + `INTERNAL_API_TOKEN` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
+| Database passwords + per-service `*_INTERNAL_API_TOKEN` credentials + `TOOL_APPROVAL_SECRET` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
 | super-admin login, `EXA_API_KEY` / `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
 
 ---

@@ -13,7 +13,6 @@ from infrastructure.persistence.repositories import bots as bot_crud
 from infrastructure.persistence.repositories import providers as provider_crud
 from infrastructure.persistence.repositories import skills as skill_crud
 from kernel.errors import NotFoundError, RequestError
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.auth import AuthContext
@@ -54,10 +53,9 @@ def to_schema(row: BotRow) -> Bot:
 
 
 class BotService:
-    def __init__(self, session: AsyncSession, current_user: AuthContext, redis: Redis | None = None) -> None:
+    def __init__(self, session: AsyncSession, current_user: AuthContext) -> None:
         self._session = session
         self._current_user = current_user
-        self._redis = redis
 
     async def list(self) -> list[Bot]:
         rows = await bot_crud.list_bots(self._session, self._current_user.workspace_id, self._current_user.tenant_id)
@@ -80,8 +78,6 @@ class BotService:
                 self._current_user.workspace_id,
                 self._current_user.tenant_id,
             )
-        if self._redis is not None:
-            await self._redis.incr("admin:bots:created")
         return to_schema(row)
 
     async def update(self, bot_id: str, payload: UpdateBotInput) -> Bot:
@@ -202,5 +198,7 @@ class BotService:
         )
         if provider is None:
             raise RequestError(f"model provider {provider_id} not found")
+        if not provider.is_enabled:
+            raise RequestError(f"model provider {provider_id} is disabled")
         if provider.provider_kind != expected_kind:
             raise RequestError(f"model provider {provider_id} is not a {expected_kind} model")

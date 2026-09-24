@@ -1,4 +1,5 @@
 import { canvasDeleteProject, CanvasSortDirection } from "@repo/api";
+import { Button } from "@repo/design-system";
 import { useDebounce, useInfiniteScroll } from "ahooks";
 import {
   RefreshCw as IconRefresh,
@@ -23,7 +24,7 @@ import {
   UserLabel,
   formatDateByCurrentYear,
 } from "@/components/common";
-import { Spin, Button } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { project } from "@/domain";
 import { useCanManageProjects } from "@/hooks/useCanManageProjects";
 import t from "@/utils/i18n";
@@ -82,15 +83,13 @@ function ProjectCard({
   project: Project;
 }) {
   return (
-    <article className="group relative w-full overflow-hidden rounded-[16px] border border-[transparent] border-solid p-[3px] transition-colors duration-200 hover:border-[#000000]">
+    <article className="group relative w-full overflow-hidden rounded-2xl border border-transparent p-[3px] transition-colors duration-200 hover:border-foreground">
       <Link
         aria-label={t("进入项目：{title}", { title: project.title })}
         className="flex flex-col gap-4 pb-4 text-inherit no-underline"
         to={`/platform/canvas/projects/${project.id}/canvases`}
       >
-        <div
-          className={`relative aspect-video w-full overflow-hidden rounded-[12px] bg-[#f2f3f5] ${styles.projectCover}`}
-        >
+        <div className={`relative aspect-video w-full overflow-hidden rounded-xl bg-muted ${styles.projectCover}`}>
           {project.thumbnail ? (
             <ProjectCoverImage
               alt={project.title}
@@ -128,11 +127,11 @@ function ProjectCard({
           </div>
         </div>
         <div className="flex h-6 items-center gap-3 px-3">
-          <span className="inline-flex items-center gap-1 rounded-[8px] border border-border bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
+          <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-1.5 text-[13px] leading-5.5 text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
             <IconClockCircle aria-hidden size={14} strokeWidth={1.5} />
             {project.duration}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-[8px] border border-border bg-[rgba(26,27,30,0.05)] px-[6px] text-[13px] leading-5.5 text-[#676b72] group-hover:opacity-0 group-focus-within:opacity-0">
+          <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted px-1.5 text-[13px] leading-5.5 text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
             <IconProjectFill aria-hidden size={14} strokeWidth={1.5} />
             {t("{count} 个资产", { count: project.assets })}
           </span>
@@ -145,8 +144,8 @@ function ProjectCard({
           displayNum={1}
           menuButtonProps={{
             icon: <IconMoreVertical1 />,
-            size: "mini",
-            type: "outline",
+            size: "icon-xs",
+            variant: "outline",
           }}
           operations={[
             { name: t("编辑"), onClick: onEdit },
@@ -155,7 +154,7 @@ function ProjectCard({
               : []),
           ]}
           spaceSize={8}
-          buttonProps={{ size: "mini" }}
+          buttonProps={{ size: "xs" }}
         />
       </div>
     </article>
@@ -164,7 +163,7 @@ function ProjectCard({
 
 function ProjectCardSkeleton() {
   return (
-    <div aria-hidden className="min-w-0 rounded-[12px] bg-white p-2">
+    <div aria-hidden className="min-w-0 rounded-xl bg-background p-2">
       <ContentSkeleton
         animation
         className="aspect-video w-full shrink-0"
@@ -252,7 +251,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <header className="shrink-0 px-5 pb-3 pt-4">
         <h1 className="m-0 text-[28px] font-semibold leading-10 text-foreground">{t("下午好，导演！")}</h1>
 
@@ -277,25 +276,23 @@ export default function ProjectsPage() {
 
           <div className="flex items-center gap-3">
             {canManageProjects ? (
-              <Button icon={<IconPlus />} onClick={() => setDialogState({ mode: "create" })} type="primary">
+              <Button onClick={() => setDialogState({ mode: "create" })}>
+                <IconPlus />
                 {t("创建项目")}
               </Button>
             ) : null}
             <Button
               aria-label={t("刷新项目")}
               data-ea="project-list-refresh"
-              icon={
-                <span className={loading ? "animate-spin" : ""}>
-                  <IconRefresh />
-                </span>
-              }
               onClick={handleRefresh}
               title={t("刷新项目")}
-            />
+              variant="outline"
+            >
+              <IconRefresh className={loading ? "animate-spin" : undefined} />
+            </Button>
           </div>
         </div>
       </header>
-
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
         {loading ? (
           <section aria-label={t("正在加载项目")} className={`grid ${styles.projectGrid}`}>
@@ -316,7 +313,7 @@ export default function ProjectsPage() {
             ))}
           </section>
         ) : debouncedKeyword.trim() ? (
-          <section className="flex h-full min-h-[320px] flex-col items-center justify-center rounded-[16px] bg-white text-center">
+          <section className="flex h-full min-h-[320px] flex-col items-center justify-center rounded-2xl bg-background text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
               <IconSearch className="text-[18px]" />
             </div>
@@ -331,7 +328,7 @@ export default function ProjectsPage() {
         )}
         {projects.length > 0 && loadingMore ? (
           <div className={styles.loadMore}>
-            <Spin />
+            <LoadingIndicator />
           </div>
         ) : null}
       </div>

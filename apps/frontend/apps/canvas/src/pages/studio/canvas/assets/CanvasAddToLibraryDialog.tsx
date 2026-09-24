@@ -6,10 +6,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
 } from "@repo/design-system";
 import { useEffect, useState } from "react";
 
-import { Input, Message, Select } from "@/components/ui";
 import { canvasnode, resource } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -70,17 +76,22 @@ export function CanvasAddToLibraryDialog({
           <div className={styles.libraryForm}>
             <div className={styles.libraryField}>
               <span>{t("资产类型")}</span>
-              <Select aria-label={t("资产类型")} onChange={setType} value={type}>
-                {RESOURCE_TYPE_OPTIONS.map((option) => (
-                  <Select.Option key={option.value} value={option.value}>
-                    {option.label}
-                  </Select.Option>
-                ))}
+              <Select onValueChange={(value) => value && setType(value)} value={type}>
+                <SelectTrigger aria-label={t("资产类型")} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  {RESOURCE_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <label>
               <span>{t("资产名称")}</span>
-              <Input maxLength={64} onChange={setName} value={name} />
+              <Input maxLength={64} onChange={(event) => setName(event.currentTarget.value)} value={name} />
             </label>
           </div>
         </div>
@@ -102,11 +113,19 @@ export function CanvasAddToLibraryDialog({
                 type,
               })
                 .then((response) => {
-                  Message.success(t("已添加到资产库"));
+                  toast.add({
+                    type: "success",
+                    title: t("已添加到资产库"),
+                  });
                   onSuccess(response);
                   onClose();
                 })
-                .catch(() => Message.error(t("添加到资产库失败")))
+                .catch(() =>
+                  toast.add({
+                    type: "error",
+                    title: t("添加到资产库失败"),
+                  }),
+                )
                 .finally(() => setSubmitting(false));
             }}
             type="button"

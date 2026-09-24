@@ -57,7 +57,7 @@ func (r *Repository) ListGenerations(
 		canvas,
 		canvasnode,
 	).Where("hidden_at IS NULL")
-	if err = query.Order("created_at DESC").Order("task_run_id DESC").Find(&rows).Error; err != nil {
+	if err = query.Order("created_at DESC").Order("task_run_id DESC").Limit(100).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	items := make([]domainvideo.Generation, 0, len(rows))

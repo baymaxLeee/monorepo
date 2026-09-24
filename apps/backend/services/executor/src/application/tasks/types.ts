@@ -8,6 +8,7 @@ export interface TaskTypeDefinition<TInput = unknown, TOutput = unknown> {
   readonly name: string;
   readonly inputSchema: z.ZodType<TInput, unknown>;
   readonly workflow: WorkflowReference;
+  readonly retryFailedOnCreate?: boolean;
   readonly cancel?: (input: TInput, progress: TaskProgress | null, context: { taskId: string }) => Promise<void>;
 }
 

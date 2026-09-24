@@ -1,8 +1,8 @@
+import { toast } from "@repo/design-system";
 import { type Edge, type ReactFlowInstance } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
-import { Message } from "@/components/ui";
 import { BatchUpdateCanvasNodePositions } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
 
@@ -114,7 +114,11 @@ export function useCanvasLayout({
     const targets = connectedNodeIDs(layoutRequest.seedNodeIds, nodes, edges);
     handledLayoutRequestRef.current = layoutRequest.requestId;
     void arrangeNodes(targets).then((success) => {
-      if (success) Message.success(t("新分镜已整理到画布空白区域"));
+      if (success)
+        toast.add({
+          type: "success",
+          title: t("新分镜已整理到画布空白区域"),
+        });
     });
   }, [arrangeNodes, edges, layoutRequest, nodes]);
 
@@ -162,7 +166,10 @@ export function useCanvasLayout({
         );
         upsertCanvasNodes(response.Items);
       } catch {
-        Message.error(t("节点位置保存失败"));
+        toast.add({
+          type: "error",
+          title: t("节点位置保存失败"),
+        });
         void onRefreshGraph();
       }
     },

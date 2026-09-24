@@ -188,7 +188,7 @@ export function MembersPage() {
       <div className="flex flex-wrap items-center gap-3">
         {isSuperAdmin ? (
           <Select value={workspaceId ?? ""} onValueChange={(v) => setPickedWorkspaceId(v)}>
-            <SelectTrigger className="w-64">
+            <SelectTrigger aria-label="要管理的工作空间" className="w-64">
               <SelectValue placeholder="选择要管理的工作空间" />
             </SelectTrigger>
             <SelectContent>
@@ -203,7 +203,7 @@ export function MembersPage() {
           <Badge variant="outline">团队：{activeWorkspaceName ?? "—"}</Badge>
         )}
         <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger aria-label="成员状态" className="w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

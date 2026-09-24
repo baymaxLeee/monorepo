@@ -7,6 +7,8 @@ export function problemJson(err: unknown): { body: object; status: number } {
       body: { code: err.code, message: err.message, details: err.details },
     };
   }
-  const message = err instanceof Error ? err.message : String(err);
-  return { status: 500, body: { code: "internal_error", message } };
+  return {
+    status: 500,
+    body: { code: "internal_error", message: "An unexpected server error occurred" },
+  };
 }

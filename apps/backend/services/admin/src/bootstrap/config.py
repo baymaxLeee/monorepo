@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import computed_field, model_validator
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "single-vps", "production"]
@@ -12,7 +12,12 @@ Environment = Literal["development", "staging", "single-vps", "production"]
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
 
 _DEV_ADMIN_SECRET_KEY = "MFnLpzWN-y-Hh0aJtaxKXh4uOFcljnPC6FwpDF4S5Y8="
-_DEV_INTERNAL_API_TOKEN = "dev-internal-token"
+_DEV_INTERNAL_SERVICE_TOKENS = {
+    "canvas": "dev-canvas-internal-token",
+    "chat": "dev-chat-internal-token",
+    "executor": "dev-executor-internal-token",
+    "knowledge": "dev-knowledge-internal-token",
+}
 
 
 class Settings(BaseSettings):
@@ -37,7 +42,7 @@ class Settings(BaseSettings):
 
     admin_secret_key: str = _DEV_ADMIN_SECRET_KEY
 
-    internal_api_token: str = _DEV_INTERNAL_API_TOKEN
+    internal_service_tokens: dict[str, str] = Field(default_factory=lambda: dict(_DEV_INTERNAL_SERVICE_TOKENS))
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -59,21 +64,27 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:
-        if self.environment != "production":
-            return self
         missing: list[str] = []
-        if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
-            missing.append("POSTGRES_PASSWORD")
-        if self.postgres_host in {"localhost", "127.0.0.1"}:
-            missing.append("POSTGRES_HOST")
-        if self.redis_host in {"localhost", "127.0.0.1"}:
-            missing.append("REDIS_HOST")
-        if self.admin_secret_key == _DEV_ADMIN_SECRET_KEY:
-            missing.append("ADMIN_SECRET_KEY")
-        if self.internal_api_token == _DEV_INTERNAL_API_TOKEN:
-            missing.append("INTERNAL_API_TOKEN")
+        if self.environment != "development":
+            expected_callers = set(_DEV_INTERNAL_SERVICE_TOKENS)
+            tokens = self.internal_service_tokens
+            if (
+                set(tokens) != expected_callers
+                or any(len(token) < 32 or token.startswith("dev-") for token in tokens.values())
+                or len(set(tokens.values())) != len(tokens)
+            ):
+                missing.append("INTERNAL_SERVICE_TOKENS")
+        if self.environment != "development":
+            if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
+                missing.append("POSTGRES_PASSWORD")
+            if self.postgres_host in {"localhost", "127.0.0.1"}:
+                missing.append("POSTGRES_HOST")
+            if self.redis_host in {"localhost", "127.0.0.1"}:
+                missing.append("REDIS_HOST")
+            if self.admin_secret_key == _DEV_ADMIN_SECRET_KEY:
+                missing.append("ADMIN_SECRET_KEY")
         if missing:
-            raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
+            raise ValueError("deployed environment requires explicit values for: " + ", ".join(missing))
         return self
 
 

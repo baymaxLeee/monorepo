@@ -3,14 +3,14 @@
   max-width: 100%;
   flex: 0 1 auto;
 
-  :global([data-ui-input-control]) {
+  &[data-slot="input-group"] {
     border-color: transparent;
-    background-color: #f2f3f5;
+    background-color: var(--muted);
   }
 
-  :global([data-ui-input-control]:hover),
-  :global([data-ui-input-control]:focus) {
+  &[data-slot="input-group"]:hover,
+  &[data-slot="input-group"]:focus-within {
     border-color: transparent;
-    background-color: #f2f3f5;
+    background-color: var(--muted);
   }
 }

@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import {
   CircleCheck as IconCheckCircleFill,
   CircleX as IconCloseCircleFill,
@@ -5,7 +6,6 @@ import {
   LoaderCircle as IconLoading,
 } from "lucide-react";
 
-import { Tooltip } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import styles from "./ScriptDraftCard.module.less";
@@ -26,7 +26,8 @@ export function ScriptDraftCard({
   status: "running" | "completed" | "failed";
 }) {
   const removeBadge = (
-    <button
+    <Button
+      variant="ghost"
       aria-label={generating ? t("分镜识别中，无法删除") : t("关闭分镜脚本草稿")}
       className={`${styles.dismissButton} ${generating ? styles.dismissButtonDisabled : ""}`}
       onClick={(event) => {
@@ -35,26 +36,21 @@ export function ScriptDraftCard({
           onDismiss();
         }
       }}
+      onKeyDown={(event) => event.stopPropagation()}
       type="button"
     >
       <IconClose />
-    </button>
+    </Button>
   );
 
   return (
     <div className={styles.card}>
-      <div
+      <Button
         aria-label={generating ? t("分镜脚本生成中") : t("查看分镜脚本")}
         className={styles.surface}
         onClick={onOpen}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onOpen();
-          }
-        }}
-        role="button"
-        tabIndex={0}
+        type="button"
+        variant="ghost"
       >
         {generating ? (
           <IconLoading aria-hidden className={styles.loadingIcon} />
@@ -68,21 +64,17 @@ export function ScriptDraftCard({
         </span>
         {/* 分镜入口保留产品蓝色，避免被中性的全局 primary 吞掉层级。 */}
         <span className={styles.openLabel}>{t("查看分镜")}</span>
-
-        <span
-          className={styles.dismiss}
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          {generating ? (
-            <Tooltip content={t("分镜识别中，无法删除")} position="top">
-              {removeBadge}
-            </Tooltip>
-          ) : (
-            removeBadge
-          )}
-        </span>
-      </div>
+      </Button>
+      <span className={styles.dismiss}>
+        {generating ? (
+          <Tooltip>
+            <TooltipTrigger render={<span className="inline-flex max-w-full" />}>{removeBadge}</TooltipTrigger>
+            <TooltipContent side={"top"}>{t("分镜识别中，无法删除")}</TooltipContent>
+          </Tooltip>
+        ) : (
+          removeBadge
+        )}
+      </span>
     </div>
   );
 }

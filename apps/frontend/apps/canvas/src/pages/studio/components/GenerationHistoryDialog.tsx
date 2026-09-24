@@ -1,4 +1,14 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@repo/design-system";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Button,
+} from "@repo/design-system";
 import { useAtomValue } from "jotai";
 import {
   Check as IconCheck,
@@ -11,7 +21,6 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ActionButton } from "@/components/ActionButton";
-import { Tooltip } from "@/components/ui";
 import { VideoPlayer } from "@/components/videoPlayer/index";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
@@ -59,16 +68,20 @@ function HistoryThumb({ item }: { item: GenerationHistoryItem }) {
 
   if (item.status === "failed" || item.status === "cancelled") {
     return (
-      <Tooltip
-        content={item.errorMessage || t(isText ? "文本生成失败" : isImage ? "图片生成失败" : "视频生成失败")}
-        position="top"
-      >
-        <div className="flex h-[47px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[8px] bg-[rgba(215,49,42,0.1)]">
-          <span className="text-[12px] font-medium leading-3 text-destructive">?</span>
-          <span className="text-[12px] font-medium leading-5 text-destructive">
-            {item.status === "cancelled" ? t("已取消") : t("生成失败")}
-          </span>
-        </div>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <div className="flex h-[47px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[8px] bg-[rgba(215,49,42,0.1)]">
+              <span className="text-[12px] font-medium leading-3 text-destructive">?</span>
+              <span className="text-[12px] font-medium leading-5 text-destructive">
+                {item.status === "cancelled" ? t("已取消") : t("生成失败")}
+              </span>
+            </div>
+          }
+        />
+        <TooltipContent side={"top"}>
+          {item.errorMessage || t(isText ? "文本生成失败" : isImage ? "图片生成失败" : "视频生成失败")}
+        </TooltipContent>
       </Tooltip>
     );
   }
@@ -135,7 +148,8 @@ function HistoryRow({
       <div className="flex w-[18px] shrink-0 items-center justify-center text-[13px] font-medium leading-6 text-muted-foreground">
         {selected ? <span className={styles.selectedMarker} /> : number}
       </div>
-      <button
+      <Button
+        variant="ghost"
         aria-pressed={selected}
         className={`${styles.historyRow} ${selected ? styles.historyRowSelected : ""}`}
         onClick={onSelect}
@@ -145,7 +159,7 @@ function HistoryRow({
         <p className="m-0 line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-[13px] leading-5.5 text-foreground">
           {summary}
         </p>
-      </button>
+      </Button>
     </div>
   );
 }
@@ -288,9 +302,14 @@ function SelectedHistoryDetail({
           {script}
         </p>
         {item?.script && (scriptOverflow || scriptExpanded) ? (
-          <button className={styles.scriptToggle} onClick={() => setScriptExpanded((value) => !value)} type="button">
+          <Button
+            variant="ghost"
+            className={styles.scriptToggle}
+            onClick={() => setScriptExpanded((value) => !value)}
+            type="button"
+          >
             {scriptExpanded ? t("收起") : t("更多")}
-          </button>
+          </Button>
         ) : null}
       </div>
     </section>
@@ -376,14 +395,15 @@ export function GenerationHistoryDialog({
         <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">
           <DialogTitle className="canvas-modal-title">
             <div className="flex min-w-0 items-center gap-4">
-              <button
+              <Button
+                variant="ghost"
                 aria-label={t("返回")}
-                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[8px] border border-solid border-border bg-white p-0 text-[14px] text-foreground hover:bg-background"
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border bg-background p-0 text-[14px] text-foreground hover:bg-muted"
                 onClick={onCancel}
                 type="button"
               >
                 <IconLeft />
-              </button>
+              </Button>
               <span className="max-w-[320px] truncate text-[14px] font-medium leading-6 text-foreground">
                 {displayTitle}
               </span>

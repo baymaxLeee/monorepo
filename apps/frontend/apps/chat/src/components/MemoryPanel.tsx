@@ -205,11 +205,12 @@ function CandidateEditor({
 
   return (
     <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-      <div className="flex flex-wrap gap-1">
+      <div aria-label="记忆分类" className="flex flex-wrap gap-1" role="group">
         {CATEGORY_ORDER.map((value) => (
           <Button
             key={value}
             type="button"
+            aria-pressed={category === value}
             size="sm"
             variant={category === value ? "default" : "outline"}
             onClick={() => setCategory(value)}
@@ -218,7 +219,7 @@ function CandidateEditor({
           </Button>
         ))}
       </div>
-      <Textarea value={content} onChange={(event) => setContent(event.target.value)} rows={3} />
+      <Textarea aria-label="记忆内容" value={content} onChange={(event) => setContent(event.target.value)} rows={3} />
       <div className="flex gap-2">
         <Button size="sm" disabled={!canSave} onClick={() => onSave({ category, content: trimmed })}>
           保存

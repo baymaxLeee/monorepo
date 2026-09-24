@@ -1,10 +1,9 @@
 import { stageCanvasCoverUpload } from "@repo/api";
+import { Spinner, toast, Button } from "@repo/design-system";
 import { ImagePlus, X } from "lucide-react";
 import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import t from "@/utils/i18n";
-
-import { Message, Spin } from "./ui";
 
 import styles from "./CoverImageUploader.module.less";
 
@@ -80,11 +79,17 @@ export function CoverImageUploader({
   const selectFile = (file?: File) => {
     if (!file) return;
     if (!["image/png", "image/jpeg"].includes(file.type)) {
-      Message.error(t("仅支持 png、jpg、jpeg 格式"));
+      toast.add({
+        type: "error",
+        title: t("仅支持 png、jpg、jpeg 格式"),
+      });
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      Message.error(t("封面图片不能超过 2MB"));
+      toast.add({
+        type: "error",
+        title: t("封面图片不能超过 2MB"),
+      });
       return;
     }
     uploadRef.current?.abort();
@@ -103,7 +108,11 @@ export function CoverImageUploader({
         onChange?.(result.blob_id);
       })
       .catch(() => {
-        if (!controller.signal.aborted) Message.error(t("封面上传失败，请重新选择"));
+        if (!controller.signal.aborted)
+          toast.add({
+            type: "error",
+            title: t("封面上传失败，请重新选择"),
+          });
       })
       .finally(() => {
         if (uploadRef.current !== controller) return;
@@ -129,7 +138,8 @@ export function CoverImageUploader({
       onDragOver={(event) => event.preventDefault()}
       onDrop={drop}
     >
-      <button
+      <Button
+        variant="ghost"
         className="flex h-full w-full items-center justify-center"
         disabled={uploading}
         onClick={() => inputRef.current?.click()}
@@ -144,7 +154,7 @@ export function CoverImageUploader({
         ) : (
           (emptyContent ?? <ImagePlus />)
         )}
-      </button>
+      </Button>
       <input
         ref={inputRef}
         id={inputId}
@@ -161,11 +171,12 @@ export function CoverImageUploader({
       ) : null}
       {uploading ? (
         <div className={styles.uploadingMask}>
-          <Spin />
+          <Spinner aria-label={t("上传中")} />
         </div>
       ) : null}
       {(localPreviewURL || previewURL) && !uploading ? (
-        <button
+        <Button
+          variant="ghost"
           aria-label={removeAriaLabel}
           className={styles.removeButton}
           onClick={(event) => {
@@ -177,7 +188,7 @@ export function CoverImageUploader({
           type="button"
         >
           <X className={styles.removeIcon} />
-        </button>
+        </Button>
       ) : null}
     </div>
   );

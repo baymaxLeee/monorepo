@@ -120,6 +120,8 @@ lint scope="":
         uv run mypy libs && \
         for s in {{ PY_SERVICES }}; do (cd services/$s && uv run mypy .) || exit 1; done && \
         just lint-node && just lint-go; \
+    elif [ -f "services/{{ scope }}/go.mod" ]; then \
+        cd services/{{ scope }} && go vet ./...; \
     elif [ -f "services/{{ scope }}/package.json" ]; then \
         cd services/{{ scope }} && pnpm run lint; \
     else \

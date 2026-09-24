@@ -1,4 +1,5 @@
-import { Tooltip } from "@/components/ui";
+import { Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
+
 import t from "@/utils/i18n";
 
 import styles from "../CanvasBoard.module.less";
@@ -17,7 +18,8 @@ export function CanvasGeneratingBadge({
   stopLabel?: string;
 }) {
   const stopButton = (
-    <button
+    <Button
+      variant="ghost"
       className={`${styles.generatingBadgeStop} nodrag nopan`}
       disabled={disabled}
       onClick={(event) => {
@@ -28,14 +30,15 @@ export function CanvasGeneratingBadge({
       type="button"
     >
       {stopLabel}
-    </button>
+    </Button>
   );
   return (
     <div className={styles.generatingBadge}>
       <span className={styles.generatingBadgeStatus}>{statusLabel}</span>
       {disabledReason ? (
-        <Tooltip content={disabledReason} position="top">
-          <span>{stopButton}</span>
+        <Tooltip>
+          <TooltipTrigger render={<span>{stopButton}</span>} />
+          <TooltipContent side={"top"}>{disabledReason}</TooltipContent>
         </Tooltip>
       ) : (
         stopButton

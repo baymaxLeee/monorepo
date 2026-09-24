@@ -353,3 +353,40 @@ both to the executor's Workflow DevKit.
 sibling: a just-uploaded file is *referenceable* immediately but briefly not yet
 *readable* (convert running) — surfaced honestly via `read_file`'s `processing`
 state + server-side wait, not a fake progress bar.
+
+## Update — v2.2.0: durable document processing through Executor Workflow
+
+The v1.6/v1.7 in-process schedulers were removed. Their `_pending` maps,
+per-document `asyncio.create_task` fan-out, and startup full-table sweeps could
+lose a newer edit across replicas and created an unbounded number of Python
+tasks after a large backlog.
+
+The document row now carries durable intent (`received` for conversion,
+`pending` for indexing). Knowledge runs one bounded scanner that submits an
+idempotent `knowledge-document-process` task to Executor. The owner key includes
+the document content version; Executor Workflow durably sequences two internal
+Knowledge commands: convert, then index. Those commands remain idempotent and
+hold blocking advisory locks, so Workflow retries never duplicate document
+state and a contending invocation waits instead of silently dropping work.
+Knowledge remains the sole owner of document state and storage; Executor never
+reads the Knowledge database or receives document bytes.
+The upload's optional conversion provider is persisted with that intent, so a
+scanner retry after a failed immediate dispatch cannot silently switch models.
+Scanner delivery is bounded to 100 rows and 16 concurrent requests; one bad row
+does not block recovery of the rest of the batch. A persisted last-dispatch time
+rotates unfinished rows and applies a one-minute retry floor, so active work is
+not resubmitted on every five-second scan and a slow first page cannot starve the backlog. Migration
+v2.2.0 also resets legacy `converting`/`indexing` rows before this durable path
+takes ownership.
+The scanner includes those intermediate states after the retry floor: if a
+Workflow exhausts retries after changing lifecycle state, it can restart the
+same content revision instead of leaving the document permanently stuck.
+Executor permits failed-owner restart only for this idempotent task type. A
+transient transport or Workflow-start failure therefore cannot leave durable DB
+intent permanently pinned to an old failed task; paid task types keep immutable
+owner outcomes and are never implicitly replayed.
+
+Sparse indexing is now independent of embedding configuration. When no
+embedding provider exists, Knowledge persists lexical chunks with a null vector
+and reports sparse-only indexing, so the documented pg_trgm fallback is real
+instead of deleting every searchable chunk.

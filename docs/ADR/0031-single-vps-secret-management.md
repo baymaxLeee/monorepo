@@ -18,7 +18,8 @@ Accepted — 2026-07-06
   `*_POSTGRES_PASSWORD`。代码里 compose 一加 `${KEY:?}`，`VPS_ENV_FILE` 就缺 key，
   CI 硬失败——这正是本 ADR 的触发场景。
 - **分类错误**：把"机器内部、人永远不该看、可随时重生成"的密钥（Postgres 密码、
-  `INTERNAL_API_TOKEN`）和"必须人来定/必须永久稳定"的密钥（super-admin 登录、
+  每个 workload 独立的 `*_INTERNAL_API_TOKEN`、`TOOL_APPROVAL_SECRET`）和
+  "必须人来定/必须永久稳定"的密钥（super-admin 登录、
   第三方搜索 `EXA_API_KEY` / `TAVILY_API_KEY`、`ACCESS_TOKEN_SECRET`、Fernet
   `ADMIN_SECRET_KEY`）用同一种最笨的方式管理。
 - **不可 review / 校验白名单重复**：blob 不可 diff；`required_keys` 在两处重复、易
@@ -41,7 +42,8 @@ VPS 成为"生成型密钥的 source of truth"，compose 的 `.env` **在 VPS �
 
 1. **运行时变量**（`IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` / `PUBLIC_GATEWAY_URL`）——由
    `deploy.sh` / CI 通过环境变量传入。
-2. **机器内部密钥**（每个服务的 Postgres 密码 + `INTERNAL_API_TOKEN`）——VPS 上
+2. **机器内部密钥**（每个服务的 Postgres 密码、每个 workload 独立的
+   `*_INTERNAL_API_TOKEN`、Chat 工具审批签名 `TOOL_APPROVAL_SECRET`）——VPS 上
    `openssl rand -hex 24` **生成一次并持久化**到 `${DEPLOY_DIR}/.env.secrets`
    （0600，永不进 git/CI），后续部署缺失才补、否则复用。
 3. **运维/外部密钥**（super-admin 登录、`EXA_API_KEY` / `TAVILY_API_KEY`、

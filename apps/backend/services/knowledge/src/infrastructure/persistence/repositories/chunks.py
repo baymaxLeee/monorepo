@@ -47,9 +47,11 @@ async def dense_search(
     vec_literal = "[" + ",".join(repr(float(value)) for value in query_vector) + "]"
     await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(limit * 2, 40)}"))
     stmt = text(
-        f"\n        SELECT id, document_id, chunk_index, content,\n               embedding::halfvec({dim}) <=> (:q)::halfvec({dim}) AS distance\n        FROM document_chunks\n        WHERE workspace_id = :workspace AND embedding IS NOT NULL\n        ORDER BY embedding::halfvec({dim}) <=> (:q)::halfvec({dim})\n        LIMIT :lim\n        "
+        f"\n        SELECT id, document_id, chunk_index, content,\n               embedding::halfvec({dim}) <=> (:q)::halfvec({dim}) AS distance\n        FROM document_chunks\n        WHERE tenant_id = :tenant AND workspace_id = :workspace AND embedding IS NOT NULL\n        ORDER BY embedding::halfvec({dim}) <=> (:q)::halfvec({dim})\n        LIMIT :lim\n        "
     )
-    result = await session.execute(stmt, {"q": vec_literal, "workspace": workspace_id, "lim": limit})
+    result = await session.execute(
+        stmt, {"q": vec_literal, "tenant": tenant_id, "workspace": workspace_id, "lim": limit}
+    )
     return result.all()
 
 
@@ -68,7 +70,9 @@ async def sparse_search(
     """
     await session.execute(text("SET LOCAL pg_trgm.word_similarity_threshold = 0.2"))
     stmt = text(
-        "\n        SELECT id, document_id, chunk_index, content,\n               word_similarity(:q, content) AS score\n        FROM document_chunks\n        WHERE workspace_id = :workspace AND (:q) <% content\n        ORDER BY score DESC\n        LIMIT :lim\n        "
+        "\n        SELECT id, document_id, chunk_index, content,\n               word_similarity(:q, content) AS score\n        FROM document_chunks\n        WHERE tenant_id = :tenant AND workspace_id = :workspace AND (:q) <% content\n        ORDER BY score DESC\n        LIMIT :lim\n        "
     )
-    result = await session.execute(stmt, {"q": query, "workspace": workspace_id, "lim": limit})
+    result = await session.execute(
+        stmt, {"q": query, "tenant": tenant_id, "workspace": workspace_id, "lim": limit}
+    )
     return result.all()

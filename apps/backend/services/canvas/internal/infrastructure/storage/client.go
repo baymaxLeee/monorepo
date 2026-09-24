@@ -49,6 +49,9 @@ func (c *Client) request(ctx context.Context, method, path string, body io.Reade
 		return nil, err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		if method == http.MethodDelete && res.StatusCode == http.StatusNotFound {
+			return res, nil
+		}
 		res.Body.Close()
 		return nil, fmt.Errorf("storage returned status %d", res.StatusCode)
 	}

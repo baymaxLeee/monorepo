@@ -12,7 +12,7 @@
 | admin | Python | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | — | 管理与配置平面 |
 | chat | TypeScript | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | admin, knowledge, executor, canvas | 对话 / Agent runtime |
 | canvas | Go | 8012 | `/api/canvas-server/*` | PostgreSQL `canvas` | admin, executor, knowledge | 项目 / 画布 / 素材与生成编排 |
-| knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin | 知识库 / ingest / artifact |
+| knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin, executor | 知识库 / ingest / artifact |
 | telemetry | Python | 8008 | `/api/telemetry-server/*` | PostgreSQL `telemetry` | — | 可观测 / RUM |
 | executor | TypeScript | 8011 | **internal-only**（无公网 route） | PostgreSQL `executor` (+ `workflow`) | admin, knowledge, canvas | 长任务 durable executor |
 
@@ -88,8 +88,9 @@ CRUD/DTO 的服务不创建占位 domain。
 (例如 `admin` 的 `/internal/providers/*`)。约定:
 
 - gateway **不**代理 `/internal/*` 到公网 —— 仅集群内可达。
-- 调用方在 header 携带 `X-Internal-Token`,由被调方用 `hmac.compare_digest`
-  校验值与本地 `INTERNAL_API_TOKEN` 一致。
+- 调用方在 header 携带自己的 `X-Caller-Service` 与
+  `X-Internal-Token`；被调方用 `INTERNAL_SERVICE_TOKENS` 的 caller→token
+  映射做 constant-time 校验。每个 workload 的 token 必须独立，禁止共享。
 - 业务身份(目标用户)通过 query 参数 `user_id=<uid>` 显式传递,由调用方
   在公开入口完成鉴权后再发起内部调用。
 - 内部响应可包含**解密后**的敏感字段(API key 等),公开 API **绝不**

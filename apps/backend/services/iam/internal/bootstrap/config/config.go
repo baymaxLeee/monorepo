@@ -43,7 +43,8 @@ type Config struct {
 	GuestWorkspaceSlug    string
 }
 
-func (c Config) IsProduction() bool { return c.Environment == EnvProduction }
+func (c Config) IsProduction() bool  { return c.Environment == EnvProduction }
+func (c Config) IsDevelopment() bool { return c.Environment == EnvDevelopment }
 
 func Load() (Config, error) {
 	_ = godotenv.Overload()
@@ -86,30 +87,32 @@ func Load() (Config, error) {
 }
 
 func (c Config) validate(pgHost, pgPassword string) error {
-	if !c.IsProduction() {
-		return nil
+	switch c.Environment {
+	case EnvDevelopment, EnvStaging, EnvSingleVPS, EnvProduction:
+	default:
+		return fmt.Errorf("unsupported ENVIRONMENT %q", c.Environment)
 	}
 	var missing []string
-	if c.AccessTokenSecret == "" || c.AccessTokenSecret == devAccessTokenSecret {
+	if !c.IsDevelopment() && (len(c.AccessTokenSecret) < 32 || c.AccessTokenSecret == devAccessTokenSecret) {
 		missing = append(missing, "ACCESS_TOKEN_SECRET")
 	}
-	if pgPassword == "" || pgPassword == devPostgresPassword {
+	if !c.IsDevelopment() && (pgPassword == "" || pgPassword == devPostgresPassword) {
 		missing = append(missing, "POSTGRES_PASSWORD")
 	}
-	if pgHost == "localhost" || pgHost == "127.0.0.1" {
+	if !c.IsDevelopment() && (pgHost == "localhost" || pgHost == "127.0.0.1") {
 		missing = append(missing, "POSTGRES_HOST")
 	}
-	if !c.RefreshCookieSecure {
+	if c.IsProduction() && !c.RefreshCookieSecure {
 		missing = append(missing, "REFRESH_COOKIE_SECURE=true")
 	}
-	if os.Getenv("SUPER_ADMIN_ACCOUNT") == "" || os.Getenv("SUPER_ADMIN_EMAIL") == "" || os.Getenv("SUPER_ADMIN_PASSWORD") == "" || c.SuperAdminPassword == "admin123" {
+	if !c.IsDevelopment() && (os.Getenv("SUPER_ADMIN_ACCOUNT") == "" || os.Getenv("SUPER_ADMIN_EMAIL") == "" || os.Getenv("SUPER_ADMIN_PASSWORD") == "" || c.SuperAdminPassword == "admin123") {
 		missing = append(missing, "SUPER_ADMIN_ACCOUNT/EMAIL/PASSWORD")
 	}
-	if strings.EqualFold(c.RefreshCookieSameSite, "lax") && c.RefreshCookieDomain == "" {
+	if c.IsProduction() && strings.EqualFold(c.RefreshCookieSameSite, "lax") && c.RefreshCookieDomain == "" {
 		missing = append(missing, "REFRESH_COOKIE_SAMESITE=none + REFRESH_COOKIE_DOMAIN")
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("production environment requires explicit values for: %s",
+		return fmt.Errorf("deployed environment requires explicit values for: %s",
 			strings.Join(missing, ", "))
 	}
 	return nil

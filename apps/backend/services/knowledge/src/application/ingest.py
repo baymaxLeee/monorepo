@@ -17,8 +17,8 @@ from application.auth import AuthContext
 from application.contracts.document import IngestFailure, IngestReceipt, IngestResult
 from application.convert import AttachmentTooLargeError
 from application.documents import document_to_schema
+from application.executor_client import dispatch_document_now
 from application.object_store import ObjectStore
-from application.processor import schedule_process
 
 
 @dataclass(frozen=True)
@@ -62,6 +62,7 @@ async def ingest_documents(
                             source_size=len(item.content),
                             source_mime_type=item.mime_type,
                             source_filename=item.filename,
+                            conversion_provider_id=provider_id,
                             ingest_status="storing",
                             ingest_progress=10,
                         )
@@ -89,7 +90,11 @@ async def ingest_documents(
                             },
                         )
                     doc = document_to_schema(row)
-                    schedule_process(row.id, provider_id=provider_id)
+                    await dispatch_document_now(
+                        row.id,
+                        updated_at=row.updated_at,
+                        provider_id=provider_id,
+                    )
                     return IngestReceipt(index=item.index, client_ref=item.client_ref, document=doc)
                 except Exception as exc:
                     code = exc.code if isinstance(exc, BaseError) else None

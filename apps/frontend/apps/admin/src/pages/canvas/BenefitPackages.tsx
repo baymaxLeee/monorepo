@@ -38,7 +38,7 @@ import {
   Switch,
   toast,
 } from "@repo/design-system";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 type Draft = {
   is_preset: boolean;
@@ -303,32 +303,37 @@ function PackageDialog({
         <div className="space-y-4">
           {!preset ? (
             <>
-              <Field label="权益包名称" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
-              <Field
+              <BenefitField label="权益包名称" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
+              <BenefitField
                 label="火山项目名称"
                 value={draft.project_name}
                 onChange={(project_name) => setDraft({ ...draft, project_name })}
               />
             </>
           ) : null}
-          <Field
+          <BenefitField
             label="AccessKey ID"
             value={draft.access_key_id}
             onChange={(access_key_id) => setDraft({ ...draft, access_key_id })}
           />
-          <Field
+          <BenefitField
             label="SecretAccessKey"
             type="password"
             value={draft.secret_access_key}
             onChange={(secret_access_key) => setDraft({ ...draft, secret_access_key })}
           />
           <label className="flex items-center gap-3 text-sm">
-            <Switch checked={draft.enabled} onCheckedChange={(enabled) => setDraft({ ...draft, enabled })} />
+            <Switch
+              aria-label="启用权益包"
+              checked={draft.enabled}
+              onCheckedChange={(enabled) => setDraft({ ...draft, enabled })}
+            />
             启用权益包
           </label>
-          <label className="grid gap-2 text-sm">
-            <Label>素材审核额度</Label>
+          <label className="grid gap-2 text-sm" htmlFor="benefit-material-limit">
+            <span className="font-medium">素材审核额度</span>
             <Input
+              id="benefit-material-limit"
               type="number"
               min={1}
               value={draft.material_limit ?? ""}
@@ -347,6 +352,7 @@ function PackageDialog({
               {providers.map((provider) => (
                 <label key={provider.id} className="flex items-center gap-3 text-sm">
                   <Checkbox
+                    aria-label={`${provider.name} · ${provider.model}`}
                     disabled={!provider.is_enabled || claimed.has(provider.id)}
                     checked={draft.model_ids.includes(provider.id)}
                     onCheckedChange={(checked) =>
@@ -378,7 +384,7 @@ function PackageDialog({
   );
 }
 
-function Field({
+function BenefitField({
   label,
   value,
   onChange,
@@ -389,10 +395,11 @@ function Field({
   onChange: (value: string) => void;
   type?: string;
 }) {
+  const id = useId();
   return (
-    <label className="grid gap-2 text-sm">
-      <Label>{label}</Label>
-      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
+    <div className="grid gap-2 text-sm">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
   );
 }

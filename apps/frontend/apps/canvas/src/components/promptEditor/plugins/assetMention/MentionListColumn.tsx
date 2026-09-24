@@ -1,7 +1,7 @@
+import { Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import { ChevronDown } from "lucide-react";
 import { Fragment, type Ref } from "react";
 
-import { Tooltip } from "@/components/ui";
 import { HIDDEN_SCROLLBAR_CLASS, HIDDEN_SCROLLBAR_STYLE } from "@/hooks/useHorizontalScrollFade";
 import t from "@/utils/i18n";
 
@@ -90,7 +90,8 @@ export function MentionListColumn({
     const asset = mentionNodeToAsset(node);
     const unavailable = group ? undefined : unavailableAssetMessage(asset);
     const button = (
-      <button
+      <Button
+        variant="ghost"
         aria-disabled={Boolean(unavailable)}
         aria-expanded={group ? expanded : undefined}
         className={`box-border flex h-[42px] w-full cursor-pointer items-center gap-2 border-0 text-left text-[13px] leading-5.5 outline-none ${
@@ -122,9 +123,16 @@ export function MentionListColumn({
           <HighlightText query={query} text={node.Label} />
           {group ? ` · ${node.Children.length}` : null}
         </span>
-      </button>
+      </Button>
     );
-    return unavailable ? <Tooltip content={unavailable}>{button}</Tooltip> : button;
+    return unavailable ? (
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex max-w-full" />}>{button}</TooltipTrigger>
+        <TooltipContent>{unavailable}</TooltipContent>
+      </Tooltip>
+    ) : (
+      button
+    );
   };
 
   return (
@@ -152,7 +160,8 @@ export function MentionListColumn({
             return (
               <Fragment key={section.ID}>
                 <li className="shrink-0">
-                  <button
+                  <Button
+                    variant="ghost"
                     aria-expanded={sectionExpanded}
                     className="flex h-[42px] w-full cursor-pointer items-center justify-between rounded-[8px] border-0 bg-[transparent] px-3 text-left text-[13px] font-normal leading-5.5 text-foreground outline-none"
                     onClick={() => onToggleSection(section)}
@@ -160,7 +169,7 @@ export function MentionListColumn({
                   >
                     <span>{section.Label}</span>
                     <ChevronIcon expanded={sectionExpanded} section />
-                  </button>
+                  </Button>
                 </li>
                 {sectionExpanded
                   ? section.Children.map((node) => (

@@ -106,8 +106,20 @@ export async function settleTaskCompletion(taskId: string, workflowRunId: string
     .where(and(eq(tasks.id, taskId), inArray(tasks.status, ["queued", "running"])));
 }
 
+const completionWatchers = new Map<string, Promise<void>>();
+
+export function waitForTaskCompletion(taskId: string, workflowRunId: string): Promise<void> {
+  const existing = completionWatchers.get(workflowRunId);
+  if (existing) return existing;
+  const watcher = settleTaskCompletion(taskId, workflowRunId).finally(() => {
+    completionWatchers.delete(workflowRunId);
+  });
+  completionWatchers.set(workflowRunId, watcher);
+  return watcher;
+}
+
 function watchCompletion(taskId: string, workflowRunId: string): void {
-  void settleTaskCompletion(taskId, workflowRunId).catch((error: unknown) => {
+  void waitForTaskCompletion(taskId, workflowRunId).catch((error: unknown) => {
     console.error("[executor] task completion watcher failed", { taskId, workflowRunId, error });
   });
 }
@@ -124,29 +136,56 @@ export async function createTask(input: CreateTaskInput): Promise<TaskSnapshot> 
 
   const existing = await findByOwner(input.ownerService, input.ownerRef);
   if (existing) {
-    return toSnapshot(existing);
+    if (existing.type !== input.type) {
+      throw new ConflictError("task owner already belongs to another task type");
+    }
+    if (!taskType.retryFailedOnCreate || existing.status !== "failed") {
+      return toSnapshot(existing);
+    }
+    const [restarted] = await getDb()
+      .update(tasks)
+      .set({
+        status: "queued",
+        workflowRunId: null,
+        cleanupPending: false,
+        payload: parsed.data,
+        result: null,
+        progress: null,
+        error: null,
+        updatedAt: new Date(),
+        finishedAt: null,
+      })
+      .where(and(eq(tasks.id, existing.id), eq(tasks.status, "failed")))
+      .returning({ id: tasks.id });
+    if (!restarted) {
+      const current = await findByOwner(input.ownerService, input.ownerRef);
+      if (!current) throw new ConflictError("task owner changed while restarting failed task");
+      return toSnapshot(current);
+    }
   }
 
   const db = getDb();
-  const id = newTaskId();
+  const id = existing?.id ?? newTaskId();
   const now = new Date();
-  try {
-    await db.insert(tasks).values({
-      id,
-      type: input.type,
-      status: "queued",
-      ownerService: input.ownerService,
-      ownerRef: input.ownerRef,
-      payload: input.payload,
-      createdAt: now,
-      updatedAt: now,
-    });
-  } catch {
-    const row = await findByOwner(input.ownerService, input.ownerRef);
-    if (row) {
-      return toSnapshot(row);
+  if (!existing) {
+    try {
+      await db.insert(tasks).values({
+        id,
+        type: input.type,
+        status: "queued",
+        ownerService: input.ownerService,
+        ownerRef: input.ownerRef,
+        payload: parsed.data,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch {
+      const row = await findByOwner(input.ownerService, input.ownerRef);
+      if (row) {
+        return toSnapshot(row);
+      }
+      throw new ConflictError("failed to create task");
     }
-    throw new ConflictError("failed to create task");
   }
 
   let run: Awaited<ReturnType<typeof start>>;

@@ -1,7 +1,6 @@
+import { Button, Input, toast } from "@repo/design-system";
 import { useEffect, useRef, useState } from "react";
 
-import { EllipsisText } from "@/components/common";
-import { Input, Message } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import { validateCanvasNodeName } from "../domain/canvasNodeNames";
@@ -42,7 +41,10 @@ export function ShotTitle({
     }
     const validationMessage = validateCanvasNodeName(value);
     if (validationMessage) {
-      Message.error(validationMessage);
+      toast.add({
+        type: "error",
+        title: validationMessage,
+      });
       setValue(label);
       setEditing(false);
       return;
@@ -69,7 +71,7 @@ export function ShotTitle({
 
         className={styles.input}
         onBlur={finish}
-        onChange={setValue}
+        onChange={(event) => setValue(event.currentTarget.value)}
         onKeyDown={(event) => {
           event.stopPropagation();
           if (event.key === "Enter") event.currentTarget.blur();
@@ -78,7 +80,6 @@ export function ShotTitle({
             event.currentTarget.blur();
           }
         }}
-        size="mini"
         value={value}
       />
     );
@@ -86,20 +87,18 @@ export function ShotTitle({
 
   const visibleName = pendingName ?? label;
   return (
-    <EllipsisText
-      className="m-0 shrink-0 truncate text-[20px] font-medium leading-7 text-foreground cursor-text"
-      maxWidth={200}
-      onClick={
-        disabled
-          ? undefined
-          : () => {
-              setValue(visibleName);
-              setEditing(true);
-            }
-      }
-      useCursorPointer={false}
+    <Button
+      aria-label={t("编辑分镜名称：{name}", { name: visibleName })}
+      className="m-0 h-auto max-w-[200px] shrink-0 truncate p-0 text-[20px] font-medium leading-7 text-foreground"
+      disabled={disabled}
+      onClick={() => {
+        setValue(visibleName);
+        setEditing(true);
+      }}
+      title={visibleName}
+      variant="ghost"
     >
       {visibleName}
-    </EllipsisText>
+    </Button>
   );
 }

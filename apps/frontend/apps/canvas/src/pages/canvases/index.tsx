@@ -1,4 +1,5 @@
 import { canvasListCanvases } from "@repo/api";
+import { Button } from "@repo/design-system";
 import { useInfiniteScroll } from "ahooks";
 import {
   RefreshCw as IconRefresh,
@@ -20,7 +21,7 @@ import {
   openDeleteConfirmDialog,
   formatDateByCurrentYear,
 } from "@/components/common";
-import { Spin, Button } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import type { canvas } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
@@ -73,7 +74,7 @@ function CanvasCard({
   const fallbackCoverImageURL = resolveArtifactURL(item.FallbackCoverImageURL ?? "");
 
   return (
-    <article className="group relative w-full overflow-hidden rounded-[16px] border border-[transparent] border-solid p-[3px] transition-colors duration-200 hover:border-[#000000]">
+    <article className="group relative w-full overflow-hidden rounded-2xl border border-transparent p-[3px] transition-colors duration-200 hover:border-foreground">
       <Link
         aria-label={t("进入创意工坊：{name}", { name: item.Name })}
         className="flex flex-col gap-4 text-inherit no-underline"
@@ -127,11 +128,11 @@ function CanvasCard({
             displayNum={1}
             defaultButtonType="outline"
             spaceSize={8}
-            buttonProps={{ size: "mini" }}
+            buttonProps={{ size: "xs" }}
             menuButtonProps={{
               icon: <IconMoreVertical1 />,
-              size: "mini",
-              type: "outline",
+              size: "icon-xs",
+              variant: "outline",
             }}
             operations={[
               { name: t("视频制作"), onClick: () => onMake(item) },
@@ -265,34 +266,36 @@ export default function CanvasesPage() {
           />
         </div>
         <div className="flex items-center gap-3">
-          <Button icon={<IconPlus />} onClick={() => setDialogState({ mode: "create" })} size="default" type="primary">
+          <Button onClick={() => setDialogState({ mode: "create" })} size="default" variant="default">
+            <IconPlus />
             {t("创建视频")}
           </Button>
           <Button
             aria-label={t("刷新视频")}
             data-ea="video-list-refresh"
-            icon={
-              <span className={loading ? "animate-spin" : ""}>
-                <IconRefresh />
-              </span>
-            }
             onClick={refresh}
             title={t("刷新视频")}
-          />
+            variant="outline"
+          >
+            <IconRefresh className={loading ? "animate-spin" : undefined} />
+          </Button>
         </div>
       </div>
-
       <div aria-label={t("视频列表内容")} className="min-h-0 flex-1 overflow-y-auto" ref={scrollRef} role="region">
         {loading ? (
           <div className="flex h-full min-h-[320px] items-center justify-center">
-            <Spin />
+            <LoadingIndicator />
           </div>
         ) : loadFailed ? (
           <Result
             status="error"
             title={t("视频加载失败")}
             subTitle={t("请稍后重试")}
-            extra={<Button onClick={() => setRefreshVersion((value) => value + 1)}>{t("重新加载")}</Button>}
+            extra={
+              <Button onClick={() => setRefreshVersion((value) => value + 1)} variant="outline">
+                {t("重新加载")}
+              </Button>
+            }
           />
         ) : canvases.length > 0 ? (
           <div className={`grid grid-cols-5 ${styles.cardGrid}`}>
@@ -317,7 +320,7 @@ export default function CanvasesPage() {
         )}
         {canvases.length > 0 && loadingMore ? (
           <div className={styles.loadMore}>
-            <Spin />
+            <LoadingIndicator />
           </div>
         ) : null}
       </div>

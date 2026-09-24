@@ -1,9 +1,9 @@
+import { toast, Button } from "@repo/design-system";
 import copyToClipboard from "copy-to-clipboard";
 import { Copy as IconCopyFine } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { EllipsisText } from "@/components/common";
-import { Message } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import styles from "./GenerationFailureReason.module.less";
@@ -28,9 +28,15 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
 
   const copy = () => {
     if (copyToClipboard(reason)) {
-      Message.success(t("复制成功"));
+      toast.add({
+        type: "success",
+        title: t("复制成功"),
+      });
     } else {
-      Message.error(t("复制失败，请重试"));
+      toast.add({
+        type: "error",
+        title: t("复制失败，请重试"),
+      });
     }
   };
 
@@ -41,11 +47,10 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
         className={styles.reason}
         popoverContent={<span className="whitespace-pre-wrap">{reason}</span>}
         showPopover={isOverflowing}
-        useCursorPointer={false}
       >
         {reason}
       </EllipsisText>
-      <button
+      <Button
         aria-label={t("复制错误原因")}
         className="mb-[3px] flex h-[14px] w-[14px] shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-muted-foreground hover:text-primary"
         onClick={(event) => {
@@ -54,9 +59,10 @@ export function GenerationFailureReason({ reason }: { reason: string }) {
         }}
         title={t("复制错误原因")}
         type="button"
+        variant="ghost"
       >
         <IconCopyFine className="text-[14px]" />
-      </button>
+      </Button>
     </div>
   );
 }

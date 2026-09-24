@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import { MarkdownEditor } from "@repo/editors/markdown-editor";
 import { Minimize2 as IconAbbreviation, Maximize2 as IconUnfold } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +9,6 @@ import {
   type AssetMentionSource,
   createAssetMentionExtension,
 } from "@/components/promptEditor/index";
-import { Tooltip } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -112,7 +112,8 @@ export function CanvasPromptEditor({
   };
 
   const renderGenerateButton = (large: boolean) => (
-    <button
+    <Button
+      variant="ghost"
       className={styles.generateButton}
       disabled={triggerDisabled}
       onClick={() => {
@@ -123,7 +124,7 @@ export function CanvasPromptEditor({
       type="button"
     >
       {generating ? t("停止生成") : triggerDisabled && !matching.matching ? t("生成中") : t("生成")}
-    </button>
+    </Button>
   );
 
   const renderEditor = (large: boolean) => (
@@ -136,14 +137,15 @@ export function CanvasPromptEditor({
       {large ? (
         <div className={styles.expandedHeader}>
           <div className={styles.expandedTitle}>{title}</div>
-          <button
+          <Button
+            variant="ghost"
             aria-label={t("收起提示词编辑器")}
             className={styles.expandButton}
             onClick={() => setExpanded(false)}
             type="button"
           >
             <IconAbbreviation />
-          </button>
+          </Button>
         </div>
       ) : null}
       {showMatch ? (
@@ -165,15 +167,21 @@ export function CanvasPromptEditor({
             }}
           />
           {!large ? (
-            <Tooltip content={t("大窗口编辑")}>
-              <button
-                type="button"
-                aria-label={t("展开提示词编辑器")}
-                className={styles.expandButton}
-                onClick={() => setExpanded(true)}
-              >
-                <IconUnfold />
-              </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    aria-label={t("展开提示词编辑器")}
+                    className={styles.expandButton}
+                    onClick={() => setExpanded(true)}
+                  >
+                    <IconUnfold />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("大窗口编辑")}</TooltipContent>
             </Tooltip>
           ) : null}
         </div>
@@ -201,28 +209,40 @@ export function CanvasPromptEditor({
               />
             </div>
             {!large && !showMatch ? (
-              <Tooltip content={t("大窗口编辑")} position="top">
-                <button
-                  aria-label={t("展开提示词编辑器")}
-                  className={styles.expandButton}
-                  onClick={() => setExpanded(true)}
-                  type="button"
-                >
-                  <IconUnfold />
-                </button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      aria-label={t("展开提示词编辑器")}
+                      className={styles.expandButton}
+                      onClick={() => setExpanded(true)}
+                      type="button"
+                    >
+                      <IconUnfold />
+                    </Button>
+                  }
+                />
+                <TooltipContent side={"top"}>{t("大窗口编辑")}</TooltipContent>
               </Tooltip>
             ) : null}
           </div>
         ) : !large && !showMatch ? (
-          <Tooltip content={t("大窗口编辑")} position="top">
-            <button
-              aria-label={t("展开提示词编辑器")}
-              className={`${styles.expandButton} ${styles.expandButtonFloating}`}
-              onClick={() => setExpanded(true)}
-              type="button"
-            >
-              <IconUnfold />
-            </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  aria-label={t("展开提示词编辑器")}
+                  className={`${styles.expandButton} ${styles.expandButtonFloating}`}
+                  onClick={() => setExpanded(true)}
+                  type="button"
+                >
+                  <IconUnfold />
+                </Button>
+              }
+            />
+            <TooltipContent side={"top"}>{t("大窗口编辑")}</TooltipContent>
           </Tooltip>
         ) : null}
         <MarkdownEditor
@@ -244,8 +264,11 @@ export function CanvasPromptEditor({
           {footer}
         </div>
         {generating && cancelDisabled ? (
-          <Tooltip content={t("视频已开始生成，无法取消")} position="top">
-            <span className={styles.generateButtonTooltip}>{renderGenerateButton(large)}</span>
+          <Tooltip>
+            <TooltipTrigger
+              render={<span className={styles.generateButtonTooltip}>{renderGenerateButton(large)}</span>}
+            />
+            <TooltipContent side={"top"}>{t("视频已开始生成，无法取消")}</TooltipContent>
           </Tooltip>
         ) : (
           renderGenerateButton(large)

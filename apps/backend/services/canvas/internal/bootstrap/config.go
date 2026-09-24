@@ -1,10 +1,12 @@
 package bootstrap
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
@@ -13,15 +15,16 @@ import (
 )
 
 type Config struct {
-	Environment         string
-	Port                string
-	InternalToken       string
-	DatabaseURL         string
-	RedisURL            string
-	PublicGatewayURL    string
-	AdminServiceURL     string
-	KnowledgeServiceURL string
-	ExecutorServiceURL  string
+	Environment           string
+	Port                  string
+	InternalToken         string
+	InternalServiceTokens map[string]string
+	DatabaseURL           string
+	RedisURL              string
+	PublicGatewayURL      string
+	AdminServiceURL       string
+	KnowledgeServiceURL   string
+	ExecutorServiceURL    string
 }
 
 func Env(key, fallback string) string {
@@ -63,7 +66,7 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("unsupported ENVIRONMENT %q", environment)
 	}
 	deployed := environment != "development"
-	token, err := requiredEnv("INTERNAL_API_TOKEN", deployed, "dev-internal-token")
+	token, err := requiredEnv("INTERNAL_API_TOKEN", deployed, "dev-canvas-internal-token")
 	if err != nil {
 		return Config{}, err
 	}
@@ -71,8 +74,12 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if deployed && (token == "dev-internal-token" || password == "canvas") {
+	if deployed && (len(token) < 32 || strings.HasPrefix(token, "dev-") || password == "canvas") {
 		return Config{}, fmt.Errorf("deployed environments require non-development database credentials and internal token")
+	}
+	serviceTokens, err := parseInternalServiceTokens(environment)
+	if err != nil {
+		return Config{}, err
 	}
 	postgresHost, err := requiredEnv("POSTGRES_HOST", deployed, "localhost")
 	if err != nil {
@@ -110,17 +117,54 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	return Config{
-		Environment:         environment,
-		Port:                Env("PORT", "8012"),
-		InternalToken:       token,
-		PublicGatewayURL:    publicGatewayURL,
-		RedisURL:            redisURL,
-		AdminServiceURL:     adminServiceURL,
-		KnowledgeServiceURL: knowledgeServiceURL,
-		ExecutorServiceURL:  executorServiceURL,
-		DatabaseURL:         fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", postgresHost, Env("POSTGRES_PORT", "5432"), postgresUser, password, postgresDatabase, Env("POSTGRES_SSLMODE", "disable")),
+		Environment:           environment,
+		Port:                  Env("PORT", "8012"),
+		InternalToken:         token,
+		InternalServiceTokens: serviceTokens,
+		PublicGatewayURL:      publicGatewayURL,
+		RedisURL:              redisURL,
+		AdminServiceURL:       adminServiceURL,
+		KnowledgeServiceURL:   knowledgeServiceURL,
+		ExecutorServiceURL:    executorServiceURL,
+		DatabaseURL:           fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", postgresHost, Env("POSTGRES_PORT", "5432"), postgresUser, password, postgresDatabase, Env("POSTGRES_SSLMODE", "disable")),
 	}, nil
 }
+
+func parseInternalServiceTokens(environment string) (map[string]string, error) {
+	raw := Env("INTERNAL_SERVICE_TOKENS", "{\"chat\":\"dev-chat-internal-token\",\"executor\":\"dev-executor-internal-token\"}")
+	var tokens map[string]string
+	if err := json.Unmarshal([]byte(raw), &tokens); err != nil {
+		return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS must be a JSON object: %w", err)
+	}
+	if len(tokens) != 2 || tokens["chat"] == "" || tokens["executor"] == "" {
+		return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS must define exactly chat and executor")
+	}
+	if environment != "development" {
+		seen := make(map[string]struct{}, len(tokens))
+		for _, token := range tokens {
+			if len(token) < 32 || strings.HasPrefix(token, "dev-") {
+				return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS contains an invalid credential")
+			}
+			seen[token] = struct{}{}
+		}
+		if len(seen) != len(tokens) {
+			return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS credentials must be unique")
+		}
+	}
+	return tokens, nil
+}
 func Connect(cfg Config) (*gorm.DB, error) {
-	return gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		return nil, err
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(16)
+	sqlDB.SetMaxIdleConns(8)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
+	return db, nil
 }

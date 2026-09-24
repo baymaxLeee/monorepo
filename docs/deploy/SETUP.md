@@ -160,6 +160,10 @@ kubectl -n ingress-nginx get svc ingress-nginx-controller -w
 
 # 创建 namespace 和 Secrets(替换 <...>)
 kubectl create ns monorepo-prod
+CHAT_TOKEN=$(openssl rand -hex 32)
+EXECUTOR_TOKEN=$(openssl rand -hex 32)
+KNOWLEDGE_TOKEN=$(openssl rand -hex 32)
+CANVAS_TOKEN=$(openssl rand -hex 32)
 
 kubectl -n monorepo-prod create secret generic gateway-secrets \
   --from-literal=REDIS_HOST=<redis-endpoint> \
@@ -182,7 +186,8 @@ kubectl -n monorepo-prod create secret generic canvas-secrets \
   --from-literal=POSTGRES_USER=canvas \
   --from-literal=POSTGRES_PASSWORD=<from-1Password> \
   --from-literal=REDIS_URL=<redis-connection-uri> \
-  --from-literal=INTERNAL_API_TOKEN=<SAME shared internal token>
+  --from-literal=INTERNAL_API_TOKEN="$CANVAS_TOKEN" \
+  --from-literal=INTERNAL_SERVICE_TOKENS="{\"chat\":\"$CHAT_TOKEN\",\"executor\":\"$EXECUTOR_TOKEN\"}"
 
 kubectl -n monorepo-prod create secret generic telemetry-secrets \
   --from-literal=POSTGRES_HOST=<rds-endpoint> \

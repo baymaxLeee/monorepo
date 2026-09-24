@@ -16,8 +16,8 @@
 
 .storyboardHeader {
   border: 0;
-  border-bottom: 1px solid #e5e8ef;
-  background: #fff;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
 }
 
 .headerWithAssets {
@@ -53,9 +53,9 @@
 }
 
 .projectCanvas {
-  border-right: 1px solid #e5e8ef;
-  border-bottom: 1px solid #e5e8ef;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
 }
 
 .projectWithoutAssets {
@@ -68,16 +68,16 @@
   flex-shrink: 0;
   justify-content: center;
   padding: 0;
-  border: 1px solid #d5dbe3;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
-  color: #0c0d0e;
+  background: var(--background);
+  color: var(--foreground);
   font-size: 14px;
   transition: background-color 160ms ease;
 }
 
 .backButton:hover {
-  background: #f5f6f8;
+  background: var(--muted);
 }
 
 .backButton svg,
@@ -93,7 +93,7 @@
   flex: 1;
   margin: 0;
   overflow: hidden;
-  color: #0c0d0e;
+  color: var(--foreground);
   font-size: 14px;
   font-weight: 500;
   line-height: 24px;
@@ -105,7 +105,7 @@
   height: 32px;
   padding: 3px 4px;
   border-radius: 8px;
-  background: color-mix(in srgb, #f6f6f6 70%, transparent);
+  background: color-mix(in oklch, var(--muted) 70%, transparent);
   backdrop-filter: blur(16px);
   gap: 4px;
 }
@@ -116,7 +116,7 @@
   padding: 0;
   border: 0;
   border-radius: 6px;
-  color: #42464e;
+  color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 500;
   gap: 4px;
@@ -124,7 +124,7 @@
 
 .activeViewButton {
   padding: 0 8px;
-  background: #fff;
+  background: var(--background);
   box-shadow:
     0 1px 2px rgb(0 0 0 / 7%),
     0 0.5px 1px rgb(0 0 0 / 5%),

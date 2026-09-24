@@ -142,13 +142,27 @@ func (engine *Engine) ListRuns(ctx context.Context, scope Scope, targetType doma
 	if err != nil {
 		return nil, err
 	}
+	taskIDs := make([]string, 0, len(runs))
+	for _, run := range runs {
+		taskIDs = append(taskIDs, run.TaskRunID)
+	}
+	taskRuns, err := engine.tasks.BatchGetTaskRuns(
+		ctx,
+		applicationtask.Scope{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID},
+		taskIDs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]domaintask.TaskRun, len(taskRuns))
+	for _, taskRun := range taskRuns {
+		byID[taskRun.ID] = taskRun
+	}
 	views := make([]RunView, 0, len(runs))
 	for _, run := range runs {
-		taskRun, getErr := engine.tasks.GetTaskRun(ctx, run.TaskRunID)
-		if getErr != nil {
-			return nil, getErr
+		if taskRun, ok := byID[run.TaskRunID]; ok {
+			views = append(views, RunView{Detail: run, TaskRun: taskRun})
 		}
-		views = append(views, RunView{Detail: run, TaskRun: taskRun})
 	}
 	return views, nil
 }

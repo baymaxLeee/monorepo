@@ -1,9 +1,9 @@
 import { canvasCancelNodeAssetMatch, canvasGetGraph, canvasStartNodeAssetMatch } from "@repo/api";
+import { toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { useAtomValue, useStore } from "jotai";
 import { useCallback, useState } from "react";
 
-import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
 
 import { presentGraph } from "../domain/persistence";
@@ -47,7 +47,10 @@ export function useMaterialMatching(nodeId: string, node?: canvasnode.CanvasNode
         });
         return true;
       } catch (cause) {
-        Message.error(getErrorMessage(cause, "素材匹配启动失败"));
+        toast.add({
+          type: "error",
+          title: getErrorMessage(cause, "素材匹配启动失败"),
+        });
         return false;
       } finally {
         setStarting(false);
@@ -68,7 +71,10 @@ export function useMaterialMatching(nodeId: string, node?: canvasnode.CanvasNode
           });
         }
       } catch (cause) {
-        Message.error(getErrorMessage(cause, "取消素材匹配失败"));
+        toast.add({
+          type: "error",
+          title: getErrorMessage(cause, "取消素材匹配失败"),
+        });
       } finally {
         setCancelling(false);
       }

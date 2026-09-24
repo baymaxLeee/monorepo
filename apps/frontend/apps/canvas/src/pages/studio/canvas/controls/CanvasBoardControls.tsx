@@ -1,3 +1,18 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  toast,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Button,
+} from "@repo/design-system";
 import { MiniMap, type Edge, type ReactFlowInstance, useStore } from "@xyflow/react";
 import {
   Hand as IconHand,
@@ -11,7 +26,6 @@ import {
 } from "lucide-react";
 import { useState, type Dispatch, type MouseEvent, type SetStateAction } from "react";
 
-import { Dropdown, Message, Tooltip, Trigger } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import type { CanvasFlowNode } from "../graph/canvasNodeTypes";
@@ -24,7 +38,6 @@ import {
 
 import styles from "../CanvasBoard.module.less";
 const CANVAS_MINIMAP_SIZE = { width: 178, height: 100 };
-const CANVAS_MINIMAP_ALIGN = { top: [-72, 12] as [number, number] };
 const ZOOM_PRESETS = [0.5, 1, 2, 3, 4] as const;
 
 function CanvasZoomPercent() {
@@ -122,159 +135,174 @@ export function CanvasBoardControls({
   return (
     <>
       <div className={assetsOpen ? styles.canvasMeta : styles.canvasMetaCollapsed}>
-        <Tooltip
-          content={
-            <span className={styles.tooltipContent}>
-              {t("整理画布")}
-              {arrangeCanvasShortcutKeys.map((key) => (
-                <kbd key={key}>{key === "Shift" ? "⇧" : key}</kbd>
-              ))}
-            </span>
-          }
-          position="top"
-        >
-          <button
-            aria-label={t("整理画布")}
-            disabled={!canArrange}
-            onClick={() => {
-              onDismissAddMenu();
-              setModeMenuOpen(false);
-              setShortcutsOpen(false);
-              void arrangeNodes().then((success) => {
-                if (success) Message.success(t("画布布局已整理"));
-              });
-            }}
-            type="button"
-          >
-            <IconLayout aria-hidden className={styles.canvasLayoutIcon} strokeWidth={1.5} />
-          </button>
-        </Tooltip>
-        <Tooltip
-          content={
-            <span className={styles.tooltipContent}>
-              {t("适应画布")}
-              <kbd>{modifierKey}</kbd>
-              <kbd>0</kbd>
-            </span>
-          }
-          position="top"
-        >
-          <button aria-label={t("适应画布")} onClick={() => instance?.fitView({ duration: 240 })} type="button">
-            <IconFit aria-hidden strokeWidth={1.5} />
-          </button>
-        </Tooltip>
-        <Tooltip content={t("画布小地图")} popupVisible={miniMapOpen ? false : undefined} position="top">
-          <Trigger
-            onVisibleChange={setMiniMapOpen}
-            popup={() => (
-              <MiniMap
-                bgColor="#fff"
-                className={styles.miniMap}
-                maskColor="rgb(26 27 30 / 5%)"
-                nodeBorderRadius={2}
-                nodeColor="rgb(160 162 167 / 70%)"
-                pannable
-                style={CANVAS_MINIMAP_SIZE}
-                zoomable
-              />
-            )}
-            popupAlign={CANVAS_MINIMAP_ALIGN}
-            popupVisible={miniMapOpen}
-            position="tl"
-            trigger="click"
-          >
-            <button
-              aria-expanded={miniMapOpen}
-              aria-haspopup="dialog"
-              aria-label={miniMapOpen ? t("关闭小地图") : t("打开小地图")}
-              className={miniMapOpen ? styles.metaButtonActive : undefined}
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+            <Button
+              variant="ghost"
+              aria-label={t("整理画布")}
+              disabled={!canArrange}
+              onClick={() => {
+                onDismissAddMenu();
+                setModeMenuOpen(false);
+                setShortcutsOpen(false);
+                void arrangeNodes().then((success) => {
+                  if (success)
+                    toast.add({
+                      type: "success",
+                      title: t("画布布局已整理"),
+                    });
+                });
+              }}
               type="button"
             >
-              <IconMap aria-hidden strokeWidth={1.5} />
-            </button>
-          </Trigger>
+              <IconLayout aria-hidden className={styles.canvasLayoutIcon} strokeWidth={1.5} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side={"top"}>
+            {
+              <span className={styles.tooltipContent}>
+                {t("整理画布")}
+                {arrangeCanvasShortcutKeys.map((key) => (
+                  <kbd key={key}>{key === "Shift" ? "⇧" : key}</kbd>
+                ))}
+              </span>
+            }
+          </TooltipContent>
         </Tooltip>
-        <Tooltip content={t("缩放选项")} popupVisible={zoomMenuOpen ? false : undefined} position="top">
-          <Dropdown
-            droplist={
-              <div aria-label={t("画布缩放选项")} className={styles.zoomMenu} role="menu">
-                <button
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                aria-label={t("适应画布")}
+                onClick={() => instance?.fitView({ duration: 240 })}
+                type="button"
+              >
+                <IconFit aria-hidden strokeWidth={1.5} />
+              </Button>
+            }
+          />
+          <TooltipContent side={"top"}>
+            {
+              <span className={styles.tooltipContent}>
+                {t("适应画布")}
+                <kbd>{modifierKey}</kbd>
+                <kbd>0</kbd>
+              </span>
+            }
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip open={miniMapOpen ? false : undefined}>
+          <TooltipTrigger render={<span className="inline-flex" />}>
+            <Popover open={miniMapOpen} onOpenChange={setMiniMapOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    aria-expanded={miniMapOpen}
+                    aria-haspopup="dialog"
+                    aria-label={miniMapOpen ? t("关闭小地图") : t("打开小地图")}
+                    className={miniMapOpen ? styles.metaButtonActive : undefined}
+                    type="button"
+                  />
+                }
+              >
+                <IconMap aria-hidden strokeWidth={1.5} />
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                alignOffset={-72}
+                className="canvas-web-theme w-auto p-0"
+                initialFocus={false}
+                side="top"
+                sideOffset={12}
+              >
+                <MiniMap
+                  bgColor="var(--background)"
+                  className={styles.miniMap}
+                  maskColor="rgb(26 27 30 / 5%)"
+                  nodeBorderRadius={2}
+                  nodeColor="rgb(160 162 167 / 70%)"
+                  pannable
+                  style={CANVAS_MINIMAP_SIZE}
+                  zoomable
+                />
+              </PopoverContent>
+            </Popover>
+          </TooltipTrigger>
+          <TooltipContent side={"top"}>{t("画布小地图")}</TooltipContent>
+        </Tooltip>
+        <Tooltip open={zoomMenuOpen ? false : undefined}>
+          <TooltipTrigger render={<span className="inline-flex" />}>
+            <DropdownMenu open={zoomMenuOpen} onOpenChange={setZoomMenuOpen}>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    aria-label={t("画布缩放比例")}
+                    className={`${styles.zoomPercent} ${zoomMenuOpen ? styles.metaButtonActive : ""}`}
+                    type="button"
+                  />
+                }
+              >
+                <CanvasZoomPercent />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                aria-label={t("画布缩放选项")}
+                className={`${styles.zoomMenu} canvas-web-theme w-auto`}
+                side="top"
+                sideOffset={12}
+              >
+                <DropdownMenuItem
                   onClick={() => {
-                    setZoomMenuOpen(false);
                     void instance?.zoomIn({ duration: 160 });
                   }}
-                  role="menuitem"
-                  type="button"
                 >
                   <span>{t("放大")}</span>
                   <span className={styles.zoomShortcut}>
                     <kbd>{modifierKey}</kbd>
                     <kbd>+</kbd>
                   </span>
-                </button>
-                <button
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => {
-                    setZoomMenuOpen(false);
                     void instance?.zoomOut({ duration: 160 });
                   }}
-                  role="menuitem"
-                  type="button"
                 >
                   <span>{t("缩小")}</span>
                   <span className={styles.zoomShortcut}>
                     <kbd>{modifierKey}</kbd>
                     <kbd>−</kbd>
                   </span>
-                </button>
-                <button
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => {
-                    setZoomMenuOpen(false);
                     void instance?.fitView({ duration: 240 });
                   }}
-                  role="menuitem"
-                  type="button"
                 >
                   <span>{t("适应画布")}</span>
                   <span className={styles.zoomShortcut}>
                     <kbd>{modifierKey}</kbd>
                     <kbd>0</kbd>
                   </span>
-                </button>
-                <span className={styles.zoomMenuDivider} />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className={styles.zoomMenuDivider} />
                 {ZOOM_PRESETS.map((zoom) => (
-                  <button
+                  <DropdownMenuItem
                     key={zoom}
                     onClick={() => {
-                      setZoomMenuOpen(false);
                       void instance?.zoomTo(zoom, { duration: 240 });
                     }}
-                    role="menuitem"
-                    type="button"
                   >
                     {zoom * 100}%
-                  </button>
+                  </DropdownMenuItem>
                 ))}
-              </div>
-            }
-            onVisibleChange={setZoomMenuOpen}
-            popupVisible={zoomMenuOpen}
-            position="top"
-            trigger="click"
-            triggerProps={{ popupAlign: { top: 12 } }}
-          >
-            <button
-              aria-expanded={zoomMenuOpen}
-              aria-haspopup="menu"
-              aria-label={t("画布缩放比例")}
-              className={`${styles.zoomPercent} ${zoomMenuOpen ? styles.metaButtonActive : ""}`}
-              type="button"
-            >
-              <CanvasZoomPercent />
-            </button>
-          </Dropdown>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TooltipTrigger>
+          <TooltipContent side={"top"}>{t("缩放选项")}</TooltipContent>
         </Tooltip>
       </div>
-
       {graphLoaded && nodeCount === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyTitle}>
@@ -298,46 +326,58 @@ export function CanvasBoardControls({
           </div>
         </div>
       ) : null}
-
       <div
         className={`${styles.toolbar} ${shortcutsOpen ? styles.toolbarRaised : ""}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <Tooltip content={t("添加节点")} position="top">
-          <button
-            aria-label={t("添加节点")}
-            className={styles.addToolButton}
-            onClick={openToolbarAddMenu}
-            type="button"
-          >
-            <IconPlus aria-hidden strokeWidth={1.5} />
-          </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                aria-label={t("添加节点")}
+                className={styles.addToolButton}
+                onClick={openToolbarAddMenu}
+                type="button"
+              >
+                <IconPlus aria-hidden strokeWidth={1.5} />
+              </Button>
+            }
+          />
+          <TooltipContent side={"top"}>{t("添加节点")}</TooltipContent>
         </Tooltip>
-        <Tooltip content={interactionMode === "select" ? t("移动") : t("抓手工具")} position="top">
-          <button
-            aria-expanded={modeMenuOpen}
-            aria-haspopup="menu"
-            aria-label={interactionMode === "select" ? t("移动") : t("抓手工具")}
-            className={`${styles.toolButton} ${
-              modeMenuOpen || interactionMode === "hand" ? styles.toolButtonActive : ""
-            }`}
-            onClick={() => {
-              onDismissAddMenu();
-              setShortcutsOpen(false);
-              setModeMenuOpen((open) => !open);
-            }}
-            type="button"
-          >
-            {interactionMode === "select" ? (
-              <IconCursor aria-hidden strokeWidth={1.5} />
-            ) : (
-              <IconHand aria-hidden strokeWidth={1.5} />
-            )}
-          </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                aria-expanded={modeMenuOpen}
+                aria-haspopup="menu"
+                aria-label={interactionMode === "select" ? t("移动") : t("抓手工具")}
+                className={`${styles.toolButton} ${
+                  modeMenuOpen || interactionMode === "hand" ? styles.toolButtonActive : ""
+                }`}
+                onClick={() => {
+                  onDismissAddMenu();
+                  setShortcutsOpen(false);
+                  setModeMenuOpen((open) => !open);
+                }}
+                type="button"
+              >
+                {interactionMode === "select" ? (
+                  <IconCursor aria-hidden strokeWidth={1.5} />
+                ) : (
+                  <IconHand aria-hidden strokeWidth={1.5} />
+                )}
+              </Button>
+            }
+          />
+          <TooltipContent side={"top"}>{interactionMode === "select" ? t("移动") : t("抓手工具")}</TooltipContent>
         </Tooltip>
         {modeMenuOpen ? (
           <div className={styles.modeMenu} role="menu">
-            <button
+            <Button
+              variant="ghost"
               aria-checked={interactionMode === "select"}
               className={interactionMode === "select" ? styles.modeMenuActive : ""}
               onClick={() => activateInteractionMode("select")}
@@ -349,8 +389,9 @@ export function CanvasBoardControls({
                 {t("移动")}
               </span>
               <kbd>V</kbd>
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               aria-checked={interactionMode === "hand"}
               className={interactionMode === "hand" ? styles.modeMenuActive : ""}
               onClick={() => activateInteractionMode("hand")}
@@ -362,27 +403,32 @@ export function CanvasBoardControls({
                 {t("抓手工具")}
               </span>
               <kbd>H</kbd>
-            </button>
+            </Button>
           </div>
         ) : null}
         <span className={styles.toolDivider} />
-        <Tooltip content={t("快捷键")} position="top">
-          <button
-            aria-label={t("快捷键")}
-            aria-pressed={shortcutsOpen}
-            className={`${styles.toolButton} ${shortcutsOpen ? styles.toolButtonActive : ""}`}
-            onClick={() => {
-              onDismissAddMenu();
-              setModeMenuOpen(false);
-              setShortcutsOpen((open) => !open);
-            }}
-            type="button"
-          >
-            <IconKeyboard aria-hidden strokeWidth={1.5} />
-          </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                aria-label={t("快捷键")}
+                aria-pressed={shortcutsOpen}
+                className={`${styles.toolButton} ${shortcutsOpen ? styles.toolButtonActive : ""}`}
+                onClick={() => {
+                  onDismissAddMenu();
+                  setModeMenuOpen(false);
+                  setShortcutsOpen((open) => !open);
+                }}
+                type="button"
+              >
+                <IconKeyboard aria-hidden strokeWidth={1.5} />
+              </Button>
+            }
+          />
+          <TooltipContent side={"top"}>{t("快捷键")}</TooltipContent>
         </Tooltip>
       </div>
-
       <aside
         aria-hidden={!shortcutsOpen}
         aria-label={t("画布快捷键")}

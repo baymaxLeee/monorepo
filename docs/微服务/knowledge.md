@@ -7,7 +7,7 @@
 - 原始文件字节存储（demo 阶段：本地 filesystem `KNOWLEDGE_DATA_DIR`）
 - MarkItDown 文档转换 → `content_md`
 - `documents` 单表：同时保存 `object_key`（原始文件）与 `content_md`（转换结果）
-- 上传 ingest（HTTP 接收后后台转换/索引）
+- 上传 ingest（HTTP 接收后由 Executor Workflow 耐久执行转换/索引）
 - 用户上传 source 与媒体 artifact 持久化
 - 会话级虚拟文件树、per-deliverable change set staging 与原子发布
 - 面向用户的文档 CRUD（未来知识库 app）
@@ -49,7 +49,7 @@
 |---|---|---|
 | `POST /ingest` | Gateway 用户 JWT | 多文件上传，返回已接收文档 |
 | `GET/PATCH/DELETE /documents/*` | Gateway 用户 JWT | 用户文档管理 |
-| `GET/POST/DELETE /internal/*` | `X-Internal-Token` | chat 等 sibling 服务调用 |
+| `GET/POST/DELETE /internal/*` | per-caller service identity | chat/executor 等 sibling 服务调用 |
 
 ## 与 chat 的关系
 
@@ -59,6 +59,16 @@
   staged media 及其对象存储字节；用户上传的 `source` 文档继续由 knowledge 独立持有。
 - Knowledge 保存 conversation tombstone，拒绝已删除会话的迟到生成写入；清理接口幂等，
   允许 chat 至少一次重试投递。
+
+## 耐久文档处理
+
+`documents.ingest_status/index_status` 是转换和索引的 durable intent。Knowledge
+用固定大小扫描批次把 pending 文档提交为 Executor 的
+`knowledge-document-process` task；owner ref 包含文档内容版本，因而多副本扫描
+与重启重试不会重复启动同一版本。Workflow 依次调用 Knowledge 拥有的幂等
+convert/index command；Executor 不读取 Knowledge 数据库，也不持有文档正文。
+没有 embedding provider 时仍写入 `embedding=NULL` 的 lexical chunks，保证
+pg_trgm sparse-only 检索可用。
 
 ## 开发
 

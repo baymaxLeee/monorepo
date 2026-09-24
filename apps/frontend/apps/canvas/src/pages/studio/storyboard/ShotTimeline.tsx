@@ -1,7 +1,21 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Button,
+} from "@repo/design-system";
 import { Plus as IconPlus } from "lucide-react";
 import { type DragEvent, type ReactNode, useState } from "react";
 
-import { ActionDropdown, Popconfirm, Tooltip } from "@/components/ui";
+import { ActionDropdown } from "@/components/ActionDropdown";
 import {
   HIDDEN_SCROLLBAR_CLASS,
   HIDDEN_SCROLLBAR_STYLE,
@@ -27,19 +41,23 @@ function AddShotGap({ disabled, emphasized, onAdd }: { disabled: boolean; emphas
   return (
     <div className={styles.addGap}>
       <span className={`${styles.addGapLine} ${emphasized ? styles.addGapLineEmphasized : ""}`} />
-      <Tooltip content={t("创建分镜")} position="top">
-        <button
-          aria-label={t("在此处创建分镜")}
-          className={`${styles.addGapButton} ${disabled ? styles.disabled : ""}`}
-          onClick={() => {
-            if (!disabled) {
-              onAdd();
-            }
-          }}
-          type="button"
-        >
-          <IconPlus />
-        </button>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+          <Button
+            variant="ghost"
+            aria-label={t("在此处创建分镜")}
+            className={`${styles.addGapButton} ${disabled ? styles.disabled : ""}`}
+            onClick={() => {
+              if (!disabled) {
+                onAdd();
+              }
+            }}
+            type="button"
+          >
+            <IconPlus />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side={"top"}>{t("创建分镜")}</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -86,19 +104,19 @@ export function ShotTimeline({
       return node;
     }
     return (
-      <Popconfirm
-        cancelText={t("放弃修改")}
-        content={t("当前分镜有未保存的修改，是否保存?")}
-        okButtonProps={{ status: "warning" }}
-        okText={t("确定保存")}
-        onCancel={unsavedPrompt.onDiscard}
-        onOk={unsavedPrompt.onSave}
-        popupVisible
-        position="top"
-        title={t("修改尚未保存")}
-      >
+      <AlertDialog open>
         {node}
-      </Popconfirm>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("修改尚未保存")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("当前分镜有未保存的修改，是否保存?")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={unsavedPrompt.onDiscard}>{t("放弃修改")}</AlertDialogCancel>
+            <AlertDialogAction onClick={unsavedPrompt.onSave}>{t("确定保存")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     );
   };
   const addShotButton = (
@@ -111,13 +129,14 @@ export function ShotTimeline({
       onSelect={(key) => onAdd(shots.length, key as AddShotMode)}
       position="tr"
     >
-      <button
+      <Button
+        variant="ghost"
         aria-label={t("新增分镜")}
         className={`${styles.addShotButton} ${lockAdd ? styles.disabled : ""}`}
         type="button"
       >
         <IconPlus />
-      </button>
+      </Button>
     </ActionDropdown>
   );
 

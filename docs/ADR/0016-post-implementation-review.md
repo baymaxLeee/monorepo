@@ -107,3 +107,83 @@ multi-phase work in this repo, not only to `executor`.
   implementation phases it followed, in this instance) — it is only
   proportionate for multi-phase or multi-service changes, not every small
   fix. Use judgment; don't turn a one-file bug fix into a full audit.
+
+## 2026-09-23 backend-wide review application
+
+The review procedure was applied to all eight registered backend services
+(`gateway`, `iam`, `admin`, `chat`, `knowledge`, `telemetry`, `executor`, and
+`canvas`), their shared transport contracts, and both production deployment
+surfaces. The target architecture remains one Chat `ToolLoopAgent` for
+interactive reasoning and one Executor Workflow runtime for deterministic,
+durable work. Service ownership remains explicit; no service imports another
+service's source or database, and shared libraries contain transport and
+infrastructure capabilities rather than domain models.
+
+The review found and corrected four recurring classes of systemic defect:
+
+1. **Identity and tenancy were being treated as transport metadata instead of
+   authorization inputs.** Internal receivers now authenticate the declared
+   caller with a caller-specific workload credential. Public Canvas routes use
+   the Gateway-established user/workspace identity and enforce project access;
+   Knowledge retrieval filters both tenant and workspace. Gateway no longer
+   invents an internal-service identity for public requests.
+2. **Long-running work was coupled to a process.** Knowledge document
+   conversion/indexing now persists intent, dispatches bounded Executor
+   workflows, uses database advisory locks for idempotent execution, and
+   replaces chunks atomically. Chat cancellation waits for a durable terminal
+   run state, and conversation deletion refuses to race an active lease.
+   Executor cleanup uses a cross-replica lock and video-production failures
+   after projection creation converge to a terminal projection.
+3. **Resource and side-effect boundaries were incomplete.** Upload and RUM
+   payloads are bounded, non-finite telemetry values are rejected or
+   normalized, Canvas downloads bind validation to the dialed address, and
+   archive cleanup checks ownership before deleting shared objects. Canvas
+   quota accounting, reconciliation, archive cleanup, and asset garbage
+   collection are now assembled in production. Quota enforcement remains
+   report-only until Admin exposes an authoritative entitlement source; the
+   system records would-reject decisions rather than fabricating limits.
+4. **Deployment checks were weaker than local checks.** Non-development
+   services reject development workload/JWT/database credentials, Gateway rate
+   limiting is Redis-backed across replicas, session-cookie mutations require
+   an allowed Origin outside development, database migrations and Workflow
+   World setup precede rollout, and the Knowledge RWO deployment uses a
+   single-writer strategy. K8s network policy and both secret-rendering paths
+   carry the per-caller credentials.
+
+The implementation deliberately did not create a service mega-kernel or a
+second role-playing agent loop. This follows the installed AI SDK guidance:
+`ToolLoopAgent` owns the interactive tool loop, resumable UI transport treats a
+disconnect separately from explicit cancellation, and durable Workflow steps
+own replayable external work. It also matches the useful common shape in
+Claude Code, Codex, and Cursor: one primary context, explicit tool side effects,
+bounded approvals, cancellation, persistence, and compaction; helper workers do
+not acquire independent product intent.
+
+### Risks requiring a different boundary
+
+The review also identified issues for which a local patch would be misleading:
+
+- Administrator-configured provider URLs are checked at configuration and
+  request time, redirects are rejected, and literal/private addresses are
+  blocked. DNS can still change between validation and the runtime's actual
+  connection. Full protection requires either a controlled outbound proxy or a
+  transport that pins a validated address while preserving the HTTP Host header
+  and TLS SNI. A second preflight lookup is not claimed as complete SSRF
+  protection.
+- A paid provider may create a task and lose the response before returning its
+  provider task identifier. The workflow preserves the reservation on this
+  ambiguous path and disables unsafe automatic replay, but automatic recovery
+  requires a provider-supported idempotency key or lookup-by-client-key
+  contract.
+- Canvas generation-history reads are capped at the newest 100 records and image
+  histories now batch-load task/input rows. True continuation pagination remains
+  a future API-contract improvement if the product needs older history.
+
+The review fixed the corresponding local issues directly: Telemetry now ships
+the `(user_id, ts_server DESC)` index as a service-owned forward migration, and
+the unused Canvas claim/heartbeat HTTP boundary was removed because production
+execution already uses Executor endpoints plus the async event consumer.
+
+These are tracked as explicit architectural constraints rather than
+compatibility shims. A future change that activates any affected path must
+resolve the corresponding boundary first.

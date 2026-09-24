@@ -1,10 +1,9 @@
+import { toast } from "@repo/design-system";
 import Mention from "@tiptap/extension-mention";
 import { Plugin } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { ReactNodeViewRenderer, ReactRenderer } from "@tiptap/react";
 import { type SuggestionKeyDownProps, type SuggestionProps, exitSuggestion } from "@tiptap/suggestion";
-
-import { Message } from "@/components/ui";
 
 import { ASSET_LIBRARY_DIALOG_CLASS } from "./AddAssetToLibraryDialog";
 import { createAssetMentionNode } from "./AssetMentionNode";
@@ -307,7 +306,10 @@ export const createAssetMentionExtension = (source: AssetMentionSource) => {
         const selectedAsset = asset as unknown as AssetMentionItem;
         const unavailable = unavailableAssetMessage(selectedAsset);
         if (unavailable) {
-          Message.warning(unavailable);
+          toast.add({
+            type: "warning",
+            title: unavailable,
+          });
           return;
         }
         const applySelection = (resolved: AssetMentionItem) =>

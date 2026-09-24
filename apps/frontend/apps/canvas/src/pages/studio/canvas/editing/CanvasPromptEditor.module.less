@@ -8,9 +8,9 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid #dde2e9;
+  border: 1px solid var(--border);
   border-radius: 20px;
-  background: #fff;
+  background: var(--background);
   box-shadow: 0 4px 16px rgb(0 0 0 / 10%);
   transform-origin: top center;
   animation: editor-enter 180ms ease-out;
@@ -115,7 +115,7 @@
 .expandedTitle {
   min-width: 0;
   overflow: hidden;
-  color: #42464e;
+  color: var(--muted-foreground);
   font-size: 13px;
   font-weight: 400;
   line-height: 22px;
@@ -148,7 +148,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #737a87;
+  color: var(--muted-foreground);
   cursor: pointer;
   font-size: 16px;
 }
@@ -159,7 +159,7 @@
 
 .expandButton:hover {
   background: rgb(26 27 30 / 5%);
-  color: #42464e;
+  color: var(--muted-foreground);
 }
 
 .expandButtonFloating {
@@ -180,7 +180,7 @@
   height: 0;
   min-height: 0;
   flex: 1 1 0;
-  color: #0c0d0e;
+  color: var(--foreground);
   font-size: 13px;
   line-height: 22px;
 
@@ -241,8 +241,8 @@
   padding: 0 16px;
   border: 0;
   border-radius: 8px;
-  background: #42464e;
-  color: #fff;
+  background: var(--muted-foreground);
+  color: white;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
@@ -254,7 +254,7 @@
 }
 
 .generateButton:disabled {
-  background: #c7ccd6;
+  background: var(--border);
   cursor: not-allowed;
 }
 

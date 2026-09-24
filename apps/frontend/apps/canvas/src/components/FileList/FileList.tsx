@@ -1,7 +1,8 @@
+import { Button, Empty, EmptyDescription } from "@repo/design-system";
 import { Info as IconInfoCircleFill } from "lucide-react";
 import { type Key, type ReactNode, type UIEvent, useCallback, useEffect, useRef, useState } from "react";
 
-import { Button, Empty, Spin } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import t from "@/utils/i18n";
 
 const LOAD_MORE_THRESHOLD = 24;
@@ -125,14 +126,14 @@ export function FileList<T>({
   if (loading && items.length === 0) {
     content = (
       <div className="flex flex-1 items-center justify-center py-10">
-        <Spin />
+        <LoadingIndicator />
       </div>
     );
   } else if (failedPage === 1 && items.length === 0) {
     content = (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-[14px] text-muted-foreground">
         <span>{errorText}</span>
-        <Button className="text-[13px] text-primary" onClick={retry} size="small" type="text">
+        <Button className="text-[13px] text-primary" onClick={retry} size="sm" variant="ghost">
           {retryText}
         </Button>
       </div>
@@ -140,7 +141,9 @@ export function FileList<T>({
   } else if (!loading && items.length === 0) {
     content = (
       <div className="flex flex-1 items-center justify-center py-10">
-        <Empty description={emptyText} />
+        <Empty>
+          <EmptyDescription>{emptyText}</EmptyDescription>
+        </Empty>
       </div>
     );
   } else {
@@ -175,12 +178,12 @@ export function FileList<T>({
         ))}
         {loading ? (
           <div className="flex h-10 items-center justify-center">
-            <Spin size={16} />
+            <LoadingIndicator className="size-[16px]" />
           </div>
         ) : failedPage ? (
           <div className="flex h-10 items-center justify-center gap-2 text-[12px] text-muted-foreground">
             <span>{errorText}</span>
-            <Button className="text-[12px] text-primary" onClick={retry} size="mini" type="text">
+            <Button className="text-[12px] text-primary" onClick={retry} size="xs" variant="ghost">
               {retryText}
             </Button>
           </div>
@@ -191,15 +194,15 @@ export function FileList<T>({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 bg-[#f4f7ff] px-6 py-2 text-[13px] leading-5.5 text-foreground">
+      <div className="flex shrink-0 items-center gap-2 bg-muted px-6 py-2 text-[13px] leading-5.5 text-foreground">
         <IconInfoCircleFill aria-hidden className="shrink-0 text-primary" size={16} strokeWidth={1.5} />
         <span>{t("下载链接有效期为 {retentionDays} 天。", { retentionDays })}</span>
         <Button
           className="ml-auto text-[13px] text-primary"
           disabled={loading}
           onClick={reloadFirstPage}
-          size="small"
-          type="text"
+          size="sm"
+          variant="ghost"
         >
           {t("刷新列表")}
         </Button>

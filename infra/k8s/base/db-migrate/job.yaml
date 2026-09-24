@@ -1,47 +1,45 @@
-# One-shot deploy-time Job — runs BEFORE the application Deployment is rolled.
-#
-# Since ADR-0029, service SQL schema is NOT applied by a per-service `/server
-# migrate` entrypoint (that subcommand was removed). Schema is applied via the
-# shared migrator (scripts/db-migrate.sh) or, in prod, out-of-band against the
-# managed Postgres (see overlays/prod/README). The remaining deploy-time Job is
-# iam's idempotent identity bootstrap (`seed`) — the sole carrier of the
-# password-hashed super-admin + guest-workspace, lifted out of the server start path
-# so replicas never race the bootstrap on every start. See docs/ADR/0030.
-#
-# Strategy:
-#   1. CI applies this Job first (kubectl apply --wait)
-#   2. Once the Job succeeds, CI applies the Deployment update
-#   3. If the Job fails, the deploy is aborted (rollback)
-#
-# This file is a TEMPLATE. CI (see .github/workflows/deploy-prod.yml) patches:
-#   - metadata.name      (iam-bootstrap-<timestamp>)
-#   - image              (iam image @ the new tag)
+# One-shot schema migration job. CI gives every deploy a unique name and pins
+# the db-init image to the same immutable release tag as the services.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: iam-bootstrap
-  labels: { app: iam-bootstrap }
+  name: db-migrate
+  labels: { app: db-migrate }
 spec:
   backoffLimit: 0
-  # Auto-clean Job records 1 day after completion to avoid clutter.
   ttlSecondsAfterFinished: 86400
   template:
     metadata:
-      labels: { app: iam-bootstrap }
+      labels: { app: db-migrate }
     spec:
       restartPolicy: Never
       containers:
-        - name: seed
-          image: ghcr.io/example/iam:latest
+        - name: migrate
+          image: ghcr.io/example/db-init:latest
           imagePullPolicy: IfNotPresent
           env:
-            - { name: ENVIRONMENT, value: production }
-          envFrom:
-            # Reuse the same Secret/Config the service uses, so credentials match.
-            - secretRef: { name: iam-secrets }
-            - configMapRef: { name: iam-config }
-          command: ["/server"]
-          args: ["seed"]
+            - name: POSTGRES_HOST
+              valueFrom: { secretKeyRef: { name: postgres-admin-secrets, key: POSTGRES_HOST } }
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_ADMIN_USER
+              valueFrom: { secretKeyRef: { name: postgres-admin-secrets, key: POSTGRES_ADMIN_USER } }
+            - name: POSTGRES_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-admin-secrets, key: POSTGRES_ADMIN_PASSWORD } }
+            - name: IAM_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_PASSWORD } }
+            - name: ADMIN_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: admin-secrets, key: POSTGRES_PASSWORD } }
+            - name: CANVAS_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: canvas-secrets, key: POSTGRES_PASSWORD } }
+            - name: CHAT_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: chat-secrets, key: POSTGRES_PASSWORD } }
+            - name: EXECUTOR_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: executor-secrets, key: POSTGRES_PASSWORD } }
+            - name: KNOWLEDGE_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: knowledge-secrets, key: POSTGRES_PASSWORD } }
+            - name: TELEMETRY_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: telemetry-secrets, key: POSTGRES_PASSWORD } }
           resources:
-            requests: { cpu: 50m,  memory: 64Mi }
-            limits:   { cpu: 500m, memory: 256Mi }
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }

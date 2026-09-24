@@ -10,6 +10,18 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  Input,
+  Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@repo/design-system";
 import {
   Trash2 as IconDeleteLine,
@@ -25,7 +37,6 @@ import { z } from "zod";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { AudioSpectrum, useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { EllipsisText } from "@/components/common";
-import { Button, Input, Message, Select, Tooltip } from "@/components/ui";
 import { resource } from "@/domain";
 import { RESOURCE_DESCRIPTION_MAX_LENGTH } from "@/lib/resourceConstraints";
 import t from "@/utils/i18n";
@@ -171,7 +182,10 @@ export function ResourceDialog({
     selectedFiles.forEach((file, index) => {
       const validationError = validateResourceFile(type, file);
       if (validationError) {
-        Message.error(`${file.name}：${validationError}`);
+        toast.add({
+          type: "error",
+          title: `${file.name}：${validationError}`,
+        });
         return;
       }
       accepted.push({
@@ -276,7 +290,10 @@ export function ResourceDialog({
       });
     const removedCount = pendingFiles.length - nextFiles.length;
     if (removedCount) {
-      Message.warning(t("已移除 {count} 个不支持的素材", { count: removedCount }));
+      toast.add({
+        type: "warning",
+        title: t("已移除 {count} 个不支持的素材", { count: removedCount }),
+      });
     }
     setPendingFiles(nextFiles);
   };
@@ -284,7 +301,10 @@ export function ResourceDialog({
   const submit = async ({ name, description, type }: ResourceFormValues) => {
     if (!state || uploading) return;
     if (duplicateMaterialNames.size) {
-      Message.error(t("素材名称不能重复"));
+      toast.add({
+        type: "error",
+        title: t("素材名称不能重复"),
+      });
       return;
     }
     setSubmitError("");
@@ -335,20 +355,22 @@ export function ResourceDialog({
               <FieldLabel htmlFor={field.name}>
                 {t("资产类型")} <span className="text-destructive">*</span>
               </FieldLabel>
-              <Select
-                id={field.name}
-                name={field.name}
-                aria-invalid={fieldState.invalid}
-                aria-required="true"
-                className={styles.typeSelect}
-                onChange={changeCreateType}
-                value={field.value}
-              >
-                {RESOURCE_TYPE_OPTIONS.map((option) => (
-                  <Select.Option key={option.value} value={option.value}>
-                    {option.label}
-                  </Select.Option>
-                ))}
+              <Select name={field.name} onValueChange={(value) => value && changeCreateType(value)} value={field.value}>
+                <SelectTrigger
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  aria-required="true"
+                  className={styles.typeSelect}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  {RESOURCE_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
               <FieldError errors={[fieldState.error]} />
             </Field>
@@ -374,7 +396,9 @@ export function ResourceDialog({
               aria-invalid={fieldState.invalid}
               aria-required="true"
               maxLength={RESOURCE_NAME_MAX_LENGTH}
-              onChange={(value) => field.onChange([...value].slice(0, RESOURCE_NAME_MAX_LENGTH).join(""))}
+              onChange={(event) =>
+                field.onChange([...event.currentTarget.value].slice(0, RESOURCE_NAME_MAX_LENGTH).join(""))
+              }
               placeholder={t("请输入")}
               value={field.value}
             />
@@ -393,12 +417,14 @@ export function ResourceDialog({
                 {[...field.value].length}/{RESOURCE_DESCRIPTION_MAX_LENGTH}
               </span>
             </FieldLabel>
-            <Input.TextArea
+            <Textarea
               id={field.name}
               aria-invalid={fieldState.invalid}
               className={styles.descriptionInput}
               maxLength={RESOURCE_DESCRIPTION_MAX_LENGTH}
-              onChange={(value) => field.onChange([...value].slice(0, RESOURCE_DESCRIPTION_MAX_LENGTH).join(""))}
+              onChange={(event) =>
+                field.onChange([...event.currentTarget.value].slice(0, RESOURCE_DESCRIPTION_MAX_LENGTH).join(""))
+              }
               placeholder={t("请输入")}
               value={field.value}
             />
@@ -444,22 +470,28 @@ export function ResourceDialog({
                   <div className={styles.materialHeader}>
                     <span>{materialLabel}</span>
                     {pendingFiles.length ? (
-                      <Tooltip
-                        content={t("只允许包含{count}个{type}{item}", {
-                          count: materialLimit,
-                          type: typeLabel,
-                          item: materialItem,
-                        })}
-                        disabled={!materialLimitReached}
-                      >
-                        <span>
-                          <Button disabled={materialLimitReached} onClick={() => uploadInputRef.current?.click()}>
-                            <span className="flex items-center gap-[6px]">
-                              <IconLocalAddition style={{ height: 16, width: 16 }} />
-                              {t("从本地上传")}
-                            </span>
-                          </Button>
-                        </span>
+                      <Tooltip disabled={!materialLimitReached}>
+                        <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                          <span>
+                            <Button
+                              disabled={materialLimitReached}
+                              onClick={() => uploadInputRef.current?.click()}
+                              variant="outline"
+                            >
+                              <span className="flex items-center gap-[6px]">
+                                <IconLocalAddition style={{ height: 16, width: 16 }} />
+                                {t("从本地上传")}
+                              </span>
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {t("只允许包含{count}个{type}{item}", {
+                            count: materialLimit,
+                            type: typeLabel,
+                            item: materialItem,
+                          })}
+                        </TooltipContent>
                       </Tooltip>
                     ) : null}
                   </div>
@@ -488,7 +520,8 @@ export function ResourceDialog({
                                   heights={playingAudioFileId === item.id ? audioSpectrum.heights : undefined}
                                   playing={playingAudioFileId === item.id}
                                 />
-                                <button
+                                <Button
+                                  variant="ghost"
                                   aria-label={t("{action}音频：{name}", {
                                     action: playingAudioFileId === item.id ? t("暂停") : t("播放"),
                                     name: item.name,
@@ -498,7 +531,7 @@ export function ResourceDialog({
                                   type="button"
                                 >
                                   {playingAudioFileId === item.id ? <IconPause /> : <IconPlay />}
-                                </button>
+                                </Button>
                               </div>
                             ) : item.previewUrl ? (
                               <img
@@ -516,35 +549,41 @@ export function ResourceDialog({
                                 })}
                               </span>
                             ) : (
-                              <Tooltip
-                                content={t("设为主{materialName}", {
-                                  materialName: materialItem,
-                                })}
-                                position="top"
-                              >
-                                <button
-                                  aria-label={t("设为主{materialName}：{name}", {
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <Button
+                                      variant="ghost"
+                                      aria-label={t("设为主{materialName}：{name}", {
+                                        materialName: materialItem,
+                                        name: item.file.name,
+                                      })}
+                                      className={styles.setPrimaryButton}
+                                      onClick={() => setPrimaryFile(item.id)}
+                                      type="button"
+                                    >
+                                      {t("主{materialName}", {
+                                        materialName: materialItem,
+                                      })}
+                                    </Button>
+                                  }
+                                />
+                                <TooltipContent side={"top"}>
+                                  {t("设为主{materialName}", {
                                     materialName: materialItem,
-                                    name: item.file.name,
                                   })}
-                                  className={styles.setPrimaryButton}
-                                  onClick={() => setPrimaryFile(item.id)}
-                                  type="button"
-                                >
-                                  {t("主{materialName}", {
-                                    materialName: materialItem,
-                                  })}
-                                </button>
+                                </TooltipContent>
                               </Tooltip>
                             )}
-                            <button
+                            <Button
+                              variant="ghost"
                               aria-label={t("移除 {name}", { name: item.file.name })}
                               className={styles.removeButton}
                               onClick={() => removeFile(item.id)}
                               type="button"
                             >
                               <IconDeleteLine />
-                            </button>
+                            </Button>
                             {item.status !== "ready" ? (
                               <span className={styles.materialStatus}>
                                 {item.status === "uploading" ? t("上传中") : t("上传失败")}
@@ -559,7 +598,7 @@ export function ResourceDialog({
                                 className={styles.materialNameInput}
                                 maxLength={RESOURCE_NAME_MAX_LENGTH}
                                 onBlur={() => finishRenaming(item.id)}
-                                onChange={setRenameValue}
+                                onChange={(event) => setRenameValue(event.currentTarget.value)}
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     event.preventDefault();
@@ -569,11 +608,11 @@ export function ResourceDialog({
                                     setRenameValue("");
                                   }
                                 }}
-                                size="mini"
                                 value={renameValue}
                               />
                             ) : (
-                              <button
+                              <Button
+                                variant="ghost"
                                 aria-label={t("重命名素材：{name}", {
                                   name: item.name,
                                 })}
@@ -587,14 +626,15 @@ export function ResourceDialog({
                                 type="button"
                               >
                                 <EllipsisText className={styles.materialName}>{item.name}</EllipsisText>
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </article>
                       ))}
                     </div>
                   ) : (
-                    <button
+                    <Button
+                      variant="ghost"
                       className={styles.dropzone}
                       onClick={() => uploadInputRef.current?.click()}
                       onDragOver={(event) => event.preventDefault()}
@@ -607,7 +647,7 @@ export function ResourceDialog({
                       <IconPlus className={styles.dropzoneIcon} />
                       <strong>{t("点击或拖拽文件到此处上传")}</strong>
                       <span>{getResourceFileConfig(type).hint}</span>
-                    </button>
+                    </Button>
                   )}
                   {type === resource.ResourceType.AUDIO && pendingFiles[0]?.previewUrl ? (
                     <AudioPlayer

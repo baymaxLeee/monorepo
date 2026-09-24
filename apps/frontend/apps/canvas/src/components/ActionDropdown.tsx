@@ -25,7 +25,7 @@ function placement(position: DropdownPosition = "bottom") {
   return { side, align } as const;
 }
 
-/** A compact action list with menu semantics, keyboard navigation, and modal-aware portal layering. */
+/** A canvas action list with menu semantics, keyboard navigation, and shared portal layering. */
 export function ActionDropdown({ children, items, onSelect, position, disabled }: ActionDropdownProps) {
   return (
     <DropdownMenu>

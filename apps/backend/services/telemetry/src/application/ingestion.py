@@ -7,6 +7,7 @@ merge into one row whose `event_count` accumulates.
 """
 
 import hashlib
+import math
 import random
 import re
 from datetime import UTC, datetime
@@ -49,13 +50,13 @@ async def ingest_batch(session: AsyncSession, batch: RumBatch, auth: OptionalAut
             rows.append(
                 EventPerformRow(
                     **common,
-                    metric=str(payload.get("metric") or payload.get("name") or "unknown"),
+                    metric=_text(payload.get("metric") or payload.get("name") or "unknown", 64),
                     value=_float(payload.get("value")),
                     payload=payload,
                 )
             )
         elif event.type == "error":
-            name = str(payload.get("name") or "Error")
+            name = _text(payload.get("name") or "Error", 256)
             message = str(payload.get("message") or "")
             stack = str(payload.get("stack") or "")
             rows.append(
@@ -72,7 +73,7 @@ async def ingest_batch(session: AsyncSession, batch: RumBatch, auth: OptionalAut
             rows.append(
                 EventWarningRow(
                     **common,
-                    level=str(payload.get("level") or "warning"),
+                    level=_text(payload.get("level") or "warning", 32),
                     message=str(payload.get("message") or ""),
                     payload=payload,
                 )
@@ -81,7 +82,7 @@ async def ingest_batch(session: AsyncSession, batch: RumBatch, auth: OptionalAut
             rows.append(
                 EventBusinessRow(
                     **common,
-                    name=str(payload.get("name") or "event"),
+                    name=_text(payload.get("name") or "event", 128),
                     payload=payload,
                 )
             )
@@ -176,9 +177,14 @@ def _sample(rate: float) -> bool:
 
 def _float(value: Any) -> float:
     try:
-        return float(value)
+        parsed = float(value)
     except TypeError, ValueError:
         return 0.0
+    return parsed if math.isfinite(parsed) else 0.0
+
+
+def _text(value: Any, max_length: int) -> str:
+    return str(value)[:max_length]
 
 
 def _fingerprint(name: str, message: str, stack: str) -> str:

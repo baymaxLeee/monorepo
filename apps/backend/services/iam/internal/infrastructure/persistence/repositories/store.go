@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
+	"github.com/example/monorepo/iam/internal/infrastructure/security"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -140,7 +141,7 @@ func (s *Store) CreateRegisteredUser(ctx context.Context, user models.User, pass
 	})
 }
 
-func (s *Store) EnsureUserWithPassword(ctx context.Context, user models.User, passwordHash string) error {
+func (s *Store) EnsureUserWithPassword(ctx context.Context, user models.User, password, passwordHash string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Clauses(clause.OnConflict{
@@ -167,7 +168,25 @@ func (s *Store) EnsureUserWithPassword(ctx context.Context, user models.User, pa
 			CreatedAt:         now,
 			UpdatedAt:         now,
 		}
-		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&credential).Error
+		var current models.UserCredential
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", user.ID).First(&current).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tx.Create(&credential).Error
+		}
+		if err != nil {
+			return err
+		}
+		if security.VerifyPassword(current.PasswordHash, password) {
+			return nil
+		}
+		if err = tx.Model(&current).Updates(map[string]any{
+			"password_hash": passwordHash, "password_changed_at": now,
+			"failed_attempts": 0, "locked_until": nil, "updated_at": now,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.RefreshToken{}).Where("user_id = ? AND revoked_at IS NULL", user.ID).
+			Update("revoked_at", now).Error
 	})
 }
 

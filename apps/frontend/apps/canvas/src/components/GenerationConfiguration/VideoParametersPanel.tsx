@@ -1,8 +1,15 @@
+import {
+  FieldSet,
+  FieldLegend,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@repo/design-system";
 import { useRef, useState } from "react";
 
-import { Field } from "@/components/Field";
-import { Segmented, SegmentedTrack, segmentItemClass } from "@/components/Segmented";
-import { InputNumber } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import { RatioIcon } from "./RatioIcon";
@@ -22,6 +29,49 @@ const WATERMARK_LABELS: Record<string, string> = {
 
 function ratioLabel(ratio: string) {
   return ratio === "adaptive" ? t("自动") : ratio;
+}
+
+function ParameterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <FieldSet className="gap-1">
+      <FieldLegend className="text-xs text-muted-foreground" variant="label">
+        {label}
+      </FieldLegend>
+      {children}
+    </FieldSet>
+  );
+}
+
+function ParameterToggleGroup({
+  options,
+  value,
+  getLabel = (item) => item,
+  onChange,
+}: {
+  options: readonly string[];
+  value: string;
+  getLabel?: (item: string) => string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <ToggleGroup
+      className="w-full items-stretch rounded-lg bg-muted p-1"
+      onValueChange={(next) => next[0] && onChange(next[0])}
+      spacing={0}
+      value={[value]}
+    >
+      {options.map((option) => (
+        <ToggleGroupItem
+          aria-label={getLabel(option)}
+          className="h-6 flex-1 rounded-md aria-pressed:bg-background aria-pressed:shadow-sm"
+          key={option}
+          value={option}
+        >
+          {getLabel(option)}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
 }
 
 function parseDurationSeconds(duration: string) {
@@ -92,46 +142,50 @@ export function VideoParametersPanel({
   };
 
   return (
-    <div className="flex w-[353px] flex-col gap-4 rounded-[12px] border-[0.5px] border-solid border-border bg-white p-3 shadow-[0px_15px_35px_-2px_rgba(0,0,0,0.05),0px_5px_15px_0px_rgba(0,0,0,0.05)]">
+    <div className="flex w-[353px] flex-col gap-4 rounded-xl bg-popover p-3 text-popover-foreground">
       {!hasConfigurableParameter ? (
         <div className="py-4 text-center text-sm text-muted-foreground">{t("当前模型暂无可配置参数")}</div>
       ) : null}
 
       {showRatio && limits.ratios.length > 0 ? (
-        <Field label={t("比例")}>
-          <SegmentedTrack>
+        <ParameterGroup label={t("比例")}>
+          <ToggleGroup
+            className="w-full items-stretch rounded-lg bg-muted p-1"
+            onValueChange={(next) => next[0] && patch({ ratio: next[0] })}
+            spacing={0}
+            value={[settings.ratio]}
+          >
             {limits.ratios.map((ratio) => (
-              <button
-                className={`${segmentItemClass(ratio === settings.ratio)} h-[58px] flex-col`}
+              <ToggleGroupItem
+                className="h-[58px] flex-1 flex-col rounded-md aria-pressed:bg-background aria-pressed:shadow-sm"
                 key={ratio}
-                onClick={() => patch({ ratio })}
-                type="button"
+                value={ratio}
               >
                 <RatioIcon ratio={ratio} selected={ratio === settings.ratio} />
                 {ratioLabel(ratio)}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </SegmentedTrack>
-        </Field>
+          </ToggleGroup>
+        </ParameterGroup>
       ) : null}
 
       {limits.resolutions.length > 0 ? (
-        <Field label={t("分辨率")}>
-          <Segmented
+        <ParameterGroup label={t("分辨率")}>
+          <ParameterToggleGroup
             onChange={(resolution) => patch({ resolution })}
             options={[...limits.resolutions]}
             value={settings.resolution}
           />
-        </Field>
+        </ParameterGroup>
       ) : null}
 
       {showDuration && hasDuration ? (
-        <Field label={t("时长")}>
+        <ParameterGroup label={t("时长")}>
           <div className="flex items-center gap-2">
             {limits.automaticDurationSupported ? (
               <div className="w-[80px]">
-                <Segmented
-                  getOptionLabel={() => t("自动")}
+                <ParameterToggleGroup
+                  getLabel={() => t("自动")}
                   onChange={(duration) => patch({ duration })}
                   options={["-1s"]}
                   value={settings.duration}
@@ -139,51 +193,55 @@ export function VideoParametersPanel({
               </div>
             ) : null}
             {hasDurationRange ? (
-              <InputNumber
-                aria-label={t("时长")}
-                className="flex-1"
-                max={limits.durationMaxSeconds}
-                min={limits.durationMinSeconds}
-                onBlur={commitDurationNow}
-                onChange={(value) => {
-                  const seconds = value ?? limits.durationMinSeconds;
-                  setDurationDraft(seconds);
-                  durationDraftRef.current = seconds;
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    commitDurationNow();
-                  }
-                }}
-                precision={0}
-                suffix={t("秒")}
-                value={durationDraft ?? manualDuration}
-              />
+              <InputGroup className="flex-1">
+                <InputGroupInput
+                  aria-label={t("时长")}
+                  max={limits.durationMaxSeconds}
+                  min={limits.durationMinSeconds}
+                  onBlur={commitDurationNow}
+                  onChange={(event) => {
+                    const seconds = Number.isNaN(event.currentTarget.valueAsNumber)
+                      ? limits.durationMinSeconds
+                      : event.currentTarget.valueAsNumber;
+                    setDurationDraft(seconds);
+                    durationDraftRef.current = seconds;
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") commitDurationNow();
+                  }}
+                  step={1}
+                  type="number"
+                  value={durationDraft ?? manualDuration}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupText>{t("秒")}</InputGroupText>
+                </InputGroupAddon>
+              </InputGroup>
             ) : null}
           </div>
-        </Field>
+        </ParameterGroup>
       ) : null}
 
       {limits.audios.length > 0 ? (
-        <Field label={t("输出声音")}>
-          <Segmented
-            getOptionLabel={(option) => AUDIO_LABELS[option] ?? option}
+        <ParameterGroup label={t("输出声音")}>
+          <ParameterToggleGroup
+            getLabel={(option) => AUDIO_LABELS[option] ?? option}
             onChange={(audio) => patch({ audio })}
             options={[...limits.audios]}
             value={settings.audio}
           />
-        </Field>
+        </ParameterGroup>
       ) : null}
 
       {limits.watermarks.length > 0 ? (
-        <Field label={t("水印")}>
-          <Segmented
-            getOptionLabel={(option) => WATERMARK_LABELS[option] ?? option}
+        <ParameterGroup label={t("水印")}>
+          <ParameterToggleGroup
+            getLabel={(option) => WATERMARK_LABELS[option] ?? option}
             onChange={(watermark) => patch({ watermark })}
             options={[...limits.watermarks]}
             value={settings.watermark}
           />
-        </Field>
+        </ParameterGroup>
       ) : null}
     </div>
   );

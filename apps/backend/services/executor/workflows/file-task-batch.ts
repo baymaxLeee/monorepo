@@ -128,6 +128,10 @@ async function generateFileStep(input: {
   }
 }
 
+// The model call is a paid side effect without a provider idempotency key. A
+// replay after an ambiguous response must not silently charge the user again.
+generateFileStep.maxRetries = 0;
+
 async function reportProgressStep(done: number, total: number) {
   "use step";
   const { workflowRunId } = getWorkflowMetadata();

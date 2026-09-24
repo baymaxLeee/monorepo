@@ -1,8 +1,8 @@
 import { streamCanvasNodeTextGeneration } from "@repo/api";
+import { toast } from "@repo/design-system";
 import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import { CancelCanvasNodeGeneration, StartCanvasNodeGeneration } from "@/pages/studio/domain/generations";
 import t from "@/utils/i18n";
@@ -90,8 +90,15 @@ export function useCanvasGeneration({
           const matching = state.TaskType === canvasnode.CanvasNodeTaskType.ASSETS_MATCH;
           if (matching) {
             if (state.Status === canvasnode.CanvasGenerationStatus.FAILED)
-              Message.error(state.ErrorMessage || "素材匹配失败，请重试");
-            else if (state.Status === canvasnode.CanvasGenerationStatus.SUCCEEDED) Message.success("素材匹配已完成");
+              toast.add({
+                type: "error",
+                title: state.ErrorMessage || "素材匹配失败，请重试",
+              });
+            else if (state.Status === canvasnode.CanvasGenerationStatus.SUCCEEDED)
+              toast.add({
+                type: "success",
+                title: "素材匹配已完成",
+              });
           } else if (state.Status === canvasnode.CanvasGenerationStatus.FAILED) {
             const errorMessage = state.ErrorMessage || generationFailureFallback(current.Type);
             setCanvasGenerationFailure({
@@ -231,9 +238,16 @@ export function useCanvasGeneration({
           },
         );
         if (!controller.signal.aborted && final) {
-          if (final.status === canvasnode.CanvasGenerationStatus.SUCCEEDED) Message.success(t("文本生成完成"));
+          if (final.status === canvasnode.CanvasGenerationStatus.SUCCEEDED)
+            toast.add({
+              type: "success",
+              title: t("文本生成完成"),
+            });
           else if (final.status === canvasnode.CanvasGenerationStatus.FAILED)
-            Message.error(final.errorMessage || t("文本生成失败"));
+            toast.add({
+              type: "error",
+              title: final.errorMessage || t("文本生成失败"),
+            });
         }
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -284,7 +298,10 @@ export function useCanvasGeneration({
         item.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION &&
         isVideoGenerationCancellationDisabled(generationStatus)
       ) {
-        Message.info(t("视频已开始生成，无法取消"));
+        toast.add({
+          type: "info",
+          title: t("视频已开始生成，无法取消"),
+        });
         return;
       }
       try {
@@ -318,9 +335,15 @@ export function useCanvasGeneration({
           }
           if (!result.cancelled) {
             if (isVideoGenerationCancellationDisabled(result.providerStatus)) {
-              Message.info(t("视频已开始生成，无法取消"));
+              toast.add({
+                type: "info",
+                title: t("视频已开始生成，无法取消"),
+              });
             } else {
-              Message.warning(t("生成任务尚未就绪，请稍后重试"));
+              toast.add({
+                type: "warning",
+                title: t("生成任务尚未就绪，请稍后重试"),
+              });
             }
             return;
           }
@@ -354,9 +377,15 @@ export function useCanvasGeneration({
           nodeId: item.NodeID,
           taskRunId: activeTaskRunId,
         });
-        Message.success(t("已取消生成"));
+        toast.add({
+          type: "success",
+          title: t("已取消生成"),
+        });
       } catch {
-        Message.error(t("取消生成失败"));
+        toast.add({
+          type: "error",
+          title: t("取消生成失败"),
+        });
       }
     },
     [

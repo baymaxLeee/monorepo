@@ -1,4 +1,12 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@repo/design-system";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from "@repo/design-system";
 import {
   ShieldCheck as IconComplianceLine,
   Download as IconDownloadFine,
@@ -8,7 +16,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { GenerationFailureReason } from "@/components/GenerationFailureReason";
-import { Button, Spin } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import type { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
@@ -104,7 +112,7 @@ export function ResourceAssetDetailDialog({
         <DialogHeader className="canvas-modal-header shrink-0 px-6 py-5">
           <DialogTitle className="canvas-modal-title">
             {renaming ? (
-              <input
+              <Input
                 aria-label={t("素材名称")}
                 className="h-6 w-full min-w-0 border-0 bg-[transparent] p-0 text-[14px] font-medium leading-6 text-foreground outline-none"
                 disabled={busy || renameSaving}
@@ -125,7 +133,8 @@ export function ResourceAssetDetailDialog({
                 value={renameValue}
               />
             ) : onRename ? (
-              <button
+              <Button
+                variant="ghost"
                 aria-label={t("重命名{materialName}：{fileName}", {
                   materialName,
                   fileName: renameValue,
@@ -140,7 +149,7 @@ export function ResourceAssetDetailDialog({
                 type="button"
               >
                 {renameValue}
-              </button>
+              </Button>
             ) : (
               <div className="truncate text-[14px] font-medium leading-6 text-foreground">{asset.Name}</div>
             )}
@@ -164,12 +173,13 @@ export function ResourceAssetDetailDialog({
                   <IconExclamationCircleRedFill className="text-[40px] text-destructive" />
                   <strong className="text-[14px] font-medium leading-6 text-destructive">{t("生成失败")}</strong>
                   <GenerationFailureReason reason={generationFailure.message || t("生成失败，请重试")} />
-                  <Button icon={<IconRegenerate />} onClick={() => void generationFailure.onRetry()} type="outline">
+                  <Button onClick={() => void generationFailure.onRetry()} variant="outline">
+                    <IconRegenerate />
                     {t("重新生成")}
                   </Button>
                 </div>
               ) : loading ? (
-                <Spin tip={t("{materialName}生成中...", { materialName })} />
+                <LoadingIndicator label={t("{materialName}生成中...", { materialName })} />
               ) : previewUrl ? (
                 <img alt={asset.Name} className={styles.previewImage} src={previewUrl} />
               ) : (
@@ -177,7 +187,8 @@ export function ResourceAssetDetailDialog({
               )}
               {onReplace ? (
                 <>
-                  <button
+                  <Button
+                    variant="ghost"
                     aria-label={t("替换{materialName}", { materialName })}
                     className={styles.replaceButton}
                     disabled={busy}
@@ -202,30 +213,30 @@ export function ResourceAssetDetailDialog({
             <div className={styles.actions}>
               <Button
                 disabled={busy || Boolean(generationFailure) || !onDownload || !previewUrl}
-                icon={<IconDownloadFine aria-hidden size={16} strokeWidth={1.5} />}
                 onClick={onDownload}
-                type="outline"
+                variant="outline"
               >
+                <IconDownloadFine aria-hidden size={16} strokeWidth={1.5} />
                 {t("下载")}
               </Button>
               <Button
                 disabled={
                   busy || Boolean(generationFailure) || !onSetPrimary || asset.IsPrimary || !asset.CurrentAssetID
                 }
-                icon={<ResourceTypeIcon className="text-[16px]" type={resourceType} />}
                 onClick={() => void onSetPrimary?.()}
-                type="outline"
+                variant="outline"
               >
+                <ResourceTypeIcon className="text-[16px]" type={resourceType} />
                 {asset.IsPrimary
                   ? t("已是主{materialName}", { materialName })
                   : t("设为主{materialName}", { materialName })}
               </Button>
               <Button
                 disabled={busy || Boolean(generationFailure) || !onReview || !asset.CurrentAssetID}
-                icon={<IconComplianceLine aria-hidden size={16} strokeWidth={1.5} />}
                 onClick={onReview}
-                type="outline"
+                variant="outline"
               >
+                <IconComplianceLine aria-hidden size={16} strokeWidth={1.5} />
                 {t("提交合规审核")}
               </Button>
             </div>

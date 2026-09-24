@@ -283,6 +283,10 @@ export interface Document {
   updated_at: string;
 }
 
+export interface DocumentProcessResult {
+  state: string;
+}
+
 export interface DocumentResourceURL {
   url: string;
   expires_at: string;
@@ -407,6 +411,10 @@ export interface IngestReceipt {
 export interface IngestResult {
   documents: IngestReceipt[];
   failed?: IngestFailure[];
+}
+
+export interface ProcessDocumentInput {
+  provider_id?: string | null;
 }
 
 export interface PromoteChangeSetInput {
@@ -847,6 +855,33 @@ const getMyDocumentSourceDocumentsDocumentIdSourceGet = (
  options?: SecondParameter<typeof apiMutator<unknown>>,) => {
       return apiMutator<unknown>(
       {url: `/documents/${documentId}/source`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * @summary Process Document
+ */
+const processDocumentInternalDocumentsDocumentIdProcessPost = (
+    documentId: string,
+    processDocumentInput: ProcessDocumentInput,
+ options?: SecondParameter<typeof apiMutator<DocumentProcessResult>>,) => {
+      return apiMutator<DocumentProcessResult>(
+      {url: `/internal/documents/${documentId}/process`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: processDocumentInput
+    },
+      options);
+    }
+
+/**
+ * @summary Index Document
+ */
+const indexDocumentInternalDocumentsDocumentIdIndexPost = (
+    documentId: string,
+ options?: SecondParameter<typeof apiMutator<DocumentProcessResult>>,) => {
+      return apiMutator<DocumentProcessResult>(
+      {url: `/internal/documents/${documentId}/index`, method: 'POST'
     },
       options);
     }
@@ -1294,7 +1329,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,batchPresignInternalArtifactsPresignPost,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,createFileUrlFilesResourceUrlPost,getSignedResourceResourcesDocumentIdGet,getSignedFileResourceResourcesFilesFileIdGet,putObjectInternalObjectsScopePost,getObjectInternalObjectsScopeArtifactIdGet,deleteObjectInternalObjectsScopeArtifactIdDelete,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,batchPresignInternalArtifactsPresignPost,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,processDocumentInternalDocumentsDocumentIdProcessPost,indexDocumentInternalDocumentsDocumentIdIndexPost,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,createFileUrlFilesResourceUrlPost,getSignedResourceResourcesDocumentIdGet,getSignedFileResourceResourcesFilesFileIdGet,putObjectInternalObjectsScopePost,getObjectInternalObjectsScopeArtifactIdGet,deleteObjectInternalObjectsScopeArtifactIdDelete,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -1307,6 +1342,8 @@ export type UpdateMyDocumentDocumentsDocumentIdPatchResult = NonNullable<Awaited
 export type DeleteMyDocumentDocumentsDocumentIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['deleteMyDocumentDocumentsDocumentIdDelete']>>>
 export type ReindexMyDocumentDocumentsDocumentIdReindexPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['reindexMyDocumentDocumentsDocumentIdReindexPost']>>>
 export type GetMyDocumentSourceDocumentsDocumentIdSourceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getMyDocumentSourceDocumentsDocumentIdSourceGet']>>>
+export type ProcessDocumentInternalDocumentsDocumentIdProcessPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['processDocumentInternalDocumentsDocumentIdProcessPost']>>>
+export type IndexDocumentInternalDocumentsDocumentIdIndexPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['indexDocumentInternalDocumentsDocumentIdIndexPost']>>>
 export type ListDocumentsInternalDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listDocumentsInternalDocumentsGet']>>>
 export type GetDocumentInternalDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentInternalDocumentsDocumentIdGet']>>>
 export type UpdateArtifactInternalDocumentsDocumentIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['updateArtifactInternalDocumentsDocumentIdPatch']>>>

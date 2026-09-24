@@ -1,3 +1,12 @@
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Button,
+} from "@repo/design-system";
 import { X as IconClose, Plus as IconPlus, ArrowLeftRight as IconSwitchover } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 
@@ -5,7 +14,6 @@ import { ImagePreview } from "@/components/common";
 import { AssetAvatar, type AssetMentionSource } from "@/components/promptEditor/index";
 import { AddAssetToLibraryDialog } from "@/components/promptEditor/plugins/assetMention/AddAssetToLibraryDialog";
 import { AssetPreviewCard } from "@/components/promptEditor/plugins/assetMention/AssetPreviewCard";
-import { Tooltip, Trigger } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import {
   HIDDEN_SCROLLBAR_CLASS,
@@ -68,50 +76,53 @@ function AssetThumb({
 
   return (
     <>
-      <Trigger
-        disabled={interactionDisabled || (!reviewAsset && !onAddToLibrary)}
-        position="bl"
-        popup={() => (
-          <AssetPreviewCard
-            asset={previewAsset}
-            onAddToLibrary={onAddToLibrary ? () => onAddToLibrary() : undefined}
-            onSubmitReview={reviewAsset ? (current) => reviewAsset(current, setReviewOverride) : undefined}
-          />
-        )}
-        trigger="hover"
-      >
-        <div
-          className={`group relative h-[54px] w-[54px] shrink-0 overflow-hidden rounded-[12px] bg-muted ${
-            previewable ? "cursor-zoom-in" : ""
-          }`}
-          onClick={() => {
-            if (previewable) {
-              setPreviewVisible(true);
+      <div className="group relative h-[54px] w-[54px] shrink-0">
+        <Popover>
+          <PopoverTrigger
+            disabled={interactionDisabled}
+            openOnHover
+            render={
+              <Button
+                aria-label={
+                  previewable ? t("预览{title}", { title: asset.title }) : t("查看{title}", { title: asset.title })
+                }
+                className={`relative h-full w-full overflow-hidden rounded-[12px] bg-muted p-0 ${
+                  previewable ? "cursor-zoom-in" : ""
+                }`}
+                onClick={() => {
+                  if (previewable) setPreviewVisible(true);
+                }}
+                variant="ghost"
+              />
             }
-          }}
-        >
-          {/* 分类图标按 1em 排版，字号即图标尺寸，取 54px 方格的 75%。 */}
-          <AssetAvatar className="text-[40px]" asset={asset} fit="cover" />
-
-          {asset.syncStatus === "failed" ? (
-            <span className="absolute inset-0 flex items-center justify-center bg-[rgba(255,255,255,0.72)] text-[12px] text-destructive">
-              {t("失败")}
-            </span>
-          ) : editable ? (
-            <button
-              aria-label={t("移除{title}", { title: asset.title })}
-              className="absolute right-[5px] top-[5px] hidden h-4 w-4 cursor-pointer items-center justify-center rounded-[999px] border-0 bg-[rgba(0,0,0,0.5)] p-0 text-[10px] text-white group-hover:flex"
-              onClick={(event) => {
-                event.stopPropagation();
-                onRemove(asset.id);
-              }}
-              type="button"
-            >
-              <IconClose />
-            </button>
-          ) : null}
-        </div>
-      </Trigger>
+          >
+            <AssetAvatar className="text-[40px]" asset={asset} fit="cover" />
+            {asset.syncStatus === "failed" ? (
+              <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-[12px] text-destructive">
+                {t("失败")}
+              </span>
+            ) : null}
+          </PopoverTrigger>
+          <PopoverContent align="start" className="canvas-web-theme w-auto p-0" side="bottom" initialFocus={false}>
+            <AssetPreviewCard
+              asset={previewAsset}
+              onAddToLibrary={onAddToLibrary ? () => onAddToLibrary() : undefined}
+              onSubmitReview={reviewAsset ? (current) => reviewAsset(current, setReviewOverride) : undefined}
+            />
+          </PopoverContent>
+        </Popover>
+        {asset.syncStatus !== "failed" && editable ? (
+          <Button
+            aria-label={t("移除{title}", { title: asset.title })}
+            className="absolute right-[5px] top-[5px] z-10 hidden h-4 w-4 cursor-pointer items-center justify-center rounded-full border-0 bg-foreground/50 p-0 text-[10px] text-background group-hover:flex focus-visible:flex"
+            onClick={() => onRemove(asset.id)}
+            type="button"
+            variant="ghost"
+          >
+            <IconClose />
+          </Button>
+        ) : null}
+      </div>
 
       {/*
        * Image.Preview 必须置于缩略图 div 之外：它经 Portal 渲染，但 React 合成事件
@@ -228,7 +239,8 @@ export function AssetStrip({
                       }
                     />
                   ) : (
-                    <button
+                    <Button
+                      variant="ghost"
                       aria-label={t("添加{label}", { label })}
                       className={`${ADD_ASSET_BUTTON_CLASS} ${ACTIVE_ADD_ASSET_BUTTON_CLASS} disabled:cursor-not-allowed disabled:opacity-60`}
                       disabled={!editable}
@@ -238,7 +250,7 @@ export function AssetStrip({
                       type="button"
                     >
                       <IconPlus />
-                    </button>
+                    </Button>
                   )}
                   <span className="text-[12px] leading-4.5 text-muted-foreground">{label}</span>
                 </div>
@@ -247,18 +259,22 @@ export function AssetStrip({
                 return (
                   <div className="flex items-start gap-3" key={label}>
                     {frameSlot}
-                    <Tooltip content={t("左右图切换")} position="top">
-                      <button
-                        aria-disabled={!canSwapFrames}
-                        aria-label={t("左右图切换")}
-                        className={`mt-[15px] flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border-0 bg-[transparent] p-0 text-[16px] text-foreground ${
-                          canSwapFrames ? "cursor-pointer hover:bg-muted!" : "cursor-not-allowed"
-                        }`}
-                        onClick={canSwapFrames ? onSwapFrames : undefined}
-                        type="button"
-                      >
-                        <IconSwitchover />
-                      </button>
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                        <Button
+                          variant="ghost"
+                          aria-disabled={!canSwapFrames}
+                          aria-label={t("左右图切换")}
+                          className={`mt-[15px] flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border-0 bg-[transparent] p-0 text-[16px] text-foreground ${
+                            canSwapFrames ? "cursor-pointer hover:bg-muted!" : "cursor-not-allowed"
+                          }`}
+                          onClick={canSwapFrames ? onSwapFrames : undefined}
+                          type="button"
+                        >
+                          <IconSwitchover />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side={"top"}>{t("左右图切换")}</TooltipContent>
                     </Tooltip>
                   </div>
                 );
@@ -305,18 +321,24 @@ export function AssetStrip({
 
         {(editable || (reserveEmptySpace && assets.length === 0)) && !firstLastFrame ? (
           <>
-            <Tooltip className={FORMAT_TIP_POPUP} content={formatTip(categories)} position="bottom">
-              <span className="inline-flex shrink-0">
-                <button
-                  aria-label={t("上传资产")}
-                  className={`${ADD_ASSET_BUTTON_CLASS} ${editable ? ACTIVE_ADD_ASSET_BUTTON_CLASS : ""}`}
-                  disabled={!editable}
-                  onClick={() => openPicker()}
-                  type="button"
-                >
-                  <IconPlus />
-                </button>
-              </span>
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                <span className="inline-flex shrink-0">
+                  <Button
+                    variant="ghost"
+                    aria-label={t("上传资产")}
+                    className={`${ADD_ASSET_BUTTON_CLASS} ${editable ? ACTIVE_ADD_ASSET_BUTTON_CLASS : ""}`}
+                    disabled={!editable}
+                    onClick={() => openPicker()}
+                    type="button"
+                  >
+                    <IconPlus />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side={"bottom"} className={FORMAT_TIP_POPUP}>
+                {formatTip(categories)}
+              </TooltipContent>
             </Tooltip>
           </>
         ) : null}

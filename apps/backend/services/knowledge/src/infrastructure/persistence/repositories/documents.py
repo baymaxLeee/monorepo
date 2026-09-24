@@ -33,6 +33,7 @@ async def create_document(
     object_key: str | None = None,
     object_sha256: str | None = None,
     source_filename: str | None = None,
+    conversion_provider_id: str | None = None,
     ingest_status: str = "ready",
     ingest_progress: int = 100,
     ingest_error: str | None = None,
@@ -56,6 +57,7 @@ async def create_document(
         object_key=object_key,
         object_sha256=object_sha256,
         source_filename=source_filename,
+        conversion_provider_id=conversion_provider_id,
         ingest_status=ingest_status,
         ingest_progress=ingest_progress,
         ingest_error=ingest_error,
@@ -173,6 +175,25 @@ async def update_document_if_unchanged(
     return row
 
 
+async def apply_conversion_if_unchanged(
+    session: AsyncSession, document_id: str, values: dict[str, Any], *, expected_updated_at: datetime
+) -> bool:
+    """Apply derived conversion state only while the source revision is current.
+
+    Conversion output belongs to the captured source revision, so this write must
+    neither overwrite a newer edit nor create a new revision of its own.
+    """
+    result = cast(
+        CursorResult[Any],
+        await session.execute(
+            update(DocumentRow)
+            .where(DocumentRow.id == document_id, DocumentRow.updated_at == expected_updated_at)
+            .values(**values)
+        ),
+    )
+    return result.rowcount == 1
+
+
 async def find_converted_cache(
     session: AsyncSession,
     *,
@@ -215,6 +236,17 @@ async def set_index_status(session: AsyncSession, document_id: str, *, status: s
     """
     await session.execute(
         update(DocumentRow).where(DocumentRow.id == document_id).values(index_status=status, index_error=error)
+    )
+
+
+async def set_ingest_status(
+    session: AsyncSession, document_id: str, *, status: str, progress: int, error: str | None = None
+) -> None:
+    """Write conversion lifecycle state without changing the content revision."""
+    await session.execute(
+        update(DocumentRow)
+        .where(DocumentRow.id == document_id)
+        .values(ingest_status=status, ingest_progress=progress, ingest_error=error)
     )
 
 

@@ -82,7 +82,7 @@ export function Component() {
         <div className="space-y-6">
           <div className="flex items-center gap-3">
             <Select value={projectId} onValueChange={(value) => value !== null && setProjectId(value)}>
-              <SelectTrigger className="w-80">
+              <SelectTrigger aria-label="当前创作项目" className="w-80">
                 <SelectValue placeholder="选择项目" />
               </SelectTrigger>
               <SelectContent>

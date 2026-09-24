@@ -53,7 +53,7 @@ func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg c
 		Action: "system.bootstrap", Target: user.ID, Workspace: workspace.ID,
 		After: map[string]any{"superAdminId": user.ID, "guestWorkspaceId": workspace.ID},
 	}, func(txStore *repositories.Store) error {
-		if err := txStore.EnsureUserWithPassword(ctx, user, passwordHash); err != nil {
+		if err := txStore.EnsureUserWithPassword(ctx, user, cfg.SuperAdminPassword, passwordHash); err != nil {
 			return err
 		}
 		if err := txStore.EnsureRole(ctx, role); err != nil {

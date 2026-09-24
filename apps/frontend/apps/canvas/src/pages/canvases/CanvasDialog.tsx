@@ -10,6 +10,7 @@ import {
   Field,
   FieldLabel,
   FieldError,
+  Input,
 } from "@repo/design-system";
 import { Image as ImageIcon, Info } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -17,7 +18,6 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { CoverImageUploader } from "@/components/CoverImageUploader";
-import { Input } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import { type CanvasDialogState, saveCanvas } from "./actions";

@@ -99,7 +99,29 @@ async def index_document(row: DocumentRow) -> tuple[IndexResult, list[DocumentCh
             workspace_id=workspace_id, tenant_id=tenant_id, kind="embedding"
         )
     except ProviderNotConfiguredError:
-        return (IndexResult("skipped", reason="no embedding provider configured"), [])
+        pieces = chunk_text(text, max_tokens=settings.chunk_max_tokens, overlap_tokens=settings.chunk_overlap_tokens)
+        now = datetime.now(UTC)
+        sparse_rows = [
+            DocumentChunkRow(
+                id=chunk_crud.new_chunk_id(),
+                document_id=row.id,
+                user_id=row.user_id,
+                workspace_id=row.workspace_id,
+                tenant_id=row.tenant_id,
+                chunk_index=index,
+                content=piece,
+                contextualized_content=None,
+                embedding=None,
+                token_count=estimate_tokens(piece),
+                embed_model=None,
+                created_at=now,
+            )
+            for index, piece in enumerate(pieces)
+        ]
+        return (
+            IndexResult("indexed", indexed=len(sparse_rows), reason="sparse-only: no embedding provider configured"),
+            sparse_rows,
+        )
     pieces = chunk_text(text, max_tokens=settings.chunk_max_tokens, overlap_tokens=settings.chunk_overlap_tokens)
     if not pieces:
         return (IndexResult("skipped", reason="no chunks"), [])

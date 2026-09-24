@@ -88,7 +88,8 @@ func (r *Repository) UpdateByMember(ctx context.Context, project domainproject.P
 	if err != nil {
 		return err
 	}
-	result := r.scopeQuery(r.db.WithContext(ctx), row.TenantID, row.WorkspaceID).
+	db := persistencetransaction.DB(ctx, r.db)
+	result := r.scopeQuery(db, row.TenantID, row.WorkspaceID).
 		Where("projects.id = ?", row.ID).
 		Updates(map[string]any{
 			"cover_image_path":         row.CoverImagePath,
@@ -103,7 +104,7 @@ func (r *Repository) UpdateByMember(ctx context.Context, project domainproject.P
 	}
 	if result.RowsAffected == 0 {
 		var count int64
-		if err = r.scopeQuery(r.db.WithContext(ctx), row.TenantID, row.WorkspaceID).
+		if err = r.scopeQuery(db, row.TenantID, row.WorkspaceID).
 			Where("projects.id = ?", row.ID).
 			Count(&count).Error; err != nil {
 			return translateWriteError(err)

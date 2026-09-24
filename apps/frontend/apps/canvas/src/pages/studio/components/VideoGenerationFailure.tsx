@@ -1,3 +1,4 @@
+import { toast, Button, Tooltip, TooltipContent, TooltipTrigger } from "@repo/design-system";
 import copyToClipboard from "copy-to-clipboard";
 import {
   Sparkles as IconAiGenerateVariationSpark,
@@ -5,7 +6,6 @@ import {
   CircleAlert as IconExclamationCircleRedFill,
 } from "lucide-react";
 
-import { Button, Message, Tooltip } from "@/components/ui";
 import t from "@/utils/i18n";
 
 export function VideoGenerationFailure({
@@ -32,9 +32,15 @@ export function VideoGenerationFailure({
 
   const copyValue = (value: string) => {
     if (copyToClipboard(value)) {
-      Message.success(t("复制成功"));
+      toast.add({
+        type: "success",
+        title: t("复制成功"),
+      });
     } else {
-      Message.error(t("复制失败，请手动复制"));
+      toast.add({
+        type: "error",
+        title: t("复制失败，请手动复制"),
+      });
     }
   };
 
@@ -48,20 +54,26 @@ export function VideoGenerationFailure({
         <p className="m-0 line-clamp-2 max-w-[calc(100%-24px)] text-center text-[13px] leading-5.5" title={message}>
           {message}
         </p>
-        <Tooltip content={t("复制错误信息")} position="top">
-          <button
-            aria-label={t("复制错误信息")}
-            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-muted-foreground hover:text-foreground"
-            onClick={(event) => {
-              event.stopPropagation();
-              copyValue(message);
-            }}
-            onDoubleClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-            type="button"
-          >
-            <IconCopyFine aria-hidden />
-          </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label={t("复制错误信息")}
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-muted-foreground hover:text-foreground"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  copyValue(message);
+                }}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+                variant="ghost"
+              >
+                <IconCopyFine aria-hidden />
+              </Button>
+            }
+          />
+          <TooltipContent side={"top"}>{t("复制错误信息")}</TooltipContent>
         </Tooltip>
       </div>
       {traceId ? (
@@ -72,20 +84,26 @@ export function VideoGenerationFailure({
           <span className="min-w-0 truncate font-medium text-foreground" title={traceId}>
             {traceId}
           </span>
-          <Tooltip content={t("复制 {label}", { label: traceLabel })} position="top">
-            <button
-              aria-label={t("复制 {label}", { label: traceLabel })}
-              className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-muted-foreground hover:text-foreground"
-              onClick={(event) => {
-                event.stopPropagation();
-                copyValue(traceId);
-              }}
-              onDoubleClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              type="button"
-            >
-              <IconCopyFine aria-hidden />
-            </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label={t("复制 {label}", { label: traceLabel })}
+                  className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center border-0 bg-[transparent] p-0 text-[14px] text-muted-foreground hover:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyValue(traceId);
+                  }}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  type="button"
+                  variant="ghost"
+                >
+                  <IconCopyFine aria-hidden />
+                </Button>
+              }
+            />
+            <TooltipContent side={"top"}>{t("复制 {label}", { label: traceLabel })}</TooltipContent>
           </Tooltip>
         </div>
       ) : null}
@@ -93,16 +111,16 @@ export function VideoGenerationFailure({
         <div className={compact ? "mt-2" : "mt-4"}>
           <Button
             disabled={retryDisabled}
-            icon={<IconAiGenerateVariationSpark />}
             onClick={(event) => {
               event.stopPropagation();
               onRetry();
             }}
             onDoubleClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            size="small"
-            type="outline"
+            size="sm"
+            variant="outline"
           >
+            <IconAiGenerateVariationSpark />
             {t("重新生成")}
           </Button>
         </div>

@@ -2,7 +2,7 @@
 
 from application.contracts.document import Document
 from application.documents import document_to_schema
-from application.indexer import schedule_index
+from application.executor_client import dispatch_document_now
 from application.object_store import ObjectStore
 from fastapi import APIRouter, Query
 from fastapi.responses import Response
@@ -101,9 +101,15 @@ async def update_my_document(
         if values:
             if content_changed:
                 values["index_status"] = "pending"
+                values["ingest_status"] = "ready"
+                values["ingest_error"] = None
+                values["processing_dispatched_at"] = None
             row = await document_crud.update_document(session, row, values)
     if values and content_changed:
-        schedule_index(row.id)
+        await dispatch_document_now(
+            row.id,
+            updated_at=row.updated_at,
+        )
     return document_to_schema(row, include_content=True)
 
 
@@ -119,8 +125,15 @@ async def reindex_my_document(document_id: str, current_user: CurrentUser, sessi
             raise NotFoundError(f"document {document_id} not found")
         if not _may_manage(current_user, row):
             raise ForbiddenError("you may only reindex your own documents")
-        await document_crud.set_index_status(session, row.id, status="pending")
-    schedule_index(row.id)
+        row = await document_crud.update_document(
+            session,
+            row,
+            {"index_status": "pending", "index_error": None, "processing_dispatched_at": None},
+        )
+    await dispatch_document_now(
+        row.id,
+        updated_at=row.updated_at,
+    )
     row = await document_crud.get_workspace_document(
         session, document_id, current_user.workspace_id, current_user.tenant_id
     )

@@ -15,7 +15,8 @@ name: deploy-prod
 #   The cluster MUST already have:
 #     - namespace `monorepo-prod`
 #     - Secrets: gateway-secrets, iam-secrets, admin-secrets, knowledge-secrets,
-#       telemetry-secrets, chat-secrets (INTERNAL_API_TOKEN + TOOL_APPROVAL_SECRET)
+#       telemetry-secrets, chat-secrets, executor-secrets, canvas-secrets, and
+#       postgres-admin-secrets (migration-only managed Postgres credentials)
 #     - TLS Secret: api-tls
 #     - Nginx Ingress Controller installed
 #   See infra/k8s/overlays/prod/README.md for one-time setup.
@@ -88,7 +89,62 @@ jobs:
 
       - name: Render manifest (dry-run sanity check)
         working-directory: infra/k8s/overlays/prod
-        run: kustomize build --load-restrictor=LoadRestrictionsNone . | head -200
+        run: |
+          kustomize build --load-restrictor=LoadRestrictionsNone . > /tmp/prod-manifest.yaml
+          sed -n '1,200p' /tmp/prod-manifest.yaml
+
+      - name: Apply database migrations
+        working-directory: infra/k8s
+        run: |
+          REG="${{ steps.vars.outputs.registry }}"
+          TAG="${{ steps.vars.outputs.tag }}"
+          JOB_NAME="db-migrate-$(date +%s)"
+          kustomize build base/db-migrate \
+            | sed "s|name: db-migrate$|name: ${JOB_NAME}|" \
+            | sed "s|ghcr.io/example/db-init:latest|${REG}/db-init:${TAG}|" \
+            | kubectl apply -n monorepo-prod -f -
+          if ! kubectl -n monorepo-prod wait --for=condition=complete \
+            --timeout=10m job/${JOB_NAME}; then
+            kubectl -n monorepo-prod describe job/${JOB_NAME}
+            kubectl -n monorepo-prod logs job/${JOB_NAME} --all-containers=true || true
+            exit 1
+          fi
+
+      - name: Apply Workflow World schema
+        run: |
+          REG="${{ steps.vars.outputs.registry }}"
+          TAG="${{ steps.vars.outputs.tag }}"
+          JOB_NAME="workflow-db-migrate-$(date +%s)"
+          cat <<EOF | kubectl apply -n monorepo-prod -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: ${JOB_NAME}
+            labels: { app: workflow-db-migrate }
+          spec:
+            backoffLimit: 0
+            ttlSecondsAfterFinished: 86400
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: migrate
+                    image: ${REG}/executor:${TAG}
+                    env:
+                      - name: WORKFLOW_POSTGRES_URL
+                        valueFrom:
+                          secretKeyRef: { name: executor-secrets, key: WORKFLOW_POSTGRES_URL }
+                    command: ["node", "node_modules/@workflow/world-postgres/bin/setup.js"]
+                    resources:
+                      requests: { cpu: 50m, memory: 64Mi }
+                      limits: { cpu: 500m, memory: 256Mi }
+          EOF
+          if ! kubectl -n monorepo-prod wait --for=condition=complete \
+            --timeout=10m job/${JOB_NAME}; then
+            kubectl -n monorepo-prod describe job/${JOB_NAME}
+            kubectl -n monorepo-prod logs job/${JOB_NAME} --all-containers=true || true
+            exit 1
+          fi
 
       # One-shot identity bootstrap Job: run BEFORE rolling the Deployments so the
       # super-admin + guest-org exist before any iam replica serves traffic. The
@@ -97,8 +153,8 @@ jobs:
       - name: Bootstrap iam identity (super-admin + guest-org)
         working-directory: infra/k8s
         run: |
-          # iam's SQL schema is applied out-of-band (managed Postgres, see
-          # overlays/prod/README). This Job ONLY runs iam's `seed` subcommand —
+          # SQL schemas were applied by the preceding migration gate. This Job
+          # ONLY runs iam's `seed` subcommand —
           # the sole carrier of the password-hashed identity bootstrap, lifted
           # out of the server start path so replicas don't each re-seed.
           REG="${{ steps.vars.outputs.registry }}"
@@ -127,8 +183,12 @@ jobs:
                     command: ["/server"]
                     args: ["seed"]
           EOF
-          kubectl -n monorepo-prod wait --for=condition=complete \
-            --timeout=5m job/${JOB_NAME}
+          if ! kubectl -n monorepo-prod wait --for=condition=complete \
+            --timeout=5m job/${JOB_NAME}; then
+            kubectl -n monorepo-prod describe job/${JOB_NAME}
+            kubectl -n monorepo-prod logs job/${JOB_NAME} --all-containers=true || true
+            exit 1
+          fi
 
       - name: Apply prod manifest (secrets excluded — managed out-of-band)
         working-directory: infra/k8s/overlays/prod

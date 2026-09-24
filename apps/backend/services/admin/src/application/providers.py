@@ -167,10 +167,15 @@ class ModelProviderService:
     async def create(self, payload: CreateModelProviderInput) -> ModelProvider:
         if payload.is_default and payload.provider_kind != PROVIDER_KIND_CHAT:
             raise RequestError("only chat providers can be set as default")
+        if payload.is_default and not payload.is_enabled:
+            raise ConflictError("cannot create a disabled default provider")
         _validate_pricing(payload.provider_kind, payload.pricing)
         base_url = await validate_provider_base_url(str(payload.base_url))
         async with write_tx(self._session):
             if payload.is_default:
+                await provider_crud.lock_default_selection(
+                    self._session, self._current_user.workspace_id, self._current_user.tenant_id
+                )
                 await provider_crud.clear_default_flag(
                     self._session, self._current_user.workspace_id, self._current_user.tenant_id
                 )
@@ -224,6 +229,9 @@ class ModelProviderService:
             if payload.is_enabled is not None:
                 values["is_enabled"] = payload.is_enabled
             next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
+            next_enabled = payload.is_enabled if payload.is_enabled is not None else row.is_enabled
+            if row.is_default and not next_enabled:
+                raise ConflictError("set a replacement default before disabling this provider")
             next_pricing = (
                 payload.pricing if "pricing" in payload.model_fields_set else _parse_pricing(row.pricing_json)
             )
@@ -233,11 +241,17 @@ class ModelProviderService:
                     raise RequestError("only chat providers can be set as default")
                 values["is_default"] = False
             elif payload.is_default is not None:
+                await provider_crud.lock_default_selection(
+                    self._session, self._current_user.workspace_id, self._current_user.tenant_id
+                )
                 if payload.is_default and (not row.is_default):
                     await provider_crud.clear_default_flag(
                         self._session, self._current_user.workspace_id, self._current_user.tenant_id
                     )
                 values["is_default"] = payload.is_default
+            next_default = bool(values.get("is_default", row.is_default))
+            if next_default and not next_enabled:
+                raise ConflictError("cannot mark a disabled provider as default")
             if not values:
                 return to_public_schema(row)
             context_window = (
@@ -264,6 +278,9 @@ class ModelProviderService:
 
     async def set_default(self, provider_id: str) -> ModelProvider:
         async with write_tx(self._session):
+            await provider_crud.lock_default_selection(
+                self._session, self._current_user.workspace_id, self._current_user.tenant_id
+            )
             row = await self._get_row(provider_id)
             if row.provider_kind != PROVIDER_KIND_CHAT:
                 raise RequestError("only chat providers can be set as default")

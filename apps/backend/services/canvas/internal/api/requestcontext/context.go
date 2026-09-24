@@ -6,14 +6,16 @@ type contextKey struct{}
 
 // Metadata contains trusted request metadata forwarded by Gateway.
 type Metadata struct {
-	RequestID    string
-	TenantID     string
-	UserID       string
-	WorkspaceID  string
-	Service      string
-	Action       string
-	Version      string
-	IdentityType string
+	RequestID     string
+	TenantID      string
+	UserID        string
+	WorkspaceID   string
+	WorkspaceRole string
+	Roles         []string
+	Service       string
+	Action        string
+	Version       string
+	IdentityType  string
 }
 
 func WithMetadata(ctx context.Context, metadata Metadata) context.Context {

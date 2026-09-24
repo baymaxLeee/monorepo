@@ -1,7 +1,6 @@
 package security
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -9,21 +8,30 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
 const (
-	passwordAlgorithm  = "pbkdf2-sha256"
-	passwordIterations = 210000
-	saltBytes          = 16
-	keyBytes           = 32
+	passwordAlgorithm   = "pbkdf2-sha256"
+	passwordIterations  = 210000
+	saltBytes           = 16
+	keyBytes            = 32
+	maxPasswordBytes    = 1024
+	maxEncodedHashBytes = 128
 )
 
+var ErrPasswordTooLong = fmt.Errorf("password exceeds %d bytes", maxPasswordBytes)
+
 func HashPassword(password string) (string, error) {
+	if len(password) > maxPasswordBytes {
+		return "", ErrPasswordTooLong
+	}
 	salt := make([]byte, saltBytes)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("random salt: %w", err)
 	}
-	key := pbkdf2SHA256([]byte(password), salt, passwordIterations, keyBytes)
+	key := pbkdf2.Key([]byte(password), salt, passwordIterations, keyBytes, sha256.New)
 	return fmt.Sprintf(
 		"%s$%d$%s$%s",
 		passwordAlgorithm,
@@ -34,45 +42,25 @@ func HashPassword(password string) (string, error) {
 }
 
 func VerifyPassword(encoded, password string) bool {
+	if len(password) > maxPasswordBytes || len(encoded) > maxEncodedHashBytes {
+		return false
+	}
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 4 || parts[0] != passwordAlgorithm {
 		return false
 	}
 	iterations, err := strconv.Atoi(parts[1])
-	if err != nil || iterations < 100000 {
+	if err != nil || iterations != passwordIterations {
 		return false
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[2])
-	if err != nil {
+	if err != nil || len(salt) != saltBytes {
 		return false
 	}
 	expected, err := base64.RawStdEncoding.DecodeString(parts[3])
-	if err != nil {
+	if err != nil || len(expected) != keyBytes {
 		return false
 	}
-	actual := pbkdf2SHA256([]byte(password), salt, iterations, len(expected))
+	actual := pbkdf2.Key([]byte(password), salt, iterations, keyBytes, sha256.New)
 	return subtle.ConstantTimeCompare(actual, expected) == 1
-}
-
-func pbkdf2SHA256(password, salt []byte, iterations, keyLen int) []byte {
-	hLen := sha256.Size
-	numBlocks := (keyLen + hLen - 1) / hLen
-	out := make([]byte, 0, numBlocks*hLen)
-	for block := 1; block <= numBlocks; block++ {
-		mac := hmac.New(sha256.New, password)
-		mac.Write(salt)
-		mac.Write([]byte{byte(block >> 24), byte(block >> 16), byte(block >> 8), byte(block)})
-		u := mac.Sum(nil)
-		t := append([]byte(nil), u...)
-		for i := 1; i < iterations; i++ {
-			mac = hmac.New(sha256.New, password)
-			mac.Write(u)
-			u = mac.Sum(nil)
-			for j := range t {
-				t[j] ^= u[j]
-			}
-		}
-		out = append(out, t...)
-	}
-	return out[:keyLen]
 }

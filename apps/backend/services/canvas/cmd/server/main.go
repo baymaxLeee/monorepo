@@ -14,6 +14,7 @@ import (
 
 	maturehttp "github.com/example/monorepo/canvas/internal/api/handler"
 	"github.com/example/monorepo/canvas/internal/api/openapi"
+	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
@@ -21,13 +22,16 @@ import (
 	applicationcanvasgeneration "github.com/example/monorepo/canvas/internal/application/canvasgeneration"
 	applicationcanvasimagegeneration "github.com/example/monorepo/canvas/internal/application/canvasimagegeneration"
 	applicationcanvastextgeneration "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
+	applicationcoverimage "github.com/example/monorepo/canvas/internal/application/coverimage"
 	applicationdeletion "github.com/example/monorepo/canvas/internal/application/deletion"
 	applicationfirstlastframe "github.com/example/monorepo/canvas/internal/application/firstlastframe"
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
+	applicationprojectaccess "github.com/example/monorepo/canvas/internal/application/projectaccess"
 	applicationprojectcleanup "github.com/example/monorepo/canvas/internal/application/projectcleanup"
 	applicationprojectstatistics "github.com/example/monorepo/canvas/internal/application/projectstatistics"
 	applicationprojectusage "github.com/example/monorepo/canvas/internal/application/projectusage"
+	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	applicationresource "github.com/example/monorepo/canvas/internal/application/resource"
 	applicationresourceassetgeneration "github.com/example/monorepo/canvas/internal/application/resourceassetgeneration"
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
@@ -59,6 +63,7 @@ import (
 	projectstatisticspersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/projectstatistics"
 	projectusagepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/projectusage"
 	projectusagepolicypersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/projectusagepolicy"
+	quotapersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/quota"
 	resourcepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/resource"
 	resourceassetgenerationpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/resourceassetgeneration"
 	taskpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/task"
@@ -88,6 +93,27 @@ func (uuidGenerator) NewID() (string, error) {
 type utcClock struct{}
 
 func (utcClock) Now() time.Time { return time.Now().UTC() }
+
+type unavailableQuotaLimits struct{}
+
+func (unavailableQuotaLimits) Limit(context.Context, string, applicationquota.ResourceType) (applicationquota.Limit, error) {
+	return applicationquota.Limit{}, applicationquota.ErrUnavailable
+}
+
+type gatewayProjectPermissions struct{}
+
+func (gatewayProjectPermissions) Permissions(
+	ctx context.Context, tenantID string, workspaceID *string, userID string,
+) (applicationprojectaccess.Permissions, error) {
+	metadata, ok := requestcontext.MetadataFromContext(ctx)
+	if !ok || metadata.TenantID != tenantID || metadata.UserID != userID || workspaceID == nil || metadata.WorkspaceID != *workspaceID {
+		return applicationprojectaccess.Permissions{}, errors.New("trusted request identity does not match project scope")
+	}
+	if metadata.WorkspaceRole == "workspace_admin" {
+		return applicationprojectaccess.Permissions{Read: true, Update: true}, nil
+	}
+	return applicationprojectaccess.Permissions{}, nil
+}
 
 type archiveCanvasAccess struct {
 	canvases interface {
@@ -212,6 +238,54 @@ func runDeletionProcessor(ctx context.Context, processor *applicationdeletion.Pr
 	}
 }
 
+func runArchiveCleaner(ctx context.Context, cleaner *applicationcanvasarchive.Cleaner) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		if _, err := cleaner.CleanupDue(ctx, 5*time.Second); err != nil && ctx.Err() == nil {
+			slog.Error("clean up expired Canvas archives", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func runAssetGarbageCollector(ctx context.Context, collector *applicationasset.GarbageCollector) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		if _, err := collector.Run(ctx, 30*time.Second); err != nil && ctx.Err() == nil {
+			slog.Error("collect unreferenced Canvas assets", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func runQuotaReconciler(ctx context.Context, reconciler *applicationquota.Reconciler) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		err := reconciler.RunOnce(runCtx, false)
+		cancel()
+		if err != nil && ctx.Err() == nil {
+			slog.Error("reconcile Canvas quota ledger", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("canvas stopped", "error", err)
@@ -269,6 +343,9 @@ func run() error {
 	projectUsageFinalizer := applicationprojectusage.NewFinalizer(projectUsageRepository, utcClock{})
 	deletionRepository := deletionpersistence.NewRepository(db)
 	deletionQueue := applicationdeletion.NewQueue(deletionRepository)
+	quotaRepository := quotapersistence.NewRepository(db, log)
+	quotaService := applicationquota.NewService(applicationquota.Modes{}, unavailableQuotaLimits{}, quotaRepository, utcClock{})
+	go runQuotaReconciler(ctx, applicationquota.NewReconciler(quotaRepository, utcClock{}))
 	providers := &admin.Directory{URL: cfg.AdminServiceURL, Token: cfg.InternalToken}
 	models := modelcatalog.New(providers)
 	storageClient := &storage.Client{
@@ -287,12 +364,15 @@ func run() error {
 		archiveRepository, archiveRepository, taskRepository, archiveWorkflows, transactions, uuidGenerator{}, utcClock{},
 		applicationcanvasarchive.WithCanvasAccessValidator(archiveCanvasAccess{canvases: canvasRepository}),
 		applicationcanvasarchive.WithCancellation(taskRepository, archiveWorkflows),
+		applicationcanvasarchive.WithStorageQuota(quotaService),
 	)
 	archiveWorkflows.Bind(archiveService)
 	archiveRuntime := canvasarchivemedia.NewRuntime(
 		archiveService, archiveRepository, taskRepository, transactions, storageClient, utcClock{}, "",
 	)
 	go archiveWorkflows.Run(ctx)
+	archiveObjects := canvasarchivemedia.NewObjectStore(db, storageClient)
+	go runArchiveCleaner(ctx, applicationcanvasarchive.NewCleaner(archiveRepository, archiveObjects, quotaService, utcClock{}))
 	executions := applicationtask.NewActiveExecutions()
 	assetService := applicationasset.NewService(
 		assetRepository, assetpersistence.NewOwnerResolver(db), artifacts, uuidGenerator{}, utcClock{},
@@ -304,7 +384,14 @@ func run() error {
 		applicationasset.WithReferenceStore(assetRepository),
 		applicationasset.WithReviewReader(reviewRepository),
 		applicationasset.WithReviewCleanup(reviewCleanup, nil),
+		applicationasset.WithStorageQuota(quotaService, transactions),
 	)
+	assetGarbageCollector := applicationasset.NewGarbageCollector(
+		assetRepository, assetRepository, artifacts, utcClock{}, 24*time.Hour, 7*24*time.Hour,
+		applicationasset.WithGarbageCollectionReviewCleanup(reviewCleanup, nil),
+		applicationasset.WithGarbageCollectionStorageQuota(quotaService),
+	)
+	go runAssetGarbageCollector(ctx, assetGarbageCollector)
 	reviews := applicationpackage.NewReviewService(
 		reviewRepository, assetService, artifacts, resourceRepository, providers, taskRepository, transactions, uuidGenerator{}, utcClock{},
 	)
@@ -460,7 +547,8 @@ func run() error {
 	)
 	nodeHandler := maturehttp.NewCanvasNodeHandler(nodes, assets, generations, storyboards, textGenerations)
 	resourceHandler := maturehttp.NewResourceHandler(resourceService, assetService, resourceGenerations)
-	access := projectaccesspersistence.NewChecker(db, redisClient, log)
+	memberAccess := projectaccesspersistence.NewChecker(db, redisClient, log)
+	access := applicationprojectaccess.NewAuthorizer(gatewayProjectPermissions{}, memberAccess)
 	canvasService := applicationcanvas.NewService(
 		canvasRepository, coverImages, uuidGenerator{}, utcClock{},
 		applicationcanvas.WithCanvasNodes(nodes, transactions),
@@ -468,6 +556,7 @@ func run() error {
 		applicationcanvas.WithFallbackCovers(nodeRepository, assetService, nil),
 		applicationcanvas.WithProjectStatistics(projectStatistics),
 		applicationcanvas.WithCanvasDeletionQueue(deletionQueue),
+		applicationcanvas.WithStorageQuota(quotaService, transactions),
 	)
 	projectService := applicationproject.NewService(
 		projectRepository, coverImages, uuidGenerator{}, utcClock{},
@@ -477,9 +566,12 @@ func run() error {
 		),
 		applicationproject.WithProjectUsagePolicyGateway(projectusagepolicypersistence.New(db)),
 		applicationproject.WithModelPermissionGateway(models),
-		applicationproject.WithMemberCacheInvalidator(access),
+		applicationproject.WithMemberCacheInvalidator(memberAccess),
 		applicationproject.WithDeletionQueue(deletionQueue),
+		applicationproject.WithQuota(quotaService, transactions),
+		applicationproject.WithStorageQuota(quotaService, transactions),
 	)
+	coverCleaner := applicationcoverimage.NewCleaner(coverImages, quotaService)
 	deletionProcessor := applicationdeletion.NewProcessor(deletionRepository, map[string]applicationdeletion.Handler{
 		imageTaskCleanupJobKind: func(ctx context.Context, data json.RawMessage) error {
 			var input applicationimagegeneration.CancelInput
@@ -528,6 +620,13 @@ func run() error {
 			}
 			return projectService.CleanupDeleted(ctx, input)
 		},
+		applicationcoverimage.CleanupJobKind: func(ctx context.Context, data json.RawMessage) error {
+			var registration applicationcoverimage.Registration
+			if err := json.Unmarshal(data, &registration); err != nil {
+				return err
+			}
+			return coverCleaner.Cleanup(ctx, registration)
+		},
 	})
 	go runDeletionProcessor(ctx, deletionProcessor)
 	processors := []applicationtask.PollProcessor{videos, imageProcessor, textGenerations, storyboards, nodes, reviews}
@@ -544,7 +643,7 @@ func run() error {
 		go runPollScheduler(ctx, scheduler)
 	}
 	handler := openapi.NewRouter(
-		cfg.InternalToken, maturehttp.NewProjectHandler(projectService), maturehttp.NewProjectUsageHandler(projectUsageExporter), maturehttp.NewCanvasHandler(canvasService), nodeHandler, resourceHandler, maturehttp.NewAssetHandler(reviews),
+		cfg.InternalServiceTokens, maturehttp.NewProjectHandler(projectService), maturehttp.NewProjectUsageHandler(projectUsageExporter), maturehttp.NewCanvasHandler(canvasService), nodeHandler, resourceHandler, maturehttp.NewAssetHandler(reviews),
 		maturehttp.NewCanvasArchiveHandler(archiveService, archiveRuntime),
 		func(ctx context.Context, taskRunID string) (any, error) {
 			return archiveRuntime.Execute(ctx, taskRunID)

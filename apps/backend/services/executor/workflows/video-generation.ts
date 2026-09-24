@@ -206,6 +206,10 @@ async function characterSheetStep(input: {
   }
 }
 
+// One step can issue several paid image generations and the provider offers no
+// idempotency key. Retrying the whole batch would duplicate completed images.
+characterSheetStep.maxRetries = 0;
+
 function materializeChatVideoPlan(
   input: VideoGenerationInput,
   characterRefs: CharacterRef[],
@@ -337,7 +341,11 @@ async function awaitingStoryboardStep(productionId: string) {
 
 async function reportVideoProductionChangedStep() {
   "use step";
-  await reportTaskStatusSignal("video-production-changed");
+  try {
+    await reportTaskStatusSignal("video-production-changed");
+  } catch (error) {
+    console.error("[executor] video production wakeup failed (non-fatal)", { error });
+  }
 }
 
 async function reviseStoryboardStep(
@@ -445,11 +453,6 @@ async function publishingProductionStep(productionId: string, actorId: string, w
   return markVideoProductionPublishing(productionId, actorId, waiverReason);
 }
 
-async function rejectedProductionStep(productionId: string, reason: string) {
-  "use step";
-  return failVideoProduction(productionId, `storyboard rejected: ${reason}`);
-}
-
 async function failedProductionStep(productionId: string, reason: string) {
   "use step";
   return failVideoProduction(productionId, reason);
@@ -531,7 +534,7 @@ async function createSegmentStep(input: {
     }
     return { taskId };
   } catch (error) {
-    if (reservedAmount > 0 && !providerTaskId) {
+    if (reservedAmount > 0 && !providerTaskId && error instanceof ArkRequestError && error.status < 500) {
       await releaseVideoCost({
         productionId: input.productionId,
         idempotencyKey: `shot:${input.shot.id}:take:${input.takeNumber}:release`,
@@ -550,6 +553,7 @@ async function createSegmentStep(input: {
     }
     console.warn("[executor] segment create failed without automatic retry", {
       status: error instanceof ArkRequestError ? error.status : undefined,
+      ambiguousProviderResult: reservedAmount > 0 && !providerTaskId,
       error: String(error).slice(0, 300),
     });
     return {
@@ -874,64 +878,63 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
     shotPlan,
     characterRefs,
   });
-  await reportVideoProductionChangedStep();
-  await configureProductionCostStep(production.id, input.tenantId, input.workspaceId, input.providerId);
-  await reportVideoProductionChangedStep();
-  let approvedShotPlan = production.shotPlan;
-  if (!approvedShotPlan) {
-    throw new Error("video production has no storyboard");
-  }
-  using storyboardHook = storyboardApprovalHook.create({
-    token: storyboardHookToken(production.id),
-  });
-  const conflict = await storyboardHook.getConflict();
-  if (conflict) {
-    throw new Error(`storyboard approval hook is owned by ${conflict.runId}`);
-  }
-  await awaitingStoryboardStep(production.id);
-  await reportVideoProductionChangedStep();
-  let storyboardApproval: {
-    budgetLimitMicros: number;
-    currency: string;
-  } | null = null;
-  const seenStoryboardDecisionIds = new Set<string>();
-  for await (const storyboardDecision of storyboardHook) {
-    if (seenStoryboardDecisionIds.has(storyboardDecision.actionId)) {
-      continue;
-    }
-    seenStoryboardDecisionIds.add(storyboardDecision.actionId);
-    if (storyboardDecision.action === "revise") {
-      approvedShotPlan = await reviseStoryboardStep(
-        production.id,
-        storyboardDecision.shotPlan,
-        storyboardDecision.actorId,
-      );
-      continue;
-    }
-    if (storyboardDecision.action === "reject") {
-      await rejectedProductionStep(production.id, storyboardDecision.reason);
-      throw new Error(`storyboard rejected: ${storyboardDecision.reason}`);
-    }
-    if (storyboardDecision.shotPlanVersion !== approvedShotPlan.version) {
-      continue;
-    }
-    storyboardApproval = {
-      budgetLimitMicros: storyboardDecision.budgetLimitMicros,
-      currency: storyboardDecision.currency,
-    };
-    break;
-  }
-  if (!storyboardApproval) {
-    throw new Error("storyboard approval hook closed without approval");
-  }
-  await generatingProductionStep(production.id, {
-    budgetLimitMicros: storyboardApproval.budgetLimitMicros,
-    currency: storyboardApproval.currency,
-  });
   let stagedMediaId: string | undefined;
   let publishedDocumentId: string | undefined;
   const takeStagedMediaIds: string[] = [];
   try {
+    await reportVideoProductionChangedStep();
+    await configureProductionCostStep(production.id, input.tenantId, input.workspaceId, input.providerId);
+    await reportVideoProductionChangedStep();
+    let approvedShotPlan = production.shotPlan;
+    if (!approvedShotPlan) {
+      throw new Error("video production has no storyboard");
+    }
+    using storyboardHook = storyboardApprovalHook.create({
+      token: storyboardHookToken(production.id),
+    });
+    const conflict = await storyboardHook.getConflict();
+    if (conflict) {
+      throw new Error(`storyboard approval hook is owned by ${conflict.runId}`);
+    }
+    await awaitingStoryboardStep(production.id);
+    await reportVideoProductionChangedStep();
+    let storyboardApproval: {
+      budgetLimitMicros: number;
+      currency: string;
+    } | null = null;
+    const seenStoryboardDecisionIds = new Set<string>();
+    for await (const storyboardDecision of storyboardHook) {
+      if (seenStoryboardDecisionIds.has(storyboardDecision.actionId)) {
+        continue;
+      }
+      seenStoryboardDecisionIds.add(storyboardDecision.actionId);
+      if (storyboardDecision.action === "revise") {
+        approvedShotPlan = await reviseStoryboardStep(
+          production.id,
+          storyboardDecision.shotPlan,
+          storyboardDecision.actorId,
+        );
+        continue;
+      }
+      if (storyboardDecision.action === "reject") {
+        throw new Error(`storyboard rejected: ${storyboardDecision.reason}`);
+      }
+      if (storyboardDecision.shotPlanVersion !== approvedShotPlan.version) {
+        continue;
+      }
+      storyboardApproval = {
+        budgetLimitMicros: storyboardDecision.budgetLimitMicros,
+        currency: storyboardDecision.currency,
+      };
+      break;
+    }
+    if (!storyboardApproval) {
+      throw new Error("storyboard approval hook closed without approval");
+    }
+    await generatingProductionStep(production.id, {
+      budgetLimitMicros: storyboardApproval.budgetLimitMicros,
+      currency: storyboardApproval.currency,
+    });
     const approvedShots = approvedShotPlan.shots;
     const total = approvedShots.length;
     let done = 0;
@@ -967,6 +970,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
       throw new Error(`shot review hook is owned by ${reviewConflict.runId}`);
     }
     await awaitingShotReviewStep(production.id, shotReviews);
+    await reportVideoProductionChangedStep();
     const seenReviewDecisionIds = new Set<string>();
     let selections: Array<{ shotId: string; takeId: string }> | null = null;
     for await (const reviewDecision of reviewHook) {
@@ -997,6 +1001,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
       }
       const take = toVideoTake(result);
       await recordTakeStep(production.id, shot.id, take);
+      await reportVideoProductionChangedStep();
       shotReviews = shotReviews.map((candidate) =>
         candidate.shotId === shot.id ? { ...candidate, takes: [...candidate.takes, take] } : candidate,
       );
@@ -1005,6 +1010,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
       throw new Error("shot review hook closed without take approval");
     }
     await selectedTakesStep(production.id, selections);
+    await reportVideoProductionChangedStep();
     const selectedResults = selections
       .map((selection) => {
         const result = allResults.find(
@@ -1019,6 +1025,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
     const urls = selectedResults.map((result) => result.videoUrl as string);
     const segmentsFailed = allResults.filter((result) => !result.ok).length;
     await renderReportStep(production.id, allResults);
+    await reportVideoProductionChangedStep();
 
     const assembled = await assembleStep({
       userId: input.userId,
@@ -1034,6 +1041,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
     });
     stagedMediaId = assembled.stagedMediaId;
     await finalQaStep(production.id);
+    await reportVideoProductionChangedStep();
     using publishHook = publishApprovalHook.create({
       token: publishHookToken(production.id),
     });
@@ -1042,6 +1050,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
       throw new Error(`publish approval hook is owned by ${publishConflict.runId}`);
     }
     await awaitingPublishStep(production.id, assembled.stagedMediaId, assembled.qaReport);
+    await reportVideoProductionChangedStep();
     const publishDecision = await publishHook;
     if (!publishDecision.approved) {
       await discardStep({
@@ -1053,6 +1062,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
       throw new Error(`publish rejected: ${publishDecision.reason}`);
     }
     await publishingProductionStep(production.id, publishDecision.actorId, publishDecision.waiverReason);
+    await reportVideoProductionChangedStep();
     const published = await publishStep({
       stagedMediaId: assembled.stagedMediaId,
       userId: input.userId,
@@ -1061,6 +1071,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
     });
     publishedDocumentId = published.documentId;
     await completedProductionStep(production.id, published.documentId);
+    await reportVideoProductionChangedStep();
     for (const previewId of takeStagedMediaIds) {
       await discardAfterFailureStep({
         stagedMediaId: previewId,
@@ -1099,6 +1110,7 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput, execu
       });
     }
     await failedProductionStep(production.id, error instanceof Error ? error.message : String(error));
+    await reportVideoProductionChangedStep();
     throw error;
   }
 }

@@ -161,7 +161,10 @@ func (rt *Router) refresh(w http.ResponseWriter, r *http.Request) {
 
 func (rt *Router) logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(rt.cfg.RefreshCookieName); err == nil {
-		rt.auth.Logout(r.Context(), cookie.Value)
+		if err = rt.auth.Logout(r.Context(), cookie.Value); err != nil {
+			writeProblem(w, http.StatusInternalServerError, "logout_failed", "could not revoke session")
+			return
+		}
 	}
 	rt.clearRefreshCookie(w)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

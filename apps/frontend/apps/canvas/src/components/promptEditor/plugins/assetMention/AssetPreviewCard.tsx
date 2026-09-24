@@ -1,3 +1,4 @@
+import { Button } from "@repo/design-system";
 import { Play as IconPlay } from "lucide-react";
 import { useRef, useState } from "react";
 
@@ -13,8 +14,7 @@ import type { AssetMentionItem } from "./types";
 export const SUGGESTION_PREVIEW_WIDTH = 316;
 export const SUGGESTION_PREVIEW_HEIGHT = 294;
 
-export const POPUP_SURFACE =
-  "rounded-[12px] border-[0.5px] border-solid border-border bg-white shadow-[0_15px_35px_-2px_rgba(0,0,0,0.05),0_5px_15px_0_rgba(0,0,0,0.05)]";
+export const POPUP_SURFACE = "rounded-xl bg-popover text-popover-foreground";
 
 function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,7 +36,7 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
   return (
     <div className="relative flex h-[218px] w-full items-center justify-center overflow-hidden rounded-[8px] bg-muted">
       {asset.category === "image" && asset.isPrimary ? (
-        <span className="absolute left-2 top-2 z-10 inline-flex h-6 items-center rounded-[8px] bg-[#c6e4ff] px-2 text-[13px] font-medium leading-5.5 text-[#031a79]">
+        <span className="absolute left-2 top-2 z-10 inline-flex h-6 items-center rounded-lg bg-primary/10 px-2 text-[13px] font-medium leading-5.5 text-primary">
           {t("主形象")}
         </span>
       ) : null}
@@ -50,16 +50,17 @@ function AssetPreviewMedia({ asset }: { asset: AssetMentionItem }) {
             src={previewUrl}
           />
           {!videoPlaying && previewUrl ? (
-            <button
+            <Button
+              variant="ghost"
               aria-label={t("播放视频")}
-              className="absolute inset-0 m-auto flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border-0 bg-white p-0 text-[28px] text-foreground shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
+              className="absolute inset-0 m-auto flex h-16 w-16 cursor-pointer items-center justify-center rounded-full border-0 bg-background p-0 text-[28px] text-foreground shadow-md"
               onClick={() => {
                 void videoRef.current?.play().catch(() => setVideoPlaying(false));
               }}
               type="button"
             >
               <IconPlay />
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : previewUrl ? (

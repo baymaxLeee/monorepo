@@ -1,5 +1,14 @@
 import {
-  ChevronDown as IconGroupDown,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Button,
+} from "@repo/design-system";
+import {
   Library as IconAssetLibrary,
   FolderOpen as IconFolderAssetLibrary,
   ImagePlus as IconGenerationImage,
@@ -16,13 +25,13 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Collapse } from "@/components/Collapse";
+import { ActionDropdown } from "@/components/ActionDropdown";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { AssetPreviewCard } from "@/components/promptEditor/plugins/assetMention/AssetPreviewCard";
 import { splitHighlight } from "@/components/promptEditor/plugins/assetMention/mentionTree";
 import { AssetReviewMark } from "@/components/promptEditor/plugins/assetMention/ReviewStatus";
 import type { AssetMentionItem } from "@/components/promptEditor/plugins/assetMention/types";
 import { SearchInput } from "@/components/SearchInput";
-import { ActionDropdown, Spin, Trigger } from "@/components/ui";
 import { asset as assetIDL, canvasnode, resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
@@ -257,11 +266,11 @@ function PreviewTrigger({
   visible: boolean;
 }) {
   return (
-    <Trigger
-      mouseEnterDelay={100}
-      mouseLeaveDelay={100}
-      onVisibleChange={onVisibleChange}
-      popup={() => (
+    <Popover open={visible} onOpenChange={(open) => onVisibleChange(open)}>
+      <PopoverTrigger openOnHover delay={100} closeDelay={100} render={<span />} nativeButton={false}>
+        {children}
+      </PopoverTrigger>
+      <PopoverContent align="center" className="canvas-web-theme w-auto p-0" side="right" initialFocus={false}>
         <div aria-label={label ?? t("预览：{name}", { name: asset.title })}>
           <AssetPreviewCard
             asset={asset}
@@ -269,14 +278,8 @@ function PreviewTrigger({
             showReviewStatus={showReviewStatus}
           />
         </div>
-      )}
-      popupHoverStay
-      popupVisible={visible}
-      position="right"
-      trigger="hover"
-    >
-      {children}
-    </Trigger>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -469,20 +472,22 @@ export function StudioAssetPanel({
   return (
     <aside className={styles.panel}>
       <div className={styles.topTabs}>
-        <button
+        <Button
+          variant="ghost"
           className={tab === "nodes" ? styles.activeTopTab : styles.topTab}
           onClick={() => setTab("nodes")}
           type="button"
         >
           {t("节点")}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
           className={tab === "assets" ? styles.activeTopTab : styles.topTab}
           onClick={() => setTab("assets")}
           type="button"
         >
           {t("资产")}
-        </button>
+        </Button>
         {tab === "assets" ? (
           <span className={styles.assetActions}>
             <ActionDropdown
@@ -496,14 +501,13 @@ export function StudioAssetPanel({
               }}
               position="br"
             >
-              <button aria-label={t("资产操作")} className={styles.assetActionsButton} type="button">
+              <Button variant="ghost" aria-label={t("资产操作")} className={styles.assetActionsButton} type="button">
                 <IconFolderAssetLibrary />
-              </button>
+              </Button>
             </ActionDropdown>
           </span>
         ) : null}
       </div>
-
       {tab === "nodes" ? (
         <div className={styles.nodeBody}>
           <div className={styles.searchContainer}>
@@ -537,7 +541,8 @@ export function StudioAssetPanel({
                     onVisibleChange={(visible) => setHoveredPreviewId(visible ? previewId : "")}
                     visible={hoveredPreviewId === previewId && draggingPreviewId !== previewId}
                   >
-                    <button
+                    <Button
+                      variant="ghost"
                       className={styles.nodeItem}
                       onClick={onLocateNode ? () => onLocateNode(item.NodeID) : undefined}
                       title={onLocateNode ? t("在画布中定位") : undefined}
@@ -558,7 +563,7 @@ export function StudioAssetPanel({
                           <IconLocationNode />
                         </span>
                       ) : null}
-                    </button>
+                    </Button>
                   </PreviewTrigger>
                 );
               })
@@ -569,7 +574,8 @@ export function StudioAssetPanel({
         <div className={styles.assetBody}>
           <nav className={styles.typeNav}>
             {RESOURCE_TYPES.map((item) => (
-              <button
+              <Button
+                variant="ghost"
                 className={selectedType === item.value ? styles.activeTypeButton : styles.typeButton}
                 key={item.value}
                 onClick={() => setSelectedType(item.value)}
@@ -579,7 +585,7 @@ export function StudioAssetPanel({
                   <ResourceTypeIcon type={item.value} />
                 </span>
                 {item.label}
-              </button>
+              </Button>
             ))}
           </nav>
 
@@ -609,7 +615,7 @@ export function StudioAssetPanel({
             <div className={styles.assetList}>
               {loading ? (
                 <div className={styles.center}>
-                  <Spin size={24} />
+                  <LoadingIndicator className="size-[24px]" />
                 </div>
               ) : groups.length === 0 ? (
                 <div className={styles.empty}>{t("暂无项目资产")}</div>
@@ -662,20 +668,21 @@ export function StudioAssetPanel({
                   );
                 })
               ) : (
-                <Collapse
-                  activeKey={[...expandedGroupIds]}
-                  bordered={false}
+                <Accordion
+                  multiple
+                  value={[...expandedGroupIds]}
                   className={styles.groupCollapse}
-                  expandIcon={<IconGroupDown aria-hidden className={styles.groupArrow} strokeWidth={1.5} />}
-                  lazyload={false}
-                  onChange={(_, activeKeys) => {
+                  onValueChange={(activeKeys) => {
                     setExpandedGroupIds(new Set(activeKeys));
                   }}
                 >
                   {groups.map(({ item, assets }) => (
-                    <Collapse.Item
-                      extra={
-                        item.OwnerType === resource.ResourceOwnerType.OFFICIAL ? null : (
+                    <AccordionItem className="border-0" key={item.ResourceID} value={item.ResourceID}>
+                      <div className="flex items-center gap-2" data-collapse-header>
+                        <AccordionTrigger className="min-w-0 py-2 no-underline hover:no-underline">
+                          {renderResourceHeader(item)}
+                        </AccordionTrigger>
+                        {item.OwnerType === resource.ResourceOwnerType.OFFICIAL ? null : (
                           <div onClick={(event) => event.stopPropagation()}>
                             <ActionDropdown
                               items={[
@@ -695,88 +702,92 @@ export function StudioAssetPanel({
                               }}
                               position="br"
                             >
-                              <button aria-label={t("新增资产")} className={styles.groupAdd} type="button">
-                                <IconPluginListedAdd aria-hidden className={styles.groupPlus} strokeWidth={1.5} />
-                              </button>
-                            </ActionDropdown>
-                          </div>
-                        )
-                      }
-                      header={renderResourceHeader(item)}
-                      key={item.ResourceID}
-                      name={item.ResourceID}
-                    >
-                      {expandedGroupIds.has(item.ResourceID) && !resourceAssets.has(item.ResourceID) ? (
-                        <div className={styles.groupStatus}>
-                          <Spin size={20} />
-                        </div>
-                      ) : assets.length === 0 ? (
-                        <div className={styles.groupStatus}>{t("暂无可用素材")}</div>
-                      ) : (
-                        assets.map((asset) => {
-                          const resourceAssetId = asset.ResourceAssetID;
-                          const previewURL = resolveArtifactURL(asset.PreviewURL ?? "");
-                          const hasCover = item.Type !== resource.ResourceType.AUDIO && Boolean(previewURL);
-                          const previewId = `asset:${resourceAssetId}`;
-                          const previewAsset = withLatestReview({
-                            assetId: asset.CurrentAssetID,
-                            category: categoryForMediaType(asset.MediaType),
-                            description: item.Description,
-                            id: asset.CurrentAssetID ?? resourceAssetId,
-                            isPrimary: asset.IsPrimary,
-                            previewUrl: previewURL,
-                            resourceAssetId,
-                            resourceId: item.ResourceID,
-                            review: latestAssetReview(asset.Reviews),
-                            reviews: asset.Reviews,
-                            source: "project",
-                            thumbnail: asset.MediaType === assetIDL.AssetMediaType.IMAGE ? previewURL : undefined,
-                            title: asset.Name,
-                          });
-                          return (
-                            <PreviewTrigger
-                              asset={previewAsset}
-                              key={resourceAssetId}
-                              onReview={
-                                item.OwnerType === resource.ResourceOwnerType.OFFICIAL ? undefined : reviewAsset
-                              }
-                              onVisibleChange={(visible) => setHoveredPreviewId(visible ? previewId : "")}
-                              showReviewStatus={item.OwnerType !== resource.ResourceOwnerType.OFFICIAL}
-                              visible={hoveredPreviewId === previewId && draggingPreviewId !== previewId}
-                            >
-                              <button
-                                className={styles.assetItem}
-                                draggable={Boolean(resourceAssetId)}
-                                onDragEnd={() => setDraggingPreviewId("")}
-                                onDragStart={(event) => {
-                                  if (!resourceAssetId) return;
-                                  setDraggingPreviewId(previewId);
-                                  setHoveredPreviewId("");
-                                  const data: CanvasAssetDragData = {
-                                    resourceAssetId,
-                                    nodeType: nodeTypeForResource(item.Type),
-                                    previewURL,
-                                  };
-                                  event.dataTransfer.effectAllowed = "copy";
-                                  event.dataTransfer.setData(CANVAS_ASSET_DRAG_TYPE, JSON.stringify(data));
-                                }}
+                              <Button
+                                variant="ghost"
+                                aria-label={t("新增资产")}
+                                className={styles.groupAdd}
                                 type="button"
                               >
-                                <span className={`${styles.thumbnail} ${hasCover ? "" : styles.fallbackThumbnail}`}>
-                                  {hasCover ? <img alt="" src={previewURL} /> : <ResourceTypeIcon type={item.Type} />}
-                                </span>
-                                <AssetStatusBadge asset={previewAsset} isPrimary={asset.IsPrimary} />
-                                <span className={styles.assetName} title={asset.Name}>
-                                  <HighlightedName query={keyword} text={asset.Name} />
-                                </span>
-                              </button>
-                            </PreviewTrigger>
-                          );
-                        })
-                      )}
-                    </Collapse.Item>
+                                <IconPluginListedAdd aria-hidden className={styles.groupPlus} strokeWidth={1.5} />
+                              </Button>
+                            </ActionDropdown>
+                          </div>
+                        )}
+                      </div>
+                      <AccordionContent className="pb-0">
+                        {expandedGroupIds.has(item.ResourceID) && !resourceAssets.has(item.ResourceID) ? (
+                          <div className={styles.groupStatus}>
+                            <LoadingIndicator className="size-[20px]" />
+                          </div>
+                        ) : assets.length === 0 ? (
+                          <div className={styles.groupStatus}>{t("暂无可用素材")}</div>
+                        ) : (
+                          assets.map((asset) => {
+                            const resourceAssetId = asset.ResourceAssetID;
+                            const previewURL = resolveArtifactURL(asset.PreviewURL ?? "");
+                            const hasCover = item.Type !== resource.ResourceType.AUDIO && Boolean(previewURL);
+                            const previewId = `asset:${resourceAssetId}`;
+                            const previewAsset = withLatestReview({
+                              assetId: asset.CurrentAssetID,
+                              category: categoryForMediaType(asset.MediaType),
+                              description: item.Description,
+                              id: asset.CurrentAssetID ?? resourceAssetId,
+                              isPrimary: asset.IsPrimary,
+                              previewUrl: previewURL,
+                              resourceAssetId,
+                              resourceId: item.ResourceID,
+                              review: latestAssetReview(asset.Reviews),
+                              reviews: asset.Reviews,
+                              source: "project",
+                              thumbnail: asset.MediaType === assetIDL.AssetMediaType.IMAGE ? previewURL : undefined,
+                              title: asset.Name,
+                            });
+                            return (
+                              <PreviewTrigger
+                                asset={previewAsset}
+                                key={resourceAssetId}
+                                onReview={
+                                  item.OwnerType === resource.ResourceOwnerType.OFFICIAL ? undefined : reviewAsset
+                                }
+                                onVisibleChange={(visible) => setHoveredPreviewId(visible ? previewId : "")}
+                                showReviewStatus={item.OwnerType !== resource.ResourceOwnerType.OFFICIAL}
+                                visible={hoveredPreviewId === previewId && draggingPreviewId !== previewId}
+                              >
+                                <Button
+                                  variant="ghost"
+                                  className={styles.assetItem}
+                                  draggable={Boolean(resourceAssetId)}
+                                  onDragEnd={() => setDraggingPreviewId("")}
+                                  onDragStart={(event) => {
+                                    if (!resourceAssetId) return;
+                                    setDraggingPreviewId(previewId);
+                                    setHoveredPreviewId("");
+                                    const data: CanvasAssetDragData = {
+                                      resourceAssetId,
+                                      nodeType: nodeTypeForResource(item.Type),
+                                      previewURL,
+                                    };
+                                    event.dataTransfer.effectAllowed = "copy";
+                                    event.dataTransfer.setData(CANVAS_ASSET_DRAG_TYPE, JSON.stringify(data));
+                                  }}
+                                  type="button"
+                                >
+                                  <span className={`${styles.thumbnail} ${hasCover ? "" : styles.fallbackThumbnail}`}>
+                                    {hasCover ? <img alt="" src={previewURL} /> : <ResourceTypeIcon type={item.Type} />}
+                                  </span>
+                                  <AssetStatusBadge asset={previewAsset} isPrimary={asset.IsPrimary} />
+                                  <span className={styles.assetName} title={asset.Name}>
+                                    <HighlightedName query={keyword} text={asset.Name} />
+                                  </span>
+                                </Button>
+                              </PreviewTrigger>
+                            );
+                          })
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
                   ))}
-                </Collapse>
+                </Accordion>
               )}
             </div>
           </section>

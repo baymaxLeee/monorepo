@@ -112,12 +112,14 @@ export interface RumEvent {
   type: RumEventType;
   ts_client?: number | null;
   trace_id?: string | null;
+  /** @maxLength 256 */
   route?: string;
   payload?: RumEventPayload;
 }
 
 export interface RumBatch {
   app: RumBatchApp;
+  /** @maxLength 128 */
   release?: string;
   /**
      * @minLength 1
@@ -129,6 +131,7 @@ export interface RumBatch {
      * @maxLength 128
      */
   session_id: string;
+  /** @maxLength 512 */
   user_agent?: string;
   /**
      * @minItems 1

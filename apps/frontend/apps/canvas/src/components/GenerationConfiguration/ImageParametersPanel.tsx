@@ -1,5 +1,5 @@
-import { Field } from "@/components/Field";
-import { SegmentedTrack, segmentItemClass } from "@/components/Segmented";
+import { FieldSet, FieldLegend, ToggleGroup, ToggleGroupItem } from "@repo/design-system";
+
 import t from "@/utils/i18n";
 
 import { RatioIcon } from "./RatioIcon";
@@ -17,12 +17,6 @@ export const DEFAULT_IMAGE_GENERATION_SETTINGS: ImageGenerationSettings = {
   resolution: "720P",
   watermark: false,
 };
-
-function optionClass(selected: boolean, disabled: boolean) {
-  return `${segmentItemClass(selected)} ${
-    disabled ? "cursor-not-allowed text-muted-foreground opacity-50 hover:text-muted-foreground" : ""
-  }`;
-}
 
 export function ImageParametersPanel({
   settings,
@@ -46,67 +40,88 @@ export function ImageParametersPanel({
   const patch = (part: Partial<ImageGenerationSettings>) => onChange({ ...settings, ...part });
 
   return (
-    <div className="flex w-[353px] flex-col gap-4 rounded-[12px] border-[0.5px] border-solid border-border bg-white p-3 shadow-[0px_15px_35px_-2px_rgba(0,0,0,0.05),0px_5px_15px_0px_rgba(0,0,0,0.05)]">
-      <Field label={t("比例")}>
-        <SegmentedTrack>
+    <div className="flex w-[353px] flex-col gap-4 rounded-xl bg-popover p-3 text-popover-foreground">
+      <FieldSet className="gap-1">
+        <FieldLegend className="text-xs text-muted-foreground" variant="label">
+          {t("比例")}
+        </FieldLegend>
+        <ToggleGroup
+          className="w-full items-stretch rounded-lg bg-muted p-1"
+          onValueChange={(next) => next[0] && patch({ ratio: next[0] })}
+          spacing={0}
+          value={[settings.ratio]}
+        >
           {ratioOptions.map((ratio) => {
             const disabled = disabledRatios.has(ratio);
             return (
-              <button
-                className={`${optionClass(ratio === settings.ratio, disabled)} h-[58px] flex-col`}
+              <ToggleGroupItem
+                className="h-[58px] flex-1 flex-col rounded-md aria-pressed:bg-background aria-pressed:shadow-sm"
                 data-ea="resource-image-settings-ratio-option"
                 disabled={disabled}
                 key={ratio}
-                onClick={() => patch({ ratio })}
-                type="button"
+                value={ratio}
               >
                 <RatioIcon ratio={ratio} selected={ratio === settings.ratio} />
                 {ratio}
-              </button>
+              </ToggleGroupItem>
             );
           })}
-        </SegmentedTrack>
-      </Field>
+        </ToggleGroup>
+      </FieldSet>
 
-      <Field label={t("分辨率")}>
-        <SegmentedTrack>
+      <FieldSet className="gap-1">
+        <FieldLegend className="text-xs text-muted-foreground" variant="label">
+          {t("分辨率")}
+        </FieldLegend>
+        <ToggleGroup
+          className="w-full items-stretch rounded-lg bg-muted p-1"
+          onValueChange={(next) => next[0] && patch({ resolution: next[0] })}
+          spacing={0}
+          value={[settings.resolution]}
+        >
           {resolutionOptions.map((resolution) => {
             const disabled = disabledResolutions.has(resolution);
             return (
-              <button
-                className={`${optionClass(resolution === settings.resolution, disabled)} h-6`}
+              <ToggleGroupItem
+                className="h-6 flex-1 rounded-md aria-pressed:bg-background aria-pressed:shadow-sm"
                 data-ea="resource-image-settings-resolution-option"
                 disabled={disabled}
                 key={resolution}
-                onClick={() => patch({ resolution })}
-                type="button"
+                value={resolution}
               >
                 {resolution}
-              </button>
+              </ToggleGroupItem>
             );
           })}
-        </SegmentedTrack>
-      </Field>
+        </ToggleGroup>
+      </FieldSet>
 
       {showWatermark ? (
-        <Field label={t("水印")}>
-          <SegmentedTrack>
+        <FieldSet className="gap-1">
+          <FieldLegend className="text-xs text-muted-foreground" variant="label">
+            {t("水印")}
+          </FieldLegend>
+          <ToggleGroup
+            className="w-full items-stretch rounded-lg bg-muted p-1"
+            onValueChange={(next) => next[0] && patch({ watermark: next[0] === "true" })}
+            spacing={0}
+            value={[String(settings.watermark)]}
+          >
             {[
               { label: t("无水印"), value: false },
               { label: t("有水印"), value: true },
             ].map((option) => (
-              <button
-                className={`${segmentItemClass(option.value === settings.watermark)} h-6`}
+              <ToggleGroupItem
+                className="h-6 flex-1 rounded-md aria-pressed:bg-background aria-pressed:shadow-sm"
                 data-ea="resource-image-settings-watermark-option"
                 key={String(option.value)}
-                onClick={() => patch({ watermark: option.value })}
-                type="button"
+                value={String(option.value)}
               >
                 {option.label}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </SegmentedTrack>
-        </Field>
+          </ToggleGroup>
+        </FieldSet>
       ) : null}
     </div>
   );

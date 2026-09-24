@@ -82,6 +82,14 @@ export interface paths {
                         payload: components["schemas"]["FileTaskBatchPayload"];
                     } | {
                         /** @constant */
+                        type: "knowledge-document-process";
+                        /** @description calling service, e.g. chat */
+                        owner_service: string;
+                        /** @description idempotency key scoped to owner_service */
+                        owner_ref: string;
+                        payload: components["schemas"]["KnowledgeDocumentProcessPayload"];
+                    } | {
+                        /** @constant */
                         type: "video-generation";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -586,6 +594,14 @@ export interface components {
             payload: components["schemas"]["FileTaskBatchPayload"];
         } | {
             /** @constant */
+            type: "knowledge-document-process";
+            /** @description calling service, e.g. chat */
+            owner_service: string;
+            /** @description idempotency key scoped to owner_service */
+            owner_ref: string;
+            payload: components["schemas"]["KnowledgeDocumentProcessPayload"];
+        } | {
+            /** @constant */
             type: "video-generation";
             /** @description calling service, e.g. chat */
             owner_service: string;
@@ -611,6 +627,10 @@ export interface components {
                 instruction: string;
                 outputPath: string;
             }[];
+        };
+        KnowledgeDocumentProcessPayload: {
+            documentId: string;
+            providerId?: string;
         };
         VideoGenerationTaskPayload: {
             tenantId: string;

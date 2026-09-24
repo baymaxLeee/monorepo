@@ -1,7 +1,7 @@
+import { toast } from "@repo/design-system";
 import { useSetAtom } from "jotai";
 import { useState } from "react";
 
-import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import { SelectCanvasNodeHistory } from "@/pages/studio/domain/generations";
 import t from "@/utils/i18n";
@@ -72,15 +72,17 @@ export function CanvasNodeHistoryDialog({
             });
             clearCanvasGenerationFailure(historyItem.NodeID);
             onClose();
-            Message.success(
-              t(
+            toast.add({
+              type: "success",
+
+              title: t(
                 historyItem.Type === canvasnode.CanvasNodeType.TEXT_GENERATION
                   ? "已选用该文本"
                   : historyItem.Type === canvasnode.CanvasNodeType.IMAGE_GENERATION
                     ? "已选用该图片"
                     : "已选用该视频",
               ),
-            );
+            });
           })
           .finally(() => setHistorySelecting(false));
       }}

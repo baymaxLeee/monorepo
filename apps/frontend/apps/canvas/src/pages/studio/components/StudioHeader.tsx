@@ -1,3 +1,15 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  Button,
+} from "@repo/design-system";
 import { useAtomValue } from "jotai";
 import {
   History as IconAgentHistory,
@@ -10,7 +22,6 @@ import {
 } from "lucide-react";
 
 import { ActionButton } from "@/components/ActionButton";
-import { Popconfirm } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import type { StudioView } from "../domain/types";
@@ -66,13 +77,20 @@ export function StudioHeader({
               : styles.projectWithoutAssets
           }`}
         >
-          <button aria-label={t("返回剧集列表")} className={styles.backButton} onClick={onBack} type="button">
+          <Button
+            variant="ghost"
+            aria-label={t("返回剧集列表")}
+            className={styles.backButton}
+            onClick={onBack}
+            type="button"
+          >
             <IconLeft />
-          </button>
+          </Button>
           <h1 className={styles.projectTitle}>{title}</h1>
         </div>
         <div className={styles.viewSwitch}>
-          <button
+          <Button
+            variant="ghost"
             aria-label={view === "canvas" ? t("画布") : t("切换到画布")}
             className={`${styles.viewButton} ${view === "canvas" ? styles.activeViewButton : styles.idleViewButton}`}
             disabled={viewChanging}
@@ -81,8 +99,9 @@ export function StudioHeader({
           >
             <IconCanvasMode aria-hidden className={styles.viewIcon} strokeWidth={1.5} />
             {view === "canvas" ? t("画布") : null}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             aria-label={view === "storyboard" ? t("故事板") : t("切换到故事板")}
             className={`${styles.viewButton} ${
               view === "storyboard" ? styles.activeViewButton : styles.idleViewButton
@@ -93,7 +112,7 @@ export function StudioHeader({
           >
             <IconStoryboardMode aria-hidden className={styles.viewIcon} strokeWidth={1.5} />
             {view === "storyboard" ? t("故事板") : null}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -123,29 +142,35 @@ export function StudioHeader({
           {t("批量导出")}
         </ActionButton>
 
-        <Popconfirm
-          content={
-            <span className="block w-[268px] text-[13px] leading-5.5 text-foreground">
-              {t("将一键发起{canvasLabel}下 {shotCount} 个分镜视频的生成任务。", { canvasLabel, shotCount })}
-              <br />
-              {t("将按照每个分镜配置的参数进行生成，请确认已配置好相关模型参数。")}
-            </span>
-          }
-          disabled={!composable || composing}
-          onOk={onCompose}
-          position="br"
-          title={t("确认生成全部？")}
-        >
-          <ActionButton
-            disabled={!composable}
-            icon={<IconWkfOptimization />}
-            loading={composing}
-            paddingX={12}
-            variant="primary"
+        <AlertDialog>
+          <AlertDialogTrigger
+            disabled={!composable || composing}
+            render={
+              <ActionButton
+                disabled={!composable}
+                icon={<IconWkfOptimization />}
+                loading={composing}
+                paddingX={12}
+                variant="primary"
+              />
+            }
           >
             {t("生成全部")}
-          </ActionButton>
-        </Popconfirm>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("确认生成全部？")}</AlertDialogTitle>
+              <AlertDialogDescription render={<div />} className="space-y-1">
+                <p>{t("将一键发起{canvasLabel}下 {shotCount} 个分镜视频的生成任务。", { canvasLabel, shotCount })}</p>
+                <p>{t("将按照每个分镜配置的参数进行生成，请确认已配置好相关模型参数。")}</p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("取消")}</AlertDialogCancel>
+              <AlertDialogAction onClick={onCompose}>{t("确认生成")}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </header>
   );

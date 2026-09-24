@@ -46,20 +46,22 @@ type Router struct {
 	executeFrames  func(context.Context, string) (any, error)
 	uploadBlob     func(context.Context, io.Reader) (string, int64, error)
 	readiness      func(context.Context) error
-	access         applicationprojectaccess.MemberChecker
+	access         applicationprojectaccess.Checker
 }
 
-func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), readiness func(context.Context) error, access applicationprojectaccess.MemberChecker) http.Handler {
+func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), readiness func(context.Context) error, access applicationprojectaccess.Checker) http.Handler {
 	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, executeFrames: executeFrames, uploadBlob: uploadBlob, readiness: readiness, access: access}
 	router := chi.NewRouter()
-	router.Use(serviceAuthentication(internalToken))
 	router.Get("/livez", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	router.Get("/readyz", transport.readinessRoute())
 	router.Get("/healthz", transport.readinessRoute())
-	router.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
-	router.Post("/internal/worker/video-generations/{taskRunId}/extract-frames", transport.internalFrameRoute())
+	router.Group(func(r chi.Router) {
+		r.Use(serviceAuthentication(internalServiceTokens))
+		r.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
+		r.Post("/internal/worker/video-generations/{taskRunId}/extract-frames", transport.internalFrameRoute())
+	})
 	router.Post("/uploads", transport.uploadRoute())
 	router.Post("/cover-uploads", transport.binaryUploadRoute("StageCoverUpload", maxCoverUploadBytes))
 	router.Get("/admin/projects", transport.workspaceAdminRoute("ListProjects", func(ctx context.Context, request *http.Request) (any, error) {
@@ -761,16 +763,13 @@ func NewRouter(internalToken string, projects *maturehttp.ProjectHandler, projec
 	return router
 }
 
-func serviceAuthentication(expectedToken string) func(http.Handler) http.Handler {
+func serviceAuthentication(expectedTokens map[string]string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			if request.URL.Path == "/livez" || request.URL.Path == "/readyz" || request.URL.Path == "/healthz" {
-				next.ServeHTTP(w, request)
-				return
-			}
 			token := request.Header.Get("X-Internal-Token")
 			caller := strings.TrimSpace(request.Header.Get("X-Caller-Service"))
-			if caller == "" || len(token) != len(expectedToken) || subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
+			expectedToken, knownCaller := expectedTokens[caller]
+			if !knownCaller || token == "" || len(token) != len(expectedToken) || subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
 				writeProblem(w, errno.New(errno.ErrForbidden))
 				return
 			}
@@ -833,11 +832,11 @@ func (transport *Router) archiveContentRoute() http.HandlerFunc {
 			writeProblem(w, errno.New(errno.ErrConfigurationError))
 			return
 		}
-		if err = transport.access.Check(request.Context(), metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId")); err != nil {
+		ctx := requestcontext.WithMetadata(request.Context(), metadata)
+		if err = transport.access.Check(ctx, metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId"), applicationprojectaccess.AccessRead); err != nil {
 			writeProblem(w, errno.New(errno.ErrForbidden))
 			return
 		}
-		ctx := requestcontext.WithMetadata(request.Context(), metadata)
 		input := &contractcanvas.GetProjectCanvasVideoArchiveExportRequest{
 			WorkspaceID: &workspaceID, ProjectID: chi.URLParam(request, "projectId"),
 			CanvasID: chi.URLParam(request, "canvasId"), TaskRunID: chi.URLParam(request, "taskRunId"),
@@ -961,7 +960,7 @@ func (transport *Router) authorizedRoute(action string, endpoint endpoint, autho
 	}
 }
 
-func (transport *Router) nodeRoute(action string, _ applicationprojectaccess.Access, endpoint endpoint) http.HandlerFunc {
+func (transport *Router) nodeRoute(action string, access applicationprojectaccess.Access, endpoint endpoint) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
 		metadata, err := metadataFromRequest(request, action)
 		if err != nil {
@@ -973,11 +972,11 @@ func (transport *Router) nodeRoute(action string, _ applicationprojectaccess.Acc
 			writeProblem(w, errno.New(errno.ErrConfigurationError))
 			return
 		}
-		if err = transport.access.Check(request.Context(), metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId")); err != nil {
+		ctx := requestcontext.WithMetadata(request.Context(), metadata)
+		if err = transport.access.Check(ctx, metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId"), access); err != nil {
 			writeProblem(w, errno.New(errno.ErrForbidden))
 			return
 		}
-		ctx := requestcontext.WithMetadata(request.Context(), metadata)
 		value, err := endpoint(ctx, request.WithContext(ctx))
 		if err != nil {
 			slog.Error("canvas request failed", "action", action, "error", err)
@@ -990,7 +989,7 @@ func (transport *Router) nodeRoute(action string, _ applicationprojectaccess.Acc
 
 type streamEndpoint func(context.Context, http.ResponseWriter, *http.Request) error
 
-func (transport *Router) nodeStreamRoute(action string, _ applicationprojectaccess.Access, endpoint streamEndpoint) http.HandlerFunc {
+func (transport *Router) nodeStreamRoute(action string, access applicationprojectaccess.Access, endpoint streamEndpoint) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
 		metadata, err := metadataFromRequest(request, action)
 		if err != nil {
@@ -1002,11 +1001,11 @@ func (transport *Router) nodeStreamRoute(action string, _ applicationprojectacce
 			writeProblem(w, errno.New(errno.ErrConfigurationError))
 			return
 		}
-		if err = transport.access.Check(request.Context(), metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId")); err != nil {
+		ctx := requestcontext.WithMetadata(request.Context(), metadata)
+		if err = transport.access.Check(ctx, metadata.TenantID, &workspaceID, metadata.UserID, chi.URLParam(request, "projectId"), access); err != nil {
 			writeProblem(w, errno.New(errno.ErrForbidden))
 			return
 		}
-		ctx := requestcontext.WithMetadata(request.Context(), metadata)
 		if err = endpoint(ctx, w, request.WithContext(ctx)); err != nil {
 			slog.Error("canvas stream request failed", "action", action, "error", err)
 			writeProblem(w, err)
@@ -1021,7 +1020,17 @@ func metadataFromRequest(request *http.Request, action string) (requestcontext.M
 		return requestcontext.Metadata{}, errors.New("missing authenticated identity")
 	}
 	requestID := strings.TrimSpace(request.Header.Get("X-Trace-Id"))
-	return requestcontext.Metadata{RequestID: requestID, TenantID: tenantID, UserID: userID, WorkspaceID: metadataWorkspace(request), Service: "canvas", Action: action, Version: apiVersion}, nil
+	roles := make([]string, 0)
+	for _, role := range strings.Split(request.Header.Get("X-Auth-Roles"), ",") {
+		if role = strings.TrimSpace(role); role != "" {
+			roles = append(roles, role)
+		}
+	}
+	return requestcontext.Metadata{
+		RequestID: requestID, TenantID: tenantID, UserID: userID, WorkspaceID: metadataWorkspace(request),
+		WorkspaceRole: strings.TrimSpace(request.Header.Get("X-Auth-Workspace-Role")), Roles: roles,
+		Service: "canvas", Action: action, Version: apiVersion,
+	}, nil
 }
 
 func metadataWorkspace(request *http.Request) string {

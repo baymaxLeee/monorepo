@@ -19,6 +19,8 @@ const heartbeats = new Map<string, ReturnType<typeof setInterval>>();
 const cancellationPolls = new Map<string, ReturnType<typeof setInterval>>();
 const LEASE_MS = 10 * 60_000;
 const CANCELLATION_POLL_MS = 1_000;
+const CANCELLATION_WAIT_MS = 30_000;
+const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
 
 export async function acquireRunLease(conversationId: string, runId: string): Promise<void> {
   const db = getDb();
@@ -124,8 +126,23 @@ export async function cancelRun(conversationId: string, runId: string): Promise<
   await requestAgentRunCancellation(runId);
   const completion = completions.get(runId)?.promise;
   controllers.get(runId)?.abort(new DOMException("agent run cancelled", "AbortError"));
-  await completion;
-  return true;
+  if (completion) {
+    await completion;
+  } else {
+    const deadline = Date.now() + CANCELLATION_WAIT_MS;
+    while (Date.now() < deadline) {
+      const current = await getAgentRunById(runId);
+      if (!current || TERMINAL_RUN_STATUSES.has(current.status)) {
+        return true;
+      }
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, CANCELLATION_POLL_MS);
+      });
+    }
+    return false;
+  }
+  const current = await getAgentRunById(runId);
+  return current != null && TERMINAL_RUN_STATUSES.has(current.status);
 }
 
 export async function reconcileOrphanedRuns(): Promise<void> {

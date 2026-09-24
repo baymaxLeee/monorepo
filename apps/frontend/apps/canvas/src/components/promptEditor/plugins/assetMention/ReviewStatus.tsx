@@ -1,6 +1,6 @@
+import { Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import { ArrowRight, ShieldCheck as IconCompliancePlanarity } from "lucide-react";
 
-import { Tooltip } from "@/components/ui";
 import { asset as assetIDL } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -122,14 +122,14 @@ export function AssetReviewMark({ asset, showDetails = false }: { asset: AssetMe
   );
   if (!showDetails) return mark;
   return (
-    <Tooltip
-      content={renderAssetReviewTooltipContent({
-        review: approved.at(-1),
-        reviews: approved,
-      })}
-      position="top"
-    >
-      {mark}
+    <Tooltip>
+      <TooltipTrigger render={mark} />
+      <TooltipContent side="top">
+        {renderAssetReviewTooltipContent({
+          review: approved.at(-1),
+          reviews: approved,
+        })}
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -184,8 +184,21 @@ export function AssetReviewFooter({
         <span className={`shrink-0 ${labelClass}`}>{label}</span>
         {detail ? (
           approved.length > 1 ? (
-            <Tooltip
-              content={
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    aria-label={t("{count}个预置权益包：{names}", {
+                      count: approved.length,
+                      names: approved.map(reviewPackageName).join("、"),
+                    })}
+                    className={`min-w-0 flex-1 cursor-help truncate underline decoration-dotted underline-offset-2 ${detailClass}`}
+                  >
+                    {detail}
+                  </span>
+                }
+              />
+              <TooltipContent side="bottom">
                 <ol className="m-0 list-decimal pl-5">
                   {approved.map((item) => (
                     <li className="wrap-break-word" key={item.PackageID}>
@@ -193,18 +206,7 @@ export function AssetReviewFooter({
                     </li>
                   ))}
                 </ol>
-              }
-              position="bottom"
-            >
-              <span
-                aria-label={t("{count}个预置权益包：{names}", {
-                  count: approved.length,
-                  names: approved.map(reviewPackageName).join("、"),
-                })}
-                className={`min-w-0 flex-1 cursor-help truncate underline decoration-dotted underline-offset-2 ${detailClass}`}
-              >
-                {detail}
-              </span>
+              </TooltipContent>
             </Tooltip>
           ) : (
             <span className={`min-w-0 flex-1 truncate ${detailClass}`} title={detail}>
@@ -214,7 +216,8 @@ export function AssetReviewFooter({
         ) : null}
       </div>
       {canSubmit || canAddToLibrary ? (
-        <button
+        <Button
+          variant="ghost"
           className={`shrink-0 cursor-pointer items-center gap-1 border-0 bg-[transparent] p-0 text-[12px] leading-5 text-foreground ${
             canAddToLibrary ? "flex" : "hidden group-hover:flex"
           }`}
@@ -228,7 +231,7 @@ export function AssetReviewFooter({
         >
           {canAddToLibrary ? t("添加到资产库") : t("提交合规审核")}
           <ReviewActionArrow />
-        </button>
+        </Button>
       ) : null}
     </div>
   );

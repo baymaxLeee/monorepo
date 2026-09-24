@@ -73,8 +73,8 @@ export function ChatPanelResizeHandle({
         "absolute inset-y-0 z-50 flex w-1 touch-none select-none items-stretch justify-center",
         isLeft ? "right-0 translate-x-1/2" : "left-0 -translate-x-1/2",
         "cursor-col-resize outline-none",
-        "hover:[&>span]:w-0.5 hover:[&>span]:bg-blue-500",
-        "focus-visible:[&>span]:w-0.5 focus-visible:[&>span]:bg-blue-500",
+        "hover:[&>span]:w-0.5 hover:[&>span]:bg-primary",
+        "focus-visible:[&>span]:w-0.5 focus-visible:[&>span]:bg-primary",
       )}
       onKeyDown={(event) => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
@@ -133,7 +133,7 @@ export function ChatPanelResizeHandle({
         aria-hidden="true"
         className={cn(
           "pointer-events-none my-0 h-full w-px shrink-0 bg-border/80 transition-[width,background-color] duration-150",
-          dragging && "w-0.5 bg-blue-500",
+          dragging && "w-0.5 bg-primary",
         )}
       />
     </div>

@@ -95,6 +95,15 @@ const canvasVideoFramesPayloadSchema = {
   required: ["taskRunId"],
 };
 
+const knowledgeDocumentProcessPayloadSchema = {
+  type: "object",
+  properties: {
+    documentId: { type: "string" },
+    providerId: { type: "string" },
+  },
+  required: ["documentId"],
+};
+
 const videoGenerationTaskPayloadSchema = {
   type: "object",
   properties: {
@@ -185,6 +194,7 @@ const createTaskInputSchema = {
     taskEnvelope("canvas-archive", ref("CanvasArchivePayload")),
     taskEnvelope("canvas-video-frames", ref("CanvasVideoFramesPayload")),
     taskEnvelope("file-task-batch", ref("FileTaskBatchPayload")),
+    taskEnvelope("knowledge-document-process", ref("KnowledgeDocumentProcessPayload")),
     taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
   ],
   discriminator: { propertyName: "type" },
@@ -579,6 +589,7 @@ const openapi = {
       CanvasArchivePayload: canvasArchivePayloadSchema,
       CanvasVideoFramesPayload: canvasVideoFramesPayloadSchema,
       FileTaskBatchPayload: fileTaskBatchPayloadSchema,
+      KnowledgeDocumentProcessPayload: knowledgeDocumentProcessPayloadSchema,
       VideoGenerationTaskPayload: videoGenerationTaskPayloadSchema,
       ReferenceAsset: referenceAssetSchema,
       ShotSpec: shotSpecSchema,

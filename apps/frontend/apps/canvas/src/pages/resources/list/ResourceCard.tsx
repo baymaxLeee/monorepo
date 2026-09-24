@@ -1,3 +1,4 @@
+import { Button, Checkbox, Tooltip, TooltipContent, TooltipTrigger } from "@repo/design-system";
 import {
   ShieldCheck as IconComplianceLine,
   Download as IconDownloadFine,
@@ -9,7 +10,6 @@ import {
 
 import { AudioSpectrum } from "@/components/AudioSpectrum/index";
 import { EllipsisText, OperationMenu } from "@/components/common";
-import { Checkbox, Button, Tooltip } from "@/components/ui";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
@@ -83,7 +83,8 @@ export function ResourceCard({
         selected ? "border-primary" : "border-[transparent] hover:border-muted-foreground"
       } ${selecting && !selected ? "opacity-50" : ""}`}
     >
-      <button
+      <Button
+        variant="ghost"
         aria-label={
           selecting
             ? t("{action}资产：{name}", {
@@ -112,13 +113,17 @@ export function ResourceCard({
             </span>
           ) : null}
           {isOfficial ? (
-            <Tooltip
-              content={isAudio ? t("官方预置，仅支持试听与下载") : t("官方预置，仅支持查看与下载")}
-              position="top"
-            >
-              <span className="absolute bottom-[5px] left-[6px] inline-flex h-4 items-center rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[10px] font-medium leading-4 text-white">
-                {t("预置")}
-              </span>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="absolute bottom-[5px] left-[6px] inline-flex h-4 items-center rounded-[8px] bg-[rgba(0,0,0,0.5)] px-[6px] text-[10px] font-medium leading-4 text-white">
+                    {t("预置")}
+                  </span>
+                }
+              />
+              <TooltipContent side={"top"}>
+                {isAudio ? t("官方预置，仅支持试听与下载") : t("官方预置，仅支持查看与下载")}
+              </TooltipContent>
             </Tooltip>
           ) : null}
         </div>
@@ -127,47 +132,55 @@ export function ResourceCard({
             <EllipsisText>{item.Name}</EllipsisText>
           </h2>
           <div className="flex items-center gap-2">
-            <Tooltip
-              content={t("包含 {count} 个{assetType}", {
-                count: item.ResourceAssetCount,
-                assetType: assetTypeLabel,
-              })}
-              position="top"
-            >
-              <span
-                aria-label={t("{count} 个素材", {
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    aria-label={t("{count} 个素材", {
+                      count: item.ResourceAssetCount,
+                    })}
+                    className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
+                  >
+                    <span className="inline-flex text-[14px]">{typeIcon}</span>
+                    {item.ResourceAssetCount}
+                  </span>
+                }
+              />
+              <TooltipContent side={"top"}>
+                {t("包含 {count} 个{assetType}", {
                   count: item.ResourceAssetCount,
-                })}
-                className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
-              >
-                <span className="inline-flex text-[14px]">{typeIcon}</span>
-                {item.ResourceAssetCount}
-              </span>
-            </Tooltip>
-            {!isOfficial ? (
-              <Tooltip
-                content={t("{count} 个{assetType}已审核通过", {
-                  count: approvedResourceAssetCount,
                   assetType: assetTypeLabel,
                 })}
-                position="top"
-              >
-                <span
-                  aria-label={t("{count} 个已审核通过素材", {
+              </TooltipContent>
+            </Tooltip>
+            {!isOfficial ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span
+                      aria-label={t("{count} 个已审核通过素材", {
+                        count: approvedResourceAssetCount,
+                      })}
+                      className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
+                    >
+                      <span className="inline-flex text-[14px]">
+                        <IconComplianceLine aria-hidden size="1em" strokeWidth={1.5} />
+                      </span>
+                      {approvedResourceAssetCount}
+                    </span>
+                  }
+                />
+                <TooltipContent side={"top"}>
+                  {t("{count} 个{assetType}已审核通过", {
                     count: approvedResourceAssetCount,
+                    assetType: assetTypeLabel,
                   })}
-                  className="inline-flex h-[22px] w-fit items-center gap-1 rounded-[8px] bg-muted px-[6px] text-[13px] leading-5.5 text-muted-foreground"
-                >
-                  <span className="inline-flex text-[14px]">
-                    <IconComplianceLine aria-hidden size="1em" strokeWidth={1.5} />
-                  </span>
-                  {approvedResourceAssetCount}
-                </span>
+                </TooltipContent>
               </Tooltip>
             ) : null}
           </div>
         </div>
-      </button>
+      </Button>
       {primaryAudioURL && !selecting ? (
         <div className={styles.audioPreviewControl}>
           <AudioSpectrum
@@ -176,7 +189,8 @@ export function ResourceCard({
             heights={playing ? spectrumHeights : undefined}
             playing={playing}
           />
-          <button
+          <Button
+            variant="ghost"
             aria-label={t("{action}音频：{name}", {
               action: playing ? t("暂停") : t("播放"),
               name: item.Name,
@@ -186,27 +200,36 @@ export function ResourceCard({
             type="button"
           >
             {playing ? <IconPause /> : <IconPlay />}
-          </button>
+          </Button>
         </div>
       ) : null}
       {selecting && selectable ? (
         <div className={styles.cardSelector} onClick={(event) => event.stopPropagation()}>
-          <Checkbox checked={selected} className={styles.cardSelectorCheckbox} onChange={onSelect} />
+          <Checkbox
+            aria-label={t("选择资源：{name}", { name: item.Name })}
+            checked={selected}
+            className={styles.cardSelectorCheckbox}
+            onCheckedChange={() => onSelect()}
+          />
         </div>
       ) : null}
       {!selecting && (isAudio || !isOfficial) ? (
         <div className={styles.cardOperations}>
           {isAudio ? (
-            <Tooltip content={t("下载")} position="top">
-              <Button
-                aria-label={t("下载音频：{name}", { name: item.Name })}
-                className={styles.audioDownloadButton}
-                disabled={audioPending || !primaryAudioURL}
-                icon={<IconDownloadFine />}
-                onClick={onDownloadAudio}
-                size="mini"
-                type="outline"
-              />
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                <Button
+                  aria-label={t("下载音频：{name}", { name: item.Name })}
+                  className={styles.audioDownloadButton}
+                  disabled={audioPending || !primaryAudioURL}
+                  onClick={onDownloadAudio}
+                  size="xs"
+                  variant="outline"
+                >
+                  <IconDownloadFine />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side={"top"}>{t("下载")}</TooltipContent>
             </Tooltip>
           ) : null}
           {!isOfficial ? (
@@ -216,8 +239,8 @@ export function ResourceCard({
               displayNum={0}
               menuButtonProps={{
                 icon: <IconMoreVertical1 />,
-                size: "mini",
-                type: "outline",
+                size: "icon-xs",
+                variant: "outline",
               }}
               operations={[
                 ...(isAudio
@@ -240,7 +263,7 @@ export function ResourceCard({
                 },
               ]}
               spaceSize={8}
-              buttonProps={{ size: "mini" }}
+              buttonProps={{ size: "xs" }}
             />
           ) : null}
         </div>

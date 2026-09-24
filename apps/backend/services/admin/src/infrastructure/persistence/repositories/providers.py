@@ -4,11 +4,19 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from infrastructure.persistence.models.provider import PROVIDER_KIND_CHAT, ModelProviderRow
+
+
+async def lock_default_selection(session: AsyncSession, workspace_id: str, tenant_id: str) -> None:
+    """Serialize default-provider mutations for one tenant/workspace."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"model-provider-default:{tenant_id}:{workspace_id}"},
+    )
 
 
 async def list_providers(session: AsyncSession, workspace_id: str, tenant_id: str) -> list[ModelProviderRow]:

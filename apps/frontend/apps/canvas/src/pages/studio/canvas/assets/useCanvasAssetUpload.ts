@@ -1,6 +1,6 @@
+import { toast } from "@repo/design-system";
 import { useCallback } from "react";
 
-import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import type { UploadBlobResult } from "@/hooks/uploads";
 import useSilentUploadBlob from "@/hooks/useSilentUploadBlob";
@@ -56,7 +56,10 @@ export function useCanvasAssetUpload({
           });
         }
       } catch {
-        Message.error(t("上传素材失败，请重试"));
+        toast.add({
+          type: "error",
+          title: t("上传素材失败，请重试"),
+        });
       }
     },
     [createNode, uploadBlob],

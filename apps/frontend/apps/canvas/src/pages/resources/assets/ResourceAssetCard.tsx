@@ -1,3 +1,4 @@
+import { Button, Checkbox, Input, Tooltip, TooltipContent, TooltipTrigger } from "@repo/design-system";
 import {
   ShieldCheck as IconComplianceLine,
   ShieldCheck as IconCompliancePlanarity,
@@ -16,7 +17,6 @@ import {
   renderAssetReviewTooltipContent,
   reviewStatusText,
 } from "@/components/promptEditor/plugins/assetMention/ReviewStatus";
-import { Checkbox, Tooltip } from "@/components/ui";
 import { asset, resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
@@ -98,21 +98,25 @@ function ResourceAssetReviewStatus({ file }: { file: resource.ResourceAsset }) {
   if (!review) return null;
 
   return (
-    <Tooltip
-      content={renderAssetReviewTooltipContent({
-        review,
-        reviews: file.Reviews,
-      })}
-      position="top"
-    >
-      <span
-        aria-label={t("审核状态：{status}", {
-          status: reviewStatusText(review),
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            aria-label={t("审核状态：{status}", {
+              status: reviewStatusText(review),
+            })}
+            className={`${styles.reviewStatus} inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[16px]`}
+          >
+            <IconCompliancePlanarity aria-hidden size={16} strokeWidth={1.5} />
+          </span>
+        }
+      />
+      <TooltipContent side="top">
+        {renderAssetReviewTooltipContent({
+          review,
+          reviews: file.Reviews,
         })}
-        className={`${styles.reviewStatus} inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[16px]`}
-      >
-        <IconCompliancePlanarity aria-hidden size={16} strokeWidth={1.5} />
-      </span>
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -151,44 +155,39 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
         selected ? "border-primary" : "border-[transparent] hover:border-muted-foreground"
       }`}
       key={file.ResourceAssetID}
-      onClick={(event) => {
-        if (
-          batchSelecting ||
-          busy ||
-          file.MediaType !== asset.AssetMediaType.IMAGE ||
-          (event.target instanceof Element && event.target.closest('button, input, [role="button"]'))
-        )
-          return;
-        openMaterialEditor(file);
-      }}
     >
+      {!batchSelecting && file.MediaType === asset.AssetMediaType.IMAGE ? (
+        <Button
+          aria-label={t("编辑{materialName}：{fileName}", { materialName, fileName: file.Name })}
+          className="absolute inset-0 z-10 h-auto w-auto rounded-[16px] p-0 shadow-none"
+          disabled={busy}
+          onClick={() => openMaterialEditor(file)}
+          variant="ghost"
+        />
+      ) : null}
       {batchSelecting ? (
         <>
-          <div
-            aria-disabled={selectionDisabled}
+          <Button
             aria-label={t("{selected}{materialName}：{fileName}", {
               selected: selected ? t("取消选择") : t("选择"),
               materialName,
               fileName: file.Name,
             })}
             className={`absolute inset-0 z-30 ${selectionDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+            disabled={selectionDisabled}
             onClick={() => {
-              if (!selectionDisabled) toggleFile(file.ResourceAssetID);
-            }}
-            onKeyDown={(event) => {
-              if (selectionDisabled || (event.key !== "Enter" && event.key !== " ")) return;
-              event.preventDefault();
               toggleFile(file.ResourceAssetID);
             }}
-            role="button"
-            tabIndex={selectionDisabled ? -1 : 0}
+            type="button"
+            variant="ghost"
           />
           <span className={styles.cardSelector}>
             <Checkbox
+              aria-hidden="true"
               checked={selected}
-              className={styles.cardSelectorCheckbox}
+              className={`${styles.cardSelectorCheckbox} pointer-events-none`}
               disabled={selectionDisabled}
-              onChange={() => toggleFile(file.ResourceAssetID)}
+              tabIndex={-1}
             />
           </span>
         </>
@@ -221,7 +220,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               <div className={styles.cardTopMeta}>
                 {file.IsPrimary ? (
                   <span
-                    className={`${styles.primaryTag} inline-flex h-6 items-center rounded-[8px] bg-[#c6e4ff] px-2 text-[13px] font-medium leading-5.5 text-[#031a79]`}
+                    className={`${styles.primaryTag} inline-flex h-6 items-center rounded-lg bg-primary/10 px-2 text-[13px] font-medium leading-5.5 text-primary`}
                   >
                     {t("主{materialName}", { materialName })}
                   </span>
@@ -231,32 +230,35 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
                 !file.IsPrimary &&
                 Boolean(file.CurrentAssetID) &&
                 file.MediaType === asset.AssetMediaType.IMAGE ? (
-                  <Tooltip
-                    content={t("设为主{materialName}", {
-                      materialName,
-                    })}
-                    position="top"
-                  >
-                    <span
-                      aria-disabled={busy || generating}
-                      aria-label={t("设为主{materialName}：{fileName}", {
+                  <Tooltip>
+                    <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                      <Button
+                        aria-disabled={busy || generating}
+                        aria-label={t("设为主{materialName}：{fileName}", {
+                          materialName,
+                          fileName: file.Name,
+                        })}
+                        className={styles.setPrimaryButton}
+                        onClick={() => {
+                          if (!busy && !generating) setAsPrimary(file);
+                        }}
+                        onKeyDown={(event) => {
+                          if (busy || generating || (event.key !== "Enter" && event.key !== " ")) return;
+                          event.preventDefault();
+                          setAsPrimary(file);
+                        }}
+                        type="button"
+                        variant="ghost"
+                        tabIndex={busy || generating ? -1 : 0}
+                      >
+                        {t("主{materialName}", { materialName })}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side={"top"}>
+                      {t("设为主{materialName}", {
                         materialName,
-                        fileName: file.Name,
                       })}
-                      className={styles.setPrimaryButton}
-                      onClick={() => {
-                        if (!busy && !generating) setAsPrimary(file);
-                      }}
-                      onKeyDown={(event) => {
-                        if (busy || generating || (event.key !== "Enter" && event.key !== " ")) return;
-                        event.preventDefault();
-                        setAsPrimary(file);
-                      }}
-                      role="button"
-                      tabIndex={busy || generating ? -1 : 0}
-                    >
-                      {t("主{materialName}", { materialName })}
-                    </span>
+                    </TooltipContent>
                   </Tooltip>
                 ) : null}
                 <ResourceAssetReviewStatus file={file} />
@@ -272,7 +274,8 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               heights={playing ? audioSpectrum.heights : undefined}
               playing={playing}
             />
-            <button
+            <Button
+              variant="ghost"
               aria-label={t("{action}音频：{name}", {
                 action: playing ? t("暂停") : t("播放"),
                 name: file.Name,
@@ -283,73 +286,85 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               type="button"
             >
               {playing ? <IconPause /> : <IconPlay />}
-            </button>
+            </Button>
           </div>
         ) : null}
         {!batchSelecting && file.MediaType === asset.AssetMediaType.IMAGE ? (
           <>
             <div className="absolute right-1 top-1 z-20 flex flex-col gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              <Tooltip content={t("编辑")} position="left">
-                <button
-                  aria-label={t("编辑{materialName}：{fileName}", {
-                    materialName,
-                    fileName: file.Name,
-                  })}
-                  className={styles.materialActionButton}
-                  disabled={busy}
-                  onClick={() => openMaterialEditor(file)}
-                  style={MATERIAL_ACTION_BUTTON_STYLE}
-                  type="button"
-                >
-                  <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconEdit aria-hidden className="text-white" size={16} strokeWidth={1.5} />
-                  </span>
-                </button>
-              </Tooltip>
-              {!isOfficial && file.CurrentAssetID ? (
-                <Tooltip content={t("合规审核")} position="left">
-                  <button
-                    aria-label={t("合规审核{materialName}：{fileName}", {
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                  <Button
+                    variant="ghost"
+                    aria-label={t("编辑{materialName}：{fileName}", {
                       materialName,
                       fileName: file.Name,
                     })}
                     className={styles.materialActionButton}
-                    disabled={busy || generating}
-                    onClick={() => openReview(file)}
+                    disabled={busy}
+                    onClick={() => openMaterialEditor(file)}
                     style={MATERIAL_ACTION_BUTTON_STYLE}
                     type="button"
                   >
                     <span style={MATERIAL_ACTION_ICON_STYLE}>
-                      <IconComplianceLine
-                        aria-hidden
-                        className="text-white"
-                        size={16}
-                        strokeWidth={1.5}
-                        style={{
-                          transform: "translateY(0.5px)",
-                        }}
-                      />
+                      <IconEdit aria-hidden className="text-white" size={16} strokeWidth={1.5} />
                     </span>
-                  </button>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={"left"}>{t("编辑")}</TooltipContent>
+              </Tooltip>
+              {!isOfficial && file.CurrentAssetID ? (
+                <Tooltip>
+                  <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                    <Button
+                      variant="ghost"
+                      aria-label={t("合规审核{materialName}：{fileName}", {
+                        materialName,
+                        fileName: file.Name,
+                      })}
+                      className={styles.materialActionButton}
+                      disabled={busy || generating}
+                      onClick={() => openReview(file)}
+                      style={MATERIAL_ACTION_BUTTON_STYLE}
+                      type="button"
+                    >
+                      <span style={MATERIAL_ACTION_ICON_STYLE}>
+                        <IconComplianceLine
+                          aria-hidden
+                          className="text-white"
+                          size={16}
+                          strokeWidth={1.5}
+                          style={{
+                            transform: "translateY(0.5px)",
+                          }}
+                        />
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side={"left"}>{t("合规审核")}</TooltipContent>
                 </Tooltip>
               ) : null}
               {!isOfficial ? (
-                <Tooltip content={t("删除")} position="left">
-                  <button
-                    aria-label={t("删除{materialName}：{fileName}", {
-                      materialName,
-                      fileName: file.Name,
-                    })}
-                    className={styles.materialActionButton}
-                    disabled={busy || generating}
-                    onClick={() => confirmRemove(file)}
-                    style={MATERIAL_ACTION_BUTTON_STYLE}
-                    type="button"
-                  >
-                    <span style={MATERIAL_ACTION_ICON_STYLE}>
-                      <IconDeleteLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
-                    </span>
-                  </button>
+                <Tooltip>
+                  <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                    <Button
+                      variant="ghost"
+                      aria-label={t("删除{materialName}：{fileName}", {
+                        materialName,
+                        fileName: file.Name,
+                      })}
+                      className={styles.materialActionButton}
+                      disabled={busy || generating}
+                      onClick={() => confirmRemove(file)}
+                      style={MATERIAL_ACTION_BUTTON_STYLE}
+                      type="button"
+                    >
+                      <span style={MATERIAL_ACTION_ICON_STYLE}>
+                        <IconDeleteLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side={"left"}>{t("删除")}</TooltipContent>
                 </Tooltip>
               ) : null}
             </div>
@@ -358,59 +373,71 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
         {!batchSelecting && isAudio ? (
           <div className="absolute right-1 top-1 z-20 flex flex-col gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             {file.PreviewURL ? (
-              <Tooltip content={t("下载")} position="left">
-                <button
-                  aria-label={t("下载音频：{fileName}", {
-                    fileName: file.Name,
-                  })}
-                  className={styles.materialActionButton}
-                  disabled={busy || generating}
-                  onClick={() => downloadAsset(file)}
-                  style={MATERIAL_ACTION_BUTTON_STYLE}
-                  type="button"
-                >
-                  <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconDownloadFine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
-                  </span>
-                </button>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                  <Button
+                    variant="ghost"
+                    aria-label={t("下载音频：{fileName}", {
+                      fileName: file.Name,
+                    })}
+                    className={styles.materialActionButton}
+                    disabled={busy || generating}
+                    onClick={() => downloadAsset(file)}
+                    style={MATERIAL_ACTION_BUTTON_STYLE}
+                    type="button"
+                  >
+                    <span style={MATERIAL_ACTION_ICON_STYLE}>
+                      <IconDownloadFine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={"left"}>{t("下载")}</TooltipContent>
               </Tooltip>
             ) : null}
             {!isOfficial && file.CurrentAssetID ? (
-              <Tooltip content={t("合规审核")} position="left">
-                <button
-                  aria-label={t("合规审核{materialName}：{fileName}", {
-                    materialName,
-                    fileName: file.Name,
-                  })}
-                  className={styles.materialActionButton}
-                  disabled={busy}
-                  onClick={() => openReview(file)}
-                  style={MATERIAL_ACTION_BUTTON_STYLE}
-                  type="button"
-                >
-                  <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconComplianceLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
-                  </span>
-                </button>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                  <Button
+                    variant="ghost"
+                    aria-label={t("合规审核{materialName}：{fileName}", {
+                      materialName,
+                      fileName: file.Name,
+                    })}
+                    className={styles.materialActionButton}
+                    disabled={busy}
+                    onClick={() => openReview(file)}
+                    style={MATERIAL_ACTION_BUTTON_STYLE}
+                    type="button"
+                  >
+                    <span style={MATERIAL_ACTION_ICON_STYLE}>
+                      <IconComplianceLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={"left"}>{t("合规审核")}</TooltipContent>
               </Tooltip>
             ) : null}
             {!isOfficial ? (
-              <Tooltip content={t("删除")} position="left">
-                <button
-                  aria-label={t("删除{materialName}：{fileName}", {
-                    materialName,
-                    fileName: file.Name,
-                  })}
-                  className={styles.materialActionButton}
-                  disabled={busy}
-                  onClick={() => confirmRemove(file)}
-                  style={MATERIAL_ACTION_BUTTON_STYLE}
-                  type="button"
-                >
-                  <span style={MATERIAL_ACTION_ICON_STYLE}>
-                    <IconDeleteLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
-                  </span>
-                </button>
+              <Tooltip>
+                <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                  <Button
+                    variant="ghost"
+                    aria-label={t("删除{materialName}：{fileName}", {
+                      materialName,
+                      fileName: file.Name,
+                    })}
+                    className={styles.materialActionButton}
+                    disabled={busy}
+                    onClick={() => confirmRemove(file)}
+                    style={MATERIAL_ACTION_BUTTON_STYLE}
+                    type="button"
+                  >
+                    <span style={MATERIAL_ACTION_ICON_STYLE}>
+                      <IconDeleteLine aria-hidden className="text-white" size={16} strokeWidth={1.5} />
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={"left"}>{t("删除")}</TooltipContent>
               </Tooltip>
             ) : null}
           </div>
@@ -421,12 +448,11 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
           <EllipsisText
             popoverProps={{ position: "top" }}
             className="w-full text-[16px] font-medium leading-6 text-foreground"
-            useCursorPointer={false}
           >
             {file.Name}
           </EllipsisText>
         ) : renaming ? (
-          <input
+          <Input
             aria-label={t("重命名{materialName}：{fileName}", {
               materialName,
               fileName: file.Name,
@@ -465,7 +491,7 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
             role="button"
             tabIndex={0}
           >
-            <EllipsisText popoverProps={{ position: "top" }} className="w-full" useCursorPointer={false}>
+            <EllipsisText popoverProps={{ position: "top" }} className="w-full">
               {file.Name}
             </EllipsisText>
           </div>

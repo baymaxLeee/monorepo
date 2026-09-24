@@ -16,7 +16,7 @@
   - `GET /internal/providers/default?user_id=<uid>` —— 取用户默认 provider 快照
   - `GET /internal/providers/{id}?user_id=<uid>` —— 取指定 provider 快照
   - `GET /internal/skills/{id}?org_id=<org>` —— 读取已发布 `SKILL.md`
-  - 鉴权：`X-Internal-Token: <INTERNAL_API_TOKEN>`（constant-time 校验）
+  - 鉴权：`X-Caller-Service` + 对应的 `X-Internal-Token`（constant-time 校验）
 
 ## 域所有权
 
@@ -47,7 +47,7 @@
 | 配置项 | 用途 | 生成方式 |
 |---|---|---|
 | `ADMIN_SECRET_KEY` | Fernet 密钥；加密 `model_providers.api_key_enc` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `INTERNAL_API_TOKEN` | sibling 服务（chat 等）调 `/internal/*` 的共享密钥 | 任意 ≥32 字节高熵字符串 |
+| `INTERNAL_SERVICE_TOKENS` | sibling caller 到独立凭据的 JSON 映射 | 每项使用不同的 ≥32 字节高熵字符串 |
 
 `ENVIRONMENT=production` 时 `_enforce_production_safety` 验证拒绝两者的
 dev fallback 值，避免线上误用样本密钥。**轮换 `ADMIN_SECRET_KEY` 会让所有

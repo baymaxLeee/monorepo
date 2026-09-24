@@ -72,7 +72,7 @@ func (r *Repository) List(ctx context.Context, scope applicationcanvas.Scope, pr
 	err = scopeQuery(r.dbFor(ctx), scope).Where(
 		"project_id = ? AND canvas_id = ? AND node_id = ? AND created_by = ?",
 		project, canvas, node, scope.CallerID,
-	).Order("created_at DESC").Order("task_run_id DESC").Find(&rows).Error
+	).Order("created_at DESC").Order("task_run_id DESC").Limit(100).Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}

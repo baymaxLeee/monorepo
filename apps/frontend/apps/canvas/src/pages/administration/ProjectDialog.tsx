@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { canvasUpdateProject, listWorkspaceMembers, type WorkspaceMemberView } from "@repo/api";
 import {
   Button as DialogButton,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -13,6 +14,11 @@ import {
   FieldError,
   FieldLegend,
   FieldSet,
+  Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  toast,
 } from "@repo/design-system";
 import { usePlatformStore } from "@repo/runtime";
 import { Image as ImageIcon, Info, Search, UserRound } from "lucide-react";
@@ -21,7 +27,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { createProjectWithUsage, updateProjectWithUsage } from "@/api";
-import { Checkbox, Input, InputNumber, Message, Spin } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import t from "@/utils/i18n";
 
 import { ProjectCoverUploader } from "./ProjectCover";
@@ -116,7 +122,11 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
         if (active) setDirectory(items);
       })
       .catch(() => {
-        if (active) Message.error(t("项目成员加载失败，请重试"));
+        if (active)
+          toast.add({
+            type: "error",
+            title: t("项目成员加载失败，请重试"),
+          });
       })
       .finally(() => {
         if (active) setMembersLoading(false);
@@ -213,7 +223,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                     aria-invalid={fieldState.invalid}
                     disabled={memberOnlyEdit}
                     maxLength={20}
-                    onChange={field.onChange}
+                    onChange={(event) => field.onChange(event.currentTarget.value)}
                     placeholder={t("请输入")}
                     value={field.value}
                   />
@@ -231,35 +241,39 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                     <FieldLegend variant="label">
                       {t("项目成员")} <span className="text-destructive">*</span>
                     </FieldLegend>
-                    <Input
-                      aria-label={t("搜索项目成员")}
-                      allowClear
-                      onChange={setMemberQuery}
-                      placeholder={t("请输入用户姓名或账号搜索")}
-                      prefix={<Search className="size-4" />}
-                      value={memberQuery}
-                    />
+                    <InputGroup>
+                      <InputGroupAddon>
+                        <Search aria-hidden="true" />
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        aria-label={t("搜索项目成员")}
+                        onChange={(event) => setMemberQuery(event.currentTarget.value)}
+                        placeholder={t("请输入用户姓名或账号搜索")}
+                        type="search"
+                        value={memberQuery}
+                      />
+                    </InputGroup>
                     <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-2">
                       {membersLoading ? (
                         <div className="flex h-20 items-center justify-center">
-                          <Spin />
+                          <LoadingIndicator />
                         </div>
                       ) : visibleMembers.length ? (
                         visibleMembers.map((member) => (
-                          <Checkbox
-                            name={field.name}
-                            value={member.userId}
-                            aria-invalid={fieldState.invalid}
-                            checked={field.value.includes(member.userId)}
-                            key={member.userId}
-                            onChange={(checked) =>
-                              field.onChange(
-                                checked
-                                  ? [...new Set([...field.value, member.userId])]
-                                  : field.value.filter((id) => id !== member.userId),
-                              )
-                            }
-                          >
+                          <FieldLabel key={member.userId}>
+                            <Checkbox
+                              name={field.name}
+                              value={member.userId}
+                              aria-invalid={fieldState.invalid}
+                              checked={field.value.includes(member.userId)}
+                              onCheckedChange={(checked) =>
+                                field.onChange(
+                                  checked
+                                    ? [...new Set([...field.value, member.userId])]
+                                    : field.value.filter((id) => id !== member.userId),
+                                )
+                              }
+                            />
                             <span className="flex min-w-0 items-center gap-2 py-1">
                               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
                                 <UserRound className="size-4" />
@@ -271,7 +285,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                                 </span>
                               </span>
                             </span>
-                          </Checkbox>
+                          </FieldLabel>
                         ))
                       ) : (
                         <div className="py-6 text-center text-sm text-muted-foreground">{t("暂无匹配成员")}</div>
@@ -291,16 +305,25 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel htmlFor={field.name}>{t("项目用量限额")}</FieldLabel>
                     <div className={styles.usageLimitField}>
-                      <InputNumber
-                        id={field.name}
-                        aria-invalid={fieldState.invalid}
-                        max={PROJECT_USAGE_LIMIT_MAX}
-                        min={1}
-                        onChange={field.onChange}
-                        placeholder={t("请输入正整数，为空则无上限")}
-                        step={1}
-                        value={field.value}
-                      />
+                      <InputGroup>
+                        <InputGroupInput
+                          id={field.name}
+                          aria-invalid={fieldState.invalid}
+                          max={PROJECT_USAGE_LIMIT_MAX}
+                          min={1}
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.isNaN(event.currentTarget.valueAsNumber)
+                                ? undefined
+                                : event.currentTarget.valueAsNumber,
+                            )
+                          }
+                          placeholder={t("请输入正整数，为空则无上限")}
+                          step={1}
+                          value={field.value}
+                          type="number"
+                        />
+                      </InputGroup>
                       <div className={styles.usageAmountInfo}>
                         {t("当前项目已用金额：")}
                         {usedAmount.toFixed(2)}

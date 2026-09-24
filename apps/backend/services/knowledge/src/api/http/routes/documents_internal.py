@@ -22,7 +22,9 @@ from application.contracts.document import (
 from application.conversation_cleanup import ConversationDeletedError, assert_conversation_accepts_artifacts
 from application.documents import document_to_schema
 from application.image_variant import get_or_build_vision_variant
+from application.indexer import index_document_by_id
 from application.object_store import ObjectStore
+from application.processor import convert_document
 from bootstrap.config import get_settings
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
@@ -32,11 +34,38 @@ from infrastructure.persistence.models.staged_media import StagedMediaRow
 from infrastructure.persistence.repositories import documents as document_crud
 from infrastructure.persistence.repositories import staged_media as staged_media_crud
 from kernel.errors import ConflictError, NotFoundError, RequestError
+from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
-from api.http.dependencies import DbSession, require_internal_token
+from api.http.dependencies import DbSession, require_executor_caller, require_internal_token
 
 router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[Depends(require_internal_token)])
+
+
+class DocumentProcessResult(BaseModel):
+    state: str
+
+
+class ProcessDocumentInput(BaseModel):
+    provider_id: str | None = None
+
+
+@router.post(
+    "/documents/{document_id}/process",
+    response_model=DocumentProcessResult,
+    dependencies=[Depends(require_executor_caller)],
+)
+async def process_document(document_id: str, payload: ProcessDocumentInput) -> DocumentProcessResult:
+    return DocumentProcessResult(state=await convert_document(document_id, provider_id=payload.provider_id))
+
+
+@router.post(
+    "/documents/{document_id}/index",
+    response_model=DocumentProcessResult,
+    dependencies=[Depends(require_executor_caller)],
+)
+async def index_document(document_id: str) -> DocumentProcessResult:
+    return DocumentProcessResult(state=await index_document_by_id(document_id))
 
 
 def staged_media_to_schema(row: StagedMediaRow) -> StagedMedia:

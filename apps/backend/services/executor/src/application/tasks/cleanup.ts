@@ -1,15 +1,22 @@
 import { and, eq } from "drizzle-orm";
 import { getRun } from "workflow/api";
 
-import { getDb } from "../../infrastructure/persistence/index.js";
+import { getDb, getSql } from "../../infrastructure/persistence/index.js";
 import { tasks } from "../../infrastructure/persistence/schema.js";
 import { getTaskType } from "./registry.js";
 
-const active = new Set<string>();
+function cleanupLockKey(id: string): string {
+  return BigInt.asIntN(64, BigInt(`0x${id.slice(0, 16)}`)).toString();
+}
+
 export async function cleanupCancelledTask(id: string): Promise<void> {
-  if (active.has(id)) return;
-  active.add(id);
+  const connection = await getSql().reserve();
   try {
+    const result = await connection.unsafe<{ locked: boolean }[]>("SELECT pg_try_advisory_lock($1::bigint) AS locked", [
+      cleanupLockKey(id),
+    ]);
+    const locked = result[0]?.locked ?? false;
+    if (!locked) return;
     const [row] = await getDb()
       .select()
       .from(tasks)
@@ -31,7 +38,8 @@ export async function cleanupCancelledTask(id: string): Promise<void> {
       .set({ cleanupPending: false })
       .where(and(eq(tasks.id, id), eq(tasks.updatedAt, row.updatedAt)));
   } finally {
-    active.delete(id);
+    await connection.unsafe("SELECT pg_advisory_unlock($1::bigint)", [cleanupLockKey(id)]);
+    connection.release();
   }
 }
 export async function reconcileTaskCleanup(): Promise<void> {

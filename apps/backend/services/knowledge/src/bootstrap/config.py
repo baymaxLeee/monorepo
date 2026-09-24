@@ -4,12 +4,17 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import computed_field, model_validator
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "single-vps", "production"]
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin", "workflow", "postgres", "knowledge"})
-_DEV_INTERNAL_API_TOKEN = "dev-internal-token"
+_DEV_INTERNAL_SERVICE_TOKENS = {
+    "canvas": "dev-canvas-internal-token",
+    "chat": "dev-chat-internal-token",
+    "executor": "dev-executor-internal-token",
+}
+_DEV_CALLER_TOKEN = "dev-knowledge-internal-token"
 
 
 class Settings(BaseSettings):
@@ -29,7 +34,9 @@ class Settings(BaseSettings):
     redis_db: int = 3
 
     admin_service_url: str = "http://localhost:8001"
-    internal_api_token: str = _DEV_INTERNAL_API_TOKEN
+    executor_service_url: str = "http://localhost:8011"
+    internal_api_token: str = _DEV_CALLER_TOKEN
+    internal_service_tokens: dict[str, str] = Field(default_factory=lambda: dict(_DEV_INTERNAL_SERVICE_TOKENS))
 
     knowledge_data_dir: str = "./data/objects"
     max_object_bytes: int = 10 * 1024 * 1024
@@ -37,8 +44,12 @@ class Settings(BaseSettings):
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
     attachment_markdown_max_chars: int = 12_000
     attachment_vision_max_tokens: int = 1024
-    ingest_max_parallel: int = 3
-    index_max_parallel: int = 2
+    ingest_max_parallel: int = Field(default=3, ge=1, le=32)
+    ingest_max_files: int = Field(default=20, ge=1, le=100)
+    ingest_max_batch_bytes: int = Field(default=30 * 1024 * 1024, gt=0)
+    executor_dispatch_interval_seconds: float = 5.0
+    executor_dispatch_max_parallel: int = Field(default=16, ge=1, le=100)
+    executor_redispatch_after_seconds: float = Field(default=60.0, ge=5.0, le=3600.0)
     llm_timeout_seconds: float = 60.0
     default_bucket: str = "knowledge"
 
@@ -72,17 +83,28 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:
-        if self.environment != "production":
-            return self
         missing: list[str] = []
-        if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
-            missing.append("POSTGRES_PASSWORD")
-        if self.internal_api_token == _DEV_INTERNAL_API_TOKEN:
-            missing.append("INTERNAL_API_TOKEN")
-        if self.redis_host in {"localhost", "127.0.0.1"}:
-            missing.append("REDIS_HOST")
+        if self.ingest_max_batch_bytes < self.attachment_max_upload_bytes:
+            raise ValueError("INGEST_MAX_BATCH_BYTES must be at least ATTACHMENT_MAX_UPLOAD_BYTES")
+        if self.environment != "development":
+            if len(self.internal_api_token) < 32 or self.internal_api_token.startswith("dev-"):
+                missing.append("INTERNAL_API_TOKEN")
+            tokens = self.internal_service_tokens
+            if (
+                set(tokens) != set(_DEV_INTERNAL_SERVICE_TOKENS)
+                or any(len(token) < 32 or token.startswith("dev-") for token in tokens.values())
+                or len(set(tokens.values())) != len(tokens)
+            ):
+                missing.append("INTERNAL_SERVICE_TOKENS")
+        if self.environment != "development":
+            if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
+                missing.append("POSTGRES_PASSWORD")
+            if self.postgres_host in {"localhost", "127.0.0.1"}:
+                missing.append("POSTGRES_HOST")
+            if self.redis_host in {"localhost", "127.0.0.1"}:
+                missing.append("REDIS_HOST")
         if missing:
-            raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
+            raise ValueError("deployed environment requires explicit values for: " + ", ".join(missing))
         return self
 
 

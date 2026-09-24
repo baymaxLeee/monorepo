@@ -198,7 +198,7 @@ function PendingPage() {
                   value={selectedWorkspace}
                   onValueChange={(value) => value !== null && setSelectedWorkspace(value)}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger aria-label="申请加入的工作空间" className="w-full">
                     <SelectValue placeholder="选择工作空间" />
                   </SelectTrigger>
                   <SelectContent>

@@ -14,6 +14,7 @@ import {
   InputGroup,
   InputGroupInput,
   InputGroupText,
+  Textarea,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -31,7 +32,6 @@ import {
   getVideoModelParamConfigByOption,
   sanitizeGenerationSettings,
 } from "@/components/GenerationConfiguration/videoModelConfig";
-import { Input } from "@/components/ui";
 import { HIDDEN_SCROLLBAR_CLASS, HIDDEN_SCROLLBAR_STYLE } from "@/hooks/useHorizontalScrollFade";
 import t from "@/utils/i18n";
 
@@ -373,10 +373,11 @@ export function ScriptDesignDialog({
             <div className={styles.scriptColumn}>
               <p className={styles.instruction}>{SCRIPT_INSTRUCTION}</p>
               <div className={`min-h-0 flex-1 ${styles.plotInput}`}>
-                <Input.TextArea
+                <Textarea
+                  aria-label={t("剧本内容")}
                   className={HIDDEN_SCROLLBAR_CLASS}
                   maxLength={STORYBOARD_HARD_PLOT_CHARACTERS}
-                  onChange={setPlot}
+                  onChange={(event) => setPlot(event.currentTarget.value)}
                   placeholder={SCRIPT_PLACEHOLDER}
                   style={{
                     resize: "none",
@@ -384,7 +385,6 @@ export function ScriptDesignDialog({
                     overflowY: "auto",
                     ...HIDDEN_SCROLLBAR_STYLE,
                   }}
-                  wrapperStyle={{ display: "block", height: "100%" }}
                   value={plot}
                 />
               </div>

@@ -1,17 +1,21 @@
 import {
   Button as DialogButton,
+  Checkbox,
+  FieldLabel,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  toast,
+  Button,
 } from "@repo/design-system";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { batchSubmitAssetReviews, listAvailableBenefitPackages } from "@/api/assetReviews";
-import { Button, Checkbox, Message, Spin } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import type { asset, benefit_package } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -114,22 +118,31 @@ export function AssetReviewDialog({
       const failedCount = results.length - succeeded.length;
 
       if (failedCount) {
-        Message.error(
-          failedCount === results.length
-            ? t("送审失败，请重试")
-            : t("部分送审失败（{failedCount}/{totalCount}）", {
-                failedCount,
-                totalCount: results.length,
-              }),
-        );
+        toast.add({
+          type: "error",
+
+          title:
+            failedCount === results.length
+              ? t("送审失败，请重试")
+              : t("部分送审失败（{failedCount}/{totalCount}）", {
+                  failedCount,
+                  totalCount: results.length,
+                }),
+        });
         if (succeeded.length) await onPartialSuccess?.(succeeded);
         return;
       }
 
-      Message.success(t("送审提交成功"));
+      toast.add({
+        type: "success",
+        title: t("送审提交成功"),
+      });
       await onSuccess(succeeded);
     } catch {
-      Message.error(t("送审失败，请重试"));
+      toast.add({
+        type: "error",
+        title: t("送审失败，请重试"),
+      });
     } finally {
       setSubmitting(false);
     }
@@ -159,13 +172,13 @@ export function AssetReviewDialog({
         <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">
           {loading || packagesLoading ? (
             <div className="text-center">
-              <Spin />
+              <LoadingIndicator />
             </div>
           ) : loadError ? (
             <div>
               <div>{t("送审信息加载失败")}</div>
               <div className="text-foreground">{loadError}</div>
-              <Button onClick={handleRetry} size="small" type="text">
+              <Button onClick={handleRetry} size="sm" variant="ghost">
                 {t("重新加载")}
               </Button>
             </div>
@@ -182,17 +195,17 @@ export function AssetReviewDialog({
                 <span>{t("素材提交至：")}</span>
                 <div className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border p-3">
                   {packages.map((option) => (
-                    <Checkbox
-                      checked={selectedPackageIds.includes(option.PackageID)}
-                      key={option.PackageID}
-                      onChange={(checked) =>
-                        setSelectedPackageIds((current) =>
-                          checked ? [...current, option.PackageID] : current.filter((id) => id !== option.PackageID),
-                        )
-                      }
-                    >
+                    <FieldLabel key={option.PackageID}>
+                      <Checkbox
+                        checked={selectedPackageIds.includes(option.PackageID)}
+                        onCheckedChange={(checked) =>
+                          setSelectedPackageIds((current) =>
+                            checked ? [...current, option.PackageID] : current.filter((id) => id !== option.PackageID),
+                          )
+                        }
+                      />
                       {option.IsPreset ? t("预置权益包") : option.Name}
-                    </Checkbox>
+                    </FieldLabel>
                   ))}
                 </div>
               </div>

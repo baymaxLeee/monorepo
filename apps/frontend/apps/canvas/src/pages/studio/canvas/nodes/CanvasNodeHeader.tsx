@@ -1,8 +1,8 @@
+import { Input, toast, Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import { Music as IconMusic } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AssetReviewMark } from "@/components/promptEditor/plugins/assetMention/ReviewStatus";
-import { Input, Message, Tooltip } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -41,7 +41,10 @@ export function CanvasNodeName({
     }
     const validationMessage = validateCanvasNodeName(value);
     if (validationMessage) {
-      Message.error(validationMessage);
+      toast.add({
+        type: "error",
+        title: validationMessage,
+      });
       setValue(item.Name);
       setEditing(false);
       return;
@@ -64,18 +67,20 @@ export function CanvasNodeName({
 
   if (isDeletedReferenceNode(item) || item.Type === canvasnode.CanvasNodeType.STORYBOARD_DRAFT) {
     return (
-      <Tooltip content={item.Name} position="top">
-        <span className={styles.nodeTitle}>{item.Name}</span>
+      <Tooltip>
+        <TooltipTrigger render={<span className={styles.nodeTitle}>{item.Name}</span>} />
+        <TooltipContent side={"top"}>{item.Name}</TooltipContent>
       </Tooltip>
     );
   }
   if (editing) {
     return (
       <Input
+        aria-label={t("节点名称")}
         autoFocus
         className={`${styles.nodeNameInput} nodrag nopan`}
         onBlur={finish}
-        onChange={setValue}
+        onChange={(event) => setValue(event.currentTarget.value)}
         onKeyDown={(event) => {
           event.stopPropagation();
           if (event.key === "Enter") event.currentTarget.blur();
@@ -85,26 +90,31 @@ export function CanvasNodeName({
           }
         }}
         onPointerDown={(event) => event.stopPropagation()}
-        size="mini"
         value={value}
       />
     );
   }
   return (
     <div className={styles.nodeTitleGroup}>
-      <Tooltip content={item.Name} position="top">
-        <button
-          aria-label={t("编辑节点名称：{name}", { name: item.Name })}
-          className={`${styles.nodeTitle} ${styles.nodeTitleButton} nodrag nopan`}
-          onClick={(event) => {
-            event.stopPropagation();
-            setEditing(true);
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          type="button"
-        >
-          {pendingName ?? item.Name}
-        </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              aria-label={t("编辑节点名称：{name}", { name: item.Name })}
+              className={`${styles.nodeTitle} ${styles.nodeTitleButton} nodrag nopan`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setEditing(true);
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              type="button"
+            >
+              {pendingName ?? item.Name}
+            </Button>
+          }
+        />
+        <TooltipContent side={"top"}>{item.Name}</TooltipContent>
       </Tooltip>
       {reviewAsset ? <AssetReviewMark asset={reviewAsset} showDetails /> : null}
     </div>

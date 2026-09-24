@@ -63,6 +63,7 @@ services:
       - /api/knowledge-server/*
     bindings:
       - admin
+      - executor
     databases:
       - knowledge
     openapi: schemas/openapi/knowledge-server.json

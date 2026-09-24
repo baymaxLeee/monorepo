@@ -1,7 +1,17 @@
-import { Check as IconCheck, ChevronDown as IconDown } from "lucide-react";
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@repo/design-system";
+import { ChevronDown as IconDown } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 
-import { Select, Dropdown, type DropdownProps, Trigger } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -20,7 +30,13 @@ import { type GenerationSettings, VideoParametersPanel } from "./VideoParameters
 export { DEFAULT_IMAGE_GENERATION_SETTINGS, type ImageGenerationSettings } from "./ImageParametersPanel";
 export { DEFAULT_GENERATION_SETTINGS, type GenerationSettings } from "./VideoParametersPanel";
 export type { ImageGenerationCapabilities } from "./imageModelConfig";
-export type PopupPosition = DropdownProps["position"];
+export type PopupPosition = "top" | "bottom" | "left" | "right" | "tl" | "tr" | "bl" | "br";
+
+function selectPlacement(position: PopupPosition = "bottom") {
+  const side = ({ t: "top", b: "bottom", l: "left", r: "right" } as const)[position[0] as "t" | "b" | "l" | "r"];
+  const align = position.length === 2 ? ("lt".includes(position[1]) ? "start" : "end") : "center";
+  return { side, align } as const;
+}
 
 export interface GenerationModelOption {
   id: string;
@@ -120,47 +136,31 @@ function ModelSelector({
 }) {
   const selectDisabled = disabled || modelsLoading || modelOptions.length === 0;
   return (
-    <Select
-      bordered={false}
-      className={`${
-        compact ? "w-[150px] text-[11px]" : "w-[160px]"
-      } min-w-[100px] shrink-[10] rounded-[8px] bg-[rgba(26,27,30,0.05)] ${selectDisabled ? "cursor-not-allowed" : ""}`}
-      disabled={selectDisabled}
-      dropdownMenuClassName="canvas-editor-overlay"
-      dropdownRender={(menu) => (
-        <div className="p-[6px]">
-          <div className="px-3 py-1 text-[12px] leading-5 text-muted-foreground">
-            {t("建议选择与审核素材账号相同的模型")}
-          </div>
-          {menu}
-        </div>
-      )}
-      onChange={onChange}
-      placeholder={t("选择模型")}
-      renderFormat={() => modelOptions.find((item) => item.id === model)?.name || model || t("选择模型")}
-      triggerProps={{
-        autoAlignPopupMinWidth: true,
-        autoAlignPopupWidth: false,
-        ...(popupPosition ? { position: popupPosition } : {}),
-      }}
-      value={model || undefined}
-    >
-      {modelOptions.map((option) => (
-        <Select.Option key={option.id} value={option.id}>
-          <span className="flex w-full items-center justify-between gap-2">
-            <span className="min-w-0 truncate" title={option.name}>
-              {renderModelOption?.(option) ?? option.name}
+    <Select disabled={selectDisabled} onValueChange={(value) => value && onChange(value)} value={model || undefined}>
+      <SelectTrigger
+        aria-label={t("生成模型")}
+        className={`${compact ? "w-[150px] text-[11px]" : "w-[160px]"} min-w-[100px] shrink-[10] border-0 bg-muted shadow-none`}
+      >
+        <SelectValue placeholder={t("选择模型")}>
+          {modelOptions.find((item) => item.id === model)?.name || model || undefined}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        {...selectPlacement(popupPosition)}
+        alignItemWithTrigger={false}
+        className="canvas-editor-overlay w-max min-w-(--anchor-width) p-1"
+      >
+        <div className="px-2 py-1 text-xs text-muted-foreground">{t("建议选择与审核素材账号相同的模型")}</div>
+        {modelOptions.map((option) => (
+          <SelectItem key={option.id} value={option.id}>
+            <span className="flex w-full items-center justify-between gap-2">
+              <span className="min-w-0 truncate" title={option.name}>
+                {renderModelOption?.(option) ?? option.name}
+              </span>
             </span>
-            {option.id === model ? (
-              <IconCheck
-                aria-label={t("已选择")}
-                className="shrink-0 text-[16px] text-[color:oklch(0.627 0.194 149.214)]"
-                role="img"
-              />
-            ) : null}
-          </span>
-        </Select.Option>
-      ))}
+          </SelectItem>
+        ))}
+      </SelectContent>
     </Select>
   );
 }
@@ -180,22 +180,26 @@ function ModeSelector({
 }) {
   return (
     <Select
-      bordered={false}
-      className={`${compact ? "w-[96px] text-[12px]" : "w-[104px]"} shrink-0 rounded-[8px] bg-[rgba(26,27,30,0.05)] ${disabled ? "cursor-not-allowed" : ""}`}
       disabled={disabled}
-      dropdownMenuClassName="canvas-editor-overlay"
-      onChange={(raw) => {
+      onValueChange={(raw) => {
         const mode = MODES.find((item) => String(item.value) === raw);
         if (mode) onChange(mode.value);
       }}
-      triggerProps={popupPosition ? { position: popupPosition } : undefined}
       value={String(value)}
     >
-      {MODES.map((mode) => (
-        <Select.Option key={String(mode.value)} value={String(mode.value)}>
-          {mode.label}
-        </Select.Option>
-      ))}
+      <SelectTrigger
+        aria-label={t("生成模式")}
+        className={`${compact ? "w-[96px] text-xs" : "w-[104px]"} shrink-0 border-0 bg-muted shadow-none`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent {...selectPlacement(popupPosition)} alignItemWithTrigger={false} className="canvas-editor-overlay">
+        {MODES.map((mode) => (
+          <SelectItem key={String(mode.value)} value={String(mode.value)}>
+            {mode.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
     </Select>
   );
 }
@@ -234,9 +238,26 @@ function VideoParameters({
     })
     .join(" · ");
   return (
-    <Dropdown
-      disabled={disabled}
-      droplist={
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            aria-label={t("调整视频生成参数")}
+            className={`${CHIP_CLASS} min-w-[88px] shrink overflow-hidden border-0 shadow-none ${fillWidth ? "w-full" : ""} ${compact ? "gap-1 px-2 text-[11px]" : ""}`}
+            disabled={disabled}
+            variant="secondary"
+          />
+        }
+      >
+        <RatioIcon ratio={settings.ratio} />
+        <span className="min-w-0 flex-1 truncate">{summary}</span>
+        <IconDown aria-hidden="true" className="shrink-0 text-muted-foreground" data-icon="inline-end" />
+      </PopoverTrigger>
+      <PopoverContent
+        {...selectPlacement(popupPosition ?? "bl")}
+        className="canvas-editor-overlay w-auto p-0"
+        initialFocus={false}
+      >
         <div data-canvas-editor-overlay>
           <VideoParametersPanel
             key={config.modelId}
@@ -247,18 +268,8 @@ function VideoParameters({
             showRatio={showRatio}
           />
         </div>
-      }
-      position={popupPosition ?? "bl"}
-      trigger="click"
-    >
-      <span
-        className={`${CHIP_CLASS} min-w-[88px] shrink overflow-hidden ${fillWidth ? "w-full" : ""} ${compact ? "gap-1 px-2 text-[11px]" : ""} ${disabled ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer"}`}
-      >
-        <RatioIcon ratio={settings.ratio} />
-        <span className="min-w-0 flex-1 truncate">{summary}</span>
-        <IconDown className={`shrink-0 text-[12px] ${disabled ? "text-muted-foreground" : "text-muted-foreground"}`} />
-      </span>
-    </Dropdown>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -412,23 +423,17 @@ export function GenerationConfiguration(props: GenerationConfigurationProps) {
         />
       ) : null}
       {props.parameters === "image" && imageOptions ? (
-        <Trigger
-          disabled={disabled}
-          position={popupPosition}
-          popup={() => (
-            <ImageParametersPanel
-              disabledRatioOptions={imageAvailability?.disabledRatios ?? []}
-              disabledResolutionOptions={imageAvailability?.disabledResolutions ?? []}
-              onChange={emitImage}
-              ratioOptions={imageAvailability?.ratios ?? imageOptions.ratios}
-              resolutionOptions={imageAvailability?.resolutions ?? imageOptions.resolutions}
-              settings={props.imageSettings}
-              showWatermark={selectedImageModel?.capabilities.watermarkSupported === true}
-            />
-          )}
-          trigger="click"
-        >
-          <span className={`${CHIP_CLASS} ${disabled ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer"}`}>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                aria-label={t("调整图片生成参数")}
+                className={`${CHIP_CLASS} border-0 shadow-none`}
+                disabled={disabled}
+                variant="secondary"
+              />
+            }
+          >
             <RatioIcon ratio={props.imageSettings.ratio} />
             <span className="min-w-[30px] text-center">{props.imageSettings.ratio}</span>
             <Divider />
@@ -441,9 +446,24 @@ export function GenerationConfiguration(props: GenerationConfigurationProps) {
                 </span>
               </>
             ) : null}
-            <IconDown className={`text-[12px] ${disabled ? "text-muted-foreground" : "text-muted-foreground"}`} />
-          </span>
-        </Trigger>
+            <IconDown aria-hidden="true" className="text-muted-foreground" data-icon="inline-end" />
+          </PopoverTrigger>
+          <PopoverContent
+            {...selectPlacement(popupPosition)}
+            className="canvas-editor-overlay w-auto p-0"
+            initialFocus={false}
+          >
+            <ImageParametersPanel
+              disabledRatioOptions={imageAvailability?.disabledRatios ?? []}
+              disabledResolutionOptions={imageAvailability?.disabledResolutions ?? []}
+              onChange={emitImage}
+              ratioOptions={imageAvailability?.ratios ?? imageOptions.ratios}
+              resolutionOptions={imageAvailability?.resolutions ?? imageOptions.resolutions}
+              settings={props.imageSettings}
+              showWatermark={selectedImageModel?.capabilities.watermarkSupported === true}
+            />
+          </PopoverContent>
+        </Popover>
       ) : null}
       {props.parameters === "video" ? (
         <VideoParameters

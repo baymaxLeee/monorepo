@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,7 +28,24 @@ const (
 	defaultContentType              = "application/octet-stream"
 	stagingNamespace                = "canvas:blob-staging"
 	maxInlineProviderReferenceBytes = 10 * 1024 * 1024
+	maxGeneratedMediaBytes          = 512 * 1024 * 1024
 )
+
+var generatedMediaHTTPClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy:                 nil,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          32,
+		MaxIdleConnsPerHost:   4,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		DialContext:           dialPublicAddress,
+	},
+	CheckRedirect: func(request *http.Request, _ []*http.Request) error {
+		return validatePublicRemoteURL(request.URL)
+	},
+}
 
 // Service is the application artifact boundary implemented by Knowledge.
 type Service interface {
@@ -249,14 +267,14 @@ func (s *Store) PersistImage(ctx context.Context, input applicationimagegenerati
 
 func (s *Store) persistRemote(ctx context.Context, tenantID string, workspaceID *string, projectID, sourceURL string) (storage.StoredObject, string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(sourceURL))
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	if err != nil || validatePublicRemoteURL(parsed) != nil {
 		return storage.StoredObject{}, "", errors.New("generated media URL must be an absolute HTTP(S) URL")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return storage.StoredObject{}, "", err
 	}
-	response, err := http.DefaultClient.Do(request)
+	response, err := generatedMediaHTTPClient.Do(request)
 	if err != nil {
 		return storage.StoredObject{}, "", fmt.Errorf("download generated media: %w", err)
 	}
@@ -264,15 +282,79 @@ func (s *Store) persistRemote(ctx context.Context, tenantID string, workspaceID 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return storage.StoredObject{}, "", fmt.Errorf("download generated media returned status %d", response.StatusCode)
 	}
+	if response.ContentLength > maxGeneratedMediaBytes {
+		return storage.StoredObject{}, "", errors.New("generated media exceeds the 512 MiB limit")
+	}
 	namespace, err := (artifactnamespace.Scope{TenantID: tenantID, WorkspaceID: workspaceID, ProjectID: &projectID}).Namespace()
 	if err != nil {
 		return storage.StoredObject{}, "", err
 	}
-	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(namespace), response.Body)
+	limited := &io.LimitedReader{R: response.Body, N: maxGeneratedMediaBytes + 1}
+	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(namespace), limited)
 	if err != nil {
 		return storage.StoredObject{}, "", fmt.Errorf("persist generated media: %w", err)
 	}
+	if stored.Size > maxGeneratedMediaBytes || limited.N <= 0 {
+		_ = s.client.Delete(ctx, KnowledgeNamespace(namespace), stored.ArtifactID)
+		return storage.StoredObject{}, "", errors.New("generated media exceeds the 512 MiB limit")
+	}
 	return stored, namespace, nil
+}
+
+func validatePublicRemoteURL(candidate *url.URL) error {
+	if candidate == nil || (candidate.Scheme != "http" && candidate.Scheme != "https") || candidate.User != nil {
+		return errors.New("generated media URL must be an absolute HTTP(S) URL")
+	}
+	host := strings.ToLower(strings.TrimSuffix(candidate.Hostname(), "."))
+	if host == "" {
+		return errors.New("generated media URL must include a host")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if !publicRemoteIP(ip) {
+			return errors.New("generated media URL cannot use a private network address")
+		}
+		return nil
+	}
+	if !strings.Contains(host, ".") || host == "localhost" || strings.HasSuffix(host, ".local") ||
+		strings.HasSuffix(host, ".internal") || strings.HasSuffix(host, ".cluster.local") ||
+		strings.HasSuffix(host, ".vke-system") {
+		return errors.New("generated media URL cannot use an internal service address")
+	}
+	return nil
+}
+
+func publicRemoteIP(ip net.IP) bool {
+	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() &&
+		!ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsUnspecified()
+}
+
+func dialPublicAddress(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, fmt.Errorf("parse generated media address: %w", err)
+	}
+	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve generated media host: %w", err)
+	}
+	if len(addresses) == 0 {
+		return nil, errors.New("generated media host resolved to no addresses")
+	}
+	for _, address := range addresses {
+		if !publicRemoteIP(address.IP) {
+			return nil, errors.New("generated media host resolved to a private network address")
+		}
+	}
+	dialer := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+	var lastErr error
+	for _, resolved := range addresses {
+		connection, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(resolved.IP.String(), port))
+		if dialErr == nil {
+			return connection, nil
+		}
+		lastErr = dialErr
+	}
+	return nil, fmt.Errorf("connect to generated media host: %w", lastErr)
 }
 
 func (s *Store) absoluteURL(raw string) string {

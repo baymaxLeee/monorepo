@@ -1,6 +1,7 @@
 import { canvasArchiveInputSchema } from "../../../workflows/canvas-archive.js";
 import { canvasVideoFramesInputSchema } from "../../../workflows/canvas-video-frames.js";
 import { fileTaskBatchInputSchema } from "../../../workflows/file-task-batch.js";
+import { knowledgeDocumentProcessInputSchema } from "../../../workflows/knowledge-document-process.js";
 import { videoGenerationInputSchema } from "../../../workflows/video-generation.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
 import type { TaskTypeDefinition } from "./types.js";
@@ -22,6 +23,13 @@ registerTaskType({
   name: "file-task-batch",
   inputSchema: fileTaskBatchInputSchema,
   workflow: { workflowId: "workflow//./workflows/file-task-batch//fileTaskBatchWorkflow" },
+});
+
+registerTaskType({
+  name: "knowledge-document-process",
+  inputSchema: knowledgeDocumentProcessInputSchema,
+  workflow: { workflowId: "workflow//./workflows/knowledge-document-process//knowledgeDocumentProcessWorkflow" },
+  retryFailedOnCreate: true,
 });
 
 registerTaskType({

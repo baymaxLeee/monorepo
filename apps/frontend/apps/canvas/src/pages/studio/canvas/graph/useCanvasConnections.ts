@@ -1,8 +1,8 @@
+import { toast } from "@repo/design-system";
 import { type Connection, type Edge, type OnBeforeDelete } from "@xyflow/react";
 import { useSetAtom } from "jotai";
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
-import { Message } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import { BatchDeleteCanvasNodes, ConnectCanvasNodes, DeleteCanvasEdge } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
@@ -54,7 +54,10 @@ export function useCanvasConnections({
       if (regularItems.length === 0) return true;
       const nodeIDs = new Set(regularItems.map((item) => item.NodeID));
       if (regularItems.some((item) => item.ActiveTaskRunID)) {
-        Message.warning(t("生成中的节点不可删除"));
+        toast.add({
+          type: "warning",
+          title: t("生成中的节点不可删除"),
+        });
         return false;
       }
       if (
@@ -65,7 +68,10 @@ export function useCanvasConnections({
             Boolean(nodesRef.current.find((node) => node.id === edge.target)?.data.item.ActiveTaskRunID),
         )
       ) {
-        Message.warning(t("生成中的节点不可修改连接"));
+        toast.add({
+          type: "warning",
+          title: t("生成中的节点不可修改连接"),
+        });
         return false;
       }
       try {
@@ -86,7 +92,10 @@ export function useCanvasConnections({
         setEdges((current) => current.filter((edge) => !nodeIDs.has(edge.source) && !nodeIDs.has(edge.target)));
         return true;
       } catch {
-        Message.error(t("节点删除失败，请重试"));
+        toast.add({
+          type: "error",
+          title: t("节点删除失败，请重试"),
+        });
         return false;
       }
     },
@@ -114,7 +123,10 @@ export function useCanvasConnections({
       }
       const resolution = resolveConnection(source, target);
       if (!resolution.accepted) {
-        Message.warning(canvasNodeInputWarning(resolution));
+        toast.add({
+          type: "warning",
+          title: canvasNodeInputWarning(resolution),
+        });
         return false;
       }
       const targetPort = resolution.targetPort;
@@ -137,7 +149,10 @@ export function useCanvasConnections({
         upsertCanvasNodes([result.TargetNode]);
         return true;
       } catch (error) {
-        Message.error(canvasRequestErrorMessage(error, t("节点连接失败，请重试")));
+        toast.add({
+          type: "error",
+          title: canvasRequestErrorMessage(error, t("节点连接失败，请重试")),
+        });
         return false;
       } finally {
         pendingConnectionKeysRef.current.delete(connectionKey);
@@ -162,7 +177,10 @@ export function useCanvasConnections({
       const target = byID.get(edge.target);
       if (!target) return false;
       if (target.ActiveTaskRunID) {
-        Message.warning(t("生成中的节点不可修改连接"));
+        toast.add({
+          type: "warning",
+          title: t("生成中的节点不可修改连接"),
+        });
         return false;
       }
       try {
@@ -182,7 +200,10 @@ export function useCanvasConnections({
         upsertCanvasNodes([deleted.TargetNode]);
         return true;
       } catch {
-        Message.error(t("连接删除失败，请重试"));
+        toast.add({
+          type: "error",
+          title: t("连接删除失败，请重试"),
+        });
         return false;
       }
     },
@@ -197,7 +218,10 @@ export function useCanvasConnections({
           (edge) => !deletingNodeIDs.has(edge.target) && Boolean(byID.get(edge.target)?.ActiveTaskRunID),
         )
       ) {
-        Message.warning(t("生成中的节点不可修改连接"));
+        toast.add({
+          type: "warning",
+          title: t("生成中的节点不可修改连接"),
+        });
         return false;
       }
       if (selectedNodes.length > 0 && !(await deleteNodes(selectedNodes.map((node) => node.data.item)))) {

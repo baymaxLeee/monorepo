@@ -47,6 +47,9 @@ func Recoverer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
+				if rec == http.ErrAbortHandler {
+					panic(rec)
+				}
 				attrs := append(correlationAttrs(r), "err", rec, "path", r.URL.Path)
 				slog.Error("panic recovered", attrs...)
 				http.Error(w, "internal server error", http.StatusInternalServerError)

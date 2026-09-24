@@ -51,14 +51,11 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
   transactional outbox. User-uploaded `source` documents remain independently
   owned Knowledge content.
 - Both **convert and indexing are async and decoupled from ingest progress**
-  (ADR-0019 v1.6.0 + v1.7.0): the ingest SSE returns at `received/100` (bytes
-  stored + referenceable); `application/processor.py` (`schedule_process`) then runs
-  MarkItDown/vision convert in the background (`received`→`converting`→`ready`)
-  and chains `application/indexer.py` (`schedule_index`) for embedding. `file_ready`
-  means "received", NOT "converted". `index_status` tracks the RAG lifecycle
-  separately; `POST /documents/{id}/reindex` retries; `sweep_process()` (convert)
-  then `sweep_claim()` (index) recover on startup. Both are single-process demo
-  schedulers (advisory-lock single-flight + dirty re-run), not durable queues.
+  (ADR-0019 v1.6.0 + v1.7.0). Durable intent is the document row's
+  `received`/`pending` state. A bounded dispatcher submits the idempotent
+  `knowledge-document-process` task to Executor Workflow, which calls back into
+  Knowledge for convert then index. Knowledge retains all document state and DB
+  access; Executor only supplies replay, retry, and recovery.
 - Reading a not-yet-converted file: the internal `/documents/{id}/slice` endpoint
   takes `wait_ms` and returns `state: ready|processing|failed`; chat `read_file`
   long-polls it so a just-uploaded file becomes readable as soon as convert ends.

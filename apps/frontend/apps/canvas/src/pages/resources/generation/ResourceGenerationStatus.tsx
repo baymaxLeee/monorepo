@@ -1,3 +1,4 @@
+import { Button } from "@repo/design-system";
 import { ImagePlus as IconGenerationImage } from "lucide-react";
 
 import t from "@/utils/i18n";
@@ -31,14 +32,15 @@ export function ResourceGenerationStatus({
         <span className={styles.pill}>
           <span className={styles.label}>{t(failed ? "生成失败" : "生成中...")}</span>
           {!failed && onStop ? (
-            <button
+            <Button
+              variant="ghost"
               aria-label={t("停止生成：{fileName}", { fileName })}
               className={styles.stopButton}
               onClick={() => void onStop()}
               type="button"
             >
               {t("停止")}
-            </button>
+            </Button>
           ) : null}
         </span>
       </div>

@@ -1,3 +1,4 @@
+import { toast, Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import { NodeToolbar, Position } from "@xyflow/react";
 import {
   History as IconAgentHistory,
@@ -9,7 +10,6 @@ import {
 } from "lucide-react";
 import type { ComponentType, MouseEvent, SVGProps } from "react";
 
-import { Message, Tooltip } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -136,7 +136,12 @@ export function CanvasNodeToolbar({
   const tools = CANVAS_NODE_TOOLS[item.Type];
 
   const run = (action: () => Promise<void>, failure: string) => {
-    void action().catch(() => Message.error(t(failure)));
+    void action().catch(() =>
+      toast.add({
+        type: "error",
+        title: t(failure),
+      }),
+    );
   };
 
   const unavailable = (tool: CanvasNodeTool) => {
@@ -211,21 +216,25 @@ export function CanvasNodeToolbar({
         const Icon = meta.icon;
         const disabled = unavailable(tool);
         return (
-          <Tooltip content={t(meta.label)} key={tool} position="top">
-            <button
-              aria-label={t(meta.label)}
-              className="nodrag nopan"
-              data-tool={tool}
-              disabled={disabled}
-              onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                event.stopPropagation();
-                if (disabled) return;
-                activate(tool);
-              }}
-              type="button"
-            >
-              <Icon />
-            </button>
+          <Tooltip key={tool}>
+            <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+              <Button
+                variant="ghost"
+                aria-label={t(meta.label)}
+                className="nodrag nopan"
+                data-tool={tool}
+                disabled={disabled}
+                onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                  event.stopPropagation();
+                  if (disabled) return;
+                  activate(tool);
+                }}
+                type="button"
+              >
+                <Icon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side={"top"}>{t(meta.label)}</TooltipContent>
           </Tooltip>
         );
       })}

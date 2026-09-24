@@ -1,5 +1,6 @@
 """FastAPI app entry."""
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -18,8 +19,7 @@ from api.http.routes import (
     retrieval_internal,
 )
 from application.admin_client import close_admin_client
-from application.indexer import sweep_claim
-from application.processor import sweep_process
+from application.executor_client import close_executor_client, run_document_dispatcher
 from bootstrap.config import get_settings
 from fastapi import FastAPI
 from infrastructure.cache.redis import close_redis
@@ -34,21 +34,12 @@ logger = logging.getLogger("knowledge.main")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Convert sweep first: a doc must reach ``ready`` (content_md written) before
-    # the indexer can chunk it, so recover pending converts ahead of indexing.
-    try:
-        reconverted = await sweep_process()
-        if reconverted:
-            logger.info("re-queued %d document(s) for background conversion", reconverted)
-    except Exception:  # startup recovery is best-effort; never block boot
-        logger.exception("convert sweep on startup failed")
-    try:
-        recovered = await sweep_claim()
-        if recovered:
-            logger.info("re-queued %d document(s) for background indexing", recovered)
-    except Exception:  # startup recovery is best-effort; never block boot
-        logger.exception("index sweep on startup failed")
+    stop = asyncio.Event()
+    dispatcher = asyncio.create_task(run_document_dispatcher(stop), name="document-task-dispatcher")
     yield
+    stop.set()
+    await dispatcher
+    await close_executor_client()
     await close_admin_client()
     await close_redis()
     await close_db()

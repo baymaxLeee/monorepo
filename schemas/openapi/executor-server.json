@@ -103,6 +103,31 @@
                     "type": "object",
                     "properties": {
                       "type": {
+                        "const": "knowledge-document-process"
+                      },
+                      "owner_service": {
+                        "type": "string",
+                        "description": "calling service, e.g. chat"
+                      },
+                      "owner_ref": {
+                        "type": "string",
+                        "description": "idempotency key scoped to owner_service"
+                      },
+                      "payload": {
+                        "$ref": "#/components/schemas/KnowledgeDocumentProcessPayload"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "owner_service",
+                      "owner_ref",
+                      "payload"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
                         "const": "video-generation"
                       },
                       "owner_service": {
@@ -1107,6 +1132,31 @@
             "type": "object",
             "properties": {
               "type": {
+                "const": "knowledge-document-process"
+              },
+              "owner_service": {
+                "type": "string",
+                "description": "calling service, e.g. chat"
+              },
+              "owner_ref": {
+                "type": "string",
+                "description": "idempotency key scoped to owner_service"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/KnowledgeDocumentProcessPayload"
+              }
+            },
+            "required": [
+              "type",
+              "owner_service",
+              "owner_ref",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
                 "const": "video-generation"
               },
               "owner_service": {
@@ -1209,6 +1259,20 @@
           "stagingId",
           "sharedContext",
           "tasks"
+        ]
+      },
+      "KnowledgeDocumentProcessPayload": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentId"
         ]
       },
       "VideoGenerationTaskPayload": {

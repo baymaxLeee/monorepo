@@ -1,10 +1,19 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@repo/design-system";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Button,
+} from "@repo/design-system";
 import { ChevronDown as IconDown } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import emptyIllustration from "@/assets/storyboard-empty.png";
 import { ActionButton } from "@/components/ActionButton";
-import { Tooltip } from "@/components/ui";
 import { HIDDEN_SCROLLBAR_CLASS, HIDDEN_SCROLLBAR_STYLE } from "@/hooks/useHorizontalScrollFade";
 import t from "@/utils/i18n";
 
@@ -17,7 +26,8 @@ import dialogSizing from "@/components/DialogSizing.module.less";
 
 function ShotNavItem({ active, label, onClick }: { active: boolean; label: string; onClick?: () => void }) {
   return (
-    <button
+    <Button
+      variant="ghost"
       className={`${styles.navigationItem} flex items-center justify-between rounded-[8px] border-0 px-3 py-1.25 text-[13px] leading-5.5 tracking-[0.039px] ${
         active ? "bg-muted font-medium text-foreground" : "bg-background font-normal text-foreground"
       } ${onClick ? "cursor-pointer" : "cursor-default"}`}
@@ -26,7 +36,7 @@ function ShotNavItem({ active, label, onClick }: { active: boolean; label: strin
     >
       <span className="truncate">{label}</span>
       <IconDown className="shrink-0 rotate-[-90deg] text-[12px] text-muted-foreground" />
-    </button>
+    </Button>
   );
 }
 
@@ -171,15 +181,17 @@ export function StoryboardPreviewDialog({
                   {t("放弃")}
                 </ActionButton>
                 {generating || status === "failed" ? (
-                  <Tooltip
-                    content={generating ? t("请先等待全部分镜生成") : t("分镜生成失败，请放弃后重新生成")}
-                    position="top"
-                  >
-                    <span className="inline-flex">
-                      <ActionButton disabled variant="primary">
-                        {t("采纳")}
-                      </ActionButton>
-                    </span>
+                  <Tooltip>
+                    <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                      <span className="inline-flex">
+                        <ActionButton disabled variant="primary">
+                          {t("采纳")}
+                        </ActionButton>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side={"top"}>
+                      {generating ? t("请先等待全部分镜生成") : t("分镜生成失败，请放弃后重新生成")}
+                    </TooltipContent>
                   </Tooltip>
                 ) : (
                   <ActionButton

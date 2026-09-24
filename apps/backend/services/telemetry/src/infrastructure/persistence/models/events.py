@@ -17,7 +17,7 @@ semantics.
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Double, Integer, SmallInteger, String, Text
+from sqlalchemy import BigInteger, DateTime, Double, Index, Integer, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,7 @@ class EventCommonMixin:
 
 class EventPerformRow(Base, EventCommonMixin):
     __tablename__ = "events_perform"
+    __table_args__ = (Index("ix_events_perform_user_ts", "user_id", "ts_server"),)
 
     metric: Mapped[str] = mapped_column(String(64), nullable=False)
     value: Mapped[float] = mapped_column(Double, nullable=False, default=0.0)

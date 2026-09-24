@@ -492,7 +492,7 @@
   }
 
   .markdown-editor-content blockquote {
-    border-left: 2px solid #3491fa;
+    border-left: 2px solid var(--primary);
     background-color: var(--muted);
     margin: 1.25em 0;
     padding: 0.75em 1.25em 0.75em 1.5em;
@@ -537,7 +537,7 @@
       box-shadow 0.2s ease;
   }
   .markdown-editor-content img.ProseMirror-selectednode {
-    outline: 3px solid #3491fa;
+    outline: 3px solid var(--primary);
     outline-offset: 2px;
     border-radius: 6px;
   }

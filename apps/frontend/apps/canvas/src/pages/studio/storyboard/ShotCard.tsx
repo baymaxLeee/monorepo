@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import {
   X as IconClose,
   GripVertical as IconDrag,
@@ -7,7 +8,6 @@ import {
 } from "lucide-react";
 
 import { openDeleteConfirmDialog } from "@/components/common";
-import { Tooltip } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import { shotChipLabel } from "../domain/model";
@@ -47,7 +47,8 @@ export function ShotCard({
   const thumbnail = shot.thumbnail ?? firstFrameURL;
 
   const removeBadge = (
-    <button
+    <Button
+      variant="ghost"
       aria-label={`${t("删除{label}", { label })}`}
       className={`absolute right-[4px] top-[4px] hidden h-4 w-4 items-center justify-center rounded-[999px] border-0 bg-[rgba(0,0,0,0.5)] p-0 text-[10px] text-white group-hover:flex ${
         deleteDisabledReason ? "cursor-not-allowed" : "cursor-pointer"
@@ -65,14 +66,14 @@ export function ShotCard({
       type="button"
     >
       <IconClose />
-    </button>
+    </Button>
   );
 
   return (
     <div className="relative flex w-[138px] shrink-0 flex-col items-center gap-1">
       <div
         className={`group relative h-[78px] w-full overflow-hidden rounded-[12px] bg-muted ${
-          selected || playing ? "shadow-[0_0_0_6px_#bedaff]" : ""
+          selected || playing ? "ring-6 ring-primary/20" : ""
         }`}
       >
         {shot.status === "generating" || failed ? null : thumbnail ? (
@@ -117,21 +118,24 @@ export function ShotCard({
           </>
         ) : null}
 
-        <button
+        <Button
+          variant="ghost"
           aria-current={selected}
-          aria-label={`${t("选择{label}", { label })}`}
           className={`absolute inset-0 border-0 bg-[transparent] p-0 ${
             disabled ? "cursor-not-allowed" : "cursor-pointer"
           }`}
           disabled={locked}
           onClick={() => onSelect(shot.id)}
           type="button"
-        />
+        >
+          <span className="sr-only">{t("选择{label}", { label })}</span>
+        </Button>
 
         {(settled || failed) && !disabled ? (
           deleteDisabledReason ? (
-            <Tooltip content={deleteDisabledReason} position="top">
-              {removeBadge}
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex max-w-full" />}>{removeBadge}</TooltipTrigger>
+              <TooltipContent side={"top"}>{deleteDisabledReason}</TooltipContent>
             </Tooltip>
           ) : (
             removeBadge

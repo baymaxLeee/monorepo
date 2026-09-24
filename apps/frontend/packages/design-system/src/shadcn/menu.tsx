@@ -84,7 +84,7 @@ export const MenuItem = React.forwardRef<HTMLButtonElement, MenuItemProps>(funct
         "[&>svg]:size-4 [&>svg]:shrink-0",
         "hover:bg-accent focus-visible:bg-accent",
         "disabled:pointer-events-none disabled:opacity-50",
-        active && "text-blue-600 focus-visible:text-blue-600",
+        active && "text-primary focus-visible:text-primary",
         destructive && "text-destructive hover:text-destructive focus-visible:text-destructive",
         className,
       )}

@@ -1,3 +1,4 @@
+import { toast, Button } from "@repo/design-system";
 import {
   RefreshCw as IconRefresh,
   ChevronLeft as IconLeft,
@@ -8,11 +9,13 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import emptyIllustration from "@/assets/storyboard-empty.png";
+import { ActionDropdown } from "@/components/ActionDropdown";
 import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
+import { AsyncButton } from "@/components/AsyncButton";
 import { AudioPlayer } from "@/components/audioPlayer/index";
 import { useAudioSpectrum } from "@/components/AudioSpectrum/index";
 import { Pagination, Result, openDeleteConfirmDialog } from "@/components/common";
-import { ActionDropdown, Message, Spin, Button } from "@/components/ui";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { asset, resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
@@ -255,7 +258,10 @@ export function ResourceAssetsPageContent({
     const fileType = currentResource?.Type ?? item?.Type ?? resource.ResourceType.CHARACTER;
     const validationError = validateResourceFile(fileType, file);
     if (validationError) {
-      Message.error(validationError);
+      toast.add({
+        type: "error",
+        title: validationError,
+      });
       return;
     }
     setUploading(true);
@@ -281,7 +287,10 @@ export function ResourceAssetsPageContent({
       })
       .catch((reason: unknown) => {
         if (sequence !== createSequenceRef.current) return;
-        Message.error(reason instanceof Error ? reason.message : t("创建{materialName}失败，请重试", { materialName }));
+        toast.add({
+          type: "error",
+          title: reason instanceof Error ? reason.message : t("创建{materialName}失败，请重试", { materialName }),
+        });
       })
       .finally(() => {
         if (sequence === createSequenceRef.current) setCreatingGenerated(false);
@@ -425,10 +434,12 @@ export function ResourceAssetsPageContent({
           aria-label={t("返回资产库")}
           className="flex! items-center! justify-center!"
           disabled={busy}
-          icon={<IconLeft className="text-[14px]" />}
           onClick={() => onClose(resourceType ?? resource.ResourceType.CHARACTER)}
-          size="mini"
-        />
+          size="xs"
+          variant="outline"
+        >
+          <IconLeft className="text-[14px]" />
+        </Button>
         <h1 className="m-0 text-[20px] font-semibold leading-7 text-foreground">
           {currentResource?.Name ?? item?.Name ?? t("资产")}
         </h1>
@@ -465,24 +476,26 @@ export function ResourceAssetsPageContent({
                     <Button
                       disabled={batchSelecting || busy || files.length === 0}
                       onClick={() => setBatchSelecting(true)}
+                      variant="outline"
                     >
                       {batchSelecting ? t("批量操作中") : t("批量操作")}
                     </Button>
-                    <Button
+                    <AsyncButton
                       disabled={busy || batchSelecting}
-                      icon={<IconPlus />}
                       loading={uploading}
                       onClick={() => inputRef.current?.click()}
-                      type="primary"
+                      variant="default"
                     >
+                      <IconPlus />
                       {t("添加{materialName}", { materialName })}
-                    </Button>
+                    </AsyncButton>
                   </>
                 ) : (
                   <>
                     <Button
                       disabled={batchSelecting || busy || files.length === 0}
                       onClick={() => setBatchSelecting(true)}
+                      variant="outline"
                     >
                       {batchSelecting ? t("批量操作中") : t("批量操作")}
                     </Button>
@@ -498,9 +511,10 @@ export function ResourceAssetsPageContent({
                       }}
                       position="bl"
                     >
-                      <Button disabled={busy || batchSelecting} icon={<IconPlus />} loading={uploading} type="primary">
+                      <AsyncButton disabled={busy || batchSelecting} loading={uploading}>
+                        <IconPlus />
                         {t("添加{materialName}", { materialName })}
-                      </Button>
+                      </AsyncButton>
                     </ActionDropdown>
                   </>
                 )}
@@ -508,14 +522,12 @@ export function ResourceAssetsPageContent({
                   aria-label={t("刷新资产")}
                   data-ea="asset-material-list-refresh"
                   disabled={batchSelecting || busy}
-                  icon={
-                    <span className={loading ? "animate-spin" : ""}>
-                      <IconRefresh />
-                    </span>
-                  }
                   onClick={() => void load()}
                   title={t("刷新资产")}
-                />
+                  variant="outline"
+                >
+                  <IconRefresh className={loading ? "animate-spin" : undefined} />
+                </Button>
               </div>
             </div>
             <input
@@ -543,13 +555,17 @@ export function ResourceAssetsPageContent({
 
             {error ? (
               <Result
-                extra={<Button onClick={() => void load()}>{t("重新加载")}</Button>}
+                extra={
+                  <Button onClick={() => void load()} variant="outline">
+                    {t("重新加载")}
+                  </Button>
+                }
                 status="error"
                 title={error}
               />
             ) : loading ? (
               <div className="flex h-[240px] items-center justify-center">
-                <Spin />
+                <LoadingIndicator />
               </div>
             ) : files.length && visibleFiles.length ? (
               <div
@@ -655,7 +671,10 @@ export function ResourceAssetsPageContent({
               : async (file) => {
                   const validationError = validateResourceFile(resource.ResourceType.CHARACTER, file);
                   if (validationError) {
-                    Message.error(validationError);
+                    toast.add({
+                      type: "error",
+                      title: validationError,
+                    });
                     return;
                   }
                   setUploading(true);

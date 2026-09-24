@@ -4,8 +4,8 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  border-right: 1px solid #e5e8ef;
-  background: #fff;
+  border-right: 1px solid var(--border);
+  background: var(--background);
 }
 
 .topTabs {
@@ -15,7 +15,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 20px 8px 16px;
-  border-bottom: 1px solid #eef0f4;
+  border-bottom: 1px solid var(--border);
 }
 
 .topTab,
@@ -25,7 +25,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #42464e;
+  color: var(--muted-foreground);
   cursor: pointer;
   font-size: 13px;
 }
@@ -44,7 +44,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #42464e;
+  color: var(--muted-foreground);
   cursor: pointer;
 }
 
@@ -72,7 +72,7 @@
 
 .activeTopTab {
   background: rgb(26 27 30 / 5%);
-  color: #0c0d0e;
+  color: var(--foreground);
   font-weight: 500;
 }
 
@@ -91,8 +91,8 @@
   justify-content: flex-start;
   gap: 4px;
   padding: 8px 4px 48px;
-  border-right: 1px solid #eaedf1;
-  background: #fdfdfd;
+  border-right: 1px solid var(--border);
+  background: var(--background);
 }
 
 .typeButton,
@@ -107,7 +107,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #42464e;
+  color: var(--muted-foreground);
   cursor: pointer;
   font-size: 12px;
   font-weight: 400;
@@ -132,12 +132,12 @@
 }
 
 .activeTypeButton {
-  color: #0c0d0e;
+  color: var(--foreground);
 }
 
 .activeTypeButton span {
-  background: #0c0d0e;
-  color: #fff;
+  background: var(--foreground);
+  color: white;
 }
 
 .assetContent {
@@ -146,7 +146,7 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  background: #fdfdfd;
+  background: var(--background);
 }
 
 .assetList {
@@ -168,7 +168,7 @@
   align-items: flex-start;
   gap: 8px;
   padding: 12px 16px 0;
-  background: #fdfdfd;
+  background: var(--background);
 }
 
 .searchContainer .search {
@@ -205,7 +205,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #0c0d0e;
+  color: var(--foreground);
   font-size: 13px;
 }
 
@@ -286,7 +286,7 @@
   min-width: 0;
   flex: 0 1 auto;
   overflow: hidden;
-  color: #0c0d0e;
+  color: var(--foreground);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -295,7 +295,7 @@
 .groupCount {
   flex-shrink: 0;
   margin-left: 4px;
-  color: #676b72;
+  color: var(--muted-foreground);
   white-space: nowrap;
 }
 
@@ -332,8 +332,8 @@
   justify-content: center;
   overflow: hidden;
   border-radius: 8px;
-  background: #d9d9d9;
-  color: #676b72;
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .groupThumbnail img {
@@ -370,7 +370,7 @@
 }
 
 .assetItem:hover {
-  background: #f5f6f8;
+  background: var(--muted);
 }
 
 .assetItem:active {
@@ -386,8 +386,8 @@
   justify-content: center;
   overflow: hidden;
   border-radius: 8px;
-  background: #d9d9d9;
-  color: #86909c;
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 
 .fallbackThumbnail {
@@ -405,7 +405,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: #0c0d0e;
+  color: var(--foreground);
   font-size: 13px;
   line-height: 22px;
   text-overflow: ellipsis;
@@ -418,7 +418,7 @@
   min-height: 140px;
   align-items: center;
   justify-content: center;
-  color: #86909c;
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -427,7 +427,7 @@
   min-height: 48px;
   align-items: center;
   justify-content: center;
-  color: #86909c;
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -436,7 +436,7 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  background: #fdfdfd;
+  background: var(--background);
 }
 
 .nodeList {
@@ -471,7 +471,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #0c0d0e;
+  color: var(--foreground);
   cursor: pointer;
   text-align: left;
 }
@@ -515,9 +515,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #fff;
+  background: var(--background);
   box-shadow: 0 1px 3px rgb(0 0 0 / 16%);
-  color: #0c0d0e;
+  color: var(--foreground);
   pointer-events: none;
 }
 
@@ -549,7 +549,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: #86909c;
+  color: var(--muted-foreground);
   font-size: 16px;
   opacity: 0;
 }
@@ -588,8 +588,8 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #c6e4ff;
-  color: #031a79;
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+  color: var(--primary);
   font-size: 9px;
   font-weight: 500;
   line-height: 12px;

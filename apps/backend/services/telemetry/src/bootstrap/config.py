@@ -50,7 +50,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:
-        if self.environment != "production":
+        if self.environment == "development":
             return self
         missing: list[str] = []
         if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
@@ -58,7 +58,7 @@ class Settings(BaseSettings):
         if self.postgres_host in {"localhost", "127.0.0.1"}:
             missing.append("POSTGRES_HOST")
         if missing:
-            raise ValueError("production environment requires explicit values for: " + ", ".join(missing))
+            raise ValueError("deployed environment requires explicit values for: " + ", ".join(missing))
         return self
 
 

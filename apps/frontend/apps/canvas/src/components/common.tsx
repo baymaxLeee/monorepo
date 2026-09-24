@@ -18,22 +18,32 @@ import {
   DialogTitle,
   Input as DesignInput,
   Skeleton as SkeletonPrimitive,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@repo/design-system";
 import { usePlatformStore } from "@repo/runtime";
 import { Ellipsis, ImageIcon } from "lucide-react";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type ComponentProps, type CSSProperties, type ReactNode } from "react";
 
-import { Button as CanvasButton, Select, Tooltip, type ButtonProps } from "./ui";
+type ButtonProps = ComponentProps<typeof Button> & {
+  icon?: ReactNode;
+  iconOnly?: boolean;
+  status?: "danger";
+};
 
 export function EllipsisText({
   children,
   className,
-  onClick,
   showPopover,
   popoverProps,
   maxWidth,
   popoverContent,
-  useCursorPointer = true,
 }: {
   children?: ReactNode;
   className?: string;
@@ -41,13 +51,10 @@ export function EllipsisText({
   popoverProps?: { position?: "top" | "bottom" | "left" | "right" };
   maxWidth?: number;
   popoverContent?: ReactNode;
-  useCursorPointer?: boolean;
-  onClick?: () => void;
 }) {
   const content = (
     <span
-      className={`block truncate ${useCursorPointer && onClick ? "cursor-pointer" : ""} ${className ?? ""}`}
-      onClick={onClick}
+      className={`block truncate ${className ?? ""}`}
       style={maxWidth === undefined ? undefined : { maxWidth }}
       title={showPopover === true ? undefined : typeof children === "string" ? children : undefined}
     >
@@ -55,8 +62,9 @@ export function EllipsisText({
     </span>
   );
   return showPopover === true && (popoverContent ?? children) ? (
-    <Tooltip content={popoverContent ?? children} position={popoverProps?.position ?? "top"}>
-      {content}
+    <Tooltip>
+      <TooltipTrigger render={content} />
+      <TooltipContent side={popoverProps?.position ?? "top"}>{popoverContent ?? children}</TooltipContent>
     </Tooltip>
   ) : (
     content
@@ -75,7 +83,7 @@ export function OperationMenu({
   operations,
   className,
   displayNum = 0,
-  defaultButtonType = "default",
+  defaultButtonType = "outline",
   menuButtonProps,
   spaceSize = 8,
   buttonProps,
@@ -83,7 +91,7 @@ export function OperationMenu({
   operations: Operation[];
   className?: string;
   displayNum?: number;
-  defaultButtonType?: ButtonProps["type"];
+  defaultButtonType?: ButtonProps["variant"];
   menuButtonProps?: ButtonProps;
   spaceSize?: number;
   buttonProps?: ButtonProps;
@@ -93,7 +101,7 @@ export function OperationMenu({
   return (
     <div className={`flex items-center ${className ?? ""}`} style={{ gap: spaceSize }}>
       {visibleOperations.map((operation, index) => (
-        <CanvasButton
+        <Button
           {...buttonProps}
           {...operation.buttonProps}
           className="c-m-operation-menu-opt-btn min-w-0 flex-1"
@@ -101,21 +109,28 @@ export function OperationMenu({
           key={`${String(operation.name)}-${index}`}
           onClick={operation.onClick}
           title={typeof operation.tooltip === "string" ? operation.tooltip : undefined}
-          type={operation.buttonProps?.type ?? defaultButtonType}
+          variant={
+            operation.buttonProps?.status === "danger"
+              ? "destructive"
+              : (operation.buttonProps?.variant ?? defaultButtonType)
+          }
         >
-          {operation.name}
-        </CanvasButton>
+          {operation.buttonProps?.icon}
+          {operation.buttonProps?.iconOnly ? <span className="sr-only">{operation.name}</span> : operation.name}
+        </Button>
       ))}
       {overflowOperations.length ? (
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <CanvasButton
+              <Button
                 aria-label="更多操作"
                 className="c-m-operation-menu-dropdown-button"
-                icon={<Ellipsis />}
                 {...menuButtonProps}
-              />
+                size={menuButtonProps?.size ?? "icon-xs"}
+              >
+                <Ellipsis />
+              </Button>
             }
           />
           <DropdownMenuContent align="end">
@@ -250,12 +265,21 @@ export function Pagination({
       </Button>
       {sizeCanChange ? (
         <Select
-          aria-label="每页数量"
           disabled={disabled}
-          onChange={(next) => onChange?.(1, Number(next))}
-          options={sizeOptions.map((size) => ({ label: `${size} 条/页`, value: size }))}
-          value={pageSize}
-        />
+          onValueChange={(next) => next && onChange?.(1, Number(next))}
+          value={String(pageSize)}
+        >
+          <SelectTrigger aria-label="每页数量">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {sizeOptions.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size} 条/页
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       ) : null}
     </div>
   );

@@ -1,4 +1,5 @@
 import { apiHttp } from "@repo/api";
+import { toast, Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import {
   History as IconAgentHistory,
   Download as IconDownloadFine,
@@ -9,7 +10,6 @@ import {
 import { type SyntheticEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ActionButton } from "@/components/ActionButton";
-import { Message, Tooltip } from "@/components/ui";
 import { VideoPlayer } from "@/components/videoPlayer/index";
 import t from "@/utils/i18n";
 
@@ -126,7 +126,10 @@ export function PreviewPanel({
           return;
         }
         onPauseRef.current();
-        Message.error(t("视频无法自动播放，请使用播放器重试"));
+        toast.add({
+          type: "error",
+          title: t("视频无法自动播放，请使用播放器重试"),
+        });
       });
       return () => {
         active = false;
@@ -197,26 +200,31 @@ export function PreviewPanel({
               </span>
               {t("视频生成中，请稍后...")}
               {cancelDisabled ? (
-                <Tooltip content={t("视频已开始生成，无法取消")} position="top">
-                  <span>
-                    <button
-                      className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled
-                      type="button"
-                    >
-                      {t("终止生成")}
-                    </button>
-                  </span>
+                <Tooltip>
+                  <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                    <span>
+                      <Button
+                        variant="ghost"
+                        className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled
+                        type="button"
+                      >
+                        {t("终止生成")}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side={"top"}>{t("视频已开始生成，无法取消")}</TooltipContent>
                 </Tooltip>
               ) : (
-                <button
+                <Button
+                  variant="ghost"
                   className="cursor-pointer border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={stoppingGeneration}
                   onClick={onStopGenerate}
                   type="button"
                 >
                   {t("终止生成")}
-                </button>
+                </Button>
               )}
             </div>
           </>
@@ -236,7 +244,10 @@ export function PreviewPanel({
                 onEnded={onEnded}
                 onError={() => {
                   onPause();
-                  Message.error(t("视频加载失败，请使用播放器重试或选择其他分镜"));
+                  toast.add({
+                    type: "error",
+                    title: t("视频加载失败，请使用播放器重试或选择其他分镜"),
+                  });
                 }}
                 onLoadedMetadata={handleVideoMetadata}
                 onPause={(event) => {
@@ -259,7 +270,8 @@ export function PreviewPanel({
             )}
           </>
         ) : (
-          <button
+          <Button
+            variant="ghost"
             className={`flex h-full w-full flex-col items-center justify-center gap-3 border-0 bg-[transparent] p-0 text-[14px] leading-6 text-muted-foreground ${
               generatable ? "cursor-pointer" : "cursor-not-allowed"
             }`}
@@ -277,10 +289,9 @@ export function PreviewPanel({
               {t("未生成内容，")}
               <span className="text-foreground">{t("立即生成")}</span>
             </span>
-          </button>
+          </Button>
         )}
       </div>
-
       <div className="flex shrink-0 items-center gap-3 py-3">
         <ActionButton
           disabled={generating || failed || !shot?.videoUrl || downloading}

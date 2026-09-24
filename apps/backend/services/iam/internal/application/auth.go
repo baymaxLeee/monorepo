@@ -159,10 +159,11 @@ func (s *AuthService) SwitchActiveWorkspace(ctx context.Context, refreshToken, w
 	return response, plain, expiresAt, nil
 }
 
-func (s *AuthService) Logout(ctx context.Context, refreshToken string) {
+func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 	if refreshToken != "" {
-		_ = s.store.RevokeRefreshToken(ctx, security.DigestToken(refreshToken))
+		return s.store.RevokeRefreshToken(ctx, security.DigestToken(refreshToken))
 	}
+	return nil
 }
 
 // Me reflects the current session's active workspace (from the access-token claim)
@@ -176,7 +177,7 @@ func (s *AuthService) Me(ctx context.Context, userID, activeWorkspaceID string) 
 	if activeWorkspaceID != "" {
 		active = &activeWorkspaceID
 	}
-	return s.buildUserResponse(ctx, user, active), nil
+	return s.buildUserResponse(ctx, user, active)
 }
 
 func (s *AuthService) Memberships(ctx context.Context, userID string) ([]contracts.Membership, error) {
@@ -192,7 +193,10 @@ func (s *AuthService) IssueSession(ctx context.Context, user models.User, meta R
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
-	activeWorkspaceID := s.resolveInitialActiveWorkspace(ctx, user.ID)
+	activeWorkspaceID, err := s.resolveInitialActiveWorkspace(ctx, user.ID)
+	if err != nil {
+		return contracts.AuthResponse{}, "", time.Time{}, err
+	}
 	refreshExpiresAt := time.Now().UTC().Add(s.cfg.RefreshTokenTTL)
 	token := models.RefreshToken{
 		ID:                NewID(),
@@ -217,10 +221,10 @@ func (s *AuthService) IssueSession(ctx context.Context, user models.User, meta R
 // resolveInitialActiveWorkspace binds the session at login/register: 0 active
 // memberships → unscoped; exactly 1 → that workspace; more than 1 → unscoped so the
 // frontend forces an explicit choice. The DB never picks on the user's behalf.
-func (s *AuthService) resolveInitialActiveWorkspace(ctx context.Context, userID string) *string {
+func (s *AuthService) resolveInitialActiveWorkspace(ctx context.Context, userID string) (*string, error) {
 	rows, err := s.store.ListUserMemberships(ctx, userID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var active []string
 	for _, row := range rows {
@@ -230,14 +234,17 @@ func (s *AuthService) resolveInitialActiveWorkspace(ctx context.Context, userID 
 	}
 	if len(active) == 1 {
 		id := active[0]
-		return &id
+		return &id, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func (s *AuthService) AuthResponse(ctx context.Context, user models.User, activeWorkspaceID *string) (contracts.AuthResponse, error) {
 	expiresAt := time.Now().UTC().Add(s.cfg.AccessTokenTTL)
-	resp := s.buildUserResponse(ctx, user, activeWorkspaceID)
+	resp, err := s.buildUserResponse(ctx, user, activeWorkspaceID)
+	if err != nil {
+		return contracts.AuthResponse{}, err
+	}
 	claims := security.Claims{
 		Subject: user.ID,
 		Email:   user.Email,
@@ -261,7 +268,11 @@ func (s *AuthService) AuthResponse(ctx context.Context, user models.User, active
 // buildUserResponse assembles the two-dimensional identity: platform roles,
 // every membership, and the single activeWorkspace the session is bound to (only when
 // that membership is still active).
-func (s *AuthService) buildUserResponse(ctx context.Context, user models.User, activeWorkspaceID *string) contracts.UserResponse {
+func (s *AuthService) buildUserResponse(ctx context.Context, user models.User, activeWorkspaceID *string) (contracts.UserResponse, error) {
+	roles, err := s.userRoleNames(ctx, user.ID)
+	if err != nil {
+		return contracts.UserResponse{}, err
+	}
 	resp := contracts.UserResponse{
 		ID:             user.ID,
 		Account:        user.Account,
@@ -273,40 +284,38 @@ func (s *AuthService) buildUserResponse(ctx context.Context, user models.User, a
 		Theme:          user.Theme,
 		MarketingOptIn: user.MarketingOptIn,
 		EmailVerified:  user.EmailVerifiedAt != nil,
-		Roles:          s.userRoleNames(ctx, user.ID),
+		Roles:          roles,
 	}
 	rows, err := s.store.ListUserMemberships(ctx, user.ID)
-	if err == nil {
-		resp.Memberships = membershipsFromRows(rows)
-		if activeWorkspaceID != nil {
-			for _, m := range resp.Memberships {
-				if m.WorkspaceID == *activeWorkspaceID && m.Status == "active" {
-					active := m
-					resp.ActiveWorkspace = &active
-					break
-				}
+	if err != nil {
+		return contracts.UserResponse{}, err
+	}
+	resp.Memberships = membershipsFromRows(rows)
+	if activeWorkspaceID != nil {
+		for _, m := range resp.Memberships {
+			if m.WorkspaceID == *activeWorkspaceID && m.Status == "active" {
+				active := m
+				resp.ActiveWorkspace = &active
+				break
 			}
 		}
 	}
-	if resp.Memberships == nil {
-		resp.Memberships = []contracts.Membership{}
-	}
-	return resp
+	return resp, nil
 }
 
 // userRoleNames returns the user's platform role names for the access-token
 // `roles` claim; downstream services derive authorization from it (no service
 // re-queries iam).
-func (s *AuthService) userRoleNames(ctx context.Context, userID string) []string {
+func (s *AuthService) userRoleNames(ctx context.Context, userID string) ([]string, error) {
 	roles, err := s.store.UserRoles(ctx, userID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	names := make([]string, 0, len(roles))
 	for _, role := range roles {
 		names = append(names, role.Name)
 	}
-	return names
+	return names, nil
 }
 
 func membershipsFromRows(rows []repositories.MembershipRow) []contracts.Membership {

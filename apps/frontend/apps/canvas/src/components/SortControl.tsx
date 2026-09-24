@@ -1,6 +1,6 @@
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@repo/design-system";
 import { ArrowDownWideNarrow as IconDescendingSorting } from "lucide-react";
 
-import { Select, Button } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import styles from "./SortControl.module.less";
@@ -32,22 +32,28 @@ export function SortControl({
       {options.length === 1 ? (
         <span className={styles.sortLabel}>{options[0]?.label}</span>
       ) : (
-        <Select bordered={false} className={styles.sortSelect} onChange={onValueChange} size="default" value={value}>
-          {options.map((option) => (
-            <Select.Option key={option.value} value={option.value}>
-              {option.label}
-            </Select.Option>
-          ))}
+        <Select onValueChange={(next) => next && onValueChange(next)} value={value}>
+          <SelectTrigger aria-label={ariaLabel} className={`${styles.sortSelect} border-0 shadow-none`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="start">
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       )}
       <Button
         aria-label={t("切换排序方向")}
         className={styles.sortDirectionButton}
-        icon={<IconDescendingSorting className={ascending ? styles.ascendingIcon : undefined} />}
         onClick={() => onAscendingChange(!ascending)}
         size="default"
-        type="text"
-      />
+        variant="ghost"
+      >
+        <IconDescendingSorting className={ascending ? styles.ascendingIcon : undefined} />
+      </Button>
     </div>
   );
 }

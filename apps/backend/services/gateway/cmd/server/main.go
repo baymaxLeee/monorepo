@@ -60,10 +60,12 @@ func main() {
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.BodyLimit(cfg.MaxRequestBodyBytes))
-	r.Use(middleware.CORS(cfg.AllowedOrigins, !cfg.IsProduction()))
+	r.Use(middleware.CORS(cfg.AllowedOrigins, cfg.IsDevelopment()))
+	r.Use(middleware.SessionOriginGuard(cfg.AllowedOrigins, !cfg.IsDevelopment()))
 	r.Use(middleware.IdentityPropagation(cfg.AccessTokenSecret, cfg.PublicPathPrefixes, cfg.PublicExactPaths, cfg.OptionalAuthPathPrefixes))
 	if cfg.RateLimitEnabled {
-		r.Use(middleware.RateLimit(cfg.RateLimitRequests, cfg.RateLimitWindow))
+		r.Use(middleware.TrustedClientIP(!cfg.IsDevelopment()))
+		r.Use(middleware.RateLimit(st.Redis, cfg.RateLimitRequests, cfg.RateLimitWindow))
 	}
 
 	r.Get("/livez", handlers.Livez)
@@ -74,32 +76,27 @@ func main() {
 		cfg.IAMServiceURL,
 		"iam-server",
 		"/api/iam-server",
-		cfg.InternalAPIToken,
 	))
 	r.Mount("/api/admin-server", handlers.NewServiceProxy(
 		cfg.AdminServiceURL,
 		"admin-server",
 		"/api/admin-server",
-		cfg.InternalAPIToken,
 	))
-	r.Mount("/api/canvas-server", handlers.NewServiceProxy(cfg.CanvasServiceURL, "canvas-server", "/api/canvas-server", cfg.InternalAPIToken))
+	r.Mount("/api/canvas-server", handlers.NewServiceProxy(cfg.CanvasServiceURL, "canvas-server", "/api/canvas-server"))
 	r.Mount("/api/chat-server", handlers.NewServiceProxy(
 		cfg.ChatServiceURL,
 		"chat-server",
 		"/api/chat-server",
-		cfg.InternalAPIToken,
 	))
 	r.Mount("/api/knowledge-server", handlers.NewServiceProxy(
 		cfg.KnowledgeServiceURL,
 		"knowledge-server",
 		"/api/knowledge-server",
-		cfg.InternalAPIToken,
 	))
 	r.Mount("/api/telemetry-server", handlers.NewServiceProxy(
 		cfg.TelemetryServiceURL,
 		"telemetry-server",
 		"/api/telemetry-server",
-		cfg.InternalAPIToken,
 	))
 
 	srv := &http.Server{

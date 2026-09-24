@@ -7,7 +7,7 @@
 #
 #   1. Runtime vars from the environment (set by deploy.sh / CI):
 #        IMAGE_REGISTRY, IMAGE_TAG, PUBLIC_PORT, PUBLIC_GATEWAY_URL
-#   2. Machine-internal secrets — database passwords + INTERNAL_API_TOKEN —
+#   2. Machine-internal secrets — database passwords + per-service API tokens —
 #      auto-generated ONCE and persisted in ./.env.secrets. Humans never see
 #      or type them. Regenerating is safe only on a fresh data volume, so we
 #      generate-if-missing and otherwise reuse.
@@ -39,7 +39,11 @@ INTERNAL_KEYS=(
   KNOWLEDGE_POSTGRES_PASSWORD
   TELEMETRY_POSTGRES_PASSWORD
   CLICKHOUSE_PASSWORD
-  INTERNAL_API_TOKEN
+  TOOL_APPROVAL_SECRET
+  CHAT_INTERNAL_API_TOKEN
+  EXECUTOR_INTERNAL_API_TOKEN
+  KNOWLEDGE_INTERNAL_API_TOKEN
+  CANVAS_INTERNAL_API_TOKEN
 )
 
 umask 077

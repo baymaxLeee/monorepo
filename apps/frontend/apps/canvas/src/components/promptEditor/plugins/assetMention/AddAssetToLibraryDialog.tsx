@@ -6,10 +6,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
 } from "@repo/design-system";
 import { useEffect, useMemo, useState } from "react";
 
-import { Input, Select } from "@/components/ui";
 import { resource } from "@/domain";
 import { RESOURCE_DESCRIPTION_MAX_LENGTH } from "@/lib/resourceConstraints";
 import t from "@/utils/i18n";
@@ -93,30 +102,46 @@ export function AddAssetToLibraryDialog({
         </DialogHeader>
         <div className="canvas-modal-content min-h-0 overflow-auto px-6 py-5">
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 text-[14px] text-foreground">
-              {t("资产类型")}
-              <Select onChange={(value) => setType(value)} value={type}>
-                {options.map((option) => (
-                  <Select.Option key={option.value} value={option.value}>
-                    {option.label}
-                  </Select.Option>
-                ))}
+            <Field>
+              <FieldLabel htmlFor="asset-library-type">{t("资产类型")}</FieldLabel>
+              <Select onValueChange={(value) => value && setType(value)} value={type}>
+                <SelectTrigger id="asset-library-type" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  {options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-            </div>
-            <label className="flex flex-col gap-2 text-[14px] text-foreground">
-              {t("资产名称")}
-              <Input maxLength={NAME_MAX_LENGTH} onChange={setName} showWordLimit value={name} />
-            </label>
-            <label className="flex flex-col gap-2 text-[14px] text-foreground">
-              {t("资产描述")}
-              <Input.TextArea
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="asset-library-name">{t("资产名称")}</FieldLabel>
+              <Input
+                id="asset-library-name"
+                maxLength={NAME_MAX_LENGTH}
+                onChange={(event) => setName(event.currentTarget.value)}
+                value={name}
+              />
+              <FieldDescription className="text-right">
+                {name.length}/{NAME_MAX_LENGTH}
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="asset-library-description">{t("资产描述")}</FieldLabel>
+              <Textarea
+                id="asset-library-description"
                 maxLength={RESOURCE_DESCRIPTION_MAX_LENGTH}
-                onChange={setDescription}
+                onChange={(event) => setDescription(event.currentTarget.value)}
                 placeholder={t("请输入资产描述")}
-                showWordLimit
                 value={description}
               />
-            </label>
+              <FieldDescription className="text-right">
+                {description.length}/{RESOURCE_DESCRIPTION_MAX_LENGTH}
+              </FieldDescription>
+            </Field>
             {error ? <p className="m-0 text-[13px] text-destructive">{error}</p> : null}
           </div>
         </div>

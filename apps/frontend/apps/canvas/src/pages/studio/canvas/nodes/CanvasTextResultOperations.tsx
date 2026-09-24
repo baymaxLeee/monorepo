@@ -1,8 +1,8 @@
+import { toast } from "@repo/design-system";
 import copyToClipboard from "copy-to-clipboard";
 import { Copy as IconCopyLine } from "lucide-react";
 
 import { OperationMenu } from "@/components/common";
-import { Message } from "@/components/ui";
 import t from "@/utils/i18n";
 
 export function CanvasTextResultOperations({
@@ -16,9 +16,15 @@ export function CanvasTextResultOperations({
 }) {
   const copy = () => {
     if (copyToClipboard(getText?.() ?? text)) {
-      Message.success(t("复制成功"));
+      toast.add({
+        type: "success",
+        title: t("复制成功"),
+      });
     } else {
-      Message.error(t("复制失败，请重试"));
+      toast.add({
+        type: "error",
+        title: t("复制失败，请重试"),
+      });
     }
   };
 
@@ -38,7 +44,7 @@ export function CanvasTextResultOperations({
               "aria-label": t("复制生成结果"),
               icon: <IconCopyLine />,
               iconOnly: true,
-              size: "mini",
+              size: "icon-xs",
             },
             name: t("复制"),
             onClick: copy,

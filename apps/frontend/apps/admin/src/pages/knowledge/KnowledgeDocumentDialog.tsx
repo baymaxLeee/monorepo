@@ -91,7 +91,12 @@ export function KnowledgeDocumentDialog({ documentId, onOpenChange, onSaved }: K
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="文档标题" />
+            <Input
+              aria-label="文档标题"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="文档标题"
+            />
             <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
               <MarkdownEditor
                 value={content}

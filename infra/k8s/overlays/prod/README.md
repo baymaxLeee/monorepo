@@ -18,10 +18,17 @@ this without first completing the checklist below.
    cluster secrets on deploy:
    ```bash
    kubectl create ns monorepo-prod
+   CHAT_TOKEN=$(openssl rand -hex 32)
+   EXECUTOR_TOKEN=$(openssl rand -hex 32)
+   KNOWLEDGE_TOKEN=$(openssl rand -hex 32)
+   CANVAS_TOKEN=$(openssl rand -hex 32)
+   kubectl -n monorepo-prod create secret generic postgres-admin-secrets \
+     --from-literal=POSTGRES_HOST=<pg-host> \
+     --from-literal=POSTGRES_ADMIN_USER=<migration-admin-user> \
+     --from-literal=POSTGRES_ADMIN_PASSWORD=<migration-admin-password>
    kubectl -n monorepo-prod create secret generic gateway-secrets \
      --from-literal=REDIS_HOST=<redis-host> \
-     --from-literal=ACCESS_TOKEN_SECRET=<256-bit-random> \
-     --from-literal=INTERNAL_API_TOKEN=<shared-internal-token>
+     --from-literal=ACCESS_TOKEN_SECRET=<256-bit-random>
    # gateway is Redis-only; DB-backed services also need Postgres creds, e.g.:
    kubectl -n monorepo-prod create secret generic iam-secrets \
      --from-literal=POSTGRES_HOST=<pg-host> \
@@ -33,10 +40,11 @@ this without first completing the checklist below.
      --from-literal=POSTGRES_USER=canvas \
      --from-literal=POSTGRES_PASSWORD=<from-1Password> \
      --from-literal=REDIS_URL=<redis-connection-uri> \
-     --from-literal=INTERNAL_API_TOKEN=<shared-internal-token>
-   # repeat for admin/canvas/chat/executor/knowledge/telemetry service Secrets.
-   # Every service-facing Secret must use the same INTERNAL_API_TOKEN;
-   # chat-secrets must also include TOOL_APPROVAL_SECRET.
+     --from-literal=INTERNAL_API_TOKEN="$CANVAS_TOKEN" \
+     --from-literal=INTERNAL_SERVICE_TOKENS="{\"chat\":\"$CHAT_TOKEN\",\"executor\":\"$EXECUTOR_TOKEN\"}"
+   # Create admin/knowledge/executor receiver maps from the same four caller
+   # variables. Each workload's own INTERNAL_API_TOKEN must be unique; never
+   # reuse one shared value. chat-secrets also includes TOOL_APPROVAL_SECRET.
    ```
    For real ops, switch to ExternalSecrets Operator pointing at
    火山引擎 KMS or Vault, or use sealed-secrets.
@@ -61,7 +69,9 @@ this without first completing the checklist below.
 GitHub Actions deploy job:
 
 1. Build & push image with tag = `${GITHUB_SHA::8}` to 火山 CR
-2. Apply service and Workflow World schema migrations out-of-band.
+2. Run the checked-in `db-init` migration image as a one-shot Job; the deploy
+   stops before IAM bootstrap and rollout if any service migration fails. Run
+   the Workflow World schema setup with its official CLI before executor rollout.
 3. Pin all nine images (`gateway`, `iam`, `admin`, `canvas`, `chat`, `executor`,
    `knowledge`, `telemetry`, `web`) in the prod overlay.
 4. Run the idempotent IAM identity bootstrap Job and wait for completion.

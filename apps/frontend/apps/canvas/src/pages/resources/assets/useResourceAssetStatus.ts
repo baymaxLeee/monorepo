@@ -1,7 +1,7 @@
+import { toast } from "@repo/design-system";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { batchGetAssetReviews } from "@/api/assetReviews";
-import { Message } from "@/components/ui";
 import { asset, resource } from "@/domain";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
@@ -151,7 +151,10 @@ export function useResourceAssetStatus({
       void load(false);
       onChange();
     } catch {
-      Message.error(t("停止生成失败，请重试"));
+      toast.add({
+        type: "error",
+        title: t("停止生成失败，请重试"),
+      });
     }
   };
 

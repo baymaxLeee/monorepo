@@ -5,7 +5,7 @@ from application.contracts.bot import Bot, CreateBotInput, UpdateBotInput
 from application.contracts.skill import AttachSkillInput, SkillSummary
 from fastapi import APIRouter
 
-from api.http.dependencies import AdminUser, CurrentUser, DbSession, RedisClient
+from api.http.dependencies import AdminUser, CurrentUser, DbSession
 
 router = APIRouter(prefix="/bot", tags=["bot"])
 
@@ -25,9 +25,8 @@ async def create_bot(
     payload: CreateBotInput,
     current_user: AdminUser,
     session: DbSession,
-    redis: RedisClient,
 ) -> Bot:
-    return await BotService(session, current_user, redis).create(payload.name)
+    return await BotService(session, current_user).create(payload.name)
 
 
 @router.patch("/{bot_id}", response_model=Bot)

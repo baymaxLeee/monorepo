@@ -19,6 +19,8 @@ import (
 
 type Repository struct{ db *gorm.DB }
 
+const maxHistoryItems = 100
+
 func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 
 func (repository *Repository) CreateRun(ctx context.Context, run domainimagegeneration.Run) error {
@@ -61,16 +63,26 @@ func (repository *Repository) ListRuns(ctx context.Context, scope applicationima
 	}
 	db := persistencetransaction.DB(ctx, repository.db)
 	var rows []runRow
-	if err = scopedRunQuery(db, scope).Where("target_type = ? AND target_id = ? AND created_by = ?", targetType, target, scope.CallerID).Order("created_at DESC, task_run_id DESC").Find(&rows).Error; err != nil {
+	if err = scopedRunQuery(db, scope).Where("target_type = ? AND target_id = ? AND created_by = ?", targetType, target, scope.CallerID).Order("created_at DESC, task_run_id DESC").Limit(maxHistoryItems).Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	ids := make([]persistenceid.UUID, 0, len(rows))
+	for _, item := range rows {
+		ids = append(ids, item.TaskRunID)
+	}
+	var inputRows []runInputRow
+	if len(ids) > 0 {
+		if err = db.Where("task_run_id IN ?", ids).Order("task_run_id, position").Find(&inputRows).Error; err != nil {
+			return nil, err
+		}
+	}
+	inputsByRun := make(map[persistenceid.UUID][]runInputRow, len(rows))
+	for _, input := range inputRows {
+		inputsByRun[input.TaskRunID] = append(inputsByRun[input.TaskRunID], input)
 	}
 	result := make([]domainimagegeneration.Run, 0, len(rows))
 	for _, item := range rows {
-		var inputs []runInputRow
-		if err = db.Where("task_run_id = ?", item.TaskRunID).Order("position").Find(&inputs).Error; err != nil {
-			return nil, err
-		}
-		result = append(result, runDomainFromRows(item, inputs))
+		result = append(result, runDomainFromRows(item, inputsByRun[item.TaskRunID]))
 	}
 	return result, nil
 }

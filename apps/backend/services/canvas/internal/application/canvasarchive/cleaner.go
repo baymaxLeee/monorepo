@@ -21,7 +21,7 @@ type CleanupRepository interface {
 }
 
 type AssociationStore interface {
-	Delete(context.Context, string, string) error
+	Delete(context.Context, Export) error
 }
 
 type Cleaner struct {
@@ -72,7 +72,7 @@ func (cleaner *Cleaner) cleanupDueBatch(ctx context.Context) (int, int, error) {
 				continue
 			}
 		}
-		if deleteErr := cleaner.store.Delete(workCtx, item.OutputSHA256, item.TaskRunID); deleteErr != nil {
+		if deleteErr := cleaner.store.Delete(workCtx, item); deleteErr != nil {
 			failures = errors.Join(
 				failures,
 				cleaner.reschedule(workCtx, item, now, deleteErr),

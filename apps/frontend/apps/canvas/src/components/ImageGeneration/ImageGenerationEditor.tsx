@@ -1,3 +1,4 @@
+import { Button, Textarea, Tooltip, TooltipContent, TooltipTrigger } from "@repo/design-system";
 import { Minimize2 as IconAbbreviation, Maximize2 as IconUnfold } from "lucide-react";
 
 import {
@@ -6,7 +7,6 @@ import {
   type ImageGenerationSettings,
   type PopupPosition,
 } from "@/components/GenerationConfiguration/index";
-import { Tooltip, Button } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import { AssetStrip } from "../../pages/studio/components/AssetStrip";
@@ -83,7 +83,7 @@ export function ImageGenerationEditor({
       className={
         expanded
           ? `${styles.expanded} flex flex-col justify-between`
-          : "rounded-[20px] border border-border border-solid bg-white p-3 shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
+          : "rounded-[20px] border border-border bg-background p-3 shadow-md"
       }
     >
       <div className={`flex min-h-0 flex-col ${expanded ? "flex-1 gap-5" : "h-[200px] gap-3"}`}>
@@ -94,10 +94,11 @@ export function ImageGenerationEditor({
               aria-label={t("收起生图编辑器")}
               className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-[20px]`}
               disabled={generating}
-              icon={<IconAbbreviation />}
               onClick={onCollapse}
-              type="text"
-            />
+              variant="ghost"
+            >
+              <IconAbbreviation />
+            </Button>
           </div>
         ) : null}
         <div className="flex items-start justify-between">
@@ -121,19 +122,24 @@ export function ImageGenerationEditor({
             />
           </div>
           {onExpand ? (
-            <Tooltip content={t("大窗口编辑")} position="top">
-              <Button
-                aria-label={t("展开生图编辑器")}
-                className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-[16px]`}
-                disabled={generating}
-                icon={<IconUnfold />}
-                onClick={onExpand}
-                type="text"
-              />
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+                <Button
+                  aria-label={t("展开生图编辑器")}
+                  className={`${styles.fullscreenButton} flex h-6 w-6 shrink-0 items-center justify-center p-0 text-[16px]`}
+                  disabled={generating}
+                  onClick={onExpand}
+                  variant="ghost"
+                >
+                  <IconUnfold />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side={"top"}>{t("大窗口编辑")}</TooltipContent>
             </Tooltip>
           ) : null}
         </div>
-        <textarea
+        <Textarea
+          aria-label={title ? t("{title}提示词", { title }) : t("生图提示词")}
           className={`m-0 min-h-0 w-full flex-1 resize-none border-0 bg-[transparent] p-0 text-[13px] leading-5.5 text-foreground outline-none placeholder:text-muted-foreground ${
             generating ? styles.disabledEditorArea : ""
           }`}
@@ -160,7 +166,7 @@ export function ImageGenerationEditor({
         <div className="flex items-center gap-2">
           {settingsError ? <span className="text-[12px] leading-5 text-destructive">{settingsError}</span> : null}
           {!generating ? (
-            <Button disabled={!canGenerate} onClick={() => void onGenerate()} type="primary">
+            <Button disabled={!canGenerate} onClick={() => void onGenerate()} variant="default">
               {t("生成")}
             </Button>
           ) : null}

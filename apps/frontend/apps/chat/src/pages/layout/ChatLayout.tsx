@@ -9,7 +9,7 @@ import {
 import { ChatArtifactPanel } from "@repo/chat/components/ChatArtifactPanel";
 import { VideoProductionWorkspace } from "@repo/chat/components/VideoProductionWorkspace";
 import { useChatStore } from "@repo/chat/store/useChatStore";
-import { Layout, toast } from "@repo/design-system";
+import { Button, Layout, toast } from "@repo/design-system";
 import { cn } from "@repo/shared";
 import type { UIMessage } from "ai";
 import { useCallback, useEffect, useState } from "react";
@@ -190,9 +190,10 @@ export function ChatLayout() {
         }}
       >
         {shell.compact && (sidebarOpen || workspaceOpen) ? (
-          <button
+          <Button
             type="button"
-            className="absolute inset-0 z-20 bg-black/20"
+            variant="ghost"
+            className="absolute inset-0 z-20 h-auto w-auto rounded-none bg-black/20 p-0 shadow-none hover:bg-black/20"
             aria-label="关闭侧栏"
             onClick={workspaceOpen ? closeWorkspace : shell.toggleLeft}
           />

@@ -1,6 +1,6 @@
+import { Button, Checkbox, Tooltip, TooltipContent, TooltipTrigger } from "@repo/design-system";
 import { X as IconClose, ShieldCheck as IconComplianceLine, Trash2 as IconDeleteLine } from "lucide-react";
 
-import { Tooltip, Checkbox, Button } from "@/components/ui";
 import t from "@/utils/i18n";
 
 import styles from "./BatchActionBar.module.less";
@@ -33,118 +33,59 @@ export function BatchActionBar({
   const deleteButtonDisabled = busy || !hasSelection;
 
   return (
-    <div
-      style={{
-        alignItems: "center",
-        backdropFilter: "blur(2px)",
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-        borderRadius: 16,
-        bottom: 16,
-        display: "flex",
-        gap: 80,
-        left: "50%",
-        padding: "10px 16px",
-        position: "absolute",
-        transform: "translateX(-50%)",
-        zIndex: 50,
-      }}
-    >
-      <div
-        style={{
-          alignItems: "center",
-          display: "flex",
-          gap: 8,
-          height: 28,
-          padding: "0 4px",
-        }}
-      >
-        <Tooltip content={allSelected ? t("取消选择当页全部") : t("选中当页全部")} position="top">
-          <span className="inline-flex items-center">
-            <Checkbox
-              checked={allSelected}
-              className={`p-0 leading-none ${styles.pageSelectorCheckbox}`}
-              disabled={busy || pageItemCount === 0}
-              indeterminate={partiallySelected}
-              onChange={() => onSelectPage(!allSelected)}
-            />
-          </span>
+    <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-20 rounded-2xl bg-foreground/90 px-4 py-2.5 text-background shadow-lg backdrop-blur-sm">
+      <div className="flex h-7 items-center gap-2 px-1">
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
+            <span className="inline-flex items-center">
+              <Checkbox
+                aria-label={allSelected ? t("取消选择当页全部") : t("选中当页全部")}
+                checked={allSelected}
+                className={`p-0 leading-none ${styles.pageSelectorCheckbox}`}
+                disabled={busy || pageItemCount === 0}
+                indeterminate={partiallySelected}
+                onCheckedChange={() => onSelectPage(!allSelected)}
+              />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">{allSelected ? t("取消选择当页全部") : t("选中当页全部")}</TooltipContent>
         </Tooltip>
-        <span
-          style={{
-            color: "#fff",
-            fontSize: 13,
-            lineHeight: "22px",
-            whiteSpace: "nowrap",
-          }}
-        >
+        <span className="whitespace-nowrap text-[13px] leading-5.5">
           {t("已选 {count} 项", { count: selectedCount })}
         </span>
       </div>
-      <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
+      <div className="flex items-center gap-2">
         <Button
+          className="bg-background text-foreground hover:bg-muted"
           disabled={reviewButtonDisabled}
           onClick={onReview}
-          size="mini"
-          style={{
-            alignItems: "center",
-            backgroundColor: "#fff",
-            border: 0,
-            borderRadius: 8,
-            color: reviewButtonDisabled ? "var(--muted-foreground)" : "var(--foreground)",
-            display: "inline-flex",
-            fontSize: 13,
-            fontWeight: 500,
-            height: 28,
-            justifyContent: "center",
-            padding: "0 12px",
-          }}
+          size="sm"
+          variant="secondary"
         >
-          <span className="inline-flex items-center gap-1">
-            <IconComplianceLine className="h-4 w-4 flex-none" />
-            <span>{t("合规审核")}</span>
-          </span>
+          <IconComplianceLine data-icon="inline-start" />
+          {t("合规审核")}
         </Button>
         <Button
+          className="bg-background hover:bg-destructive/10"
           disabled={deleteButtonDisabled}
           onClick={onDelete}
-          size="mini"
-          style={{
-            alignItems: "center",
-            backgroundColor: "#fff",
-            border: 0,
-            borderRadius: 8,
-            color: deleteButtonDisabled ? "var(--muted-foreground)" : "var(--foreground)",
-            display: "inline-flex",
-            fontSize: 13,
-            fontWeight: 500,
-            height: 28,
-            justifyContent: "center",
-            padding: "0 12px",
-          }}
+          size="sm"
+          variant="destructive"
         >
-          <span className="inline-flex items-center gap-1">
-            <IconDeleteLine className="h-4 w-4 flex-none" />
-            <span>{t("删除")}</span>
-          </span>
+          <IconDeleteLine data-icon="inline-start" />
+          {t("删除")}
         </Button>
-        <button
+        <Button
           aria-label={t("退出批量操作")}
-          className="flex cursor-pointer items-center justify-center disabled:cursor-not-allowed disabled:opacity-50"
+          className="text-background hover:bg-background/15 hover:text-background"
           disabled={busy}
           onClick={onClose}
-          style={{
-            background: "transparent",
-            border: 0,
-            color: "#fff",
-            fontSize: 20,
-            height: 20,
-            padding: 0,
-            width: 20,
-          }}
+          size="icon-sm"
           type="button"
+          variant="ghost"
         >
           <IconClose />
-        </button>
+        </Button>
       </div>
     </div>
   );

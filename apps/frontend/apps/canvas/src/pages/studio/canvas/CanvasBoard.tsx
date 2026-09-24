@@ -1,3 +1,4 @@
+import { toast, Button } from "@repo/design-system";
 import {
   Background,
   type Edge,
@@ -23,8 +24,8 @@ import {
 import { useParams } from "react-router-dom";
 
 import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { type AssetMentionItem, type AssetMentionSource } from "@/components/promptEditor/index";
-import { Message, Spin } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import { UpdateCanvasNode, CreateCanvasNode, CopyCanvasNode } from "@/pages/studio/domain/persistence";
 import { resolveArtifactURL } from "@/utils/artifactURL";
@@ -249,7 +250,10 @@ function CanvasBoardInner({
         return response.CanvasNode;
       };
       return enqueueCanvasMutation(execute).catch((error) => {
-        Message.error(canvasRequestErrorMessage(error, t("节点保存失败，请刷新后重试")));
+        toast.add({
+          type: "error",
+          title: canvasRequestErrorMessage(error, t("节点保存失败，请刷新后重试")),
+        });
         throw error;
       });
     },
@@ -273,12 +277,18 @@ function CanvasBoardInner({
           });
         });
       } catch (error) {
-        Message.error(canvasRequestErrorMessage(error, t("首尾帧交换失败，请刷新后重试")));
+        toast.add({
+          type: "error",
+          title: canvasRequestErrorMessage(error, t("首尾帧交换失败，请刷新后重试")),
+        });
         // 刷新必须在写队列外，避免 refresh 等待当前 mutation 造成死锁。
         try {
           await onRefreshGraph();
         } catch {
-          Message.error(t("画布刷新失败，请刷新页面后重试"));
+          toast.add({
+            type: "error",
+            title: t("画布刷新失败，请刷新页面后重试"),
+          });
         }
       }
     },
@@ -485,15 +495,24 @@ function CanvasBoardInner({
             ? nodePositionFromAnchor(type, addMenu)
             : { flowX: 120, flowY: 120 };
       if (type === canvasnode.CanvasNodeType.VIDEO_GENERATION && !defaultVideoModelId) {
-        Message.error(t("暂无可用视频模型"));
+        toast.add({
+          type: "error",
+          title: t("暂无可用视频模型"),
+        });
         return;
       }
       if (type === canvasnode.CanvasNodeType.IMAGE_GENERATION && !defaultImageModelId) {
-        Message.error(t("暂无可用图片模型"));
+        toast.add({
+          type: "error",
+          title: t("暂无可用图片模型"),
+        });
         return;
       }
       if (type === canvasnode.CanvasNodeType.TEXT_GENERATION && !defaultTextModelId) {
-        Message.error(t("暂无可用文本模型"));
+        toast.add({
+          type: "error",
+          title: t("暂无可用文本模型"),
+        });
         return;
       }
       try {
@@ -556,7 +575,10 @@ function CanvasBoardInner({
         }
         return response.CanvasNode;
       } catch {
-        Message.error(t("节点创建失败，请重试"));
+        toast.add({
+          type: "error",
+          title: t("节点创建失败，请重试"),
+        });
         return undefined;
       } finally {
         setAddMenu(undefined);
@@ -696,7 +718,10 @@ function CanvasBoardInner({
       const sourceNode = instance?.getNode(item.NodeID);
       const sourceWidth = sourceNode?.measured?.width;
       if (!sourceNode || sourceWidth === undefined) {
-        Message.error(t("节点尚未完成布局，请稍后重试"));
+        toast.add({
+          type: "error",
+          title: t("节点尚未完成布局，请稍后重试"),
+        });
         return;
       }
       try {
@@ -731,9 +756,15 @@ function CanvasBoardInner({
           ...current.map((node) => ({ ...node, selected: false })),
           { ...copiedNode, selected: true },
         ]);
-        Message.success(t("已复制节点"));
+        toast.add({
+          type: "success",
+          title: t("已复制节点"),
+        });
       } catch {
-        Message.error(t("节点复制失败，请重试"));
+        toast.add({
+          type: "error",
+          title: t("节点复制失败，请重试"),
+        });
       }
     },
     [
@@ -822,7 +853,11 @@ function CanvasBoardInner({
       if (matchesArrangeCanvasShortcut(event) && hasMeasuredCanvasNodes(nodesRef.current)) {
         event.preventDefault();
         void arrangeNodes().then((success) => {
-          if (success) Message.success(t("画布布局已整理"));
+          if (success)
+            toast.add({
+              type: "success",
+              title: t("画布布局已整理"),
+            });
         });
         return;
       }
@@ -891,7 +926,10 @@ function CanvasBoardInner({
               position,
             });
           } catch {
-            Message.error(t("无法读取拖入的素材"));
+            toast.add({
+              type: "error",
+              title: t("无法读取拖入的素材"),
+            });
           }
         }}
         ref={boardRef}
@@ -932,7 +970,10 @@ function CanvasBoardInner({
                       connectionState.toNode &&
                       invalidConnectionWarningRef.current
                     ) {
-                      Message.warning(invalidConnectionWarningRef.current);
+                      toast.add({
+                        type: "warning",
+                        title: invalidConnectionWarningRef.current,
+                      });
                     }
                     invalidConnectionWarningRef.current = undefined;
                   }}
@@ -1007,7 +1048,12 @@ function CanvasBoardInner({
                       `[data-canvas-node-preview="${CSS.escape(node.id)}"]`,
                     );
                     if (preview?.requestFullscreen) {
-                      void preview.requestFullscreen().catch(() => Message.error(t("无法进入全屏")));
+                      void preview.requestFullscreen().catch(() =>
+                        toast.add({
+                          type: "error",
+                          title: t("无法进入全屏"),
+                        }),
+                      );
                     }
                   }}
                   onNodesChange={onNodesChange}
@@ -1066,28 +1112,39 @@ function CanvasBoardInner({
               return (
                 <Fragment key={type}>
                   {type === canvasnode.CanvasNodeType.TEXT ? <div className={styles.menuDivider} /> : null}
-                  <button className={styles.addItem} onClick={() => void createNode(type)} type="button">
+                  <Button
+                    variant="ghost"
+                    className={styles.addItem}
+                    onClick={() => void createNode(type)}
+                    type="button"
+                  >
                     <CanvasNodeIcon aria-hidden nodeType={type} size={16} strokeWidth={1.5} />
                     {t(protocol.createLabel)}
-                  </button>
+                  </Button>
                 </Fragment>
               );
             })}
             {!addMenu.types ? (
               <>
-                <button className={styles.addItem} onClick={() => fileInputRef.current?.click()} type="button">
+                <Button
+                  variant="ghost"
+                  className={styles.addItem}
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
                   <IconUpload aria-hidden size={16} strokeWidth={1.5} />
                   {t("上传")}
-                </button>
+                </Button>
                 <div className={styles.menuDivider} />
-                <button
+                <Button
+                  variant="ghost"
                   className={styles.addItem}
                   onClick={() => void createNode(canvasnode.CanvasNodeType.TEXT)}
                   type="button"
                 >
                   <CanvasNodeIcon aria-hidden nodeType={canvasnode.CanvasNodeType.TEXT} size={16} strokeWidth={1.5} />
                   {t(canvasNodeProtocol(canvasnode.CanvasNodeType.TEXT).createLabel)}
-                </button>
+                </Button>
               </>
             ) : null}
           </div>
@@ -1111,7 +1168,7 @@ function CanvasBoardInner({
 
         {!graphLoaded ? (
           <div className={styles.loading}>
-            <Spin size={28} />
+            <LoadingIndicator className="size-[28px]" />
           </div>
         ) : null}
 

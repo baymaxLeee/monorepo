@@ -1,7 +1,7 @@
+import { Button } from "@repo/design-system";
 import { Sparkles as IconAiGenerateVariationSpark, CircleAlert as IconExclamationCircleRedFill } from "lucide-react";
 
 import { GenerationFailureReason } from "@/components/GenerationFailureReason";
-import { Button } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -62,14 +62,14 @@ export function CanvasGenerationFailureState({
       <strong className="text-[14px] font-medium leading-6 text-destructive">{copy.title}</strong>
       <GenerationFailureReason reason={message || copy.fallback} />
       <Button
-        icon={<IconAiGenerateVariationSpark />}
         onClick={(event) => {
           event.stopPropagation();
           onRetry();
         }}
-        size="small"
-        type="outline"
+        size="sm"
+        variant="outline"
       >
+        <IconAiGenerateVariationSpark />
         {t("重新生成")}
       </Button>
     </div>

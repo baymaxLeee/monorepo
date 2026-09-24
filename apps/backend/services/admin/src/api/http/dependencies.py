@@ -117,18 +117,11 @@ def internal_service_token(
     x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
     x_caller_service: Annotated[str | None, Header(alias="X-Caller-Service")] = None,
 ) -> None:
-    """Shared-secret check for service-to-service `/internal/*` calls.
+    """Authenticate the declared workload with its independent credential."""
 
-    Constant-time comparison; refuses when the configured token is empty so
-    we never accidentally accept un-authenticated traffic in misconfigured
-    environments.
-    """
-
-    expected = get_settings().internal_api_token
+    expected = get_settings().internal_service_tokens.get(x_caller_service or "")
     if not expected or not x_internal_token or not hmac.compare_digest(expected, x_internal_token):
-        raise UnauthorizedError("invalid or missing X-Internal-Token header")
-    if x_caller_service not in {"canvas", "chat", "executor", "knowledge"}:
-        raise UnauthorizedError("invalid or missing X-Caller-Service header")
+        raise UnauthorizedError("invalid internal service credentials")
 
 
 DbSession = Annotated[AsyncSession, Depends(db_session)]

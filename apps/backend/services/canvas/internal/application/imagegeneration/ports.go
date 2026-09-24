@@ -111,6 +111,7 @@ type TaskStore interface {
 	CreatePollSchedule(context.Context, domaintask.PollSchedule) error
 	GetTaskRunForUpdate(context.Context, string) (domaintask.TaskRun, error)
 	GetTaskRun(context.Context, string) (domaintask.TaskRun, error)
+	BatchGetTaskRuns(context.Context, applicationtask.Scope, []string) ([]domaintask.TaskRun, error)
 	UpdateTaskRun(context.Context, domaintask.TaskRun, applicationtask.TaskRunUpdate, time.Time) (bool, error)
 	DeletePollSchedule(context.Context, string) error
 }

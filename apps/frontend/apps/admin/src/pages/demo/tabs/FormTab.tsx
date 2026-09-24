@@ -29,9 +29,9 @@ export function FormTab() {
             <Input id="demo-name" placeholder="智能体名称" />
           </div>
           <div className="grid gap-2">
-            <Label>角色</Label>
+            <Label htmlFor="demo-role">角色</Label>
             <Select value={role} onValueChange={(value) => value !== null && setRole(value)}>
-              <SelectTrigger>
+              <SelectTrigger id="demo-role">
                 <SelectValue placeholder="选择角色" />
               </SelectTrigger>
               <SelectContent>

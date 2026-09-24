@@ -135,11 +135,15 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 }
 
 func (runtime *Runtime) Open(ctx context.Context, item applicationcanvasarchive.Export) (io.ReadCloser, error) {
-	logicalNamespace, err := (artifactnamespace.Scope{
-		TenantID: item.TenantID, WorkspaceID: item.WorkspaceID, ProjectID: &item.ProjectID,
-	}).Namespace()
+	logicalNamespace, err := archiveNamespace(item)
 	if err != nil {
 		return nil, err
 	}
 	return runtime.storage.Get(ctx, artifact.KnowledgeNamespace(logicalNamespace), item.OutputPath)
+}
+
+func archiveNamespace(item applicationcanvasarchive.Export) (string, error) {
+	return (artifactnamespace.Scope{
+		TenantID: item.TenantID, WorkspaceID: item.WorkspaceID, ProjectID: &item.ProjectID,
+	}).Namespace()
 }

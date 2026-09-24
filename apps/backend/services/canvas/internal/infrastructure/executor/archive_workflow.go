@@ -84,6 +84,20 @@ func (store *ArchiveWorkflowStore) reconcile(ctx context.Context, row archiveWor
 	if store.client == nil || store.service == nil {
 		return errors.New("Canvas archive workflow is not configured")
 	}
+	if row.CancelRequested {
+		var err error
+		if row.ExecutorTaskID == "" {
+			_, err = store.client.CancelByOwner(ctx, row.TaskRunID, "canvas-archive")
+		} else {
+			_, err = store.client.Cancel(ctx, row.ExecutorTaskID, row.TaskRunID)
+		}
+		if err != nil {
+			return err
+		}
+		return store.db.WithContext(ctx).Model(&archiveWorkflowRow{}).
+			Where("task_run_id = ? AND cancel_requested = true", row.TaskRunID).
+			Update("settled", true).Error
+	}
 	task, err := store.client.Start(ctx, row.TaskRunID, "canvas-archive", map[string]string{
 		"taskRunId": compactTaskRunID(row.TaskRunID),
 	})
@@ -113,7 +127,7 @@ func (store *ArchiveWorkflowStore) reconcile(ctx context.Context, row archiveWor
 			return err
 		}
 	}
-	if task.Status == "failed" {
+	if task.Status == "failed" || task.Status == "cancelled" {
 		if err = store.service.CommitFailure(ctx, row.TaskRunID); err != nil && !errors.Is(err, applicationcanvasarchive.ErrExecutionTerminal) {
 			return err
 		}

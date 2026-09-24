@@ -1,9 +1,9 @@
 import { canvasMaterializeAssetReference, canvasMaterializeResourceReference } from "@repo/api";
+import { toast } from "@repo/design-system";
 import { useSetAtom } from "jotai";
 import { useCallback, type RefObject } from "react";
 
 import { type AssetMentionItem, mentionReferenceIdentity } from "@/components/promptEditor";
-import { Message } from "@/components/ui";
 import type { canvasnode } from "@/domain";
 import { ConnectCanvasNodes, presentNode } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
@@ -73,7 +73,10 @@ export function useCanvasNodeAssets({
         if (!source) throw new Error("source canvas node is not available");
         const resolution = resolveConnection(source, liveTarget);
         if (!resolution.accepted) {
-          Message.warning(canvasNodeInputWarning(resolution));
+          toast.add({
+            type: "warning",
+            title: canvasNodeInputWarning(resolution),
+          });
           throw new Error("canvas node input rejected");
         }
         const targetPort = resolution.targetPort;
@@ -113,7 +116,10 @@ export function useCanvasNodeAssets({
         kind: "material",
       });
       if (!resolution.accepted) {
-        Message.warning(canvasNodeInputWarning(resolution));
+        toast.add({
+          type: "warning",
+          title: canvasNodeInputWarning(resolution),
+        });
         throw new Error("canvas node input rejected");
       }
       const targetPort = resolution.targetPort;
@@ -207,7 +213,10 @@ export function useCanvasNodeAssets({
       try {
         return await selectNodeAsset(target, candidate);
       } catch (error) {
-        Message.error(canvasRequestErrorMessage(error, t("添加素材失败，请重试")));
+        toast.add({
+          type: "error",
+          title: canvasRequestErrorMessage(error, t("添加素材失败，请重试")),
+        });
         throw error;
       }
     },

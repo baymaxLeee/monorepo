@@ -1,4 +1,5 @@
 import {
+  InternalHttpClient,
   KnowledgeInternalClient,
   type KnowledgeDocument,
   type StagedMedia,
@@ -98,4 +99,30 @@ export function discardStagedMedia(input: {
   stagedId: string;
 }): Promise<StagedMedia> {
   return knowledgeClient(180_000).discardStagedMedia(input);
+}
+
+function knowledgeHttp(timeoutMs: number): InternalHttpClient {
+  const settings = getSettings();
+  return new InternalHttpClient({
+    baseUrl: settings.knowledgeServiceUrl,
+    internalToken: settings.internalApiToken,
+    callerService: "executor",
+    service: "knowledge",
+    timeoutMs,
+  });
+}
+
+export function processKnowledgeDocument(documentId: string, providerId?: string): Promise<{ state: string }> {
+  return knowledgeHttp(10 * 60_000).requestJson({
+    method: "POST",
+    path: `/internal/documents/${encodeURIComponent(documentId)}/process`,
+    body: { provider_id: providerId },
+  });
+}
+
+export function indexKnowledgeDocument(documentId: string): Promise<{ state: string }> {
+  return knowledgeHttp(15 * 60_000).requestJson({
+    method: "POST",
+    path: `/internal/documents/${encodeURIComponent(documentId)}/index`,
+  });
 }

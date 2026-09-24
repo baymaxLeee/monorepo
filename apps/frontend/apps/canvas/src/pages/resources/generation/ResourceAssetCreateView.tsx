@@ -1,4 +1,5 @@
 import { fetchCanvasSettings } from "@repo/api";
+import { toast } from "@repo/design-system";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -7,7 +8,6 @@ import {
 } from "@/components/GenerationConfiguration/index";
 import { ImageGenerationEditor } from "@/components/ImageGeneration/ImageGenerationEditor";
 import { ImageGenerationEditorDialog } from "@/components/ImageGeneration/ImageGenerationEditorDialog";
-import { Message } from "@/components/ui";
 import { resource } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import t from "@/utils/i18n";
@@ -146,7 +146,10 @@ export function ResourceAssetCreateView({
       listImageGenerationModels(projectId),
       fetchCanvasSettings().catch(() => {
         if (active) {
-          Message.warning(t("默认模型配置加载失败，已使用项目可用模型"));
+          toast.add({
+            type: "warning",
+            title: t("默认模型配置加载失败，已使用项目可用模型"),
+          });
         }
         return undefined;
       }),
@@ -157,7 +160,11 @@ export function ResourceAssetCreateView({
         setConfiguredDefaultImageModelId(defaultModels?.defaults.image?.provider_id ?? "");
       })
       .catch(() => {
-        if (active) Message.error(t("模型列表加载失败"));
+        if (active)
+          toast.add({
+            type: "error",
+            title: t("模型列表加载失败"),
+          });
       })
       .finally(() => {
         if (active) setModelsLoading(false);
@@ -209,7 +216,11 @@ export function ResourceAssetCreateView({
         }));
       })
       .catch(() => {
-        if (active) Message.error(t("生成配置加载失败"));
+        if (active)
+          toast.add({
+            type: "error",
+            title: t("生成配置加载失败"),
+          });
       })
       .finally(() => {
         if (active) setGenerationLoading(false);
@@ -306,12 +317,18 @@ export function ResourceAssetCreateView({
 
   const handleUpload = async (files: File[]) => {
     if (!supportsImageToImage) {
-      Message.warning(t("当前模型不支持参考图"));
+      toast.add({
+        type: "warning",
+        title: t("当前模型不支持参考图"),
+      });
       return;
     }
     const room = referenceLimit - references.length;
     if (room <= 0) {
-      Message.warning(t("当前模型最多支持 {max} 张参考图", { max: referenceLimit }));
+      toast.add({
+        type: "warning",
+        title: t("当前模型最多支持 {max} 张参考图", { max: referenceLimit }),
+      });
       return;
     }
     const accepted = files.slice(0, room);
@@ -319,7 +336,10 @@ export function ResourceAssetCreateView({
     for (const file of accepted) {
       const validationError = validateResourceFile(resource.ResourceType.CHARACTER, file);
       if (validationError) {
-        Message.error(validationError);
+        toast.add({
+          type: "error",
+          title: validationError,
+        });
         continue;
       }
       if (file.size > IMAGE_MAX_SIZE_BYTES) continue;
@@ -361,7 +381,10 @@ export function ResourceAssetCreateView({
           };
           setReferences([...nextReferences]);
         }
-        Message.error(reason instanceof Error ? reason.message : t("参考图关联失败"));
+        toast.add({
+          type: "error",
+          title: reason instanceof Error ? reason.message : t("参考图关联失败"),
+        });
       }
     }
   };
@@ -394,7 +417,10 @@ export function ResourceAssetCreateView({
           setGenerationFailure(undefined);
           onGeneratingChangeRef.current?.(undefined);
           onGenerated();
-          Message.success(t("生成成功"));
+          toast.add({
+            type: "success",
+            title: t("生成成功"),
+          });
           return;
         }
         if (
@@ -409,7 +435,10 @@ export function ResourceAssetCreateView({
               code: run.ErrorCode,
               message: run.ErrorMessage,
             });
-            Message.error(run.ErrorMessage || run.ErrorCode || t("生成失败，请重试"));
+            toast.add({
+              type: "error",
+              title: run.ErrorMessage || run.ErrorCode || t("生成失败，请重试"),
+            });
           }
           return;
         }
@@ -425,7 +454,10 @@ export function ResourceAssetCreateView({
   const handleGenerate = async () => {
     const slot = slotRef.current;
     if (settingsError) {
-      Message.error(settingsError);
+      toast.add({
+        type: "error",
+        title: settingsError,
+      });
       return;
     }
     if (!slot || !canGenerate) return;
@@ -446,7 +478,10 @@ export function ResourceAssetCreateView({
       pollRun(runId);
     } catch (reason) {
       setGenerating(false);
-      Message.error(reason instanceof Error ? reason.message : t("发起生成失败"));
+      toast.add({
+        type: "error",
+        title: reason instanceof Error ? reason.message : t("发起生成失败"),
+      });
     }
   };
 

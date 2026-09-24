@@ -199,15 +199,12 @@ export async function approveCandidate(userId: string, candidateId: string): Pro
 }
 
 export async function rejectCandidate(userId: string, candidateId: string): Promise<boolean> {
-  const candidate = await getOwnedMemory(userId, candidateId);
-  if (!candidate || candidate.status !== "pending") {
-    return false;
-  }
-  await getDb()
+  const [candidate] = await getDb()
     .update(userMemories)
     .set({ status: "rejected", updatedAt: new Date() })
-    .where(eq(userMemories.id, candidateId));
-  return true;
+    .where(and(eq(userMemories.id, candidateId), eq(userMemories.userId, userId), eq(userMemories.status, "pending")))
+    .returning({ id: userMemories.id });
+  return candidate != null;
 }
 
 export async function updateCandidate(
@@ -215,23 +212,23 @@ export async function updateCandidate(
   candidateId: string,
   patch: { category?: MemoryCategory; content?: string },
 ): Promise<MemoryCandidate | null> {
-  const candidate = await getOwnedMemory(userId, candidateId);
-  if (!candidate || candidate.status !== "pending") {
-    return null;
-  }
   const content = patch.content?.trim().replace(/\s+/g, " ");
-  await getDb()
+  const [candidate] = await getDb()
     .update(userMemories)
     .set({
       category: patch.category ?? undefined,
       content: content ?? undefined,
       updatedAt: new Date(),
     })
-    .where(eq(userMemories.id, candidateId));
+    .where(and(eq(userMemories.id, candidateId), eq(userMemories.userId, userId), eq(userMemories.status, "pending")))
+    .returning();
+  if (!candidate) {
+    return null;
+  }
   return {
     id: candidate.id,
-    category: (patch.category ?? candidate.category) as MemoryCategory,
-    content: content ?? candidate.content,
+    category: candidate.category as MemoryCategory,
+    content: candidate.content,
     reason: candidate.reason,
     supersedesId: candidate.supersedesId,
     createdAt: isoOrEmpty(candidate.createdAt),

@@ -104,8 +104,8 @@
   padding: 2rem;
   border: 1px dashed var(--border);
   border-radius: 12px;
-  background: #f7f8fa;
-  color: #0c0d0e;
+  background: var(--muted);
+  color: var(--foreground);
   cursor: pointer;
   flex-direction: column;
   gap: 0.5rem;
@@ -115,8 +115,8 @@
 
   &:hover,
   &:focus-visible {
-    border-color: #86909c;
-    background: #f2f3f5;
+    border-color: var(--muted-foreground);
+    background: var(--muted);
     outline: none;
   }
 
@@ -256,8 +256,8 @@
   left: 0.25rem;
   padding: 0.0625rem 0.5rem;
   border-radius: 8px;
-  background: #c6e4ff;
-  color: #031a79;
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+  color: var(--primary);
   font-size: 13px;
   font-weight: 500;
   line-height: 22px;

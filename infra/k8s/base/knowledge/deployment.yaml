@@ -5,6 +5,10 @@ metadata:
   labels: { app: knowledge }
 spec:
   replicas: 1
+  # The local object backend is mounted from a ReadWriteOnce PVC. Recreate
+  # prevents old/new pods from deadlocking a rollout while both request it.
+  strategy:
+    type: Recreate
   selector:
     matchLabels: { app: knowledge }
   template:

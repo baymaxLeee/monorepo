@@ -1,7 +1,7 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@repo/design-system";
 import { useAtomValue } from "jotai";
 
 import { type GenerationModelOption } from "@/components/GenerationConfiguration/index";
-import { Select } from "@/components/ui";
 import { canvasnode } from "@/domain";
 import t from "@/utils/i18n";
 
@@ -41,25 +41,22 @@ export function CanvasModelSelect({
     : defaultModelId;
   return (
     <Select
-      bordered={false}
-      className="w-[150px] rounded-[8px] bg-[rgba(26,27,30,0.05)] text-[11px]"
       disabled={disabled || modelOptions.length === 0}
-      dropdownMenuClassName="canvas-editor-overlay"
-      onChange={(ModelServiceID) => onPatch(item, { GenerationConfig: { ModelServiceID } })}
-      placeholder={t("选择模型")}
-      triggerProps={{
-        autoAlignPopupMinWidth: true,
-        autoAlignPopupWidth: false,
-      }}
+      onValueChange={(ModelServiceID) => ModelServiceID && onPatch(item, { GenerationConfig: { ModelServiceID } })}
       value={selectedModelId || undefined}
     >
-      {modelOptions.map((model) => (
-        <Select.Option key={model.id} value={model.id}>
-          <span className="block truncate" title={model.name}>
-            {model.name}
-          </span>
-        </Select.Option>
-      ))}
+      <SelectTrigger aria-label={t("生成模型")} className="w-[150px] border-0 bg-muted text-[11px] shadow-none">
+        <SelectValue placeholder={t("选择模型")} />
+      </SelectTrigger>
+      <SelectContent align="start" alignItemWithTrigger={false} className="canvas-editor-overlay w-max">
+        {modelOptions.map((model) => (
+          <SelectItem key={model.id} value={model.id}>
+            <span className="block truncate" title={model.name}>
+              {model.name}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
     </Select>
   );
 }

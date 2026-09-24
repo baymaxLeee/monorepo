@@ -1,7 +1,7 @@
+import { toast } from "@repo/design-system";
 import type { SuggestionProps } from "@tiptap/suggestion";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
-import { Message } from "@/components/ui";
 import { type asset, asset as assetIDL } from "@/domain";
 
 import { AddAssetToLibraryDialog } from "./AddAssetToLibraryDialog";
@@ -150,7 +150,10 @@ export const AssetSuggestionList = forwardRef<AssetSuggestionListRef, AssetSugge
       const selected = mentionNodeToAsset(node, sourceOf(node));
       const unavailable = unavailableAssetMessage(selected);
       if (unavailable) {
-        Message.warning(unavailable);
+        toast.add({
+          type: "warning",
+          title: unavailable,
+        });
         return;
       }
       command(selected);

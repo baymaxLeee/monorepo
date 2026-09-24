@@ -1,3 +1,4 @@
+import { Button } from "@repo/design-system";
 import { Minimize2 as IconAbbreviation } from "lucide-react";
 import { useState } from "react";
 
@@ -64,14 +65,15 @@ export function CanvasTextEditor({
         >
           <div className="flex h-6 flex-none items-center justify-between">
             <div className="min-w-0 truncate text-[14px] font-medium leading-6 text-foreground">{title}</div>
-            <button
+            <Button
+              variant="ghost"
               aria-label={t("收起文本编辑器")}
               className={`${styles.collapseButton} flex h-6 w-6 flex-none cursor-pointer items-center justify-center rounded-[8px] border-0 p-0 text-[16px]`}
               onClick={onCollapse}
               type="button"
             >
               <IconAbbreviation />
-            </button>
+            </Button>
           </div>
           <div className="flex min-h-0 flex-1">{renderEditor()}</div>
         </section>

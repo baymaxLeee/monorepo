@@ -6,7 +6,6 @@ import re
 import urllib.error
 import urllib.request
 from typing import cast
-from urllib.parse import urlencode
 
 from bootstrap.config import get_settings
 from kernel.errors import RequestError
@@ -247,10 +246,10 @@ def _clickhouse_json_query(
     *,
     timeout: float = 5,
 ) -> dict[str, object]:
-    params = urlencode({"database": "otel", "user": user, "password": password})
     request = urllib.request.Request(
-        f"{base_url.rstrip('/')}/?{params}",
+        f"{base_url.rstrip('/')}/?database=otel",
         data=sql.encode(),
+        headers={"X-ClickHouse-User": user, "X-ClickHouse-Key": password},
         method="POST",
     )
     try:

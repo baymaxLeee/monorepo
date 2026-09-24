@@ -1,6 +1,6 @@
 export type Environment = "development" | "staging" | "single-vps" | "production";
 
-const DEV_INTERNAL_TOKEN = "dev-internal-token";
+const DEV_INTERNAL_TOKEN = "dev-chat-internal-token";
 
 export interface Settings {
   environment: Environment;
@@ -38,28 +38,39 @@ function envInt(key: string, fallback: number): number {
 }
 
 export function getSettings(): Settings {
-  const environment = envOr("ENVIRONMENT", "development") as Environment;
+  const environment = envOr("ENVIRONMENT", "development");
+  if (!["development", "staging", "single-vps", "production"].includes(environment)) {
+    throw new Error(`unsupported ENVIRONMENT ${JSON.stringify(environment)}`);
+  }
   const postgresPassword = envOr("POSTGRES_PASSWORD", "chat");
-  if (environment === "production" && (!postgresPassword || postgresPassword === "chat")) {
-    throw new Error("POSTGRES_PASSWORD must be set explicitly in production");
+  const postgresHost = envOr("POSTGRES_HOST", "localhost");
+  const redisHost = envOr("REDIS_HOST", "localhost");
+  if (environment !== "development" && (!postgresPassword || postgresPassword === "chat")) {
+    throw new Error("POSTGRES_PASSWORD must be set explicitly outside development");
+  }
+  if (environment !== "development" && ["localhost", "127.0.0.1"].includes(postgresHost)) {
+    throw new Error("POSTGRES_HOST must be set explicitly outside development");
+  }
+  if (environment !== "development" && ["localhost", "127.0.0.1"].includes(redisHost)) {
+    throw new Error("REDIS_HOST must be set explicitly outside development");
   }
   const toolApprovalSecret = envOr("TOOL_APPROVAL_SECRET", "");
-  if (environment === "production" && !toolApprovalSecret) {
-    throw new Error("TOOL_APPROVAL_SECRET must be set explicitly in production");
+  if (environment !== "development" && (toolApprovalSecret.length < 32 || toolApprovalSecret.startsWith("dev-"))) {
+    throw new Error("TOOL_APPROVAL_SECRET must be a strong secret outside development");
   }
   const internalApiToken = envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN);
-  if (environment === "production" && internalApiToken === DEV_INTERNAL_TOKEN) {
-    throw new Error("INTERNAL_API_TOKEN must be set explicitly in production");
+  if (environment !== "development" && (internalApiToken.length < 32 || internalApiToken.startsWith("dev-"))) {
+    throw new Error("INTERNAL_API_TOKEN must be a strong workload credential outside development");
   }
   return {
-    environment,
+    environment: environment as Environment,
     port: envInt("PORT", 8009),
-    postgresHost: envOr("POSTGRES_HOST", "localhost"),
+    postgresHost,
     postgresPort: envInt("POSTGRES_PORT", 5432),
     postgresUser: envOr("POSTGRES_USER", "chat"),
     postgresPassword,
     postgresDatabase: envOr("POSTGRES_DATABASE", "chat"),
-    redisHost: envOr("REDIS_HOST", "localhost"),
+    redisHost,
     redisPort: envInt("REDIS_PORT", 6379),
     redisDb: envInt("REDIS_DB", 2),
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),

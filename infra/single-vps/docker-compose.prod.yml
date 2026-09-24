@@ -197,7 +197,6 @@ services:
       <<: *iam-env
       PORT: "8002"
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
       ACCESS_TOKEN_TTL: "5m"
       REFRESH_TOKEN_TTL: "720h"
       REFRESH_COOKIE_NAME: refresh_token
@@ -224,7 +223,6 @@ services:
       REDIS_PORT: "6379"
       REDIS_DB: "1"
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
       ADMIN_SERVICE_URL: http://admin:8001
       CHAT_SERVICE_URL: http://chat:8009
       CANVAS_SERVICE_URL: http://canvas:8012
@@ -232,9 +230,9 @@ services:
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       TELEMETRY_SERVICE_URL: http://telemetry:8008
-      # Same-origin behind nginx → browser never sends Origin for navigations.
-      # Wildcard kept for occasional curl/tools with credentials.
-      ALLOWED_FRONTEND_ORIGINS: "*"
+      # Browser traffic is same-origin behind nginx; explicit origin also protects
+      # cookie-authenticated refresh/logout from cross-site form submissions.
+      ALLOWED_FRONTEND_ORIGINS: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       # Ingest stream may upload multiple 10 MiB attachments in one multipart body.
       MAX_REQUEST_BODY_BYTES: "536870912"
     <<: *restart_policy
@@ -261,8 +259,7 @@ services:
       REDIS_DB: "0"
       # Fernet key encrypting model_providers.api_key_enc.
       ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:?ADMIN_SECRET_KEY is required}
-      # Shared secret with chat for `/internal/*` calls.
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   canvas:
@@ -289,7 +286,8 @@ services:
       POSTGRES_DATABASE: canvas
       POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      INTERNAL_API_TOKEN: ${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   chat:
@@ -317,7 +315,8 @@ services:
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       EXECUTOR_SERVICE_URL: http://executor:8011
       CANVAS_SERVICE_URL: http://canvas:8012
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      INTERNAL_API_TOKEN: ${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}
+      TOOL_APPROVAL_SECRET: ${TOOL_APPROVAL_SECRET:?TOOL_APPROVAL_SECRET is required}
       EXA_API_KEY: ${EXA_API_KEY:?EXA_API_KEY is required}
       # Optional fallback provider; chat runs on Exa alone if unset.
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
@@ -349,9 +348,8 @@ services:
       WORKFLOW_POSTGRES_WORKER_CONCURRENCY: "20"
       WORKFLOW_POSTGRES_MAX_POOL_SIZE: "24"
       FILE_TASK_CONCURRENCY: "8"
-      # Shared secret with chat/admin for `/internal/*`-style calls.
-      # Must match chat-secrets.INTERNAL_API_TOKEN exactly.
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      INTERNAL_API_TOKEN: ${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
       # Provider calls (SSRF-guarded); knowledge owns the published document.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
@@ -378,7 +376,9 @@ services:
       REDIS_PORT: "6379"
       REDIS_DB: "3"
       ADMIN_SERVICE_URL: http://admin:8001
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      EXECUTOR_SERVICE_URL: http://executor:8011
+      INTERNAL_API_TOKEN: ${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}"}'
       KNOWLEDGE_DATA_DIR: /data/objects
       MAX_OBJECT_BYTES: ${MAX_OBJECT_BYTES:-10485760}
     volumes:

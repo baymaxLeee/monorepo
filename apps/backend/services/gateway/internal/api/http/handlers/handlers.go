@@ -20,9 +20,9 @@ func Index(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func NewServiceProxy(upstream, service, externalPrefix, internalToken string) http.Handler {
+func NewServiceProxy(upstream, service, externalPrefix string) http.Handler {
 	return &internalPathGuard{
-		inner:          newReverseProxy(upstream, service, externalPrefix, internalToken),
+		inner:          newReverseProxy(upstream, service, externalPrefix),
 		externalPrefix: externalPrefix,
 	}
 }
@@ -49,13 +49,16 @@ func isInternalPath(path string) bool {
 	return path == "/internal" || strings.HasPrefix(path, "/internal/")
 }
 
-func newReverseProxy(upstream, service, externalPrefix, internalToken string) http.Handler {
+func newReverseProxy(upstream, service, externalPrefix string) http.Handler {
 	target, err := url.Parse(strings.TrimRight(upstream, "/"))
 	if err != nil {
 		panic("invalid " + service + " upstream url: " + err.Error())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.Transport = otelhttp.NewTransport(http.DefaultTransport)
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConnsPerHost = 32
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	proxy.Transport = otelhttp.NewTransport(transport)
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		incomingPath := req.URL.Path
@@ -63,8 +66,6 @@ func newReverseProxy(upstream, service, externalPrefix, internalToken string) ht
 		req.URL.Path = stripServicePrefix(incomingPath, externalPrefix)
 		req.URL.RawPath = ""
 		req.Host = target.Host
-		req.Header.Set(middleware.HeaderInternalToken, internalToken)
-		req.Header.Set(middleware.HeaderCallerService, "gateway")
 		slog.Info("proxy",
 			"trace_id", middleware.TraceIDFromContext(req.Context()),
 			"service", service,
@@ -78,26 +79,28 @@ func newReverseProxy(upstream, service, externalPrefix, internalToken string) ht
 			"err", err,
 			"path", r.URL.Path,
 		)
-		http.Error(w, "upstream unavailable: "+err.Error(), http.StatusBadGateway)
+		writeProblem(w, http.StatusBadGateway, "bad_gateway", "the upstream service is unavailable")
 	}
 	proxy.FlushInterval = -1
-	return &streamingProxy{inner: proxy}
+	return &deadlineAwareProxy{inner: proxy, service: service, externalPrefix: externalPrefix}
 }
 
-type streamingProxy struct {
-	inner http.Handler
+type deadlineAwareProxy struct {
+	inner          http.Handler
+	service        string
+	externalPrefix string
 }
 
-func (s *streamingProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Proxied SSE (agent runs) and multipart ingest routinely outlive the
-	// server-wide Read/WriteTimeout. Clearing only the write deadline still let
-	// ReadTimeout fire on the background connection read mid-stream, cancelling
-	// the upstream request context (context canceled -> 502). Both deadlines
-	// must be cleared so a proxied request's lifetime is bounded by the upstream.
+func (p *deadlineAwareProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := stripServicePrefix(r.URL.Path, p.externalPrefix)
 	rc := http.NewResponseController(w)
-	_ = rc.SetReadDeadline(time.Time{})
-	_ = rc.SetWriteDeadline(time.Time{})
-	s.inner.ServeHTTP(w, r)
+	if p.service == "chat-server" && strings.HasSuffix(path, "/agents/run/stream") {
+		_ = rc.SetWriteDeadline(time.Time{})
+	}
+	if p.service == "knowledge-server" && r.Method == http.MethodPost && path == "/ingest" {
+		_ = rc.SetReadDeadline(time.Time{})
+	}
+	p.inner.ServeHTTP(w, r)
 }
 
 func stripServicePrefix(path, prefix string) string {

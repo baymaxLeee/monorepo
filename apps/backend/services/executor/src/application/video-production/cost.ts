@@ -21,6 +21,14 @@ async function applyCostEntry(input: {
 }): Promise<VideoProductionProjection> {
   const db = getDb();
   return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(videoProductions)
+      .where(eq(videoProductions.id, input.productionId))
+      .for("update");
+    if (!row) {
+      throw new NotFoundError(`video production ${input.productionId} not found`);
+    }
     const [existing] = await tx
       .select()
       .from(videoCostEntries)
@@ -30,14 +38,6 @@ async function applyCostEntry(input: {
           eq(videoCostEntries.idempotencyKey, input.idempotencyKey),
         ),
       );
-    const [row] = await tx
-      .select()
-      .from(videoProductions)
-      .where(eq(videoProductions.id, input.productionId))
-      .for("update");
-    if (!row) {
-      throw new NotFoundError(`video production ${input.productionId} not found`);
-    }
     if (existing) {
       return row.projection;
     }

@@ -86,7 +86,7 @@ export function AssetAvatar({
           />
           <span
             aria-label={t("视频")}
-            className="absolute inset-0 m-auto flex h-1/2 w-1/2 items-center justify-center rounded-[999px] bg-white text-foreground shadow-[0_1px_4px_rgba(0,0,0,0.18)] [&>svg]:h-1/2 [&>svg]:w-1/2"
+            className="absolute inset-0 m-auto flex h-1/2 w-1/2 items-center justify-center rounded-full bg-background text-foreground shadow-sm [&>svg]:h-1/2 [&>svg]:w-1/2"
           >
             <IconPlay />
           </span>

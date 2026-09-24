@@ -73,11 +73,16 @@ def require_internal_token(
 ) -> None:
     from bootstrap.config import get_settings
 
-    expected = get_settings().internal_api_token
+    expected = get_settings().internal_service_tokens.get(x_caller_service or "")
     if not expected or not x_internal_token or not hmac.compare_digest(expected, x_internal_token):
-        raise UnauthorizedError("invalid internal token")
-    if x_caller_service not in {"chat", "executor", "canvas"}:
-        raise UnauthorizedError("invalid or missing X-Caller-Service header")
+        raise UnauthorizedError("invalid internal service credentials")
+
+
+def require_executor_caller(
+    x_caller_service: Annotated[str | None, Header(alias="X-Caller-Service")] = None,
+) -> None:
+    if x_caller_service != "executor":
+        raise UnauthorizedError("executor service identity is required")
 
 
 DbSession = Annotated[AsyncSession, Depends(db_session)]
