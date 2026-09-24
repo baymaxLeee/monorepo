@@ -86,7 +86,11 @@ echo "→ pulling latest images on remote"
 ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env pull"
 
 echo "→ starting/restarting services"
-ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans"
+if ! ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans"; then
+    echo "✗ compose startup failed; collecting one-shot container logs" >&2
+    ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env logs --tail=80 db-init workflow-db-init iam-bootstrap" || true
+    exit 1
+fi
 
 echo "→ waiting for http://${REMOTE_HOST}:${PUBLIC_PORT}/healthz to return 200"
 deadline=$((SECONDS + 120))

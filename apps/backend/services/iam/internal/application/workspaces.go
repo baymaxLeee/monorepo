@@ -16,10 +16,10 @@ import (
 
 type WorkspaceService struct {
 	store *repositories.Store
-	cfg   config.Config
+	cfg   config.ServerConfig
 }
 
-func NewWorkspaceService(store *repositories.Store, cfg config.Config) *WorkspaceService {
+func NewWorkspaceService(store *repositories.Store, cfg config.ServerConfig) *WorkspaceService {
 	return &WorkspaceService{store: store, cfg: cfg}
 }
 

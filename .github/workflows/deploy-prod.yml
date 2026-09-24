@@ -175,11 +175,30 @@ jobs:
                 containers:
                   - name: seed
                     image: ${REG}/iam:${TAG}
-                    envFrom:
-                      - configMapRef: { name: iam-config }
-                      - secretRef:    { name: iam-secrets }
                     env:
                       - { name: ENVIRONMENT, value: production }
+                      - name: POSTGRES_HOST
+                        valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_HOST } }
+                      - name: POSTGRES_PORT
+                        valueFrom: { configMapKeyRef: { name: iam-config, key: POSTGRES_PORT } }
+                      - name: POSTGRES_USER
+                        valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_USER } }
+                      - name: POSTGRES_PASSWORD
+                        valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_PASSWORD } }
+                      - name: IAM_POSTGRES_DATABASE
+                        valueFrom: { configMapKeyRef: { name: iam-config, key: IAM_POSTGRES_DATABASE } }
+                      - name: SUPER_ADMIN_ACCOUNT
+                        valueFrom: { secretKeyRef: { name: iam-secrets, key: SUPER_ADMIN_ACCOUNT } }
+                      - name: SUPER_ADMIN_EMAIL
+                        valueFrom: { secretKeyRef: { name: iam-secrets, key: SUPER_ADMIN_EMAIL } }
+                      - name: SUPER_ADMIN_PASSWORD
+                        valueFrom: { secretKeyRef: { name: iam-secrets, key: SUPER_ADMIN_PASSWORD } }
+                      - name: GUEST_WORKSPACE_ID
+                        valueFrom: { configMapKeyRef: { name: iam-config, key: GUEST_WORKSPACE_ID } }
+                      - name: GUEST_WORKSPACE_NAME
+                        valueFrom: { configMapKeyRef: { name: iam-config, key: GUEST_WORKSPACE_NAME } }
+                      - name: GUEST_WORKSPACE_SLUG
+                        valueFrom: { configMapKeyRef: { name: iam-config, key: GUEST_WORKSPACE_SLUG } }
                     command: ["/server"]
                     args: ["seed"]
           EOF

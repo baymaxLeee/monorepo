@@ -30,7 +30,15 @@ spec:
             - { name: http, containerPort: 8002 }
           envFrom:
             - configMapRef: { name: iam-config }
-            - secretRef:    { name: iam-secrets }
+          env:
+            - name: POSTGRES_HOST
+              valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_HOST } }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_PASSWORD } }
+            - name: ACCESS_TOKEN_SECRET
+              valueFrom: { secretKeyRef: { name: iam-secrets, key: ACCESS_TOKEN_SECRET } }
           resources:
             requests: { cpu: 100m,  memory: 128Mi }
             limits:   { cpu: 1000m, memory: 512Mi }

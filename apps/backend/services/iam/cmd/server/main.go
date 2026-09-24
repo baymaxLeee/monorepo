@@ -20,12 +20,6 @@ import (
 func main() {
 	middleware.SetupLogging("iam")
 
-	cfg, err := config.Load()
-	if err != nil {
-		slog.Error("failed to load configuration", "err", err)
-		os.Exit(1)
-	}
-
 	// `server seed` is the one-shot identity bootstrap, run as an explicit
 	// deploy-time step (compose one-shot container / k8s Job) after migrations.
 	// The server path deliberately does NOT seed, so N replicas never race the
@@ -35,6 +29,11 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "seed":
+			cfg, err := config.LoadSeed()
+			if err != nil {
+				slog.Error("failed to load seed configuration", "err", err)
+				os.Exit(1)
+			}
 			runSeed(cfg)
 			return
 		default:
@@ -43,10 +42,15 @@ func main() {
 		}
 	}
 
+	cfg, err := config.LoadServer()
+	if err != nil {
+		slog.Error("failed to load server configuration", "err", err)
+		os.Exit(1)
+	}
 	runServer(cfg)
 }
 
-func runSeed(cfg config.Config) {
+func runSeed(cfg config.SeedConfig) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	st, err := repositories.Connect(ctx, cfg.DatabaseURL)
@@ -62,7 +66,7 @@ func runSeed(cfg config.Config) {
 	slog.Info("iam system bootstrap complete")
 }
 
-func runServer(cfg config.Config) {
+func runServer(cfg config.ServerConfig) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	st, err := repositories.Connect(ctx, cfg.DatabaseURL)
 	cancel()

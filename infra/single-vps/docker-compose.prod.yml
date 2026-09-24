@@ -38,23 +38,16 @@
 x-restart: &restart_policy
   restart: unless-stopped
 
-# iam identity + DB env, shared by the one-shot bootstrap (`seed`) and the server.
-# One source of truth stops the super-admin / guest-workspace values from drifting between
-# the container that WRITES them (iam-bootstrap) and the one that only reads them.
-x-iam-env: &iam-env
+# IAM database env shared by the one-shot bootstrap and the HTTP server. Runtime
+# signing secrets and bootstrap credentials stay scoped to their respective process.
+x-iam-database-env: &iam-database-env
   ENVIRONMENT: single-vps
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
   POSTGRES_USER: iam
   POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
   IAM_POSTGRES_DATABASE: iam
-  SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:?SUPER_ADMIN_ACCOUNT is required}
-  SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL is required}
-  SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD is required}
-  SUPER_ADMIN_DISPLAY_NAME: ${SUPER_ADMIN_DISPLAY_NAME:-Super Admin}
   GUEST_WORKSPACE_ID: ${GUEST_WORKSPACE_ID:-guest-org}
-  GUEST_WORKSPACE_NAME: ${GUEST_WORKSPACE_NAME:-游客工作空间}
-  GUEST_WORKSPACE_SLUG: ${GUEST_WORKSPACE_SLUG:-guest-workspace}
 
 services:
   redis:
@@ -183,7 +176,13 @@ services:
       db-init: { condition: service_completed_successfully }
     command: ["seed"]
     environment:
-      <<: *iam-env
+      <<: *iam-database-env
+      SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:?SUPER_ADMIN_ACCOUNT is required}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL is required}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD is required}
+      SUPER_ADMIN_DISPLAY_NAME: ${SUPER_ADMIN_DISPLAY_NAME:-Super Admin}
+      GUEST_WORKSPACE_NAME: ${GUEST_WORKSPACE_NAME:-游客工作空间}
+      GUEST_WORKSPACE_SLUG: ${GUEST_WORKSPACE_SLUG:-guest-workspace}
     restart: "no"
 
   iam:
@@ -194,7 +193,7 @@ services:
       db-init: { condition: service_completed_successfully }
       iam-bootstrap: { condition: service_completed_successfully }
     environment:
-      <<: *iam-env
+      <<: *iam-database-env
       PORT: "8002"
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
       ACCESS_TOKEN_TTL: "5m"

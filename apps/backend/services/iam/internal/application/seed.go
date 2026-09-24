@@ -11,7 +11,7 @@ import (
 	"github.com/example/monorepo/iam/internal/infrastructure/security"
 )
 
-func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg config.Config) error {
+func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg config.SeedConfig) error {
 	passwordHash, err := security.HashPassword(cfg.SuperAdminPassword)
 	if err != nil {
 		return err

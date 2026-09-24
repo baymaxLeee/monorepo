@@ -19,13 +19,13 @@ import (
 
 type Router struct {
 	store     *repositories.Store
-	cfg       config.Config
+	cfg       config.ServerConfig
 	auth      *application.AuthService
 	roles     *application.RoleService
 	workspace *application.WorkspaceService
 }
 
-func New(store *repositories.Store, cfg config.Config) http.Handler {
+func New(store *repositories.Store, cfg config.ServerConfig) http.Handler {
 	rt := &Router{
 		store:     store,
 		cfg:       cfg,

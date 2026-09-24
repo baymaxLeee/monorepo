@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -22,10 +21,19 @@ const (
 	devPostgresPassword  = "iam"
 )
 
-type Config struct {
-	Environment           string
+// DatabaseConfig is shared by the HTTP server and the one-shot identity seed.
+type DatabaseConfig struct {
+	Environment string
+	DatabaseURL string
+}
+
+func (c DatabaseConfig) IsProduction() bool  { return c.Environment == EnvProduction }
+func (c DatabaseConfig) IsDevelopment() bool { return c.Environment == EnvDevelopment }
+
+// ServerConfig contains only long-running IAM HTTP server configuration.
+type ServerConfig struct {
+	DatabaseConfig
 	Port                  string
-	DatabaseURL           string
 	AccessTokenSecret     string
 	AccessTokenTTL        time.Duration
 	RefreshTokenTTL       time.Duration
@@ -33,6 +41,12 @@ type Config struct {
 	RefreshCookieSecure   bool
 	RefreshCookieSameSite string
 	RefreshCookieDomain   string
+	GuestWorkspaceID      string
+}
+
+// SeedConfig contains only the inputs needed by the identity bootstrap.
+type SeedConfig struct {
+	DatabaseConfig
 	SuperAdminID          string
 	SuperAdminAccount     string
 	SuperAdminEmail       string
@@ -43,26 +57,16 @@ type Config struct {
 	GuestWorkspaceSlug    string
 }
 
-func (c Config) IsProduction() bool  { return c.Environment == EnvProduction }
-func (c Config) IsDevelopment() bool { return c.Environment == EnvDevelopment }
-
-func Load() (Config, error) {
+func LoadServer() (ServerConfig, error) {
 	_ = godotenv.Overload()
 
-	pgHost := envOr("POSTGRES_HOST", "localhost")
-	pgPort := envOr("POSTGRES_PORT", "5432")
-	pgUser := envOr("POSTGRES_USER", "iam")
-	pgPassword := envOr("POSTGRES_PASSWORD", devPostgresPassword)
-	pgDatabase := envOr("IAM_POSTGRES_DATABASE", "iam")
-	pgSSLMode := envOr("POSTGRES_SSLMODE", "disable")
-
-	cfg := Config{
-		Environment: envOr("ENVIRONMENT", EnvDevelopment),
-		Port:        envOr("PORT", "8002"),
-		DatabaseURL: fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			pgHost, pgPort, pgUser, pgPassword, pgDatabase, pgSSLMode,
-		),
+	database, err := loadDatabase()
+	if err != nil {
+		return ServerConfig{}, err
+	}
+	cfg := ServerConfig{
+		DatabaseConfig:        database,
+		Port:                  envOr("PORT", "8002"),
 		AccessTokenSecret:     envOr("ACCESS_TOKEN_SECRET", devAccessTokenSecret),
 		AccessTokenTTL:        durationOr("ACCESS_TOKEN_TTL", 5*time.Minute),
 		RefreshTokenTTL:       durationOr("REFRESH_TOKEN_TTL", 7*24*time.Hour),
@@ -70,6 +74,34 @@ func Load() (Config, error) {
 		RefreshCookieSecure:   envOr("REFRESH_COOKIE_SECURE", "false") == "true",
 		RefreshCookieSameSite: envOr("REFRESH_COOKIE_SAMESITE", "lax"),
 		RefreshCookieDomain:   os.Getenv("REFRESH_COOKIE_DOMAIN"),
+		GuestWorkspaceID:      envOr("GUEST_WORKSPACE_ID", "guest-org"),
+	}
+
+	var missing []string
+	if !cfg.IsDevelopment() && (len(cfg.AccessTokenSecret) < 32 || cfg.AccessTokenSecret == devAccessTokenSecret) {
+		missing = append(missing, "ACCESS_TOKEN_SECRET")
+	}
+	if cfg.IsProduction() && !cfg.RefreshCookieSecure {
+		missing = append(missing, "REFRESH_COOKIE_SECURE=true")
+	}
+	if cfg.IsProduction() && strings.EqualFold(cfg.RefreshCookieSameSite, "lax") && cfg.RefreshCookieDomain == "" {
+		missing = append(missing, "REFRESH_COOKIE_SAMESITE=none + REFRESH_COOKIE_DOMAIN")
+	}
+	if len(missing) > 0 {
+		return ServerConfig{}, missingError(missing)
+	}
+	return cfg, nil
+}
+
+func LoadSeed() (SeedConfig, error) {
+	_ = godotenv.Overload()
+
+	database, err := loadDatabase()
+	if err != nil {
+		return SeedConfig{}, err
+	}
+	cfg := SeedConfig{
+		DatabaseConfig:        database,
 		SuperAdminID:          envOr("SUPER_ADMIN_ID", "demo-super-admin"),
 		SuperAdminAccount:     envOr("SUPER_ADMIN_ACCOUNT", "admin"),
 		SuperAdminEmail:       envOr("SUPER_ADMIN_EMAIL", "admin@example.com"),
@@ -80,45 +112,50 @@ func Load() (Config, error) {
 		GuestWorkspaceSlug:    envOr("GUEST_WORKSPACE_SLUG", "guest-workspace"),
 	}
 
-	if err := cfg.validate(pgHost, pgPassword); err != nil {
-		return Config{}, err
+	if !cfg.IsDevelopment() && (os.Getenv("SUPER_ADMIN_ACCOUNT") == "" || os.Getenv("SUPER_ADMIN_EMAIL") == "" || os.Getenv("SUPER_ADMIN_PASSWORD") == "" || cfg.SuperAdminPassword == "admin123") {
+		return SeedConfig{}, missingError([]string{"SUPER_ADMIN_ACCOUNT/EMAIL/PASSWORD"})
 	}
 	return cfg, nil
 }
 
-func (c Config) validate(pgHost, pgPassword string) error {
-	switch c.Environment {
+func loadDatabase() (DatabaseConfig, error) {
+	environment := envOr("ENVIRONMENT", EnvDevelopment)
+	pgHost := envOr("POSTGRES_HOST", "localhost")
+	pgPort := envOr("POSTGRES_PORT", "5432")
+	pgUser := envOr("POSTGRES_USER", "iam")
+	pgPassword := envOr("POSTGRES_PASSWORD", devPostgresPassword)
+	pgDatabase := envOr("IAM_POSTGRES_DATABASE", "iam")
+	pgSSLMode := envOr("POSTGRES_SSLMODE", "disable")
+
+	switch environment {
 	case EnvDevelopment, EnvStaging, EnvSingleVPS, EnvProduction:
 	default:
-		return fmt.Errorf("unsupported ENVIRONMENT %q", c.Environment)
+		return DatabaseConfig{}, fmt.Errorf("unsupported ENVIRONMENT %q", environment)
 	}
+
 	var missing []string
-	if !c.IsDevelopment() && (len(c.AccessTokenSecret) < 32 || c.AccessTokenSecret == devAccessTokenSecret) {
-		missing = append(missing, "ACCESS_TOKEN_SECRET")
-	}
-	if !c.IsDevelopment() && (pgPassword == "" || pgPassword == devPostgresPassword) {
+	if environment != EnvDevelopment && (pgPassword == "" || pgPassword == devPostgresPassword) {
 		missing = append(missing, "POSTGRES_PASSWORD")
 	}
-	if !c.IsDevelopment() && (pgHost == "localhost" || pgHost == "127.0.0.1") {
+	if environment != EnvDevelopment && (pgHost == "localhost" || pgHost == "127.0.0.1") {
 		missing = append(missing, "POSTGRES_HOST")
 	}
-	if c.IsProduction() && !c.RefreshCookieSecure {
-		missing = append(missing, "REFRESH_COOKIE_SECURE=true")
-	}
-	if !c.IsDevelopment() && (os.Getenv("SUPER_ADMIN_ACCOUNT") == "" || os.Getenv("SUPER_ADMIN_EMAIL") == "" || os.Getenv("SUPER_ADMIN_PASSWORD") == "" || c.SuperAdminPassword == "admin123") {
-		missing = append(missing, "SUPER_ADMIN_ACCOUNT/EMAIL/PASSWORD")
-	}
-	if c.IsProduction() && strings.EqualFold(c.RefreshCookieSameSite, "lax") && c.RefreshCookieDomain == "" {
-		missing = append(missing, "REFRESH_COOKIE_SAMESITE=none + REFRESH_COOKIE_DOMAIN")
-	}
 	if len(missing) > 0 {
-		return fmt.Errorf("deployed environment requires explicit values for: %s",
-			strings.Join(missing, ", "))
+		return DatabaseConfig{}, missingError(missing)
 	}
-	return nil
+
+	return DatabaseConfig{
+		Environment: environment,
+		DatabaseURL: fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			pgHost, pgPort, pgUser, pgPassword, pgDatabase, pgSSLMode,
+		),
+	}, nil
 }
 
-var ErrProductionMisconfigured = errors.New("production misconfigured")
+func missingError(missing []string) error {
+	return fmt.Errorf("deployed environment requires explicit values for: %s", strings.Join(missing, ", "))
+}
 
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
