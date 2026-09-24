@@ -281,6 +281,46 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
                     )
 
 
+def validate_local_service_identities(services: dict[str, dict[str, Any]]) -> None:
+    caller_tokens: dict[str, str] = {}
+    for service_id, config in services.items():
+        if service_id == "gateway" or not config["bindings"]:
+            continue
+        token = env_from_example(service_id).get("INTERNAL_API_TOKEN", "")
+        if not token or token == "dev-internal-token":
+            fail(
+                f"{service_id}: .env.example must declare a caller-specific INTERNAL_API_TOKEN"
+            )
+        caller_tokens[service_id] = token
+
+    if len(set(caller_tokens.values())) != len(caller_tokens):
+        fail("development INTERNAL_API_TOKEN values must be unique per caller")
+
+    inbound_callers = {service_id: set() for service_id in services}
+    for caller, config in services.items():
+        if caller == "gateway":
+            continue
+        for receiver in config["bindings"]:
+            inbound_callers[receiver].add(caller)
+
+    for receiver, callers in inbound_callers.items():
+        if not callers:
+            continue
+        raw = env_from_example(receiver).get("INTERNAL_SERVICE_TOKENS")
+        if raw is None:
+            fail(f"{receiver}: .env.example missing INTERNAL_SERVICE_TOKENS")
+        try:
+            actual = json.loads(raw)
+        except json.JSONDecodeError:
+            fail(f"{receiver}: .env.example INTERNAL_SERVICE_TOKENS must be valid JSON")
+        expected = {caller: caller_tokens[caller] for caller in sorted(callers)}
+        if actual != expected:
+            fail(
+                f"{receiver}: .env.example INTERNAL_SERVICE_TOKENS drift: "
+                f"expected={expected} actual={actual}"
+            )
+
+
 def dotenv_keys(path: Path) -> set[str]:
     return {
         match.group(1)
@@ -294,7 +334,9 @@ def validate_single_vps_environment(services: dict[str, dict[str, Any]]) -> None
     internal_match = re.search(r"(?ms)^INTERNAL_KEYS=\(\n(?P<body>.*?)^\)", render_env)
     if not internal_match:
         fail("single-vps render-env.sh missing INTERNAL_KEYS")
-    internal_keys = set(re.findall(r"(?m)^\s+([A-Z][A-Z0-9_]*)\s*$", internal_match.group("body")))
+    internal_keys = set(
+        re.findall(r"(?m)^\s+([A-Z][A-Z0-9_]*)\s*$", internal_match.group("body"))
+    )
 
     expected_database_keys = {"WORKFLOW_POSTGRES_PASSWORD"}
     expected_database_keys.update(
@@ -314,7 +356,9 @@ def validate_single_vps_environment(services: dict[str, dict[str, Any]]) -> None
     required_compose_keys = set(
         re.findall(r"\$\{([A-Z][A-Z0-9_]*):\?", SINGLE_VPS_PATH.read_text())
     )
-    missing_sources = required_compose_keys - runtime_keys - internal_keys - operator_keys
+    missing_sources = (
+        required_compose_keys - runtime_keys - internal_keys - operator_keys
+    )
     if missing_sources:
         fail(
             "single-vps compose requires variables with no render-env source: "
@@ -378,6 +422,7 @@ def main() -> None:
     validate_procfile(services)
     validate_dev_entrypoints(services)
     validate_binding_environment(services)
+    validate_local_service_identities(services)
     validate_single_vps_environment(services)
     validate_k8s_ports(services)
     validate_gateway_routes(services)

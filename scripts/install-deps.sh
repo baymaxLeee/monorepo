@@ -96,6 +96,7 @@ for pair in \
     echo "  created $dst"
   fi
 done
+python3 scripts/sync-dev-service-identities.py --fix
 
 echo ""
 echo "✓ All dependencies installed."

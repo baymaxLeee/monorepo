@@ -4,6 +4,8 @@ set -euo pipefail
 
 DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 8012 3000 3001 3005 3006)
 
+python3 scripts/sync-dev-service-identities.py
+
 if ! docker ps >/dev/null 2>&1; then
   echo "✗ Docker is not reachable. Start Docker Desktop and retry." >&2
   exit 1

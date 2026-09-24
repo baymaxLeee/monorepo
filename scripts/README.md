@@ -10,7 +10,9 @@ running `just <recipe>` from the repository root.
 - `db-bootstrap.sh`: creates local PostgreSQL databases/roles and applies service-owned dev
   schemas for `admin` and `iam`.
 - `dev-preflight.sh`: checks that local infra and frontend dependencies exist
-  before starting the dev stack.
+  before starting the dev stack, including caller/receiver service credentials.
+- `sync-dev-service-identities.py`: safely migrates the retired shared local
+  token and validates per-caller credentials without overwriting custom values.
 - `dev-orchestrator.sh`: starts `Procfile.dev` with an installed process
   manager, falling back to `dev-stack.sh`.
 - `dev-stack.sh`: shell fallback for starting the local demo stack.

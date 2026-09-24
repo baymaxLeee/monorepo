@@ -80,3 +80,10 @@ composition, Single-VPS, and Kubernetes configuration migrate in one change;
 the old shared-token validation path is deleted. Validate every edge in the
 consumer matrix, run scoped service checks, `scripts/check-services.py`, root
 `just lint`, and the post-implementation review in ADR-0016.
+
+For local development, each `.env.example` declares the workload token and,
+for receivers, the complete accepted-caller map. `just install` only rewrites
+the retired `dev-internal-token` placeholder and never overwrites an explicit
+custom credential. `just dev-preflight` then rejects any caller/receiver drift
+before the stack starts, so authentication failures cannot surface later as
+unrelated upload or provider errors.
