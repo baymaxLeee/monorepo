@@ -319,8 +319,8 @@ func (s *Service) PersistPreparedCreates(ctx context.Context, assets []domainass
 				reservation, err = s.storageQuota.ReserveStorage(
 					txCtx,
 					item.TenantID,
-					"artifact",
-					item.SourceAssetID,
+					"canvas_asset",
+					item.ID,
 					"asset",
 					item.ID,
 					item.SizeBytes,
