@@ -19,6 +19,8 @@ type repositoryStub struct {
 	Repository
 	created        CreateUploadInput
 	beginResult    BeginUploadResult
+	createdSession CreateUploadSessionInput
+	session        UploadSession
 	completed      CompleteUploadInput
 	completeResult CompleteUploadResult
 	completeErr    error
@@ -38,6 +40,23 @@ func (stub *repositoryStub) BeginUpload(_ context.Context, input CreateUploadInp
 		stub.beginResult.UploadID = id
 	}
 	return stub.beginResult, nil
+}
+func (stub *repositoryStub) CreateUploadSession(_ context.Context, input CreateUploadSessionInput, id string, expiresAt, _ time.Time) (UploadSession, error) {
+	stub.createdSession = input
+	if stub.session.ID == "" {
+		stub.session = UploadSession{
+			ID: id, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
+			CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Category: input.Category,
+			Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes, State: "pending", ExpiresAt: expiresAt,
+		}
+	}
+	return stub.session, nil
+}
+func (stub *repositoryStub) ClaimUploadSession(context.Context, string, time.Time) (UploadSession, error) {
+	return stub.session, nil
+}
+func (stub *repositoryStub) GetUploadSession(context.Context, string, string, string, string) (UploadSession, error) {
+	return stub.session, nil
 }
 func (stub *repositoryStub) FailUpload(context.Context, string, string, time.Time) error { return nil }
 func (stub *repositoryStub) CompleteUpload(_ context.Context, input CompleteUploadInput) (CompleteUploadResult, error) {
@@ -151,6 +170,53 @@ func TestServiceUpload(t *testing.T) {
 		}
 		if len(storage.deleted) != 0 {
 			t.Fatalf("ambiguous blob was deleted: %v", storage.deleted)
+		}
+	})
+}
+
+func TestBrowserUploadSession(t *testing.T) {
+	now := time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC)
+
+	t.Run("creates a domain-scoped session with normalized metadata", func(t *testing.T) {
+		repository := &repositoryStub{}
+		service := NewService(repository, &blobStoreStub{}, fixedClock{now}, 1024)
+		session, err := service.CreateUploadSession(context.Background(), CreateUploadSessionInput{
+			TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
+			IdempotencyKey: "intent-1", Filename: "folder/source.pdf", MediaType: "application/pdf",
+			Category: "knowledge-source", SizeBytes: 12,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if session.State != "pending" || repository.createdSession.Filename != "source.pdf" {
+			t.Fatalf("session = %#v, input = %#v", session, repository.createdSession)
+		}
+		if want := now.Add(24 * time.Hour); !session.ExpiresAt.Equal(want) {
+			t.Fatalf("expires at %s, want %s", session.ExpiresAt, want)
+		}
+	})
+
+	t.Run("rejects a payload whose byte count differs from the plan", func(t *testing.T) {
+		repository := &repositoryStub{session: UploadSession{
+			ID: "upload", TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
+			IdempotencyKey: "intent-1", Filename: "source.pdf", MediaType: "application/pdf",
+			Category: "knowledge-source", SizeBytes: 12, State: "uploading", ExpiresAt: now.Add(time.Hour),
+		}}
+		storage := &blobStoreStub{staged: StagedBlob{TemporaryKey: "staging/upload.part", SHA256: strings.Repeat("a", 64), SizeBytes: 11}}
+		service := NewService(repository, storage, fixedClock{now}, 1024)
+		if _, _, err := service.UploadSession(context.Background(), "upload", strings.NewReader("payload")); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("error = %v, want ErrInvalidInput", err)
+		}
+	})
+
+	t.Run("does not expose an expired completed session for domain finalize", func(t *testing.T) {
+		repository := &repositoryStub{session: UploadSession{
+			ID: "upload", TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
+			State: "completed", ExpiresAt: now,
+		}}
+		service := NewService(repository, &blobStoreStub{}, fixedClock{now}, 1024)
+		if _, err := service.DescribeUploadSession(context.Background(), "knowledge", "tenant", "workspace", "upload"); !errors.Is(err, ErrConflict) {
+			t.Fatalf("error = %v, want ErrConflict", err)
 		}
 	})
 }

@@ -36,6 +36,22 @@ export interface Claim {
   status: ClaimStatus;
 }
 
+export interface CreateUploadSessionRequest {
+  category: string;
+  filename: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  intent_id: string;
+  media_type: string;
+  /** @minimum 0 */
+  size_bytes: number;
+  tenant_id: string;
+  user_id: string;
+  workspace_id: string;
+}
+
 export type DeliveryCapabilityResponseItemsItem = {
   asset_id: string;
   expires_at: string;
@@ -111,13 +127,32 @@ export interface UploadResult {
   url: string;
 }
 
-export type AssetUploadParams = {
-category: string;
-};
+export type UploadSessionState = typeof UploadSessionState[keyof typeof UploadSessionState];
 
-export type AssetUploadBody = {
-  file: Blob;
-};
+
+export const UploadSessionState = {
+  pending: 'pending',
+  uploading: 'uploading',
+  completed: 'completed',
+  failed: 'failed',
+  aborted: 'aborted',
+} as const;
+
+export interface UploadSession {
+  asset_id?: string;
+  category: string;
+  expires_at: string;
+  filename: string;
+  intent_id: string;
+  media_type: string;
+  revision_id?: string;
+  /** @minimum 0 */
+  size_bytes: number;
+  state: UploadSessionState;
+  upload_session_id: string;
+  upload_url: string;
+  user_id: string;
+}
 
 export type AssetUploadInternalParams = {
 tenant_id: string;
@@ -158,6 +193,11 @@ export type AssetMintDeliveryCapabilitiesBody = {
   items: AssetMintDeliveryCapabilitiesBodyItemsItem[];
 };
 
+export type AssetDescribeUploadSessionInternalParams = {
+tenant_id: string;
+workspace_id: string;
+};
+
 export type AssetReadCapabilityContentParams = {
 tenant_id: string;
 workspace_id: string;
@@ -172,28 +212,15 @@ expires: string;
 signature: string;
 };
 
+export type AssetUploadSessionContentParams = {
+expires: string;
+signature: string;
+};
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
   export const getAssetServerAPI = () => {
-/**
- * @summary Stream one file into an immutable Asset revision
- */
-const assetUpload = (
-    assetUploadBody: AssetUploadBody,
-    params: AssetUploadParams,
- options?: SecondParameter<typeof apiMutator<UploadResult>>,) => {const formData = new FormData();
-formData.append(`file`, assetUploadBody.file);
-
-      return apiMutator<UploadResult>(
-      {url: `/api/asset-server/assets`, method: 'POST',
-      headers: {'Content-Type': 'multipart/form-data', },
-       data: formData,
-        params
-    },
-      options);
-    }
-
 const assetReadContent = (
     assetID: string,
     revisionID: string,
@@ -314,6 +341,34 @@ const assetMintDeliveryCapabilities = (
       options);
     }
 
+/**
+ * @summary Create or recover a domain-authorized browser upload session
+ */
+const assetCreateUploadSessionInternal = (
+    createUploadSessionRequest: CreateUploadSessionRequest,
+ options?: SecondParameter<typeof apiMutator<UploadSession>>,) => {
+      return apiMutator<UploadSession>(
+      {url: `/api/asset-server/internal/upload-sessions`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createUploadSessionRequest
+    },
+      options);
+    }
+
+/**
+ * @summary Resolve an upload session in the creating service scope
+ */
+const assetDescribeUploadSessionInternal = (
+    uploadID: string,
+    params: AssetDescribeUploadSessionInternalParams,
+ options?: SecondParameter<typeof apiMutator<UploadSession>>,) => {
+      return apiMutator<UploadSession>(
+      {url: `/api/asset-server/internal/upload-sessions/${uploadID}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
 const assetReadCapabilityContent = (
     assetID: string,
     revisionID: string,
@@ -340,8 +395,24 @@ const assetHeadCapabilityContent = (
       options);
     }
 
-return {assetUpload,assetReadContent,assetHeadContent,assetUploadInternal,assetDescribeRevisionInternal,assetReadContentInternal,assetHeadContentInternal,assetActivateClaim,assetPrepareClaim,assetReleaseClaim,assetMintDeliveryCapabilities,assetReadCapabilityContent,assetHeadCapabilityContent}};
-export type AssetUploadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetUpload']>>>
+/**
+ * @summary Upload bytes through a domain-authorized capability
+ */
+const assetUploadSessionContent = (
+    uploadID: string,
+    assetUploadSessionContentBody: Blob,
+    params: AssetUploadSessionContentParams,
+ options?: SecondParameter<typeof apiMutator<UploadResult>>,) => {
+      return apiMutator<UploadResult>(
+      {url: `/api/asset-server/upload-sessions/${uploadID}/content`, method: 'PUT',
+      headers: {'Content-Type': 'application/octet-stream', },
+      data: assetUploadSessionContentBody,
+        params
+    },
+      options);
+    }
+
+return {assetReadContent,assetHeadContent,assetUploadInternal,assetDescribeRevisionInternal,assetReadContentInternal,assetHeadContentInternal,assetActivateClaim,assetPrepareClaim,assetReleaseClaim,assetMintDeliveryCapabilities,assetCreateUploadSessionInternal,assetDescribeUploadSessionInternal,assetReadCapabilityContent,assetHeadCapabilityContent,assetUploadSessionContent}};
 export type AssetReadContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetReadContent']>>>
 export type AssetHeadContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetHeadContent']>>>
 export type AssetUploadInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetUploadInternal']>>>
@@ -352,5 +423,8 @@ export type AssetActivateClaimResult = NonNullable<Awaited<ReturnType<ReturnType
 export type AssetPrepareClaimResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetPrepareClaim']>>>
 export type AssetReleaseClaimResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetReleaseClaim']>>>
 export type AssetMintDeliveryCapabilitiesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetMintDeliveryCapabilities']>>>
+export type AssetCreateUploadSessionInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetCreateUploadSessionInternal']>>>
+export type AssetDescribeUploadSessionInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetDescribeUploadSessionInternal']>>>
 export type AssetReadCapabilityContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetReadCapabilityContent']>>>
 export type AssetHeadCapabilityContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetHeadCapabilityContent']>>>
+export type AssetUploadSessionContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAssetServerAPI>['assetUploadSessionContent']>>>

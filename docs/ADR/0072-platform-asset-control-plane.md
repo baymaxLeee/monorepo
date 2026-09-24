@@ -187,15 +187,21 @@ policy, expected checksum when supplied, tenant/workspace/user scope, expiry,
 and one stable upload-session identity. Product services do not receive storage
 credentials or implement provider-specific signing.
 
-The upload-intent state machine is:
+The Asset byte-transfer session state machine is:
 
 ```text
-pending -> uploading -> uploaded -> committing -> committed
-    |          |           |
-    +----------+-----------+-> expired
+pending -> uploading -> completed
+    |          |
+    +----------+-> failed
+    +----------+-> aborted (expired)
 ```
 
-- No durable business resource is visible before `committed`.
+Domain commit/finalize is a separate idempotent state transition in the owning
+service. Keeping those two state machines separate prevents an Asset transport
+retry from pretending that a Knowledge document, Admin skill node, or Canvas
+attachment was committed.
+
+- No durable business resource is visible before domain finalize commits.
 - A browser crash before or during transfer leaves only a TTL-bounded session;
   partial filesystem staging is removed and incomplete object-store multipart
   uploads are aborted.
@@ -212,6 +218,12 @@ pending -> uploading -> uploaded -> committing -> committed
 `@repo/api`, not a generic utility package, owns the shared frontend
 `UploadPlan` executor, cancellation, progress, retry, and resume transport.
 Individual apps call their domain-specific initiate/status/finalize APIs.
+There is no browser-facing generic `POST /assets?category=...`: category and
+policy are chosen only by Canvas, Knowledge, or Admin. The signed PUT capability
+is bound to one upload-session ID and expiry; the session itself binds caller,
+tenant/workspace/user, filename, media type, and exact byte count. Replaying a
+prepare call with the same client reference returns the same session and lets a
+reloaded client observe `completed` without retransmitting bytes.
 Server-produced outputs use the internal Asset API with a bounded stream or
 scratch file and a deterministic idempotency key; they never materialize large
 outputs as `bytes`/`Uint8Array` merely to cross a service boundary.

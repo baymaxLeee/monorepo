@@ -115,16 +115,34 @@ class SkillFileContent(BaseModel):
 
 class AttachSkillAssetInput(BaseModel):
     id: str = Field(min_length=1, max_length=64)
+    client_ref: str = Field(min_length=1, max_length=64)
     parent_id: str | None = None
     name: str = Field(min_length=1, max_length=255)
-    asset_id: str = Field(min_length=1, max_length=64)
-    revision_id: str = Field(min_length=1, max_length=64)
+    upload_session_id: str = Field(min_length=36, max_length=36)
 
 
 class ImportSkillArchiveInput(BaseModel):
-    asset_id: str = Field(min_length=1, max_length=64)
-    revision_id: str = Field(min_length=1, max_length=64)
+    client_ref: str = Field(min_length=1, max_length=64)
+    upload_session_id: str = Field(min_length=36, max_length=36)
     base_workspace_seq: int = Field(ge=1)
+
+
+class PrepareSkillUploadInput(BaseModel):
+    client_ref: str = Field(min_length=1, max_length=64)
+    purpose: Literal["skill-archive", "skill-attachment"]
+    filename: str = Field(min_length=1, max_length=255)
+    media_type: str = Field(min_length=1, max_length=255)
+    size_bytes: int = Field(ge=0)
+
+
+class SkillUploadPlan(BaseModel):
+    upload_session_id: str
+    intent_id: str
+    state: Literal["pending", "uploading", "completed", "failed", "aborted"]
+    upload_url: str
+    expires_at: str
+    asset_id: str | None = None
+    revision_id: str | None = None
 
 
 class ImportSkillArchiveResult(BaseModel):

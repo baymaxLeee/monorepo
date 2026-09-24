@@ -43,6 +43,28 @@ type UploadInput struct {
 	Body                          io.Reader
 }
 
+type CreateUploadSessionInput struct {
+	TenantID, WorkspaceID, UserID string
+	Filename, MediaType, Category string
+	IdempotencyKey                string
+	SizeBytes                     int64
+}
+
+type UploadSession struct {
+	UploadSessionID string    `json:"upload_session_id"`
+	IntentID        string    `json:"intent_id"`
+	State           string    `json:"state"`
+	UserID          string    `json:"user_id"`
+	Category        string    `json:"category"`
+	Filename        string    `json:"filename"`
+	MediaType       string    `json:"media_type"`
+	SizeBytes       int64     `json:"size_bytes"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	UploadURL       string    `json:"upload_url"`
+	AssetID         string    `json:"asset_id"`
+	RevisionID      string    `json:"revision_id"`
+}
+
 type DeliveryCapabilityInput struct {
 	TenantID    string `json:"tenant_id"`
 	WorkspaceID string `json:"workspace_id"`
@@ -108,6 +130,46 @@ func (client *Client) Upload(ctx context.Context, input UploadInput) (Revision, 
 		return Revision{}, errors.New("asset upload returned invalid revision metadata")
 	}
 	return result, nil
+}
+
+func (client *Client) CreateUploadSession(ctx context.Context, input CreateUploadSessionInput) (UploadSession, error) {
+	if strings.TrimSpace(input.TenantID) == "" || strings.TrimSpace(input.UserID) == "" ||
+		strings.TrimSpace(input.Filename) == "" || strings.TrimSpace(input.MediaType) == "" ||
+		strings.TrimSpace(input.Category) == "" || strings.TrimSpace(input.IdempotencyKey) == "" || input.SizeBytes < 0 {
+		return UploadSession{}, errors.New("asset upload session requires scope, user, file metadata, category, and idempotency key")
+	}
+	payload, err := json.Marshal(map[string]any{
+		"tenant_id": input.TenantID, "workspace_id": input.WorkspaceID, "user_id": input.UserID,
+		"filename": input.Filename, "media_type": input.MediaType, "size_bytes": input.SizeBytes,
+		"category": input.Category, "idempotency_key": input.IdempotencyKey,
+	})
+	if err != nil {
+		return UploadSession{}, err
+	}
+	request, err := client.request(ctx, http.MethodPost, "/internal/upload-sessions", bytes.NewReader(payload))
+	if err != nil {
+		return UploadSession{}, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	var result UploadSession
+	if err = client.doJSON(request, http.StatusOK, &result); err != nil {
+		return UploadSession{}, err
+	}
+	if err = validateUploadSession(result); err != nil {
+		return UploadSession{}, err
+	}
+	return result, nil
+}
+
+func validateUploadSession(session UploadSession) error {
+	if strings.TrimSpace(session.UploadSessionID) == "" || strings.TrimSpace(session.IntentID) == "" ||
+		strings.TrimSpace(session.State) == "" || strings.TrimSpace(session.UserID) == "" ||
+		strings.TrimSpace(session.Category) == "" || strings.TrimSpace(session.Filename) == "" ||
+		strings.TrimSpace(session.MediaType) == "" || strings.TrimSpace(session.UploadURL) == "" ||
+		session.SizeBytes < 0 || session.ExpiresAt.IsZero() {
+		return errors.New("asset upload session response is invalid")
+	}
+	return nil
 }
 
 func (client *Client) Describe(ctx context.Context, tenantID, workspaceID string, ref RevisionRef) (Revision, error) {

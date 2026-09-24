@@ -8,11 +8,19 @@ from hashlib import blake2b
 from bootstrap.config import get_settings
 from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.repositories import documents as document_crud
-from kernel.errors import BaseError
+from kernel.errors import BaseError, RequestError
 
 from application.asset_client import ensure_document_claim_active, get_asset_client
 from application.auth import AuthContext
-from application.contracts.document import AssetIngestItem, IngestFailure, IngestReceipt, IngestResult
+from application.contracts.document import (
+    IngestFailure,
+    IngestReceipt,
+    IngestResult,
+    PrepareSourceUploadsResult,
+    SourceUploadCompletion,
+    SourceUploadIntentInput,
+    SourceUploadPlan,
+)
 from application.documents import document_to_schema
 from application.executor_client import dispatch_document_now
 
@@ -22,27 +30,84 @@ def _document_id(current_user: AuthContext, conversation_id: str | None, client_
     return blake2b(scope.encode(), digest_size=8).hexdigest()
 
 
+def _upload_intent_id(current_user: AuthContext, conversation_id: str | None, client_ref: str) -> str:
+    return f"knowledge-source:{_document_id(current_user, conversation_id, client_ref)}"
+
+
+async def prepare_source_uploads(
+    *, current_user: AuthContext, conversation_id: str | None, files: list[SourceUploadIntentInput]
+) -> PrepareSourceUploadsResult:
+    settings = get_settings()
+    if len(files) > settings.ingest_max_files:
+        raise RequestError("too many files in one ingest request")
+    if len({item.client_ref for item in files}) != len(files):
+        raise RequestError("client_ref values must be unique within one ingest request")
+    if any(item.size_bytes > settings.attachment_max_upload_bytes for item in files):
+        raise RequestError("a file exceeds the Knowledge upload limit")
+    if sum(item.size_bytes for item in files) > settings.ingest_max_batch_bytes:
+        raise RequestError("ingest batch exceeds the Knowledge upload limit")
+
+    client = get_asset_client()
+    semaphore = asyncio.Semaphore(settings.ingest_max_parallel)
+
+    async def prepare(item: SourceUploadIntentInput) -> SourceUploadPlan:
+        async with semaphore:
+            session = await client.create_upload_session(
+                tenant_id=current_user.tenant_id,
+                workspace_id=current_user.workspace_id,
+                user_id=current_user.user_id,
+                intent_id=_upload_intent_id(current_user, conversation_id, item.client_ref),
+                filename=item.filename,
+                media_type=item.media_type,
+                size_bytes=item.size_bytes,
+                category="knowledge-source",
+            )
+        return SourceUploadPlan(
+            client_ref=item.client_ref,
+            upload_session_id=session.upload_session_id,
+            intent_id=session.intent_id,
+            state=session.state,
+            upload_url=session.upload_url,
+            expires_at=session.expires_at.isoformat(),
+            asset_id=session.asset_id,
+            revision_id=session.revision_id,
+        )
+
+    return PrepareSourceUploadsResult(uploads=list(await asyncio.gather(*(prepare(item) for item in files))))
+
+
 async def ingest_assets(
     *,
     current_user: AuthContext,
     conversation_id: str | None,
     provider_id: str | None,
-    items: list[AssetIngestItem],
+    items: list[SourceUploadCompletion],
 ) -> IngestResult:
     settings = get_settings()
     client = get_asset_client()
     factory = get_session_factory()
     semaphore = asyncio.Semaphore(settings.ingest_max_parallel)
 
-    async def ingest_one(index: int, item: AssetIngestItem) -> IngestReceipt | IngestFailure:
+    async def ingest_one(index: int, item: SourceUploadCompletion) -> IngestReceipt | IngestFailure:
         document_id = _document_id(current_user, conversation_id, item.client_ref)
         try:
             async with semaphore:
+                upload = await client.get_upload_session(
+                    tenant_id=current_user.tenant_id,
+                    workspace_id=current_user.workspace_id,
+                    upload_session_id=item.upload_session_id,
+                )
+                if upload.intent_id != _upload_intent_id(current_user, conversation_id, item.client_ref):
+                    raise ValueError("upload session does not belong to this document intent")
+                if upload.user_id != current_user.user_id or upload.category != "knowledge-source":
+                    raise ValueError("upload session does not belong to the current user or purpose")
+                if upload.state != "completed" or not upload.asset_id or not upload.revision_id:
+                    raise ValueError("upload session is not complete")
                 asset = await client.describe(
                     tenant_id=current_user.tenant_id,
                     workspace_id=current_user.workspace_id,
-                    asset_id=item.asset_id,
-                    revision_id=item.revision_id,
+                    asset_id=upload.asset_id,
+                    revision_id=upload.revision_id,
                 )
             if asset.created_by != current_user.user_id:
                 raise ValueError("asset was not uploaded by the current user")
@@ -88,7 +153,10 @@ async def ingest_assets(
             return IngestReceipt(index=index, client_ref=item.client_ref, document=document_to_schema(row))
         except Exception as exc:
             return IngestFailure(
-                index=index, client_ref=item.client_ref, artifact_id=None, error=str(exc),
+                index=index,
+                client_ref=item.client_ref,
+                artifact_id=None,
+                error=str(exc),
                 code=exc.code if isinstance(exc, BaseError) else None,
             )
 

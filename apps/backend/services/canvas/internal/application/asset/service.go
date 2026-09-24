@@ -245,6 +245,9 @@ func (s *Service) PrepareResourceOwnedCreates(ctx context.Context, scope Scope, 
 		if !resolved.MediaType.Valid() || strings.TrimSpace(resolved.ContentType) == "" {
 			return nil, errno.New(errno.ErrUnsupportedAssetFormat)
 		}
+		if resolved.Category != "canvas-source" || resolved.CreatedBy != scope.CallerID {
+			return nil, errno.New(errno.ErrForbidden)
+		}
 		prepared = append(prepared, PreparedCreate{
 			Scope: scope, ProjectID: projectID, ID: id, OwnerType: domainasset.OwnerResource, OwnerID: resourceID,
 			SourceAssetID: item.SourceAssetID, SourceRevisionID: item.SourceRevisionID, FileName: item.FileName, MediaType: resolved.MediaType,
@@ -384,6 +387,9 @@ func (s *Service) CreateIdempotent(ctx context.Context, input CreateInput) (doma
 	}
 	if !resolved.MediaType.Valid() || strings.TrimSpace(resolved.ContentType) == "" || resolved.SizeBytes <= 0 {
 		return domainasset.Asset{}, false, errno.New(errno.ErrUnsupportedAssetFormat)
+	}
+	if resolved.Category != "canvas-source" || resolved.CreatedBy != scope.CallerID {
+		return domainasset.Asset{}, false, errno.New(errno.ErrForbidden)
 	}
 	limit, _ := resolved.MediaType.SizeLimitBytes()
 	if resolved.SizeBytes > limit {

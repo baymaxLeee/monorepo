@@ -6,24 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from '../../src/orval-mutator';
-export interface AssetIngestItem {
-  /**
-     * @minLength 1
-     * @maxLength 128
-     */
-  client_ref: string;
-  /**
-     * @minLength 36
-     * @maxLength 36
-     */
-  asset_id: string;
-  /**
-     * @minLength 36
-     * @maxLength 36
-     */
-  revision_id: string;
-}
-
 export interface BatchDeleteInput {
   /**
      * @minItems 1
@@ -172,12 +154,25 @@ export interface CreateMediaDocumentInput {
   idempotency_key?: string | null;
 }
 
+export interface SourceUploadCompletion {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  client_ref: string;
+  /**
+     * @minLength 36
+     * @maxLength 36
+     */
+  upload_session_id: string;
+}
+
 export interface CreateSourceDocumentsInput {
   /**
      * @minItems 1
      * @maxItems 100
      */
-  assets: AssetIngestItem[];
+  uploads: SourceUploadCompletion[];
   conversation_id?: string | null;
   provider_id?: string | null;
 }
@@ -402,6 +397,61 @@ export interface IngestReceipt {
 export interface IngestResult {
   documents: IngestReceipt[];
   failed?: IngestFailure[];
+}
+
+export interface SourceUploadIntentInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  client_ref: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  filename: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  media_type: string;
+  /** @minimum 0 */
+  size_bytes: number;
+}
+
+export interface PrepareSourceUploadsInput {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  files: SourceUploadIntentInput[];
+  conversation_id?: string | null;
+}
+
+export type SourceUploadPlanState = typeof SourceUploadPlanState[keyof typeof SourceUploadPlanState];
+
+
+export const SourceUploadPlanState = {
+  pending: 'pending',
+  uploading: 'uploading',
+  completed: 'completed',
+  failed: 'failed',
+  aborted: 'aborted',
+} as const;
+
+export interface SourceUploadPlan {
+  client_ref: string;
+  upload_session_id: string;
+  intent_id: string;
+  state: SourceUploadPlanState;
+  upload_url: string;
+  expires_at: string;
+  asset_id?: string | null;
+  revision_id?: string | null;
+}
+
+export interface PrepareSourceUploadsResult {
+  uploads: SourceUploadPlan[];
 }
 
 export interface ProcessDocumentInput {
@@ -704,6 +754,21 @@ const healthzHealthzGet = (
  options?: SecondParameter<typeof apiMutator<HealthzHealthzGet200>>,) => {
       return apiMutator<HealthzHealthzGet200>(
       {url: `/healthz`, method: 'GET'
+    },
+      options);
+    }
+
+/**
+ * Authorize file metadata and create resumable Asset upload capabilities.
+ * @summary Prepare
+ */
+const prepareIngestPreparePost = (
+    prepareSourceUploadsInput: PrepareSourceUploadsInput,
+ options?: SecondParameter<typeof apiMutator<PrepareSourceUploadsResult>>,) => {
+      return apiMutator<PrepareSourceUploadsResult>(
+      {url: `/ingest:prepare`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: prepareSourceUploadsInput
     },
       options);
     }
@@ -1249,10 +1314,11 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,processDocumentInternalDocumentsDocumentIdProcessPost,indexDocumentInternalDocumentsDocumentIdIndexPost,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,createFileUrlFilesResourceUrlPost,getSignedResourceResourcesDocumentIdGet,getSignedFileResourceResourcesFilesFileIdGet,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,prepareIngestPreparePost,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,getMyDocumentSourceDocumentsDocumentIdSourceGet,processDocumentInternalDocumentsDocumentIdProcessPost,indexDocumentInternalDocumentsDocumentIdIndexPost,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,getDocumentSourceInternalDocumentsDocumentIdSourceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,getStagedMediaSourceInternalStagedMediaStagedIdSourceGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,createResourceUrlDocumentsDocumentIdResourceUrlPost,createFileUrlFilesResourceUrlPost,getSignedResourceResourcesDocumentIdGet,getSignedFileResourceResourcesFilesFileIdGet,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
+export type PrepareIngestPreparePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['prepareIngestPreparePost']>>>
 export type IngestIngestPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['ingestIngestPost']>>>
 export type ListMyDocumentsDocumentsGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['listMyDocumentsDocumentsGet']>>>
 export type BatchDeleteMyDocumentsDocumentsBatchDeletePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['batchDeleteMyDocumentsDocumentsBatchDeletePost']>>>

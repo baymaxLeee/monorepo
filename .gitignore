@@ -69,5 +69,6 @@ vendor/
 # independently; see apps/backend/services/*/Dockerfile), never commit it.
 apps/backend/services/*/bin/
 
-# Knowledge service local object storage (runtime uploads)
+# Service-local object storage (runtime uploads)
 apps/backend/services/knowledge/data/
+apps/backend/services/asset/data/

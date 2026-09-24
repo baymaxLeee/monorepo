@@ -25,6 +25,8 @@ type Scope struct {
 type ResolvedRevision struct {
 	SourceAssetID    string
 	SourceRevisionID string
+	Category         string
+	CreatedBy        string
 	MediaType        domainasset.MediaType
 	ContentType      string
 	SizeBytes        int64

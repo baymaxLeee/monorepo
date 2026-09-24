@@ -12,8 +12,6 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 )
 
-const maximumCoverImageBytes int64 = 2 << 20
-
 type Store struct {
 	assets           *assetclient.Client
 	claims           applicationassetclaim.Store
@@ -34,10 +32,13 @@ func (s *Store) Register(ctx context.Context, input applicationcoverimage.Regist
 	if err != nil {
 		return applicationcoverimage.Registration{}, fmt.Errorf("describe cover image revision: %w", err)
 	}
-	if revision.SizeBytes <= 0 || revision.SizeBytes > maximumCoverImageBytes {
+	if revision.SizeBytes <= 0 || revision.SizeBytes > applicationcoverimage.MaximumBytes {
 		return applicationcoverimage.Registration{}, applicationcoverimage.ErrTooLarge
 	}
-	if revision.MediaType != "image/png" && revision.MediaType != "image/jpeg" {
+	if revision.Category != "canvas-cover" || revision.CreatedBy != input.UserID {
+		return applicationcoverimage.Registration{}, applicationcoverimage.ErrInvalidReference
+	}
+	if !applicationcoverimage.SupportedMediaType(revision.MediaType) {
 		return applicationcoverimage.Registration{}, applicationcoverimage.ErrUnsupportedFormat
 	}
 	return applicationcoverimage.Registration{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, Revision: applicationcoverimage.RevisionRef{AssetID: revision.AssetID, RevisionID: revision.RevisionID}, OwnerType: input.OwnerType, OwnerID: input.OwnerID, Generation: input.Generation, SHA256: revision.SHA256, ContentType: revision.MediaType, SizeBytes: revision.SizeBytes}, nil

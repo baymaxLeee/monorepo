@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -53,7 +52,7 @@ func NewRouter(service *application.Service, readiness func(context.Context) err
 	})
 	router.Get("/readyz", transport.readinessRoute())
 	router.Get("/healthz", transport.readinessRoute())
-	router.Post("/assets", transport.uploadRoute())
+	router.Put("/upload-sessions/{uploadID}/content", transport.uploadSessionContentRoute())
 	router.MethodFunc(http.MethodGet, "/assets/{assetID}/revisions/{revisionID}/content", transport.contentRoute())
 	router.MethodFunc(http.MethodHead, "/assets/{assetID}/revisions/{revisionID}/content", transport.contentRoute())
 	router.MethodFunc(http.MethodGet, "/media/{assetID}/revisions/{revisionID}/content", transport.capabilityContentRoute())
@@ -61,6 +60,8 @@ func NewRouter(service *application.Service, readiness func(context.Context) err
 	router.Group(func(internal chi.Router) {
 		internal.Use(transport.serviceAuthentication)
 		internal.Post("/internal/assets", transport.internalUploadRoute())
+		internal.Post("/internal/upload-sessions", transport.createUploadSessionRoute())
+		internal.Get("/internal/upload-sessions/{uploadID}", transport.describeUploadSessionRoute())
 		internal.Get("/internal/assets/{assetID}/revisions/{revisionID}", transport.internalDescribeRoute())
 		internal.MethodFunc(http.MethodGet, "/internal/assets/{assetID}/revisions/{revisionID}/content", transport.internalContentRoute())
 		internal.MethodFunc(http.MethodHead, "/internal/assets/{assetID}/revisions/{revisionID}/content", transport.internalContentRoute())
@@ -70,6 +71,95 @@ func NewRouter(service *application.Service, readiness func(context.Context) err
 		internal.Post("/internal/delivery-capabilities:mint", transport.mintDeliveryCapabilitiesRoute())
 	})
 	return router
+}
+
+type createUploadSessionRequest struct {
+	TenantID    string `json:"tenant_id"`
+	WorkspaceID string `json:"workspace_id"`
+	UserID      string `json:"user_id"`
+	IntentID    string `json:"intent_id"`
+	Filename    string `json:"filename"`
+	MediaType   string `json:"media_type"`
+	Category    string `json:"category"`
+	SizeBytes   int64  `json:"size_bytes"`
+}
+
+func (router *Router) createUploadSessionRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		var body createUploadSessionRequest
+		if err := decodeJSON(request, &body); err != nil {
+			writeProblem(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		session, err := router.service.CreateUploadSession(request.Context(), application.CreateUploadSessionInput{
+			TenantID: body.TenantID, WorkspaceID: body.WorkspaceID, UserID: body.UserID,
+			CallerService: request.Header.Get("X-Caller-Service"), IdempotencyKey: body.IntentID,
+			Filename: body.Filename, MediaType: body.MediaType, Category: body.Category, SizeBytes: body.SizeBytes,
+		})
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, router.uploadSessionResponse(session))
+	}
+}
+
+func (router *Router) describeUploadSessionRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		session, err := router.service.DescribeUploadSession(
+			request.Context(), request.Header.Get("X-Caller-Service"), request.URL.Query().Get("tenant_id"),
+			request.URL.Query().Get("workspace_id"), chi.URLParam(request, "uploadID"),
+		)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, router.uploadSessionResponse(session))
+	}
+}
+
+func (router *Router) uploadSessionContentRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		uploadID := chi.URLParam(request, "uploadID")
+		expires, err := strconv.ParseInt(request.URL.Query().Get("expires"), 10, 64)
+		expected := router.signUploadSession(uploadID, expires)
+		provided := request.URL.Query().Get("signature")
+		if err != nil || time.Now().Unix() > expires || len(provided) != len(expected) ||
+			subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			writeProblem(w, http.StatusForbidden, "forbidden", "invalid or expired upload capability")
+			return
+		}
+		request.Body = http.MaxBytesReader(w, request.Body, router.maxBytes)
+		asset, revision, err := router.service.UploadSession(request.Context(), uploadID, request.Body)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, uploadResponse(asset, revision))
+	}
+}
+
+func (router *Router) uploadSessionResponse(session application.UploadSession) map[string]any {
+	expires := session.ExpiresAt.Unix()
+	query := url.Values{"expires": {strconv.FormatInt(expires, 10)}, "signature": {router.signUploadSession(session.ID, expires)}}
+	result := map[string]any{
+		"upload_session_id": session.ID, "intent_id": session.IdempotencyKey, "state": session.State,
+		"user_id": session.UserID, "category": session.Category, "filename": session.Filename,
+		"media_type": session.MediaType, "size_bytes": session.SizeBytes,
+		"expires_at": session.ExpiresAt,
+		"upload_url": fmt.Sprintf("/api/asset-server/upload-sessions/%s/content?%s", url.PathEscape(session.ID), query.Encode()),
+	}
+	if session.AssetID != "" && session.RevisionID != "" {
+		result["asset_id"] = session.AssetID
+		result["revision_id"] = session.RevisionID
+	}
+	return result
+}
+
+func (router *Router) signUploadSession(uploadID string, expires int64) string {
+	mac := hmac.New(sha256.New, router.signingKey)
+	_, _ = fmt.Fprintf(mac, "upload\x00%s\x00%d", uploadID, expires)
+	return fmt.Sprintf("%x", mac.Sum(nil))
 }
 
 type deliveryCapabilityItem struct {
@@ -180,66 +270,11 @@ func (router *Router) readinessRoute() http.HandlerFunc {
 	}
 }
 
-func (router *Router) uploadRoute() http.HandlerFunc {
-	return func(w http.ResponseWriter, request *http.Request) {
-		tenantID, workspaceID, userID, ok := identity(request)
-		if !ok {
-			writeProblem(w, http.StatusUnauthorized, "missing_identity", "authenticated tenant, workspace, and user are required")
-			return
-		}
-		category := strings.TrimSpace(request.URL.Query().Get("category"))
-		if category == "" {
-			writeProblem(w, http.StatusBadRequest, "invalid_request", "category is required")
-			return
-		}
-		request.Body = http.MaxBytesReader(w, request.Body, router.maxBytes+(1<<20))
-		multipartReader, err := request.MultipartReader()
-		if err != nil {
-			writeProblem(w, http.StatusBadRequest, "invalid_multipart", err.Error())
-			return
-		}
-		part, err := nextFilePart(multipartReader)
-		if err != nil {
-			writeProblem(w, http.StatusBadRequest, "missing_file", err.Error())
-			return
-		}
-		defer part.Close()
-		asset, revision, err := router.service.Upload(request.Context(), application.CreateUploadInput{
-			TenantID: tenantID, WorkspaceID: workspaceID, UserID: userID, Filename: part.FileName(),
-			MediaType: part.Header.Get("Content-Type"), Category: category, CallerService: "browser",
-		}, part)
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusCreated, uploadResponse(asset, revision))
-	}
-}
-
 func uploadResponse(asset domain.Asset, revision domain.Revision) map[string]any {
 	return map[string]any{
 		"asset_id": asset.ID, "revision_id": revision.ID, "filename": revision.Filename,
 		"media_type": revision.MediaType, "size_bytes": revision.SizeBytes, "sha256": revision.SHA256,
 		"url": fmt.Sprintf("/api/asset-server/assets/%s/revisions/%s/content", asset.ID, revision.ID),
-	}
-}
-
-func nextFilePart(reader *multipart.Reader) (*multipart.Part, error) {
-	for {
-		part, err := reader.NextPart()
-		if err != nil {
-			if errors.Is(err, multipart.ErrMessageTooLarge) {
-				return nil, application.ErrInvalidInput
-			}
-			if errors.Is(err, io.EOF) {
-				return nil, errors.New("multipart field file is required")
-			}
-			return nil, err
-		}
-		if part.FormName() == "file" && part.FileName() != "" {
-			return part, nil
-		}
-		_ = part.Close()
 	}
 }
 

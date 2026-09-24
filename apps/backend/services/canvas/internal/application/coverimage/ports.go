@@ -6,7 +6,12 @@ import (
 	"strconv"
 )
 
-const QuotaObjectType = "cover_attachment"
+const (
+	QuotaObjectType = "cover_attachment"
+	MaximumBytes    = int64(2 << 20)
+)
+
+func SupportedMediaType(value string) bool { return value == "image/png" || value == "image/jpeg" }
 
 var (
 	// ErrIDGeneration identifies failures in locally generated cover registration IDs.

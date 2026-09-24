@@ -55,6 +55,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ingest:prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prepare
+         * @description Authorize file metadata and create resumable Asset upload capabilities.
+         */
+        post: operations["prepare_ingest_prepare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ingest": {
         parameters: {
             query?: never;
@@ -652,15 +672,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AssetIngestItem */
-        AssetIngestItem: {
-            /** Client Ref */
-            client_ref: string;
-            /** Asset Id */
-            asset_id: string;
-            /** Revision Id */
-            revision_id: string;
-        };
         /** BatchDeleteInput */
         BatchDeleteInput: {
             /** Ids */
@@ -768,8 +779,8 @@ export interface components {
         };
         /** CreateSourceDocumentsInput */
         CreateSourceDocumentsInput: {
-            /** Assets */
-            assets: components["schemas"]["AssetIngestItem"][];
+            /** Uploads */
+            uploads: components["schemas"]["SourceUploadCompletion"][];
             /** Conversation Id */
             conversation_id?: string | null;
             /** Provider Id */
@@ -1026,6 +1037,18 @@ export interface components {
             /** Failed */
             failed?: components["schemas"]["IngestFailure"][];
         };
+        /** PrepareSourceUploadsInput */
+        PrepareSourceUploadsInput: {
+            /** Files */
+            files: components["schemas"]["SourceUploadIntentInput"][];
+            /** Conversation Id */
+            conversation_id?: string | null;
+        };
+        /** PrepareSourceUploadsResult */
+        PrepareSourceUploadsResult: {
+            /** Uploads */
+            uploads: components["schemas"]["SourceUploadPlan"][];
+        };
         /** ProcessDocumentInput */
         ProcessDocumentInput: {
             /** Provider Id */
@@ -1072,6 +1095,46 @@ export interface components {
             title: string;
             /** Filename */
             filename: string;
+        };
+        /** SourceUploadCompletion */
+        SourceUploadCompletion: {
+            /** Client Ref */
+            client_ref: string;
+            /** Upload Session Id */
+            upload_session_id: string;
+        };
+        /** SourceUploadIntentInput */
+        SourceUploadIntentInput: {
+            /** Client Ref */
+            client_ref: string;
+            /** Filename */
+            filename: string;
+            /** Media Type */
+            media_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** SourceUploadPlan */
+        SourceUploadPlan: {
+            /** Client Ref */
+            client_ref: string;
+            /** Upload Session Id */
+            upload_session_id: string;
+            /** Intent Id */
+            intent_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "uploading" | "completed" | "failed" | "aborted";
+            /** Upload Url */
+            upload_url: string;
+            /** Expires At */
+            expires_at: string;
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Revision Id */
+            revision_id?: string | null;
         };
         /** StagedMedia */
         StagedMedia: {
@@ -1247,6 +1310,46 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    prepare_ingest_prepare_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrepareSourceUploadsInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrepareSourceUploadsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

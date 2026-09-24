@@ -9,15 +9,43 @@ import (
 	thriftcommon "github.com/example/monorepo/canvas/internal/api/contracts/common"
 	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
+	applicationuploadintent "github.com/example/monorepo/canvas/internal/application/uploadintent"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 )
 
 type AssetHandler struct {
 	reviews *applicationpackage.ReviewService
+	uploads *applicationuploadintent.Service
 }
 
-func NewAssetHandler(reviews *applicationpackage.ReviewService) *AssetHandler {
-	return &AssetHandler{reviews: reviews}
+func NewAssetHandler(reviews *applicationpackage.ReviewService, uploads *applicationuploadintent.Service) *AssetHandler {
+	return &AssetHandler{reviews: reviews, uploads: uploads}
+}
+
+func (h *AssetHandler) PrepareUpload(ctx context.Context, request *thriftasset.PrepareUploadRequest) (*thriftasset.UploadPlan, error) {
+	if err := requireAction(ctx, "PrepareUpload"); err != nil {
+		return nil, err
+	}
+	metadata, _ := requestcontext.MetadataFromContext(ctx)
+	plan, err := h.uploads.Prepare(ctx, applicationuploadintent.PrepareInput{
+		Scope:     applicationuploadintent.Scope{TenantID: metadata.TenantID, WorkspaceID: metadata.WorkspaceID, UserID: metadata.UserID},
+		ClientRef: request.ClientRef, Purpose: applicationuploadintent.Purpose(request.Purpose), Filename: request.Filename,
+		MediaType: request.MediaType, SizeBytes: request.SizeBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := &thriftasset.UploadPlan{
+		UploadSessionID: plan.UploadSessionID, IntentID: plan.IntentID, State: plan.State, UploadURL: plan.UploadURL,
+		ExpiresAt: timestamp(plan.ExpiresAt), Filename: plan.Filename, MediaType: plan.MediaType, SizeBytes: plan.SizeBytes,
+	}
+	if plan.AssetID != "" {
+		result.AssetID = &plan.AssetID
+	}
+	if plan.RevisionID != "" {
+		result.RevisionID = &plan.RevisionID
+	}
+	return result, nil
 }
 
 func (h *AssetHandler) ListAvailableBenefitPackages(ctx context.Context, request *thriftpackage.ListAvailableBenefitPackagesRequest) (*thriftpackage.ListAvailableBenefitPackagesResponse, error) {

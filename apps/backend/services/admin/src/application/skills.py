@@ -10,7 +10,7 @@ import tempfile
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import cast
+from typing import Literal, cast
 from uuid import uuid4
 
 from bootstrap.config import get_settings
@@ -45,6 +45,7 @@ from application.contracts.skill import (
     InternalSkill,
     InternalSkillFile,
     MoveSkillNodeInput,
+    PrepareSkillUploadInput,
     PublishSkillInput,
     PublishSkillResult,
     RenameSkillNodeInput,
@@ -54,6 +55,7 @@ from application.contracts.skill import (
     SkillNodeMutationResult,
     SkillStorageKind,
     SkillSummary,
+    SkillUploadPlan,
     SkillValidationIssue,
     SkillValidationResult,
     SkillWorkspace,
@@ -239,14 +241,14 @@ class SkillService:
         return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
 
     async def attach_asset(self, skill_id: str, payload: AttachSkillAssetInput) -> SkillNodeMutationResult:
-        revision = await get_asset_client().describe(
-            tenant_id=self._current_user.tenant_id,
-            workspace_id=self._current_user.workspace_id,
-            asset_id=payload.asset_id,
-            revision_id=payload.revision_id,
+        revision = await self._resolve_user_upload(
+            skill_id=skill_id,
+            purpose="skill-attachment",
+            client_ref=payload.client_ref,
+            upload_session_id=payload.upload_session_id,
         )
-        if revision.category != "skill-attachment":
-            raise RequestError("skill attachment must use the skill-attachment Asset category")
+        if revision.filename != payload.name:
+            raise RequestError("skill attachment name does not match the authorized upload")
         async with write_tx(self._session):
             row = await self._get_locked_row(skill_id)
             if await node_crud.get_workspace_node(self._session, skill_id, payload.id):
@@ -290,14 +292,12 @@ class SkillService:
 
     async def import_archive(self, skill_id: str, payload: ImportSkillArchiveInput) -> ImportSkillArchiveResult:
         asset_client = get_asset_client()
-        revision = await asset_client.describe(
-            tenant_id=self._current_user.tenant_id,
-            workspace_id=self._current_user.workspace_id,
-            asset_id=payload.asset_id,
-            revision_id=payload.revision_id,
+        revision = await self._resolve_user_upload(
+            skill_id=skill_id,
+            purpose="skill-archive",
+            client_ref=payload.client_ref,
+            upload_session_id=payload.upload_session_id,
         )
-        if revision.category != "skill-archive":
-            raise RequestError("skill import must use the skill-archive Asset category")
         if revision.media_type not in {"application/zip", "application/x-zip-compressed", "application/octet-stream"}:
             raise RequestError("skill import Asset must be a ZIP archive")
         settings = get_settings()
@@ -351,6 +351,75 @@ class SkillService:
                 imported_files=len(files),
                 imported_asset_files=len(binary_revisions),
             )
+
+    async def prepare_upload(self, skill_id: str, payload: PrepareSkillUploadInput) -> SkillUploadPlan:
+        async with self._session.begin():
+            await self._get_row(skill_id)
+        settings = get_settings()
+        limit = (
+            settings.skill_archive_max_bytes
+            if payload.purpose == "skill-archive"
+            else settings.skill_archive_max_member_bytes
+        )
+        if payload.size_bytes > limit:
+            raise RequestError(f"{payload.purpose} exceeds the configured byte limit")
+        if payload.purpose == "skill-archive" and payload.media_type not in {
+            "application/zip",
+            "application/x-zip-compressed",
+            "application/octet-stream",
+        }:
+            raise RequestError("skill import upload must be a ZIP archive")
+        session = await get_asset_client().create_upload_session(
+            tenant_id=self._current_user.tenant_id,
+            workspace_id=self._current_user.workspace_id,
+            user_id=self._current_user.user_id,
+            intent_id=self._upload_intent_id(skill_id, payload.purpose, payload.client_ref),
+            filename=payload.filename,
+            media_type=payload.media_type,
+            size_bytes=payload.size_bytes,
+            category=payload.purpose,
+        )
+        return SkillUploadPlan(
+            upload_session_id=session.upload_session_id,
+            intent_id=session.intent_id,
+            state=session.state,
+            upload_url=session.upload_url,
+            expires_at=session.expires_at.isoformat(),
+            asset_id=session.asset_id,
+            revision_id=session.revision_id,
+        )
+
+    async def _resolve_user_upload(
+        self,
+        *,
+        skill_id: str,
+        purpose: Literal["skill-archive", "skill-attachment"],
+        client_ref: str,
+        upload_session_id: str,
+    ) -> AssetRevision:
+        client = get_asset_client()
+        upload = await client.get_upload_session(
+            tenant_id=self._current_user.tenant_id,
+            workspace_id=self._current_user.workspace_id,
+            upload_session_id=upload_session_id,
+        )
+        if upload.intent_id != self._upload_intent_id(skill_id, purpose, client_ref):
+            raise RequestError("upload session does not belong to this Skill operation")
+        if upload.user_id != self._current_user.user_id or upload.category != purpose:
+            raise RequestError("upload session does not belong to the current user or purpose")
+        if upload.state != "completed" or not upload.asset_id or not upload.revision_id:
+            raise RequestError("upload session is not complete")
+        return await client.describe(
+            tenant_id=self._current_user.tenant_id,
+            workspace_id=self._current_user.workspace_id,
+            asset_id=upload.asset_id,
+            revision_id=upload.revision_id,
+        )
+
+    @staticmethod
+    def _upload_intent_id(skill_id: str, purpose: Literal["skill-archive", "skill-attachment"], client_ref: str) -> str:
+        digest = hashlib.sha256(f"{skill_id}\0{purpose}\0{client_ref}".encode()).hexdigest()
+        return f"{purpose}:{digest}"
 
     async def update_file_content(
         self, skill_id: str, node_id: str, payload: UpdateSkillFileContentInput

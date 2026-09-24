@@ -163,6 +163,20 @@ IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 
 Output ends with the URL to open in a browser.
 
+The current database contract is reinstall-only. When a release changes a
+service's `v1.0.0` baseline, perform a destructive deployment instead of an
+in-place schema or data migration:
+
+```bash
+RESET_DATA=true IMAGE_REGISTRY=ghcr.io/<owner>/<repo> \
+  ./infra/single-vps/deploy.sh root@<vps-ip>
+```
+
+This removes every Compose data volume, recreates all service schemas, and then
+runs `iam-bootstrap`. The super-admin account/password come from
+`secrets.sops.env`, so the freshly installed VPS is immediately login-capable;
+no old account row is copied.
+
 ---
 
 ## (Optional but strongly recommended for China-hosted VPS) Mirror images to Tencent TCR
@@ -324,10 +338,12 @@ docker compose -f docker-compose.prod.yml start
 
 ## Migrating off
 
-The persistent data is in three named Docker volumes:
+The persistent data is in these named Docker volumes:
 - `monorepo_postgres_data`
 - `monorepo_redis_data`
-- `monorepo_knowledge_data`
+- `monorepo_asset_data`
+- `monorepo_clickhouse_data`
+- `monorepo_clickhouse_logs`
 
 Backup the volumes, copy to a bigger box / K8s cluster, restore. The 10 images are immutable so you can re-tag and push elsewhere without rebuilding.
 

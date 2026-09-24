@@ -52,14 +52,14 @@ CRUD/DTO 的服务不创建占位 domain。
 
 ## 数据库迁移
 
-- 每个服务的 SQL migration 放在
-  `apps/backend/services/<svc>/migrations/versions/`。
-- 文件名必须是纯版本号,例如 `v1.0.0.sql`。不要添加描述后缀。
+- 每个服务只保留一个可重装 schema baseline:
+  `apps/backend/services/<svc>/migrations/versions/v1.0.0.sql`。
+- schema 变化直接修改 `v1.0.0.sql`;在新的 ADR 明确引入持久数据兼容要求前,
+  不新增后续版本,也不提供数据迁移、升级或降级路径。
 - 每个服务库必须有 `migration` 表,只保留 `id = 1` 一行,记录当前库
-  schema 版本。
-- `just up` 会扫描所有服务的 migrations 并调用 `scripts/db-migrate.sh`。
-- 执行范围是 `(当前库 migration.version, 目标版本]`。
-- 未传目标版本时,目标版本默认为该服务本地 SQL 目录里的最新版本。
+  schema 版本、baseline SHA-256 与更新时间。
+- `just up` 会扫描所有服务并调用 `scripts/db-migrate.sh`;版本或 checksum
+  不一致时必须运行 `just reset-demo-data` 全量重建。
 - 服务启动时禁止自动建表; schema 只能由 migration 管理。
 
 ## Gateway

@@ -81,6 +81,146 @@
         }
       }
     },
+    "/ingest:prepare": {
+      "post": {
+        "tags": [
+          "ingest"
+        ],
+        "summary": "Prepare",
+        "description": "Authorize file metadata and create resumable Asset upload capabilities.",
+        "operationId": "prepare_ingest_prepare_post",
+        "parameters": [
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Tenant-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareSourceUploadsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareSourceUploadsResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ingest": {
       "post": {
         "tags": [
@@ -3873,35 +4013,6 @@
   },
   "components": {
     "schemas": {
-      "AssetIngestItem": {
-        "properties": {
-          "client_ref": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Client Ref"
-          },
-          "asset_id": {
-            "type": "string",
-            "maxLength": 36,
-            "minLength": 36,
-            "title": "Asset Id"
-          },
-          "revision_id": {
-            "type": "string",
-            "maxLength": 36,
-            "minLength": 36,
-            "title": "Revision Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "client_ref",
-          "asset_id",
-          "revision_id"
-        ],
-        "title": "AssetIngestItem"
-      },
       "BatchDeleteInput": {
         "properties": {
           "ids": {
@@ -4249,14 +4360,14 @@
       },
       "CreateSourceDocumentsInput": {
         "properties": {
-          "assets": {
+          "uploads": {
             "items": {
-              "$ref": "#/components/schemas/AssetIngestItem"
+              "$ref": "#/components/schemas/SourceUploadCompletion"
             },
             "type": "array",
             "maxItems": 100,
             "minItems": 1,
-            "title": "Assets"
+            "title": "Uploads"
           },
           "conversation_id": {
             "anyOf": [
@@ -4285,7 +4396,7 @@
         },
         "type": "object",
         "required": [
-          "assets"
+          "uploads"
         ],
         "title": "CreateSourceDocumentsInput"
       },
@@ -5004,6 +5115,52 @@
         ],
         "title": "IngestResult"
       },
+      "PrepareSourceUploadsInput": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/SourceUploadIntentInput"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Files"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "PrepareSourceUploadsInput"
+      },
+      "PrepareSourceUploadsResult": {
+        "properties": {
+          "uploads": {
+            "items": {
+              "$ref": "#/components/schemas/SourceUploadPlan"
+            },
+            "type": "array",
+            "title": "Uploads"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uploads"
+        ],
+        "title": "PrepareSourceUploadsResult"
+      },
       "ProcessDocumentInput": {
         "properties": {
           "provider_id": {
@@ -5154,6 +5311,130 @@
           "filename"
         ],
         "title": "RetrievedChunk"
+      },
+      "SourceUploadCompletion": {
+        "properties": {
+          "client_ref": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Ref"
+          },
+          "upload_session_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Upload Session Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_ref",
+          "upload_session_id"
+        ],
+        "title": "SourceUploadCompletion"
+      },
+      "SourceUploadIntentInput": {
+        "properties": {
+          "client_ref": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Ref"
+          },
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "media_type": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Media Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_ref",
+          "filename",
+          "media_type",
+          "size_bytes"
+        ],
+        "title": "SourceUploadIntentInput"
+      },
+      "SourceUploadPlan": {
+        "properties": {
+          "client_ref": {
+            "type": "string",
+            "title": "Client Ref"
+          },
+          "upload_session_id": {
+            "type": "string",
+            "title": "Upload Session Id"
+          },
+          "intent_id": {
+            "type": "string",
+            "title": "Intent Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "uploading",
+              "completed",
+              "failed",
+              "aborted"
+            ],
+            "title": "State"
+          },
+          "upload_url": {
+            "type": "string",
+            "title": "Upload Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_ref",
+          "upload_session_id",
+          "intent_id",
+          "state",
+          "upload_url",
+          "expires_at"
+        ],
+        "title": "SourceUploadPlan"
       },
       "StagedMedia": {
         "properties": {

@@ -88,6 +88,124 @@ func (r *Repository) BeginUpload(ctx context.Context, input application.CreateUp
 	}
 }
 
+func (r *Repository) CreateUploadSession(
+	ctx context.Context,
+	input application.CreateUploadSessionInput,
+	id string,
+	expiresAt, now time.Time,
+) (application.UploadSession, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return application.UploadSession{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var insertedID string
+	err = tx.QueryRow(ctx, `INSERT INTO upload_sessions
+        (id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,declared_size_bytes,state,expires_at,created_at,updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12,$12)
+        ON CONFLICT DO NOTHING RETURNING id`,
+		id, input.TenantID, input.WorkspaceID, input.UserID, input.CallerService, input.IdempotencyKey,
+		input.Category, input.Filename, input.MediaType, input.SizeBytes, expiresAt, now).Scan(&insertedID)
+	if err == nil {
+		if err = tx.Commit(ctx); err != nil {
+			return application.UploadSession{}, err
+		}
+		return application.UploadSession{
+			ID: insertedID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
+			CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Category: input.Category,
+			Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes, State: "pending", ExpiresAt: expiresAt,
+		}, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return application.UploadSession{}, classify(err)
+	}
+
+	session, err := scanUploadSession(tx.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,
+        category,filename,declared_media_type,COALESCE(declared_size_bytes,-1),state,
+        COALESCE(asset_id::text,''),COALESCE(revision_id::text,''),expires_at
+        FROM upload_sessions
+        WHERE tenant_id=$1 AND workspace_id=$2 AND caller_service=$3 AND idempotency_key=$4
+        FOR UPDATE`, input.TenantID, input.WorkspaceID, input.CallerService, input.IdempotencyKey))
+	if err != nil {
+		return application.UploadSession{}, classify(err)
+	}
+	if session.UserID != input.UserID || session.Category != input.Category || session.Filename != input.Filename ||
+		session.MediaType != input.MediaType || session.SizeBytes != input.SizeBytes {
+		return application.UploadSession{}, application.ErrConflict
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return application.UploadSession{}, err
+	}
+	return session, nil
+}
+
+func (r *Repository) ClaimUploadSession(ctx context.Context, id string, now time.Time) (application.UploadSession, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return application.UploadSession{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	session, err := scanUploadSession(tx.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,
+        category,filename,declared_media_type,COALESCE(declared_size_bytes,-1),state,
+        COALESCE(asset_id::text,''),COALESCE(revision_id::text,''),expires_at
+        FROM upload_sessions WHERE id=$1 FOR UPDATE`, id))
+	if err != nil {
+		return application.UploadSession{}, classify(err)
+	}
+	if !session.ExpiresAt.After(now) {
+		if session.State != "completed" {
+			_, _ = tx.Exec(ctx, `UPDATE upload_sessions SET state='aborted',error_code='upload_expired',updated_at=$2 WHERE id=$1`, id, now)
+			_ = tx.Commit(ctx)
+		}
+		return application.UploadSession{}, application.ErrConflict
+	}
+	if session.State == "completed" {
+		if err = tx.Commit(ctx); err != nil {
+			return application.UploadSession{}, err
+		}
+		return session, nil
+	}
+	if session.State != "pending" && session.State != "failed" {
+		return application.UploadSession{}, application.ErrConflict
+	}
+	if _, err = tx.Exec(ctx, `UPDATE upload_sessions SET state='uploading',error_code=NULL,updated_at=$2 WHERE id=$1`, id, now); err != nil {
+		return application.UploadSession{}, err
+	}
+	session.State = "uploading"
+	if err = tx.Commit(ctx); err != nil {
+		return application.UploadSession{}, err
+	}
+	return session, nil
+}
+
+func (r *Repository) GetUploadSession(
+	ctx context.Context,
+	callerService, tenantID, workspaceID, id string,
+) (application.UploadSession, error) {
+	session, err := scanUploadSession(r.pool.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,
+        category,filename,declared_media_type,COALESCE(declared_size_bytes,-1),state,
+        COALESCE(asset_id::text,''),COALESCE(revision_id::text,''),expires_at
+        FROM upload_sessions WHERE id=$1 AND caller_service=$2 AND tenant_id=$3 AND workspace_id=$4`,
+		id, callerService, tenantID, workspaceID))
+	if err != nil {
+		return application.UploadSession{}, classify(err)
+	}
+	return session, nil
+}
+
+type uploadSessionRow interface{ Scan(...any) error }
+
+func scanUploadSession(row uploadSessionRow) (application.UploadSession, error) {
+	var session application.UploadSession
+	err := row.Scan(
+		&session.ID, &session.TenantID, &session.WorkspaceID, &session.UserID, &session.CallerService,
+		&session.IdempotencyKey, &session.Category, &session.Filename, &session.MediaType, &session.SizeBytes,
+		&session.State, &session.AssetID, &session.RevisionID, &session.ExpiresAt,
+	)
+	return session, err
+}
+
 func (r *Repository) FailUpload(ctx context.Context, id, code string, now time.Time) error {
 	_, err := r.pool.Exec(ctx, `UPDATE upload_sessions SET state='failed', error_code=$2, updated_at=$3 WHERE id=$1 AND state='uploading'`, id, code, now)
 	return err
@@ -420,7 +538,7 @@ func (r *Repository) ClaimExpiredUploads(ctx context.Context, now, leaseUntil ti
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	rows, err := tx.Query(ctx, `SELECT id FROM upload_sessions
-      WHERE state IN ('uploading','failed','aborted') AND expires_at <= $1
+      WHERE state IN ('pending','uploading','failed','completed','aborted') AND expires_at <= $1
       ORDER BY expires_at,id FOR UPDATE SKIP LOCKED LIMIT $2`, now, limit)
 	if err != nil {
 		return nil, err

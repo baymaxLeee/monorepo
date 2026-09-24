@@ -25,6 +25,7 @@
 #   PUBLIC_PORT     (default 8080) host port nginx binds
 #   PUBLIC_GATEWAY_URL (default http://<remote-host>:<public-port>) browser-reachable gateway origin
 #   DEPLOY_DIR      (default /opt/monorepo) remote path
+#   RESET_DATA      (default false) destroy all Compose volumes before startup
 
 set -euo pipefail
 
@@ -42,6 +43,12 @@ IMAGE_TAG="${IMAGE_TAG:-main}"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
 REMOTE_HOST="${REMOTE#*@}"
 PUBLIC_GATEWAY_URL="${PUBLIC_GATEWAY_URL:-http://${REMOTE_HOST}:${PUBLIC_PORT}}"
+RESET_DATA="${RESET_DATA:-false}"
+
+if [ "$RESET_DATA" != "true" ] && [ "$RESET_DATA" != "false" ]; then
+    echo "✗ RESET_DATA must be true or false" >&2
+    exit 1
+fi
 
 case "${PUBLIC_GATEWAY_URL}" in
     http://* | https://*) ;;
@@ -81,6 +88,11 @@ ssh "${REMOTE}" "cd ${DEPLOY_DIR} && IMAGE_REGISTRY='${IMAGE_REGISTRY}' IMAGE_TA
 # Compose validates every required interpolation as the final source of truth.
 echo "→ validating compose config on remote"
 ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env config --quiet"
+
+if [ "$RESET_DATA" = "true" ]; then
+    echo "→ RESET_DATA=true: destroying all remote service data volumes"
+    ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env down -v --remove-orphans"
+fi
 
 echo "→ pulling latest images on remote"
 ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env pull"

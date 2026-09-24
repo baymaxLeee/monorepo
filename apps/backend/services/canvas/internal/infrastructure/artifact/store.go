@@ -92,6 +92,7 @@ func (store *Store) Resolve(
 	}
 	return applicationasset.ResolvedRevision{
 		SourceAssetID: revision.AssetID, SourceRevisionID: revision.RevisionID,
+		Category: revision.Category, CreatedBy: revision.CreatedBy,
 		MediaType: mediaType, ContentType: revision.MediaType, SizeBytes: revision.SizeBytes,
 	}, nil
 }

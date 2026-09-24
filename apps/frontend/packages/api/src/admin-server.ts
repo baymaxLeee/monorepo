@@ -1,4 +1,5 @@
 import { getAdminService } from "../generated/admin-server/index";
+import type { AssetUploadPlan } from "./asset-server";
 import { type ApiRequestConfig, request } from "./http";
 
 type RequestOptions = Pick<ApiRequestConfig, "signal" | "skipErrorNotify">;
@@ -223,7 +224,7 @@ export function fetchSkillFile(id: string, nodeId: string): Promise<SkillFileCon
 
 export function attachSkillAsset(
   id: string,
-  input: { id: string; parent_id: string | null; name: string; asset_id: string; revision_id: string },
+  input: { id: string; client_ref: string; parent_id: string | null; name: string; upload_session_id: string },
 ): Promise<SkillNodeMutationResult> {
   return request<SkillNodeMutationResult>({
     url: `${skillPath(id)}/workspace/assets`,
@@ -234,15 +235,58 @@ export function attachSkillAsset(
 
 export function importSkillArchive(
   id: string,
-  assetId: string,
-  revisionId: string,
+  clientRef: string,
+  uploadSessionId: string,
   baseWorkspaceSeq: number,
 ): Promise<ImportSkillArchiveResult> {
   return request<ImportSkillArchiveResult>({
     url: `${skillPath(id)}/workspace:import-archive`,
     method: "POST",
-    data: { asset_id: assetId, revision_id: revisionId, base_workspace_seq: baseWorkspaceSeq },
+    data: { client_ref: clientRef, upload_session_id: uploadSessionId, base_workspace_seq: baseWorkspaceSeq },
   });
+}
+
+export async function prepareSkillUpload(
+  id: string,
+  input: {
+    clientRef: string;
+    purpose: "skill-archive" | "skill-attachment";
+    filename: string;
+    mediaType: string;
+    sizeBytes: number;
+  },
+): Promise<AssetUploadPlan> {
+  const plan = await request<{
+    upload_session_id: string;
+    intent_id: string;
+    state: AssetUploadPlan["state"];
+    upload_url: string;
+    expires_at: string;
+    asset_id?: string | null;
+    revision_id?: string | null;
+  }>({
+    url: `${skillPath(id)}/uploads:prepare`,
+    method: "POST",
+    data: {
+      client_ref: input.clientRef,
+      purpose: input.purpose,
+      filename: input.filename,
+      media_type: input.mediaType,
+      size_bytes: input.sizeBytes,
+    },
+  });
+  return {
+    uploadSessionId: plan.upload_session_id,
+    intentId: plan.intent_id,
+    state: plan.state,
+    uploadUrl: plan.upload_url,
+    expiresAt: plan.expires_at,
+    filename: input.filename,
+    mediaType: input.mediaType,
+    sizeBytes: input.sizeBytes,
+    assetId: plan.asset_id,
+    revisionId: plan.revision_id,
+  };
 }
 
 export function createSkillNode(

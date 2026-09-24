@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVICE_DIR="${1:?Usage: db-migrate.sh <service-dir> [target-version]}"
-TARGET_VERSION="${2:-}"
+SERVICE_DIR="${1:?Usage: db-migrate.sh <service-dir>}"
+TARGET_VERSION="${2:-v1.0.0}"
 
 # Single shared Postgres instance: workflow DB + per-service business DBs +
 # knowledge vectors all live here since the MySQL→PG consolidation (ADR 0029).
@@ -18,26 +18,14 @@ validate_version() {
   [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
 }
 
-version_key() {
-  local version="${1#v}"
-  local major minor patch
-  IFS=. read -r major minor patch <<<"$version"
-  printf "%010d.%010d.%010d" "$major" "$minor" "$patch"
-}
-
-version_gt() {
-  [[ "$(version_key "$1")" > "$(version_key "$2")" ]]
-}
-
-version_le() {
-  [[ "$(version_key "$1")" < "$(version_key "$2")" || "$(version_key "$1")" == "$(version_key "$2")" ]]
-}
-
-migration_version_from_file() {
-  local name
-  name="$(basename "$1")"
-  if [[ "$name" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+)\.sql$ ]]; then
-    printf "%s" "${BASH_REMATCH[1]}"
+migration_checksum() {
+  local file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$file" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$file" | awk '{print $1}'
+  else
+    openssl dgst -sha256 "$file" | awk '{print $NF}'
   fi
 }
 
@@ -51,8 +39,8 @@ if [ ! -d "$VERSIONS_DIR" ]; then
   exit 1
 fi
 
-if [ -n "$TARGET_VERSION" ] && ! validate_version "$TARGET_VERSION"; then
-  echo "✗ target version must match v<major>.<minor>.<patch>: $TARGET_VERSION" >&2
+if [ "$TARGET_VERSION" != "v1.0.0" ]; then
+  echo "✗ only the reinstall-only v1.0.0 baseline is supported: $TARGET_VERSION" >&2
   exit 1
 fi
 
@@ -90,8 +78,8 @@ SELECT format('ALTER DATABASE %I OWNER TO %I', :'db_name', :'db_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'db_name') \gexec
 SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'db_name', :'db_user') \gexec
 SQL
-  # vector is not grantable to DB owners on stock Postgres images — migrations
-  # must not CREATE EXTENSION vector as the service role (chat v2.5.0, knowledge).
+  # Extensions are not grantable to DB owners on stock Postgres images, so the
+  # bootstrap installs them before the service-owned baseline runs.
   if [ "$DB" = "knowledge" ] || [ "$DB" = "chat" ]; then
     pg_admin -d "$DB" -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;"
   fi
@@ -100,10 +88,11 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 CREATE TABLE IF NOT EXISTS migration (
   id smallint NOT NULL PRIMARY KEY,
   version varchar(32) NOT NULL,
+  checksum varchar(64) NOT NULL,
   update_time timestamptz NOT NULL
 );
-INSERT INTO migration (id, version, update_time)
-VALUES (1, 'v0.0.0', NOW())
+INSERT INTO migration (id, version, checksum, update_time)
+VALUES (1, 'v0.0.0', '', NOW())
 ON CONFLICT (id) DO NOTHING;
 SQL
 }
@@ -112,14 +101,24 @@ read_current_version() {
   pg_service -d "$DB" -tA -c "SELECT version FROM migration WHERE id = 1;" | tail -n 1 | tr -d '[:space:]'
 }
 
+read_current_checksum() {
+  pg_service -d "$DB" -tA -c "SELECT checksum FROM migration WHERE id = 1;" | tail -n 1 | tr -d '[:space:]'
+}
+
+migration_has_checksum() {
+  [ "$(pg_service -d "$DB" -tA -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'migration' AND column_name = 'checksum');" | tail -n 1 | tr -d '[:space:]')" = "t" ]
+}
+
 apply_migration() {
   local file="$1" version="$2"
+  local checksum
+  checksum="$(migration_checksum "$file")"
   # DDL + version bump in ONE transaction (--single-transaction + ON_ERROR_STOP):
   # a failed migration rolls back both, so migration.version can never drift
   # ahead of the schema it claims to describe.
   {
     cat "$file"
-    printf "\nUPDATE migration SET version = '%s', update_time = NOW() WHERE id = 1;\n" "$version"
+    printf "\nUPDATE public.migration SET version = '%s', checksum = '%s', update_time = NOW() WHERE id = 1;\n" "$version" "$checksum"
   } | pg_service -d "$DB" --single-transaction
 }
 
@@ -132,56 +131,49 @@ if ! validate_version "$CURRENT_VERSION"; then
   echo "✗ invalid current migration.version in $DB: $CURRENT_VERSION" >&2
   exit 1
 fi
-
-MIGRATIONS=()
-while IFS= read -r file; do
-  version="$(migration_version_from_file "$file")"
-  if [ -z "$version" ]; then
-    echo "⚠ skipping migration with invalid filename: $file" >&2
-    continue
-  fi
-  MIGRATIONS+=("$(version_key "$version") $version $file")
-done < <(find "$VERSIONS_DIR" -maxdepth 1 -type f -name '*.sql' | sort)
-
-if [ "${#MIGRATIONS[@]}" -eq 0 ]; then
-  echo "✓ no valid migrations for $DB (current: $CURRENT_VERSION)"
-  exit 0
-fi
-
-IFS=$'\n' MIGRATIONS=($(printf "%s\n" "${MIGRATIONS[@]}" | sort))
-unset IFS
-
-if [ -z "$TARGET_VERSION" ]; then
-  TARGET_VERSION="$(printf "%s\n" "${MIGRATIONS[@]}" | tail -n 1 | awk '{print $2}')"
-else
-  target_found=false
-  for migration in "${MIGRATIONS[@]}"; do
-    version="$(awk '{print $2}' <<<"$migration")"
-    if [ "$version" = "$TARGET_VERSION" ]; then
-      target_found=true
-      break
-    fi
-  done
-  if [ "$target_found" != "true" ]; then
-    echo "✗ target version has no local migration file: $TARGET_VERSION" >&2
-    exit 1
-  fi
-fi
-
-if version_gt "$CURRENT_VERSION" "$TARGET_VERSION"; then
-  echo "✗ downgrade is not supported: current=$CURRENT_VERSION target=$TARGET_VERSION" >&2
+if ! migration_has_checksum; then
+  echo "✗ legacy migration state has no baseline checksum for $DB" >&2
+  echo "  No in-place data migration is supported; run 'just reset-demo-data'." >&2
   exit 1
 fi
 
-echo "→ migrating $DB: $CURRENT_VERSION -> $TARGET_VERSION"
-for migration in "${MIGRATIONS[@]}"; do
-  version="$(awk '{print $2}' <<<"$migration")"
-  file="$(cut -d' ' -f3- <<<"$migration")"
-  if version_gt "$version" "$CURRENT_VERSION" && version_le "$version" "$TARGET_VERSION"; then
-    echo "  → applying $(basename "$file")"
-    apply_migration "$file" "$version"
+MIGRATION_FILES=()
+while IFS= read -r file; do
+  MIGRATION_FILES+=("$file")
+done < <(find "$VERSIONS_DIR" -maxdepth 1 -type f -name '*.sql' | sort)
+TARGET_FILE="$VERSIONS_DIR/v1.0.0.sql"
+if [ "${#MIGRATION_FILES[@]}" -ne 1 ] || [ "${MIGRATION_FILES[0]}" != "$TARGET_FILE" ]; then
+  echo "✗ $DB must own exactly one migration: $TARGET_FILE" >&2
+  exit 1
+fi
+
+if [ "$CURRENT_VERSION" != "v0.0.0" ] && [ "$CURRENT_VERSION" != "$TARGET_VERSION" ]; then
+  echo "✗ incompatible migration history: current=$CURRENT_VERSION target=$TARGET_VERSION" >&2
+  echo "  No upgrade or downgrade path exists; run 'just reset-demo-data'." >&2
+  exit 1
+fi
+
+if [ "$CURRENT_VERSION" = "$TARGET_VERSION" ]; then
+  CURRENT_CHECKSUM="$(read_current_checksum)"
+  TARGET_CHECKSUM="$(migration_checksum "$TARGET_FILE")"
+  if [ "$CURRENT_CHECKSUM" != "$TARGET_CHECKSUM" ]; then
+    echo "✗ baseline checksum changed for $DB at $TARGET_VERSION" >&2
+    echo "  No in-place data migration is supported; run 'just reset-demo-data'." >&2
+    exit 1
   fi
-done
+  echo "✓ $DB migration.version = $CURRENT_VERSION (baseline checksum matches)"
+  exit 0
+fi
+
+echo "→ migrating $DB: $CURRENT_VERSION -> $TARGET_VERSION"
+echo "  → applying $(basename "$TARGET_FILE")"
+apply_migration "$TARGET_FILE" "$TARGET_VERSION"
 
 FINAL_VERSION="$(read_current_version)"
+FINAL_CHECKSUM="$(read_current_checksum)"
+EXPECTED_CHECKSUM="$(migration_checksum "$TARGET_FILE")"
+if [ "$FINAL_VERSION" != "$TARGET_VERSION" ] || [ "$FINAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
+  echo "✗ migration state mismatch for $DB: version=$FINAL_VERSION checksum=$FINAL_CHECKSUM" >&2
+  exit 1
+fi
 echo "✓ $DB migration.version = $FINAL_VERSION"

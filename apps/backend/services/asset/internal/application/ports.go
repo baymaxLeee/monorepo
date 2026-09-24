@@ -30,6 +30,9 @@ type BlobStore interface {
 
 type Repository interface {
 	BeginUpload(context.Context, CreateUploadInput, string, time.Time, time.Time) (BeginUploadResult, error)
+	CreateUploadSession(context.Context, CreateUploadSessionInput, string, time.Time, time.Time) (UploadSession, error)
+	ClaimUploadSession(context.Context, string, time.Time) (UploadSession, error)
+	GetUploadSession(context.Context, string, string, string, string) (UploadSession, error)
 	FailUpload(context.Context, string, string, time.Time) error
 	CompleteUpload(context.Context, CompleteUploadInput) (CompleteUploadResult, error)
 	GetRevision(context.Context, string, string, string, string) (domain.Asset, domain.Revision, string, error)
@@ -55,6 +58,19 @@ type CreateUploadInput struct {
 type BeginUploadResult struct {
 	UploadID, AssetID, RevisionID string
 	Completed                     bool
+}
+
+type CreateUploadSessionInput struct {
+	TenantID, WorkspaceID, UserID, Filename, MediaType, Category string
+	CallerService, IdempotencyKey                                string
+	SizeBytes                                                    int64
+}
+
+type UploadSession struct {
+	ID, TenantID, WorkspaceID, UserID, Filename, MediaType, Category string
+	CallerService, IdempotencyKey, State, AssetID, RevisionID        string
+	SizeBytes                                                        int64
+	ExpiresAt                                                        time.Time
 }
 
 type CompleteUploadInput struct {

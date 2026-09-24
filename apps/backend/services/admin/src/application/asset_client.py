@@ -35,6 +35,21 @@ class AssetRevision(BaseModel):
     created_by: str
 
 
+class AssetUploadSession(BaseModel):
+    upload_session_id: str
+    intent_id: str
+    state: Literal["pending", "uploading", "completed", "failed", "aborted"]
+    user_id: str
+    category: str
+    filename: str
+    media_type: str
+    size_bytes: int
+    expires_at: datetime
+    upload_url: str
+    asset_id: str | None = None
+    revision_id: str | None = None
+
+
 class AssetClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
@@ -55,6 +70,50 @@ class AssetClient:
         )
         response.raise_for_status()
         return AssetRevision.model_validate(response.json())
+
+    async def create_upload_session(
+        self,
+        *,
+        tenant_id: str,
+        workspace_id: str,
+        user_id: str,
+        intent_id: str,
+        filename: str,
+        media_type: str,
+        size_bytes: int,
+        category: str,
+    ) -> AssetUploadSession:
+        response = await self._http.post(
+            "/internal/upload-sessions",
+            json={
+                "tenant_id": tenant_id,
+                "workspace_id": workspace_id,
+                "user_id": user_id,
+                "intent_id": intent_id,
+                "filename": filename,
+                "media_type": media_type,
+                "size_bytes": size_bytes,
+                "category": category,
+            },
+            headers=propagation_headers(),
+        )
+        response.raise_for_status()
+        return AssetUploadSession.model_validate(response.json())
+
+    async def get_upload_session(
+        self,
+        *,
+        tenant_id: str,
+        workspace_id: str,
+        upload_session_id: str,
+    ) -> AssetUploadSession:
+        response = await self._http.get(
+            f"/internal/upload-sessions/{upload_session_id}",
+            params={"tenant_id": tenant_id, "workspace_id": workspace_id},
+            headers=propagation_headers(),
+        )
+        response.raise_for_status()
+        return AssetUploadSession.model_validate(response.json())
 
     async def download_to(self, *, revision: AssetRevision, tenant_id: str, workspace_id: str, target: Path) -> None:
         limit = get_settings().skill_archive_max_bytes

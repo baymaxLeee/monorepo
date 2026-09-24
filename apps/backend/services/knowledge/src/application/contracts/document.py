@@ -55,14 +55,40 @@ class IngestResult(BaseModel):
     failed: list[IngestFailure] = Field(default_factory=list)
 
 
-class AssetIngestItem(BaseModel):
+class SourceUploadIntentInput(BaseModel):
     client_ref: str = Field(min_length=1, max_length=128)
-    asset_id: str = Field(min_length=36, max_length=36)
-    revision_id: str = Field(min_length=36, max_length=36)
+    filename: str = Field(min_length=1, max_length=255)
+    media_type: str = Field(min_length=1, max_length=255)
+    size_bytes: int = Field(ge=0)
+
+
+class PrepareSourceUploadsInput(BaseModel):
+    files: list[SourceUploadIntentInput] = Field(min_length=1, max_length=100)
+    conversation_id: str | None = Field(default=None, max_length=32)
+
+
+class SourceUploadPlan(BaseModel):
+    client_ref: str
+    upload_session_id: str
+    intent_id: str
+    state: Literal["pending", "uploading", "completed", "failed", "aborted"]
+    upload_url: str
+    expires_at: str
+    asset_id: str | None = None
+    revision_id: str | None = None
+
+
+class PrepareSourceUploadsResult(BaseModel):
+    uploads: list[SourceUploadPlan]
+
+
+class SourceUploadCompletion(BaseModel):
+    client_ref: str = Field(min_length=1, max_length=128)
+    upload_session_id: str = Field(min_length=36, max_length=36)
 
 
 class CreateSourceDocumentsInput(BaseModel):
-    assets: list[AssetIngestItem] = Field(min_length=1, max_length=100)
+    uploads: list[SourceUploadCompletion] = Field(min_length=1, max_length=100)
     conversation_id: str | None = Field(default=None, max_length=32)
     provider_id: str | None = Field(default=None, max_length=32)
 

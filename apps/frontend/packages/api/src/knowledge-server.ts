@@ -1,4 +1,4 @@
-import { AssetCategory, uploadAssetRevision } from "./asset-server";
+import { executeAssetUploadPlan, type AssetUploadPlan } from "./asset-server";
 import { authFetch } from "./auth-fetch";
 import type {
   ConversationDocument,
@@ -63,20 +63,63 @@ async function ingestFiles(
   conversationId: string,
   providerId?: string | null,
 ): Promise<IngestResult> {
-  const uploaded = await Promise.all(
-    files.map(async ({ clientRef, file }) => ({
-      clientRef,
-      ...(await uploadAssetRevision(file, AssetCategory.KNOWLEDGE_SOURCE)),
-    })),
+  const prepareResponse = await authFetch(`${API_BASE_URL}${BASE}/ingest:prepare`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      files: files.map(({ clientRef, file }) => ({
+        client_ref: clientRef,
+        filename: file.name,
+        media_type: file.type || "application/octet-stream",
+        size_bytes: file.size,
+      })),
+      ...(conversationId ? { conversation_id: conversationId } : {}),
+    }),
+  });
+  if (!prepareResponse.ok) {
+    throw new Error(`upload preparation failed: ${prepareResponse.status}`);
+  }
+  const prepared = (await prepareResponse.json()) as {
+    uploads: Array<{
+      client_ref: string;
+      upload_session_id: string;
+      intent_id: string;
+      state: AssetUploadPlan["state"];
+      upload_url: string;
+      expires_at: string;
+      asset_id?: string | null;
+      revision_id?: string | null;
+    }>;
+  };
+  const filesByClientRef = new Map(files.map((item) => [item.clientRef, item.file]));
+  await Promise.all(
+    prepared.uploads.map((upload) => {
+      const file = filesByClientRef.get(upload.client_ref);
+      if (!file) throw new Error(`upload plan returned unknown client_ref ${upload.client_ref}`);
+      return executeAssetUploadPlan(
+        {
+          uploadSessionId: upload.upload_session_id,
+          intentId: upload.intent_id,
+          state: upload.state,
+          uploadUrl: upload.upload_url,
+          expiresAt: upload.expires_at,
+          filename: file.name,
+          mediaType: file.type || "application/octet-stream",
+          sizeBytes: file.size,
+          assetId: upload.asset_id,
+          revisionId: upload.revision_id,
+        },
+        file,
+      );
+    }),
   );
   const response = await authFetch(`${API_BASE_URL}${BASE}/ingest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      assets: uploaded.map(({ clientRef, assetId, revisionId }) => ({
-        client_ref: clientRef,
-        asset_id: assetId,
-        revision_id: revisionId,
+      uploads: prepared.uploads.map((upload) => ({
+        client_ref: upload.client_ref,
+        upload_session_id: upload.upload_session_id,
       })),
       ...(conversationId ? { conversation_id: conversationId } : {}),
       ...(providerId ? { provider_id: providerId } : {}),

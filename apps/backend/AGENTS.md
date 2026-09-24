@@ -20,8 +20,8 @@ and record high-risk extraction decisions before moving code.
 ### Service autonomy
 
 - Each service owns its runtime, dependency manifest, Dockerfile, and data.
-- Service-owned SQL migrations live in
-  `services/<name>/migrations/versions/vX.Y.Z.sql`.
+- Each service owns exactly one reinstall-only SQL schema baseline at
+  `services/<name>/migrations/versions/v1.0.0.sql`.
 - Services never import another service's source.
 - Cross-service calls use explicit bindings from `services.yaml` and transport
   clients; asynchronous flows use shared event contracts where appropriate.
@@ -30,11 +30,13 @@ and record high-risk extraction decisions before moving code.
 ### Database migrations
 
 - Each service database contains a single-row `migration` table with `id = 1`,
-  `version`, and `update_time`.
-- Migration filenames are semantic versions including the `v` prefix, for
-  example `v1.0.0.sql`; do not add description suffixes.
-- `just up` discovers and applies service-owned migrations through
-  `scripts/db-migrate.sh`; processes do not create or mutate schemas at startup.
+  `version`, `checksum`, and `update_time`.
+- Edit `v1.0.0.sql` directly when the schema changes. Do not add a later
+  migration until a new ADR establishes persisted-data compatibility.
+- `just up` applies service-owned baselines through `scripts/db-migrate.sh`;
+  processes do not create or mutate schemas at startup. A version or checksum
+  mismatch requires `just reset-demo-data`; there is no upgrade, downgrade, or
+  data-copy path.
 
 ### Gateway responsibilities
 
@@ -86,8 +88,7 @@ capability.
 | `just fmt` | Rewrite supported source using root Oxfmt, Ruff, and gofmt; run only when requested or needed |
 | `just gen-openapi <service>` | Export one Python/Node OpenAPI contract |
 | `just gen-openapi-all` | Export all registered Python/Node contracts |
-| `just migrate-new <svc> <version>` | Create a service-owned migration |
-| `just migrate-up <svc> [target]` | Apply migrations in `(current, target]` |
+| `just migrate-up <svc>` | Apply or verify the service's `v1.0.0` baseline |
 
 ### TypeScript 7
 

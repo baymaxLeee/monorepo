@@ -11,6 +11,7 @@ from application.contracts.skill import (
     ImportSkillArchiveInput,
     ImportSkillArchiveResult,
     MoveSkillNodeInput,
+    PrepareSkillUploadInput,
     PublishSkillInput,
     PublishSkillResult,
     RenameSkillNodeInput,
@@ -18,6 +19,7 @@ from application.contracts.skill import (
     SkillFileContent,
     SkillNodeMutationResult,
     SkillSummary,
+    SkillUploadPlan,
     SkillValidationResult,
     SkillWorkspace,
     UpdateSkillFileContentInput,
@@ -87,6 +89,13 @@ async def attach_skill_asset(
     skill_id: str, payload: AttachSkillAssetInput, current_user: AdminUser, session: DbSession
 ) -> SkillNodeMutationResult:
     return await SkillService(session, current_user).attach_asset(skill_id, payload)
+
+
+@router.post("/{skill_id}/uploads:prepare", response_model=SkillUploadPlan)
+async def prepare_skill_upload(
+    skill_id: str, payload: PrepareSkillUploadInput, current_user: AdminUser, session: DbSession
+) -> SkillUploadPlan:
+    return await SkillService(session, current_user).prepare_upload(skill_id, payload)
 
 
 @router.post("/{skill_id}/workspace:import-archive", response_model=ImportSkillArchiveResult)

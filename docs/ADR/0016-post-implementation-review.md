@@ -215,6 +215,17 @@ check verified that a replay returns the original revision without consuming a
 new body and that immutable delivery returns `206 Partial Content` with the
 expected `Content-Range`.
 
+The browser-upload follow-up replaced the temporary generic multipart endpoint
+with domain-issued upload sessions in Canvas, Knowledge, and Admin. Its review
+pass found that the first cleanup query covered interrupted transfers but not
+sessions that stayed `pending` or reached `completed`; both would have retained
+session rows indefinitely. Expiry now fences and removes every terminal or
+abandoned session state, while the separate upload lease continues to protect
+completed bytes until a domain Claim exists or retention releases them. The
+pass also removed the last browser helper that accepted an arbitrary Asset
+category and verified that no frontend caller or generated public contract can
+invoke that obsolete boundary.
+
 Canonical `just sync`, `just lint`, and `just build` passed after correction.
 Both K8s overlays and Single-VPS Compose rendered successfully, and the
 machine-readable service topology matched the nine deployed services. Asset
@@ -223,3 +234,28 @@ tests, Chat/Executor lint builds, and affected frontend typechecks/tests also
 passed. Browser interaction was not used because the relevant upload and
 ownership behavior was verifiable from contracts, source, generated clients,
 and service tests.
+
+## 2026-09-24 service-database baseline review
+
+ADR-0073's review reconstructed every current service schema by applying the
+old chain to empty PostgreSQL databases, dumping those schemas, restoring the
+new baselines to a second set of empty databases, and comparing a further dump
+from each result. All eight schemas were identical after excluding only
+`pg_dump` metadata. This avoided manually guessing the accumulated result of
+the old migration chains.
+
+The review also removed the stale partial-reset path that preserved Admin and
+IAM data, made the migration runner reject anything except one `v1.0.0.sql`
+per service, and bound an applied baseline to its SHA-256 checksum. Local reset
+now clears Asset bytes with the databases so physical objects cannot survive
+without their control-plane rows. IAM's one-shot seed now creates the system
+tenant itself, allowing a schema-only reinstall to recreate the configured
+super-admin without copying any account data.
+
+Fresh reset, repeat `just up`, and a real IAM login were exercised. The login
+returned HTTP 200 for the freshly seeded account with the `super_admin` role
+and an active workspace. Single-VPS preserves the same ordering: schema-only
+`db-init`, then required `iam-bootstrap`, then IAM runtime startup.
+Canonical `just sync`, `just lint`, and `just build` passed; the Single-VPS
+Compose model rendered successfully and its `db-init` image built with all
+eight baselines.

@@ -70,6 +70,29 @@ type AssetRevisionRef struct {
 	RevisionID string `json:"RevisionID"`
 }
 
+// PrepareUploadRequest asks Canvas to authorize a purpose-bound direct upload.
+type PrepareUploadRequest struct {
+	ClientRef string `json:"ClientRef"`
+	Purpose   string `json:"Purpose"`
+	Filename  string `json:"Filename"`
+	MediaType string `json:"MediaType"`
+	SizeBytes int64  `json:"SizeBytes"`
+}
+
+// UploadPlan contains only the capability needed to transfer one exact file.
+type UploadPlan struct {
+	UploadSessionID string           `json:"UploadSessionID"`
+	IntentID        string           `json:"IntentID"`
+	State           string           `json:"State"`
+	UploadURL       string           `json:"UploadURL"`
+	ExpiresAt       common.Timestamp `json:"ExpiresAt"`
+	Filename        string           `json:"Filename"`
+	MediaType       string           `json:"MediaType"`
+	SizeBytes       int64            `json:"SizeBytes"`
+	AssetID         *string          `json:"AssetID,omitempty"`
+	RevisionID      *string          `json:"RevisionID,omitempty"`
+}
+
 func (p AssetMediaType) String() string {
 	switch p {
 	case AssetMediaType_IMAGE:

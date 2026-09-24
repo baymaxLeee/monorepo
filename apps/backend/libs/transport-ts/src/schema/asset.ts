@@ -4,23 +4,6 @@
  */
 
 export interface paths {
-    "/assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Stream one file into an immutable Asset revision */
-        post: operations["assetUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/assets/{assetID}/revisions/{revisionID}/content": {
         parameters: {
             query?: never;
@@ -175,6 +158,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/upload-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create or recover a domain-authorized browser upload session */
+        post: operations["assetCreateUploadSessionInternal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/upload-sessions/{uploadID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve an upload session in the creating service scope */
+        get: operations["assetDescribeUploadSessionInternal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/media/{assetID}/revisions/{revisionID}/content": {
         parameters: {
             query: {
@@ -199,6 +216,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/upload-sessions/{uploadID}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upload bytes through a domain-authorized capability */
+        put: operations["assetUploadSessionContent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -218,6 +252,17 @@ export interface components {
             revision_id?: string;
             /** @enum {string} */
             status: "pending" | "active" | "released";
+        };
+        CreateUploadSessionRequest: {
+            category: string;
+            filename: string;
+            intent_id: string;
+            media_type: string;
+            /** Format: int64 */
+            size_bytes: number;
+            tenant_id: string;
+            user_id: string;
+            workspace_id: string;
         };
         DeliveryCapabilityResponse: {
             items: {
@@ -287,6 +332,26 @@ export interface components {
             size_bytes: number;
             url: string;
         };
+        UploadSession: {
+            /** Format: uuid */
+            asset_id?: string;
+            category: string;
+            /** Format: date-time */
+            expires_at: string;
+            filename: string;
+            intent_id: string;
+            media_type: string;
+            /** Format: uuid */
+            revision_id?: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @enum {string} */
+            state: "pending" | "uploading" | "completed" | "failed" | "aborted";
+            /** Format: uuid */
+            upload_session_id: string;
+            upload_url: string;
+            user_id: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -296,57 +361,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    assetUpload: {
-        parameters: {
-            query: {
-                category: string;
-            };
-            header: {
-                "X-Auth-Tenant-ID": string;
-                "X-Auth-Workspace-ID": string;
-                "X-Auth-User-ID": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": {
-                    /** Format: binary */
-                    file: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Success */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UploadResult"];
-                };
-            };
-            /** @description Problem */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description Problem */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-        };
-    };
     assetReadContent: {
         parameters: {
             query?: never;
@@ -891,6 +905,115 @@ export interface operations {
             };
         };
     };
+    assetCreateUploadSessionInternal: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUploadSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSession"];
+                };
+            };
+            /** @description Problem */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    assetDescribeUploadSessionInternal: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                workspace_id: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token": string;
+            };
+            path: {
+                uploadID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSession"];
+                };
+            };
+            /** @description Problem */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     assetReadCapabilityContent: {
         parameters: {
             query: {
@@ -992,6 +1115,62 @@ export interface operations {
             };
             /** @description Problem */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    assetUploadSessionContent: {
+        parameters: {
+            query: {
+                expires: string;
+                signature: string;
+            };
+            header?: never;
+            path: {
+                uploadID: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResult"];
+                };
+            };
+            /** @description Problem */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

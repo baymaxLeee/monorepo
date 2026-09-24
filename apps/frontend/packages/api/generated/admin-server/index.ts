@@ -44,6 +44,11 @@ export interface AttachSkillAssetInput {
      * @maxLength 64
      */
   id: string;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  client_ref: string;
   parent_id?: string | null;
   /**
      * @minLength 1
@@ -51,15 +56,10 @@ export interface AttachSkillAssetInput {
      */
   name: string;
   /**
-     * @minLength 1
-     * @maxLength 64
+     * @minLength 36
+     * @maxLength 36
      */
-  asset_id: string;
-  /**
-     * @minLength 1
-     * @maxLength 64
-     */
-  revision_id: string;
+  upload_session_id: string;
 }
 
 export interface AttachSkillInput {
@@ -427,12 +427,12 @@ export interface ImportSkillArchiveInput {
      * @minLength 1
      * @maxLength 64
      */
-  asset_id: string;
+  client_ref: string;
   /**
-     * @minLength 1
-     * @maxLength 64
+     * @minLength 36
+     * @maxLength 36
      */
-  revision_id: string;
+  upload_session_id: string;
   /** @minimum 1 */
   base_workspace_seq: number;
 }
@@ -648,6 +648,35 @@ export interface MoveSkillNodeInput {
   parent_id?: string | null;
 }
 
+export type PrepareSkillUploadInputPurpose = typeof PrepareSkillUploadInputPurpose[keyof typeof PrepareSkillUploadInputPurpose];
+
+
+export const PrepareSkillUploadInputPurpose = {
+  'skill-archive': 'skill-archive',
+  'skill-attachment': 'skill-attachment',
+} as const;
+
+export interface PrepareSkillUploadInput {
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  client_ref: string;
+  purpose: PrepareSkillUploadInputPurpose;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  filename: string;
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  media_type: string;
+  /** @minimum 0 */
+  size_bytes: number;
+}
+
 export type ProviderCatalogItemProviderKind = typeof ProviderCatalogItemProviderKind[keyof typeof ProviderCatalogItemProviderKind];
 
 
@@ -810,6 +839,27 @@ export interface SkillSummary {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type SkillUploadPlanState = typeof SkillUploadPlanState[keyof typeof SkillUploadPlanState];
+
+
+export const SkillUploadPlanState = {
+  pending: 'pending',
+  uploading: 'uploading',
+  completed: 'completed',
+  failed: 'failed',
+  aborted: 'aborted',
+} as const;
+
+export interface SkillUploadPlan {
+  upload_session_id: string;
+  intent_id: string;
+  state: SkillUploadPlanState;
+  upload_url: string;
+  expires_at: string;
+  asset_id?: string | null;
+  revision_id?: string | null;
 }
 
 export interface SubmitReviewedAssetInput {
@@ -1743,6 +1793,21 @@ const attachSkillAssetSkillsSkillIdWorkspaceAssetsPost = (
     }
 
 /**
+ * @summary Prepare Skill Upload
+ */
+const prepareSkillUploadSkillsSkillIdUploadsPreparePost = (
+    skillId: string,
+    prepareSkillUploadInput: PrepareSkillUploadInput,
+ options?: SecondParameter<typeof apiMutator<SkillUploadPlan>>,) => {
+      return apiMutator<SkillUploadPlan>(
+      {url: `/skills/${skillId}/uploads:prepare`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: prepareSkillUploadInput
+    },
+      options);
+    }
+
+/**
  * @summary Import Skill Archive
  */
 const importSkillArchiveSkillsSkillIdWorkspaceImportArchivePost = (
@@ -2146,7 +2211,7 @@ const deleteAppAppsAppIdDelete = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listBenefitPackageAssetGroupCleanups,retryBenefitPackageAssetGroupCleanup,listBenefitPackages,createBenefitPackage,updateBenefitPackage,deleteBenefitPackage,listAvailableBenefitPackagesInternal,getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet,reserveBenefitPackageReview,transitionBenefitPackageReview,beginBenefitPackageReviewCleanup,completeBenefitPackageReviewCleanup,submitReviewedAsset,getReviewedAsset,deleteReviewedAsset,getCanvasSettings,updateCanvasSettings,getInternalCanvasSettings,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,attachSkillAssetSkillsSkillIdWorkspaceAssetsPost,importSkillArchiveSkillsSkillIdWorkspaceImportArchivePost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,listProviderCatalogInternalInternalProvidersGet,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,listBotsBotGet,createBotBotPost,getBotBotBotIdGet,updateBotBotBotIdPatch,deleteBotBotBotIdDelete,listBotSkillsBotBotIdSkillsGet,attachBotSkillBotBotIdSkillsPost,detachBotSkillBotBotIdSkillsSkillIdDelete,listBenefitPackageAssetGroupCleanups,retryBenefitPackageAssetGroupCleanup,listBenefitPackages,createBenefitPackage,updateBenefitPackage,deleteBenefitPackage,listAvailableBenefitPackagesInternal,getBenefitPackageInternalInternalCanvasBenefitPackagesPackageIdGet,reserveBenefitPackageReview,transitionBenefitPackageReview,beginBenefitPackageReviewCleanup,completeBenefitPackageReviewCleanup,submitReviewedAsset,getReviewedAsset,deleteReviewedAsset,getCanvasSettings,updateCanvasSettings,getInternalCanvasSettings,listSkillsSkillsGet,createSkillSkillsPost,getSkillSkillsSkillIdGet,updateSkillSkillsSkillIdPatch,deleteSkillSkillsSkillIdDelete,getSkillWorkspaceSkillsSkillIdWorkspaceGet,getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet,createSkillNodeSkillsSkillIdWorkspaceNodesPost,attachSkillAssetSkillsSkillIdWorkspaceAssetsPost,prepareSkillUploadSkillsSkillIdUploadsPreparePost,importSkillArchiveSkillsSkillIdWorkspaceImportArchivePost,updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut,renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut,moveSkillNodeSkillsSkillIdWorkspaceNodesNodeIdParentPut,deleteSkillNodeSkillsSkillIdWorkspaceNodesNodeIdDelete,validateSkillSkillsSkillIdValidatePost,publishSkillSkillsSkillIdPublishPost,bulkDeleteSkillsSkillsBulkDeletePost,getSkillFileInternalInternalSkillsSkillIdFilesGet,getSkillInternalInternalSkillsSkillIdGet,listProvidersProvidersGet,createProviderProvidersPost,getProviderProvidersProviderIdGet,updateProviderProvidersProviderIdPatch,deleteProviderProvidersProviderIdDelete,bulkDeleteProvidersProvidersBulkDeletePost,setDefaultProviderProvidersProviderIdSetDefaultPost,testProviderProvidersProviderIdTestPost,listProviderCatalogInternalInternalProvidersGet,getDefaultProviderInternalInternalProvidersDefaultGet,getProviderByKindInternalInternalProvidersByKindKindGet,getProviderInternalInternalProvidersProviderIdGet,getTaskProviderInternalInternalProvidersProviderIdTaskCredentialsGet,getResolvedAgentInternalInternalAgentsAgentIdGet,listAppsAppsGet,createAppAppsPost,getAppAppsAppIdGet,updateAppAppsAppIdPatch,deleteAppAppsAppIdDelete}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['healthzHealthzGet']>>>
@@ -2185,6 +2250,7 @@ export type GetSkillWorkspaceSkillsSkillIdWorkspaceGetResult = NonNullable<Await
 export type GetSkillFileSkillsSkillIdWorkspaceFilesNodeIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['getSkillFileSkillsSkillIdWorkspaceFilesNodeIdGet']>>>
 export type CreateSkillNodeSkillsSkillIdWorkspaceNodesPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['createSkillNodeSkillsSkillIdWorkspaceNodesPost']>>>
 export type AttachSkillAssetSkillsSkillIdWorkspaceAssetsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['attachSkillAssetSkillsSkillIdWorkspaceAssetsPost']>>>
+export type PrepareSkillUploadSkillsSkillIdUploadsPreparePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['prepareSkillUploadSkillsSkillIdUploadsPreparePost']>>>
 export type ImportSkillArchiveSkillsSkillIdWorkspaceImportArchivePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['importSkillArchiveSkillsSkillIdWorkspaceImportArchivePost']>>>
 export type UpdateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['updateSkillFileContentSkillsSkillIdWorkspaceNodesNodeIdContentPut']>>>
 export type RenameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAdminService>['renameSkillNodeSkillsSkillIdWorkspaceNodesNodeIdNamePut']>>>

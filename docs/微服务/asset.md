@@ -14,12 +14,16 @@ Asset 是 Go 实现的平台文件控制面，监听 `8013`。它是唯一能看
 
 ## 调用约定
 
-浏览器上传的目标协议如下；各领域的 initiate/finalize API 尚需逐个迁移，当前通用
-`POST /api/asset-server/assets` 不是最终业务契约。浏览器的 bytes 经 Gateway 直接进入 Asset，
-不经业务服务中转。业务上下文必须由领域服务
-编排：领域 initiate 返回不透明 upload plan，浏览器执行传输，领域 finalize 在业务事务内
-落库并写 Claim intent。前端中断时只遗留有 TTL 的 upload lease/staging；定时清理即可，不影响
-业务正确性。在领域 finalize 成功前，上传结果不是可见业务资源。
+浏览器上传由 Canvas、Knowledge、Admin 各自的 prepare/finalize API 编排，不存在允许浏览器
+自行选择 category 的通用 Asset 上传接口。领域 prepare 返回不透明 upload plan；浏览器通过
+`PUT /api/asset-server/upload-sessions/{id}/content` 将同一个文件直接流式传给 Asset，再调用领域
+finalize。session 绑定 caller service、tenant/workspace/user、用途 category、文件名、媒体类型、
+精确字节数和过期时间，签名 URL 只是该 session 的短期 bearer capability。
+
+prepare 的 `client_ref` 是幂等键：页面重载后用同一引用重试会返回原 session 及其状态，已完成
+时无需重传。前端在任何一步中断都不会产生业务记录；未完成 staging 会被清理，已完成但未被
+领域 Claim 接纳的 Revision 由 upload lease/retention 后续回收。在领域 finalize 成功前，上传
+结果不是可见业务资源。
 
 服务产生的 bytes 通过 `/internal/assets` 流式上传，携带 caller-specific workload token 和稳定
 `idempotency_key`。重试必须复用同一 key；请求元数据不一致时 Asset 返回冲突，已完成的

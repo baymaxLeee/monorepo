@@ -1,21 +1,21 @@
 import {
-  AssetCategory,
   attachSkillAsset,
   createSkillNode,
   deleteSkillNode,
+  executeAssetUploadPlan,
   fetchSkill,
   fetchSkillFile,
   fetchSkillWorkspace,
   moveSkillNode,
   importSkillArchive,
   publishSkill,
+  prepareSkillUpload,
   renameSkillNode,
   type Skill,
   type SkillFileNode,
   type SkillNodeMutationResult,
   type SkillValidationResult,
   updateSkillFileContent,
-  uploadAssetRevision,
   validateSkill,
 } from "@repo/api";
 import {
@@ -215,8 +215,16 @@ export function SkillWorkspacePage() {
         if (dirty) {
           throw new Error("请先保存当前工作区修改，再导入 ZIP");
         }
-        const uploaded = await uploadAssetRevision(file, AssetCategory.SKILL_ARCHIVE);
-        const result = await importSkillArchive(id, uploaded.assetId, uploaded.revisionId, workspaceSeq);
+        const clientRef = crypto.randomUUID();
+        const plan = await prepareSkillUpload(id, {
+          clientRef,
+          purpose: "skill-archive",
+          filename: file.name,
+          mediaType: file.type || "application/zip",
+          sizeBytes: file.size,
+        });
+        await executeAssetUploadPlan(plan, file);
+        const result = await importSkillArchive(id, clientRef, plan.uploadSessionId, workspaceSeq);
         await load();
         toast.add({ type: "success", title: `已导入 ${result.imported_files} 个文件` });
       });
@@ -234,13 +242,21 @@ export function SkillWorkspacePage() {
         if (dirty) {
           throw new Error("请先保存当前工作区修改，再上传附件");
         }
-        const uploaded = await uploadAssetRevision(file, AssetCategory.SKILL_ATTACHMENT);
+        const nodeId = crypto.randomUUID().replaceAll("-", "");
+        const plan = await prepareSkillUpload(id, {
+          clientRef: nodeId,
+          purpose: "skill-attachment",
+          filename: file.name,
+          mediaType: file.type || "application/octet-stream",
+          sizeBytes: file.size,
+        });
+        await executeAssetUploadPlan(plan, file);
         await attachSkillAsset(id, {
-          id: crypto.randomUUID().replaceAll("-", ""),
+          id: nodeId,
+          client_ref: nodeId,
           parent_id: null,
           name: file.name,
-          asset_id: uploaded.assetId,
-          revision_id: uploaded.revisionId,
+          upload_session_id: plan.uploadSessionId,
         });
         await load();
         toast.add({ type: "success", title: `已上传附件 ${file.name}` });

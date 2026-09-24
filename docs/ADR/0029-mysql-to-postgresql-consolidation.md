@@ -82,6 +82,10 @@ follow-up,不在本次实现)。
 
 ### 迁移基线(`9405922`,含 org-rbac)
 
+> 本节记录当时从 MySQL 切换到 PostgreSQL 的历史执行方式。其“保留版本演进”
+> 策略已被 [ADR-0073](0073-single-baseline-service-databases.md) 取代;当前每个
+> 服务只保留一个可重装的 `v1.0.0.sql`,不支持数据升级或降级。
+
 各服务重写的 MySQL migration 数:**iam 4**(`v1.0.0`–`v1.3.0`)、admin 9
 (–`v1.8.0`)、chat 14(–`v2.2.0`)、executor 2、telemetry 1、gateway 1;
 knowledge 的 6 个 PG migrations 不改 SQL 语义。共 **26 个 MySQL SQL 文件**

@@ -4918,6 +4918,170 @@
         }
       }
     },
+    "/skills/{skill_id}/uploads:prepare": {
+      "post": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Prepare Skill Upload",
+        "operationId": "prepare_skill_upload_skills__skill_id__uploads_prepare_post",
+        "parameters": [
+          {
+            "name": "skill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Skill Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Tenant-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareSkillUploadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillUploadPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/skills/{skill_id}/workspace:import-archive": {
       "post": {
         "tags": [
@@ -9187,6 +9351,12 @@
             "minLength": 1,
             "title": "Id"
           },
+          "client_ref": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Client Ref"
+          },
           "parent_id": {
             "anyOf": [
               {
@@ -9204,25 +9374,19 @@
             "minLength": 1,
             "title": "Name"
           },
-          "asset_id": {
+          "upload_session_id": {
             "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Asset Id"
-          },
-          "revision_id": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Revision Id"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Upload Session Id"
           }
         },
         "type": "object",
         "required": [
           "id",
+          "client_ref",
           "name",
-          "asset_id",
-          "revision_id"
+          "upload_session_id"
         ],
         "title": "AttachSkillAssetInput"
       },
@@ -10150,17 +10314,17 @@
       },
       "ImportSkillArchiveInput": {
         "properties": {
-          "asset_id": {
+          "client_ref": {
             "type": "string",
             "maxLength": 64,
             "minLength": 1,
-            "title": "Asset Id"
+            "title": "Client Ref"
           },
-          "revision_id": {
+          "upload_session_id": {
             "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Revision Id"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Upload Session Id"
           },
           "base_workspace_seq": {
             "type": "integer",
@@ -10170,8 +10334,8 @@
         },
         "type": "object",
         "required": [
-          "asset_id",
-          "revision_id",
+          "client_ref",
+          "upload_session_id",
           "base_workspace_seq"
         ],
         "title": "ImportSkillArchiveInput"
@@ -10655,6 +10819,50 @@
           "base_etag"
         ],
         "title": "MoveSkillNodeInput"
+      },
+      "PrepareSkillUploadInput": {
+        "properties": {
+          "client_ref": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Client Ref"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "skill-archive",
+              "skill-attachment"
+            ],
+            "title": "Purpose"
+          },
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "media_type": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Media Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_ref",
+          "purpose",
+          "filename",
+          "media_type",
+          "size_bytes"
+        ],
+        "title": "PrepareSkillUploadInput"
       },
       "ProviderCatalogItem": {
         "properties": {
@@ -11385,6 +11593,68 @@
           "updated_at"
         ],
         "title": "SkillSummary"
+      },
+      "SkillUploadPlan": {
+        "properties": {
+          "upload_session_id": {
+            "type": "string",
+            "title": "Upload Session Id"
+          },
+          "intent_id": {
+            "type": "string",
+            "title": "Intent Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "uploading",
+              "completed",
+              "failed",
+              "aborted"
+            ],
+            "title": "State"
+          },
+          "upload_url": {
+            "type": "string",
+            "title": "Upload Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_session_id",
+          "intent_id",
+          "state",
+          "upload_url",
+          "expires_at"
+        ],
+        "title": "SkillUploadPlan"
       },
       "SkillValidationIssue": {
         "properties": {

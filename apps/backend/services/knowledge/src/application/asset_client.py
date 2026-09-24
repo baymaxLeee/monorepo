@@ -33,6 +33,21 @@ class AssetRevision(BaseModel):
     created_by: str
 
 
+class AssetUploadSession(BaseModel):
+    upload_session_id: str
+    intent_id: str
+    state: Literal["pending", "uploading", "completed", "failed", "aborted"]
+    user_id: str
+    category: str
+    filename: str
+    media_type: str
+    size_bytes: int
+    expires_at: datetime
+    upload_url: str
+    asset_id: str | None = None
+    revision_id: str | None = None
+
+
 class AssetClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
@@ -56,6 +71,50 @@ class AssetClient:
         )
         response.raise_for_status()
         return AssetRevision.model_validate(response.json())
+
+    async def create_upload_session(
+        self,
+        *,
+        tenant_id: str,
+        workspace_id: str,
+        user_id: str,
+        intent_id: str,
+        filename: str,
+        media_type: str,
+        size_bytes: int,
+        category: str,
+    ) -> AssetUploadSession:
+        response = await self._http.post(
+            "/internal/upload-sessions",
+            json={
+                "tenant_id": tenant_id,
+                "workspace_id": workspace_id,
+                "user_id": user_id,
+                "intent_id": intent_id,
+                "filename": filename,
+                "media_type": media_type,
+                "size_bytes": size_bytes,
+                "category": category,
+            },
+            headers=propagation_headers(),
+        )
+        response.raise_for_status()
+        return AssetUploadSession.model_validate(response.json())
+
+    async def get_upload_session(
+        self,
+        *,
+        tenant_id: str,
+        workspace_id: str,
+        upload_session_id: str,
+    ) -> AssetUploadSession:
+        response = await self._http.get(
+            f"/internal/upload-sessions/{upload_session_id}",
+            params={"tenant_id": tenant_id, "workspace_id": workspace_id},
+            headers=propagation_headers(),
+        )
+        response.raise_for_status()
+        return AssetUploadSession.model_validate(response.json())
 
     async def read(
         self, *, tenant_id: str, workspace_id: str, asset_id: str, revision_id: str, max_bytes: int
@@ -167,22 +226,43 @@ async def ensure_document_claim_active(
     await session.execute(
         insert(AssetClaimIntentRow)
         .values(
-            owner_type="document", owner_id=document_id, slot="source", tenant_id=tenant_id,
-            workspace_id=workspace_id, asset_id=asset_id, revision_id=revision_id, kind="strong",
-            generation=1, desired_state="active", next_attempt_at=now, created_at=now, updated_at=now,
+            owner_type="document",
+            owner_id=document_id,
+            slot="source",
+            tenant_id=tenant_id,
+            workspace_id=workspace_id,
+            asset_id=asset_id,
+            revision_id=revision_id,
+            kind="strong",
+            generation=1,
+            desired_state="active",
+            next_attempt_at=now,
+            created_at=now,
+            updated_at=now,
         )
         .on_conflict_do_update(
             index_elements=[
-                AssetClaimIntentRow.tenant_id, AssetClaimIntentRow.workspace_id,
-                AssetClaimIntentRow.owner_type, AssetClaimIntentRow.owner_id, AssetClaimIntentRow.slot,
+                AssetClaimIntentRow.tenant_id,
+                AssetClaimIntentRow.workspace_id,
+                AssetClaimIntentRow.owner_type,
+                AssetClaimIntentRow.owner_id,
+                AssetClaimIntentRow.slot,
             ],
             set_={
-                "tenant_id": tenant_id, "workspace_id": workspace_id, "asset_id": asset_id,
-                "revision_id": revision_id, "kind": "strong",
-                "generation": AssetClaimIntentRow.generation + 1, "desired_state": "active",
-                "delivered_at": None, "attempt_count": 0, "next_attempt_at": now, "lease_until": None,
+                "tenant_id": tenant_id,
+                "workspace_id": workspace_id,
+                "asset_id": asset_id,
+                "revision_id": revision_id,
+                "kind": "strong",
+                "generation": AssetClaimIntentRow.generation + 1,
+                "desired_state": "active",
+                "delivered_at": None,
+                "attempt_count": 0,
+                "next_attempt_at": now,
+                "lease_until": None,
                 "state_version": AssetClaimIntentRow.state_version + 1,
-                "last_error": None, "updated_at": now,
+                "last_error": None,
+                "updated_at": now,
             },
         )
     )
@@ -195,14 +275,27 @@ async def ensure_staged_media_claim_active(
     await session.execute(
         insert(AssetClaimIntentRow)
         .values(
-            owner_type="staged_media", owner_id=staged_id, slot="source", tenant_id=tenant_id,
-            workspace_id=workspace_id, asset_id=asset_id, revision_id=revision_id, kind="strong",
-            generation=1, desired_state="active", next_attempt_at=now, created_at=now, updated_at=now,
+            owner_type="staged_media",
+            owner_id=staged_id,
+            slot="source",
+            tenant_id=tenant_id,
+            workspace_id=workspace_id,
+            asset_id=asset_id,
+            revision_id=revision_id,
+            kind="strong",
+            generation=1,
+            desired_state="active",
+            next_attempt_at=now,
+            created_at=now,
+            updated_at=now,
         )
         .on_conflict_do_nothing(
             index_elements=[
-                AssetClaimIntentRow.tenant_id, AssetClaimIntentRow.workspace_id,
-                AssetClaimIntentRow.owner_type, AssetClaimIntentRow.owner_id, AssetClaimIntentRow.slot,
+                AssetClaimIntentRow.tenant_id,
+                AssetClaimIntentRow.workspace_id,
+                AssetClaimIntentRow.owner_type,
+                AssetClaimIntentRow.owner_id,
+                AssetClaimIntentRow.slot,
             ]
         )
     )
@@ -225,8 +318,13 @@ async def mark_document_claim_released(
 
 
 async def mark_asset_claims_released(
-    session: AsyncSession, *, tenant_id: str, workspace_id: str, owner_type: str, owner_ids: list[str],
-    slot: str = "source"
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    workspace_id: str,
+    owner_type: str,
+    owner_ids: list[str],
+    slot: str = "source",
 ) -> int:
     if not owner_ids:
         return 0
@@ -241,8 +339,14 @@ async def mark_asset_claims_released(
             AssetClaimIntentRow.slot == slot,
         )
         .values(
-            desired_state="released", delivered_at=None, next_attempt_at=now, lease_until=None,
-            state_version=AssetClaimIntentRow.state_version + 1, attempt_count=0, last_error=None, updated_at=now,
+            desired_state="released",
+            delivered_at=None,
+            next_attempt_at=now,
+            lease_until=None,
+            state_version=AssetClaimIntentRow.state_version + 1,
+            attempt_count=0,
+            last_error=None,
+            updated_at=now,
         )
         .returning(AssetClaimIntentRow.owner_id)
     )
@@ -264,8 +368,11 @@ async def dispatch_pending_asset_claims(*, limit: int = 100) -> int:
                         (AssetClaimIntentRow.lease_until.is_(None)) | (AssetClaimIntentRow.lease_until <= now),
                     )
                     .order_by(
-                        AssetClaimIntentRow.next_attempt_at, AssetClaimIntentRow.updated_at,
-                        AssetClaimIntentRow.tenant_id, AssetClaimIntentRow.workspace_id, AssetClaimIntentRow.owner_id,
+                        AssetClaimIntentRow.next_attempt_at,
+                        AssetClaimIntentRow.updated_at,
+                        AssetClaimIntentRow.tenant_id,
+                        AssetClaimIntentRow.workspace_id,
+                        AssetClaimIntentRow.owner_id,
                     )
                     .with_for_update(skip_locked=True)
                     .limit(limit)
@@ -304,14 +411,20 @@ async def dispatch_pending_asset_claims(*, limit: int = 100) -> int:
                 )
                 values = (
                     {
-                        "delivered_at": committed_at, "lease_until": None,
-                        "state_version": row.state_version + 1, "last_error": None, "updated_at": committed_at,
+                        "delivered_at": committed_at,
+                        "lease_until": None,
+                        "state_version": row.state_version + 1,
+                        "last_error": None,
+                        "updated_at": committed_at,
                     }
                     if status == "ok"
                     else {
                         "attempt_count": AssetClaimIntentRow.attempt_count + 1,
-                        "next_attempt_at": committed_at + timedelta(seconds=min(300, 2 ** min(row.attempt_count + 1, 8))),
-                        "lease_until": None, "state_version": row.state_version + 1, "last_error": error,
+                        "next_attempt_at": committed_at
+                        + timedelta(seconds=min(300, 2 ** min(row.attempt_count + 1, 8))),
+                        "lease_until": None,
+                        "state_version": row.state_version + 1,
+                        "last_error": error,
                         "updated_at": committed_at,
                     }
                 )

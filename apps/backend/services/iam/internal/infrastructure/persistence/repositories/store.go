@@ -401,6 +401,13 @@ func (s *Store) EnsureWorkspace(ctx context.Context, workspace models.Workspace)
 	}).Create(&workspace).Error
 }
 
+func (s *Store) EnsureTenant(ctx context.Context, tenant models.Tenant) error {
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"name", "slug", "updated_at"}),
+	}).Create(&tenant).Error
+}
+
 func (s *Store) EnsureAllUsersInGuestWorkspace(ctx context.Context, workspaceID string) error {
 	now := time.Now().UTC()
 	return s.db.WithContext(ctx).Exec(`

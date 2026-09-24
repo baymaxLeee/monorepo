@@ -35,6 +35,7 @@ import (
 	applicationresource "github.com/example/monorepo/canvas/internal/application/resource"
 	applicationresourceassetgeneration "github.com/example/monorepo/canvas/internal/application/resourceassetgeneration"
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
+	applicationuploadintent "github.com/example/monorepo/canvas/internal/application/uploadintent"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	"github.com/example/monorepo/canvas/internal/bootstrap"
 	domainimagegeneration "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
@@ -350,6 +351,7 @@ func run() error {
 	providers := &admin.Directory{URL: cfg.AdminServiceURL, Token: cfg.InternalToken}
 	models := modelcatalog.New(providers)
 	assetClient := assetclient.New(cfg.AssetServiceURL, cfg.InternalToken, nil)
+	uploadIntents := applicationuploadintent.New(assetClient)
 	claimIntents := assetclaimpersistence.NewRepository(db)
 	go runAssetClaimRelay(ctx, applicationassetclaim.NewRelay(claimIntents, assetClient, utcClock{}))
 	artifacts := artifact.New(assetClient, cfg.PublicGatewayURL)
@@ -640,7 +642,7 @@ func run() error {
 		go runPollScheduler(ctx, scheduler)
 	}
 	handler := openapi.NewRouter(
-		cfg.InternalServiceTokens, maturehttp.NewProjectHandler(projectService), maturehttp.NewProjectUsageHandler(projectUsageExporter), maturehttp.NewCanvasHandler(canvasService), nodeHandler, resourceHandler, maturehttp.NewAssetHandler(reviews),
+		cfg.InternalServiceTokens, maturehttp.NewProjectHandler(projectService), maturehttp.NewProjectUsageHandler(projectUsageExporter), maturehttp.NewCanvasHandler(canvasService), nodeHandler, resourceHandler, maturehttp.NewAssetHandler(reviews, uploadIntents),
 		maturehttp.NewCanvasArchiveHandler(archiveService, archiveRuntime),
 		func(ctx context.Context, taskRunID string) (any, error) {
 			return archiveRuntime.Execute(ctx, taskRunID)

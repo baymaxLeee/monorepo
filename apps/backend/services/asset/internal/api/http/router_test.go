@@ -1,11 +1,12 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"mime/multipart"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -40,20 +41,50 @@ type deliveryClock struct{}
 
 func (deliveryClock) Now() time.Time { return time.Now().UTC() }
 
-func TestNextFilePartRequiresNamedFile(t *testing.T) {
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	if err := writer.WriteField("metadata", "value"); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	reader := multipart.NewReader(&body, writer.Boundary())
-	if _, err := nextFilePart(reader); err == nil || !strings.Contains(err.Error(), "field file") {
-		t.Fatalf("error = %v, want missing file error", err)
-	}
+type uploadRepository struct {
+	application.Repository
+	session application.UploadSession
 }
+
+func (repository *uploadRepository) ClaimUploadSession(_ context.Context, id string, _ time.Time) (application.UploadSession, error) {
+	if id != repository.session.ID || repository.session.State != "pending" {
+		return application.UploadSession{}, application.ErrConflict
+	}
+	repository.session.State = "uploading"
+	return repository.session, nil
+}
+
+func (repository *uploadRepository) CompleteUpload(_ context.Context, input application.CompleteUploadInput) (application.CompleteUploadResult, error) {
+	if repository.session.State != "uploading" || input.UploadID != repository.session.ID {
+		return application.CompleteUploadResult{}, application.ErrConflict
+	}
+	repository.session.State = "completed"
+	repository.session.AssetID = input.AssetID
+	repository.session.RevisionID = input.RevisionID
+	return application.CompleteUploadResult{
+		Asset: domain.Asset{ID: input.AssetID},
+		Revision: domain.Revision{
+			ID: input.RevisionID, AssetID: input.AssetID, Filename: input.Filename, MediaType: input.MediaType,
+			SizeBytes: input.SizeBytes, SHA256: input.SHA256,
+		},
+	}, nil
+}
+
+func (*uploadRepository) FailUpload(context.Context, string, string, time.Time) error { return nil }
+
+type uploadBlobStore struct{ application.BlobStore }
+
+func (uploadBlobStore) Stage(_ context.Context, uploadID string, source io.Reader, limit int64) (application.StagedBlob, error) {
+	payload, err := io.ReadAll(io.LimitReader(source, limit+1))
+	if err != nil {
+		return application.StagedBlob{}, err
+	}
+	digest := sha256.Sum256(payload)
+	return application.StagedBlob{UploadID: uploadID, TemporaryKey: "staging/part", SHA256: hex.EncodeToString(digest[:]), SizeBytes: int64(len(payload)), DetectedMediaType: "text/plain; charset=utf-8"}, nil
+}
+func (uploadBlobStore) Commit(context.Context, application.StagedBlob, string) error { return nil }
+func (uploadBlobStore) Abort(context.Context, application.StagedBlob) error          { return nil }
+func (uploadBlobStore) Delete(context.Context, string) error                         { return nil }
 
 func TestDecodeJSONRejectsAmbiguousBodies(t *testing.T) {
 	tests := map[string]string{
@@ -169,5 +200,59 @@ func TestDeliveryCapabilityRejectsExpiredSignature(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("status = %d", response.Code)
+	}
+}
+
+func TestUploadCapabilityRejectsExpiredOrTamperedSignature(t *testing.T) {
+	t.Parallel()
+	router := &Router{signingKey: []byte("signing-secret")}
+	expiredAt := time.Now().Add(-time.Second).Unix()
+	validUntil := time.Now().Add(time.Minute).Unix()
+	for name, testCase := range map[string]struct {
+		uploadID  string
+		expires   int64
+		signature string
+	}{
+		"expired": {
+			uploadID: "upload", expires: expiredAt,
+			signature: router.signUploadSession("upload", expiredAt),
+		},
+		"tampered id": {
+			uploadID: "other", expires: validUntil,
+			signature: router.signUploadSession("upload", validUntil),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			handler := NewRouter(nil, nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
+			target := fmt.Sprintf("/upload-sessions/%s/content?expires=%d&signature=%s", testCase.uploadID, testCase.expires, testCase.signature)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPut, target, strings.NewReader("payload")))
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d", response.Code, http.StatusForbidden)
+			}
+		})
+	}
+}
+
+func TestUploadCapabilityStreamsAnAuthorizedExactFile(t *testing.T) {
+	t.Parallel()
+	expiresAt := time.Now().Add(time.Hour).UTC()
+	repository := &uploadRepository{session: application.UploadSession{
+		ID: "upload", TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "knowledge",
+		IdempotencyKey: "intent", Category: "knowledge-source", Filename: "note.txt", MediaType: "text/plain",
+		SizeBytes: 7, State: "pending", ExpiresAt: expiresAt,
+	}}
+	service := application.NewService(repository, uploadBlobStore{}, deliveryClock{}, 1024)
+	handler := NewRouter(service, nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
+	signer := &Router{signingKey: []byte("signing-secret")}
+	expires := expiresAt.Unix()
+	target := fmt.Sprintf("/upload-sessions/upload/content?expires=%d&signature=%s", expires, signer.signUploadSession("upload", expires))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPut, target, strings.NewReader("payload")))
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	if repository.session.State != "completed" || repository.session.AssetID == "" || repository.session.RevisionID == "" {
+		t.Fatalf("session = %#v", repository.session)
 	}
 }

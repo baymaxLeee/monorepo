@@ -7,8 +7,12 @@ running `just <recipe>` from the repository root.
 
 - `install-deps.sh`: installs tool-managed dependencies, frontend packages,
   backend Python workspace packages, Go service modules, and local `.env` files.
-- `db-bootstrap.sh`: creates local PostgreSQL databases/roles and applies service-owned dev
-  schemas for `admin` and `iam`.
+- `db-bootstrap.sh`: creates every service-owned PostgreSQL database/role,
+  applies its reinstall-only `v1.0.0` baseline, seeds Admin configuration, and
+  bootstraps the IAM super-admin.
+- `reset-demo-data.sh`: destroys and recreates every local service database and
+  clears local Asset bytes. No business data or account rows are preserved; the
+  configured IAM super-admin is seeded again.
 - `dev-preflight.sh`: checks that local infra and frontend dependencies exist
   before starting the dev stack, including caller/receiver service credentials.
 - `sync-dev-service-identities.py`: safely migrates the retired shared local

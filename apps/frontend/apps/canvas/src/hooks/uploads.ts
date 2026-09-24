@@ -1,4 +1,4 @@
-import { AssetCategory, uploadAssetRevision } from "@repo/api";
+import { executeAssetUploadPlan, prepareCanvasUpload } from "@repo/api";
 
 export interface UploadAssetResult {
   SourceAssetID: string;
@@ -19,7 +19,14 @@ export interface UseUploadAsset {
 }
 export function stageUpload(options: UploadOptions) {
   const controller = new AbortController();
-  void uploadAssetRevision(options.file, AssetCategory.CANVAS_SOURCE, controller.signal)
+  const clientRef = crypto.randomUUID();
+  void prepareCanvasUpload({ clientRef, purpose: "source", file: options.file })
+    .then(async (plan) => {
+      await executeAssetUploadPlan(plan, options.file, controller.signal);
+      const completed = await prepareCanvasUpload({ clientRef, purpose: "source", file: options.file });
+      if (!completed.assetId || !completed.revisionId) throw new Error("completed upload is missing its revision");
+      return { assetId: completed.assetId, revisionId: completed.revisionId };
+    })
     .then((result) => {
       options.onProgress(100);
       options.onSuccess({

@@ -474,6 +474,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills/{skill_id}/uploads:prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare Skill Upload */
+        post: operations["prepare_skill_upload_skills__skill_id__uploads_prepare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/skills/{skill_id}/workspace:import-archive": {
         parameters: {
             query?: never;
@@ -940,14 +957,14 @@ export interface components {
         AttachSkillAssetInput: {
             /** Id */
             id: string;
+            /** Client Ref */
+            client_ref: string;
             /** Parent Id */
             parent_id?: string | null;
             /** Name */
             name: string;
-            /** Asset Id */
-            asset_id: string;
-            /** Revision Id */
-            revision_id: string;
+            /** Upload Session Id */
+            upload_session_id: string;
         };
         /** AttachSkillInput */
         AttachSkillInput: {
@@ -1278,10 +1295,10 @@ export interface components {
         };
         /** ImportSkillArchiveInput */
         ImportSkillArchiveInput: {
-            /** Asset Id */
-            asset_id: string;
-            /** Revision Id */
-            revision_id: string;
+            /** Client Ref */
+            client_ref: string;
+            /** Upload Session Id */
+            upload_session_id: string;
             /** Base Workspace Seq */
             base_workspace_seq: number;
         };
@@ -1450,6 +1467,22 @@ export interface components {
             base_etag: string;
             /** Parent Id */
             parent_id?: string | null;
+        };
+        /** PrepareSkillUploadInput */
+        PrepareSkillUploadInput: {
+            /** Client Ref */
+            client_ref: string;
+            /**
+             * Purpose
+             * @enum {string}
+             */
+            purpose: "skill-archive" | "skill-attachment";
+            /** Filename */
+            filename: string;
+            /** Media Type */
+            media_type: string;
+            /** Size Bytes */
+            size_bytes: number;
         };
         /** ProviderCatalogItem */
         ProviderCatalogItem: {
@@ -1691,6 +1724,26 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** SkillUploadPlan */
+        SkillUploadPlan: {
+            /** Upload Session Id */
+            upload_session_id: string;
+            /** Intent Id */
+            intent_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "uploading" | "completed" | "failed" | "aborted";
+            /** Upload Url */
+            upload_url: string;
+            /** Expires At */
+            expires_at: string;
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Revision Id */
+            revision_id?: string | null;
         };
         /** SkillValidationIssue */
         SkillValidationIssue: {
@@ -3325,6 +3378,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillNodeMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_skill_upload_skills__skill_id__uploads_prepare_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrepareSkillUploadInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillUploadPlan"];
                 };
             };
             /** @description Validation Error */

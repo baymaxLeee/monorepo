@@ -164,15 +164,5 @@ gen-proto:
     @echo "✓ proto codegen done"
 
 # ─── db ─────────────────────────────────────────────────
-migrate-new service version:
-    @mkdir -p services/{{ service }}/migrations/versions
-    @if ! [[ "{{ version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then \
-        echo "✗ version must match v<major>.<minor>.<patch>: {{ version }}"; exit 1; \
-    fi
-    @file="services/{{ service }}/migrations/versions/{{ version }}.sql" && \
-        if [ -e "$file" ]; then echo "✗ migration already exists: $file"; exit 1; fi && \
-        printf '%s\n' '-- Write service-owned SQL migration here.' > "$file" && \
-        echo "✓ $file"
-
-migrate-up service target_version="":
-    @../../scripts/db-migrate.sh services/{{ service }} "{{ target_version }}"
+migrate-up service:
+    @../../scripts/db-migrate.sh services/{{ service }}

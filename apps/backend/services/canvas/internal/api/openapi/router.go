@@ -114,6 +114,13 @@ func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.Pro
 	router.Get("/benefit-packages", transport.route("ListAvailableBenefitPackages", func(ctx context.Context, _ *http.Request) (any, error) {
 		return transport.assets.ListAvailableBenefitPackages(ctx, &contractbenefitpackage.ListAvailableBenefitPackagesRequest{})
 	}))
+	router.Post("/uploads:prepare", transport.route("PrepareUpload", func(ctx context.Context, request *http.Request) (any, error) {
+		input := new(contractasset.PrepareUploadRequest)
+		if err := decodeContract(request, input); err != nil {
+			return nil, err
+		}
+		return transport.assets.PrepareUpload(ctx, input)
+	}))
 	router.Get("/projects", transport.route("ListProjectsByMember", func(ctx context.Context, request *http.Request) (any, error) {
 		workspace := metadataWorkspace(request)
 		pageSize, err := requiredPositiveInt32Query(request, "page_size")

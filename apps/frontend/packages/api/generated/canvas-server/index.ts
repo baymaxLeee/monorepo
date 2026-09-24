@@ -1766,6 +1766,19 @@ export interface CanvasUpdateResourceResponse {
   resource: CanvasResource;
 }
 
+export interface CanvasUploadPlan {
+  asset_id?: string;
+  expires_at: string;
+  filename: string;
+  intent_id: string;
+  media_type: string;
+  revision_id?: string;
+  size_bytes: number;
+  state: string;
+  upload_session_id: string;
+  upload_url: string;
+}
+
 export interface CanvasUploadedAsset {
   file_name: string;
   source_asset_id: string;
@@ -2063,6 +2076,14 @@ export type CanvasCreateResourceFromAssetBody = {
   description?: string;
   name: string;
   type: CanvasResourceType;
+};
+
+export type CanvasPrepareUploadBody = {
+  client_ref: string;
+  filename: string;
+  media_type: string;
+  purpose: string;
+  size_bytes: number;
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
@@ -2980,7 +3001,18 @@ const canvasGetProjectResourceStats = (
       options);
     }
 
-return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasExecuteArchive,canvasExtractVideoFrames,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats}};
+const canvasPrepareUpload = (
+    canvasPrepareUploadBody: CanvasPrepareUploadBody,
+ options?: SecondParameter<typeof apiMutator<CanvasUploadPlan>>,) => {
+      return apiMutator<CanvasUploadPlan>(
+      {url: `/api/canvas-server/uploads:prepare`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: canvasPrepareUploadBody
+    },
+      options);
+    }
+
+return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasExecuteArchive,canvasExtractVideoFrames,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats,canvasPrepareUpload}};
 export type CanvasAdminListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminListProjects']>>>
 export type CanvasAdminCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminCreateProject']>>>
 export type CanvasAdminDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminDeleteProject']>>>
@@ -3058,3 +3090,4 @@ export type CanvasBatchGetResourceGenerationStatesResult = NonNullable<Awaited<R
 export type CanvasBatchDeleteResourcesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchDeleteResources']>>>
 export type CanvasCreateResourceFromAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateResourceFromAsset']>>>
 export type CanvasGetProjectResourceStatsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetProjectResourceStats']>>>
+export type CanvasPrepareUploadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasPrepareUpload']>>>

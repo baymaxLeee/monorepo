@@ -1,4 +1,4 @@
-import { AssetCategory, uploadAssetRevision, type AssetRevisionRef } from "@repo/api";
+import { executeAssetUploadPlan, prepareCanvasUpload, type AssetRevisionRef } from "@repo/api";
 import { Spinner, toast, Button } from "@repo/design-system";
 import { ImagePlus, X } from "lucide-react";
 import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, useState } from "react";
@@ -98,7 +98,14 @@ export function CoverImageUploader({
     uploadRef.current = controller;
     setUploading(true);
     onUploadingChange?.(true);
-    void uploadAssetRevision(file, AssetCategory.CANVAS_COVER, controller.signal)
+    const clientRef = crypto.randomUUID();
+    void prepareCanvasUpload({ clientRef, purpose: "cover", file })
+      .then(async (plan) => {
+        await executeAssetUploadPlan(plan, file, controller.signal);
+        const completed = await prepareCanvasUpload({ clientRef, purpose: "cover", file });
+        if (!completed.assetId || !completed.revisionId) throw new Error("completed upload is missing its revision");
+        return { assetId: completed.assetId, revisionId: completed.revisionId };
+      })
       .then((result) => {
         if (controller.signal.aborted) return;
         clearLocalPreview();

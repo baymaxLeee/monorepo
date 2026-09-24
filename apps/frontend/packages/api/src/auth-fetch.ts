@@ -23,7 +23,7 @@ function withAuth(init: RequestInit | undefined): RequestInit {
  * the interceptor.
  *
  * Retry-once is safe here because every caller passes a re-usable body (a JSON
- * string built by the SDK, or a `FormData`) and a URL string — never an already
+ * string built by the SDK, `FormData`, or `File`) and a URL string — never an already
  * consumed `Request`/stream body. Do not pass a `Request` with a one-shot body.
  */
 export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {

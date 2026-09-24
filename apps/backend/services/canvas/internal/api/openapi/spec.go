@@ -33,6 +33,7 @@ func contractType[T any]() reflect.Type { return reflect.TypeFor[T]() }
 
 var operations = []operationSpec{
 	{"GET", "/benefit-packages", "canvasListAvailableBenefitPackages", nil, contractType[*contractbenefitpackage.ListAvailableBenefitPackagesResponse]()},
+	{"POST", "/uploads:prepare", "canvasPrepareUpload", contractType[*contractasset.PrepareUploadRequest](), contractType[*contractasset.UploadPlan]()},
 	{"GET", "/admin/projects", "canvasAdminListProjects", nil, contractType[*contractproject.ListProjectsResponse]()},
 	{"POST", "/admin/projects", "canvasAdminCreateProject", contractType[*contractproject.CreateProjectRequest](), contractType[*contractproject.CreateProjectResponse]()},
 	{"GET", "/admin/projects/{projectId}", "canvasAdminGetProject", nil, contractType[*contractproject.GetProjectResponse]()},

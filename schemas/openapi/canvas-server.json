@@ -5249,6 +5249,52 @@
         ],
         "type": "object"
       },
+      "CanvasUploadPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "intent_id": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "revision_id": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "upload_session_id": {
+            "type": "string"
+          },
+          "upload_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_session_id",
+          "intent_id",
+          "state",
+          "upload_url",
+          "expires_at",
+          "filename",
+          "media_type",
+          "size_bytes"
+        ],
+        "type": "object"
+      },
       "CanvasUploadedAsset": {
         "additionalProperties": false,
         "properties": {
@@ -10706,6 +10752,76 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CanvasGetProjectResourceStatsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/uploads:prepare": {
+      "post": {
+        "operationId": "canvasPrepareUpload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "client_ref": {
+                    "type": "string"
+                  },
+                  "filename": {
+                    "type": "string"
+                  },
+                  "media_type": {
+                    "type": "string"
+                  },
+                  "purpose": {
+                    "type": "string"
+                  },
+                  "size_bytes": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "client_ref",
+                  "purpose",
+                  "filename",
+                  "media_type",
+                  "size_bytes"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasUploadPlan"
                 }
               }
             },

@@ -44,7 +44,7 @@ func TestStoreRegisterAndEnqueueStrongClaim(t *testing.T) {
 		endpoints = append(endpoints, request.URL.Path)
 		switch request.URL.Path {
 		case "/internal/assets/platform/revisions/revision":
-			_ = json.NewEncoder(response).Encode(map[string]any{"asset_id": "platform", "revision_id": "revision", "media_type": "image/png", "size_bytes": 512, "sha256": "digest"})
+			_ = json.NewEncoder(response).Encode(map[string]any{"asset_id": "platform", "revision_id": "revision", "category": "canvas-cover", "created_by": "user", "media_type": "image/png", "size_bytes": 512, "sha256": "digest"})
 		default:
 			http.NotFound(response, request)
 		}

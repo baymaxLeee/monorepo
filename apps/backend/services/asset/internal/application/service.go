@@ -62,8 +62,86 @@ func (s *Service) Upload(ctx context.Context, input CreateUploadInput, body io.R
 		)
 		return asset, revision, lookupErr
 	}
-	uploadID = started.UploadID
-	staged, err := s.storage.Stage(ctx, uploadID, body, s.maxBytes)
+	return s.persistUpload(ctx, UploadSession{
+		ID: started.UploadID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
+		CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Category: input.Category,
+		Filename: input.Filename, MediaType: input.MediaType, SizeBytes: -1, State: "uploading",
+	}, body)
+}
+
+func (s *Service) CreateUploadSession(ctx context.Context, input CreateUploadSessionInput) (UploadSession, error) {
+	input.TenantID = strings.TrimSpace(input.TenantID)
+	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.CallerService = strings.TrimSpace(input.CallerService)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	input.Category = strings.TrimSpace(input.Category)
+	input.MediaType = strings.TrimSpace(input.MediaType)
+	filename := strings.TrimSpace(input.Filename)
+	if input.TenantID == "" || input.UserID == "" || input.CallerService == "" || input.IdempotencyKey == "" ||
+		input.Category == "" || input.MediaType == "" || filename == "" || len(input.IdempotencyKey) > 255 ||
+		input.SizeBytes < 0 || input.SizeBytes > s.maxBytes {
+		return UploadSession{}, ErrInvalidInput
+	}
+	input.Filename = filepath.Base(filename)
+	if input.Filename == "." {
+		return UploadSession{}, ErrInvalidInput
+	}
+	now := s.clock.Now()
+	session, err := s.repository.CreateUploadSession(ctx, input, uuid.Must(uuid.NewV7()).String(), now.Add(24*time.Hour), now)
+	if err != nil {
+		return UploadSession{}, err
+	}
+	if !session.ExpiresAt.After(now) {
+		return UploadSession{}, ErrConflict
+	}
+	return session, nil
+}
+
+func (s *Service) UploadSession(ctx context.Context, sessionID string, body io.Reader) (domain.Asset, domain.Revision, error) {
+	if strings.TrimSpace(sessionID) == "" || body == nil {
+		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
+	}
+	session, err := s.repository.ClaimUploadSession(ctx, sessionID, s.clock.Now())
+	if err != nil {
+		return domain.Asset{}, domain.Revision{}, err
+	}
+	if session.State == "completed" {
+		asset, revision, _, lookupErr := s.repository.GetRevision(
+			ctx, session.TenantID, session.WorkspaceID, session.AssetID, session.RevisionID,
+		)
+		return asset, revision, lookupErr
+	}
+	return s.persistUpload(ctx, session, body)
+}
+
+func (s *Service) DescribeUploadSession(
+	ctx context.Context,
+	callerService, tenantID, workspaceID, sessionID string,
+) (UploadSession, error) {
+	if strings.TrimSpace(callerService) == "" || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(sessionID) == "" {
+		return UploadSession{}, ErrInvalidInput
+	}
+	session, err := s.repository.GetUploadSession(ctx, callerService, tenantID, workspaceID, sessionID)
+	if err != nil {
+		return UploadSession{}, err
+	}
+	if !session.ExpiresAt.After(s.clock.Now()) {
+		return UploadSession{}, ErrConflict
+	}
+	return session, nil
+}
+
+func (s *Service) persistUpload(ctx context.Context, session UploadSession, body io.Reader) (domain.Asset, domain.Revision, error) {
+	uploadID := session.ID
+	limit := s.maxBytes
+	if session.SizeBytes >= 0 && session.SizeBytes < limit {
+		limit = session.SizeBytes
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	staged, err := s.storage.Stage(ctx, uploadID, body, limit)
 	if err != nil {
 		_ = s.repository.FailUpload(context.WithoutCancel(ctx), uploadID, "storage_write_failed", s.clock.Now())
 		return domain.Asset{}, domain.Revision{}, err
@@ -73,10 +151,15 @@ func (s *Service) Upload(ctx context.Context, input CreateUploadInput, body io.R
 		_ = s.repository.FailUpload(context.WithoutCancel(ctx), uploadID, "invalid_staged_blob", s.clock.Now())
 		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
 	}
+	if session.SizeBytes >= 0 && staged.SizeBytes != session.SizeBytes {
+		_ = s.storage.Abort(context.WithoutCancel(ctx), staged)
+		_ = s.repository.FailUpload(context.WithoutCancel(ctx), uploadID, "size_mismatch", s.clock.Now())
+		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
+	}
 	assetID := uuid.Must(uuid.NewV7()).String()
 	revisionID := uuid.Must(uuid.NewV7()).String()
 	blobID := uuid.Must(uuid.NewV7()).String()
-	tenantDigest := sha256.Sum256([]byte(input.TenantID))
+	tenantDigest := sha256.Sum256([]byte(session.TenantID))
 	storageKey := fmt.Sprintf("blobs/%s/%s/%s/%s/%s", hex.EncodeToString(tenantDigest[:8]), staged.SHA256[:2], staged.SHA256[2:4], staged.SHA256, blobID)
 	if err = s.storage.Commit(ctx, staged, storageKey); err != nil {
 		_ = s.storage.Abort(context.WithoutCancel(ctx), staged)
@@ -84,15 +167,15 @@ func (s *Service) Upload(ctx context.Context, input CreateUploadInput, body io.R
 		return domain.Asset{}, domain.Revision{}, err
 	}
 	mediaType := staged.DetectedMediaType
-	if mediaType == "application/octet-stream" && input.MediaType != "" {
-		mediaType = input.MediaType
+	if mediaType == "application/octet-stream" && session.MediaType != "" {
+		mediaType = session.MediaType
 	}
 	completedAt := s.clock.Now()
 	result, err := s.repository.CompleteUpload(ctx, CompleteUploadInput{
 		UploadID: uploadID, AssetID: assetID, RevisionID: revisionID, BlobID: blobID, StorageKey: storageKey,
 		UploadClaimID: uuid.Must(uuid.NewV7()).String(),
-		SHA256:        staged.SHA256, Filename: input.Filename, MediaType: mediaType, Category: input.Category,
-		TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID, SizeBytes: staged.SizeBytes,
+		SHA256:        staged.SHA256, Filename: session.Filename, MediaType: mediaType, Category: session.Category,
+		TenantID: session.TenantID, WorkspaceID: session.WorkspaceID, UserID: session.UserID, SizeBytes: staged.SizeBytes,
 		Now: completedAt, UploadLeaseExpiresAt: completedAt.Add(24 * time.Hour),
 	})
 	if err != nil {
