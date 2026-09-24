@@ -370,7 +370,7 @@ export async function projectModelContext(input: {
   });
   const pruned = pruneMessages({
     messages: converted,
-    reasoning: "before-last-message",
+    reasoning: input.provider.responsesDialect === "deepseek_responses" ? "none" : "before-last-message",
     toolCalls: "before-last-2-messages",
     emptyMessages: "remove",
   });

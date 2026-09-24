@@ -24,6 +24,7 @@ from application.contracts.provider import (
     ProviderCatalogItem,
     ProviderKind,
     ProviderPricing,
+    ResponsesDialect,
     TestModelProviderInput,
     TestModelProviderResult,
     UpdateModelProviderInput,
@@ -87,6 +88,7 @@ def to_public_schema(row: ModelProviderRow) -> ModelProvider:
         name=row.name,
         model=row.model,
         provider_kind=cast(ProviderKind, row.provider_kind),
+        responses_dialect=cast(ResponsesDialect | None, row.responses_dialect),
         base_url=row.base_url,
         api_key_masked=mask(decrypt(row.api_key_enc)),
         extra_body=_parse_extra_body(row.extra_body),
@@ -108,6 +110,7 @@ def to_internal_schema(row: ModelProviderRow) -> InternalModelProvider:
         name=row.name,
         model=row.model,
         provider_kind=cast(ProviderKind, row.provider_kind),
+        responses_dialect=cast(ResponsesDialect | None, row.responses_dialect),
         base_url=row.base_url,
         api_key=decrypt(row.api_key_enc),
         extra_body=_parse_extra_body(row.extra_body),
@@ -187,6 +190,7 @@ class ModelProviderService:
                 name=payload.name,
                 model=payload.model,
                 provider_kind=payload.provider_kind,
+                responses_dialect=payload.responses_dialect,
                 base_url=base_url,
                 api_key_enc=encrypt(payload.api_key),
                 extra_body=json.dumps(payload.extra_body),
@@ -212,6 +216,8 @@ class ModelProviderService:
                 values["model"] = payload.model
             if payload.provider_kind is not None:
                 values["provider_kind"] = payload.provider_kind
+            if "responses_dialect" in payload.model_fields_set:
+                values["responses_dialect"] = payload.responses_dialect
             if validated_base_url is not None:
                 values["base_url"] = validated_base_url
             if payload.api_key is not None:
@@ -229,6 +235,15 @@ class ModelProviderService:
             if payload.is_enabled is not None:
                 values["is_enabled"] = payload.is_enabled
             next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
+            next_dialect = (
+                payload.responses_dialect
+                if "responses_dialect" in payload.model_fields_set
+                else row.responses_dialect
+            )
+            if next_kind == PROVIDER_KIND_CHAT and next_dialect is None:
+                raise RequestError("responses_dialect is required for chat providers")
+            if next_kind != PROVIDER_KIND_CHAT and next_dialect is not None:
+                raise RequestError("responses_dialect is only valid for chat providers")
             next_enabled = payload.is_enabled if payload.is_enabled is not None else row.is_enabled
             if row.is_default and not next_enabled:
                 raise ConflictError("set a replacement default before disabling this provider")
@@ -302,7 +317,12 @@ class ModelProviderService:
         api_key = payload.api_key if payload.api_key is not None else decrypt(row.api_key_enc)
         extra_body = _parse_extra_body(row.extra_body)
         return await test_provider_by_kind(
-            provider_kind=row.provider_kind, base_url=base_url, api_key=api_key, model=model, extra_body=extra_body
+            provider_kind=row.provider_kind,
+            responses_dialect=cast(ResponsesDialect | None, row.responses_dialect),
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            extra_body=extra_body,
         )
 
     async def get_default_for_workspace(self, workspace_id: str, tenant_id: str) -> InternalModelProvider:

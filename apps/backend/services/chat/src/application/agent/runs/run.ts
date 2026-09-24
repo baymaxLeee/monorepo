@@ -307,7 +307,9 @@ export async function createAgentRunResponse(
     });
     const lineageIsCurrent =
       lineage != null && modelUiMessages.some((message) => message.id === lineage.outputMessageId);
-    const projectionSource = lineageIsCurrent ? [modelUiMessages.at(-1)!] : modelUiMessages;
+    const supportsStoredContinuation = provider.responsesDialect !== "deepseek_responses";
+    const projectionSource =
+      lineageIsCurrent && supportsStoredContinuation ? [modelUiMessages.at(-1)!] : modelUiMessages;
     const projectionUiMessages = projectionSource.map(compactHistoricalSkillOutputs);
     const projected = await projectModelContext({
       runId,
@@ -354,7 +356,7 @@ export async function createAgentRunResponse(
       imageProvider: input.imageProvider,
       videoProviderId: input.videoProviderId,
       modelMessages,
-      previousResponseId: lineageIsCurrent ? lineage.responseId : null,
+      previousResponseId: lineageIsCurrent && supportsStoredContinuation ? lineage.responseId : null,
       attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
       executionPlanDocumentId,
       instructionInput,

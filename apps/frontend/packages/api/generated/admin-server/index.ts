@@ -275,6 +275,15 @@ export const CreateModelProviderInputProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type CreateModelProviderInputResponsesDialect = typeof CreateModelProviderInputResponsesDialect[keyof typeof CreateModelProviderInputResponsesDialect] | null;
+
+
+export const CreateModelProviderInputResponsesDialect = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type CreateModelProviderInputExtraBody = { [key: string]: unknown };
 
 export type ProviderPricingUnit = typeof ProviderPricingUnit[keyof typeof ProviderPricingUnit];
@@ -308,6 +317,7 @@ export interface CreateModelProviderInput {
      */
   model: string;
   provider_kind?: CreateModelProviderInputProviderKind;
+  responses_dialect: CreateModelProviderInputResponsesDialect;
   /**
      * @minLength 1
      * @maxLength 2083
@@ -410,6 +420,15 @@ export const InternalModelProviderProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type InternalModelProviderResponsesDialect = typeof InternalModelProviderResponsesDialect[keyof typeof InternalModelProviderResponsesDialect] | null;
+
+
+export const InternalModelProviderResponsesDialect = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type InternalModelProviderExtraBody = { [key: string]: unknown };
 
 /**
@@ -421,6 +440,7 @@ export interface InternalModelProvider {
   name: string;
   model: string;
   provider_kind: InternalModelProviderProviderKind;
+  responses_dialect: InternalModelProviderResponsesDialect;
   base_url: string;
   api_key: string;
   extra_body: InternalModelProviderExtraBody;
@@ -456,6 +476,15 @@ export const ModelProviderProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type ModelProviderResponsesDialect = typeof ModelProviderResponsesDialect[keyof typeof ModelProviderResponsesDialect] | null;
+
+
+export const ModelProviderResponsesDialect = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type ModelProviderExtraBody = { [key: string]: unknown };
 
 /**
@@ -469,6 +498,7 @@ export interface ModelProvider {
   name: string;
   model: string;
   provider_kind: ModelProviderProviderKind;
+  responses_dialect: ModelProviderResponsesDialect;
   base_url: string;
   api_key_masked: string;
   extra_body: ModelProviderExtraBody;
@@ -801,12 +831,22 @@ export const UpdateModelProviderInputProviderKind = {
   rerank: 'rerank',
 } as const;
 
+export type UpdateModelProviderInputResponsesDialect = typeof UpdateModelProviderInputResponsesDialect[keyof typeof UpdateModelProviderInputResponsesDialect] | null;
+
+
+export const UpdateModelProviderInputResponsesDialect = {
+  openai_responses: 'openai_responses',
+  ark_responses: 'ark_responses',
+  deepseek_responses: 'deepseek_responses',
+} as const;
+
 export type UpdateModelProviderInputExtraBody = { [key: string]: unknown } | null;
 
 export interface UpdateModelProviderInput {
   name?: string | null;
   model?: string | null;
   provider_kind?: UpdateModelProviderInputProviderKind;
+  responses_dialect?: UpdateModelProviderInputResponsesDialect;
   base_url?: string | null;
   api_key?: string | null;
   extra_body?: UpdateModelProviderInputExtraBody;

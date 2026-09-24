@@ -5,7 +5,7 @@ import {
   type AdminProviderSnapshot,
   type AdminResolvedAgent,
 } from "@backend/transport-ts";
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot, ResponsesDialect } from "@backend/transport-ts/provider-model";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 import type { BotProfileSnapshot } from "../../application/agent/context/instructions/index.js";
@@ -19,6 +19,7 @@ export interface ProviderSnapshot {
   name: string;
   model: string;
   providerKind: string;
+  responsesDialect: ResponsesDialect | null;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -95,6 +96,7 @@ function toSnapshot(data: AdminProviderSnapshot): ProviderSnapshot {
     name: data.name,
     model: data.model,
     providerKind: data.provider_kind ?? "chat",
+    responsesDialect: data.responses_dialect ?? null,
     baseUrl: data.base_url,
     apiKey: data.api_key,
     extraBody: data.extra_body ?? {},
@@ -135,6 +137,9 @@ export async function getProvider(
   const provider = await assertSnapshotUrl(toSnapshot(data));
   if (provider.providerKind !== "chat") {
     throw new ProviderNotConfiguredError(`provider ${provider.id} is not a configured language provider`);
+  }
+  if (!provider.responsesDialect) {
+    throw new ProviderNotConfiguredError(`provider ${provider.id} has no Responses dialect`);
   }
   return provider as ProviderSnapshot & LanguageProviderSnapshot;
 }
@@ -182,6 +187,9 @@ export async function getAgent(
   const text = await resolve(data.text_provider);
   if (text && text.providerKind !== "chat") {
     throw new ProviderNotConfiguredError(`provider ${text.id} is not a configured language provider`);
+  }
+  if (text && !text.responsesDialect) {
+    throw new ProviderNotConfiguredError(`provider ${text.id} has no Responses dialect`);
   }
   return {
     agentId: data.id,

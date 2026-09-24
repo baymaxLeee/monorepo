@@ -88,7 +88,8 @@ function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<t
 
 export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: ToolCatalog = new ToolCatalog()) {
   const provider = input.provider;
-  let previousResponseId = input.previousResponseId ?? null;
+  const supportsStoredContinuation = provider.responsesDialect !== "deepseek_responses";
+  let previousResponseId = supportsStoredContinuation ? (input.previousResponseId ?? null) : null;
   let responseId: string | null = null;
   let parentResponseId = previousResponseId;
   const botSkills = input.botSkills ?? [];
@@ -304,7 +305,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
           : typeof event.response.id === "string"
             ? event.response.id
             : null;
-      previousResponseId = responseId;
+      previousResponseId = supportsStoredContinuation ? responseId : null;
       return observe(
         "finish model step",
         finishModelStep({

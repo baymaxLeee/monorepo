@@ -9596,6 +9596,22 @@
             "title": "Provider Kind",
             "default": "chat"
           },
+          "responses_dialect": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responses Dialect"
+          },
           "base_url": {
             "type": "string",
             "maxLength": 2083,
@@ -9662,6 +9678,7 @@
         "required": [
           "name",
           "model",
+          "responses_dialect",
           "base_url",
           "api_key"
         ],
@@ -9836,6 +9853,22 @@
             ],
             "title": "Provider Kind"
           },
+          "responses_dialect": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responses Dialect"
+          },
           "base_url": {
             "type": "string",
             "title": "Base Url"
@@ -9887,6 +9920,7 @@
           "name",
           "model",
           "provider_kind",
+          "responses_dialect",
           "base_url",
           "api_key",
           "extra_body",
@@ -9991,6 +10025,22 @@
             ],
             "title": "Provider Kind"
           },
+          "responses_dialect": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responses Dialect"
+          },
           "base_url": {
             "type": "string",
             "title": "Base Url"
@@ -10054,6 +10104,7 @@
           "name",
           "model",
           "provider_kind",
+          "responses_dialect",
           "base_url",
           "api_key_masked",
           "extra_body",
@@ -11297,6 +11348,22 @@
               }
             ],
             "title": "Provider Kind"
+          },
+          "responses_dialect": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai_responses",
+                  "ark_responses",
+                  "deepseek_responses"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responses Dialect"
           },
           "base_url": {
             "anyOf": [

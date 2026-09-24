@@ -8,7 +8,7 @@ from typing import Any, Literal, cast
 import httpx
 from openai import APIError, AsyncOpenAI, AuthenticationError
 
-from application.contracts.provider import TestModelProviderResult
+from application.contracts.provider import ResponsesDialect, TestModelProviderResult
 
 RESPONSES_RESERVED_KEYS = frozenset(
     {
@@ -67,6 +67,7 @@ def _split_extra_body(
 
 async def test_chat_provider(
     *,
+    responses_dialect: ResponsesDialect,
     base_url: str,
     api_key: str,
     model: str,
@@ -98,25 +99,35 @@ async def test_chat_provider(
             tool_choice=cast(Any, {"type": "function", "name": "provider_connectivity_probe"}),
             max_output_tokens=512,
             stream=False,
-            store=True,
+            store=responses_dialect != "deepseek_responses",
             extra_body=request_body or None,
         )
         calls = [item for item in first.output if item.type == "function_call"]
         if not calls:
             return TestModelProviderResult(ok=False, error="api: Responses function calling returned no function_call")
+        function_output = {
+            "type": "function_call_output",
+            "call_id": calls[0].call_id,
+            "output": '{"value":"ping"}',
+        }
+        continuation_input: Any
+        previous_response_id: str | None
+        if responses_dialect == "deepseek_responses":
+            continuation_input = [
+                *[item.model_dump(exclude_none=True) for item in first.output],
+                function_output,
+            ]
+            previous_response_id = None
+        else:
+            continuation_input = [function_output]
+            previous_response_id = first.id
         resp = await client.responses.create(
             model=model,
-            previous_response_id=first.id,
-            input=[
-                {
-                    "type": "function_call_output",
-                    "call_id": calls[0].call_id,
-                    "output": '{"value":"ping"}',
-                }
-            ],
+            previous_response_id=previous_response_id,
+            input=cast(Any, continuation_input),
             max_output_tokens=512,
             stream=False,
-            store=True,
+            store=responses_dialect != "deepseek_responses",
             extra_body=request_body or None,
         )
     except AuthenticationError as exc:
@@ -307,11 +318,22 @@ async def test_embedding_provider(
 async def test_provider_by_kind(
     *,
     provider_kind: str,
+    responses_dialect: ResponsesDialect | None,
     base_url: str,
     api_key: str,
     model: str,
     extra_body: dict[str, Any],
 ) -> TestModelProviderResult:
+    if provider_kind == "chat":
+        if responses_dialect is None:
+            return TestModelProviderResult(ok=False, error="configuration: chat provider requires responses_dialect")
+        return await test_chat_provider(
+            responses_dialect=responses_dialect,
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            extra_body=extra_body,
+        )
     if provider_kind == "image":
         return await test_image_provider(
             base_url=base_url,
@@ -335,9 +357,4 @@ async def test_provider_by_kind(
         )
     if provider_kind == "rerank":
         return TestModelProviderResult(ok=True, sample="rerank provider saved; live test not implemented")
-    return await test_chat_provider(
-        base_url=base_url,
-        api_key=api_key,
-        model=model,
-        extra_body=extra_body,
-    )
+    return TestModelProviderResult(ok=False, error=f"configuration: unsupported provider kind {provider_kind}")

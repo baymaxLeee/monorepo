@@ -1159,6 +1159,8 @@ export interface components {
              * @enum {string}
              */
             provider_kind: "chat" | "image" | "video" | "embedding" | "rerank";
+            /** Responses Dialect */
+            responses_dialect: ("openai_responses" | "ark_responses" | "deepseek_responses") | null;
             /**
              * Base Url
              * Format: uri
@@ -1264,6 +1266,8 @@ export interface components {
              * @enum {string}
              */
             provider_kind: "chat" | "image" | "video" | "embedding" | "rerank";
+            /** Responses Dialect */
+            responses_dialect: ("openai_responses" | "ark_responses" | "deepseek_responses") | null;
             /** Base Url */
             base_url: string;
             /** Api Key */
@@ -1326,6 +1330,8 @@ export interface components {
              * @enum {string}
              */
             provider_kind: "chat" | "image" | "video" | "embedding" | "rerank";
+            /** Responses Dialect */
+            responses_dialect: ("openai_responses" | "ark_responses" | "deepseek_responses") | null;
             /** Base Url */
             base_url: string;
             /** Api Key Masked */
@@ -1709,6 +1715,8 @@ export interface components {
             model?: string | null;
             /** Provider Kind */
             provider_kind?: ("chat" | "image" | "video" | "embedding" | "rerank") | null;
+            /** Responses Dialect */
+            responses_dialect?: ("openai_responses" | "ark_responses" | "deepseek_responses") | null;
             /** Base Url */
             base_url?: string | null;
             /** Api Key */
