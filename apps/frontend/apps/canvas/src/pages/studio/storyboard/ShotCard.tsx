@@ -121,7 +121,7 @@ export function ShotCard({
         <Button
           variant="ghost"
           aria-current={selected}
-          className={`absolute inset-0 border-0 bg-[transparent] p-0 ${
+          className={`absolute inset-0 h-auto w-auto border-0 bg-[transparent] p-0 ${
             disabled ? "cursor-not-allowed" : "cursor-pointer"
           }`}
           disabled={locked}

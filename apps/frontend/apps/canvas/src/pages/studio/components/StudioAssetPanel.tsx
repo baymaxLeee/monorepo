@@ -576,7 +576,9 @@ export function StudioAssetPanel({
             {RESOURCE_TYPES.map((item) => (
               <Button
                 variant="ghost"
-                className={selectedType === item.value ? styles.activeTypeButton : styles.typeButton}
+                className={`h-auto min-h-0 shrink whitespace-nowrap ${
+                  selectedType === item.value ? styles.activeTypeButton : styles.typeButton
+                }`}
                 key={item.value}
                 onClick={() => setSelectedType(item.value)}
                 type="button"
@@ -677,9 +679,15 @@ export function StudioAssetPanel({
                   }}
                 >
                   {groups.map(({ item, assets }) => (
-                    <AccordionItem className="border-0" key={item.ResourceID} value={item.ResourceID}>
-                      <div className="flex items-center gap-2" data-collapse-header>
-                        <AccordionTrigger className="min-w-0 py-2 no-underline hover:no-underline">
+                    <AccordionItem
+                      className="border-0 not-last:border-b-0"
+                      key={item.ResourceID}
+                      value={item.ResourceID}
+                    >
+                      <div className="flex h-[42px] items-center gap-2">
+                        <AccordionTrigger
+                          className={`${styles.groupTrigger} h-[42px] min-w-0 items-center justify-start gap-1 py-0 no-underline hover:no-underline`}
+                        >
                           {renderResourceHeader(item)}
                         </AccordionTrigger>
                         {item.OwnerType === resource.ResourceOwnerType.OFFICIAL ? null : (
@@ -714,7 +722,7 @@ export function StudioAssetPanel({
                           </div>
                         )}
                       </div>
-                      <AccordionContent className="pb-0">
+                      <AccordionContent className="flex h-auto flex-col gap-1 pb-0">
                         {expandedGroupIds.has(item.ResourceID) && !resourceAssets.has(item.ResourceID) ? (
                           <div className={styles.groupStatus}>
                             <LoadingIndicator className="size-[20px]" />

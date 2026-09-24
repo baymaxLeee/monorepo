@@ -80,10 +80,10 @@ export const MenuItem = React.forwardRef<HTMLButtonElement, MenuItemProps>(funct
       data-destructive={destructive ? "" : undefined}
       disabled={disabled}
       className={cn(
-        "flex h-8 w-full select-none items-center gap-2 rounded-sm px-2 text-left text-sm outline-hidden transition-colors",
+        "flex h-8 w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 text-left text-sm outline-hidden transition-colors",
         "[&>svg]:size-4 [&>svg]:shrink-0",
         "hover:bg-accent focus-visible:bg-accent",
-        "disabled:pointer-events-none disabled:opacity-50",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         active && "text-primary focus-visible:text-primary",
         destructive && "text-destructive hover:text-destructive focus-visible:text-destructive",
         className,

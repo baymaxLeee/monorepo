@@ -75,7 +75,7 @@ export function ToolHeader({ className, title, type, state, toolName, children, 
   const derivedName = type === "dynamic-tool" ? toolName : type.split("-").slice(1).join("-");
   return (
     <CollapsibleTrigger
-      className={cn("flex w-full cursor-pointer items-center justify-between gap-4 p-3", className)}
+      className={cn("group/tool-trigger flex w-full cursor-pointer items-center justify-between gap-4 p-3", className)}
       {...props}
     >
       {children ?? (
@@ -85,7 +85,7 @@ export function ToolHeader({ className, title, type, state, toolName, children, 
             <span className="truncate text-sm font-medium">{title ?? derivedName}</span>
             {getToolStatusBadge(state)}
           </div>
-          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180" />
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-panel-open/tool-trigger:rotate-180" />
         </>
       )}
     </CollapsibleTrigger>

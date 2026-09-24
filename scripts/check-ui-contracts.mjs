@@ -62,6 +62,18 @@ function checkMenuGroups(file, source) {
 }
 
 function checkSource(file, source) {
+  if (file.endsWith("/packages/design-system/src/shadcn/toast.tsx")) {
+    const viewport = source.match(/function ToastViewport[\s\S]*?^}/m)?.[0] ?? "";
+    if (!viewport.includes("top-4") || viewport.includes("bottom-4")) {
+      report(
+        file,
+        source,
+        source.indexOf("function ToastViewport"),
+        "The global toast viewport must remain top-centered.",
+      );
+    }
+  }
+
   const isRegistryForm = file.endsWith("/packages/design-system/src/shadcn/form.tsx");
   const simpleRules = [
     [
@@ -82,6 +94,14 @@ function checkSource(file, source) {
     [
       /<Select\b(?=[^>]{0,700}\bvalue=\{field\.value)(?![^>]{0,700}\bname=\{field\.name\})[^>]*>/gms,
       "Controller-bound Select must pass name={field.name} to its hidden form control.",
+    ],
+    [
+      /<(?:Tool|Collapsible)\b(?=[^>]*\bopen(?:\s|=|>))(?![^>]*\bonOpenChange=)[^>]*>/gms,
+      "Interactive collapsibles must not pass controlled open without onOpenChange; use defaultOpen for initial state.",
+    ],
+    [
+      /<Button\b(?=[^>]*\bclassName=\{?(?:`|"|'))(?=[^>]*\babsolute\b)(?=[^>]*\binset-0\b)(?![^>]*\bh-(?:auto|full|\[|\d))[^>]*>/gms,
+      "Full-inset Button must override the default fixed height.",
     ],
     [
       /<Switch\b(?=[^>]{0,700}\bchecked=\{[^}]*field\.value[^}]*\})(?![^>]{0,700}\bname=\{field\.name\})[^>]*>/gms,

@@ -1,5 +1,4 @@
 import { toast, Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
-import { NodeToolbar, Position } from "@xyflow/react";
 import {
   History as IconAgentHistory,
   ShieldCheck as IconComplianceLine,
@@ -204,12 +203,13 @@ export function CanvasNodeToolbar({
     }
   };
   return (
-    <NodeToolbar
+    // This toolbar is node content on purpose: React Flow's NodeToolbar cancels viewport scaling,
+    // while the node editor and other contextual controls must preserve the node's visual scale.
+    <div
+      aria-label={t("节点操作")}
       className={styles.contentNodeToolbar}
       data-canvas-node-id={item.NodeID}
-      isVisible
-      offset={4}
-      position={Position.Top}
+      role="toolbar"
     >
       {tools.map((tool) => {
         const meta = TOOL_META[tool];
@@ -238,6 +238,6 @@ export function CanvasNodeToolbar({
           </Tooltip>
         );
       })}
-    </NodeToolbar>
+    </div>
   );
 }

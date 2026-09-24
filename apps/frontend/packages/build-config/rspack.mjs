@@ -86,3 +86,13 @@ export function createAppResolveAlias(appDir) {
     "pdfjs-dist$": "pdfjs-dist/build/pdf.min.mjs",
   };
 }
+
+/**
+ * Keep the development overlay for actionable runtime failures while ignoring
+ * the browser's non-fatal ResizeObserver delivery diagnostics. This callback is
+ * serialized into the dev-server client, so it must remain self-contained.
+ */
+export function shouldShowRuntimeError(error) {
+  const message = typeof error === "string" ? error : error?.message;
+  return !/ResizeObserver loop (?:limit exceeded|completed with undelivered notifications)\.?/.test(message ?? "");
+}

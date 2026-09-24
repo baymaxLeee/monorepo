@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import { buildShared } from "@repo/build-config/mf-shared";
-import { createAppResolveAlias, createHostCssRule, createSwcRule } from "@repo/build-config/rspack";
+import {
+  createAppResolveAlias,
+  createHostCssRule,
+  createSwcRule,
+  shouldShowRuntimeError,
+} from "@repo/build-config/rspack";
 import { defineConfig } from "@rspack/cli";
 import rspack from "@rspack/core";
 
@@ -95,6 +100,7 @@ export default defineConfig({
     }),
   ],
   devServer: {
+    client: { overlay: { runtimeErrors: shouldShowRuntimeError } },
     port: PORT,
     historyApiFallback: {
       index: "/index.html",

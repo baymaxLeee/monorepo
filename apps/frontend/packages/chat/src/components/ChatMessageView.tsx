@@ -314,7 +314,7 @@ function ToolPartView({
 
   if (part.state === "approval-requested") {
     return (
-      <Tool open>
+      <Tool defaultOpen>
         <ToolHeader
           type={part.type}
           toolName={part.type === "dynamic-tool" ? toolName : undefined}
@@ -344,7 +344,7 @@ function ToolPartView({
 
   if (part.state === "approval-responded" || part.state === "output-denied") {
     return (
-      <Tool open={part.state === "output-denied"}>
+      <Tool defaultOpen={part.state === "output-denied"}>
         <ToolHeader
           type={part.type}
           toolName={part.type === "dynamic-tool" ? toolName : undefined}
@@ -432,7 +432,7 @@ function ToolPartView({
   const isOpenByDefault = todoList != null ? !todoSettled : part.state !== "output-available";
 
   return (
-    <Tool open={isOpenByDefault || outputErrorReason != null}>
+    <Tool defaultOpen={isOpenByDefault || outputErrorReason != null}>
       <ToolHeader
         type={part.type}
         toolName={part.type === "dynamic-tool" ? toolName : undefined}

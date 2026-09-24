@@ -173,7 +173,9 @@ export function ResourceAssetCard({ file, state, rename, actions }: ResourceAsse
               materialName,
               fileName: file.Name,
             })}
-            className={`absolute inset-0 z-30 ${selectionDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+            className={`absolute inset-0 z-30 h-auto w-auto p-0 ${
+              selectionDisabled ? "cursor-not-allowed" : "cursor-pointer"
+            }`}
             disabled={selectionDisabled}
             onClick={() => {
               toggleFile(file.ResourceAssetID);

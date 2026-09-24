@@ -103,6 +103,9 @@ import { nodeTypes } from "./nodes/CanvasCard";
 
 import styles from "./CanvasBoard.module.less";
 
+const ADD_MENU_ITEM_CLASS_NAME =
+  "h-[34px] justify-start gap-[9px] rounded-[7px] px-3 text-[13px] font-normal leading-[22px] active:not-aria-[haspopup]:translate-y-0";
+
 function CanvasBoardInner({
   assetsOpen,
   canvasId,
@@ -1114,7 +1117,7 @@ function CanvasBoardInner({
                   {type === canvasnode.CanvasNodeType.TEXT ? <div className={styles.menuDivider} /> : null}
                   <Button
                     variant="ghost"
-                    className={styles.addItem}
+                    className={`${styles.addItem} ${ADD_MENU_ITEM_CLASS_NAME}`}
                     onClick={() => void createNode(type)}
                     type="button"
                   >
@@ -1128,7 +1131,7 @@ function CanvasBoardInner({
               <>
                 <Button
                   variant="ghost"
-                  className={styles.addItem}
+                  className={`${styles.addItem} ${ADD_MENU_ITEM_CLASS_NAME}`}
                   onClick={() => fileInputRef.current?.click()}
                   type="button"
                 >
@@ -1138,7 +1141,7 @@ function CanvasBoardInner({
                 <div className={styles.menuDivider} />
                 <Button
                   variant="ghost"
-                  className={styles.addItem}
+                  className={`${styles.addItem} ${ADD_MENU_ITEM_CLASS_NAME}`}
                   onClick={() => void createNode(canvasnode.CanvasNodeType.TEXT)}
                   type="button"
                 >

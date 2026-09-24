@@ -93,7 +93,7 @@ export function ResourceCard({
               })
             : t("管理资产：{name}", { name: item.Name })
         }
-        className={`flex w-full flex-col gap-3 border-0 bg-[transparent] p-0 pb-4 text-left ${
+        className={`flex h-auto min-h-0 w-full shrink flex-col items-stretch justify-start gap-3 whitespace-normal border-0 bg-[transparent] p-0 pb-4 text-left hover:bg-[transparent] ${
           isAudio && !selecting ? "cursor-default" : "cursor-pointer"
         }`}
         disabled={Boolean((selecting && !selectable) || (isAudio && !selecting))}

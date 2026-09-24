@@ -62,7 +62,7 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 | AI interfaces | `@repo/ai-elements` | 消息、推理、来源、工具、工作流、附件、产物和输入框 |
 | Icons | `lucide-react` | 默认图标集，保持一致的笔画和命名 |
 | Forms | `Controller` + `Field` + React Hook Form + Zod | 表单状态、校验、描述和错误的统一路径 |
-| Notifications | design-system 导出的 `toast` / `Toaster` | 全局短时反馈；不可替代页面内可恢复错误 |
+| Notifications | design-system 导出的 `toast` / `Toaster` | 全局短时反馈，默认顶部居中；不可替代页面内可恢复错误 |
 
 ### 组件选择顺序
 

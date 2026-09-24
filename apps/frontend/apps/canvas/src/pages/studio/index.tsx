@@ -2422,6 +2422,7 @@ function StudioContent() {
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("pointercancel", handleUp);
   };
+  const showModelAvailabilityWarning = !modelsLoading && (!hasVideoModels || !hasStoryboardModels);
 
   return (
     <main
@@ -2458,11 +2459,14 @@ function StudioContent() {
         shotCount={formalShotCount}
         title={canvas?.Name || t("剧集创作")}
       />
-      {!modelsLoading && (!hasVideoModels || !hasStoryboardModels) ? (
+      {showModelAvailabilityWarning ? (
         <div
-          className={`bg-[color:oklch(0.987 0.022 95.277)] px-6 py-2 text-[13px] text-[color:oklch(0.555 0.163 48.998)] ${
-            view === "canvas" ? "absolute inset-x-0 top-[48px] z-20" : "shrink-0"
+          className={`bg-[color:oklch(0.987_0.022_95.277)] px-6 py-2 text-[13px] text-[color:oklch(0.555_0.163_48.998)] ${
+            view === "canvas"
+              ? `absolute right-0 top-[48px] z-20 ${assetsOpen ? "left-[300px]" : "left-0"}`
+              : "shrink-0"
           }`}
+          role="status"
         >
           {!hasVideoModels
             ? t("当前工作空间暂无可用视频模型，请先在管理端配置并启用视频模型。")

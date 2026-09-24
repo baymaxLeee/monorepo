@@ -289,8 +289,13 @@
 }
 
 .contentNodeToolbar {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 4px);
+  left: 50%;
   display: flex;
   box-sizing: border-box;
+  width: max-content;
   height: 40px;
   align-items: center;
   justify-content: flex-end;
@@ -300,6 +305,7 @@
   border-radius: 12px;
   background: var(--background);
   box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+  transform: translateX(-50%);
 }
 
 .contentNodeToolbar button {
@@ -1080,6 +1086,7 @@
   width: 100%;
   height: 34px;
   align-items: center;
+  justify-content: flex-start;
   gap: 9px;
   padding: 5px 12px;
   border: 0;
@@ -1088,8 +1095,10 @@
   color: var(--foreground);
   cursor: pointer;
   font-size: 13px;
+  font-weight: 400;
   line-height: 22px;
   text-align: left;
+  white-space: nowrap;
 }
 
 .addItem svg {
@@ -1101,6 +1110,10 @@
 
 .addItem:hover {
   background: var(--muted);
+}
+
+.addItem:active {
+  transform: none;
 }
 
 .loading {

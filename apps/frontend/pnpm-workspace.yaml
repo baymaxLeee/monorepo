@@ -42,6 +42,12 @@ catalog:
   '@tiptap/extension-mention': 3.27.1
   '@tiptap/suggestion': 3.27.1
   '@tiptap/react': 3.27.1
+  '@swc/jest': 0.2.39
+  '@testing-library/jest-dom': 6.9.1
+  '@testing-library/react': 16.3.0
+  '@types/jest': 30.0.0
+  jest: 30.2.0
+  jest-environment-jsdom: 30.2.0
   less: ^4.9.1
   less-loader: ^13.0.0
   '@dagrejs/dagre': 3.1.1
@@ -66,8 +72,10 @@ overrides:
 
 # esbuild validates its platform binary; MSW's notice script is optional.
 allowBuilds:
+  '@swc/core': true
   esbuild: true
   msw: false
+  unrs-resolver: true
 
 minimumReleaseAgeExclude:
   - '@ai-sdk/gateway@4.0.89'
