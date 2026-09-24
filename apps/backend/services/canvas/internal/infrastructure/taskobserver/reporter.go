@@ -81,12 +81,12 @@ func (r reporter) ReportVisibilityFailure(ctx context.Context, err error) {
 	platformlogger.Error(r.log, "deleted canvasnode task visibility update failed", err, logcontext.Fields(ctx)...)
 }
 
-func (r reporter) ReportFramePreviewFailure(ctx context.Context, tenantID, artifactID string, err error) {
+func (r reporter) ReportFramePreviewFailure(ctx context.Context, tenantID, sourceAssetID string, err error) {
 	fields := append(logcontext.Fields(ctx),
 		zap.String("tenant_id", tenantID),
-		zap.String("artifact_id", artifactID),
+		zap.String("asset_id", sourceAssetID),
 	)
-	platformlogger.Error(r.log, "frame artifact presign failed", err, fields...)
+	platformlogger.Error(r.log, "frame asset delivery capability failed", err, fields...)
 }
 
 func (r reporter) ReportFallbackCoverFailure(ctx context.Context, tenantID, operation string, err error) {

@@ -30,6 +30,8 @@ spec:
               valueFrom: { secretKeyRef: { name: iam-secrets, key: POSTGRES_PASSWORD } }
             - name: ADMIN_POSTGRES_PASSWORD
               valueFrom: { secretKeyRef: { name: admin-secrets, key: POSTGRES_PASSWORD } }
+            - name: ASSET_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: asset-secrets, key: POSTGRES_PASSWORD } }
             - name: CANVAS_POSTGRES_PASSWORD
               valueFrom: { secretKeyRef: { name: canvas-secrets, key: POSTGRES_PASSWORD } }
             - name: CHAT_POSTGRES_PASSWORD

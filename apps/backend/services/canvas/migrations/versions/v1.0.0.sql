@@ -20,28 +20,6 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: asset_gc_candidates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.asset_gc_candidates (
-    asset_id character(36) NOT NULL,
-    tenant_id character varying(64) NOT NULL,
-    workspace_id character varying(64) DEFAULT NULL::character varying,
-    artifact_id character varying(128) NOT NULL,
-    deleted_at timestamp(3) with time zone NOT NULL,
-    purge_not_before timestamp(3) with time zone NOT NULL,
-    next_attempt_at timestamp(3) with time zone NOT NULL,
-    lease_until timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
-    state_version bigint NOT NULL,
-    attempts integer NOT NULL,
-    last_error character varying(512) NOT NULL,
-    created_at timestamp(3) with time zone NOT NULL,
-    updated_at timestamp(3) with time zone NOT NULL,
-    artifact_namespace character varying(64) DEFAULT NULL::character varying
-);
-
-
---
 -- Name: asset_references; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -116,17 +94,45 @@ CREATE TABLE public.assets (
     owner_type smallint NOT NULL,
     owner_id character(36) NOT NULL,
     creation_key character varying(255) DEFAULT NULL::character varying,
-    artifact_id character varying(128) NOT NULL,
+    source_asset_id character varying(128) NOT NULL,
+    source_revision_id character varying(64) NOT NULL,
     file_name character varying(512) NOT NULL,
     media_type smallint NOT NULL,
     content_type character varying(128) NOT NULL,
     size_bytes bigint NOT NULL,
     billing_class character varying(16) NOT NULL,
-    reference_count integer DEFAULT 0 NOT NULL,
     created_by character varying(64) NOT NULL,
     created_at timestamp(3) with time zone NOT NULL,
-    deleted_at bigint,
-    artifact_namespace character varying(64) DEFAULT NULL::character varying
+    deleted_at bigint
+);
+
+
+--
+-- Name: asset_claim_intents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.asset_claim_intents (
+    owner_type character varying(64) NOT NULL,
+    owner_id character varying(128) NOT NULL,
+    slot character varying(64) NOT NULL,
+    tenant_id character varying(64) NOT NULL,
+    workspace_id character varying(64) DEFAULT '' NOT NULL,
+    asset_id character varying(64) DEFAULT '' NOT NULL,
+    revision_id character varying(64) DEFAULT '' NOT NULL,
+    kind character varying(16) DEFAULT 'strong' NOT NULL,
+    generation bigint NOT NULL,
+    desired_state character varying(16) NOT NULL,
+    delivered_at timestamp(3) with time zone,
+    expires_at timestamp(3) with time zone,
+    next_attempt_at timestamp(3) with time zone NOT NULL,
+    lease_until timestamp(3) with time zone,
+    state_version bigint NOT NULL,
+    attempts integer NOT NULL,
+    last_error character varying(512) NOT NULL,
+    created_at timestamp(3) with time zone NOT NULL,
+    updated_at timestamp(3) with time zone NOT NULL,
+    CONSTRAINT chk_asset_claim_intents_desired_state CHECK (desired_state IN ('active', 'released')),
+    CONSTRAINT chk_asset_claim_intents_generation CHECK (generation > 0)
 );
 
 
@@ -214,8 +220,10 @@ CREATE TABLE public.canvas_node_generations (
     provider_error_message text NOT NULL,
     asset_id character(36) DEFAULT NULL::bpchar,
     first_last_frame_task_run_id character varying(64) DEFAULT NULL::character varying,
-    first_frame_checkpoint_id character varying(64) DEFAULT NULL::character varying,
-    last_frame_checkpoint_id character varying(64) DEFAULT NULL::character varying,
+    first_frame_checkpoint_asset_id character varying(64) DEFAULT NULL::character varying,
+    first_frame_checkpoint_revision_id character varying(64) DEFAULT NULL::character varying,
+    last_frame_checkpoint_asset_id character varying(64) DEFAULT NULL::character varying,
+    last_frame_checkpoint_revision_id character varying(64) DEFAULT NULL::character varying,
     first_frame_checkpoint_size_bytes bigint DEFAULT '0'::bigint NOT NULL,
     last_frame_checkpoint_size_bytes bigint DEFAULT '0'::bigint NOT NULL,
     first_frame_asset_id character(36) DEFAULT NULL::bpchar,
@@ -257,42 +265,6 @@ CREATE TABLE public.canvas_nodes (
     node_data jsonb NOT NULL
 );
 
-
---
--- Name: canvas_storyboard_drafts; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.canvas_storyboard_drafts (
-    task_run_id character(36) NOT NULL,
-    tenant_id character varying(64) NOT NULL,
-    workspace_id character varying(64) DEFAULT NULL::character varying,
-    project_id character(36) NOT NULL,
-    canvas_id character(36) NOT NULL,
-    created_by character varying(64) NOT NULL,
-    resolved_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
-    plot text NOT NULL,
-    video_model_service_id character varying(128) NOT NULL,
-    inference_model_service_id character varying(128) DEFAULT ''::character varying NOT NULL,
-    video_resolution smallint NOT NULL,
-    video_aspect_ratio smallint NOT NULL,
-    video_generate_audio boolean NOT NULL,
-    video_watermark boolean NOT NULL,
-    canvas_node_duration_min_seconds integer DEFAULT 0 NOT NULL,
-    canvas_node_duration_max_seconds integer DEFAULT 0 NOT NULL,
-    total_duration_min_seconds integer DEFAULT 0 NOT NULL,
-    total_duration_max_seconds integer DEFAULT 0 NOT NULL,
-    max_canvas_nodes integer NOT NULL,
-    status character varying(32) NOT NULL,
-    drafts_json text NOT NULL,
-    error_code character varying(128) NOT NULL,
-    error_message text NOT NULL,
-    created_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
-    updated_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
-    diagnostics_json text NOT NULL,
-    protocol_version integer DEFAULT 1 NOT NULL,
-    source_beats_json text,
-    plan_json text
-);
 
 CREATE TABLE public.canvas_text_generations (
     task_run_id character(36) NOT NULL,
@@ -341,7 +313,8 @@ CREATE TABLE public.canvas_video_archive_exports (
     error_message text NOT NULL,
     input_count integer NOT NULL,
     output_filename character varying(255) NOT NULL,
-    output_path character varying(512) NOT NULL,
+    output_asset_id character varying(64) DEFAULT '' NOT NULL,
+    output_revision_id character varying(64) DEFAULT '' NOT NULL,
     output_size bigint NOT NULL,
     output_sha256 character varying(64) NOT NULL,
     upload_id character varying(255) NOT NULL,
@@ -381,10 +354,12 @@ CREATE TABLE public.canvases (
     workspace_id character varying(64) DEFAULT NULL::character varying,
     project_id character(36) NOT NULL,
     name character varying(80) NOT NULL,
-    cover_image_path character varying(128) DEFAULT NULL::character varying,
-    cover_image_id character(36) DEFAULT NULL::bpchar,
+    cover_image_revision_id character varying(128) DEFAULT NULL::character varying,
+    cover_image_asset_id character varying(64) DEFAULT NULL::character varying,
     cover_image_sha256 character varying(64) DEFAULT NULL::character varying,
+    cover_image_content_type character varying(32) DEFAULT NULL::character varying,
     cover_image_size_bytes bigint DEFAULT '0'::bigint NOT NULL,
+    cover_image_claim_generation bigint DEFAULT 0 NOT NULL,
     canvas_node_count integer DEFAULT 0 NOT NULL,
     selected_video_duration_millis bigint DEFAULT '0'::bigint NOT NULL,
     default_view smallint DEFAULT '1'::smallint NOT NULL,
@@ -467,7 +442,8 @@ CREATE TABLE public.image_generation_runs (
     stage character varying(32) NOT NULL,
     provider_attempt integer NOT NULL,
     provider_image_url text NOT NULL,
-    artifact_id character varying(128) NOT NULL,
+    source_asset_id character varying(128) DEFAULT '' NOT NULL,
+    source_revision_id character varying(64) DEFAULT '' NOT NULL,
     artifact_size_bytes bigint NOT NULL,
     output_asset_id character(36) DEFAULT NULL::bpchar,
     error_code character varying(128) NOT NULL,
@@ -476,40 +452,6 @@ CREATE TABLE public.image_generation_runs (
     created_at timestamp(3) with time zone NOT NULL,
     updated_at timestamp(3) with time zone NOT NULL,
     completed_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone
-);
-
-
---
--- Name: official_asset_blobs; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.official_asset_blobs (
-    id bigint NOT NULL,
-    slug character varying(255) NOT NULL,
-    file_sha256 character varying(64) NOT NULL,
-    blob_id character varying(255) DEFAULT NULL::character varying,
-    status smallint DEFAULT '1'::smallint NOT NULL,
-    lease_owner character varying(64) DEFAULT NULL::character varying,
-    lease_expires_at timestamp(3) with time zone DEFAULT NULL::timestamp with time zone,
-    file_name character varying(512) NOT NULL,
-    content_type character varying(255) NOT NULL,
-    size_bytes bigint DEFAULT '0'::bigint NOT NULL,
-    created_at timestamp(3) with time zone NOT NULL,
-    updated_at timestamp(3) with time zone NOT NULL
-);
-
-
---
--- Name: official_asset_blobs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-ALTER TABLE public.official_asset_blobs ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME public.official_asset_blobs_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
 );
 
 
@@ -523,7 +465,8 @@ CREATE TABLE public.official_assets (
     tenant_id character varying(64) NOT NULL,
     workspace_id character varying(64) DEFAULT NULL::character varying,
     workspace_key character varying(64) DEFAULT ''::character varying NOT NULL,
-    artifact_id character varying(128) DEFAULT NULL::character varying,
+    source_asset_id character varying(128) DEFAULT NULL::character varying,
+    source_revision_id character varying(64) DEFAULT NULL::character varying,
     internal_asset_id character(36) DEFAULT NULL::bpchar,
     resource_id character(36) DEFAULT NULL::bpchar,
     resource_asset_id character(36) DEFAULT NULL::bpchar,
@@ -705,10 +648,12 @@ CREATE TABLE public.projects (
     workspace_id character varying(64) DEFAULT NULL::character varying,
     name character varying(80) NOT NULL,
     created_by character varying(64) NOT NULL,
-    cover_image_path character varying(128) DEFAULT NULL::character varying,
-    cover_image_id character(36) DEFAULT NULL::bpchar,
+    cover_image_revision_id character varying(128) DEFAULT NULL::character varying,
+    cover_image_asset_id character varying(64) DEFAULT NULL::character varying,
     cover_image_sha256 character varying(64) DEFAULT NULL::character varying,
+    cover_image_content_type character varying(32) DEFAULT NULL::character varying,
     cover_image_size_bytes bigint DEFAULT '0'::bigint NOT NULL,
+    cover_image_claim_generation bigint DEFAULT 0 NOT NULL,
     canvas_count integer DEFAULT 0 NOT NULL,
     selected_video_duration_millis bigint DEFAULT '0'::bigint NOT NULL,
     resource_count integer DEFAULT 0 NOT NULL,
@@ -996,14 +941,6 @@ CREATE TABLE public.tenant_storage_usage_ledger (
 
 
 --
--- Name: asset_gc_candidates asset_gc_candidates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.asset_gc_candidates
-    ADD CONSTRAINT asset_gc_candidates_pkey PRIMARY KEY (asset_id);
-
-
---
 -- Name: asset_references asset_references_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1036,6 +973,14 @@ ALTER TABLE ONLY public.assets
 
 
 --
+-- Name: asset_claim_intents asset_claim_intents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.asset_claim_intents
+    ADD CONSTRAINT asset_claim_intents_pkey PRIMARY KEY (tenant_id, workspace_id, owner_type, owner_id, slot);
+
+
+--
 -- Name: async_dispatches async_dispatches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1065,14 +1010,6 @@ ALTER TABLE ONLY public.canvas_node_generations
 
 ALTER TABLE ONLY public.canvas_nodes
     ADD CONSTRAINT canvas_nodes_pkey PRIMARY KEY (id);
-
-
---
--- Name: canvas_storyboard_drafts canvas_storyboard_drafts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.canvas_storyboard_drafts
-    ADD CONSTRAINT canvas_storyboard_drafts_pkey PRIMARY KEY (task_run_id);
 
 
 --
@@ -1196,14 +1133,6 @@ ALTER TABLE ONLY public.image_generation_run_inputs
 
 ALTER TABLE ONLY public.image_generation_runs
     ADD CONSTRAINT image_generation_runs_pkey PRIMARY KEY (task_run_id);
-
-
---
--- Name: official_asset_blobs official_asset_blobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.official_asset_blobs
-    ADD CONSTRAINT official_asset_blobs_pkey PRIMARY KEY (id);
 
 
 --
@@ -1402,14 +1331,6 @@ ALTER TABLE ONLY public.image_generation_run_inputs
 
 
 --
--- Name: official_asset_blobs uniq_official_asset_blobs_version; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.official_asset_blobs
-    ADD CONSTRAINT uniq_official_asset_blobs_version UNIQUE (slug, file_sha256);
-
-
---
 -- Name: official_assets uniq_official_assets_internal; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1514,20 +1435,6 @@ ALTER TABLE ONLY public.resources
 
 
 --
--- Name: idx_asset_gc_artifact_order; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_asset_gc_artifact_order ON public.asset_gc_candidates USING btree (artifact_id, created_at, asset_id);
-
-
---
--- Name: idx_asset_gc_due; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_asset_gc_due ON public.asset_gc_candidates USING btree (next_attempt_at, lease_until);
-
-
---
 -- Name: idx_asset_references_owner; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1571,10 +1478,17 @@ CREATE INDEX idx_asset_reviews_reservation_id ON public.asset_reviews USING btre
 
 
 --
--- Name: idx_assets_artifact; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_assets_source_revision; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_assets_artifact ON public.assets USING btree (artifact_id);
+CREATE INDEX idx_assets_source_revision ON public.assets USING btree (source_asset_id, source_revision_id);
+
+
+--
+-- Name: idx_asset_claim_intents_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_asset_claim_intents_due ON public.asset_claim_intents USING btree (delivered_at, next_attempt_at, lease_until);
 
 
 --
@@ -1596,13 +1510,6 @@ CREATE INDEX idx_assets_creator ON public.assets USING btree (created_by);
 --
 
 CREATE INDEX idx_assets_deleted_at ON public.assets USING btree (deleted_at);
-
-
---
--- Name: idx_assets_gc_scan; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_assets_gc_scan ON public.assets USING btree (reference_count, created_at, id);
 
 
 --
@@ -1815,20 +1722,6 @@ CREATE INDEX idx_image_generation_runs_invocation_project_id ON public.image_gen
 --
 
 CREATE INDEX idx_image_generation_runs_scope ON public.image_generation_runs USING btree (tenant_id, workspace_id);
-
-
---
--- Name: idx_official_asset_blobs_lease_expires_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_official_asset_blobs_lease_expires_at ON public.official_asset_blobs USING btree (lease_expires_at);
-
-
---
--- Name: idx_official_asset_blobs_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_official_asset_blobs_status ON public.official_asset_blobs USING btree (status);
 
 
 --
@@ -2095,13 +1988,6 @@ CREATE INDEX idx_resources_updated_at ON public.resources USING btree (updated_a
 --
 
 CREATE INDEX idx_storage_ledger_active ON public.tenant_storage_usage_ledger USING btree (tenant_id, billing_class, status);
-
-
---
--- Name: idx_storyboard_drafts_current; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_storyboard_drafts_current ON public.canvas_storyboard_drafts USING btree (tenant_id, workspace_id, project_id, canvas_id, created_by, resolved_at, task_run_id DESC);
 
 
 --

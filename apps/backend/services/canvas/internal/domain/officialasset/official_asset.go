@@ -4,9 +4,9 @@
 // 三者 1:1。对账以清单自带的 slug 为匹配键——它与音色名称、blob 都解耦，因此改名与换内容
 // 都不会被误判成「旧条目下线 + 新条目上线」。
 //
-// 官方素材没有外部 asset ID：统一上传后只存在 Canvas 自己的内部标识。一份内容只上传一次
-// 得到共享的 BlobID，再为每个 scope 各调用一次 LongLiveArtifact，各自得到 ArtifactID 与
-// Asset。按 ADR-010，BlobID 与 ArtifactID 都只是存储定位，不成为领域对象身份。
+// Official content is uploaded to the platform Asset service as an immutable
+// revision. Canvas stores the explicit Asset/revision pair and keeps only its
+// domain mapping and materialized Resource identities.
 package officialasset
 
 import (
@@ -52,23 +52,24 @@ func (s Scope) Valid() bool { return strings.TrimSpace(s.TenantID) != "" }
 
 // OfficialAsset 是一条清单条目在某个 scope 下的注册与物化记录。
 //
-// 只有 LongLiveCompleted 才持有 InternalAssetID、ArtifactID 与 FileSHA256；
+// 只有 LongLiveCompleted 才持有 InternalAssetID、SourceAssetID 与 FileSHA256；
 // ResourceID / ResourceAssetID 在物化前为空。
 type OfficialAsset struct {
 	// Slug 是清单自带的稳定标识，也是对账匹配键。
-	Slug            string
-	Scope           Scope
-	ArtifactID      string
-	InternalAssetID string
-	ResourceID      string
-	ResourceAssetID string
-	LongLiveStatus  LongLiveStatus
-	FileSHA256      string
-	FileName        string
-	MediaType       domainasset.MediaType
-	SizeBytes       int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	Slug             string
+	Scope            Scope
+	SourceAssetID    string
+	SourceRevisionID string
+	InternalAssetID  string
+	ResourceID       string
+	ResourceAssetID  string
+	LongLiveStatus   LongLiveStatus
+	FileSHA256       string
+	FileName         string
+	MediaType        domainasset.MediaType
+	SizeBytes        int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type NewInput struct {
@@ -154,14 +155,15 @@ func (a OfficialAsset) BeginRegistration(now time.Time) (OfficialAsset, error) {
 }
 
 type RegistrationResult struct {
-	ArtifactID      string
-	InternalAssetID string
-	FileSHA256      string
-	SizeBytes       int64
-	Now             time.Time
+	SourceAssetID    string
+	SourceRevisionID string
+	InternalAssetID  string
+	FileSHA256       string
+	SizeBytes        int64
+	Now              time.Time
 }
 
-// MarkRegistered 固定该 scope 下的 ArtifactID 与内部 Asset。
+// MarkRegistered 固定该 scope 下的 SourceAssetID 与内部 Asset。
 //
 // 允许对已完成条目重新写入：同一 slug 换内容是官方素材的正常更新路径，换内容后对账会把
 // ResourceAsset 换版到新 Asset。
@@ -169,7 +171,7 @@ func (a OfficialAsset) MarkRegistered(result RegistrationResult) (OfficialAsset,
 	if a.LongLiveStatus != LongLiveRegistering {
 		return OfficialAsset{}, ErrInvalidLongLiveState
 	}
-	if strings.TrimSpace(result.ArtifactID) == "" ||
+	if strings.TrimSpace(result.SourceAssetID) == "" || strings.TrimSpace(result.SourceRevisionID) == "" ||
 		strings.TrimSpace(result.InternalAssetID) == "" ||
 		result.SizeBytes <= 0 || result.Now.IsZero() {
 		return OfficialAsset{}, ErrInvalidRegistration
@@ -177,7 +179,8 @@ func (a OfficialAsset) MarkRegistered(result RegistrationResult) (OfficialAsset,
 	if !validSHA256Hex(result.FileSHA256) {
 		return OfficialAsset{}, ErrInvalidRegistration
 	}
-	a.ArtifactID = strings.TrimSpace(result.ArtifactID)
+	a.SourceAssetID = strings.TrimSpace(result.SourceAssetID)
+	a.SourceRevisionID = strings.TrimSpace(result.SourceRevisionID)
 	a.InternalAssetID = strings.TrimSpace(result.InternalAssetID)
 	a.FileSHA256 = strings.ToLower(strings.TrimSpace(result.FileSHA256))
 	a.SizeBytes = result.SizeBytes

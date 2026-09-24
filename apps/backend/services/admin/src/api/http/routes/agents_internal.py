@@ -11,11 +11,12 @@ step re-fetches a provider.
 
 from typing import Annotated
 
+from application.auth import AuthContext
 from application.bots import BotService
 from application.contracts.bot import ResolvedAgent
 from fastapi import APIRouter, Query
 
-from api.http.dependencies import AuthContext, DbSession, InternalCaller
+from api.http.dependencies import DbSession, InternalCaller
 
 router = APIRouter(prefix="/internal/agents", tags=["internal-agents"])
 

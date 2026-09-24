@@ -1260,7 +1260,7 @@ func (s *Service) applyPollWithHistory(
 			taskRunTerminal = taskRunStatus != domaintask.StatusWaitingSubtasks
 			assetID := ""
 			if poll.TerminalStatus == domaintask.StatusSucceeded {
-				if s.assetManager == nil || persisted.ArtifactID == "" || persisted.SizeBytes <= 0 {
+				if s.assetManager == nil || persisted.SourceAssetID == "" || persisted.SizeBytes <= 0 {
 					return errors.New("generation Asset manager or persisted video metadata is missing")
 				}
 				detail, detailErr := s.videoGenerations.GetGeneration(txCtx, runScope(run), run.ID)
@@ -1270,7 +1270,7 @@ func (s *Service) applyPollWithHistory(
 				asset, assetErr := s.assetManager.CreateFromOwnedArtifact(txCtx, applicationasset.CreateFromArtifactInput{
 					Scope:     applicationasset.Scope{TenantID: run.TenantID, WorkspaceID: run.WorkspaceID, CallerID: run.CreatedBy},
 					OwnerType: domainasset.OwnerProject, OwnerID: detail.ProjectID,
-					ArtifactID: persisted.ArtifactID, ArtifactNamespace: persisted.ArtifactNamespace, FileName: run.ID + ".mp4", MediaType: domainasset.MediaVideo,
+					SourceAssetID: persisted.SourceAssetID, SourceRevisionID: persisted.SourceRevisionID, FileName: run.ID + ".mp4", MediaType: domainasset.MediaVideo,
 					ContentType: "video/mp4", SizeBytes: persisted.SizeBytes,
 				})
 				if assetErr != nil {

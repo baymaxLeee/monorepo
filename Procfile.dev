@@ -15,6 +15,7 @@ telemetry: cd apps/backend/services/telemetry && uv run uvicorn main:app --app-d
 iam:  cd apps/backend/services/iam && PORT=8002 IAM_POSTGRES_DATABASE=iam go run ./cmd/server
 gateway:   cd apps/backend/services/gateway && PORT=8000 go run ./cmd/server
 canvas: cd apps/backend/services/canvas && PORT=8012 go run ./cmd/server
+asset: cd apps/backend/services/asset && PORT=8013 go run ./cmd/server
 mfe-admin: cd apps/frontend && PORT=3001 pnpm -F admin dev
 mfe-chat:  cd apps/frontend && PORT=3005 pnpm -F chat dev
 mfe-canvas: cd apps/frontend && PORT=3006 pnpm -F canvas dev

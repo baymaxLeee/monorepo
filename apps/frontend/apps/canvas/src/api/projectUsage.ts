@@ -9,7 +9,8 @@ export type UpdateProjectWithUsageRequest = project.UpdateProjectRequest & { Usa
 const present = (value: Awaited<ReturnType<typeof canvasAdminGetProject>>["project"]): ProjectUsageDetail => ({
   ProjectID: value.project_id,
   Name: value.name,
-  CoverImagePath: value.cover_image_path,
+  CoverImageAssetID: value.cover_image_asset_id,
+  CoverImageRevisionID: value.cover_image_revision_id,
   CoverImageURL: value.cover_image_url,
   CreatedBy: value.created_by,
   CreatedAt: value.created_at,
@@ -28,7 +29,8 @@ export async function createProjectWithUsage(request: CreateProjectWithUsageRequ
   const response = await canvasCreateProject({
     name: request.Name,
     member_user_ids: request.MemberUserIDs,
-    cover_image_path: request.CoverImagePath,
+    cover_image_asset_id: request.CoverImageAssetID,
+    cover_image_revision_id: request.CoverImageRevisionID,
     usage_limit: request.UsageLimit,
   });
   return { Project: present(response.project) };
@@ -38,7 +40,8 @@ export async function updateProjectWithUsage(request: UpdateProjectWithUsageRequ
   const response = await canvasAdminUpdateProject(request.ProjectID, {
     name: request.Name,
     member_user_ids: request.MemberUserIDs,
-    cover_image_path: request.CoverImagePath,
+    cover_image_asset_id: request.CoverImageAssetID,
+    cover_image_revision_id: request.CoverImageRevisionID,
     usage_limit: request.UsageLimit,
   });
   return { Project: present(response.project) };

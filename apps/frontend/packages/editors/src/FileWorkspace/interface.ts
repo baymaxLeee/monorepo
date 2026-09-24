@@ -18,6 +18,8 @@ export interface FileNode {
    * @description 文件节点：`null` 表示树接口未携带正文（需 `onLoadContent` 懒加载）；`string` 表示已加载（含空串）。目录节点通常无此字段。
    */
   content?: string | null;
+  /** File content may be inspected but must not be edited in the code editor. */
+  contentReadOnly?: boolean;
   /**
    * @zh 子节点列表
    * @default undefined

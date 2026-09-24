@@ -252,10 +252,11 @@ export function ResourceAssetCreateView({
       UploadedReferences: generationReferences.flatMap<resource.ResourceAssetGenerationUploadedReferenceInput>(
         (ref) => {
           if (ref.assetId) return [{ AssetID: ref.assetId }];
-          if (ref.blobId) {
+          if (ref.sourceAssetId && ref.sourceRevisionId) {
             return [
               {
-                BlobID: ref.blobId,
+                SourceAssetID: ref.sourceAssetId,
+                SourceRevisionID: ref.sourceRevisionId,
                 FileName: ref.pendingFile?.name ?? ref.title,
               },
             ];
@@ -289,7 +290,8 @@ export function ResourceAssetCreateView({
         const persistedReferences = referenceOverride.map((reference, index) => ({
           ...reference,
           assetId: generation.UploadedReferences[index].AssetID,
-          blobId: undefined,
+          sourceAssetId: undefined,
+          sourceRevisionId: undefined,
           syncStatus: "ready" as const,
         }));
         setReferences(persistedReferences);
@@ -360,15 +362,16 @@ export function ResourceAssetCreateView({
       nextReferences.push(placeholder);
       setReferences([...nextReferences]);
       try {
-        const blobId = await uploadResourceFile(file);
+        const uploaded = await uploadResourceFile(file);
         nextReferences[nextReferences.length - 1] = {
           ...placeholder,
-          blobId,
+          sourceAssetId: uploaded.SourceAssetID,
+          sourceRevisionId: uploaded.SourceRevisionID,
           syncStatus: "uploaded",
         };
         setReferences([...nextReferences]);
         // 图片上传成功后立即更新当前生成草稿。先取消待执行的通用自动保存，
-        // 避免它抢先更新 revision，导致 BlobID 关联请求发生乐观锁冲突。
+        // 避免它抢先更新 revision，导致 Asset revision 关联请求发生乐观锁冲突。
         if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
         autoSaveTimer.current = undefined;
         nextReferences = (await persist(nextReferences)) ?? nextReferences;

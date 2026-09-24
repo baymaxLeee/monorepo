@@ -1,4 +1,7 @@
-import { getWorkflowMetadata } from "workflow";
+import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
+
+import { getStepMetadata, getWorkflowMetadata } from "workflow";
 import { z } from "zod";
 
 import { claimTaskStep } from "../src/application/tasks/binding.js";
@@ -36,7 +39,7 @@ import {
   recordVideoTake,
   reviseStoryboard,
 } from "../src/application/video-production/service.js";
-import { assembleClips, downloadVideoBytes, inspectVideoBytes } from "../src/application/video/assembler.js";
+import { inspectVideoFile, openVideoStream, withAssembledClips } from "../src/application/video/assembler.js";
 import { type Character, type Script } from "../src/application/video/contracts.js";
 import {
   MAX_MAIN_CHARACTERS,
@@ -59,6 +62,7 @@ import {
   getArkVideoTask,
   type ArkVideoSnapshot,
 } from "../src/infrastructure/clients/ark.js";
+import { uploadAsset } from "../src/infrastructure/clients/asset.js";
 import { createStagedMedia, discardStagedMedia, publishStagedMedia } from "../src/infrastructure/clients/knowledge.js";
 
 export const videoCharacterInputSchema = z.object({
@@ -394,17 +398,31 @@ async function stageTakeStep(input: {
   videoUrl: string;
 }): Promise<string> {
   "use step";
-  const bytes = await downloadVideoBytes(input.videoUrl, AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS));
+  const { stepId } = getStepMetadata();
+  const signal = AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS);
+  const video = await openVideoStream(input.videoUrl, signal);
   try {
+    const filename = `shot-${input.shot.order + 1}-take-${input.takeNumber}.mp4`;
+    const asset = await uploadAsset({
+      userId: input.userId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
+      filename,
+      mediaType: "video/mp4",
+      category: "generated-video-take",
+      body: video.body,
+      contentLength: video.contentLength,
+      idempotencyKey: stepId,
+      signal,
+    });
     const staged = await createStagedMedia({
       userId: input.userId,
       tenantId: input.tenantId,
       workspaceId: input.workspaceId,
       conversationId: input.conversationId,
       title: `${input.title} · 镜头 ${input.shot.order + 1} · Take ${input.takeNumber}`,
-      filename: `shot-${input.shot.order + 1}-take-${input.takeNumber}.mp4`,
-      mimeType: "video/mp4",
-      bytes,
+      assetId: asset.assetId,
+      revisionId: asset.revisionId,
       idempotencyKey: `${input.productionId}:${input.shot.id}:take:${input.takeNumber}`,
     });
     return staged.id;
@@ -468,6 +486,7 @@ async function createSegmentStep(input: {
   takeNumber: number;
 }): Promise<{ taskId?: string; error?: string }> {
   "use step";
+  const { stepId } = getStepMetadata();
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
   let reservedAmount = 0;
@@ -639,46 +658,66 @@ async function assembleStep(input: {
   };
 }> {
   "use step";
+  const { stepId } = getStepMetadata();
   const { workflowRunId } = getWorkflowMetadata();
   const cancellation = observeTaskCancellation(workflowRunId);
-  let bytes: Uint8Array;
+  const signal = AbortSignal.any([cancellation.signal, AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS)]);
   try {
-    bytes = await assembleClips({
+    return await withAssembledClips({
       urls: input.urls,
       outputConfig: input.outputConfig,
-      signal: AbortSignal.any([cancellation.signal, AbortSignal.timeout(ASSEMBLE_TIMEOUT_MS)]),
+      signal,
+      consume: async ({ path, sizeBytes }) => {
+        const deterministic = await inspectVideoFile(
+          path,
+          sizeBytes,
+          {
+            width: input.outputConfig.width,
+            height: input.outputConfig.height,
+            minimumDuration: input.minimumDuration,
+          },
+          signal,
+        );
+        if (!deterministic.passed) {
+          const failures = deterministic.checks.filter((check) => !check.passed).map((check) => check.name);
+          throw new Error(`final deterministic QA failed: ${failures.join(", ")}`);
+        }
+        try {
+          const body = Readable.toWeb(createReadStream(path)) as ReadableStream<Uint8Array>;
+          const asset = await uploadAsset({
+            userId: input.userId,
+            tenantId: input.tenantId,
+            workspaceId: input.workspaceId,
+            filename: input.filename,
+            mediaType: "video/mp4",
+            category: "generated-video",
+            body,
+            contentLength: sizeBytes,
+            idempotencyKey: stepId,
+            signal,
+          });
+          const staged = await createStagedMedia({
+            userId: input.userId,
+            tenantId: input.tenantId,
+            workspaceId: input.workspaceId,
+            conversationId: input.conversationId,
+            title: input.title,
+            assetId: asset.assetId,
+            revisionId: asset.revisionId,
+            idempotencyKey: input.idempotencyKey,
+          });
+          return {
+            stagedMediaId: staged.id,
+            sizeBytes,
+            qaReport: { deterministic, semantic: { status: "human_review_required" as const } },
+          };
+        } catch (error) {
+          rethrowTerminalArtifactError(error);
+        }
+      },
     });
   } finally {
     cancellation.dispose();
-  }
-  const deterministic = await inspectVideoBytes(bytes, {
-    width: input.outputConfig.width,
-    height: input.outputConfig.height,
-    minimumDuration: input.minimumDuration,
-  });
-  if (!deterministic.passed) {
-    const failures = deterministic.checks.filter((check) => !check.passed).map((check) => check.name);
-    throw new Error(`final deterministic QA failed: ${failures.join(", ")}`);
-  }
-  try {
-    const staged = await createStagedMedia({
-      userId: input.userId,
-      tenantId: input.tenantId,
-      workspaceId: input.workspaceId,
-      conversationId: input.conversationId,
-      title: input.title,
-      filename: input.filename,
-      mimeType: "video/mp4",
-      bytes,
-      idempotencyKey: input.idempotencyKey,
-    });
-    return {
-      stagedMediaId: staged.id,
-      sizeBytes: bytes.length,
-      qaReport: { deterministic, semantic: { status: "human_review_required" } },
-    };
-  } catch (error) {
-    rethrowTerminalArtifactError(error);
   }
 }
 

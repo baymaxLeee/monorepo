@@ -85,12 +85,13 @@ func (p *ProjectStats) String() string {
 
 // ProjectSummary 是项目列表返回的摘要信息。
 type ProjectSummary struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// ProjectID 是项目唯一标识。
 	ProjectID string `json:"ProjectID"`
 	// Name 是项目名称，在相同 scope 下唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 是已通过 artifact storage 长期化的封面图片 path。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
 	CoverImageURL *string `json:"CoverImageURL,omitempty"`
 	// CreatedBy 是项目创建用户 ID。
@@ -120,13 +121,13 @@ func (p *ProjectSummary) GetName() (v string) {
 	return p.Name
 }
 
-var ProjectSummary_CoverImagePath_DEFAULT string
+var ProjectSummary_CoverImageRevisionID_DEFAULT string
 
-func (p *ProjectSummary) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return ProjectSummary_CoverImagePath_DEFAULT
+func (p *ProjectSummary) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return ProjectSummary_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *ProjectSummary) GetCreatedBy() (v string) {
@@ -154,8 +155,8 @@ func (p *ProjectSummary) GetMemberUserIDs() (v []string) {
 	return p.MemberUserIDs
 }
 
-func (p *ProjectSummary) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *ProjectSummary) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *ProjectSummary) IsSetStats() bool {
@@ -171,12 +172,13 @@ func (p *ProjectSummary) String() string {
 
 // ProjectDetail 是项目详情信息。
 type ProjectDetail struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// ProjectID 是项目唯一标识。
 	ProjectID string `json:"ProjectID"`
 	// Name 是项目名称，在相同 scope 下唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 是已通过 artifact storage 长期化的封面图片 path。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
 	CoverImageURL *string `json:"CoverImageURL,omitempty"`
 	// CreatedBy 是项目创建用户 ID。
@@ -210,13 +212,13 @@ func (p *ProjectDetail) GetName() (v string) {
 	return p.Name
 }
 
-var ProjectDetail_CoverImagePath_DEFAULT string
+var ProjectDetail_CoverImageRevisionID_DEFAULT string
 
-func (p *ProjectDetail) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return ProjectDetail_CoverImagePath_DEFAULT
+func (p *ProjectDetail) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return ProjectDetail_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *ProjectDetail) GetCreatedBy() (v string) {
@@ -262,8 +264,8 @@ func (p *ProjectDetail) GetUsedAmount() (v float64) {
 	return *p.UsedAmount
 }
 
-func (p *ProjectDetail) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *ProjectDetail) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *ProjectDetail) IsSetStats() bool {
@@ -287,14 +289,15 @@ func (p *ProjectDetail) String() string {
 
 // MemberProjectSummary 是成员项目列表返回的摘要信息，不包含项目成员列表。
 type MemberProjectSummary struct {
-	ProjectID      string           `json:"ProjectID"`
-	Name           string           `json:"Name"`
-	CoverImagePath *string          `json:"CoverImagePath,omitempty"`
-	CoverImageURL  *string          `json:"CoverImageURL,omitempty"`
-	CreatedBy      string           `json:"CreatedBy"`
-	CreatedAt      common.Timestamp `json:"CreatedAt"`
-	UpdatedAt      common.Timestamp `json:"UpdatedAt"`
-	Stats          *ProjectStats    `json:"Stats"`
+	CoverImageAssetID    *string          `json:"CoverImageAssetID,omitempty"`
+	ProjectID            string           `json:"ProjectID"`
+	Name                 string           `json:"Name"`
+	CoverImageRevisionID *string          `json:"CoverImageRevisionID,omitempty"`
+	CoverImageURL        *string          `json:"CoverImageURL,omitempty"`
+	CreatedBy            string           `json:"CreatedBy"`
+	CreatedAt            common.Timestamp `json:"CreatedAt"`
+	UpdatedAt            common.Timestamp `json:"UpdatedAt"`
+	Stats                *ProjectStats    `json:"Stats"`
 }
 
 func NewMemberProjectSummary() *MemberProjectSummary {
@@ -312,13 +315,13 @@ func (p *MemberProjectSummary) GetName() (v string) {
 	return p.Name
 }
 
-var MemberProjectSummary_CoverImagePath_DEFAULT string
+var MemberProjectSummary_CoverImageRevisionID_DEFAULT string
 
-func (p *MemberProjectSummary) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return MemberProjectSummary_CoverImagePath_DEFAULT
+func (p *MemberProjectSummary) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return MemberProjectSummary_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *MemberProjectSummary) GetCreatedBy() (v string) {
@@ -342,8 +345,8 @@ func (p *MemberProjectSummary) GetStats() (v *ProjectStats) {
 	return p.Stats
 }
 
-func (p *MemberProjectSummary) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *MemberProjectSummary) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *MemberProjectSummary) IsSetStats() bool {
@@ -359,14 +362,15 @@ func (p *MemberProjectSummary) String() string {
 
 // MemberProjectDetail 是成员项目详情，不包含项目成员列表。
 type MemberProjectDetail struct {
-	ProjectID      string           `json:"ProjectID"`
-	Name           string           `json:"Name"`
-	CoverImagePath *string          `json:"CoverImagePath,omitempty"`
-	CoverImageURL  *string          `json:"CoverImageURL,omitempty"`
-	CreatedBy      string           `json:"CreatedBy"`
-	CreatedAt      common.Timestamp `json:"CreatedAt"`
-	UpdatedAt      common.Timestamp `json:"UpdatedAt"`
-	Stats          *ProjectStats    `json:"Stats"`
+	CoverImageAssetID    *string          `json:"CoverImageAssetID,omitempty"`
+	ProjectID            string           `json:"ProjectID"`
+	Name                 string           `json:"Name"`
+	CoverImageRevisionID *string          `json:"CoverImageRevisionID,omitempty"`
+	CoverImageURL        *string          `json:"CoverImageURL,omitempty"`
+	CreatedBy            string           `json:"CreatedBy"`
+	CreatedAt            common.Timestamp `json:"CreatedAt"`
+	UpdatedAt            common.Timestamp `json:"UpdatedAt"`
+	Stats                *ProjectStats    `json:"Stats"`
 }
 
 func NewMemberProjectDetail() *MemberProjectDetail {
@@ -384,13 +388,13 @@ func (p *MemberProjectDetail) GetName() (v string) {
 	return p.Name
 }
 
-var MemberProjectDetail_CoverImagePath_DEFAULT string
+var MemberProjectDetail_CoverImageRevisionID_DEFAULT string
 
-func (p *MemberProjectDetail) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return MemberProjectDetail_CoverImagePath_DEFAULT
+func (p *MemberProjectDetail) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return MemberProjectDetail_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *MemberProjectDetail) GetCreatedBy() (v string) {
@@ -414,8 +418,8 @@ func (p *MemberProjectDetail) GetStats() (v *ProjectStats) {
 	return p.Stats
 }
 
-func (p *MemberProjectDetail) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *MemberProjectDetail) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *MemberProjectDetail) IsSetStats() bool {
@@ -1002,14 +1006,15 @@ func (p *BatchGetProjectsByMemberResponse) String() string {
 
 // CreateProjectRequest 是创建项目的请求。
 type CreateProjectRequest struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// Name 是项目名称，在相同 scope 下唯一。
 	Name string `json:"Name"`
 	// MemberUserIDs 是项目成员用户 ID 列表。
 	MemberUserIDs []string `json:"MemberUserIDs"`
-	// CoverImagePath 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 	// UsageLimit 是项目总金额限额，单位元；未传表示无上限。
 	UsageLimit *int64 `json:"UsageLimit,omitempty"`
 }
@@ -1038,13 +1043,13 @@ func (p *CreateProjectRequest) GetMemberUserIDs() (v []string) {
 	return p.MemberUserIDs
 }
 
-var CreateProjectRequest_CoverImagePath_DEFAULT string
+var CreateProjectRequest_CoverImageRevisionID_DEFAULT string
 
-func (p *CreateProjectRequest) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return CreateProjectRequest_CoverImagePath_DEFAULT
+func (p *CreateProjectRequest) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return CreateProjectRequest_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 var CreateProjectRequest_UsageLimit_DEFAULT int64
@@ -1060,8 +1065,8 @@ func (p *CreateProjectRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
-func (p *CreateProjectRequest) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *CreateProjectRequest) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *CreateProjectRequest) IsSetUsageLimit() bool {
@@ -1110,6 +1115,7 @@ func (p *CreateProjectResponse) String() string {
 
 // UpdateProjectRequest 是更新项目的请求。
 type UpdateProjectRequest struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectID 是待更新的项目唯一标识。
@@ -1118,8 +1124,8 @@ type UpdateProjectRequest struct {
 	Name string `json:"Name"`
 	// MemberUserIDs 是更新后的项目成员用户 ID 列表。
 	MemberUserIDs []string `json:"MemberUserIDs"`
-	// CoverImagePath 未传时保持不变，空字符串表示清除封面。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 未传时保持不变，空字符串表示清除封面。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 	// UsageLimit 是项目总金额限额，单位元；未传表示取消限制。
 	UsageLimit *int64 `json:"UsageLimit,omitempty"`
 }
@@ -1152,13 +1158,13 @@ func (p *UpdateProjectRequest) GetMemberUserIDs() (v []string) {
 	return p.MemberUserIDs
 }
 
-var UpdateProjectRequest_CoverImagePath_DEFAULT string
+var UpdateProjectRequest_CoverImageRevisionID_DEFAULT string
 
-func (p *UpdateProjectRequest) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return UpdateProjectRequest_CoverImagePath_DEFAULT
+func (p *UpdateProjectRequest) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return UpdateProjectRequest_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 var UpdateProjectRequest_UsageLimit_DEFAULT int64
@@ -1174,8 +1180,8 @@ func (p *UpdateProjectRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
-func (p *UpdateProjectRequest) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *UpdateProjectRequest) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *UpdateProjectRequest) IsSetUsageLimit() bool {
@@ -1224,12 +1230,13 @@ func (p *UpdateProjectResponse) String() string {
 
 // UpdateProjectByMemberRequest 是项目成员更新允许字段的请求。
 type UpdateProjectByMemberRequest struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectID 是待更新的项目唯一标识。
 	ProjectID string `json:"ProjectID"`
-	// CoverImagePath 未传时保持不变，空字符串表示清除封面。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 未传时保持不变，空字符串表示清除封面。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 }
 
 func NewUpdateProjectByMemberRequest() *UpdateProjectByMemberRequest {
@@ -1252,21 +1259,21 @@ func (p *UpdateProjectByMemberRequest) GetProjectID() (v string) {
 	return p.ProjectID
 }
 
-var UpdateProjectByMemberRequest_CoverImagePath_DEFAULT string
+var UpdateProjectByMemberRequest_CoverImageRevisionID_DEFAULT string
 
-func (p *UpdateProjectByMemberRequest) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return UpdateProjectByMemberRequest_CoverImagePath_DEFAULT
+func (p *UpdateProjectByMemberRequest) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return UpdateProjectByMemberRequest_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *UpdateProjectByMemberRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
-func (p *UpdateProjectByMemberRequest) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *UpdateProjectByMemberRequest) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *UpdateProjectByMemberRequest) String() string {

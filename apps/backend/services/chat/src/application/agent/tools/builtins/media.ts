@@ -3,6 +3,7 @@ import { generateImage, NoImageGeneratedError, tool, type JSONValue } from "ai";
 import { z } from "zod";
 
 import type { ProviderSnapshot } from "../../../../infrastructure/clients/admin.js";
+import { uploadAsset } from "../../../../infrastructure/clients/asset.js";
 import type { Task } from "../../../../infrastructure/clients/executor.js";
 import { createMediaDocument, getDocument } from "../../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
@@ -248,15 +249,25 @@ async function* generateImages(
       const file = result.images[0] ?? result.image;
       const mediaType = imageMediaType(file.mediaType, file.uint8Array);
       const filename = mediaFilename(prompt, IMAGE_EXTENSIONS[mediaType] ?? "png", index);
+      const asset = await uploadAsset({
+        userId: context.userId,
+        tenantId: context.tenantId,
+        workspaceId: context.workspaceId,
+        filename,
+        mediaType,
+        category: "generated-image",
+        bytes: file.uint8Array,
+        idempotencyKey: `${toolCallId}-${index}`,
+        signal: abortSignal,
+      });
       const document = await createMediaDocument({
         userId: context.userId,
         tenantId: context.tenantId,
         workspaceId: context.workspaceId,
         conversationId: context.conversationId,
         title: prompt.slice(0, 80),
-        filename,
-        mimeType: mediaType,
-        bytes: file.uint8Array,
+        assetId: asset.assetId,
+        revisionId: asset.revisionId,
         idempotencyKey: `${toolCallId}-${index}`,
       });
       return { document_id: document.id, filename: document.filename, media_type: mediaType };

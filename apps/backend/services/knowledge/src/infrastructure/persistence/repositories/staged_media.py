@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from secrets import token_hex
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,16 +11,22 @@ from infrastructure.persistence.models.staged_media import StagedMediaRow
 
 
 async def get_staged_media(session: AsyncSession, staged_id: str, user_id: str) -> StagedMediaRow | None:
-    return await session.scalar(
-        select(StagedMediaRow).where(StagedMediaRow.id == staged_id, StagedMediaRow.user_id == user_id)
+    return cast(
+        StagedMediaRow | None,
+        await session.scalar(
+            select(StagedMediaRow).where(StagedMediaRow.id == staged_id, StagedMediaRow.user_id == user_id)
+        ),
     )
 
 
 async def get_by_idempotency_key(session: AsyncSession, idempotency_key: str, user_id: str) -> StagedMediaRow | None:
-    return await session.scalar(
-        select(StagedMediaRow).where(
-            StagedMediaRow.idempotency_key == idempotency_key, StagedMediaRow.user_id == user_id
-        )
+    return cast(
+        StagedMediaRow | None,
+        await session.scalar(
+            select(StagedMediaRow).where(
+                StagedMediaRow.idempotency_key == idempotency_key, StagedMediaRow.user_id == user_id
+            )
+        ),
     )
 
 
@@ -34,9 +41,9 @@ async def create_staged_media(
     filename: str,
     mime_type: str,
     size: int,
-    object_bucket: str,
-    object_key: str,
-    object_sha256: str,
+    asset_id: str,
+    revision_id: str,
+    asset_sha256: str,
     idempotency_key: str | None,
     staged_id: str | None = None,
 ) -> StagedMediaRow:
@@ -51,9 +58,9 @@ async def create_staged_media(
         filename=filename[:255],
         mime_type=mime_type,
         size=size,
-        object_bucket=object_bucket,
-        object_key=object_key,
-        object_sha256=object_sha256,
+        asset_id=asset_id,
+        revision_id=revision_id,
+        asset_sha256=asset_sha256,
         idempotency_key=idempotency_key,
         status="staged",
         created_at=now,

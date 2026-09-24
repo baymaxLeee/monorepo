@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
+from application.asset_client import get_asset_client
 from application.contracts.resource import DocumentResourceURL, FileResourceURLInput
-from application.object_store import ObjectStore
 from application.resource_urls import (
     create_document_resource_url,
     create_file_resource_url,
@@ -11,8 +11,8 @@ from application.resource_urls import (
     verify_document_resource_url,
     verify_file_resource_url,
 )
-from fastapi import APIRouter, Query, Response
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Query
+from fastapi.responses import Response, StreamingResponse
 from infrastructure.persistence.models.file_store import FileEntryRow
 from infrastructure.persistence.repositories import documents as document_crud
 from kernel.errors import NotFoundError, RequestError
@@ -30,8 +30,8 @@ async def create_resource_url(document_id: str, current_user: CurrentUser, sessi
     )
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
-    if not row.object_bucket or not row.object_key:
-        raise NotFoundError("document has no stored source object")
+    if not row.asset_id or not row.source_revision_id:
+        raise NotFoundError("document has no source Asset revision")
     media_type = (row.source_mime_type or row.mime_type or "").lower()
     if not (
         media_type == "text/html"
@@ -72,30 +72,41 @@ async def create_file_url(
     )
 
 
-@router.get("/resources/{document_id}", response_class=FileResponse)
+@router.get("/resources/{document_id}", response_class=StreamingResponse)
 async def get_signed_resource(
     document_id: str,
     session: DbSession,
     expires: int = Query(..., ge=1),
     version: str = Query(..., min_length=1, max_length=128),
     signature: str = Query(..., min_length=64, max_length=64),
-) -> FileResponse:
+) -> StreamingResponse:
     if not verify_document_resource_url(document_id=document_id, version=version, expires=expires, signature=signature):
         raise NotFoundError("resource URL is invalid or expired")
     row = await document_crud.get_document_by_id(session, document_id)
-    if row is None or not row.object_bucket or (not row.object_key) or (document_resource_version(row) != version):
+    if (
+        row is None
+        or not row.asset_id
+        or not row.source_revision_id
+        or not row.tenant_id
+        or not row.workspace_id
+        or document_resource_version(row) != version
+    ):
         raise NotFoundError("resource URL is invalid or expired")
-    path = ObjectStore().get_path(bucket=row.object_bucket, key=row.object_key)
     remaining_seconds = max(0, expires - int(datetime.now(UTC).timestamp()))
-    return FileResponse(
-        path,
+    chunks, asset_headers = await get_asset_client().open_stream(
+        tenant_id=row.tenant_id, workspace_id=row.workspace_id,
+        asset_id=row.asset_id, revision_id=row.source_revision_id,
+    )
+    return StreamingResponse(
+        chunks,
         media_type=row.source_mime_type or "application/octet-stream",
-        filename=row.source_filename or row.filename,
-        content_disposition_type="inline",
         headers={
             "Cache-Control": f"private, max-age={remaining_seconds}",
             "Referrer-Policy": "no-referrer",
             "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": f'inline; filename="{row.source_filename or row.filename}"',
+            **({"Content-Length": asset_headers["Content-Length"]} if "Content-Length" in asset_headers else {}),
+            **({"ETag": asset_headers["ETag"]} if "ETag" in asset_headers else {}),
         },
     )
 

@@ -1,10 +1,13 @@
 import {
+  AssetCategory,
+  attachSkillAsset,
   createSkillNode,
   deleteSkillNode,
   fetchSkill,
   fetchSkillFile,
   fetchSkillWorkspace,
   moveSkillNode,
+  importSkillArchive,
   publishSkill,
   renameSkillNode,
   type Skill,
@@ -12,6 +15,7 @@ import {
   type SkillNodeMutationResult,
   type SkillValidationResult,
   updateSkillFileContent,
+  uploadAssetRevision,
   validateSkill,
 } from "@repo/api";
 import {
@@ -37,6 +41,7 @@ import {
   type FileWorkspaceRef,
 } from "@repo/editors/file-workspace";
 import { getErrorMessage } from "@repo/shared";
+import { UploadIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -47,6 +52,14 @@ function notifyValidationResult(result: SkillValidationResult) {
   }
   const detail = (result.issues ?? []).map((issue) => `${issue.path}: ${issue.message}`).join("；");
   toast.add({ type: "error", title: detail || "验证未通过" });
+}
+
+function editorTree(nodes: SkillFileNode[]): FileNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    contentReadOnly: node.storage_kind === "asset",
+    children: node.children ? editorTree(node.children) : node.children,
+  }));
 }
 
 export function SkillWorkspacePage() {
@@ -77,7 +90,7 @@ export function SkillWorkspacePage() {
       collectEtags(workspace.tree);
       etagsRef.current = etags;
       setSkill(detail);
-      setTree(workspace.tree);
+      setTree(editorTree(workspace.tree));
       setWorkspaceSeq(workspace.workspace_seq);
       setDirty(false);
     } catch (reason) {
@@ -104,7 +117,17 @@ export function SkillWorkspacePage() {
     async (nodeId: string) => {
       const file = await fetchSkillFile(id, nodeId);
       etagsRef.current.set(nodeId, file.etag);
-      return file.content;
+      if (file.storage_kind === "asset") {
+        return [
+          `Binary Asset: ${file.mime_type ?? "application/octet-stream"}`,
+          `Size: ${file.size_bytes ?? 0} bytes`,
+          `SHA-256: ${file.sha256 ?? "unknown"}`,
+          file.url ? `Download: ${file.url}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
+      return file.content ?? "";
     },
     [id],
   );
@@ -181,6 +204,51 @@ export function SkillWorkspacePage() {
     }
   }
 
+  function chooseArchive() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".zip,application/zip,application/x-zip-compressed";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      void run(async () => {
+        if (dirty) {
+          throw new Error("请先保存当前工作区修改，再导入 ZIP");
+        }
+        const uploaded = await uploadAssetRevision(file, AssetCategory.SKILL_ARCHIVE);
+        const result = await importSkillArchive(id, uploaded.assetId, uploaded.revisionId, workspaceSeq);
+        await load();
+        toast.add({ type: "success", title: `已导入 ${result.imported_files} 个文件` });
+      });
+    };
+    input.click();
+  }
+
+  function chooseAttachment() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      void run(async () => {
+        if (dirty) {
+          throw new Error("请先保存当前工作区修改，再上传附件");
+        }
+        const uploaded = await uploadAssetRevision(file, AssetCategory.SKILL_ATTACHMENT);
+        await attachSkillAsset(id, {
+          id: crypto.randomUUID().replaceAll("-", ""),
+          parent_id: null,
+          name: file.name,
+          asset_id: uploaded.assetId,
+          revision_id: uploaded.revisionId,
+        });
+        await load();
+        toast.add({ type: "success", title: `已上传附件 ${file.name}` });
+      });
+    };
+    input.click();
+  }
+
   function stateBadge() {
     if (skill?.status !== "published") {
       return <Badge variant="secondary">草稿</Badge>;
@@ -207,6 +275,14 @@ export function SkillWorkspacePage() {
           <PageDescription>编辑文件树并保存；只有点击发布后，智能体才会读取新的完整快照。</PageDescription>
         </PageHeaderContent>
         <PageActions>
+          <Button variant="outline" disabled={busy} onClick={chooseArchive}>
+            <UploadIcon className="size-4" />
+            导入 ZIP
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={chooseAttachment}>
+            <UploadIcon className="size-4" />
+            上传附件
+          </Button>
           <Button
             variant="outline"
             disabled={busy || !dirty}

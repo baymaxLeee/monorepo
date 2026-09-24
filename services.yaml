@@ -15,6 +15,7 @@ services:
       - canvas
       - knowledge
       - telemetry
+      - asset
     databases: []
     openapi: null
 
@@ -35,7 +36,8 @@ services:
     port: 8001
     publicRoutes:
       - /api/admin-server/*
-    bindings: []
+    bindings:
+      - asset
     databases:
       - admin
     openapi: schemas/openapi/admin-server.json
@@ -51,6 +53,7 @@ services:
       - knowledge
       - executor
       - canvas
+      - asset
     databases:
       - chat
     openapi: schemas/openapi/chat-server.json
@@ -64,6 +67,7 @@ services:
     bindings:
       - admin
       - executor
+      - asset
     databases:
       - knowledge
     openapi: schemas/openapi/knowledge-server.json
@@ -88,6 +92,7 @@ services:
       - admin
       - knowledge
       - canvas
+      - asset
     databases:
       - executor
       - workflow
@@ -102,7 +107,18 @@ services:
     bindings:
       - admin
       - executor
-      - knowledge
+      - asset
     databases:
       - canvas
     openapi: schemas/openapi/canvas-server.json
+
+  asset:
+    root: apps/backend/services/asset
+    runtime: go
+    port: 8013
+    publicRoutes:
+      - /api/asset-server/*
+    bindings: []
+    databases:
+      - asset
+    openapi: schemas/openapi/asset-server.json

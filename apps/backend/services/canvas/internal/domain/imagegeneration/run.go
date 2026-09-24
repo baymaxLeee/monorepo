@@ -21,7 +21,8 @@ type Run struct {
 	Stage             string
 	ProviderAttempt   int32
 	ProviderImageURL  string
-	ArtifactID        string
+	SourceAssetID     string
+	SourceRevisionID  string
 	ArtifactSizeBytes int64
 	OutputAssetID     string
 	ErrorCode         string

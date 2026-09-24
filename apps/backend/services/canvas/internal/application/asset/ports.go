@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	assetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 )
@@ -21,25 +22,17 @@ type Scope struct {
 	CallerID    string
 }
 
-type DetectedBlob struct {
-	MediaType   domainasset.MediaType
-	ContentType string
+type ResolvedRevision struct {
+	SourceAssetID    string
+	SourceRevisionID string
+	MediaType        domainasset.MediaType
+	ContentType      string
+	SizeBytes        int64
 }
 
-type RegisteredArtifact struct {
-	ArtifactID        string
-	ArtifactNamespace string
-	SizeBytes         int64
-}
-
-type RegisterArtifactInput struct {
-	BlobID   string
-	FileName string
-}
-
-type RegisterArtifactResult struct {
-	Artifact RegisteredArtifact
-	Err      error
+type RevisionRef struct {
+	SourceAssetID    string
+	SourceRevisionID string
 }
 
 type PresignedArtifact struct {
@@ -58,17 +51,27 @@ type Repository interface {
 	BatchGetReferenced(context.Context, Scope, ReferenceOwner, []string) ([]domainasset.Asset, error)
 	BatchGetReferencedAssets(context.Context, Scope, []AssetReference) ([]ReferencedAsset, error)
 	ListByOwner(context.Context, Scope, domainasset.OwnerType, string, int) ([]domainasset.Asset, error)
-	DeleteByOwner(context.Context, Scope, domainasset.OwnerType, string, time.Time, time.Time) ([]GarbageCollectionAsset, error)
-	DeleteByTenant(context.Context, string, time.Time, time.Time) ([]GarbageCollectionAsset, error)
-	DeleteByWorkspace(context.Context, string, string, time.Time, time.Time) ([]GarbageCollectionAsset, error)
+	DeleteByOwner(context.Context, Scope, domainasset.OwnerType, string, time.Time) ([]RetiredAsset, error)
+	DeleteByTenant(context.Context, string, time.Time) ([]RetiredAsset, error)
+	DeleteByWorkspace(context.Context, string, string, time.Time) ([]RetiredAsset, error)
+}
+
+// RetiredAsset carries the business attachment identity needed to retire its
+// platform Claim. Physical retention and byte deletion are owned by Asset.
+type RetiredAsset struct {
+	AssetID          string
+	TenantID         string
+	WorkspaceID      *string
+	SourceAssetID    string
+	SourceRevisionID string
 }
 
 type ReviewCleanupPreparer interface {
-	PrepareAssetReviewCleanup(context.Context, GarbageCollectionAsset) error
+	PrepareAssetReviewCleanup(context.Context, RetiredAsset) error
 }
 
 type ReviewCleanupFailureReporter interface {
-	ReportReviewCleanupFailure(context.Context, GarbageCollectionAsset, error)
+	ReportReviewCleanupFailure(context.Context, RetiredAsset, error)
 }
 
 type ReviewReader interface {
@@ -80,15 +83,9 @@ type OwnerResolver interface {
 	ValidateForUpdate(context.Context, Scope, domainasset.OwnerType, string) error
 }
 
-type ArtifactStore interface {
-	Inspect(context.Context, string, string, string) (DetectedBlob, error)
-	Register(context.Context, string, string, string, string, string) (RegisteredArtifact, error)
-	Delete(context.Context, string, string) error
-	BatchPresignArtifacts(context.Context, string, string, string, []string) (map[string]PresignedArtifact, error)
-}
-
-type ArtifactBatchRegistrar interface {
-	RegisterMany(context.Context, string, string, string, []RegisterArtifactInput) []RegisterArtifactResult
+type RevisionStore interface {
+	Resolve(context.Context, string, string, RevisionRef) (ResolvedRevision, error)
+	BatchDeliveryURLs(context.Context, string, string, []RevisionRef) (map[string]PresignedArtifact, error)
 }
 
 type IDGenerator interface {
@@ -105,8 +102,14 @@ type StorageQuota interface {
 	RecordStorage(context.Context, applicationquota.StorageObject) error
 	RecordAdmittedStorage(context.Context, applicationquota.StorageObject) error
 	ReleaseReservation(context.Context, applicationquota.Reservation) error
+	ReleaseStorage(context.Context, string, string) (bool, error)
 }
 
 type TransactionManager interface {
 	WithinTransaction(context.Context, func(context.Context) error) error
+}
+
+type ClaimIntentStore interface {
+	EnsureActive(context.Context, assetclaim.Intent, time.Time) error
+	EnsureReleased(context.Context, assetclaim.Intent, time.Time) error
 }

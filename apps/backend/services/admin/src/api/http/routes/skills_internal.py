@@ -9,11 +9,12 @@ disclosure), so the body never sits in the prompt unless activated.
 
 from typing import Annotated
 
+from application.auth import AuthContext
 from application.contracts.skill import InternalSkill, InternalSkillFile
 from application.skills import SkillService
 from fastapi import APIRouter, Query
 
-from api.http.dependencies import AuthContext, DbSession, InternalCaller
+from api.http.dependencies import DbSession, InternalCaller
 
 router = APIRouter(prefix="/internal/skills", tags=["internal-skills"])
 

@@ -60,7 +60,7 @@ fi
 echo ""
 echo "── 5. Backend Go services ──"
 if command -v go >/dev/null 2>&1; then
-  for svc in gateway iam canvas; do
+  for svc in gateway iam canvas asset; do
     echo "  → $svc"
     (cd "apps/backend/services/$svc" && go mod download && go mod tidy)
   done
@@ -87,6 +87,7 @@ for pair in \
   "apps/backend/services/telemetry/.env.example:apps/backend/services/telemetry/.env" \
   "apps/backend/services/gateway/.env.example:apps/backend/services/gateway/.env" \
   "apps/backend/services/canvas/.env.example:apps/backend/services/canvas/.env" \
+  "apps/backend/services/asset/.env.example:apps/backend/services/asset/.env" \
   "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env" \
   "apps/backend/services/executor/.env.example:apps/backend/services/executor/.env"; do
   src="${pair%%:*}"

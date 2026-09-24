@@ -68,22 +68,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/cover-uploads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["canvasStageCoverUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/worker/archives/{archiveId}/execute": {
         parameters: {
             query?: never;
@@ -948,22 +932,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/uploads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["canvasStageUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1023,9 +991,10 @@ export interface components {
          */
         CanvasAssetReviewStatus: 1 | 2 | 3 | 4;
         CanvasAssetReviewUpload: {
-            blob_id: string;
             client_id: string;
             file_name: string;
+            source_asset_id: string;
+            source_revision_id: string;
         };
         CanvasAssetReviews: {
             asset_id: string;
@@ -1140,9 +1109,10 @@ export interface components {
             resource_asset: components["schemas"]["CanvasResourceAsset"];
         };
         CanvasCreateResourceInitialAsset: {
-            blob_id: string;
             file_name: string;
             name?: string;
+            source_asset_id: string;
+            source_revision_id: string;
         };
         CanvasCreateResourceResponse: {
             resource: components["schemas"]["CanvasResource"];
@@ -1412,7 +1382,8 @@ export interface components {
             min: number;
         };
         CanvasMemberProjectDetail: {
-            cover_image_path?: string;
+            cover_image_asset_id?: string;
+            cover_image_revision_id?: string;
             cover_image_url?: string;
             created_at: string;
             created_by: string;
@@ -1422,7 +1393,8 @@ export interface components {
             updated_at: string;
         };
         CanvasMemberProjectSummary: {
-            cover_image_path?: string;
+            cover_image_asset_id?: string;
+            cover_image_revision_id?: string;
             cover_image_url?: string;
             created_at: string;
             created_by: string;
@@ -1776,7 +1748,8 @@ export interface components {
         };
         CanvasProjectCanvasSummary: {
             canvas_id: string;
-            cover_image_path?: string;
+            cover_image_asset_id?: string;
+            cover_image_revision_id?: string;
             cover_image_url?: string;
             created_at: string;
             created_by: string;
@@ -1811,7 +1784,8 @@ export interface components {
          */
         CanvasProjectCanvasVideoArchiveExportSortField: 1;
         CanvasProjectDetail: {
-            cover_image_path?: string;
+            cover_image_asset_id?: string;
+            cover_image_revision_id?: string;
             cover_image_url?: string;
             created_at: string;
             created_by: string;
@@ -1929,7 +1903,8 @@ export interface components {
             selected_video_duration_millis: number;
         };
         CanvasProjectSummary: {
-            cover_image_path?: string;
+            cover_image_asset_id?: string;
+            cover_image_revision_id?: string;
             cover_image_url?: string;
             created_at: string;
             created_by: string;
@@ -2116,8 +2091,9 @@ export interface components {
         };
         CanvasResourceAssetGenerationUploadedReferenceInput: {
             asset_id?: string;
-            blob_id?: string;
             file_name?: string;
+            source_asset_id?: string;
+            source_revision_id?: string;
         };
         CanvasResourceAssetGroup: {
             items: components["schemas"]["CanvasResourceAsset"][];
@@ -2183,10 +2159,6 @@ export interface components {
          * @enum {integer}
          */
         CanvasSortDirection: 1 | 2;
-        CanvasStagedUpload: {
-            blob_id: string;
-            size_bytes: number;
-        };
         CanvasStartCanvasGenerationResponse: {
             items: components["schemas"]["CanvasNodeGenerationStart"][];
             skipped_count: number;
@@ -2306,8 +2278,9 @@ export interface components {
             resource: components["schemas"]["CanvasResource"];
         };
         CanvasUploadedAsset: {
-            blob_id: string;
             file_name: string;
+            source_asset_id: string;
+            source_revision_id: string;
         };
         /**
          * Format: int64
@@ -2416,7 +2389,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    cover_image_path?: string;
+                    cover_image_asset_id?: string;
+                    cover_image_revision_id?: string;
                     member_user_ids: string[];
                     name: string;
                     usage_limit?: number;
@@ -2539,7 +2513,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    cover_image_path?: string;
+                    cover_image_asset_id?: string;
+                    cover_image_revision_id?: string;
                     member_user_ids: string[];
                     name: string;
                     usage_limit?: number;
@@ -2723,61 +2698,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasListAvailableBenefitPackagesResponse"];
-                };
-            };
-            /** @description Invalid input */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or inaccessible resource */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Revision conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    canvasStageCoverUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanvasStagedUpload"];
                 };
             };
             /** @description Invalid input */
@@ -3001,7 +2921,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    cover_image_path?: string;
+                    cover_image_asset_id?: string;
+                    cover_image_revision_id?: string;
                     member_user_ids: string[];
                     name: string;
                     usage_limit?: number;
@@ -3181,7 +3102,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    cover_image_path?: string;
+                    cover_image_asset_id?: string;
+                    cover_image_revision_id?: string;
                 };
             };
         };
@@ -3433,7 +3355,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    cover_image_path?: string;
+                    cover_image_asset_id?: string;
+                    cover_image_revision_id?: string;
                     name: string;
                 };
             };
@@ -3614,7 +3537,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    cover_image_path?: string;
+                    cover_image_asset_id?: string;
+                    cover_image_revision_id?: string;
                     name: string;
                 };
             };
@@ -4045,8 +3969,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    blob_id: string;
                     file_name: string;
+                    source_asset_id: string;
+                    source_revision_id: string;
                 };
             };
         };
@@ -6200,10 +6125,11 @@ export interface operations {
             content: {
                 "application/json": {
                     asset_id?: string;
-                    blob_id?: string;
                     expected_resource_revision: number;
                     file_name?: string;
                     name?: string;
+                    source_asset_id?: string;
+                    source_revision_id?: string;
                 };
             };
         };
@@ -6781,11 +6707,12 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    blob_id: string;
                     expected_resource_asset_revision: number;
                     expected_resource_revision: number;
                     file_name: string;
                     resource_asset_id: string;
+                    source_asset_id: string;
+                    source_revision_id: string;
                 };
             };
         };
@@ -7177,61 +7104,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasGetProjectResourceStatsResponse"];
-                };
-            };
-            /** @description Invalid input */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or inaccessible resource */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Revision conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    canvasStageUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanvasStagedUpload"];
                 };
             };
             /** @description Invalid input */

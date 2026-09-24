@@ -2,7 +2,7 @@
 # Checks infra + frontend deps before `just dev`. Does not start Docker.
 set -euo pipefail
 
-DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 8012 3000 3001 3005 3006)
+DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 8012 8013 3000 3001 3005 3006)
 
 python3 scripts/sync-dev-service-identities.py
 

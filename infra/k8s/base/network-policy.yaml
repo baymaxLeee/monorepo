@@ -44,6 +44,26 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
+  name: allow-asset-consumers
+spec:
+  podSelector:
+    matchLabels:
+      app: asset
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [gateway, admin, chat, knowledge, executor, canvas]
+      ports:
+        - protocol: TCP
+          port: 8013
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
   name: allow-chat-to-dependencies
 spec:
   podSelector:

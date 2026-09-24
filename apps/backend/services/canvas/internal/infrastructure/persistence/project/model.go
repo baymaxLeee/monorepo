@@ -14,11 +14,12 @@ type projectRow struct {
 	WorkspaceID                 *string            `gorm:"size:64;index:idx_projects_scope,priority:2"`
 	Name                        string             `gorm:"size:80;not null;uniqueIndex:uniq_projects_tenant_name_deleted_at,priority:2"`
 	CreatedBy                   string             `gorm:"size:64;not null"`
-	CoverImagePath              *string            `gorm:"type:varchar(128)"`
-	CoverImageID                *persistenceid.UUID
+	CoverImageRevisionID        *string            `gorm:"type:varchar(128)"`
+	CoverImageAssetID           *persistenceid.UUID
 	CoverImageSHA256            *string               `gorm:"type:varchar(64)"`
 	CoverImageContentType       *string               `gorm:"type:varchar(32)"`
 	CoverImageSizeBytes         int64                 `gorm:"not null;default:0"`
+	CoverImageClaimGeneration   int64                 `gorm:"not null;default:0"`
 	CanvasCount                 int32                 `gorm:"not null;default:0"`
 	SelectedVideoDurationMillis int64                 `gorm:"not null;default:0"`
 	ResourceCount               int32                 `gorm:"not null;default:0"`

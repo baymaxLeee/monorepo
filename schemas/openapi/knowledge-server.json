@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Knowledge Service",
-    "description": "Knowledge base: ingest, storage, MarkItDown conversion, artifacts",
+    "description": "Knowledge base: parsing, virtual agent workspaces, and RAG",
     "version": "0.1.0"
   },
   "paths": {
@@ -81,88 +81,13 @@
         }
       }
     },
-    "/internal/artifacts/presign": {
-      "post": {
-        "tags": [
-          "service-artifacts"
-        ],
-        "summary": "Batch Presign",
-        "operationId": "batch_presign_internal_artifacts_presign_post",
-        "parameters": [
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BatchArtifactURLRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchArtifactURLResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/ingest": {
       "post": {
         "tags": [
           "ingest"
         ],
         "summary": "Ingest",
-        "description": "Upload files, store raw bytes, and schedule background conversion.",
+        "description": "Attach already-uploaded immutable Asset revisions to Knowledge.",
         "operationId": "ingest_ingest_post",
         "parameters": [
           {
@@ -265,9 +190,9 @@
         "requestBody": {
           "required": true,
           "content": {
-            "multipart/form-data": {
+            "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Body_ingest_ingest_post"
+                "$ref": "#/components/schemas/CreateSourceDocumentsInput"
               }
             }
           }
@@ -2079,7 +2004,7 @@
           "internal"
         ],
         "summary": "Create Media Document",
-        "description": "Persist agent-generated binary media (e.g. a generated image) as a document.\n\nMirrors the artifact-publish path: bytes go into the object store and the\ndocument row records ``object_bucket``/``object_key`` so the existing\n``/documents/{id}/source`` route serves them. Idempotent on\n``idempotency_key`` (typically the tool-call id) so a retried generation\nreuses the same document instead of duplicating storage.",
+        "description": "Register agent-generated media already persisted by Asset.",
         "operationId": "create_media_document_internal_media_documents_post",
         "parameters": [
           {
@@ -2952,214 +2877,6 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/objects/{scope}": {
-      "post": {
-        "tags": [
-          "service-objects"
-        ],
-        "summary": "Put Object",
-        "operationId": "put_object_internal_objects__scope__post",
-        "parameters": [
-          {
-            "name": "scope",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Scope"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Caller-Service"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StoredServiceObject"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/objects/{scope}/{artifact_id}": {
-      "get": {
-        "tags": [
-          "service-objects"
-        ],
-        "summary": "Get Object",
-        "operationId": "get_object_internal_objects__scope___artifact_id__get",
-        "parameters": [
-          {
-            "name": "scope",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Scope"
-            }
-          },
-          {
-            "name": "artifact_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Artifact Id"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Caller-Service"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "service-objects"
-        ],
-        "summary": "Delete Object",
-        "operationId": "delete_object_internal_objects__scope___artifact_id__delete",
-        "parameters": [
-          {
-            "name": "scope",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Scope"
-            }
-          },
-          {
-            "name": "artifact_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Artifact Id"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Caller-Service"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
             "description": "Successful Response"
           },
           "422": {
@@ -4156,61 +3873,34 @@
   },
   "components": {
     "schemas": {
-      "ArtifactURLRequest": {
+      "AssetIngestItem": {
         "properties": {
-          "namespace": {
+          "client_ref": {
             "type": "string",
-            "title": "Namespace"
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Client Ref"
           },
-          "artifact_id": {
+          "asset_id": {
             "type": "string",
-            "title": "Artifact Id"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Asset Id"
           },
-          "content_type": {
+          "revision_id": {
             "type": "string",
-            "title": "Content Type"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Revision Id"
           }
         },
         "type": "object",
         "required": [
-          "namespace",
-          "artifact_id",
-          "content_type"
+          "client_ref",
+          "asset_id",
+          "revision_id"
         ],
-        "title": "ArtifactURLRequest"
-      },
-      "BatchArtifactURLRequest": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ArtifactURLRequest"
-            },
-            "type": "array",
-            "maxItems": 200,
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "BatchArtifactURLRequest"
-      },
-      "BatchArtifactURLResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PresignedArtifact"
-            },
-            "type": "array",
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "BatchArtifactURLResponse"
+        "title": "AssetIngestItem"
       },
       "BatchDeleteInput": {
         "properties": {
@@ -4247,50 +3937,6 @@
           "deleted"
         ],
         "title": "BatchDeleteResult"
-      },
-      "Body_ingest_ingest_post": {
-        "properties": {
-          "files": {
-            "items": {
-              "type": "string",
-              "contentMediaType": "application/octet-stream"
-            },
-            "type": "array",
-            "title": "Files"
-          },
-          "client_refs": {
-            "type": "string",
-            "title": "Client Refs"
-          },
-          "conversation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Conversation Id"
-          },
-          "provider_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "files",
-          "client_refs"
-        ],
-        "title": "Body_ingest_ingest_post"
       },
       "ChangeSet": {
         "properties": {
@@ -4373,9 +4019,9 @@
             "type": "integer",
             "title": "Deleted Staged Media"
           },
-          "deleted_objects": {
+          "released_asset_claims": {
             "type": "integer",
-            "title": "Deleted Objects"
+            "title": "Released Asset Claims"
           }
         },
         "type": "object",
@@ -4385,7 +4031,7 @@
           "deleted_generations",
           "deleted_blocks",
           "deleted_staged_media",
-          "deleted_objects"
+          "released_asset_claims"
         ],
         "title": "CleanupConversationArtifactsResult"
       },
@@ -4563,22 +4209,17 @@
             "minLength": 1,
             "title": "Title"
           },
-          "filename": {
+          "asset_id": {
             "type": "string",
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Filename"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Asset Id"
           },
-          "mime_type": {
+          "revision_id": {
             "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Mime Type"
-          },
-          "data_base64": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Data Base64"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Revision Id"
           },
           "idempotency_key": {
             "anyOf": [
@@ -4600,12 +4241,53 @@
           "workspace_id",
           "tenant_id",
           "title",
-          "filename",
-          "mime_type",
-          "data_base64"
+          "asset_id",
+          "revision_id"
         ],
         "title": "CreateMediaDocumentInput",
-        "description": "Persist agent-generated binary media (image/video/audio) as a document.\n\nThe bytes are copied into the object store and served back via the existing\n``/documents/{id}/source`` route. Callers must never persist a provider's\ntemporary URL as the durable source of truth (ADR-0014)."
+        "description": "Register an agent-generated immutable Asset revision as a document."
+      },
+      "CreateSourceDocumentsInput": {
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/AssetIngestItem"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Assets"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assets"
+        ],
+        "title": "CreateSourceDocumentsInput"
       },
       "CreateStagedMediaInput": {
         "properties": {
@@ -4645,22 +4327,17 @@
             "minLength": 1,
             "title": "Title"
           },
-          "filename": {
+          "asset_id": {
             "type": "string",
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Filename"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Asset Id"
           },
-          "mime_type": {
+          "revision_id": {
             "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Mime Type"
-          },
-          "data_base64": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Data Base64"
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Revision Id"
           },
           "idempotency_key": {
             "anyOf": [
@@ -4682,9 +4359,8 @@
           "workspace_id",
           "tenant_id",
           "title",
-          "filename",
-          "mime_type",
-          "data_base64"
+          "asset_id",
+          "revision_id"
         ],
         "title": "CreateStagedMediaInput"
       },
@@ -4772,7 +4448,7 @@
             ],
             "title": "Source Mime Type"
           },
-          "object_bucket": {
+          "asset_id": {
             "anyOf": [
               {
                 "type": "string"
@@ -4781,9 +4457,9 @@
                 "type": "null"
               }
             ],
-            "title": "Object Bucket"
+            "title": "Asset Id"
           },
-          "object_key": {
+          "source_revision_id": {
             "anyOf": [
               {
                 "type": "string"
@@ -4792,9 +4468,9 @@
                 "type": "null"
               }
             ],
-            "title": "Object Key"
+            "title": "Source Revision Id"
           },
-          "object_sha256": {
+          "source_sha256": {
             "anyOf": [
               {
                 "type": "string"
@@ -4803,7 +4479,7 @@
                 "type": "null"
               }
             ],
-            "title": "Object Sha256"
+            "title": "Source Sha256"
           },
           "source_filename": {
             "anyOf": [
@@ -5328,34 +5004,6 @@
         ],
         "title": "IngestResult"
       },
-      "PresignedArtifact": {
-        "properties": {
-          "namespace": {
-            "type": "string",
-            "title": "Namespace"
-          },
-          "artifact_id": {
-            "type": "string",
-            "title": "Artifact Id"
-          },
-          "url": {
-            "type": "string",
-            "title": "Url"
-          },
-          "expires_at": {
-            "type": "string",
-            "title": "Expires At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "namespace",
-          "artifact_id",
-          "url",
-          "expires_at"
-        ],
-        "title": "PresignedArtifact"
-      },
       "ProcessDocumentInput": {
         "properties": {
           "provider_id": {
@@ -5552,9 +5200,17 @@
             "type": "integer",
             "title": "Size"
           },
-          "object_sha256": {
+          "asset_id": {
             "type": "string",
-            "title": "Object Sha256"
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
           },
           "status": {
             "type": "string",
@@ -5595,7 +5251,9 @@
           "filename",
           "mime_type",
           "size",
-          "object_sha256",
+          "asset_id",
+          "revision_id",
+          "sha256",
           "status",
           "created_at",
           "updated_at"
@@ -5630,29 +5288,6 @@
           "tenant_id"
         ],
         "title": "StagedMediaActionInput"
-      },
-      "StoredServiceObject": {
-        "properties": {
-          "artifact_id": {
-            "type": "string",
-            "title": "Artifact Id"
-          },
-          "size": {
-            "type": "integer",
-            "title": "Size"
-          },
-          "sha256": {
-            "type": "string",
-            "title": "Sha256"
-          }
-        },
-        "type": "object",
-        "required": [
-          "artifact_id",
-          "size",
-          "sha256"
-        ],
-        "title": "StoredServiceObject"
       },
       "UpdateArtifactInput": {
         "properties": {

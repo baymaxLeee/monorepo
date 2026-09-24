@@ -137,25 +137,26 @@ func NewCanvasNodeAssetService(repository CanvasNodeAssetRepository, _ AssetServ
 
 type CreateCanvasAssetInput struct {
 	Scope
-	ProjectID string
-	CanvasID  string
-	BlobID    string
-	FileName  string
+	ProjectID        string
+	CanvasID         string
+	SourceAssetID    string
+	SourceRevisionID string
+	FileName         string
 }
 
 func (s *CanvasNodeAssetService) CreateCanvasAsset(ctx context.Context, input CreateCanvasAssetInput) (domainasset.Asset, error) {
 	if !validAssetScope(input.Scope) || strings.TrimSpace(input.ProjectID) == "" || strings.TrimSpace(input.CanvasID) == "" ||
-		strings.TrimSpace(input.BlobID) == "" || strings.TrimSpace(input.FileName) == "" {
+		strings.TrimSpace(input.SourceAssetID) == "" || strings.TrimSpace(input.SourceRevisionID) == "" || strings.TrimSpace(input.FileName) == "" {
 		return domainasset.Asset{}, errno.New(errno.ErrInvalidArgument)
 	}
 	return createCanvasProjectAsset(ctx, s.canvases, s.assetCreator, input.Scope, input.ProjectID, input.CanvasID, UploadedAssetInput{
-		BlobID: input.BlobID, FileName: input.FileName,
+		SourceAssetID: input.SourceAssetID, SourceRevisionID: input.SourceRevisionID, FileName: input.FileName,
 	})
 }
 
 func createCanvasProjectAsset(ctx context.Context, canvases CanvasScopeResolver, creator CanvasAssetCreator, scope Scope, projectID, canvasID string, uploaded UploadedAssetInput) (domainasset.Asset, error) {
 	if !validAssetScope(scope) || strings.TrimSpace(projectID) == "" || strings.TrimSpace(canvasID) == "" ||
-		strings.TrimSpace(uploaded.BlobID) == "" || strings.TrimSpace(uploaded.FileName) == "" {
+		strings.TrimSpace(uploaded.SourceAssetID) == "" || strings.TrimSpace(uploaded.SourceRevisionID) == "" || strings.TrimSpace(uploaded.FileName) == "" {
 		return domainasset.Asset{}, errno.New(errno.ErrInvalidArgument)
 	}
 	if canvases == nil || creator == nil {
@@ -172,7 +173,7 @@ func createCanvasProjectAsset(ctx context.Context, canvases CanvasScopeResolver,
 			TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, CallerID: scope.CallerID,
 		},
 		ProjectID: &projectID, OwnerType: domainasset.OwnerProject, OwnerID: projectID,
-		BlobID: uploaded.BlobID, FileName: uploaded.FileName,
+		SourceAssetID: uploaded.SourceAssetID, SourceRevisionID: uploaded.SourceRevisionID, FileName: uploaded.FileName,
 	})
 }
 

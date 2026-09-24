@@ -187,3 +187,39 @@ execution already uses Executor endpoints plus the async event consumer.
 These are tracked as explicit architectural constraints rather than
 compatibility shims. A future change that activates any affected path must
 resolve the corresponding boundary first.
+
+## 2026-09-24 Asset control-plane migration application
+
+ADR-0072's implementation review covered the new Go Asset service and all
+current byte-producing consumers. It found lifecycle and integration defects
+that scoped happy-path checks would not expose: abandoned upload staging was
+not collected, cached Claim counts could drift, consumer Claim identities were
+not fully tenant/workspace scoped, Admin archive downloads trusted size without
+verifying SHA-256, ZIP directory entries bypassed the entry budget, and stale
+Canvas-to-Knowledge bindings survived after the byte path moved to Asset.
+
+Because local and Single-VPS environments are explicitly reinstallable, the
+review then removed the obsolete Canvas migration chain instead of preserving a
+compatibility sequence. The target schema now lives directly in v1.0; the old
+reference-count/GC tables and intermediate rename migrations were deleted, and
+both Canvas and Asset baselines were applied to isolated fresh PostgreSQL
+databases. This also exposed and fixed cover quota/deletion identities that used
+the shared revision ID rather than the owning attachment plus generation.
+
+The byte-path review found two additional retry and memory hazards. Executor
+video downloads, assembly, QA, and upload materialized complete videos as
+`Uint8Array`; they now use bounded streams and scratch files. Internal Asset
+uploads now require a caller-scoped idempotency key, and every producer derives
+it from a stable workflow or domain operation identity. An end-to-end service
+check verified that a replay returns the original revision without consuming a
+new body and that immutable delivery returns `206 Partial Content` with the
+expected `Content-Range`.
+
+Canonical `just sync`, `just lint`, and `just build` passed after correction.
+Both K8s overlays and Single-VPS Compose rendered successfully, and the
+machine-readable service topology matched the nine deployed services. Asset
+and Canvas Go tests/vet, Admin/Knowledge Ruff and strict mypy, Admin ZIP/Claim
+tests, Chat/Executor lint builds, and affected frontend typechecks/tests also
+passed. Browser interaction was not used because the relevant upload and
+ownership behavior was verifiable from contracts, source, generated clients,
+and service tests.

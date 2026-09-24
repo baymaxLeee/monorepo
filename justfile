@@ -48,6 +48,7 @@ dev-shell:
     @./scripts/dev-stack.sh
 
 dev-urls:
+    @echo "  asset:    http://localhost:8013/healthz"
     @echo "  canvas: http://localhost:8012/healthz; mfe-canvas: http://localhost:3006"
     @echo "  platform:  http://localhost:3000"
     @echo "  mfe-admin: http://localhost:3001"

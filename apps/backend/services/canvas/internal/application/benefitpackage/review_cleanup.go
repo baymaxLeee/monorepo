@@ -22,7 +22,7 @@ func NewReviewCleanupService(reviews AssetReviewCleanupRepository, tasks ReviewC
 	return &ReviewCleanupService{reviews: reviews, tasks: tasks, transactions: transactions, clock: clock}
 }
 
-func (service *ReviewCleanupService) PrepareAssetReviewCleanup(ctx context.Context, item applicationasset.GarbageCollectionAsset) error {
+func (service *ReviewCleanupService) PrepareAssetReviewCleanup(ctx context.Context, item applicationasset.RetiredAsset) error {
 	now := service.clock.Now()
 	return service.transactions.WithinTransaction(ctx, func(tx context.Context) error {
 		records, err := service.reviews.RetireAssetReviews(tx, applicationasset.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID}, item.AssetID, now)

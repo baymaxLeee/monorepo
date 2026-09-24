@@ -27,9 +27,9 @@ type Task struct {
 		Text string `json:"text"`
 	} `json:"progress"`
 	Result struct {
-		Text       string `json:"text"`
-		ArtifactID string `json:"artifactId"`
-		MimeType   string `json:"mimeType"`
+		Text          string `json:"text"`
+		SourceAssetID string `json:"artifactId"`
+		MimeType      string `json:"mimeType"`
 	} `json:"result"`
 }
 

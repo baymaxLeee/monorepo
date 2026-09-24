@@ -1,6 +1,6 @@
 """The single immutable-at-read published snapshot for a Skill."""
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.persistence.models.base import Base
@@ -16,4 +16,9 @@ class SkillPublishedNodeRow(Base):
     node_type: Mapped[str] = mapped_column(String(16), nullable=False)
     mime_type: Mapped[str | None] = mapped_column(String(160), nullable=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    storage_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
+    revision_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

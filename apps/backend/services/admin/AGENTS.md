@@ -9,6 +9,9 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 
 ## Does NOT own
 - Bot audit log (→ audit service via events)
+- Skill attachment/archive bytes, physical retention, signed delivery, and GC
+  (→ asset service). Admin stores exact Asset revision references and owns
+  editable skill-tree and publication semantics.
 
 ## Entry points
 - `src/main.py` — FastAPI app
@@ -36,4 +39,7 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
   own files in API, application, repository, and persistence-model layers. Do NOT merge distinct
   business resources into a generic shared CRUD/model/schema/service just to
   reduce boilerplate; prefer explicit, single-responsibility modules.
+- Skill text files remain inline for precise code-agent edits. Binary skill
+  files and imported ZIP sources are immutable Asset revisions; published
+  snapshots pin exact revision IDs and protect them with snapshot Claims.
 - Errors via `libs.kernel.errors.*`, NEVER raw HTTPException

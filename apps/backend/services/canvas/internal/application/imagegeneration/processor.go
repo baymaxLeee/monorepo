@@ -10,7 +10,6 @@ import (
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domainimagegeneration "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 type PersistImageInput struct {
@@ -18,9 +17,9 @@ type PersistImageInput struct {
 	WorkspaceID                                         *string
 }
 type PersistedImage struct {
-	ArtifactID        string
-	ArtifactNamespace string
-	SizeBytes         int64
+	SourceAssetID    string
+	SourceRevisionID string
+	SizeBytes        int64
 }
 type ImageResultStore interface {
 	PersistImage(context.Context, PersistImageInput) (PersistedImage, error)
@@ -160,7 +159,7 @@ func (processor *Processor) ProcessPollClaim(ctx context.Context, task domaintas
 			return err
 		}
 	}
-	if run.ArtifactID == "" {
+	if run.SourceAssetID == "" || run.SourceRevisionID == "" {
 		if err = processor.ensureLease(ctx, schedule); err != nil {
 			return err
 		}
@@ -171,7 +170,7 @@ func (processor *Processor) ProcessPollClaim(ctx context.Context, task domaintas
 		if persistErr != nil {
 			return persistErr
 		}
-		run.ArtifactID, run.ArtifactSizeBytes, run.Stage, run.UpdatedAt = persisted.ArtifactID, persisted.SizeBytes, "ARTIFACT_SAVED", processor.clock.Now()
+		run.SourceAssetID, run.SourceRevisionID, run.ArtifactSizeBytes, run.Stage, run.UpdatedAt = persisted.SourceAssetID, persisted.SourceRevisionID, persisted.SizeBytes, "ARTIFACT_SAVED", processor.clock.Now()
 		if err = processor.saveCheckpoint(ctx, run, schedule); err != nil {
 			return err
 		}
@@ -180,14 +179,10 @@ func (processor *Processor) ProcessPollClaim(ctx context.Context, task domaintas
 		if err = processor.ensureLease(ctx, schedule); err != nil {
 			return err
 		}
-		artifactNamespace, namespaceErr := imageArtifactNamespace(run)
-		if namespaceErr != nil {
-			return namespaceErr
-		}
 		output, createErr := processor.assets.CreateFromOwnedArtifact(ctx, applicationasset.CreateFromArtifactInput{
 			Scope:     applicationasset.Scope{TenantID: run.TenantID, WorkspaceID: run.WorkspaceID, CallerID: run.CreatedBy},
 			OwnerType: run.OutputOwner.Type, OwnerID: run.OutputOwner.ID, CreationKey: "image-generation:" + run.TaskRunID,
-			ArtifactID: run.ArtifactID, ArtifactNamespace: artifactNamespace, FileName: run.TaskRunID + ".png", MediaType: domainasset.MediaImage,
+			SourceAssetID: run.SourceAssetID, SourceRevisionID: run.SourceRevisionID, FileName: run.TaskRunID + ".png", MediaType: domainasset.MediaImage,
 			ContentType: "image/png", SizeBytes: run.ArtifactSizeBytes,
 		})
 		if createErr != nil {
@@ -203,12 +198,6 @@ func (processor *Processor) ProcessPollClaim(ctx context.Context, task domaintas
 		triggerImageUsageAfterCommit(processor.usage.finalizer, task.ID)
 	}
 	return err
-}
-
-func imageArtifactNamespace(run domainimagegeneration.Run) (string, error) {
-	return (artifactnamespace.Scope{
-		TenantID: run.TenantID, WorkspaceID: run.WorkspaceID, ProjectID: &run.ProjectID,
-	}).Namespace()
 }
 
 func (processor *Processor) ensureLease(ctx context.Context, schedule domaintask.PollSchedule) error {

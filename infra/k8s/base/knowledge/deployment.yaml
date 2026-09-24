@@ -5,10 +5,8 @@ metadata:
   labels: { app: knowledge }
 spec:
   replicas: 1
-  # The local object backend is mounted from a ReadWriteOnce PVC. Recreate
-  # prevents old/new pods from deadlocking a rollout while both request it.
   strategy:
-    type: Recreate
+    type: RollingUpdate
   selector:
     matchLabels: { app: knowledge }
   template:
@@ -24,9 +22,6 @@ spec:
           envFrom:
             - configMapRef: { name: knowledge-config }
             - secretRef:    { name: knowledge-secrets }
-          volumeMounts:
-            - name: knowledge-data
-              mountPath: /data/objects
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits:   { cpu: 500m, memory: 512Mi }
@@ -38,7 +33,3 @@ spec:
             httpGet: { path: /readyz, port: http }
             initialDelaySeconds: 3
             periodSeconds: 5
-      volumes:
-        - name: knowledge-data
-          persistentVolumeClaim:
-            claimName: knowledge-data

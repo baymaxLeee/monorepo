@@ -220,14 +220,15 @@ func (p *ProjectCanvasStats) String() string {
 
 // ProjectCanvasSummary 描述项目剧集的基本信息与统计信息。
 type ProjectCanvasSummary struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// CanvasID 是剧集唯一标识。
 	CanvasID string `json:"CanvasID"`
 	// ProjectID 是剧集所属项目的唯一标识。
 	ProjectID string `json:"ProjectID"`
 	// Name 是剧集名称，在所属项目内唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 是已通过 artifact storage 长期化的封面图片 path。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 	// CoverImageURL 是用于浏览器直接展示的短期签名 URL，不得持久化或回传为更新输入。
 	CoverImageURL *string `json:"CoverImageURL,omitempty"`
 	// CreatedBy 是剧集创建用户 ID。
@@ -263,13 +264,13 @@ func (p *ProjectCanvasSummary) GetName() (v string) {
 	return p.Name
 }
 
-var ProjectCanvasSummary_CoverImagePath_DEFAULT string
+var ProjectCanvasSummary_CoverImageRevisionID_DEFAULT string
 
-func (p *ProjectCanvasSummary) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return ProjectCanvasSummary_CoverImagePath_DEFAULT
+func (p *ProjectCanvasSummary) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return ProjectCanvasSummary_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *ProjectCanvasSummary) GetCreatedBy() (v string) {
@@ -310,8 +311,8 @@ func (p *ProjectCanvasSummary) GetRevision() (v int64) {
 	return p.Revision
 }
 
-func (p *ProjectCanvasSummary) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *ProjectCanvasSummary) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *ProjectCanvasSummary) IsSetStats() bool {
@@ -695,14 +696,15 @@ func (p *BatchGetProjectCanvasesResponse) String() string {
 
 // CreateProjectCanvasRequest 是创建项目剧集的请求。
 type CreateProjectCanvasRequest struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectID 是剧集所属项目的唯一标识。
 	ProjectID string `json:"ProjectID"`
 	// Name 是剧集名称，在所属项目内唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 }
 
 func NewCreateProjectCanvasRequest() *CreateProjectCanvasRequest {
@@ -729,21 +731,21 @@ func (p *CreateProjectCanvasRequest) GetName() (v string) {
 	return p.Name
 }
 
-var CreateProjectCanvasRequest_CoverImagePath_DEFAULT string
+var CreateProjectCanvasRequest_CoverImageRevisionID_DEFAULT string
 
-func (p *CreateProjectCanvasRequest) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return CreateProjectCanvasRequest_CoverImagePath_DEFAULT
+func (p *CreateProjectCanvasRequest) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return CreateProjectCanvasRequest_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *CreateProjectCanvasRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
-func (p *CreateProjectCanvasRequest) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *CreateProjectCanvasRequest) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *CreateProjectCanvasRequest) String() string {
@@ -788,6 +790,7 @@ func (p *CreateProjectCanvasResponse) String() string {
 
 // UpdateProjectCanvasRequest 是更新项目剧集的请求。
 type UpdateProjectCanvasRequest struct {
+	CoverImageAssetID *string `json:"CoverImageAssetID,omitempty"`
 	// WorkspaceID 限定工作空间；未传或空字符串表示无工作空间。
 	WorkspaceID *string `json:"WorkspaceID,omitempty"`
 	// ProjectID 是剧集所属项目的唯一标识。
@@ -796,8 +799,8 @@ type UpdateProjectCanvasRequest struct {
 	CanvasID string `json:"CanvasID"`
 	// Name 是更新后的剧集名称，在所属项目内唯一。
 	Name string `json:"Name"`
-	// CoverImagePath 未传时保持不变，空字符串表示清除封面。
-	CoverImagePath *string `json:"CoverImagePath,omitempty"`
+	// CoverImageRevisionID 未传时保持不变，空字符串表示清除封面。
+	CoverImageRevisionID *string `json:"CoverImageRevisionID,omitempty"`
 }
 
 func NewUpdateProjectCanvasRequest() *UpdateProjectCanvasRequest {
@@ -828,21 +831,21 @@ func (p *UpdateProjectCanvasRequest) GetName() (v string) {
 	return p.Name
 }
 
-var UpdateProjectCanvasRequest_CoverImagePath_DEFAULT string
+var UpdateProjectCanvasRequest_CoverImageRevisionID_DEFAULT string
 
-func (p *UpdateProjectCanvasRequest) GetCoverImagePath() (v string) {
-	if !p.IsSetCoverImagePath() {
-		return UpdateProjectCanvasRequest_CoverImagePath_DEFAULT
+func (p *UpdateProjectCanvasRequest) GetCoverImageRevisionID() (v string) {
+	if !p.IsSetCoverImageRevisionID() {
+		return UpdateProjectCanvasRequest_CoverImageRevisionID_DEFAULT
 	}
-	return *p.CoverImagePath
+	return *p.CoverImageRevisionID
 }
 
 func (p *UpdateProjectCanvasRequest) IsSetWorkspaceID() bool {
 	return p.WorkspaceID != nil
 }
 
-func (p *UpdateProjectCanvasRequest) IsSetCoverImagePath() bool {
-	return p.CoverImagePath != nil
+func (p *UpdateProjectCanvasRequest) IsSetCoverImageRevisionID() bool {
+	return p.CoverImageRevisionID != nil
 }
 
 func (p *UpdateProjectCanvasRequest) String() string {

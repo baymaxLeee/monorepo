@@ -68,7 +68,7 @@ func (h *AssetHandler) SubmitAssetReview(ctx context.Context, request *thriftass
 	var upload *applicationpackage.ReviewAssetUpload
 	if request.Upload != nil {
 		upload = &applicationpackage.ReviewAssetUpload{
-			ClientID: request.Upload.ClientID, BlobID: request.Upload.BlobID, FileName: request.Upload.FileName,
+			ClientID: request.Upload.ClientID, SourceAssetID: request.Upload.SourceAssetID, SourceRevisionID: request.Upload.SourceRevisionID, FileName: request.Upload.FileName,
 		}
 	}
 	result, err := h.reviews.Submit(ctx, applicationpackage.SubmitReviewInput{
@@ -94,7 +94,7 @@ func (h *AssetHandler) BatchSubmitAssetReviews(ctx context.Context, request *thr
 		}
 		var upload *applicationpackage.ReviewAssetUpload
 		if item.Upload != nil {
-			upload = &applicationpackage.ReviewAssetUpload{ClientID: item.Upload.ClientID, BlobID: item.Upload.BlobID, FileName: item.Upload.FileName}
+			upload = &applicationpackage.ReviewAssetUpload{ClientID: item.Upload.ClientID, SourceAssetID: item.Upload.SourceAssetID, SourceRevisionID: item.Upload.SourceRevisionID, FileName: item.Upload.FileName}
 		}
 		items = append(items, applicationpackage.SubmitReviewItem{AssetID: item.GetAssetID(), PackageID: item.PackageID, Upload: upload})
 	}

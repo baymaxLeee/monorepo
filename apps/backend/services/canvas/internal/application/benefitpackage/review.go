@@ -96,7 +96,7 @@ type SubmitReviewInput struct {
 }
 
 type ReviewAssetUpload struct {
-	ClientID, BlobID, FileName string
+	ClientID, SourceAssetID, SourceRevisionID, FileName string
 }
 
 type SubmitReviewResult struct {
@@ -239,13 +239,13 @@ func validReviewInput(input SubmitReviewInput) bool {
 	if hasAssetID == hasUpload {
 		return false
 	}
-	return !hasUpload || strings.TrimSpace(input.Upload.ClientID) != "" && strings.TrimSpace(input.Upload.BlobID) != "" && strings.TrimSpace(input.Upload.FileName) != ""
+	return !hasUpload || strings.TrimSpace(input.Upload.ClientID) != "" && strings.TrimSpace(input.Upload.SourceAssetID) != "" && strings.TrimSpace(input.Upload.SourceRevisionID) != "" && strings.TrimSpace(input.Upload.FileName) != ""
 }
 
 func (s *ReviewService) resolveReviewAsset(ctx context.Context, input SubmitReviewInput) (domainasset.Asset, error) {
 	scope := applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID}
 	if input.Upload != nil {
-		item, _, err := s.assets.CreateIdempotent(ctx, applicationasset.CreateInput{Scope: scope, ProjectID: &input.ProjectID, OwnerType: domainasset.OwnerProject, OwnerID: input.ProjectID, BlobID: input.Upload.BlobID, FileName: input.Upload.FileName, CreationKey: reviewUploadCreationKey(input.ProjectID, input.Upload.ClientID)})
+		item, _, err := s.assets.CreateIdempotent(ctx, applicationasset.CreateInput{Scope: scope, ProjectID: &input.ProjectID, OwnerType: domainasset.OwnerProject, OwnerID: input.ProjectID, SourceAssetID: input.Upload.SourceAssetID, SourceRevisionID: input.Upload.SourceRevisionID, FileName: input.Upload.FileName, CreationKey: reviewUploadCreationKey(input.ProjectID, input.Upload.ClientID)})
 		return item, err
 	}
 	items, err := s.assets.BypassBatchGet(ctx, applicationasset.BypassBatchGetInput{Scope: scope, AssetIDs: []string{input.AssetID}})

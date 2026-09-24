@@ -402,9 +402,10 @@ export interface CanvasTextGenerationSession {
   ErrorMessage?: string;
 }
 
-/** CanvasUploadedAsset 是由节点创建或素材物化直接消费的临时 Blob。 */
+/** CanvasUploadedAsset 是由节点创建或素材物化直接消费的平台 Asset revision。 */
 export interface CanvasUploadedAsset {
-  BlobID: string;
+  SourceAssetID: string;
+  SourceRevisionID: string;
   FileName: string;
 }
 
@@ -454,7 +455,8 @@ export interface CreateCanvasAssetRequest {
   WorkspaceID?: string;
   ProjectID: string;
   CanvasID: string;
-  BlobID: string;
+  SourceAssetID: string;
+  SourceRevisionID: string;
   FileName: string;
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
@@ -64,6 +65,11 @@ type AsyncDispatchDeleteStore interface {
 
 type TransactionManager interface {
 	WithinTransaction(context.Context, func(context.Context) error) error
+}
+
+type ClaimIntentStore interface {
+	EnsureActive(context.Context, applicationassetclaim.Intent, time.Time) error
+	EnsureReleased(context.Context, applicationassetclaim.Intent, time.Time) error
 }
 
 type StorageQuota interface {

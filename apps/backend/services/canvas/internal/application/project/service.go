@@ -104,19 +104,21 @@ func NewService(repository Repository, covers applicationcoverimage.Store, ids I
 
 type CreateInput struct {
 	Scope
-	Name           string
-	MemberIDs      []string
-	CoverImagePath *string
-	UsageLimit     *int64
+	Name                 string
+	MemberIDs            []string
+	CoverImageAssetID    *string
+	CoverImageRevisionID *string
+	UsageLimit           *int64
 }
 
 type UpdateInput struct {
 	Scope
-	ProjectID      string
-	Name           string
-	MemberIDs      []string
-	CoverImagePath *string
-	UsageLimit     *int64
+	ProjectID            string
+	Name                 string
+	MemberIDs            []string
+	CoverImageAssetID    *string
+	CoverImageRevisionID *string
+	UsageLimit           *int64
 }
 
 type ProjectWithUsage struct {
@@ -139,10 +141,18 @@ func cloneInt64(value *int64) *int64 {
 	return &cloned
 }
 
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
 type UpdateByMemberInput struct {
 	Scope
-	ProjectID      string
-	CoverImagePath *string
+	ProjectID            string
+	CoverImageAssetID    *string
+	CoverImageRevisionID *string
 }
 
 type DeleteInput struct {
@@ -221,14 +231,14 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (ProjectWithUsa
 	}
 
 	created, err := domainproject.New(domainproject.NewInput{
-		ID:             id,
-		TenantID:       input.TenantID,
-		WorkspaceID:    input.WorkspaceID,
-		Name:           input.Name,
-		CreatedBy:      input.CallerID,
-		MemberIDs:      input.MemberIDs,
-		CoverImagePath: input.CoverImagePath,
-		Now:            s.clock.Now(),
+		ID:                id,
+		TenantID:          input.TenantID,
+		WorkspaceID:       input.WorkspaceID,
+		Name:              input.Name,
+		CreatedBy:         input.CallerID,
+		MemberIDs:         input.MemberIDs,
+		CoverImageAssetID: valueOrEmpty(input.CoverImageAssetID), CoverImageRevisionID: valueOrEmpty(input.CoverImageRevisionID),
+		Now: s.clock.Now(),
 	})
 	if err != nil {
 		return ProjectWithUsage{}, classifyDomainError(err)
@@ -268,6 +278,11 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (ProjectWithUsa
 	create := func(txCtx context.Context) error {
 		if createErr := s.repository.Create(txCtx, created); createErr != nil {
 			return createErr
+		}
+		if registration != nil {
+			if claimErr := s.covers.EnsureActive(txCtx, *registration); claimErr != nil {
+				return claimErr
+			}
 		}
 		if s.quota != nil && reservation.ID != "" {
 			if commitErr := s.quota.CommitProject(txCtx, reservation); commitErr != nil {
@@ -326,12 +341,11 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (ProjectWithUsa
 	}
 	previousRegistration := coverImageRegistration(current)
 	previousMembers := append([]string(nil), current.MemberIDs...)
-	if err := current.Update(input.Name, input.MemberIDs, input.CoverImagePath, s.clock.Now()); err != nil {
+	if err := current.Update(input.Name, input.MemberIDs, input.CoverImageAssetID, input.CoverImageRevisionID, s.clock.Now()); err != nil {
 		return ProjectWithUsage{}, classifyDomainError(err)
 	}
 	var newRegistration *applicationcoverimage.Registration
-	if input.CoverImagePath != nil && current.CoverImagePath != nil &&
-		(current.CoverImageID == "" || current.CoverImageSHA256 == "") {
+	if input.CoverImageRevisionID != nil && current.CoverImageRevisionID != "" && current.CoverImageSHA256 == "" {
 		newRegistration, err = s.registerCoverImage(ctx, input.Scope, &current)
 		if err != nil {
 			return ProjectWithUsage{}, err
@@ -356,10 +370,15 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (ProjectWithUsa
 		)
 	}
 	replacesPrevious := previousRegistration != nil &&
-		(current.CoverImagePath == nil || current.CoverImageID != previousRegistration.ID)
+		(current.CoverImageRevisionID == "" || current.CoverImageRevisionID != previousRegistration.Revision.RevisionID)
 	update := func(txCtx context.Context) error {
 		if updateErr := s.repository.Update(txCtx, current); updateErr != nil {
 			return updateErr
+		}
+		if newRegistration != nil {
+			if claimErr := s.covers.EnsureActive(txCtx, *newRegistration); claimErr != nil {
+				return claimErr
+			}
 		}
 		if storageReservation.ID != "" {
 			if commitErr := s.storageQuota.CommitStorage(
@@ -416,16 +435,16 @@ func (s *Service) UpdateByMember(ctx context.Context, input UpdateByMemberInput)
 	if !slices.Contains(current.MemberIDs, input.CallerID) {
 		return domainproject.Project{}, errno.New(errno.ErrForbidden)
 	}
-	if input.CoverImagePath == nil {
+	if input.CoverImageRevisionID == nil && input.CoverImageAssetID == nil {
 		return current, nil
 	}
 
 	previousRegistration := coverImageRegistration(current)
-	if err := current.UpdateByMember(input.CoverImagePath, s.clock.Now()); err != nil {
+	if err := current.UpdateByMember(input.CoverImageAssetID, input.CoverImageRevisionID, s.clock.Now()); err != nil {
 		return domainproject.Project{}, classifyDomainError(err)
 	}
 	var newRegistration *applicationcoverimage.Registration
-	if current.CoverImagePath != nil && (current.CoverImageID == "" || current.CoverImageSHA256 == "") {
+	if current.CoverImageRevisionID != "" && current.CoverImageSHA256 == "" {
 		newRegistration, err = s.registerCoverImage(ctx, input.Scope, &current)
 		if err != nil {
 			return domainproject.Project{}, err
@@ -436,10 +455,15 @@ func (s *Service) UpdateByMember(ctx context.Context, input UpdateByMemberInput)
 		return domainproject.Project{}, errors.Join(err, s.releaseCoverImage(ctx, newRegistration))
 	}
 	replacesPrevious := previousRegistration != nil &&
-		(current.CoverImagePath == nil || current.CoverImageID != previousRegistration.ID)
+		(current.CoverImageRevisionID == "" || current.CoverImageRevisionID != previousRegistration.Revision.RevisionID)
 	update := func(txCtx context.Context) error {
 		if updateErr := s.repository.UpdateByMember(txCtx, current); updateErr != nil {
 			return updateErr
+		}
+		if newRegistration != nil {
+			if claimErr := s.covers.EnsureActive(txCtx, *newRegistration); claimErr != nil {
+				return claimErr
+			}
 		}
 		if storageReservation.ID != "" {
 			if commitErr := s.storageQuota.CommitStorage(
@@ -598,10 +622,11 @@ func (s *Service) registerCoverImage(
 	scope Scope,
 	project *domainproject.Project,
 ) (*applicationcoverimage.Registration, error) {
-	if project.CoverImagePath == nil {
+	if project.CoverImageRevisionID == "" || project.CoverImageAssetID == "" {
 		return nil, nil
 	}
-	registration, err := s.covers.Register(ctx, scope.TenantID, scope.CallerID, *project.CoverImagePath)
+	generation := project.CoverImageClaimGeneration + 1
+	registration, err := s.covers.Register(ctx, applicationcoverimage.RegisterInput{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, UserID: scope.CallerID, OwnerType: "project_cover", OwnerID: project.ID, Generation: generation, Revision: applicationcoverimage.RevisionRef{AssetID: project.CoverImageAssetID, RevisionID: project.CoverImageRevisionID}})
 	if err != nil {
 		if errors.Is(err, applicationcoverimage.ErrTooLarge) {
 			return nil, errno.Wrap(errno.ErrCoverImageTooLarge, err)
@@ -615,25 +640,27 @@ func (s *Service) registerCoverImage(
 		}
 		return nil, preserveOrWrap(err, errno.ErrObjectStorageDependencyError)
 	}
-	if registration.Path != *project.CoverImagePath || registration.ID == "" || registration.SHA256 == "" {
+	if registration.Revision.AssetID != project.CoverImageAssetID || registration.Revision.RevisionID != project.CoverImageRevisionID || registration.SHA256 == "" {
 		return nil, errors.Join(
 			errno.New(errno.ErrObjectStorageDependencyError),
 			s.releaseCoverImage(ctx, &registration),
 		)
 	}
-	project.CoverImageID = registration.ID
+	project.CoverImageAssetID = registration.Revision.AssetID
+	project.CoverImageRevisionID = registration.Revision.RevisionID
 	project.CoverImageSHA256 = registration.SHA256
 	project.CoverImageContentType = registration.ContentType
 	project.CoverImageSizeBytes = registration.SizeBytes
+	project.CoverImageClaimGeneration = registration.Generation
 	return &registration, nil
 }
 
 func coverImageRegistration(project domainproject.Project) *applicationcoverimage.Registration {
-	if project.CoverImagePath == nil || project.CoverImageID == "" || project.CoverImageSHA256 == "" {
+	if project.CoverImageRevisionID == "" || project.CoverImageAssetID == "" || project.CoverImageSHA256 == "" {
 		return nil
 	}
 	return &applicationcoverimage.Registration{
-		Path: *project.CoverImagePath, ID: project.CoverImageID,
+		TenantID: project.TenantID, WorkspaceID: project.WorkspaceID, Revision: applicationcoverimage.RevisionRef{AssetID: project.CoverImageAssetID, RevisionID: project.CoverImageRevisionID}, OwnerType: "project_cover", OwnerID: project.ID, Generation: project.CoverImageClaimGeneration,
 		SHA256: project.CoverImageSHA256, ContentType: project.CoverImageContentType,
 		SizeBytes: project.CoverImageSizeBytes,
 	}
@@ -648,7 +675,8 @@ func (s *Service) reserveCoverStorage(
 		return applicationquota.Reservation{}, nil
 	}
 	reservation, err := s.storageQuota.ReserveStorage(
-		ctx, project.TenantID, "cover", registration.ID,
+		ctx, project.TenantID, applicationcoverimage.QuotaObjectType,
+		applicationcoverimage.LifecycleKey(registration.OwnerType, registration.OwnerID, registration.Generation),
 		"project_cover", project.ID, registration.SizeBytes,
 	)
 	if err != nil {
@@ -660,8 +688,10 @@ func (s *Service) reserveCoverStorage(
 func projectCoverStorageObject(project domainproject.Project) applicationquota.StorageObject {
 	return applicationquota.StorageObject{
 		TenantID: project.TenantID, WorkspaceID: project.WorkspaceID,
-		ObjectType: "cover", ObjectKey: project.CoverImageID, Category: "project_cover",
-		OwnerType: "project_cover", OwnerID: project.ID,
+		ObjectType: applicationcoverimage.QuotaObjectType,
+		ObjectKey:  applicationcoverimage.LifecycleKey("project_cover", project.ID, project.CoverImageClaimGeneration),
+		Category:   "project_cover",
+		OwnerType:  "project_cover", OwnerID: project.ID,
 		SizeBytes: project.CoverImageSizeBytes, BillingClass: applicationquota.BillingBillable,
 	}
 }
@@ -675,11 +705,21 @@ func (s *Service) markCoverReleasing(
 		return nil
 	}
 	if s.storageQuota != nil {
-		if _, err := s.storageQuota.MarkStorageReleasing(ctx, "cover", registration.ID); err != nil {
+		if _, err := s.storageQuota.MarkStorageReleasing(
+			ctx,
+			applicationcoverimage.QuotaObjectType,
+			applicationcoverimage.LifecycleKey(registration.OwnerType, registration.OwnerID, registration.Generation),
+		); err != nil {
 			return err
 		}
 	}
-	return s.deletion.Enqueue(ctx, tenantID, applicationcoverimage.CleanupJobKind, registration.ID, registration)
+	return s.deletion.Enqueue(
+		ctx,
+		tenantID,
+		applicationcoverimage.CleanupJobKind,
+		applicationcoverimage.LifecycleKey(registration.OwnerType, registration.OwnerID, registration.Generation),
+		registration,
+	)
 }
 
 func (s *Service) releaseStorageReservation(
@@ -696,7 +736,7 @@ func (s *Service) releaseCoverImage(
 	ctx context.Context,
 	registration *applicationcoverimage.Registration,
 ) error {
-	if registration == nil || registration.ID == "" || registration.SHA256 == "" {
+	if registration == nil || !registration.Revision.Valid() || registration.SHA256 == "" {
 		return nil
 	}
 	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), coverImageReleaseTimeout)
@@ -836,7 +876,7 @@ func (s *Service) enrichCoverImages(ctx context.Context, projects []domainprojec
 		return
 	}
 	for index := range projects {
-		projects[index].CoverImageURL = urls[projects[index].CoverImageID]
+		projects[index].CoverImageURL = urls[projects[index].CoverImageAssetID]
 	}
 }
 
@@ -888,7 +928,7 @@ func classifyDomainError(err error) error {
 	switch {
 	case errors.Is(err, domainproject.ErrMembersRequired):
 		return errno.Wrap(errno.ErrProjectMembersRequired, err)
-	case errors.Is(err, domainproject.ErrInvalidName), errors.Is(err, domainproject.ErrInvalidCoverImagePath):
+	case errors.Is(err, domainproject.ErrInvalidName), errors.Is(err, domainproject.ErrInvalidCoverImageReference):
 		return errno.Wrap(errno.ErrInvalidArgument, err)
 	default:
 		return preserveOrWrap(err, errno.ErrInternalError)

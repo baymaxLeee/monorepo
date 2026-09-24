@@ -3,15 +3,15 @@ import { isFileUIPart, type FileUIPart, type UIMessage } from "ai";
 type ChatPart = UIMessage<unknown, any, any>["parts"][number];
 
 export function documentIdFromFilePart(part: FileUIPart): string | null {
-  const match = part.url.match(/\/documents\/([^/?#]+)\/source(?:[?#]|$)/);
-  if (match?.[1]) {
-    try {
-      return decodeURIComponent(match[1]);
-    } catch {
+  try {
+    const url = new URL(part.url, "http://internal");
+    if (!/^\/api\/asset-server\/assets\/[^/]+\/revisions\/[^/]+\/content$/.test(url.pathname)) {
       return null;
     }
+    return url.searchParams.get("document_id");
+  } catch {
+    return null;
   }
-  return null;
 }
 
 export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {

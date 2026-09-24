@@ -234,8 +234,8 @@ func (r *Repository) SnapshotSelectedVideos(ctx context.Context, scope app.Scope
 	var rows []selectedVideoSnapshotRow
 	query := db.Table("canvas_nodes").Select(
 		"canvas_nodes.id AS node_id, canvas_nodes.selected_output_id AS output_id, "+
-			"canvas_nodes.selected_asset_id AS asset_id, generation_assets.artifact_id AS artifact_id, "+
-			"generation_assets.artifact_namespace AS artifact_namespace, generation_assets.size_bytes AS media_size, "+
+			"canvas_nodes.selected_asset_id AS asset_id, generation_assets.source_asset_id, "+
+			"generation_assets.source_revision_id, generation_assets.size_bytes AS media_size, "+
 			"generations.status AS generation_status",
 	).Joins(
 		join, joinArgs...,
@@ -254,13 +254,13 @@ func (r *Repository) SnapshotSelectedVideos(ctx context.Context, scope app.Scope
 	selected := make([]app.SelectedVideo, 0, len(rows))
 	for index := range rows {
 		row := rows[index]
-		if row.OutputID == nil || row.ArtifactID == nil || *row.ArtifactID == "" || row.GenerationStatus != string(task.StatusSucceeded) {
+		if row.OutputID == nil || row.SourceAssetID == nil || *row.SourceAssetID == "" || row.GenerationStatus != string(task.StatusSucceeded) {
 			return nil, app.ErrSelectedVideoUnavailable
 		}
 		selected = append(selected, app.SelectedVideo{
 			CanvasName: canvasRow.Name, NodeID: row.NodeID.String(), OutputID: row.OutputID.String(),
-			AssetID: optionalUUIDString(row.AssetID), ArtifactID: *row.ArtifactID,
-			ArtifactNamespace: nullableStringValue(row.ArtifactNamespace), MediaSize: row.MediaSize,
+			AssetID: optionalUUIDString(row.AssetID), SourceAssetID: *row.SourceAssetID,
+			SourceRevisionID: nullableStringValue(row.SourceRevisionID), MediaSize: row.MediaSize,
 		})
 	}
 	return selected, nil
@@ -307,9 +307,9 @@ func (r *Repository) RecordOutput(ctx context.Context, taskRunID string, expecte
 		return false, err
 	}
 	update := r.dbFor(ctx).Model(&canvasVideoArchiveExportRow{}).Where(
-		"task_run_id = ? AND status = ? AND output_path = ''", run, string(expectedStatus),
+		"task_run_id = ? AND status = ? AND output_asset_id = '' AND output_revision_id = ''", run, string(expectedStatus),
 	).Updates(map[string]any{
-		"output_path": result.Path, "output_size": result.Size, "output_sha256": result.SHA256,
+		"output_asset_id": result.AssetID, "output_revision_id": result.RevisionID, "output_size": result.Size, "output_sha256": result.SHA256,
 		"upload_id": result.UploadID, "part_size": result.PartSize,
 		"retention_started_at": result.RetentionStartedAt, "updated_at": now,
 	})
@@ -327,7 +327,7 @@ func (r *Repository) CommitSuccess(ctx context.Context, taskRunID string, expect
 	update := r.dbFor(ctx).Model(&canvasVideoArchiveExportRow{}).Where(
 		"task_run_id = ? AND status = ?", run, string(expectedStatus),
 	).Updates(map[string]any{
-		"status": task.StatusSucceeded, "output_path": result.Path, "output_size": result.Size,
+		"status": task.StatusSucceeded, "output_asset_id": result.AssetID, "output_revision_id": result.RevisionID, "output_size": result.Size,
 		"output_sha256": result.SHA256, "upload_id": result.UploadID, "part_size": result.PartSize,
 		"retention_started_at": result.RetentionStartedAt, "retention_guaranteed_until": retentionUntil,
 		"cleanup_status": app.CleanupStatusPending, "cleanup_next_at": retentionUntil,
@@ -442,7 +442,7 @@ func exportToRow(item app.Export) (canvasVideoArchiveExportRow, error) {
 		TaskRunID: run, TenantID: item.TenantID, WorkspaceID: item.WorkspaceID,
 		ProjectID: project, CanvasID: canvas, Status: string(item.Status),
 		ErrorCode: item.ErrorCode, ErrorMessage: item.ErrorMessage, InputCount: item.InputCount,
-		OutputFilename: item.OutputFilename, OutputPath: item.OutputPath, OutputSize: item.OutputSize,
+		OutputFilename: item.OutputFilename, OutputAssetID: item.OutputAssetID, OutputRevisionID: item.OutputRevisionID, OutputSize: item.OutputSize,
 		OutputSHA256: item.OutputSHA256, UploadID: item.UploadID, PartSize: item.PartSize,
 		CreatedBy: item.CreatedBy, RetentionStartedAt: item.RetentionStartedAt,
 		RetentionGuaranteedUntil: item.RetentionGuaranteedUntil, CleanupStatus: string(item.CleanupStatus),
@@ -458,7 +458,7 @@ func exportFromRow(row canvasVideoArchiveExportRow) app.Export {
 		TaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID,
 		ProjectID: row.ProjectID.String(), CanvasID: row.CanvasID.String(), Status: task.Status(row.Status),
 		ErrorCode: row.ErrorCode, ErrorMessage: row.ErrorMessage, InputCount: row.InputCount,
-		OutputFilename: row.OutputFilename, OutputPath: row.OutputPath, OutputSize: row.OutputSize,
+		OutputFilename: row.OutputFilename, OutputAssetID: row.OutputAssetID, OutputRevisionID: row.OutputRevisionID, OutputSize: row.OutputSize,
 		OutputSHA256: row.OutputSHA256, UploadID: row.UploadID, PartSize: row.PartSize,
 		CreatedBy: row.CreatedBy, RetentionStartedAt: row.RetentionStartedAt,
 		RetentionGuaranteedUntil: row.RetentionGuaranteedUntil, CleanupStatus: app.CleanupStatus(row.CleanupStatus),
@@ -470,15 +470,15 @@ func exportFromRow(row canvasVideoArchiveExportRow) app.Export {
 }
 
 type archiveInputSnapshot struct {
-	Ordinal           int32     `json:"ordinal"`
-	NodeID            string    `json:"node_id"`
-	OutputID          string    `json:"output_id"`
-	AssetID           string    `json:"asset_id,omitempty"`
-	ArtifactID        string    `json:"artifact_id"`
-	ArtifactNamespace string    `json:"artifact_namespace,omitempty"`
-	EntryName         string    `json:"entry_name"`
-	MediaSize         int64     `json:"media_size"`
-	CreatedAt         time.Time `json:"created_at"`
+	Ordinal          int32     `json:"ordinal"`
+	NodeID           string    `json:"node_id"`
+	OutputID         string    `json:"output_id"`
+	AssetID          string    `json:"asset_id,omitempty"`
+	SourceAssetID    string    `json:"source_asset_id"`
+	SourceRevisionID string    `json:"source_revision_id"`
+	EntryName        string    `json:"entry_name"`
+	MediaSize        int64     `json:"media_size"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 func inputsToRow(taskRunID string, inputs []app.Input, createdAt time.Time) (canvasVideoArchiveExportInputRow, error) {
@@ -511,7 +511,7 @@ func inputsToRow(taskRunID string, inputs []app.Input, createdAt time.Time) (can
 		}
 		snapshots = append(snapshots, archiveInputSnapshot{
 			Ordinal: item.Ordinal, NodeID: nodeID.String(), OutputID: outputID.String(),
-			AssetID: optionalUUIDString(assetID), ArtifactID: item.ArtifactID, ArtifactNamespace: item.ArtifactNamespace,
+			AssetID: optionalUUIDString(assetID), SourceAssetID: item.SourceAssetID, SourceRevisionID: item.SourceRevisionID,
 			EntryName: item.EntryName, MediaSize: item.MediaSize, CreatedAt: item.CreatedAt,
 		})
 	}
@@ -555,7 +555,7 @@ func inputsFromRow(row canvasVideoArchiveExportInputRow) ([]app.Input, error) {
 		items = append(items, app.Input{
 			TaskRunID: row.TaskRunID.String(), Ordinal: snapshot.Ordinal,
 			NodeID: nodeID.String(), OutputID: outputID.String(), AssetID: optionalUUIDString(assetID),
-			ArtifactID: snapshot.ArtifactID, ArtifactNamespace: snapshot.ArtifactNamespace, EntryName: snapshot.EntryName,
+			SourceAssetID: snapshot.SourceAssetID, SourceRevisionID: snapshot.SourceRevisionID, EntryName: snapshot.EntryName,
 			MediaSize: snapshot.MediaSize, CreatedAt: snapshot.CreatedAt,
 		})
 	}
@@ -584,11 +584,11 @@ type archiveCanvasScopeRow struct {
 func (archiveCanvasScopeRow) TableName() string { return "canvases" }
 
 type selectedVideoSnapshotRow struct {
-	NodeID            persistenceid.UUID
-	OutputID          *persistenceid.UUID
-	AssetID           *persistenceid.UUID
-	ArtifactID        *string
-	ArtifactNamespace *string
-	MediaSize         int64
-	GenerationStatus  string
+	NodeID           persistenceid.UUID
+	OutputID         *persistenceid.UUID
+	AssetID          *persistenceid.UUID
+	SourceAssetID    *string
+	SourceRevisionID *string
+	MediaSize        int64
+	GenerationStatus string
 }

@@ -107,9 +107,10 @@ type CreateInput struct {
 }
 
 type InitialAssetInput struct {
-	BlobID   string
-	FileName string
-	Name     *string
+	SourceAssetID    string
+	SourceRevisionID string
+	FileName         string
+	Name             *string
 }
 
 type CreateResult struct {
@@ -163,7 +164,8 @@ type CreateResourceAssetInput struct {
 	ProjectID                string
 	ResourceID               string
 	AssetID                  string
-	BlobID                   string
+	SourceAssetID            string
+	SourceRevisionID         string
 	FileName                 string
 	Name                     *string
 	ExpectedResourceRevision int64
@@ -196,7 +198,8 @@ type RenameResourceAssetInput struct {
 type ReplaceUploadedResourceAssetInput struct {
 	Scope
 	ProjectID, ResourceID, ResourceAssetID string
-	BlobID, FileName                       string
+	SourceAssetID, SourceRevisionID        string
+	FileName                               string
 	ExpectedResourceRevision               int64
 	ExpectedResourceAssetRevision          int64
 }
@@ -311,7 +314,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	prepareItems := make([]applicationasset.PrepareCreateItem, len(input.InitialAssets))
 	seenNames := make(map[string]struct{}, len(input.InitialAssets))
 	for index, initial := range input.InitialAssets {
-		if strings.TrimSpace(initial.BlobID) == "" || strings.TrimSpace(initial.FileName) == "" {
+		if strings.TrimSpace(initial.SourceAssetID) == "" || strings.TrimSpace(initial.SourceRevisionID) == "" || strings.TrimSpace(initial.FileName) == "" {
 			return CreateResult{}, errno.New(errno.ErrInvalidArgument)
 		}
 		name := domainresource.DefaultResourceAssetName(initial.FileName)
@@ -330,7 +333,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		if err != nil {
 			return CreateResult{}, errno.Wrap(errno.ErrInternalError, err)
 		}
-		prepareItems[index] = applicationasset.PrepareCreateItem{BlobID: initial.BlobID, FileName: initial.FileName}
+		prepareItems[index] = applicationasset.PrepareCreateItem{SourceAssetID: initial.SourceAssetID, SourceRevisionID: initial.SourceRevisionID, FileName: initial.FileName}
 	}
 	if err := s.repository.ValidateCreate(ctx, item); err != nil {
 		return CreateResult{}, classifyError(err)
@@ -452,21 +455,21 @@ func (s *Service) CreateFromAsset(ctx context.Context, input CreateFromAssetInpu
 			return createErr
 		}
 		imported, getErr = s.assetImporter.CreateFromArtifact(txCtx, applicationasset.CreateFromArtifactInput{
-			Scope:             applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID},
-			OwnerType:         domainasset.OwnerResource,
-			OwnerID:           item.ID,
-			CreationKey:       "resource-import:" + item.ID + ":" + input.AssetID,
-			ArtifactID:        source.ArtifactID,
-			ArtifactNamespace: source.ArtifactNamespace,
-			FileName:          source.FileName,
-			MediaType:         source.MediaType,
-			ContentType:       source.ContentType,
-			SizeBytes:         source.SizeBytes,
+			Scope:            applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID},
+			OwnerType:        domainasset.OwnerResource,
+			OwnerID:          item.ID,
+			CreationKey:      "resource-import:" + item.ID + ":" + input.AssetID,
+			SourceAssetID:    source.SourceAssetID,
+			SourceRevisionID: source.SourceRevisionID,
+			FileName:         source.FileName,
+			MediaType:        source.MediaType,
+			ContentType:      source.ContentType,
+			SizeBytes:        source.SizeBytes,
 		})
 		if getErr != nil {
 			return getErr
 		}
-		if imported.OwnerType != domainasset.OwnerResource || imported.OwnerID != item.ID || imported.ArtifactID != source.ArtifactID {
+		if imported.OwnerType != domainasset.OwnerResource || imported.OwnerID != item.ID || imported.SourceAssetID != source.SourceAssetID {
 			return ErrAssetOwnerMismatch
 		}
 		binding, getErr = domainresource.NewResourceAsset(domainresource.NewResourceAssetInput{
@@ -620,10 +623,11 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 
 func (s *Service) CreateResourceAsset(ctx context.Context, input CreateResourceAssetInput) (domainresource.ResourceAsset, error) {
 	hasAsset := strings.TrimSpace(input.AssetID) != ""
-	hasBlob := strings.TrimSpace(input.BlobID) != ""
+	hasRevision := strings.TrimSpace(input.SourceAssetID) != "" && strings.TrimSpace(input.SourceRevisionID) != ""
+	hasPartialRevision := (strings.TrimSpace(input.SourceAssetID) != "") != (strings.TrimSpace(input.SourceRevisionID) != "")
 	hasFileName := strings.TrimSpace(input.FileName) != ""
 	if !validScope(input.Scope) || input.ProjectID == "" || input.ResourceID == "" || input.ExpectedResourceRevision < 1 ||
-		hasBlob != hasFileName || hasAsset == hasBlob || s.transactions == nil || (hasAsset && s.assets == nil) || (hasBlob && s.assetCreator == nil) {
+		hasPartialRevision || hasRevision != hasFileName || hasAsset == hasRevision || s.transactions == nil || (hasAsset && s.assets == nil) || (hasRevision && s.assetCreator == nil) {
 		return domainresource.ResourceAsset{}, errno.New(errno.ErrInvalidArgument)
 	}
 	if input.Name != nil {
@@ -648,11 +652,11 @@ func (s *Service) CreateResourceAsset(ctx context.Context, input CreateResourceA
 			return ErrResourceAssetLimitExceeded
 		}
 		var assetItem domainasset.Asset
-		if hasBlob {
+		if hasRevision {
 			assetItem, err = s.assetCreator.Create(txCtx, applicationasset.CreateInput{
 				Scope:     applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID},
 				ProjectID: &input.ProjectID,
-				OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, BlobID: input.BlobID, FileName: input.FileName,
+				OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, SourceAssetID: input.SourceAssetID, SourceRevisionID: input.SourceRevisionID, FileName: input.FileName,
 			})
 			createdAsset = assetItem
 		} else {
@@ -671,8 +675,8 @@ func (s *Service) CreateResourceAsset(ctx context.Context, input CreateResourceA
 			assetItem, err = s.assetImporter.CreateFromArtifact(txCtx, applicationasset.CreateFromArtifactInput{
 				Scope:     applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID},
 				OwnerType: domainasset.OwnerResource, OwnerID: parent.ID,
-				CreationKey: "resource-import:" + parent.ID + ":" + input.AssetID,
-				ArtifactID:  assetItem.ArtifactID, ArtifactNamespace: assetItem.ArtifactNamespace, FileName: assetItem.FileName, MediaType: assetItem.MediaType,
+				CreationKey:   "resource-import:" + parent.ID + ":" + input.AssetID,
+				SourceAssetID: assetItem.SourceAssetID, SourceRevisionID: assetItem.SourceRevisionID, FileName: assetItem.FileName, MediaType: assetItem.MediaType,
 				ContentType: assetItem.ContentType, SizeBytes: assetItem.SizeBytes,
 			})
 			if err != nil {
@@ -923,7 +927,7 @@ func (s *Service) RenameResourceAsset(ctx context.Context, input RenameResourceA
 
 func (s *Service) ReplaceUploadedResourceAsset(ctx context.Context, input ReplaceUploadedResourceAssetInput) (domainresource.ResourceAsset, error) {
 	if !validScope(input.Scope) || strings.TrimSpace(input.ProjectID) == "" || strings.TrimSpace(input.ResourceID) == "" ||
-		strings.TrimSpace(input.ResourceAssetID) == "" || strings.TrimSpace(input.BlobID) == "" || strings.TrimSpace(input.FileName) == "" ||
+		strings.TrimSpace(input.ResourceAssetID) == "" || strings.TrimSpace(input.SourceAssetID) == "" || strings.TrimSpace(input.SourceRevisionID) == "" || strings.TrimSpace(input.FileName) == "" ||
 		input.ExpectedResourceRevision < 1 || input.ExpectedResourceAssetRevision < 1 || s.transactions == nil || s.assetCreator == nil {
 		return domainresource.ResourceAsset{}, errno.New(errno.ErrInvalidArgument)
 	}
@@ -957,7 +961,7 @@ func (s *Service) ReplaceUploadedResourceAsset(ctx context.Context, input Replac
 		createdAsset, err = s.assetCreator.Create(txCtx, applicationasset.CreateInput{
 			Scope:     applicationasset.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID},
 			ProjectID: &input.ProjectID,
-			OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, BlobID: input.BlobID, FileName: input.FileName,
+			OwnerType: domainasset.OwnerResource, OwnerID: parent.ID, SourceAssetID: input.SourceAssetID, SourceRevisionID: input.SourceRevisionID, FileName: input.FileName,
 		})
 		if err != nil {
 			return err

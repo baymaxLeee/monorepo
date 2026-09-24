@@ -1,143 +1,99 @@
-"""Parallel document ingest."""
+"""Register immutable Asset revisions as source documents."""
 
 from __future__ import annotations
 
 import asyncio
-from contextlib import suppress
-from dataclasses import dataclass
-from pathlib import Path
+from hashlib import blake2b
 
 from bootstrap.config import get_settings
 from infrastructure.persistence.database import get_session_factory, write_tx
-from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import documents as document_crud
 from kernel.errors import BaseError
 
+from application.asset_client import ensure_document_claim_active, get_asset_client
 from application.auth import AuthContext
-from application.contracts.document import IngestFailure, IngestReceipt, IngestResult
-from application.convert import AttachmentTooLargeError
+from application.contracts.document import AssetIngestItem, IngestFailure, IngestReceipt, IngestResult
 from application.documents import document_to_schema
 from application.executor_client import dispatch_document_now
-from application.object_store import ObjectStore
 
 
-@dataclass(frozen=True)
-class IngestFileItem:
-    index: int
-    client_ref: str
-    filename: str
-    mime_type: str
-    content: bytes
+def _document_id(current_user: AuthContext, conversation_id: str | None, client_ref: str) -> str:
+    scope = f"{current_user.tenant_id}\0{current_user.workspace_id}\0{current_user.user_id}\0{conversation_id or ''}\0{client_ref}"
+    return blake2b(scope.encode(), digest_size=8).hexdigest()
 
 
-async def ingest_documents(
-    *, current_user: AuthContext, conversation_id: str | None, provider_id: str | None, items: list[IngestFileItem]
+async def ingest_assets(
+    *,
+    current_user: AuthContext,
+    conversation_id: str | None,
+    provider_id: str | None,
+    items: list[AssetIngestItem],
 ) -> IngestResult:
     settings = get_settings()
+    client = get_asset_client()
     factory = get_session_factory()
-
-    async def ingest_one(item: IngestFileItem, semaphore: asyncio.Semaphore) -> IngestReceipt | IngestFailure:
-        async with semaphore:
-            store = ObjectStore()
-            row: DocumentRow | None = None
-            stored_bucket: str | None = None
-            stored_key: str | None = None
-            async with factory() as worker_session:
-                try:
-                    if len(item.content) > settings.attachment_max_upload_bytes:
-                        raise AttachmentTooLargeError(
-                            "attachment too large", details={"max_bytes": settings.attachment_max_upload_bytes}
-                        )
-                    async with write_tx(worker_session):
-                        row = await document_crud.create_document(
-                            worker_session,
-                            user_id=current_user.user_id,
-                            workspace_id=current_user.workspace_id,
-                            tenant_id=current_user.tenant_id,
-                            conversation_id=conversation_id,
-                            kind="source",
-                            title=item.filename,
-                            filename=item.filename,
-                            mime_type="text/markdown",
-                            source_size=len(item.content),
-                            source_mime_type=item.mime_type,
-                            source_filename=item.filename,
-                            conversion_provider_id=provider_id,
-                            ingest_status="storing",
-                            ingest_progress=10,
-                        )
-                    prefix = f"conversations/{conversation_id}" if conversation_id else "uploads"
-                    stored = store.put_bytes(
-                        content=item.content,
-                        filename=item.filename,
-                        mime_type=item.mime_type,
-                        user_id=current_user.user_id,
-                        prefix=prefix,
-                        unique_segment=row.id,
-                    )
-                    stored_bucket = stored.bucket
-                    stored_key = stored.key
-                    async with write_tx(worker_session):
-                        row = await document_crud.update_document(
-                            worker_session,
-                            row,
-                            {
-                                "object_bucket": stored.bucket,
-                                "object_key": stored.key,
-                                "object_sha256": stored.sha256,
-                                "ingest_status": "received",
-                                "ingest_progress": 100,
-                            },
-                        )
-                    doc = document_to_schema(row)
-                    await dispatch_document_now(
-                        row.id,
-                        updated_at=row.updated_at,
-                        provider_id=provider_id,
-                    )
-                    return IngestReceipt(index=item.index, client_ref=item.client_ref, document=doc)
-                except Exception as exc:
-                    code = exc.code if isinstance(exc, BaseError) else None
-                    message = str(exc)
-                    if row is not None:
-                        async with write_tx(worker_session):
-                            row = await document_crud.update_document(
-                                worker_session,
-                                row,
-                                {"ingest_status": "failed", "ingest_progress": 0, "ingest_error": message[:500]},
-                            )
-                    if stored_bucket and stored_key:
-                        with suppress(Exception):
-                            store.delete(bucket=stored_bucket, key=stored_key)
-                    return IngestFailure(
-                        index=item.index,
-                        client_ref=item.client_ref,
-                        artifact_id=row.id if row is not None else None,
-                        error=message,
-                        code=code,
-                    )
-
     semaphore = asyncio.Semaphore(settings.ingest_max_parallel)
-    results = await asyncio.gather(*(ingest_one(item, semaphore) for item in items))
-    return IngestResult(
-        documents=[result for result in results if isinstance(result, IngestReceipt)],
-        failed=[result for result in results if isinstance(result, IngestFailure)],
-    )
 
-
-def parse_ingest_items(*, files: list[tuple[str, bytes, str]], client_refs: list[str]) -> list[IngestFileItem]:
-    if len(files) != len(client_refs):
-        raise ValueError("files and client_refs length mismatch")
-    items: list[IngestFileItem] = []
-    for index, ((filename, content, mime_type), client_ref) in enumerate(zip(files, client_refs, strict=True)):
-        safe_name = Path(filename or "attachment").name or "attachment"
-        items.append(
-            IngestFileItem(
-                index=index,
-                client_ref=client_ref,
-                filename=safe_name,
-                mime_type=mime_type or "application/octet-stream",
-                content=content,
+    async def ingest_one(index: int, item: AssetIngestItem) -> IngestReceipt | IngestFailure:
+        document_id = _document_id(current_user, conversation_id, item.client_ref)
+        try:
+            async with semaphore:
+                asset = await client.describe(
+                    tenant_id=current_user.tenant_id,
+                    workspace_id=current_user.workspace_id,
+                    asset_id=item.asset_id,
+                    revision_id=item.revision_id,
+                )
+            if asset.created_by != current_user.user_id:
+                raise ValueError("asset was not uploaded by the current user")
+            if asset.size_bytes > settings.attachment_max_upload_bytes:
+                raise ValueError("asset exceeds Knowledge conversion limit")
+            async with factory() as session, write_tx(session):
+                existing = await document_crud.get_document_by_id(session, document_id)
+                if existing is not None:
+                    if existing.asset_id != asset.asset_id or existing.source_revision_id != asset.revision_id:
+                        raise ValueError("client_ref was already used for a different asset")
+                    row = existing
+                else:
+                    row = await document_crud.create_document(
+                        session,
+                        document_id=document_id,
+                        user_id=current_user.user_id,
+                        workspace_id=current_user.workspace_id,
+                        tenant_id=current_user.tenant_id,
+                        conversation_id=conversation_id,
+                        kind="source",
+                        title=asset.filename,
+                        filename=asset.filename,
+                        mime_type="text/markdown",
+                        source_size=asset.size_bytes,
+                        source_mime_type=asset.media_type,
+                        source_filename=asset.filename,
+                        source_sha256=asset.sha256,
+                        asset_id=asset.asset_id,
+                        source_revision_id=asset.revision_id,
+                        conversion_provider_id=provider_id,
+                        ingest_status="received",
+                        ingest_progress=100,
+                    )
+                    await ensure_document_claim_active(
+                        session,
+                        tenant_id=current_user.tenant_id,
+                        workspace_id=current_user.workspace_id,
+                        document_id=row.id,
+                        asset_id=asset.asset_id,
+                        revision_id=asset.revision_id,
+                    )
+            await dispatch_document_now(row.id, updated_at=row.updated_at, provider_id=provider_id)
+            return IngestReceipt(index=index, client_ref=item.client_ref, document=document_to_schema(row))
+        except Exception as exc:
+            return IngestFailure(
+                index=index, client_ref=item.client_ref, artifact_id=None, error=str(exc),
+                code=exc.code if isinstance(exc, BaseError) else None,
             )
-        )
-    return items
+
+    results = await asyncio.gather(*(ingest_one(index, item) for index, item in enumerate(items)))
+    return IngestResult(
+        documents=[item for item in results if isinstance(item, IngestReceipt)],
+        failed=[item for item in results if isinstance(item, IngestFailure)],
+    )

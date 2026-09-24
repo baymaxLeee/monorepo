@@ -23,15 +23,15 @@ type Execution struct {
 }
 
 type Input struct {
-	ArtifactID        string
-	ArtifactNamespace string
-	EntryName         string
-	Ordinal           int32
-	MediaSize         int64
+	SourceAssetID    string
+	SourceRevisionID string
+	EntryName        string
+	Ordinal          int32
+	MediaSize        int64
 }
 
 type Output struct {
-	Path, SHA256, UploadID string
-	Size, PartSize         int64
-	RetentionStartedAt     time.Time
+	AssetID, RevisionID, SHA256, UploadID string
+	Size, PartSize                        int64
+	RetentionStartedAt                    time.Time
 }

@@ -303,9 +303,6 @@ func (r *Reconciler) reconcileEntry(
 	if r.provisioner != nil {
 		provisioned, err := r.provisioner.Provision(ctx, scope, entry, existing)
 		if err != nil {
-			if errors.Is(err, ErrSharedBlobPending) {
-				return actionPending, nil
-			}
 			// 单条上传失败不中断整个 scope：记为跳过，失败已在 official_assets 落 FAILED，
 			// 下一轮对账会重传。错误交由上层合并观测。
 			return actionSkipped, err

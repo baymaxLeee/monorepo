@@ -1,11 +1,8 @@
 package artifact
 
 import (
-	"bufio"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -20,204 +17,127 @@ import (
 	applicationprojectusage "github.com/example/monorepo/canvas/internal/application/projectusage"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
-	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
+	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 )
 
 const (
 	defaultContentType              = "application/octet-stream"
-	stagingNamespace                = "canvas:blob-staging"
 	maxInlineProviderReferenceBytes = 10 * 1024 * 1024
 	maxGeneratedMediaBytes          = 512 * 1024 * 1024
 )
 
 var generatedMediaHTTPClient = &http.Client{
 	Transport: &http.Transport{
-		Proxy:                 nil,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          32,
-		MaxIdleConnsPerHost:   4,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
-		DialContext:           dialPublicAddress,
+		Proxy: nil, ForceAttemptHTTP2: true, MaxIdleConns: 32, MaxIdleConnsPerHost: 4,
+		IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second, DialContext: dialPublicAddress,
 	},
 	CheckRedirect: func(request *http.Request, _ []*http.Request) error {
 		return validatePublicRemoteURL(request.URL)
 	},
 }
 
-// Service is the application artifact boundary implemented by Knowledge.
 type Service interface {
-	applicationasset.ArtifactStore
+	applicationasset.RevisionStore
 	applicationvideogeneration.ReferenceResolver
 	applicationimagegeneration.ReferenceResolver
 	applicationvideogeneration.CanvasNodeVideoResultStore
 	applicationimagegeneration.ImageResultStore
 	PublicReferenceURL(context.Context, string, string, domainasset.Asset) (string, error)
 	ProviderReference(context.Context, string, string, domainasset.Asset) (string, error)
-	UploadBlob(context.Context, string, string, io.Reader) (string, int64, error)
 	applicationprojectusage.TemporaryFileStore
 }
 
 type Store struct {
-	client           *storage.Client
+	client           *assetclient.Client
 	publicGatewayURL string
 }
 
-func New(client *storage.Client, publicGatewayURL string) Service {
-	return &Store{
-		client:           client,
-		publicGatewayURL: strings.TrimRight(publicGatewayURL, "/"),
-	}
-}
-
-func KnowledgeNamespace(namespace string) string {
-	digest := sha256.Sum256([]byte(strings.TrimSpace(namespace)))
-	return hex.EncodeToString(digest[:])
-}
-
-func (s *Store) Inspect(ctx context.Context, _, _ string, blobID string) (applicationasset.DetectedBlob, error) {
-	reader, err := s.client.Get(ctx, KnowledgeNamespace(stagingNamespace), strings.TrimSpace(blobID))
+func (store *Store) UploadPlatformRevision(
+	ctx context.Context, tenantID string, workspaceID *string, userID, filename, mediaType, idempotencyKey string, body io.Reader,
+) (applicationasset.ResolvedRevision, error) {
+	revision, err := store.client.Upload(ctx, assetclient.UploadInput{
+		TenantID: tenantID, WorkspaceID: workspaceValue(workspaceID), UserID: userID, Filename: filename,
+		MediaType: mediaType, Category: "official_asset", IdempotencyKey: idempotencyKey, Body: body,
+	})
 	if err != nil {
-		return applicationasset.DetectedBlob{}, fmt.Errorf("download staged blob: %w", err)
+		return applicationasset.ResolvedRevision{}, err
 	}
-	defer reader.Close()
-	buffered := bufio.NewReader(reader)
-	header, err := buffered.Peek(512)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, bufio.ErrBufferFull) {
-		return applicationasset.DetectedBlob{}, fmt.Errorf("inspect staged blob: %w", err)
-	}
-	contentType := http.DetectContentType(header)
-	mediaType, ok := classifyContentType(contentType)
+	kind, ok := classifyContentType(revision.MediaType)
 	if !ok {
-		return applicationasset.DetectedBlob{}, applicationasset.ErrUnsupportedFormat
+		return applicationasset.ResolvedRevision{}, applicationasset.ErrUnsupportedFormat
 	}
-	return applicationasset.DetectedBlob{MediaType: mediaType, ContentType: contentType}, nil
-}
-
-func (s *Store) UploadBlob(ctx context.Context, _, _ string, reader io.Reader) (string, int64, error) {
-	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(stagingNamespace), reader)
-	if err != nil {
-		return "", 0, fmt.Errorf("upload staged blob: %w", err)
-	}
-	if strings.TrimSpace(stored.ArtifactID) == "" || stored.Size <= 0 {
-		return "", 0, errors.New("upload staged blob returned an invalid result")
-	}
-	return stored.ArtifactID, stored.Size, nil
-}
-
-func (s *Store) UploadTemporary(
-	ctx context.Context,
-	input applicationprojectusage.TemporaryFileUpload,
-) (applicationprojectusage.TemporaryFile, error) {
-	namespace := KnowledgeNamespace("canvas:project-usage:" + strings.TrimSpace(input.TenantID))
-	stored, err := s.client.PutObject(ctx, namespace, input.Reader)
-	if err != nil {
-		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("upload project usage workbook: %w", err)
-	}
-	if stored.Size != input.Size || !strings.EqualFold(stored.SHA256, input.SHA256) {
-		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
-		return applicationprojectusage.TemporaryFile{}, errors.New("uploaded project usage workbook integrity mismatch")
-	}
-	values, err := s.client.BatchPublicURLs(ctx, []storage.Artifact{{
-		Namespace: namespace, ID: stored.ArtifactID,
-		ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-	}})
-	if err != nil {
-		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
-		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("presign project usage workbook: %w", err)
-	}
-	presigned, ok := values[storage.ArtifactLookupKey(namespace, stored.ArtifactID)]
-	if !ok || strings.TrimSpace(presigned.URL) == "" {
-		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
-		return applicationprojectusage.TemporaryFile{}, errors.New("presign project usage workbook returned no URL")
-	}
-	expiresAt, err := time.Parse(time.RFC3339, presigned.ExpiresAt)
-	if err != nil {
-		_ = s.client.Delete(ctx, namespace, stored.ArtifactID)
-		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("parse project usage workbook expiry: %w", err)
-	}
-	return applicationprojectusage.TemporaryFile{
-		DownloadURL: s.absoluteURL(presigned.URL), ExpiresAt: expiresAt, Size: stored.Size,
+	return applicationasset.ResolvedRevision{
+		SourceAssetID: revision.AssetID, SourceRevisionID: revision.RevisionID, MediaType: kind,
+		ContentType: revision.MediaType, SizeBytes: revision.SizeBytes,
 	}, nil
 }
 
-func (s *Store) Register(ctx context.Context, _, _ string, blobID, _ string, namespace string) (applicationasset.RegisteredArtifact, error) {
-	reader, err := s.client.Get(ctx, KnowledgeNamespace(stagingNamespace), strings.TrimSpace(blobID))
-	if err != nil {
-		return applicationasset.RegisteredArtifact{}, fmt.Errorf("open staged blob: %w", err)
-	}
-	defer reader.Close()
-	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(namespace), reader)
-	if err != nil {
-		return applicationasset.RegisteredArtifact{}, fmt.Errorf("register artifact: %w", err)
-	}
-	return applicationasset.RegisteredArtifact{ArtifactID: stored.ArtifactID, ArtifactNamespace: namespace, SizeBytes: stored.Size}, nil
+func New(client *assetclient.Client, publicGatewayURL string) Service {
+	return &Store{client: client, publicGatewayURL: strings.TrimRight(publicGatewayURL, "/")}
 }
 
-func (s *Store) RegisterMany(ctx context.Context, tenantID, callerID, namespace string, inputs []applicationasset.RegisterArtifactInput) []applicationasset.RegisterArtifactResult {
-	results := make([]applicationasset.RegisterArtifactResult, len(inputs))
-	for index, input := range inputs {
-		results[index].Artifact, results[index].Err = s.Register(ctx, tenantID, callerID, input.BlobID, input.FileName, namespace)
-	}
-	return results
-}
-
-func (s *Store) Delete(ctx context.Context, artifactID, namespace string) error {
-	if err := s.client.Delete(ctx, KnowledgeNamespace(namespace), strings.TrimSpace(artifactID)); err != nil {
-		return fmt.Errorf("delete artifact: %w", err)
-	}
-	return nil
-}
-
-func (s *Store) BatchPresignArtifacts(ctx context.Context, _, _ string, namespace string, artifactIDs []string) (map[string]applicationasset.PresignedArtifact, error) {
-	resolvedNamespace := KnowledgeNamespace(namespace)
-	items := make([]storage.Artifact, 0, len(artifactIDs))
-	for _, artifactID := range artifactIDs {
-		if artifactID = strings.TrimSpace(artifactID); artifactID != "" {
-			items = append(items, storage.Artifact{Namespace: resolvedNamespace, ID: artifactID, ContentType: defaultContentType})
-		}
-	}
-	values, err := s.client.BatchPublicURLs(ctx, items)
+func (store *Store) Resolve(
+	ctx context.Context, tenantID, workspaceID string, ref applicationasset.RevisionRef,
+) (applicationasset.ResolvedRevision, error) {
+	revision, err := store.client.Describe(ctx, tenantID, workspaceID, assetclient.RevisionRef{
+		AssetID: ref.SourceAssetID, RevisionID: ref.SourceRevisionID,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("batch presign artifacts: %w", err)
+		return applicationasset.ResolvedRevision{}, fmt.Errorf("describe platform asset revision: %w", err)
 	}
-	result := make(map[string]applicationasset.PresignedArtifact, len(values))
-	for _, artifactID := range artifactIDs {
-		artifactID = strings.TrimSpace(artifactID)
-		value, ok := values[storage.ArtifactLookupKey(resolvedNamespace, artifactID)]
-		if !ok {
-			continue
+	mediaType, ok := classifyContentType(revision.MediaType)
+	if !ok {
+		return applicationasset.ResolvedRevision{}, applicationasset.ErrUnsupportedFormat
+	}
+	return applicationasset.ResolvedRevision{
+		SourceAssetID: revision.AssetID, SourceRevisionID: revision.RevisionID,
+		MediaType: mediaType, ContentType: revision.MediaType, SizeBytes: revision.SizeBytes,
+	}, nil
+}
+
+func (store *Store) BatchDeliveryURLs(
+	ctx context.Context, tenantID, workspaceID string, refs []applicationasset.RevisionRef,
+) (map[string]applicationasset.PresignedArtifact, error) {
+	if len(refs) == 0 {
+		return map[string]applicationasset.PresignedArtifact{}, nil
+	}
+	inputs := make([]assetclient.DeliveryCapabilityInput, len(refs))
+	for index, ref := range refs {
+		inputs[index] = assetclient.DeliveryCapabilityInput{
+			TenantID: tenantID, WorkspaceID: workspaceID,
+			RevisionRef: assetclient.RevisionRef{AssetID: ref.SourceAssetID, RevisionID: ref.SourceRevisionID},
 		}
-		expiresAt, parseErr := time.Parse(time.RFC3339, value.ExpiresAt)
-		if parseErr != nil {
-			return nil, fmt.Errorf("parse artifact expiry: %w", parseErr)
+	}
+	capabilities, err := store.client.MintDeliveryCapabilities(ctx, inputs)
+	if err != nil {
+		return nil, fmt.Errorf("mint asset delivery capabilities: %w", err)
+	}
+	result := make(map[string]applicationasset.PresignedArtifact, len(capabilities))
+	for _, capability := range capabilities {
+		result[revisionRefKey(capability.AssetID, capability.RevisionID)] = applicationasset.PresignedArtifact{
+			URL: store.absoluteURL(capability.URL), ExpiresAt: capability.ExpiresAt,
 		}
-		result[artifactID] = applicationasset.PresignedArtifact{URL: s.absoluteURL(value.URL), ExpiresAt: expiresAt}
 	}
 	return result, nil
 }
 
-func (s *Store) PublicReferenceURL(ctx context.Context, tenantID, callerID string, asset domainasset.Asset) (string, error) {
-	return s.referenceURL(ctx, tenantID, callerID, asset)
+func (store *Store) PublicReferenceURL(ctx context.Context, _, _ string, asset domainasset.Asset) (string, error) {
+	return store.referenceURL(ctx, asset)
 }
 
-// ProviderReference keeps reviewed asset:// references in the application
-// layer. For ordinary image assets it avoids asking a remote custom provider
-// to fetch a URL hosted by a developer's localhost gateway.
-func (s *Store) ProviderReference(ctx context.Context, tenantID, callerID string, asset domainasset.Asset) (string, error) {
+func (store *Store) ProviderReference(ctx context.Context, _, _ string, asset domainasset.Asset) (string, error) {
 	if asset.MediaType != domainasset.MediaImage {
-		return s.referenceURL(ctx, tenantID, callerID, asset)
+		return store.referenceURL(ctx, asset)
 	}
 	if asset.SizeBytes <= 0 || asset.SizeBytes > maxInlineProviderReferenceBytes {
 		return "", errors.New("provider reference image exceeds the 10 MiB inline limit")
 	}
-	contentType := strings.ToLower(strings.TrimSpace(strings.Split(asset.ContentType, ";")[0]))
+	contentType := normalizedContentType(asset.ContentType)
 	if !strings.HasPrefix(contentType, "image/") {
 		return "", errors.New("provider reference image has an invalid content type")
 	}
-	reader, err := s.client.Get(ctx, KnowledgeNamespace(asset.ArtifactNamespace), asset.ArtifactID)
+	reader, err := store.client.Open(ctx, asset.TenantID, workspaceValue(asset.WorkspaceID), platformRef(asset))
 	if err != nil {
 		return "", fmt.Errorf("read provider reference image: %w", err)
 	}
@@ -232,73 +152,135 @@ func (s *Store) ProviderReference(ctx context.Context, tenantID, callerID string
 	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(payload), nil
 }
 
-func (s *Store) referenceURL(ctx context.Context, _, _ string, asset domainasset.Asset) (string, error) {
-	contentType := strings.TrimSpace(asset.ContentType)
-	if contentType == "" {
-		contentType = defaultContentType
+func (store *Store) referenceURL(ctx context.Context, asset domainasset.Asset) (string, error) {
+	workspaceID := workspaceValue(asset.WorkspaceID)
+	if workspaceID == "" {
+		return "", errors.New("platform asset delivery requires a workspace scope")
 	}
-	namespace := KnowledgeNamespace(asset.ArtifactNamespace)
-	values, err := s.client.BatchPublicURLs(ctx, []storage.Artifact{{Namespace: namespace, ID: asset.ArtifactID, ContentType: contentType}})
+	values, err := store.BatchDeliveryURLs(ctx, asset.TenantID, workspaceID, []applicationasset.RevisionRef{{
+		SourceAssetID: asset.SourceAssetID, SourceRevisionID: asset.SourceRevisionID,
+	}})
 	if err != nil {
-		return "", fmt.Errorf("presign artifact: %w", err)
+		return "", err
 	}
-	value, ok := values[storage.ArtifactLookupKey(namespace, asset.ArtifactID)]
+	value, ok := values[revisionRefKey(asset.SourceAssetID, asset.SourceRevisionID)]
 	if !ok || strings.TrimSpace(value.URL) == "" {
-		return "", errors.New("presign artifact returned no URL")
+		return "", errors.New("asset delivery capability returned no URL")
 	}
-	return s.absoluteURL(value.URL), nil
+	return value.URL, nil
 }
 
-func (s *Store) Persist(ctx context.Context, input applicationvideogeneration.CanvasNodeVideoResultInput) (applicationvideogeneration.PersistedCanvasNodeVideo, error) {
-	stored, namespace, err := s.persistRemote(ctx, input.TenantID, input.WorkspaceID, input.ProjectID, input.SourceURL)
+func (store *Store) Persist(ctx context.Context, input applicationvideogeneration.CanvasNodeVideoResultInput) (applicationvideogeneration.PersistedCanvasNodeVideo, error) {
+	revision, err := store.persistRemote(ctx, input.TenantID, workspaceValue(input.WorkspaceID), input.CallerID, input.TaskRunID+".mp4", "generated_video", "video-generation:"+input.TaskRunID, input.SourceURL)
 	if err != nil {
 		return applicationvideogeneration.PersistedCanvasNodeVideo{}, err
 	}
-	return applicationvideogeneration.PersistedCanvasNodeVideo{ArtifactID: stored.ArtifactID, ArtifactNamespace: namespace, SizeBytes: stored.Size}, nil
+	return applicationvideogeneration.PersistedCanvasNodeVideo{SourceAssetID: revision.AssetID, SourceRevisionID: revision.RevisionID, SizeBytes: revision.SizeBytes}, nil
 }
 
-func (s *Store) PersistImage(ctx context.Context, input applicationimagegeneration.PersistImageInput) (applicationimagegeneration.PersistedImage, error) {
-	stored, namespace, err := s.persistRemote(ctx, input.TenantID, input.WorkspaceID, input.ProjectID, input.SourceURL)
+func (store *Store) PersistImage(ctx context.Context, input applicationimagegeneration.PersistImageInput) (applicationimagegeneration.PersistedImage, error) {
+	revision, err := store.persistRemote(ctx, input.TenantID, workspaceValue(input.WorkspaceID), input.CallerID, input.TaskRunID+".png", "generated_image", "image-generation:"+input.TaskRunID, input.SourceURL)
 	if err != nil {
 		return applicationimagegeneration.PersistedImage{}, err
 	}
-	return applicationimagegeneration.PersistedImage{ArtifactID: stored.ArtifactID, ArtifactNamespace: namespace, SizeBytes: stored.Size}, nil
+	return applicationimagegeneration.PersistedImage{SourceAssetID: revision.AssetID, SourceRevisionID: revision.RevisionID, SizeBytes: revision.SizeBytes}, nil
 }
 
-func (s *Store) persistRemote(ctx context.Context, tenantID string, workspaceID *string, projectID, sourceURL string) (storage.StoredObject, string, error) {
+func (store *Store) UploadTemporary(ctx context.Context, input applicationprojectusage.TemporaryFileUpload) (applicationprojectusage.TemporaryFile, error) {
+	revision, err := store.client.Upload(ctx, assetclient.UploadInput{
+		TenantID: input.TenantID, WorkspaceID: workspaceValue(input.WorkspaceID), UserID: input.CallerID,
+		Filename: input.InternalFileName, MediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		Category: "project_usage_export", IdempotencyKey: "project-usage-export:" + input.ExportID, Body: input.Reader,
+	})
+	if err != nil {
+		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("upload project usage workbook: %w", err)
+	}
+	if revision.SizeBytes != input.Size || !strings.EqualFold(revision.SHA256, input.SHA256) {
+		return applicationprojectusage.TemporaryFile{}, errors.New("uploaded project usage workbook integrity mismatch")
+	}
+	capabilities, err := store.client.MintDeliveryCapabilities(ctx, []assetclient.DeliveryCapabilityInput{{
+		TenantID: input.TenantID, WorkspaceID: workspaceValue(input.WorkspaceID), RevisionRef: revision.RevisionRef,
+	}})
+	if err != nil || len(capabilities) != 1 {
+		return applicationprojectusage.TemporaryFile{}, fmt.Errorf("mint project usage workbook capability: %w", err)
+	}
+	return applicationprojectusage.TemporaryFile{
+		DownloadURL: store.absoluteURL(capabilities[0].URL), ExpiresAt: capabilities[0].ExpiresAt, Size: revision.SizeBytes,
+	}, nil
+}
+
+func (store *Store) persistRemote(ctx context.Context, tenantID, workspaceID, userID, filename, category, idempotencyKey, sourceURL string) (assetclient.Revision, error) {
 	parsed, err := url.Parse(strings.TrimSpace(sourceURL))
 	if err != nil || validatePublicRemoteURL(parsed) != nil {
-		return storage.StoredObject{}, "", errors.New("generated media URL must be an absolute HTTP(S) URL")
+		return assetclient.Revision{}, errors.New("generated media URL must be an absolute HTTP(S) URL")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
-		return storage.StoredObject{}, "", err
+		return assetclient.Revision{}, err
 	}
 	response, err := generatedMediaHTTPClient.Do(request)
 	if err != nil {
-		return storage.StoredObject{}, "", fmt.Errorf("download generated media: %w", err)
+		return assetclient.Revision{}, fmt.Errorf("download generated media: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return storage.StoredObject{}, "", fmt.Errorf("download generated media returned status %d", response.StatusCode)
+		return assetclient.Revision{}, fmt.Errorf("download generated media returned status %d", response.StatusCode)
 	}
 	if response.ContentLength > maxGeneratedMediaBytes {
-		return storage.StoredObject{}, "", errors.New("generated media exceeds the 512 MiB limit")
-	}
-	namespace, err := (artifactnamespace.Scope{TenantID: tenantID, WorkspaceID: workspaceID, ProjectID: &projectID}).Namespace()
-	if err != nil {
-		return storage.StoredObject{}, "", err
+		return assetclient.Revision{}, errors.New("generated media exceeds the 512 MiB limit")
 	}
 	limited := &io.LimitedReader{R: response.Body, N: maxGeneratedMediaBytes + 1}
-	stored, err := s.client.PutObject(ctx, KnowledgeNamespace(namespace), limited)
+	revision, err := store.client.Upload(ctx, assetclient.UploadInput{
+		TenantID: tenantID, WorkspaceID: workspaceID, UserID: userID, Filename: filename,
+		MediaType: response.Header.Get("Content-Type"), Category: category, IdempotencyKey: idempotencyKey, Body: limited,
+	})
 	if err != nil {
-		return storage.StoredObject{}, "", fmt.Errorf("persist generated media: %w", err)
+		return assetclient.Revision{}, fmt.Errorf("persist generated media: %w", err)
 	}
-	if stored.Size > maxGeneratedMediaBytes || limited.N <= 0 {
-		_ = s.client.Delete(ctx, KnowledgeNamespace(namespace), stored.ArtifactID)
-		return storage.StoredObject{}, "", errors.New("generated media exceeds the 512 MiB limit")
+	if revision.SizeBytes > maxGeneratedMediaBytes || limited.N <= 0 {
+		return assetclient.Revision{}, errors.New("generated media exceeds the 512 MiB limit")
 	}
-	return stored, namespace, nil
+	return revision, nil
+}
+
+func platformRef(asset domainasset.Asset) assetclient.RevisionRef {
+	return assetclient.RevisionRef{AssetID: asset.SourceAssetID, RevisionID: asset.SourceRevisionID}
+}
+
+func revisionRefKey(assetID, revisionID string) string { return assetID + "\x00" + revisionID }
+
+func workspaceValue(workspaceID *string) string {
+	if workspaceID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*workspaceID)
+}
+
+func (store *Store) absoluteURL(raw string) string {
+	if parsed, err := url.Parse(raw); err == nil && parsed.IsAbs() {
+		return parsed.String()
+	}
+	if store.publicGatewayURL == "" {
+		return raw
+	}
+	return store.publicGatewayURL + "/" + strings.TrimLeft(raw, "/")
+}
+
+func normalizedContentType(contentType string) string {
+	return strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+}
+
+func classifyContentType(contentType string) (domainasset.MediaType, bool) {
+	switch normalizedContentType(contentType) {
+	case "image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff", "image/gif", "image/heic", "image/heic-sequence", "image/heif", "image/heif-sequence":
+		return domainasset.MediaImage, true
+	case "video/mp4", "video/quicktime":
+		return domainasset.MediaVideo, true
+	case "audio/wav", "audio/x-wav", "audio/mpeg":
+		return domainasset.MediaAudio, true
+	default:
+		return 0, false
+	}
 }
 
 func validatePublicRemoteURL(candidate *url.URL) error {
@@ -355,28 +337,4 @@ func dialPublicAddress(ctx context.Context, network, address string) (net.Conn, 
 		lastErr = dialErr
 	}
 	return nil, fmt.Errorf("connect to generated media host: %w", lastErr)
-}
-
-func (s *Store) absoluteURL(raw string) string {
-	if parsed, err := url.Parse(raw); err == nil && parsed.IsAbs() {
-		return parsed.String()
-	}
-	if s.publicGatewayURL == "" {
-		return raw
-	}
-	return s.publicGatewayURL + "/" + strings.TrimLeft(raw, "/")
-}
-
-func classifyContentType(contentType string) (domainasset.MediaType, bool) {
-	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
-	switch contentType {
-	case "image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff", "image/gif", "image/heic", "image/heic-sequence", "image/heif", "image/heif-sequence":
-		return domainasset.MediaImage, true
-	case "video/mp4", "video/quicktime":
-		return domainasset.MediaVideo, true
-	case "audio/wav", "audio/x-wav", "audio/mpeg":
-		return domainasset.MediaAudio, true
-	default:
-		return 0, false
-	}
 }

@@ -6,7 +6,6 @@ package officialasset
 import (
 	"context"
 	"errors"
-	"time"
 
 	domainofficialasset "github.com/example/monorepo/canvas/internal/domain/officialasset"
 )
@@ -16,10 +15,7 @@ var (
 	ErrAlreadyExists = errors.New("official asset already exists")
 	// ErrInternalAssetConflict 表示目标内部 Asset 在本 scope 下已被另一条清单条目绑定。
 	// 同一 scope 内 slug 与内部 Asset 是 1:1。
-	ErrInternalAssetConflict   = errors.New("official asset internal asset already mapped")
-	ErrSharedBlobNotFound      = errors.New("official shared blob not found")
-	ErrSharedBlobAlreadyExists = errors.New("official shared blob already exists")
-	ErrSharedBlobLeaseConflict = errors.New("official shared blob lease conflict")
+	ErrInternalAssetConflict = errors.New("official asset internal asset already mapped")
 )
 
 type Repository interface {
@@ -39,13 +35,4 @@ type Repository interface {
 	// SoftDelete 移除已从官方清单下线的条目。Asset 内容与注册记录本身保留，因此同一
 	// slug 重新上架时可复用既有内容。
 	SoftDelete(context.Context, domainofficialasset.Scope, string, int64) error
-}
-
-type SharedBlobRepository interface {
-	GetSharedBlob(context.Context, string, string) (domainofficialasset.SharedBlob, error)
-	CreateSharedBlob(context.Context, domainofficialasset.SharedBlob) error
-	ClaimSharedBlob(context.Context, string, string, string, time.Time, time.Time) (bool, error)
-	CompleteSharedBlob(context.Context, string, string, string, string, int64, time.Time) error
-	FailSharedBlob(context.Context, string, string, string, time.Time) error
-	InvalidateSharedBlob(context.Context, string, string, string, time.Time) (bool, error)
 }

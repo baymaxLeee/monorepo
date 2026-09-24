@@ -10,12 +10,10 @@ import (
 
 	applicationcanvasarchive "github.com/example/monorepo/canvas/internal/application/canvasarchive"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/artifact"
+	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 	canvasarchivepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasarchive"
 	taskpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/task"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
-	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 type Runtime struct {
@@ -23,21 +21,13 @@ type Runtime struct {
 	repo     *canvasarchivepersistence.Repository
 	runs     *taskpersistence.Repository
 	tx       *persistencetransaction.Manager
-	storage  *storage.Client
+	assets   *assetclient.Client
 	clock    applicationcanvasarchive.Clock
 	tempRoot string
 }
 
-func NewRuntime(
-	service *applicationcanvasarchive.Service,
-	repo *canvasarchivepersistence.Repository,
-	runs *taskpersistence.Repository,
-	tx *persistencetransaction.Manager,
-	storageClient *storage.Client,
-	clock applicationcanvasarchive.Clock,
-	tempRoot string,
-) *Runtime {
-	return &Runtime{service: service, repo: repo, runs: runs, tx: tx, storage: storageClient, clock: clock, tempRoot: tempRoot}
+func NewRuntime(service *applicationcanvasarchive.Service, repo *canvasarchivepersistence.Repository, runs *taskpersistence.Repository, tx *persistencetransaction.Manager, assets *assetclient.Client, clock applicationcanvasarchive.Clock, tempRoot string) *Runtime {
+	return &Runtime{service: service, repo: repo, runs: runs, tx: tx, assets: assets, clock: clock, tempRoot: tempRoot}
 }
 
 func (runtime *Runtime) Execute(ctx context.Context, taskRunID string) (applicationcanvasarchive.Export, error) {
@@ -53,9 +43,7 @@ func (runtime *Runtime) Execute(ctx context.Context, taskRunID string) (applicat
 		if readErr != nil {
 			return applicationcanvasarchive.Export{}, readErr
 		}
-		if err = applicationcanvasarchive.NewAsyncExecutionStarter(runtime.repo, runtime.runs, runtime.tx).MarkStarted(
-			ctx, run, domaintask.AsyncDispatch{}, runtime.clock.Now(),
-		); err != nil {
+		if err = applicationcanvasarchive.NewAsyncExecutionStarter(runtime.repo, runtime.runs, runtime.tx).MarkStarted(ctx, run, domaintask.AsyncDispatch{}, runtime.clock.Now()); err != nil {
 			return applicationcanvasarchive.Export{}, err
 		}
 	}
@@ -63,14 +51,11 @@ func (runtime *Runtime) Execute(ctx context.Context, taskRunID string) (applicat
 	if err != nil {
 		return applicationcanvasarchive.Export{}, err
 	}
-	result := applicationcanvasarchive.SuccessResult{
-		Path: execution.Export.OutputPath, SHA256: execution.Export.OutputSHA256, Size: execution.Export.OutputSize,
-		UploadID: execution.Export.UploadID, PartSize: execution.Export.PartSize,
-	}
+	result := applicationcanvasarchive.SuccessResult{AssetID: execution.Export.OutputAssetID, RevisionID: execution.Export.OutputRevisionID, SHA256: execution.Export.OutputSHA256, Size: execution.Export.OutputSize}
 	if execution.Export.RetentionStartedAt != nil {
 		result.RetentionStartedAt = *execution.Export.RetentionStartedAt
 	}
-	if result.Path == "" {
+	if result.AssetID == "" || result.RevisionID == "" {
 		result, err = runtime.build(ctx, execution)
 		if err != nil {
 			return applicationcanvasarchive.Export{}, err
@@ -93,21 +78,15 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 	if err != nil {
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
-	defer os.RemoveAll(directory)
+	defer os.RemoveAll(directory) //nolint:errcheck
 	inputs := make([]Input, 0, len(execution.Inputs))
 	for index := range execution.Inputs {
 		input := execution.Inputs[index]
-		inputs = append(inputs, Input{
-			EntryName: input.EntryName, ArtifactID: input.ArtifactID, ExpectedSize: input.MediaSize,
-			Open: func(openCtx context.Context) (io.ReadCloser, error) {
-				return runtime.storage.Get(openCtx, artifact.KnowledgeNamespace(input.ArtifactNamespace), input.ArtifactID)
-			},
-		})
+		inputs = append(inputs, Input{EntryName: input.EntryName, SourceAssetID: input.SourceAssetID, ExpectedSize: input.MediaSize, Open: func(openCtx context.Context) (io.ReadCloser, error) {
+			return runtime.assets.Open(openCtx, execution.Export.TenantID, workspaceValue(execution.Export.WorkspaceID), assetclient.RevisionRef{AssetID: input.SourceAssetID, RevisionID: input.SourceRevisionID})
+		}})
 	}
-	archive, err := NewBuilder(NewFFprobeProber(nil)).Build(
-		ctx, filepath.Join(directory, "archive.zip"), execution.Export.CreatedAt,
-		strings.TrimSuffix(execution.Export.OutputFilename, ".zip")+".fcpxml", inputs,
-	)
+	archive, err := NewBuilder(NewFFprobeProber(nil)).Build(ctx, filepath.Join(directory, "archive.zip"), execution.Export.CreatedAt, strings.TrimSuffix(execution.Export.OutputFilename, ".zip")+".fcpxml", inputs)
 	if err != nil {
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
@@ -115,35 +94,25 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 	if err != nil {
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
-	defer file.Close()
-	logicalNamespace, err := (artifactnamespace.Scope{
-		TenantID: execution.Export.TenantID, WorkspaceID: execution.Export.WorkspaceID, ProjectID: &execution.Export.ProjectID,
-	}).Namespace()
+	defer file.Close() //nolint:errcheck
+	revision, err := runtime.assets.Upload(ctx, assetclient.UploadInput{TenantID: execution.Export.TenantID, WorkspaceID: workspaceValue(execution.Export.WorkspaceID), UserID: execution.Export.CreatedBy, Filename: execution.Export.OutputFilename, MediaType: "application/zip", Category: "canvas_archive", IdempotencyKey: "canvas-archive:" + execution.Export.TaskRunID, Body: file})
 	if err != nil {
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
-	stored, err := runtime.storage.PutObject(ctx, artifact.KnowledgeNamespace(logicalNamespace), file)
-	if err != nil {
-		return applicationcanvasarchive.SuccessResult{}, err
+	if revision.SizeBytes != archive.Size || !strings.EqualFold(revision.SHA256, archive.SHA256) {
+		return applicationcanvasarchive.SuccessResult{}, errors.New("asset archive upload checksum mismatch")
 	}
-	if stored.Size != archive.Size || stored.SHA256 != "" && stored.SHA256 != archive.SHA256 {
-		return applicationcanvasarchive.SuccessResult{}, errors.New("Knowledge archive upload checksum mismatch")
-	}
-	return applicationcanvasarchive.SuccessResult{
-		Path: stored.ArtifactID, SHA256: archive.SHA256, Size: archive.Size, RetentionStartedAt: runtime.clock.Now(),
-	}, nil
+	retentionStartedAt := runtime.clock.Now()
+	return applicationcanvasarchive.SuccessResult{AssetID: revision.AssetID, RevisionID: revision.RevisionID, SHA256: archive.SHA256, Size: archive.Size, RetentionStartedAt: retentionStartedAt}, nil
 }
 
 func (runtime *Runtime) Open(ctx context.Context, item applicationcanvasarchive.Export) (io.ReadCloser, error) {
-	logicalNamespace, err := archiveNamespace(item)
-	if err != nil {
-		return nil, err
-	}
-	return runtime.storage.Get(ctx, artifact.KnowledgeNamespace(logicalNamespace), item.OutputPath)
+	return runtime.assets.Open(ctx, item.TenantID, workspaceValue(item.WorkspaceID), assetclient.RevisionRef{AssetID: item.OutputAssetID, RevisionID: item.OutputRevisionID})
 }
 
-func archiveNamespace(item applicationcanvasarchive.Export) (string, error) {
-	return (artifactnamespace.Scope{
-		TenantID: item.TenantID, WorkspaceID: item.WorkspaceID, ProjectID: &item.ProjectID,
-	}).Namespace()
+func workspaceValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }

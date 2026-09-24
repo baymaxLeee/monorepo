@@ -8,6 +8,7 @@ resources:
   - ../../base/gateway
   - ../../base/iam
   - ../../base/admin
+  - ../../base/asset
   - ../../base/canvas
   - ../../base/chat
   - ../../base/executor
@@ -34,6 +35,9 @@ images:
     newTag: placeholder
   - name: ghcr.io/example/admin
     newName: registry.invalid/monorepo/admin
+    newTag: placeholder
+  - name: ghcr.io/example/asset
+    newName: registry.invalid/monorepo/asset
     newTag: placeholder
   - name: ghcr.io/example/canvas
     newName: registry.invalid/monorepo/canvas
@@ -64,6 +68,8 @@ patches:
     target: { kind: ConfigMap, name: iam-config }
   - path: patches/admin-config.yaml
     target: { kind: ConfigMap, name: admin-config }
+  - path: patches/asset-config.yaml
+    target: { kind: ConfigMap, name: asset-config }
   - path: patches/canvas-config.yaml
     target: { kind: ConfigMap, name: canvas-config }
   - path: patches/chat-config.yaml

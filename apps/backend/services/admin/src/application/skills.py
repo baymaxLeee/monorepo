@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import builtins
+import hashlib
 import json
+import tempfile
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path, PurePosixPath
+from typing import cast
 from uuid import uuid4
 
+from bootstrap.config import get_settings
+from domain.skill_archive import ArchiveFile, extract_skill_archive
 from domain.skills import (
     node_etag,
     parse_skill_md,
@@ -19,16 +27,21 @@ from domain.skills import (
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.skill import SkillRow
 from infrastructure.persistence.models.skill_node import SkillNodeRow
+from infrastructure.persistence.models.skill_published_node import SkillPublishedNodeRow
 from infrastructure.persistence.repositories import skill_nodes as node_crud
 from infrastructure.persistence.repositories import skills as skill_crud
 from kernel.errors import ConflictError, NotFoundError, RequestError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from application.asset_client import AssetRevision, ensure_asset_claim, get_asset_client
 from application.auth import AuthContext
 from application.contracts.skill import (
+    AttachSkillAssetInput,
     CreateSkillInput,
     CreateSkillNodeInput,
+    ImportSkillArchiveInput,
+    ImportSkillArchiveResult,
     InternalSkill,
     InternalSkillFile,
     MoveSkillNodeInput,
@@ -39,6 +52,7 @@ from application.contracts.skill import (
     SkillFileContent,
     SkillFileNode,
     SkillNodeMutationResult,
+    SkillStorageKind,
     SkillSummary,
     SkillValidationIssue,
     SkillValidationResult,
@@ -95,6 +109,11 @@ def _build_tree(nodes: Sequence[SkillNodeRow], *, include_content: bool) -> list
             type=node.node_type,  # type: ignore[arg-type]
             parent_id=node.parent_id,
             mime_type=node.mime_type,
+            storage_kind=cast(SkillStorageKind, node.storage_kind),
+            asset_id=node.asset_id,
+            revision_id=node.revision_id,
+            size_bytes=node.size_bytes,
+            sha256=node.sha256,
             etag=node_etag(node),
             content=node.content if include_content and node.node_type == "file" else None,
             children=nested if node.node_type == "directory" else None,
@@ -140,6 +159,7 @@ class SkillService:
                 node_type="file",
                 mime_type="text/markdown",
                 content=content,
+                storage_kind="inline",
                 sort_order=0,
                 created_at=now,
                 updated_at=now,
@@ -166,11 +186,30 @@ class SkillService:
         )
 
     async def get_file(self, skill_id: str, node_id: str) -> SkillFileContent:
-        await self._get_row(skill_id)
+        row = await self._get_row(skill_id)
         node = await node_crud.get_workspace_node(self._session, skill_id, node_id)
         if node is None or node.node_type != "file":
             raise NotFoundError(f"skill file {node_id} not found")
-        return SkillFileContent(id=node.id, content=node.content or "", etag=node_etag(node))
+        url = None
+        if node.storage_kind == "asset" and node.asset_id and node.revision_id:
+            url = await get_asset_client().delivery_url(
+                tenant_id=row.tenant_id,
+                workspace_id=row.workspace_id,
+                asset_id=node.asset_id,
+                revision_id=node.revision_id,
+            )
+        return SkillFileContent(
+            id=node.id,
+            storage_kind=cast(SkillStorageKind, node.storage_kind),
+            mime_type=node.mime_type,
+            content=node.content if node.storage_kind == "inline" else None,
+            asset_id=node.asset_id,
+            revision_id=node.revision_id,
+            size_bytes=node.size_bytes,
+            sha256=node.sha256,
+            url=url,
+            etag=node_etag(node),
+        )
 
     async def create_node(self, skill_id: str, payload: CreateSkillNodeInput) -> SkillNodeMutationResult:
         async with write_tx(self._session):
@@ -189,6 +228,7 @@ class SkillService:
                 node_type=payload.type,
                 mime_type="text/markdown" if payload.name.endswith(".md") else "text/plain",
                 content=payload.content or "" if payload.type == "file" else None,
+                storage_kind="inline",
                 sort_order=0,
                 created_at=now,
                 updated_at=now,
@@ -197,6 +237,120 @@ class SkillService:
             await self._session.flush()
             await self._finish_draft_mutation(row)
         return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
+
+    async def attach_asset(self, skill_id: str, payload: AttachSkillAssetInput) -> SkillNodeMutationResult:
+        revision = await get_asset_client().describe(
+            tenant_id=self._current_user.tenant_id,
+            workspace_id=self._current_user.workspace_id,
+            asset_id=payload.asset_id,
+            revision_id=payload.revision_id,
+        )
+        if revision.category != "skill-attachment":
+            raise RequestError("skill attachment must use the skill-attachment Asset category")
+        async with write_tx(self._session):
+            row = await self._get_locked_row(skill_id)
+            if await node_crud.get_workspace_node(self._session, skill_id, payload.id):
+                raise ConflictError(f"skill node {payload.id} already exists")
+            await self._assert_parent_directory(skill_id, payload.parent_id)
+            await self._assert_sibling_name_free(skill_id, payload.parent_id, payload.name)
+            validate_node_name(payload.name)
+            now = datetime.now(UTC)
+            node = SkillNodeRow(
+                id=payload.id,
+                skill_id=skill_id,
+                parent_id=payload.parent_id,
+                name=payload.name,
+                node_type="file",
+                mime_type=revision.media_type,
+                content=None,
+                storage_kind="asset",
+                asset_id=revision.asset_id,
+                revision_id=revision.revision_id,
+                size_bytes=revision.size_bytes,
+                sha256=revision.sha256,
+                sort_order=0,
+                created_at=now,
+                updated_at=now,
+            )
+            self._session.add(node)
+            await self._session.flush()
+            await ensure_asset_claim(
+                self._session,
+                tenant_id=row.tenant_id,
+                workspace_id=row.workspace_id,
+                owner_type="skill_node",
+                owner_id=f"{row.id}:{node.id}",
+                slot="content",
+                asset_id=revision.asset_id,
+                revision_id=revision.revision_id,
+                desired_state="active",
+            )
+            await self._finish_draft_mutation(row)
+        return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
+
+    async def import_archive(self, skill_id: str, payload: ImportSkillArchiveInput) -> ImportSkillArchiveResult:
+        asset_client = get_asset_client()
+        revision = await asset_client.describe(
+            tenant_id=self._current_user.tenant_id,
+            workspace_id=self._current_user.workspace_id,
+            asset_id=payload.asset_id,
+            revision_id=payload.revision_id,
+        )
+        if revision.category != "skill-archive":
+            raise RequestError("skill import must use the skill-archive Asset category")
+        if revision.media_type not in {"application/zip", "application/x-zip-compressed", "application/octet-stream"}:
+            raise RequestError("skill import Asset must be a ZIP archive")
+        settings = get_settings()
+        with tempfile.TemporaryDirectory(prefix="admin-skill-import-") as temporary:
+            root = Path(temporary)
+            archive = root / "source.zip"
+            extracted = root / "extracted"
+            extracted.mkdir()
+            await asset_client.download_to(
+                revision=revision,
+                tenant_id=self._current_user.tenant_id,
+                workspace_id=self._current_user.workspace_id,
+                target=archive,
+            )
+            files = await asyncio.to_thread(
+                extract_skill_archive,
+                archive,
+                extracted,
+                max_files=500,
+                max_member_bytes=settings.skill_archive_max_member_bytes,
+                max_expanded_bytes=settings.skill_archive_max_expanded_bytes,
+            )
+            binary_revisions = await self._upload_archive_binaries(files, revision.revision_id)
+            async with write_tx(self._session):
+                row = await self._get_locked_row(skill_id)
+                self._assert_workspace_seq(row, payload.base_workspace_seq)
+                old_nodes = await node_crud.list_workspace_nodes(self._session, skill_id)
+                await self._release_node_claims(row, old_nodes, owner_type="skill_node")
+                await node_crud.delete_workspace_nodes(self._session, skill_id)
+                nodes = await self._replace_workspace_from_archive(row, files, binary_revisions)
+                await ensure_asset_claim(
+                    self._session,
+                    tenant_id=row.tenant_id,
+                    workspace_id=row.workspace_id,
+                    owner_type="skill_import",
+                    owner_id=row.id,
+                    slot="source-archive",
+                    asset_id=revision.asset_id,
+                    revision_id=revision.revision_id,
+                    desired_state="active",
+                )
+                row.source_archive_asset_id = revision.asset_id
+                row.source_archive_revision_id = revision.revision_id
+                await self._finish_draft_mutation(row)
+            workspace = SkillWorkspace(
+                skill_id=skill_id, workspace_seq=row.workspace_seq, tree=_build_tree(nodes, include_content=False)
+            )
+            return ImportSkillArchiveResult(
+                skill=to_schema(row),
+                workspace=workspace,
+                imported_files=len(files),
+                imported_asset_files=len(binary_revisions),
+            )
 
     async def update_file_content(
         self, skill_id: str, node_id: str, payload: UpdateSkillFileContentInput
@@ -207,6 +361,8 @@ class SkillService:
             self._assert_node_etag(node, payload.base_etag)
             if node.node_type != "file":
                 raise RequestError("only files have editable content")
+            if node.storage_kind != "inline":
+                raise RequestError("binary Asset files must be replaced with another immutable revision")
             node.content = payload.content
             node.updated_at = datetime.now(UTC)
             await self._session.flush()
@@ -222,7 +378,8 @@ class SkillService:
             validate_node_name(payload.name)
             await self._assert_sibling_name_free(skill_id, node.parent_id, payload.name, excluding_id=node.id)
             node.name = payload.name
-            node.mime_type = "text/markdown" if payload.name.endswith(".md") else "text/plain"
+            if node.storage_kind == "inline":
+                node.mime_type = "text/markdown" if payload.name.endswith(".md") else "text/plain"
             node.updated_at = datetime.now(UTC)
             await self._session.flush()
             await self._finish_draft_mutation(row)
@@ -250,6 +407,8 @@ class SkillService:
             node = await self._get_node(skill_id, node_id)
             self._assert_node_etag(node, base_etag)
             self._assert_mutable_root(node, "deleted")
+            descendants = await node_crud.list_descendants(self._session, skill_id, node.id)
+            await self._release_node_claims(row, [node, *descendants], owner_type="skill_node")
             await self._session.delete(node)
             await self._session.flush()
             await self._finish_draft_mutation(row)
@@ -270,7 +429,23 @@ class SkillService:
                 raise RequestError(
                     "skill validation failed", details={"issues": [issue.model_dump() for issue in validation.issues]}
                 )
+            old_published = await node_crud.list_published_nodes(self._session, skill_id)
+            await self._release_published_claims(row, old_published)
             await node_crud.replace_published_nodes(self._session, skill_id)
+            for node in nodes:
+                if node.storage_kind == "asset" and node.asset_id and node.revision_id:
+                    await ensure_asset_claim(
+                        self._session,
+                        tenant_id=row.tenant_id,
+                        workspace_id=row.workspace_id,
+                        owner_type="skill_published_node",
+                        owner_id=f"{row.id}:{node.id}",
+                        slot="content",
+                        asset_id=node.asset_id,
+                        revision_id=node.revision_id,
+                        desired_state="active",
+                        kind="snapshot",
+                    )
             row.status = "published"
             row.published_sha256 = row.workspace_sha256
             row.published_at = datetime.now(UTC)
@@ -282,10 +457,17 @@ class SkillService:
 
     async def delete(self, skill_id: str) -> None:
         async with write_tx(self._session):
-            await skill_crud.delete_skill(self._session, await self._get_row(skill_id))
+            row = await self._get_locked_row(skill_id)
+            await self._release_skill_claims(row)
+            await skill_crud.delete_skill(self._session, row)
 
     async def bulk_delete(self, ids: Sequence[str]) -> int:
         async with write_tx(self._session):
+            rows = await skill_crud.list_skills_by_ids(
+                self._session, list(ids), self._current_user.workspace_id, self._current_user.tenant_id
+            )
+            for row in rows:
+                await self._release_skill_claims(row)
             return await skill_crud.bulk_delete_skills(
                 self._session, list(ids), self._current_user.workspace_id, self._current_user.tenant_id
             )
@@ -324,7 +506,162 @@ class SkillService:
         node = next((node for node in nodes if paths.get(node.node_id) == path), None)
         if node is None or node.node_type != "file":
             raise NotFoundError(f"published skill file {path} not found")
-        return InternalSkillFile(path=path, content=node.content or "")
+        url = None
+        if node.storage_kind == "asset" and node.asset_id and node.revision_id:
+            url = await get_asset_client().delivery_url(
+                tenant_id=tenant_id, workspace_id=workspace_id, asset_id=node.asset_id, revision_id=node.revision_id
+            )
+        return InternalSkillFile(
+            path=path,
+            storage_kind=cast(SkillStorageKind, node.storage_kind),
+            mime_type=node.mime_type,
+            content=node.content if node.storage_kind == "inline" else None,
+            asset_id=node.asset_id,
+            revision_id=node.revision_id,
+            size_bytes=node.size_bytes,
+            sha256=node.sha256,
+            url=url,
+        )
+
+    async def _upload_archive_binaries(
+        self, files: Sequence[ArchiveFile], source_revision_id: str
+    ) -> dict[str, AssetRevision]:
+        result: dict[str, AssetRevision] = {}
+        semaphore = asyncio.Semaphore(4)
+
+        async def upload(item: ArchiveFile) -> None:
+            if item.extracted_path is None:
+                return
+            idempotency_digest = hashlib.sha256(f"{source_revision_id}\0{item.path}".encode()).hexdigest()
+            async with semaphore:
+                result[item.path] = await get_asset_client().upload_file(
+                    path=item.extracted_path,
+                    tenant_id=self._current_user.tenant_id,
+                    workspace_id=self._current_user.workspace_id,
+                    user_id=self._current_user.user_id,
+                    filename=PurePosixPath(item.path).name,
+                    media_type=item.mime_type,
+                    idempotency_key=f"skill-archive:{idempotency_digest}",
+                )
+
+        await asyncio.gather(*(upload(item) for item in files))
+        return result
+
+    async def _replace_workspace_from_archive(
+        self, row: SkillRow, files: Sequence[ArchiveFile], binary_revisions: dict[str, AssetRevision]
+    ) -> builtins.list[SkillNodeRow]:
+        now = datetime.now(UTC)
+        directory_ids: dict[str, str] = {}
+        all_directories = sorted(
+            {str(parent) for item in files for parent in PurePosixPath(item.path).parents if str(parent) != "."},
+            key=lambda value: (len(PurePosixPath(value).parts), value),
+        )
+        nodes: list[SkillNodeRow] = []
+        for directory in all_directories:
+            path = PurePosixPath(directory)
+            node = SkillNodeRow(
+                id=uuid4().hex[:12],
+                skill_id=row.id,
+                parent_id=directory_ids.get(path.parent.as_posix()) if str(path.parent) != "." else None,
+                name=path.name,
+                node_type="directory",
+                mime_type=None,
+                content=None,
+                storage_kind="inline",
+                sort_order=0,
+                created_at=now,
+                updated_at=now,
+            )
+            directory_ids[directory] = node.id
+            self._session.add(node)
+            nodes.append(node)
+        for item in sorted(files, key=lambda value: value.path):
+            path = PurePosixPath(item.path)
+            revision = binary_revisions.get(item.path)
+            node = SkillNodeRow(
+                id=uuid4().hex[:12],
+                skill_id=row.id,
+                parent_id=directory_ids.get(path.parent.as_posix()) if str(path.parent) != "." else None,
+                name=path.name,
+                node_type="file",
+                mime_type=item.mime_type,
+                content=item.content,
+                storage_kind="asset" if revision else "inline",
+                asset_id=revision.asset_id if revision else None,
+                revision_id=revision.revision_id if revision else None,
+                size_bytes=item.size_bytes,
+                sha256=item.sha256,
+                sort_order=0,
+                created_at=now,
+                updated_at=now,
+            )
+            self._session.add(node)
+            nodes.append(node)
+            if revision:
+                await ensure_asset_claim(
+                    self._session,
+                    tenant_id=row.tenant_id,
+                    workspace_id=row.workspace_id,
+                    owner_type="skill_node",
+                    owner_id=f"{row.id}:{node.id}",
+                    slot="content",
+                    asset_id=revision.asset_id,
+                    revision_id=revision.revision_id,
+                    desired_state="active",
+                )
+        await self._session.flush()
+        validate_workspace(nodes)
+        return nodes
+
+    async def _release_node_claims(self, row: SkillRow, nodes: Sequence[SkillNodeRow], *, owner_type: str) -> None:
+        for node in nodes:
+            if node.storage_kind == "asset" and node.asset_id and node.revision_id:
+                await ensure_asset_claim(
+                    self._session,
+                    tenant_id=row.tenant_id,
+                    workspace_id=row.workspace_id,
+                    owner_type=owner_type,
+                    owner_id=f"{row.id}:{node.id}",
+                    slot="content",
+                    asset_id=node.asset_id,
+                    revision_id=node.revision_id,
+                    desired_state="released",
+                    kind="snapshot" if owner_type == "skill_published_node" else "strong",
+                )
+
+    async def _release_published_claims(self, row: SkillRow, nodes: Sequence[SkillPublishedNodeRow]) -> None:
+        for node in nodes:
+            if node.storage_kind == "asset" and node.asset_id and node.revision_id:
+                await ensure_asset_claim(
+                    self._session,
+                    tenant_id=row.tenant_id,
+                    workspace_id=row.workspace_id,
+                    owner_type="skill_published_node",
+                    owner_id=f"{row.id}:{node.node_id}",
+                    slot="content",
+                    asset_id=node.asset_id,
+                    revision_id=node.revision_id,
+                    desired_state="released",
+                    kind="snapshot",
+                )
+
+    async def _release_skill_claims(self, row: SkillRow) -> None:
+        await self._release_node_claims(
+            row, await node_crud.list_workspace_nodes(self._session, row.id), owner_type="skill_node"
+        )
+        await self._release_published_claims(row, await node_crud.list_published_nodes(self._session, row.id))
+        if row.source_archive_asset_id and row.source_archive_revision_id:
+            await ensure_asset_claim(
+                self._session,
+                tenant_id=row.tenant_id,
+                workspace_id=row.workspace_id,
+                owner_type="skill_import",
+                owner_id=row.id,
+                slot="source-archive",
+                asset_id=row.source_archive_asset_id,
+                revision_id=row.source_archive_revision_id,
+                desired_state="released",
+            )
 
     async def _finish_draft_mutation(self, row: SkillRow) -> None:
         nodes = await node_crud.list_workspace_nodes(self._session, row.id)

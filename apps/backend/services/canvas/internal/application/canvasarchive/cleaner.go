@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 )
@@ -20,19 +21,16 @@ type CleanupRepository interface {
 	RescheduleCleanup(context.Context, Export, time.Time, string, time.Time) (bool, error)
 }
 
-type AssociationStore interface {
-	Delete(context.Context, Export) error
-}
-
 type Cleaner struct {
-	repository CleanupRepository
-	store      AssociationStore
-	quota      CleanupStorageQuota
-	clock      Clock
+	repository   CleanupRepository
+	claims       ClaimIntentStore
+	transactions TransactionManager
+	quota        CleanupStorageQuota
+	clock        Clock
 }
 
-func NewCleaner(repository CleanupRepository, store AssociationStore, quota CleanupStorageQuota, clock Clock) *Cleaner {
-	return &Cleaner{repository: repository, store: store, quota: quota, clock: clock}
+func NewCleaner(repository CleanupRepository, claims ClaimIntentStore, transactions TransactionManager, quota CleanupStorageQuota, clock Clock) *Cleaner {
+	return &Cleaner{repository: repository, claims: claims, transactions: transactions, quota: quota, clock: clock}
 }
 
 func (cleaner *Cleaner) CleanupDue(ctx context.Context, budget time.Duration) (int, error) {
@@ -63,7 +61,7 @@ func (cleaner *Cleaner) cleanupDueBatch(ctx context.Context) (int, int, error) {
 		workCtx := logcontext.WithBusiness(ctx, logcontext.Business{TaskRunID: item.TaskRunID})
 		if cleaner.quota != nil {
 			if _, markErr := cleaner.quota.MarkStorageReleasing(
-				workCtx, "archive_path", item.OutputPath,
+				workCtx, "archive_revision", item.OutputRevisionID,
 			); markErr != nil {
 				failures = errors.Join(
 					failures,
@@ -72,20 +70,13 @@ func (cleaner *Cleaner) cleanupDueBatch(ctx context.Context) (int, int, error) {
 				continue
 			}
 		}
-		if deleteErr := cleaner.store.Delete(workCtx, item); deleteErr != nil {
-			failures = errors.Join(
-				failures,
-				cleaner.reschedule(workCtx, item, now, deleteErr),
-			)
-			continue
-		}
 		if cleaner.quota != nil {
-			released, releaseErr := cleaner.quota.ReleaseStorage(workCtx, "archive_path", item.OutputPath)
+			released, releaseErr := cleaner.quota.ReleaseStorage(workCtx, "archive_revision", item.OutputRevisionID)
 			if releaseErr == nil && !released {
 				releaseErr = cleaner.quota.ReleaseReservation(
 					workCtx,
 					applicationquota.Reservation{
-						ID:       applicationquota.StorageReservationID("archive_path", item.OutputPath),
+						ID:       applicationquota.StorageReservationID("archive_revision", item.OutputRevisionID),
 						TenantID: item.TenantID, Resource: applicationquota.ResourceStorage,
 						Value: item.OutputSize,
 					},
@@ -99,12 +90,27 @@ func (cleaner *Cleaner) cleanupDueBatch(ctx context.Context) (int, int, error) {
 				continue
 			}
 		}
-		ok, completeErr := cleaner.repository.CompleteCleanup(workCtx, item, now)
-		if completeErr != nil {
-			failures = errors.Join(failures, completeErr)
+		if cleaner.claims == nil || cleaner.transactions == nil {
+			failures = errors.Join(failures, cleaner.reschedule(workCtx, item, now, errors.New("archive claim cleanup is not configured")))
 			continue
 		}
-		if ok {
+		var completedCleanup bool
+		completeErr := cleaner.transactions.WithinTransaction(workCtx, func(txCtx context.Context) error {
+			if releaseErr := cleaner.claims.EnsureReleased(txCtx, applicationassetclaim.Intent{
+				TenantID: item.TenantID, WorkspaceID: workspaceValue(item.WorkspaceID), OwnerType: "canvas_archive", OwnerID: item.TaskRunID, Slot: "output",
+				AssetID: item.OutputAssetID, RevisionID: item.OutputRevisionID, Kind: applicationassetclaim.KindStrong, Generation: 1, DesiredState: applicationassetclaim.DesiredReleased,
+			}, now); releaseErr != nil {
+				return releaseErr
+			}
+			var completeErr error
+			completedCleanup, completeErr = cleaner.repository.CompleteCleanup(txCtx, item, now)
+			return completeErr
+		})
+		if completeErr != nil {
+			failures = errors.Join(failures, cleaner.reschedule(workCtx, item, now, completeErr))
+			continue
+		}
+		if completedCleanup {
 			completed++
 		}
 	}

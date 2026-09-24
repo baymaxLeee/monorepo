@@ -9,7 +9,7 @@ the full body is pulled on demand via the chat `load_skill` tool.
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Integer, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.persistence.models.base import Base
@@ -33,5 +33,7 @@ class SkillRow(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     published_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     published_description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    source_archive_asset_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
+    source_archive_revision_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

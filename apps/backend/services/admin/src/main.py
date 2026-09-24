@@ -1,5 +1,6 @@
 """FastAPI app entry."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,6 +18,7 @@ from api.http.routes import (
     skills,
     skills_internal,
 )
+from application.asset_client import close_asset_client, run_asset_claim_relay
 from bootstrap.config import get_settings
 from fastapi import FastAPI
 from infrastructure.cache.redis import close_redis, init_redis
@@ -29,10 +31,15 @@ from kernel.tracing import TraceIDMiddleware
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    stop = asyncio.Event()
+    claim_relay = asyncio.create_task(run_asset_claim_relay(stop), name="asset-claim-relay")
     await init_redis()
     if not get_settings().is_production:
         await seed_demo_apps()
     yield
+    stop.set()
+    await claim_relay
+    await close_asset_client()
     await close_redis()
     await close_db()
 

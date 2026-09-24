@@ -97,9 +97,10 @@ func NewService(repository Repository, covers applicationcoverimage.Store, ids I
 
 type CreateInput struct {
 	Scope
-	ProjectID      string
-	Name           string
-	CoverImagePath *string
+	ProjectID            string
+	Name                 string
+	CoverImageAssetID    *string
+	CoverImageRevisionID *string
 }
 
 type GetInput struct {
@@ -125,10 +126,11 @@ type ListInput struct {
 
 type UpdateInput struct {
 	Scope
-	ProjectID      string
-	CanvasID       string
-	Name           string
-	CoverImagePath *string
+	ProjectID            string
+	CanvasID             string
+	Name                 string
+	CoverImageAssetID    *string
+	CoverImageRevisionID *string
 }
 
 type UpdateViewInput struct {
@@ -136,6 +138,13 @@ type UpdateViewInput struct {
 	ProjectID   string
 	CanvasID    string
 	DefaultView *domaincanvas.ViewMode
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 type DeleteInput struct {
@@ -159,7 +168,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domaincanvas.C
 	}
 	created, err := domaincanvas.New(domaincanvas.NewInput{
 		ID: id, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID,
-		ProjectID: input.ProjectID, Name: input.Name, CoverImagePath: input.CoverImagePath,
+		ProjectID: input.ProjectID, Name: input.Name, CoverImageAssetID: valueOrEmpty(input.CoverImageAssetID), CoverImageRevisionID: valueOrEmpty(input.CoverImageRevisionID),
 		CreatedBy: input.CallerID, Now: s.clock.Now(),
 	})
 	if err != nil {
@@ -176,6 +185,11 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domaincanvas.C
 	err = s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
 		if createErr := s.repository.Create(txCtx, created); createErr != nil {
 			return createErr
+		}
+		if registration != nil {
+			if claimErr := s.covers.EnsureActive(txCtx, *registration); claimErr != nil {
+				return claimErr
+			}
 		}
 		if reservation.ID != "" {
 			return s.storageQuota.CommitStorage(
@@ -260,7 +274,7 @@ func (s *Service) enrichFallbackCovers(ctx context.Context, scope Scope, project
 	}
 	canvasIDs := make([]string, 0, len(items))
 	for index := range items {
-		if items[index].CoverImagePath == nil || strings.TrimSpace(*items[index].CoverImagePath) == "" {
+		if strings.TrimSpace(items[index].CoverImageRevisionID) == "" {
 			canvasIDs = append(canvasIDs, items[index].ID)
 		}
 	}
@@ -318,12 +332,11 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domaincanvas.C
 		return domaincanvas.Canvas{}, classifyRepositoryError(err)
 	}
 	previousRegistration := coverImageRegistration(current)
-	if err := current.Update(input.Name, input.CoverImagePath, s.clock.Now()); err != nil {
+	if err := current.Update(input.Name, input.CoverImageAssetID, input.CoverImageRevisionID, s.clock.Now()); err != nil {
 		return domaincanvas.Canvas{}, classifyDomainError(err)
 	}
 	var newRegistration *applicationcoverimage.Registration
-	if input.CoverImagePath != nil && current.CoverImagePath != nil &&
-		(current.CoverImageID == "" || current.CoverImageSHA256 == "") {
+	if input.CoverImageRevisionID != nil && current.CoverImageRevisionID != "" && current.CoverImageSHA256 == "" {
 		newRegistration, err = s.registerCoverImage(ctx, input.Scope, &current)
 		if err != nil {
 			return domaincanvas.Canvas{}, err
@@ -334,10 +347,15 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domaincanvas.C
 		return domaincanvas.Canvas{}, errors.Join(err, s.releaseCoverImage(ctx, newRegistration))
 	}
 	replacesPrevious := previousRegistration != nil &&
-		(current.CoverImagePath == nil || current.CoverImageID != previousRegistration.ID)
+		(current.CoverImageRevisionID == "" || current.CoverImageRevisionID != previousRegistration.Revision.RevisionID)
 	err = s.transactions.WithinTransaction(ctx, func(txCtx context.Context) error {
 		if updateErr := s.repository.Update(txCtx, current); updateErr != nil {
 			return updateErr
+		}
+		if newRegistration != nil {
+			if claimErr := s.covers.EnsureActive(txCtx, *newRegistration); claimErr != nil {
+				return claimErr
+			}
 		}
 		if reservation.ID != "" {
 			if commitErr := s.storageQuota.CommitStorage(
@@ -378,7 +396,7 @@ func (s *Service) enrichCoverImages(ctx context.Context, canvases []domaincanvas
 		return
 	}
 	for index := range canvases {
-		canvases[index].CoverImageURL = urls[canvases[index].CoverImageID]
+		canvases[index].CoverImageURL = urls[canvases[index].CoverImageAssetID]
 	}
 }
 
@@ -493,10 +511,11 @@ func (s *Service) registerCoverImage(
 	scope Scope,
 	canvas *domaincanvas.Canvas,
 ) (*applicationcoverimage.Registration, error) {
-	if canvas.CoverImagePath == nil {
+	if canvas.CoverImageRevisionID == "" || canvas.CoverImageAssetID == "" {
 		return nil, nil
 	}
-	registration, err := s.covers.Register(ctx, scope.TenantID, scope.CallerID, *canvas.CoverImagePath)
+	generation := canvas.CoverImageClaimGeneration + 1
+	registration, err := s.covers.Register(ctx, applicationcoverimage.RegisterInput{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, UserID: scope.CallerID, OwnerType: "canvas_cover", OwnerID: canvas.ID, Generation: generation, Revision: applicationcoverimage.RevisionRef{AssetID: canvas.CoverImageAssetID, RevisionID: canvas.CoverImageRevisionID}})
 	if err != nil {
 		if errors.Is(err, applicationcoverimage.ErrTooLarge) {
 			return nil, errno.Wrap(errno.ErrCoverImageTooLarge, err)
@@ -510,25 +529,27 @@ func (s *Service) registerCoverImage(
 		}
 		return nil, preserveOrWrap(err, errno.ErrObjectStorageDependencyError)
 	}
-	if registration.Path != *canvas.CoverImagePath || registration.ID == "" || registration.SHA256 == "" {
+	if registration.Revision.AssetID != canvas.CoverImageAssetID || registration.Revision.RevisionID != canvas.CoverImageRevisionID || registration.SHA256 == "" {
 		return nil, errors.Join(
 			errno.New(errno.ErrObjectStorageDependencyError),
 			s.releaseCoverImage(ctx, &registration),
 		)
 	}
-	canvas.CoverImageID = registration.ID
+	canvas.CoverImageAssetID = registration.Revision.AssetID
+	canvas.CoverImageRevisionID = registration.Revision.RevisionID
 	canvas.CoverImageSHA256 = registration.SHA256
 	canvas.CoverImageContentType = registration.ContentType
 	canvas.CoverImageSizeBytes = registration.SizeBytes
+	canvas.CoverImageClaimGeneration = registration.Generation
 	return &registration, nil
 }
 
 func coverImageRegistration(canvas domaincanvas.Canvas) *applicationcoverimage.Registration {
-	if canvas.CoverImagePath == nil || canvas.CoverImageID == "" || canvas.CoverImageSHA256 == "" {
+	if canvas.CoverImageRevisionID == "" || canvas.CoverImageAssetID == "" || canvas.CoverImageSHA256 == "" {
 		return nil
 	}
 	return &applicationcoverimage.Registration{
-		Path: *canvas.CoverImagePath, ID: canvas.CoverImageID,
+		TenantID: canvas.TenantID, WorkspaceID: canvas.WorkspaceID, Revision: applicationcoverimage.RevisionRef{AssetID: canvas.CoverImageAssetID, RevisionID: canvas.CoverImageRevisionID}, OwnerType: "canvas_cover", OwnerID: canvas.ID, Generation: canvas.CoverImageClaimGeneration,
 		SHA256: canvas.CoverImageSHA256, ContentType: canvas.CoverImageContentType,
 		SizeBytes: canvas.CoverImageSizeBytes,
 	}
@@ -543,7 +564,8 @@ func (s *Service) reserveCoverStorage(
 		return applicationquota.Reservation{}, nil
 	}
 	reservation, err := s.storageQuota.ReserveStorage(
-		ctx, canvas.TenantID, "cover", registration.ID,
+		ctx, canvas.TenantID, applicationcoverimage.QuotaObjectType,
+		applicationcoverimage.LifecycleKey(registration.OwnerType, registration.OwnerID, registration.Generation),
 		"canvas_cover", canvas.ID, registration.SizeBytes,
 	)
 	if err != nil {
@@ -555,8 +577,10 @@ func (s *Service) reserveCoverStorage(
 func canvasCoverStorageObject(canvas domaincanvas.Canvas) applicationquota.StorageObject {
 	return applicationquota.StorageObject{
 		TenantID: canvas.TenantID, WorkspaceID: canvas.WorkspaceID,
-		ObjectType: "cover", ObjectKey: canvas.CoverImageID, Category: "canvas_cover",
-		OwnerType: "canvas_cover", OwnerID: canvas.ID,
+		ObjectType: applicationcoverimage.QuotaObjectType,
+		ObjectKey:  applicationcoverimage.LifecycleKey("canvas_cover", canvas.ID, canvas.CoverImageClaimGeneration),
+		Category:   "canvas_cover",
+		OwnerType:  "canvas_cover", OwnerID: canvas.ID,
 		SizeBytes: canvas.CoverImageSizeBytes, BillingClass: applicationquota.BillingBillable,
 	}
 }
@@ -570,11 +594,21 @@ func (s *Service) markCoverReleasing(
 		return nil
 	}
 	if s.storageQuota != nil {
-		if _, err := s.storageQuota.MarkStorageReleasing(ctx, "cover", registration.ID); err != nil {
+		if _, err := s.storageQuota.MarkStorageReleasing(
+			ctx,
+			applicationcoverimage.QuotaObjectType,
+			applicationcoverimage.LifecycleKey(registration.OwnerType, registration.OwnerID, registration.Generation),
+		); err != nil {
 			return err
 		}
 	}
-	return s.deletion.Enqueue(ctx, tenantID, applicationcoverimage.CleanupJobKind, registration.ID, registration)
+	return s.deletion.Enqueue(
+		ctx,
+		tenantID,
+		applicationcoverimage.CleanupJobKind,
+		applicationcoverimage.LifecycleKey(registration.OwnerType, registration.OwnerID, registration.Generation),
+		registration,
+	)
 }
 
 func (s *Service) releaseStorageReservation(
@@ -591,7 +625,7 @@ func (s *Service) releaseCoverImage(
 	ctx context.Context,
 	registration *applicationcoverimage.Registration,
 ) error {
-	if registration == nil || registration.ID == "" || registration.SHA256 == "" {
+	if registration == nil || !registration.Revision.Valid() || registration.SHA256 == "" {
 		return nil
 	}
 	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), coverImageReleaseTimeout)
@@ -653,7 +687,7 @@ func orderCanvases(items []domaincanvas.Canvas, ids []string) []domaincanvas.Can
 
 func classifyDomainError(err error) error {
 	switch {
-	case errors.Is(err, domaincanvas.ErrInvalidName), errors.Is(err, domaincanvas.ErrInvalidCoverImagePath):
+	case errors.Is(err, domaincanvas.ErrInvalidName), errors.Is(err, domaincanvas.ErrInvalidCoverImageReference):
 		return errno.Wrap(errno.ErrInvalidArgument, err)
 	default:
 		return preserveOrWrap(err, errno.ErrInternalError)

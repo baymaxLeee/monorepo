@@ -72,7 +72,7 @@ func decodeArchiveOutput(payload json.RawMessage) (applicationcanvasarchive.Succ
 		)
 	}
 	return applicationcanvasarchive.SuccessResult{
-		Path: output.Path, SHA256: output.SHA256, UploadID: output.UploadID,
+		AssetID: output.AssetID, RevisionID: output.RevisionID, SHA256: output.SHA256, UploadID: output.UploadID,
 		Size: output.Size, PartSize: output.PartSize, RetentionStartedAt: output.RetentionStartedAt,
 	}, nil
 }
@@ -126,9 +126,9 @@ func decodeFrameResult(payload json.RawMessage) (applicationfirstlastframe.Resul
 		)
 	}
 	return applicationfirstlastframe.Result{
-		FirstFrameArtifactID: result.FirstFrameArtifactID,
-		LastFrameArtifactID:  result.LastFrameArtifactID,
-		FirstFrameSizeBytes:  result.FirstFrameSizeBytes,
-		LastFrameSizeBytes:   result.LastFrameSizeBytes,
+		FirstFrameSourceAssetID: result.FirstFrameSourceAssetID,
+		LastFrameSourceAssetID:  result.LastFrameSourceAssetID,
+		FirstFrameSizeBytes:     result.FirstFrameSizeBytes,
+		LastFrameSizeBytes:      result.LastFrameSizeBytes,
 	}, nil
 }

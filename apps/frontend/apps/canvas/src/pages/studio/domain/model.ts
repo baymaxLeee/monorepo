@@ -157,9 +157,12 @@ export function isAssetReady(asset: StoryboardAsset) {
   return !asset.syncStatus || asset.syncStatus === "ready";
 }
 
-/** 文件已传到 artifact storage，或本来就是已绑定资产。保存时才能拿去建绑定。 */
+/** 文件已上传为平台 Asset revision，或本来就是已绑定资产。保存时才能拿去建绑定。 */
 export function isAssetUploadReady(asset: StoryboardAsset) {
-  return isAssetReady(asset) || (asset.syncStatus === "uploaded" && Boolean(asset.blobId));
+  return (
+    isAssetReady(asset) ||
+    (asset.syncStatus === "uploaded" && Boolean(asset.sourceAssetId) && Boolean(asset.sourceRevisionId))
+  );
 }
 
 /** 用 AssetID 替换草稿 mention 中的本地临时 ID。 */

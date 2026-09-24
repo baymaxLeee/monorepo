@@ -4754,6 +4754,334 @@
         }
       }
     },
+    "/skills/{skill_id}/workspace/assets": {
+      "post": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Attach Skill Asset",
+        "operationId": "attach_skill_asset_skills__skill_id__workspace_assets_post",
+        "parameters": [
+          {
+            "name": "skill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Skill Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Tenant-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachSkillAssetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillNodeMutationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skills/{skill_id}/workspace:import-archive": {
+      "post": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Import Skill Archive",
+        "operationId": "import_skill_archive_skills__skill_id__workspace_import_archive_post",
+        "parameters": [
+          {
+            "name": "skill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Skill Id"
+            }
+          },
+          {
+            "name": "X-Auth-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Email"
+            }
+          },
+          {
+            "name": "X-Auth-User-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-User-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Name",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Name"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Tenant-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Tenant-Id"
+            }
+          },
+          {
+            "name": "X-Auth-Workspace-Role",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Workspace-Role"
+            }
+          },
+          {
+            "name": "X-Auth-Roles",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Auth-Roles"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSkillArchiveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSkillArchiveResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/skills/{skill_id}/workspace/nodes/{node_id}/content": {
       "put": {
         "tags": [
@@ -8851,6 +9179,53 @@
         ],
         "title": "AssetGroupCleanup"
       },
+      "AttachSkillAssetInput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "asset_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Revision Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "asset_id",
+          "revision_id"
+        ],
+        "title": "AttachSkillAssetInput"
+      },
       "AttachSkillInput": {
         "properties": {
           "skill_id": {
@@ -9773,6 +10148,60 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "ImportSkillArchiveInput": {
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Revision Id"
+          },
+          "base_workspace_seq": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Base Workspace Seq"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_id",
+          "revision_id",
+          "base_workspace_seq"
+        ],
+        "title": "ImportSkillArchiveInput"
+      },
+      "ImportSkillArchiveResult": {
+        "properties": {
+          "skill": {
+            "$ref": "#/components/schemas/Skill"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/SkillWorkspace"
+          },
+          "imported_files": {
+            "type": "integer",
+            "title": "Imported Files"
+          },
+          "imported_asset_files": {
+            "type": "integer",
+            "title": "Imported Asset Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill",
+          "workspace",
+          "imported_files",
+          "imported_asset_files"
+        ],
+        "title": "ImportSkillArchiveResult"
+      },
       "InternalBenefitPackage": {
         "properties": {
           "id": {
@@ -9976,15 +10405,96 @@
             "type": "string",
             "title": "Path"
           },
-          "content": {
+          "storage_kind": {
             "type": "string",
+            "enum": [
+              "inline",
+              "asset"
+            ],
+            "title": "Storage Kind"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Content"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Id"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
           }
         },
         "type": "object",
         "required": [
           "path",
-          "content"
+          "storage_kind"
         ],
         "title": "InternalSkillFile"
       },
@@ -10532,9 +11042,90 @@
             "type": "string",
             "title": "Id"
           },
-          "content": {
+          "storage_kind": {
             "type": "string",
+            "enum": [
+              "inline",
+              "asset"
+            ],
+            "title": "Storage Kind"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Content"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Id"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
           },
           "etag": {
             "type": "string",
@@ -10544,7 +11135,7 @@
         "type": "object",
         "required": [
           "id",
-          "content",
+          "storage_kind",
           "etag"
         ],
         "title": "SkillFileContent"
@@ -10588,6 +11179,59 @@
               }
             ],
             "title": "Mime Type"
+          },
+          "storage_kind": {
+            "type": "string",
+            "enum": [
+              "inline",
+              "asset"
+            ],
+            "title": "Storage Kind",
+            "default": "inline"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Id"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
           },
           "etag": {
             "type": "string",

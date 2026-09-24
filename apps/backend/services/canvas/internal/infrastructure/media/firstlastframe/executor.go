@@ -10,7 +10,6 @@ import (
 
 	firstlastframecontract "github.com/example/monorepo/canvas/internal/contract/firstlastframe"
 	"github.com/example/monorepo/canvas/internal/infrastructure/media/executiondiagnostic"
-	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 const (
@@ -39,7 +38,11 @@ type ExecutionControl interface {
 
 type FileStore interface {
 	OpenArtifact(context.Context, string, string, string, string) (io.ReadCloser, error)
-	SaveArtifact(context.Context, string, string, string, string, string) (string, error)
+	SaveArtifact(context.Context, string, *string, string, string, string, string) (SavedArtifact, error)
+}
+
+type SavedArtifact struct {
+	SourceAssetID, SourceRevisionID string
 }
 
 type Extractor interface {
@@ -73,20 +76,21 @@ func (executor *Executor) Execute(ctx context.Context, taskRunID string) error {
 	default:
 		return fmt.Errorf("unknown first last frame execution state %q", response.State)
 	}
-	if response.Execution == nil || response.Execution.TaskRunID != taskRunID || response.Execution.SourceArtifactID == "" {
+	if response.Execution == nil || response.Execution.TaskRunID != taskRunID || response.Execution.SourceSourceAssetID == "" {
 		return errors.New("first last frame execution payload is incomplete")
 	}
 	execution := response.Execution
-	firstID := execution.FirstFrameCheckpointID
-	lastID := execution.LastFrameCheckpointID
+	firstID, firstRevisionID := execution.FirstFrameCheckpointAssetID, execution.FirstFrameCheckpointRevisionID
+	lastID, lastRevisionID := execution.LastFrameCheckpointAssetID, execution.LastFrameCheckpointRevisionID
 	firstSize := execution.FirstFrameCheckpointSizeBytes
 	lastSize := execution.LastFrameCheckpointSizeBytes
-	if !validCheckpointPair(firstID, firstSize) || !validCheckpointPair(lastID, lastSize) {
+	if !validCheckpointPair(firstID, firstRevisionID, firstSize) || !validCheckpointPair(lastID, lastRevisionID, lastSize) {
 		return errors.New("first last frame checkpoint is incomplete")
 	}
 	if firstID != "" && lastID != "" {
 		return executiondiagnostic.Wrap("commit_success", executor.control.CommitSuccess(ctx, taskRunID, firstlastframecontract.Result{
-			FirstFrameArtifactID: firstID, LastFrameArtifactID: lastID,
+			FirstFrameSourceAssetID: firstID, FirstFrameSourceRevisionID: firstRevisionID,
+			LastFrameSourceAssetID: lastID, LastFrameSourceRevisionID: lastRevisionID,
 			FirstFrameSizeBytes: firstSize, LastFrameSizeBytes: lastSize,
 		}))
 	}
@@ -105,23 +109,19 @@ func (executor *Executor) Execute(ctx context.Context, taskRunID string) error {
 	if err = executor.extractor.Extract(ctx, videoPath, firstPath, lastPath); err != nil {
 		return executiondiagnostic.Wrap("extract_frames", err)
 	}
-	namespace, err := (artifactnamespace.Scope{
-		TenantID: execution.TenantID, WorkspaceID: execution.WorkspaceID, ProjectID: &execution.ProjectID,
-	}).Namespace()
-	if err != nil {
-		return executiondiagnostic.Wrap("derive_namespace", err)
-	}
 	if firstID == "" {
 		firstSize, err = fileSize(firstPath)
 		if err != nil {
 			return executiondiagnostic.Wrap("inspect_first_frame", err)
 		}
-		firstID, err = executor.files.SaveArtifact(ctx, execution.TenantID, execution.CreatedBy, namespace, "first.jpg", firstPath)
+		saved, saveErr := executor.files.SaveArtifact(ctx, execution.TenantID, execution.WorkspaceID, execution.CreatedBy, "first.jpg", firstPath, "first-last-frame:"+taskRunID+":first")
+		err = saveErr
 		if err != nil {
 			return executiondiagnostic.Wrap("upload_first_frame", fmt.Errorf("save first frame artifact: %w", err))
 		}
-		firstID, firstSize, err = executor.recordCheckpoint(ctx, taskRunID, firstlastframecontract.Result{
-			FirstFrameArtifactID: firstID, FirstFrameSizeBytes: firstSize,
+		firstID, firstRevisionID = saved.SourceAssetID, saved.SourceRevisionID
+		firstID, firstRevisionID, firstSize, err = executor.recordCheckpoint(ctx, taskRunID, firstlastframecontract.Result{
+			FirstFrameSourceAssetID: firstID, FirstFrameSourceRevisionID: firstRevisionID, FirstFrameSizeBytes: firstSize,
 		}, true)
 		if err != nil {
 			return executiondiagnostic.Wrap("record_first_checkpoint", fmt.Errorf("checkpoint first frame artifact: %w", err))
@@ -132,25 +132,28 @@ func (executor *Executor) Execute(ctx context.Context, taskRunID string) error {
 		if err != nil {
 			return executiondiagnostic.Wrap("inspect_last_frame", err)
 		}
-		lastID, err = executor.files.SaveArtifact(ctx, execution.TenantID, execution.CreatedBy, namespace, "last.jpg", lastPath)
+		saved, saveErr := executor.files.SaveArtifact(ctx, execution.TenantID, execution.WorkspaceID, execution.CreatedBy, "last.jpg", lastPath, "first-last-frame:"+taskRunID+":last")
+		err = saveErr
 		if err != nil {
 			return executiondiagnostic.Wrap("upload_last_frame", fmt.Errorf("save last frame artifact: %w", err))
 		}
-		lastID, lastSize, err = executor.recordCheckpoint(ctx, taskRunID, firstlastframecontract.Result{
-			LastFrameArtifactID: lastID, LastFrameSizeBytes: lastSize,
+		lastID, lastRevisionID = saved.SourceAssetID, saved.SourceRevisionID
+		lastID, lastRevisionID, lastSize, err = executor.recordCheckpoint(ctx, taskRunID, firstlastframecontract.Result{
+			LastFrameSourceAssetID: lastID, LastFrameSourceRevisionID: lastRevisionID, LastFrameSizeBytes: lastSize,
 		}, false)
 		if err != nil {
 			return executiondiagnostic.Wrap("record_last_checkpoint", fmt.Errorf("checkpoint last frame artifact: %w", err))
 		}
 	}
 	return executiondiagnostic.Wrap("commit_success", executor.control.CommitSuccess(ctx, taskRunID, firstlastframecontract.Result{
-		FirstFrameArtifactID: firstID, LastFrameArtifactID: lastID,
+		FirstFrameSourceAssetID: firstID, FirstFrameSourceRevisionID: firstRevisionID,
+		LastFrameSourceAssetID: lastID, LastFrameSourceRevisionID: lastRevisionID,
 		FirstFrameSizeBytes: firstSize, LastFrameSizeBytes: lastSize,
 	}))
 }
 
-func validCheckpointPair(artifactID string, sizeBytes int64) bool {
-	return artifactID == "" && sizeBytes == 0 || artifactID != "" && sizeBytes > 0
+func validCheckpointPair(sourceAssetID, sourceRevisionID string, sizeBytes int64) bool {
+	return sourceAssetID == "" && sourceRevisionID == "" && sizeBytes == 0 || sourceAssetID != "" && sourceRevisionID != "" && sizeBytes > 0
 }
 
 func (executor *Executor) recordCheckpoint(
@@ -158,30 +161,34 @@ func (executor *Executor) recordCheckpoint(
 	taskRunID string,
 	checkpoint firstlastframecontract.Result,
 	first bool,
-) (string, int64, error) {
-	candidate := checkpoint.LastFrameArtifactID
+) (string, string, int64, error) {
+	candidate := checkpoint.LastFrameSourceAssetID
+	revisionID := checkpoint.LastFrameSourceRevisionID
 	size := checkpoint.LastFrameSizeBytes
 	if first {
-		candidate = checkpoint.FirstFrameArtifactID
+		candidate = checkpoint.FirstFrameSourceAssetID
+		revisionID = checkpoint.FirstFrameSourceRevisionID
 		size = checkpoint.FirstFrameSizeBytes
 	}
 	if err := executor.control.RecordCheckpoint(ctx, taskRunID, checkpoint); err == nil {
-		return candidate, size, nil
+		return candidate, revisionID, size, nil
 	} else {
 		response, reloadErr := executor.control.GetExecution(ctx, taskRunID)
 		if reloadErr != nil || response.State != StateReady || response.Execution == nil {
-			return "", 0, err
+			return "", "", 0, err
 		}
-		canonical := response.Execution.LastFrameCheckpointID
+		canonical := response.Execution.LastFrameCheckpointAssetID
+		canonicalRevisionID := response.Execution.LastFrameCheckpointRevisionID
 		canonicalSize := response.Execution.LastFrameCheckpointSizeBytes
 		if first {
-			canonical = response.Execution.FirstFrameCheckpointID
+			canonical = response.Execution.FirstFrameCheckpointAssetID
+			canonicalRevisionID = response.Execution.FirstFrameCheckpointRevisionID
 			canonicalSize = response.Execution.FirstFrameCheckpointSizeBytes
 		}
-		if canonical == "" || canonicalSize <= 0 {
-			return "", 0, err
+		if canonical == "" || canonicalRevisionID == "" || canonicalSize <= 0 {
+			return "", "", 0, err
 		}
-		return canonical, canonicalSize, nil
+		return canonical, canonicalRevisionID, canonicalSize, nil
 	}
 }
 
@@ -198,7 +205,7 @@ func fileSize(path string) (int64, error) {
 
 func (executor *Executor) download(ctx context.Context, execution *firstlastframecontract.Execution, target string) error {
 	reader, err := executor.files.OpenArtifact(
-		ctx, execution.TenantID, execution.CreatedBy, execution.SourceArtifactID, execution.SourceArtifactNamespace,
+		ctx, execution.TenantID, execution.CreatedBy, execution.SourceSourceAssetID, execution.SourceSourceRevisionID,
 	)
 	if err != nil {
 		return fmt.Errorf("open source video artifact: %w", err)

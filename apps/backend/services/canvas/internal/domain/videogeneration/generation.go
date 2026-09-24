@@ -143,7 +143,8 @@ type Generation struct {
 	Status                                                      string
 	AssetID, ErrorMessage, CreatedBy                            string
 	FirstLastFrameTaskRunID                                     string
-	FirstFrameCheckpointID, LastFrameCheckpointID               string
+	FirstFrameCheckpointAssetID, FirstFrameCheckpointRevisionID string
+	LastFrameCheckpointAssetID, LastFrameCheckpointRevisionID   string
 	FirstFrameCheckpointSizeBytes, LastFrameCheckpointSizeBytes int64
 	FirstFrameAssetID, LastFrameAssetID                         string
 	Inputs                                                      []domaingenerationinput.Input

@@ -72,7 +72,7 @@ export async function downloadConversationDocument(
   content: string = document.content_md,
 ) {
   const blob =
-    document.source_object_bucket && document.source_object_key
+    document.asset_id && document.source_revision_id
       ? await fetchCachedDocumentSource(conversationId, documentId, document.updated_at)
       : new Blob([content], {
           type: document.mime_type || "application/octet-stream",

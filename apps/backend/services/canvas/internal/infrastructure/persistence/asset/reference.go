@@ -34,9 +34,6 @@ func (r *Repository) AcquireReferences(
 				return restored.Error
 			}
 			if restored.RowsAffected == 1 {
-				if err := incrementReferenceCount(tx, scope, id); err != nil {
-					return err
-				}
 				continue
 			}
 			row := assetReferenceRow{AssetID: id, OwnerType: string(owner.Type), OwnerKey: owner.Key, CreatedAt: createdAt, UpdatedAt: createdAt}
@@ -46,9 +43,6 @@ func (r *Repository) AcquireReferences(
 			}
 			if created.RowsAffected == 0 {
 				continue
-			}
-			if err := incrementReferenceCount(tx, scope, id); err != nil {
-				return err
 			}
 		}
 		return nil
@@ -80,14 +74,6 @@ func (r *Repository) ReleaseReferences(
 			}
 			if deleted.RowsAffected == 0 {
 				continue
-			}
-			updated := referenceAssetScopeQuery(tx, scope).Where("id = ?", id).
-				UpdateColumn("reference_count", gorm.Expr("CASE WHEN reference_count > 0 THEN reference_count - 1 ELSE 0 END"))
-			if updated.Error != nil {
-				return updated.Error
-			}
-			if updated.RowsAffected != 1 {
-				return applicationasset.ErrNotFound
 			}
 		}
 		return nil
@@ -126,50 +112,9 @@ func (r *Repository) ReleaseOwnerReferences(
 			if deleted.RowsAffected == 0 {
 				continue
 			}
-			if err := referenceAssetScopeQuery(tx, scope).Where("id = ?", row.AssetID).
-				UpdateColumn("reference_count", gorm.Expr("CASE WHEN reference_count > 0 THEN reference_count - 1 ELSE 0 END")).Error; err != nil {
-				return err
-			}
 		}
 		return nil
 	})
-}
-
-func (r *Repository) CountReferences(
-	ctx context.Context,
-	scope applicationasset.ReferenceScope,
-	assetIDs []string,
-) (map[string]int32, error) {
-	ids, err := validReferenceIDs(assetIDs)
-	if err != nil || scope.TenantID == "" {
-		return nil, applicationasset.ErrInvalidReferenceInput
-	}
-	type referenceCountRow struct {
-		AssetID persistenceid.UUID
-		Count   int64
-	}
-	var rows []referenceCountRow
-	query := r.dbFor(ctx).Model(&assetReferenceRow{}).
-		Joins("JOIN assets ON assets.id = asset_references.asset_id").
-		Select("asset_references.asset_id, COUNT(*) AS count").
-		Where("asset_references.asset_id IN ? AND assets.tenant_id = ?", ids, scope.TenantID).
-		Group("asset_references.asset_id")
-	if scope.WorkspaceID == nil {
-		query = query.Where("assets.workspace_id IS NULL")
-	} else {
-		query = query.Where("assets.workspace_id = ?", *scope.WorkspaceID)
-	}
-	if err = query.Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	result := make(map[string]int32, len(rows))
-	for _, row := range rows {
-		if row.Count < 0 || row.Count > int64(^uint32(0)>>1) {
-			return nil, applicationasset.ErrInvalidReferenceInput
-		}
-		result[row.AssetID.String()] = int32(row.Count)
-	}
-	return result, nil
 }
 
 func validReferenceIDs(assetIDs []string) ([]persistenceid.UUID, error) {
@@ -212,16 +157,4 @@ func referenceAssetScopeQuery(db *gorm.DB, scope applicationasset.ReferenceScope
 		return query.Where("workspace_id IS NULL")
 	}
 	return query.Where("workspace_id = ?", *scope.WorkspaceID)
-}
-
-func incrementReferenceCount(db *gorm.DB, scope applicationasset.ReferenceScope, id persistenceid.UUID) error {
-	updated := referenceAssetScopeQuery(db, scope).Where("id = ?", id).
-		UpdateColumn("reference_count", gorm.Expr("reference_count + 1"))
-	if updated.Error != nil {
-		return updated.Error
-	}
-	if updated.RowsAffected != 1 {
-		return applicationasset.ErrNotFound
-	}
-	return nil
 }

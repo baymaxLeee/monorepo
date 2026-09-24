@@ -1,9 +1,6 @@
 from datetime import UTC, datetime
-from functools import partial
 from hashlib import blake2b
-from typing import cast
 
-import anyio
 from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.models.conversation_cleanup import ConversationArtifactTombstoneRow
 from infrastructure.persistence.models.document import DocumentRow
@@ -14,11 +11,11 @@ from sqlalchemy import delete, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from application.asset_client import mark_asset_claims_released
 from application.contracts.conversation_cleanup import (
     CleanupConversationArtifactsInput,
     CleanupConversationArtifactsResult,
 )
-from application.object_store import ObjectStore
 
 
 class ConversationDeletedError(ConflictError):
@@ -88,7 +85,7 @@ async def cleanup_conversation_artifacts(
                     & (StagedMediaRow.tenant_id == payload.tenant_id),
                     StagedMediaRow.conversation_id == payload.conversation_id,
                 )
-                .returning(StagedMediaRow.object_bucket, StagedMediaRow.object_key)
+                .returning(StagedMediaRow.id)
             )
         ).all()
         documents = (
@@ -104,19 +101,22 @@ async def cleanup_conversation_artifacts(
                     ),
                     DocumentRow.kind == "artifact",
                 )
-                .returning(DocumentRow.object_bucket, DocumentRow.object_key)
+                .returning(DocumentRow.id)
             )
         ).all()
-    store = ObjectStore()
-    deleted_objects = cast(list[tuple[str | None, str | None]], [*staged, *documents])
-    for object_bucket, object_key in deleted_objects:
-        if object_bucket and object_key:
-            await anyio.to_thread.run_sync(partial(store.delete, bucket=object_bucket, key=object_key))
+        released_claims = await mark_asset_claims_released(
+            session, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
+            owner_type="staged_media", owner_ids=[row.id for row in staged]
+        )
+        released_claims += await mark_asset_claims_released(
+            session, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
+            owner_type="document", owner_ids=[row.id for row in documents]
+        )
     return CleanupConversationArtifactsResult(
         conversation_id=payload.conversation_id,
         deleted_documents=len(documents),
         deleted_generations=0,
         deleted_blocks=len(deleted_files),
         deleted_staged_media=len(staged),
-        deleted_objects=len(documents) + len(staged),
+        released_asset_claims=released_claims,
     )

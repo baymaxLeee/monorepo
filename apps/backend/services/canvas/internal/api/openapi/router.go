@@ -31,8 +31,6 @@ import (
 )
 
 const apiVersion = "2026-07-31"
-const maxStagedUploadBytes int64 = 512 << 20
-const maxCoverUploadBytes int64 = 2 << 20
 
 type Router struct {
 	projects       *maturehttp.ProjectHandler
@@ -44,13 +42,12 @@ type Router struct {
 	archives       *maturehttp.CanvasArchiveHandler
 	executeArchive func(context.Context, string) (any, error)
 	executeFrames  func(context.Context, string) (any, error)
-	uploadBlob     func(context.Context, io.Reader) (string, int64, error)
 	readiness      func(context.Context) error
 	access         applicationprojectaccess.Checker
 }
 
-func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), uploadBlob func(context.Context, io.Reader) (string, int64, error), readiness func(context.Context) error, access applicationprojectaccess.Checker) http.Handler {
-	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, executeFrames: executeFrames, uploadBlob: uploadBlob, readiness: readiness, access: access}
+func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), readiness func(context.Context) error, access applicationprojectaccess.Checker) http.Handler {
+	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, executeFrames: executeFrames, readiness: readiness, access: access}
 	router := chi.NewRouter()
 	router.Get("/livez", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -62,8 +59,6 @@ func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.Pro
 		r.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
 		r.Post("/internal/worker/video-generations/{taskRunId}/extract-frames", transport.internalFrameRoute())
 	})
-	router.Post("/uploads", transport.uploadRoute())
-	router.Post("/cover-uploads", transport.binaryUploadRoute("StageCoverUpload", maxCoverUploadBytes))
 	router.Get("/admin/projects", transport.workspaceAdminRoute("ListProjects", func(ctx context.Context, request *http.Request) (any, error) {
 		workspace := metadataWorkspace(request)
 		pageSize, err := requiredPositiveInt32Query(request, "page_size")
@@ -856,41 +851,6 @@ func (transport *Router) archiveContentRoute() http.HandlerFunc {
 }
 
 type endpoint func(context.Context, *http.Request) (any, error)
-
-func (transport *Router) uploadRoute() http.HandlerFunc {
-	return transport.binaryUploadRoute("StageUpload", maxStagedUploadBytes)
-}
-
-func (transport *Router) binaryUploadRoute(action string, maximumBytes int64) http.HandlerFunc {
-	return func(w http.ResponseWriter, request *http.Request) {
-		metadata, err := metadataFromRequest(request, action)
-		if err != nil {
-			writeProblem(w, errno.New(errno.ErrForbidden))
-			return
-		}
-		if transport.uploadBlob == nil {
-			writeProblem(w, errno.New(errno.ErrConfigurationError))
-			return
-		}
-		if request.ContentLength > maximumBytes {
-			writeProblem(w, errno.New(errno.ErrInvalidArgument))
-			return
-		}
-		ctx := requestcontext.WithMetadata(request.Context(), metadata)
-		request.Body = http.MaxBytesReader(w, request.Body, maximumBytes)
-		blobID, size, err := transport.uploadBlob(ctx, request.Body)
-		if err != nil {
-			var tooLarge *http.MaxBytesError
-			if errors.As(err, &tooLarge) {
-				err = errno.New(errno.ErrInvalidArgument)
-			}
-			slog.Error("canvas request failed", "action", action, "error", err)
-			writeProblem(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, toSnakeJSON(&contractasset.StagedUpload{BlobID: blobID, SizeBytes: size}))
-	}
-}
 
 func requiredPositiveInt32Query(request *http.Request, name string) (int32, error) {
 	value, err := strconv.ParseInt(strings.TrimSpace(request.URL.Query().Get(name)), 10, 32)

@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
+import type { SkillFileResource } from "../../../../infrastructure/clients/admin.js";
 import type { SkillListing } from "../../context/instructions/index.js";
 import { defineAgentTool } from "../../tools/manifest.js";
 import { ToolBlockedError } from "../../tools/outcome.js";
@@ -12,7 +13,7 @@ export interface AdminSkillSource {
   skills: { id: string; name: string; description: string }[];
   activeSkillName?: string | null;
   loadBody: (skillId: string) => Promise<string>;
-  loadFile?: (skillId: string, path: string) => Promise<string>;
+  loadFile?: (skillId: string, path: string) => Promise<SkillFileResource>;
 }
 
 const loadSkillOutputSchema = z.object({
@@ -30,7 +31,7 @@ export function resolveSkills(adminSource?: AdminSkillSource | null): {
   skills: SkillListing[];
 } {
   const loaders = new Map<string, () => Promise<string>>();
-  const fileLoaders = new Map<string, (path: string) => Promise<string>>();
+  const fileLoaders = new Map<string, (path: string) => Promise<SkillFileResource>>();
   const listings = new Map<string, SkillListing>();
   let loadedSkillName = adminSource?.activeSkillName ?? null;
   let skillLoadPending = false;
@@ -118,7 +119,26 @@ export function resolveSkills(adminSource?: AdminSkillSource | null): {
         name: z.string().min(1).max(64),
         path: z.string().min(1).max(1024),
       }),
-      outputSchema: z.object({ name: z.string(), path: z.string(), content: z.string() }),
+      outputSchema: z.discriminatedUnion("storageKind", [
+        z.object({
+          name: z.string(),
+          path: z.string(),
+          storageKind: z.literal("inline"),
+          mimeType: z.string().nullable(),
+          content: z.string(),
+        }),
+        z.object({
+          name: z.string(),
+          path: z.string(),
+          storageKind: z.literal("asset"),
+          mimeType: z.string().nullable(),
+          assetId: z.string(),
+          revisionId: z.string(),
+          sizeBytes: z.number().int().nonnegative(),
+          sha256: z.string(),
+          url: z.string(),
+        }),
+      ]),
       execute: async ({ name, path }) => {
         if (name !== loadedSkillName) {
           throw new ToolBlockedError({
@@ -137,12 +157,18 @@ export function resolveSkills(adminSource?: AdminSkillSource | null): {
             source: "skill",
           });
         }
-        return { name, path, content: await loader(path) };
+        return { name, path, ...(await loader(path)) };
       },
-      toModelOutput: ({ output }) => ({
-        type: "text",
-        value: `<skill_file>\nName: ${output.name}\nPath: ${JSON.stringify(output.path)}\n${output.content}\n</skill_file>`,
-      }),
+      toModelOutput: ({ output }) =>
+        output.storageKind === "inline"
+          ? {
+              type: "text",
+              value: `<skill_file>\nName: ${output.name}\nPath: ${JSON.stringify(output.path)}\n${output.content}\n</skill_file>`,
+            }
+          : {
+              type: "text",
+              value: `<skill_file_asset>\n${JSON.stringify(output)}\n</skill_file_asset>`,
+            },
     }),
     {
       capability: "external",

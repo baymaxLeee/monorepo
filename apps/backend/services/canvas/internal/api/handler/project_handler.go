@@ -202,11 +202,12 @@ func (h *ProjectHandler) CreateProject(
 		return nil, err
 	}
 	project, err := h.service.Create(ctx, applicationproject.CreateInput{
-		Scope:          requestScope(ctx, request.WorkspaceID),
-		Name:           request.Name,
-		MemberIDs:      request.MemberUserIDs,
-		CoverImagePath: request.CoverImagePath,
-		UsageLimit:     cloneInt64(request.UsageLimit),
+		Scope:                requestScope(ctx, request.WorkspaceID),
+		Name:                 request.Name,
+		MemberIDs:            request.MemberUserIDs,
+		CoverImageAssetID:    request.CoverImageAssetID,
+		CoverImageRevisionID: request.CoverImageRevisionID,
+		UsageLimit:           cloneInt64(request.UsageLimit),
 	})
 	if err != nil {
 		return nil, err
@@ -222,12 +223,13 @@ func (h *ProjectHandler) UpdateProject(
 		return nil, err
 	}
 	project, err := h.service.Update(ctx, applicationproject.UpdateInput{
-		Scope:          requestScope(ctx, request.WorkspaceID),
-		ProjectID:      request.ProjectID,
-		Name:           request.Name,
-		MemberIDs:      request.MemberUserIDs,
-		CoverImagePath: request.CoverImagePath,
-		UsageLimit:     cloneInt64(request.UsageLimit),
+		Scope:                requestScope(ctx, request.WorkspaceID),
+		ProjectID:            request.ProjectID,
+		Name:                 request.Name,
+		MemberIDs:            request.MemberUserIDs,
+		CoverImageAssetID:    request.CoverImageAssetID,
+		CoverImageRevisionID: request.CoverImageRevisionID,
+		UsageLimit:           cloneInt64(request.UsageLimit),
 	})
 	if err != nil {
 		return nil, err
@@ -243,9 +245,10 @@ func (h *ProjectHandler) UpdateProjectByMember(
 		return nil, err
 	}
 	project, err := h.service.UpdateByMember(ctx, applicationproject.UpdateByMemberInput{
-		Scope:          projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessMember),
-		ProjectID:      request.ProjectID,
-		CoverImagePath: request.CoverImagePath,
+		Scope:                projectRequestScope(ctx, request.WorkspaceID, applicationproject.AccessMember),
+		ProjectID:            request.ProjectID,
+		CoverImageAssetID:    request.CoverImageAssetID,
+		CoverImageRevisionID: request.CoverImageRevisionID,
 	})
 	if err != nil {
 		return nil, err
@@ -358,7 +361,7 @@ func projectSortDirection(sort *thriftproject.ProjectSort) (applicationproject.S
 
 func projectSummary(project domainproject.Project) *thriftproject.ProjectSummary {
 	return &thriftproject.ProjectSummary{
-		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
+		ProjectID: project.ID, Name: project.Name, CoverImageAssetID: optionalString(project.CoverImageAssetID), CoverImageRevisionID: optionalString(project.CoverImageRevisionID),
 		CoverImageURL: optionalString(project.CoverImageURL),
 		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats: &thriftproject.ProjectStats{
@@ -371,7 +374,7 @@ func projectSummary(project domainproject.Project) *thriftproject.ProjectSummary
 
 func memberProjectSummary(project domainproject.Project) *thriftproject.MemberProjectSummary {
 	return &thriftproject.MemberProjectSummary{
-		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
+		ProjectID: project.ID, Name: project.Name, CoverImageAssetID: optionalString(project.CoverImageAssetID), CoverImageRevisionID: optionalString(project.CoverImageRevisionID),
 		CoverImageURL: optionalString(project.CoverImageURL),
 		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats: projectStats(project),
@@ -384,7 +387,7 @@ func timestamp(value time.Time) thriftcommon.Timestamp {
 
 func projectDetail(project domainproject.Project) *thriftproject.ProjectDetail {
 	return &thriftproject.ProjectDetail{
-		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
+		ProjectID: project.ID, Name: project.Name, CoverImageAssetID: optionalString(project.CoverImageAssetID), CoverImageRevisionID: optionalString(project.CoverImageRevisionID),
 		CoverImageURL: optionalString(project.CoverImageURL),
 		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats:         projectStats(project),
@@ -401,7 +404,7 @@ func projectDetailWithUsage(result applicationproject.ProjectWithUsage) *thriftp
 
 func memberProjectDetail(project domainproject.Project) *thriftproject.MemberProjectDetail {
 	return &thriftproject.MemberProjectDetail{
-		ProjectID: project.ID, Name: project.Name, CoverImagePath: cloneString(project.CoverImagePath),
+		ProjectID: project.ID, Name: project.Name, CoverImageAssetID: optionalString(project.CoverImageAssetID), CoverImageRevisionID: optionalString(project.CoverImageRevisionID),
 		CoverImageURL: optionalString(project.CoverImageURL),
 		CreatedBy:     project.CreatedBy, CreatedAt: timestamp(project.CreatedAt), UpdatedAt: timestamp(project.UpdatedAt),
 		Stats: projectStats(project),

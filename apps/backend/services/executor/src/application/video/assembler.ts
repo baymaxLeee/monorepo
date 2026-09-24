@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
 
 import { secureProviderFetch } from "@backend/transport-ts/provider-url";
 
@@ -203,27 +205,45 @@ async function normalizeClip(src: string, norm: string, normalizeVf: string, sig
 }
 
 async function downloadTo(url: string, path: string, signal?: AbortSignal): Promise<void> {
-  const bytes = await downloadVideoBytes(url, signal);
-  await writeFile(path, bytes);
-}
-
-export async function downloadVideoBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
   const response = await secureProviderFetch(url, { signal });
   if (!response.ok) {
     throw new Error(`clip download failed: ${response.status}`);
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.length === 0) {
+  if (!response.body) {
+    throw new Error("clip download returned no body");
+  }
+  await pipeline(response.body, createWriteStream(path, { flags: "wx" }), { signal });
+  if ((await stat(path)).size === 0) {
     throw new Error("clip download returned no bytes");
   }
-  return bytes;
 }
 
-export async function assembleClips(input: {
+export async function openVideoStream(
+  url: string,
+  signal?: AbortSignal,
+): Promise<{ body: ReadableStream<Uint8Array>; contentLength?: number }> {
+  const response = await secureProviderFetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`clip download failed: ${response.status}`);
+  }
+  if (!response.body) {
+    throw new Error("clip download returned no body");
+  }
+  const rawLength = response.headers.get("content-length");
+  const parsedLength = rawLength === null ? undefined : Number(rawLength);
+  return {
+    body: response.body,
+    contentLength:
+      parsedLength !== undefined && Number.isSafeInteger(parsedLength) && parsedLength >= 0 ? parsedLength : undefined,
+  };
+}
+
+export async function withAssembledClips<T>(input: {
   urls: string[];
   outputConfig: Pick<VideoOutputConfig, "width" | "height" | "fps">;
   signal?: AbortSignal;
-}): Promise<Uint8Array> {
+  consume: (output: { path: string; sizeBytes: number }) => Promise<T>;
+}): Promise<T> {
   if (input.urls.length === 0) {
     throw new Error("no clips to assemble");
   }
@@ -278,53 +298,39 @@ export async function assembleClips(input: {
       }
     }
 
-    const bytes = await readFile(output);
-    if (bytes.length === 0) {
+    const sizeBytes = (await stat(output)).size;
+    if (sizeBytes === 0) {
       throw new Error("assembled video is empty");
     }
-    return new Uint8Array(bytes);
+    return await input.consume({ path: output, sizeBytes });
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 
-export async function inspectVideoBytes(
-  bytes: Uint8Array,
+export async function inspectVideoFile(
+  path: string,
+  sizeBytes: number,
   expected: Pick<VideoOutputConfig, "width" | "height"> & { minimumDuration: number },
   signal?: AbortSignal,
 ): Promise<{ passed: boolean; checks: Array<{ name: string; passed: boolean; detail: string }> }> {
-  const dir = await mkdtemp(join(tmpdir(), "video-qa-"));
-  try {
-    const path = join(dir, "output.mp4");
-    await writeFile(path, bytes);
-    const probe = await probeVideo(path, signal);
-    const visual = await detectVisualAnomalies(path, signal);
-    const checks = [
-      { name: "non_empty", passed: bytes.length > 0, detail: `${bytes.length} bytes` },
-      {
-        name: "duration",
-        passed: probe.duration >= expected.minimumDuration,
-        detail: `${probe.duration.toFixed(2)}s (minimum ${expected.minimumDuration}s)`,
-      },
-      {
-        name: "dimensions",
-        passed: probe.width === expected.width && probe.height === expected.height,
-        detail: `${probe.width}x${probe.height} (expected ${expected.width}x${expected.height})`,
-      },
-      { name: "audio_stream", passed: probe.hasAudio, detail: probe.hasAudio ? "present" : "missing" },
-      {
-        name: "black_frames",
-        passed: !visual.blackFrames,
-        detail: visual.detail,
-      },
-      {
-        name: "repeated_frames",
-        passed: !visual.repeatedFrames,
-        detail: visual.detail,
-      },
-    ];
-    return { passed: checks.every((check) => check.passed), checks };
-  } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
-  }
+  const probe = await probeVideo(path, signal);
+  const visual = await detectVisualAnomalies(path, signal);
+  const checks = [
+    { name: "non_empty", passed: sizeBytes > 0, detail: `${sizeBytes} bytes` },
+    {
+      name: "duration",
+      passed: probe.duration >= expected.minimumDuration,
+      detail: `${probe.duration.toFixed(2)}s (minimum ${expected.minimumDuration}s)`,
+    },
+    {
+      name: "dimensions",
+      passed: probe.width === expected.width && probe.height === expected.height,
+      detail: `${probe.width}x${probe.height} (expected ${expected.width}x${expected.height})`,
+    },
+    { name: "audio_stream", passed: probe.hasAudio, detail: probe.hasAudio ? "present" : "missing" },
+    { name: "black_frames", passed: !visual.blackFrames, detail: visual.detail },
+    { name: "repeated_frames", passed: !visual.repeatedFrames, detail: visual.detail },
+  ];
+  return { passed: checks.every((check) => check.passed), checks };
 }

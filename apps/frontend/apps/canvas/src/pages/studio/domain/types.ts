@@ -37,8 +37,9 @@ export interface StoryboardAsset {
   syncStatus?: AssetSyncStatus;
   /** 失败重试用的本地文件。 */
   pendingFile?: File;
-  /** 已直传 artifact storage、尚未绑定分镜的临时文件。关页不保存时不会落绑定。 */
-  blobId?: string;
+  /** 已上传但尚未绑定分镜的平台 Asset revision。 */
+  sourceAssetId?: string;
+  sourceRevisionId?: string;
   /**
    * 本地 draft id。后台切到 AssetID 后短暂保留，供 mention 双键查找。
    */

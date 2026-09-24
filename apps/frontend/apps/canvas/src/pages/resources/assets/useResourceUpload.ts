@@ -1,27 +1,27 @@
 import { useCallback } from "react";
 
-import type { UploadBlobResult } from "@/hooks/uploads";
-import useSilentUploadBlob from "@/hooks/useSilentUploadBlob";
+import type { UploadAssetResult } from "@/hooks/uploads";
+import useSilentUploadAsset from "@/hooks/useSilentUploadAsset";
 import t from "@/utils/i18n";
 
 export function useResourceUpload() {
-  const uploadBlob = useSilentUploadBlob();
+  const uploadAsset = useSilentUploadAsset();
 
   return useCallback(
     async (file: File) => {
-      return new Promise<string>((resolve, reject) => {
-        uploadBlob.customRequest({
+      return new Promise<UploadAssetResult>((resolve, reject) => {
+        uploadAsset.customRequest({
           file,
           onProgress: () => undefined,
           onSuccess: (response) => {
-            const blobId = (response as UploadBlobResult | undefined)?.BlobID;
-            if (blobId) resolve(blobId);
+            const uploaded = response as UploadAssetResult | undefined;
+            if (uploaded?.SourceAssetID && uploaded.SourceRevisionID) resolve(uploaded);
             else reject(new Error(t("素材上传失败")));
           },
           onError: (reason) => reject(reason),
         });
       });
     },
-    [uploadBlob.customRequest],
+    [uploadAsset.customRequest],
   );
 }

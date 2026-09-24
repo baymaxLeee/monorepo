@@ -2,132 +2,86 @@ package coverimage
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationcoverimage "github.com/example/monorepo/canvas/internal/application/coverimage"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
+	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 )
 
-const testBlobID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+type claimStoreStub struct{ active, released applicationassetclaim.Intent }
 
-type fakeIDs struct {
-	id  string
-	err error
+func (stub *claimStoreStub) EnsureActive(_ context.Context, intent applicationassetclaim.Intent, _ time.Time) error {
+	stub.active = intent
+	return nil
+}
+func (stub *claimStoreStub) EnsureReleased(_ context.Context, intent applicationassetclaim.Intent, _ time.Time) error {
+	stub.released = intent
+	return nil
+}
+func (*claimStoreStub) ClaimDue(context.Context, time.Time, time.Time, int) ([]applicationassetclaim.Intent, error) {
+	return nil, nil
+}
+func (*claimStoreStub) MarkDelivered(context.Context, applicationassetclaim.Intent, time.Time) (bool, error) {
+	return false, nil
+}
+func (*claimStoreStub) Reschedule(context.Context, applicationassetclaim.Intent, time.Time, string, time.Time) (bool, error) {
+	return false, nil
 }
 
-func (f fakeIDs) NewID() (string, error) { return f.id, f.err }
+type clockStub struct{ now time.Time }
 
-func TestStoreRegisterPNG(t *testing.T) {
+func (clock clockStub) Now() time.Time { return clock.now }
+
+func TestStoreRegisterAndEnqueueStrongClaim(t *testing.T) {
 	t.Parallel()
-
-	png := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 504)...)
-	server := objectServer(t, png)
-	store := New(&storage.Client{URL: server.URL, Token: "token"}, fakeIDs{id: "cover-id"}, "")
-
-	registration, err := store.Register(context.Background(), "tenant", "user", testBlobID)
+	var endpoints []string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		endpoints = append(endpoints, request.URL.Path)
+		switch request.URL.Path {
+		case "/internal/assets/platform/revisions/revision":
+			_ = json.NewEncoder(response).Encode(map[string]any{"asset_id": "platform", "revision_id": "revision", "media_type": "image/png", "size_bytes": 512, "sha256": "digest"})
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	t.Cleanup(server.Close)
+	claims := &claimStoreStub{}
+	store := New(assetclient.New(server.URL, "token", nil), claims, clockStub{now: time.Now().UTC()}, "")
+	registration, err := store.Register(context.Background(), applicationcoverimage.RegisterInput{TenantID: "tenant", UserID: "user", OwnerType: "canvas_cover", OwnerID: "canvas", Generation: 7, Revision: applicationcoverimage.RevisionRef{AssetID: "platform", RevisionID: "revision"}})
 	if err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
-	if registration.Path != testBlobID || registration.ID != "cover-id" || registration.ContentType != "image/png" {
-		t.Fatalf("Register() registration = %#v", registration)
+	if registration.Revision.AssetID != "platform" || registration.Revision.RevisionID != "revision" || registration.Generation != 7 {
+		t.Fatalf("Register() = %#v", registration)
 	}
-	if registration.SizeBytes != int64(len(png)) || registration.SHA256 == "" {
-		t.Fatalf("Register() metadata = %#v", registration)
+	if len(endpoints) != 1 {
+		t.Fatalf("endpoints = %#v", endpoints)
 	}
-}
-
-func TestStoreRegisterRejectsUnsupportedContent(t *testing.T) {
-	t.Parallel()
-
-	server := objectServer(t, []byte("plain text"))
-	store := New(&storage.Client{URL: server.URL}, fakeIDs{id: "cover-id"}, "")
-
-	_, err := store.Register(context.Background(), "tenant", "user", testBlobID)
-	if !errors.Is(err, applicationcoverimage.ErrUnsupportedFormat) {
-		t.Fatalf("Register() error = %v, want ErrUnsupportedFormat", err)
+	if err = store.EnsureActive(context.Background(), registration); err != nil {
+		t.Fatalf("EnsureActive() error = %v", err)
+	}
+	if claims.active.AssetID != "platform" || claims.active.RevisionID != "revision" || claims.active.Generation != 7 {
+		t.Fatalf("claim = %#v", claims.active)
 	}
 }
 
-func TestStoreRegisterRejectsOversizedContent(t *testing.T) {
+func TestStorePresignReturnsGatewayURL(t *testing.T) {
 	t.Parallel()
-
-	content := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, maximumCoverImageBytes)...)
-	server := objectServer(t, content)
-	store := New(&storage.Client{URL: server.URL}, fakeIDs{id: "cover-id"}, "")
-
-	_, err := store.Register(context.Background(), "tenant", "user", testBlobID)
-	if !errors.Is(err, applicationcoverimage.ErrTooLarge) {
-		t.Fatalf("Register() error = %v, want ErrTooLarge", err)
-	}
-}
-
-func TestStoreRegisterRejectsInvalidBlobIDWithoutStorageCall(t *testing.T) {
-	t.Parallel()
-
-	store := New(&storage.Client{URL: "http://127.0.0.1:1"}, fakeIDs{id: "cover-id"}, "")
-	_, err := store.Register(context.Background(), "tenant", "user", "data:image/png;base64,AAAA")
-	if !errors.Is(err, applicationcoverimage.ErrInvalidReference) {
-		t.Fatalf("Register() error = %v, want ErrInvalidReference", err)
-	}
-}
-
-func TestStorePresignReturnsPublicGatewayURL(t *testing.T) {
-	t.Parallel()
-
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/internal/artifacts/presign" {
-			http.NotFound(response, request)
-			return
-		}
-		_ = json.NewEncoder(response).Encode(map[string]any{"items": []map[string]string{{
-			"namespace":   knowledgeNamespace("canvas:cover:cover-id"),
-			"artifact_id": "sha256",
-			"url":         "/media/canvas/example",
-			"expires_at":  time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
-		}}})
+		_ = json.NewEncoder(response).Encode(map[string]any{"items": []map[string]any{{"asset_id": "platform", "revision_id": "revision", "url": "/media/platform/revisions/revision/content", "expires_at": time.Now().Add(time.Hour).UTC()}}})
 	}))
 	t.Cleanup(server.Close)
-
-	store := New(&storage.Client{URL: server.URL, Token: "token"}, fakeIDs{}, "http://gateway")
-	urls, err := store.Presign(context.Background(), []applicationcoverimage.Registration{{
-		ID: "cover-id", SHA256: "sha256", ContentType: "image/png",
-	}})
+	store := New(assetclient.New(server.URL, "token", nil), &claimStoreStub{}, clockStub{now: time.Now().UTC()}, "http://gateway")
+	urls, err := store.Presign(context.Background(), []applicationcoverimage.Registration{{TenantID: "tenant", Revision: applicationcoverimage.RevisionRef{AssetID: "platform", RevisionID: "revision"}}})
 	if err != nil {
 		t.Fatalf("Presign() error = %v", err)
 	}
-	if urls["cover-id"] != "http://gateway/media/canvas/example" {
-		t.Fatalf("Presign() URL = %q", urls["cover-id"])
+	if urls["revision"] != "http://gateway/media/platform/revisions/revision/content" {
+		t.Fatalf("URL = %q", urls["revision"])
 	}
-}
-
-func objectServer(t *testing.T, staged []byte) *httptest.Server {
-	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		switch request.Method {
-		case http.MethodGet:
-			_, _ = response.Write(staged)
-		case http.MethodPost:
-			content, err := io.ReadAll(request.Body)
-			if err != nil {
-				t.Fatalf("read stored body: %v", err)
-			}
-			digest := sha256.Sum256(content)
-			value := hex.EncodeToString(digest[:])
-			_ = json.NewEncoder(response).Encode(storage.StoredObject{
-				ArtifactID: value, SHA256: value, Size: int64(len(content)),
-			})
-		default:
-			response.WriteHeader(http.StatusNoContent)
-		}
-	}))
-	t.Cleanup(server.Close)
-	return server
 }

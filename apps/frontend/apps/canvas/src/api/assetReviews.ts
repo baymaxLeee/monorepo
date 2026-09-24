@@ -51,7 +51,12 @@ export async function batchSubmitAssetReviews(
       package_id: packageId,
       asset_id: source.AssetID,
       upload: source.Upload
-        ? { blob_id: source.Upload.BlobID, client_id: source.Upload.ClientID, file_name: source.Upload.FileName }
+        ? {
+            source_asset_id: source.Upload.SourceAssetID,
+            source_revision_id: source.Upload.SourceRevisionID,
+            client_id: source.Upload.ClientID,
+            file_name: source.Upload.FileName,
+          }
         : undefined,
     })),
   });

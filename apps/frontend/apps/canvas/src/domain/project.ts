@@ -37,8 +37,8 @@ export interface CreateProjectRequest {
   Name: string;
   /** MemberUserIDs 是项目成员用户 ID 列表。 */
   MemberUserIDs: Array<string>;
-  /** CoverImagePath 是通过 artifact storage 上传得到的封面图片 path；未传表示不设置封面。 */
-  CoverImagePath?: string;
+  CoverImageAssetID?: string;
+  CoverImageRevisionID?: string;
   /** UsageLimit 是项目总金额限额，单位元；未传表示无上限。 */
   UsageLimit?: Int64;
 }
@@ -122,7 +122,8 @@ export interface ListProjectsResponse {
 export interface MemberProjectDetail {
   ProjectID: string;
   Name: string;
-  CoverImagePath?: string;
+  CoverImageAssetID?: string;
+  CoverImageRevisionID?: string;
   CoverImageURL?: string;
   CreatedBy: string;
   CreatedAt: string;
@@ -134,7 +135,8 @@ export interface MemberProjectDetail {
 export interface MemberProjectSummary {
   ProjectID: string;
   Name: string;
-  CoverImagePath?: string;
+  CoverImageAssetID?: string;
+  CoverImageRevisionID?: string;
   CoverImageURL?: string;
   CreatedBy: string;
   CreatedAt: string;
@@ -148,8 +150,8 @@ export interface ProjectDetail {
   ProjectID: string;
   /** Name 是项目名称，在相同 scope 下唯一。 */
   Name: string;
-  /** CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。 */
-  CoverImagePath?: string;
+  CoverImageAssetID?: string;
+  CoverImageRevisionID?: string;
   /** CoverImageURL 是只用于展示的短期签名 URL。 */
   CoverImageURL?: string;
   /** CreatedBy 是项目创建用户 ID。 */
@@ -309,8 +311,8 @@ export interface ProjectSummary {
   ProjectID: string;
   /** Name 是项目名称，在相同 scope 下唯一。 */
   Name: string;
-  /** CoverImagePath 是已通过 artifact storage 长期化的封面图片 path。 */
-  CoverImagePath?: string;
+  CoverImageAssetID?: string;
+  CoverImageRevisionID?: string;
   /** CoverImageURL 是只用于展示的短期签名 URL。 */
   CoverImageURL?: string;
   /** CreatedBy 是项目创建用户 ID。 */
@@ -330,8 +332,8 @@ export interface UpdateProjectByMemberRequest {
   WorkspaceID?: string;
   /** ProjectID 是待更新的项目唯一标识。 */
   ProjectID: string;
-  /** CoverImagePath 未传时保持不变，空字符串表示清除封面。 */
-  CoverImagePath?: string;
+  CoverImageAssetID?: string;
+  CoverImageRevisionID?: string;
 }
 
 export interface UpdateProjectByMemberResponse {
@@ -348,8 +350,8 @@ export interface UpdateProjectRequest {
   Name: string;
   /** MemberUserIDs 是更新后的项目成员用户 ID 列表。 */
   MemberUserIDs: Array<string>;
-  /** CoverImagePath 未传时保持不变，空字符串表示清除封面。 */
-  CoverImagePath?: string;
+  CoverImageAssetID?: string;
+  CoverImageRevisionID?: string;
   /** UsageLimit 是项目总金额限额，单位元；未传表示取消限制。 */
   UsageLimit?: Int64;
 }

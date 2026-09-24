@@ -113,9 +113,9 @@ type CanvasNodeVideoResultInput struct {
 	WorkspaceID                                         *string
 }
 type PersistedCanvasNodeVideo struct {
-	ArtifactID        string
-	ArtifactNamespace string
-	SizeBytes         int64
+	SourceAssetID    string
+	SourceRevisionID string
+	SizeBytes        int64
 }
 type CanvasNodeVideoResultStore interface {
 	Persist(context.Context, CanvasNodeVideoResultInput) (PersistedCanvasNodeVideo, error)

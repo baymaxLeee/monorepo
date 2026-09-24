@@ -1,14 +1,19 @@
 """Internal document API for chat and other services."""
 
 import asyncio
-import base64
-import binascii
 import time
 from datetime import datetime
 from functools import partial
 from hashlib import sha256
 
 import anyio
+from application.asset_client import (
+    ensure_document_claim_active,
+    ensure_staged_media_claim_active,
+    get_asset_client,
+    mark_document_claim_released,
+    mark_staged_media_claim_released,
+)
 from application.contracts.document import (
     CreateArtifactInput,
     CreateMediaDocumentInput,
@@ -19,11 +24,10 @@ from application.contracts.document import (
     StagedMediaActionInput,
     UpdateArtifactInput,
 )
-from application.conversation_cleanup import ConversationDeletedError, assert_conversation_accepts_artifacts
+from application.conversation_cleanup import assert_conversation_accepts_artifacts
 from application.documents import document_to_schema
-from application.image_variant import get_or_build_vision_variant
+from application.image_variant import build_vision_variant
 from application.indexer import index_document_by_id
-from application.object_store import ObjectStore
 from application.processor import convert_document
 from bootstrap.config import get_settings
 from fastapi import APIRouter, Depends, Query
@@ -79,7 +83,9 @@ def staged_media_to_schema(row: StagedMediaRow) -> StagedMedia:
         filename=row.filename,
         mime_type=row.mime_type,
         size=row.size,
-        object_sha256=row.object_sha256,
+        asset_id=row.asset_id or "",
+        revision_id=row.revision_id or "",
+        sha256=row.asset_sha256 or "",
         status=row.status,  # type: ignore[arg-type]
         document_id=row.document_id,
         created_at=row.created_at.isoformat(),
@@ -186,28 +192,20 @@ async def get_document_source(
     row = await document_crud.get_document(session, document_id, user_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
-    if not row.object_bucket or not row.object_key:
-        raise NotFoundError("document has no stored source object")
+    if not row.asset_id or not row.source_revision_id or not row.tenant_id or not row.workspace_id:
+        raise NotFoundError("document has no source Asset revision")
     is_image = (row.source_mime_type or "").lower().startswith("image/")
     if max_dim is not None and (not is_image):
         raise RequestError("max_dim is only supported for image sources")
-    if max_dim is not None and is_image and (not row.object_sha256):
-        raise RequestError("image source has no content hash for variant caching")
-    if max_dim is not None and is_image and row.object_sha256:
-        object_sha256 = row.object_sha256
-        object_bucket = row.object_bucket
-        object_key = row.object_key
+    content = await get_asset_client().read(
+        tenant_id=row.tenant_id, workspace_id=row.workspace_id, asset_id=row.asset_id,
+        revision_id=row.source_revision_id, max_bytes=get_settings().attachment_max_upload_bytes,
+    )
+    if max_dim is not None and is_image:
         variant = await anyio.to_thread.run_sync(
-            partial(
-                get_or_build_vision_variant,
-                object_sha256=object_sha256,
-                object_bucket=object_bucket,
-                object_key=object_key,
-                max_dim=max_dim,
-            )
+            partial(build_vision_variant, content, max_dim=max_dim)
         )
         return Response(content=variant, media_type="image/jpeg")
-    content = ObjectStore().get_bytes(bucket=row.object_bucket, key=row.object_key)
     media = row.source_mime_type or "application/octet-stream"
     return Response(content=content, media_type=media)
 
@@ -258,13 +256,7 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
 
 @router.post("/media-documents", response_model=Document, status_code=201)
 async def create_media_document(payload: CreateMediaDocumentInput, session: DbSession) -> Document:
-    """Persist agent-generated binary media (e.g. a generated image) as a document.
-
-    Mirrors the artifact-publish path: bytes go into the object store and the
-    document row records ``object_bucket``/``object_key`` so the existing
-    ``/documents/{id}/source`` route serves them. Idempotent on
-    ``idempotency_key`` (typically the tool-call id) so a retried generation
-    reuses the same document instead of duplicating storage."""
+    """Register agent-generated media already persisted by Asset."""
     document_id = None
     if payload.idempotency_key:
         document_id = sha256(
@@ -277,22 +269,13 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
             existing = await document_crud.get_document(session, document_id, payload.user_id)
         if existing is not None:
             return document_to_schema(existing, include_content=True)
-    try:
-        raw = base64.b64decode(payload.data_base64, validate=True)
-    except (ValueError, binascii.Error) as exc:
-        raise RequestError("invalid base64 media payload") from exc
-    if not raw:
-        raise RequestError("empty media payload")
-    storage_document_id = document_id or document_crud.new_document_id()
-    stored = ObjectStore().put_bytes(
-        content=raw,
-        filename=payload.filename,
-        mime_type=payload.mime_type,
-        user_id=payload.user_id,
-        prefix=f"media/{payload.conversation_id or 'general'}",
-        unique_segment=storage_document_id,
-        max_bytes=get_settings().media_max_object_bytes,
+    asset = await get_asset_client().describe(
+        tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
+        asset_id=payload.asset_id, revision_id=payload.revision_id,
     )
+    if asset.created_by != payload.user_id:
+        raise RequestError("asset was not created for the requested user")
+    storage_document_id = document_id or document_crud.new_document_id()
     try:
         async with write_tx(session):
             await assert_conversation_accepts_artifacts(
@@ -309,22 +292,23 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
                 tenant_id=payload.tenant_id,
                 conversation_id=payload.conversation_id,
                 kind="artifact",
-                title=payload.title,
-                filename=payload.filename,
-                mime_type=payload.mime_type,
+                title=asset.filename,
+                filename=asset.filename,
+                mime_type=asset.media_type,
                 content_md="",
-                source_size=stored.size,
-                source_mime_type=payload.mime_type,
-                object_bucket=stored.bucket,
-                object_key=stored.key,
-                object_sha256=stored.sha256,
+                source_size=asset.size_bytes,
+                source_mime_type=asset.media_type,
+                asset_id=asset.asset_id,
+                source_revision_id=asset.revision_id,
+                source_sha256=asset.sha256,
                 ingest_status="ready",
                 ingest_progress=100,
                 document_id=document_id or storage_document_id,
             )
-    except ConversationDeletedError:
-        ObjectStore().delete(bucket=stored.bucket, key=stored.key)
-        raise
+            await ensure_document_claim_active(
+                session, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id, document_id=row.id,
+                asset_id=asset.asset_id, revision_id=asset.revision_id,
+            )
     except IntegrityError:
         if document_id is None:
             raise
@@ -345,22 +329,13 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
             existing = await staged_media_crud.get_by_idempotency_key(session, payload.idempotency_key, payload.user_id)
         if existing is not None:
             return staged_media_to_schema(existing)
-    try:
-        raw = base64.b64decode(payload.data_base64, validate=True)
-    except (ValueError, binascii.Error) as exc:
-        raise RequestError("invalid base64 media payload") from exc
-    if not raw:
-        raise RequestError("empty media payload")
-    staged_id = document_crud.new_document_id()
-    stored = ObjectStore().put_bytes(
-        content=raw,
-        filename=payload.filename,
-        mime_type=payload.mime_type,
-        user_id=payload.user_id,
-        prefix=f"staged-media/{payload.conversation_id or 'general'}",
-        unique_segment=staged_id,
-        max_bytes=get_settings().media_max_object_bytes,
+    asset = await get_asset_client().describe(
+        tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
+        asset_id=payload.asset_id, revision_id=payload.revision_id,
     )
+    if asset.created_by != payload.user_id:
+        raise RequestError("asset was not created for the requested user")
+    staged_id = document_crud.new_document_id()
     try:
         async with write_tx(session):
             await assert_conversation_accepts_artifacts(
@@ -379,18 +354,19 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
                 workspace_id=payload.workspace_id,
                 tenant_id=payload.tenant_id,
                 conversation_id=payload.conversation_id,
-                title=payload.title,
-                filename=payload.filename,
-                mime_type=payload.mime_type,
-                size=stored.size,
-                object_bucket=stored.bucket,
-                object_key=stored.key,
-                object_sha256=stored.sha256,
+                title=asset.filename,
+                filename=asset.filename,
+                mime_type=asset.media_type,
+                size=asset.size_bytes,
+                asset_id=asset.asset_id,
+                revision_id=asset.revision_id,
+                asset_sha256=asset.sha256,
                 idempotency_key=payload.idempotency_key,
             )
-    except ConversationDeletedError:
-        ObjectStore().delete(bucket=stored.bucket, key=stored.key)
-        raise
+            await ensure_staged_media_claim_active(
+                session, tenant_id=row.tenant_id, workspace_id=row.workspace_id, staged_id=row.id,
+                asset_id=asset.asset_id, revision_id=asset.revision_id,
+            )
     except IntegrityError:
         if not payload.idempotency_key:
             raise
@@ -414,7 +390,12 @@ async def get_staged_media_source(staged_id: str, session: DbSession, user_id: s
     row = await staged_media_crud.get_staged_media(session, staged_id, user_id)
     if row is None or row.status == "discarded":
         raise NotFoundError(f"staged media {staged_id} not found")
-    content = ObjectStore().get_bytes(bucket=row.object_bucket, key=row.object_key)
+    if not row.asset_id or not row.revision_id:
+        raise NotFoundError(f"staged media {staged_id} has no Asset revision")
+    content = await get_asset_client().read(
+        tenant_id=row.tenant_id, workspace_id=row.workspace_id, asset_id=row.asset_id,
+        revision_id=row.revision_id, max_bytes=get_settings().media_max_object_bytes,
+    )
     return Response(content=content, media_type=row.mime_type)
 
 
@@ -442,11 +423,20 @@ async def publish_staged_media(staged_id: str, payload: StagedMediaActionInput, 
             mime_type=row.mime_type,
             source_size=row.size,
             source_mime_type=row.mime_type,
-            object_bucket=row.object_bucket,
-            object_key=row.object_key,
-            object_sha256=row.object_sha256,
+            asset_id=row.asset_id,
+            source_revision_id=row.revision_id,
+            source_sha256=row.asset_sha256,
             ingest_status="ready",
             ingest_progress=100,
+        )
+        if not row.asset_id or not row.revision_id:
+            raise ConflictError("staged media has no Asset revision")
+        await ensure_document_claim_active(
+            session, tenant_id=row.tenant_id, workspace_id=row.workspace_id, document_id=document.id,
+            asset_id=row.asset_id, revision_id=row.revision_id,
+        )
+        await mark_staged_media_claim_released(
+            session, tenant_id=row.tenant_id, workspace_id=row.workspace_id, staged_id=row.id
         )
         row.status = "published"
         row.document_id = document.id
@@ -457,7 +447,6 @@ async def publish_staged_media(staged_id: str, payload: StagedMediaActionInput, 
 
 @router.post("/staged-media/{staged_id}/discard", response_model=StagedMedia)
 async def discard_staged_media(staged_id: str, payload: StagedMediaActionInput, session: DbSession) -> StagedMedia:
-    object_location: tuple[str, str] | None = None
     async with write_tx(session):
         row = await staged_media_crud.get_staged_media(session, staged_id, payload.user_id)
         if row is None or row.workspace_id != payload.workspace_id:
@@ -465,12 +454,12 @@ async def discard_staged_media(staged_id: str, payload: StagedMediaActionInput, 
         if row.status == "published":
             raise ConflictError("published staged media cannot be discarded")
         if row.status != "discarded":
+            await mark_staged_media_claim_released(
+                session, tenant_id=row.tenant_id, workspace_id=row.workspace_id, staged_id=row.id
+            )
             row.status = "discarded"
             row.updated_at = datetime.now(row.updated_at.tzinfo)
-            object_location = (row.object_bucket, row.object_key)
             await session.flush()
-    if object_location:
-        ObjectStore().delete(bucket=object_location[0], key=object_location[1])
     return staged_media_to_schema(row)
 
 
@@ -508,7 +497,8 @@ async def delete_document(document_id: str, session: DbSession, user_id: str = Q
         row = await document_crud.get_document(session, document_id, user_id)
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
-        object_ref = (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
+        if row.asset_id:
+            await mark_document_claim_released(
+                session, tenant_id=row.tenant_id or "", workspace_id=row.workspace_id or "", document_id=row.id
+            )
         await document_crud.delete_document(session, row)
-    if object_ref is not None:
-        ObjectStore().delete(bucket=object_ref[0], key=object_ref[1])

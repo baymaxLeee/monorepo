@@ -213,9 +213,8 @@ export async function createMediaDocument(input: {
   workspaceId: string;
   conversationId: string;
   title: string;
-  filename: string;
-  mimeType: string;
-  bytes: Uint8Array;
+  assetId: string;
+  revisionId: string;
   idempotencyKey?: string;
 }): Promise<KnowledgeDocument> {
   return knowledgeClient().createMediaDocument(input);

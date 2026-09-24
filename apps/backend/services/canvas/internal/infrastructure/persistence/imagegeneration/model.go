@@ -27,7 +27,8 @@ type runRow struct {
 	Stage               string                        `gorm:"size:32;not null"`
 	ProviderAttempt     int32                         `gorm:"not null"`
 	ProviderImageURL    string                        `gorm:"type:text;not null"`
-	ArtifactID          string                        `gorm:"size:128;not null"`
+	SourceAssetID       string                        `gorm:"column:source_asset_id;size:128;not null"`
+	SourceRevisionID    string                        `gorm:"column:source_revision_id;size:64;not null"`
 	ArtifactSizeBytes   int64                         `gorm:"not null"`
 	OutputAssetID       *persistenceid.UUID
 	ErrorCode           string    `gorm:"size:128;not null"`

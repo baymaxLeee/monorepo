@@ -107,7 +107,8 @@ export interface CreateResourceAssetRequest {
   AssetID?: string;
   Name?: string;
   ExpectedResourceRevision: Int64;
-  BlobID?: string;
+  SourceAssetID?: string;
+  SourceRevisionID?: string;
   FileName?: string;
 }
 
@@ -133,7 +134,8 @@ export interface CreateResourceFromAssetResponse {
 }
 
 export interface CreateResourceInitialAsset {
-  BlobID: string;
+  SourceAssetID: string;
+  SourceRevisionID: string;
   FileName: string;
   Name?: string;
 }
@@ -259,7 +261,8 @@ export interface ReplaceUploadedResourceAssetRequest {
   ProjectID: string;
   ResourceID: string;
   ResourceAssetID: string;
-  BlobID: string;
+  SourceAssetID: string;
+  SourceRevisionID: string;
   FileName: string;
   ExpectedResourceRevision: Int64;
   ExpectedResourceAssetRevision: Int64;
@@ -383,10 +386,11 @@ export interface ResourceAssetGenerationUploadedReference {
   PreviewURL?: string;
 }
 
-/** Patch 输入允许复用既有 Asset，或提交前端 artifact storage 临时上传得到的 Blob；Server 负责把 Blob 注册为 Resource Owner Asset。 */
+/** Patch 输入允许复用既有 Canvas Asset，或提交平台 Asset revision；Server 负责建立 Resource Owner Asset。 */
 export interface ResourceAssetGenerationUploadedReferenceInput {
   AssetID?: string;
-  BlobID?: string;
+  SourceAssetID?: string;
+  SourceRevisionID?: string;
   FileName?: string;
 }
 

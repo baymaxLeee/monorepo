@@ -1,5 +1,4 @@
 """On-demand downscaled image variants for vision-model input.
-
 Vision models downsample images internally before inference (OpenAI tiles at
 <=2048px, Anthropic at <=~1568px long edge), so sending a raw multi-megapixel
 photo wastes tokens/latency and can stall weaker providers on request size. We
@@ -9,7 +8,6 @@ hash + params, so repeated conversation turns never re-encode. This is exactly
 what desktop chat clients do (resize to ~1568px before the model ever sees it);
 here it runs server-side so the original is preserved for download and RAG.
 """
-
 from __future__ import annotations
 
 import io
@@ -18,10 +16,7 @@ import warnings
 from kernel.errors import BaseError, RequestError
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from application.object_store import ObjectStore, ObjectStoreError
-
 _JPEG_QUALITY = 82
-_VARIANT_PREFIX = "variants"
 _MAX_SOURCE_BYTES = 32 * 1024 * 1024
 _MAX_SOURCE_PIXELS = 40_000_000
 
@@ -33,10 +28,6 @@ class VisionVariantError(RequestError):
 class VisionVariantTooLargeError(BaseError):
     status_code = 413
     code = "vision_variant_too_large"
-
-
-def _variant_key(object_sha256: str, max_dim: int) -> str:
-    return f"{_VARIANT_PREFIX}/{object_sha256}/vision-{max_dim}.jpg"
 
 
 def _to_rgb(image: Image.Image) -> Image.Image:
@@ -75,25 +66,3 @@ def build_vision_variant(content: bytes, *, max_dim: int) -> bytes:
         raise VisionVariantError("image source could not be decoded") from exc
     except OSError as exc:
         raise VisionVariantError("image source could not be converted") from exc
-
-
-def get_or_build_vision_variant(
-    *,
-    object_sha256: str,
-    object_bucket: str,
-    object_key: str,
-    max_dim: int,
-    store: ObjectStore | None = None,
-) -> bytes:
-    """Return the cached vision variant or build + cache it. Blocking (Pillow +
-    file IO); call via ``anyio.to_thread.run_sync`` from async handlers."""
-    store = store or ObjectStore()
-    variant_key = _variant_key(object_sha256, max_dim)
-    try:
-        return store.get_bytes(bucket=object_bucket, key=variant_key)
-    except ObjectStoreError:
-        pass
-    original = store.get_bytes(bucket=object_bucket, key=object_key)
-    variant = build_vision_variant(original, max_dim=max_dim)
-    store.put_bytes_at(bucket=object_bucket, key=variant_key, content=variant)
-    return variant

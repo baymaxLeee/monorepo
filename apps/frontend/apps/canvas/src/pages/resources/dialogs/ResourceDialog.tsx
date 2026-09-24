@@ -57,7 +57,8 @@ import styles from "./ResourceDialog.module.less";
 import dialogSizing from "@/components/DialogSizing.module.less";
 
 interface PendingResourceFile {
-  blobId?: string;
+  sourceAssetId?: string;
+  sourceRevisionId?: string;
   file: File;
   id: string;
   name: string;
@@ -204,9 +205,18 @@ export function ResourceDialog({
     setPendingFiles((current) => [...current, ...accepted]);
     for (const item of accepted) {
       try {
-        const blobId = await uploadResource(item.file);
+        const uploaded = await uploadResource(item.file);
         setPendingFiles((current) =>
-          current.map((file) => (file.id === item.id ? { ...file, blobId, status: "ready" } : file)),
+          current.map((file) =>
+            file.id === item.id
+              ? {
+                  ...file,
+                  sourceAssetId: uploaded.SourceAssetID,
+                  sourceRevisionId: uploaded.SourceRevisionID,
+                  status: "ready",
+                }
+              : file,
+          ),
         );
       } catch {
         setPendingFiles((current) =>
@@ -315,9 +325,10 @@ export function ResourceDialog({
           description,
           type,
           files: pendingFiles
-            .filter((file) => file.status === "ready" && file.blobId)
+            .filter((file) => file.status === "ready" && file.sourceAssetId && file.sourceRevisionId)
             .map((file) => ({
-              blobId: file.blobId as string,
+              sourceAssetId: file.sourceAssetId as string,
+              sourceRevisionId: file.sourceRevisionId as string,
               fileName: file.file.name,
               name: file.name,
             })),

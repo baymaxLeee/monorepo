@@ -21,9 +21,9 @@ var (
 type OpenFunc func(context.Context) (io.ReadCloser, error)
 
 type Input struct {
-	EntryName, ArtifactID string
-	ExpectedSize          int64
-	Open                  OpenFunc
+	EntryName, SourceAssetID string
+	ExpectedSize             int64
+	Open                     OpenFunc
 }
 
 type Result struct {

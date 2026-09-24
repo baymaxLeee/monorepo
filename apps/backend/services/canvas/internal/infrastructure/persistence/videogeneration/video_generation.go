@@ -106,13 +106,13 @@ func (r *Repository) getByFirstLastFrameTaskRunID(ctx context.Context, taskRunID
 		return applicationfirstlastframe.Generation{}, canvasnodeVideoGenerationReadErr(err)
 	}
 	assetLocator := struct {
-		ArtifactID        string
-		ArtifactNamespace *string
+		SourceAssetID    string
+		SourceRevisionID string
 	}{}
 	if row.AssetID == nil {
 		return applicationfirstlastframe.Generation{}, app.ErrNotFound
 	}
-	assetQuery := r.dbFor(ctx).Table("assets").Select("artifact_id, artifact_namespace").Where(
+	assetQuery := r.dbFor(ctx).Table("assets").Select("source_asset_id, source_revision_id").Where(
 		"id = ? AND tenant_id = ? AND owner_type = ? AND owner_id = ? AND media_type = ? AND deleted_at = 0",
 		*row.AssetID, row.TenantID, domainasset.OwnerProject, row.ProjectID, domainasset.MediaVideo,
 	)
@@ -125,16 +125,19 @@ func (r *Repository) getByFirstLastFrameTaskRunID(ctx context.Context, taskRunID
 	if result.Error != nil {
 		return applicationfirstlastframe.Generation{}, result.Error
 	}
-	if strings.TrimSpace(assetLocator.ArtifactID) == "" {
+	if strings.TrimSpace(assetLocator.SourceAssetID) == "" {
 		return applicationfirstlastframe.Generation{}, app.ErrNotFound
 	}
 	generation := applicationfirstlastframe.Generation{
 		GenerationTaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, ProjectID: row.ProjectID.String(),
 		WorkspaceID: row.WorkspaceID, CreatedBy: row.CreatedBy,
-		SourceArtifactID: assetLocator.ArtifactID, SourceArtifactNamespace: nullableStringValue(assetLocator.ArtifactNamespace),
-		FirstLastFrameTaskRunID: nullableStringValue(row.FirstLastFrameTaskRunID),
-		FirstFrameCheckpointID:  nullableStringValue(row.FirstFrameCheckpointID), LastFrameCheckpointID: nullableStringValue(row.LastFrameCheckpointID),
-		FirstFrameCheckpointSizeBytes: row.FirstFrameCheckpointSizeBytes, LastFrameCheckpointSizeBytes: row.LastFrameCheckpointSizeBytes,
+		SourceSourceAssetID: assetLocator.SourceAssetID, SourceSourceRevisionID: assetLocator.SourceRevisionID,
+		FirstLastFrameTaskRunID:        nullableStringValue(row.FirstLastFrameTaskRunID),
+		FirstFrameCheckpointAssetID:    nullableStringValue(row.FirstFrameCheckpointAssetID),
+		FirstFrameCheckpointRevisionID: nullableStringValue(row.FirstFrameCheckpointRevisionID),
+		LastFrameCheckpointAssetID:     nullableStringValue(row.LastFrameCheckpointAssetID),
+		LastFrameCheckpointRevisionID:  nullableStringValue(row.LastFrameCheckpointRevisionID),
+		FirstFrameCheckpointSizeBytes:  row.FirstFrameCheckpointSizeBytes, LastFrameCheckpointSizeBytes: row.LastFrameCheckpointSizeBytes,
 		FirstFrameAssetID: nullableUUIDValue(row.FirstFrameAssetID), LastFrameAssetID: nullableUUIDValue(row.LastFrameAssetID),
 		GenerationStatus: domaintask.Status(row.Status),
 	}
@@ -149,14 +152,16 @@ func (r *Repository) RecordArtifactCheckpoint(ctx context.Context, generationTas
 	updates := map[string]any{"updated_at": updatedAt}
 	query := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).
 		Where("task_run_id = ? AND first_last_frame_task_run_id = ? AND hidden_at IS NULL AND first_frame_asset_id IS NULL AND last_frame_asset_id IS NULL", generationID, firstLastFrameTaskRunID)
-	if checkpoint.FirstFrameArtifactID != "" {
-		query = query.Where("first_frame_checkpoint_id IS NULL OR (first_frame_checkpoint_id = ? AND first_frame_checkpoint_size_bytes = ?)", checkpoint.FirstFrameArtifactID, checkpoint.FirstFrameSizeBytes)
-		updates["first_frame_checkpoint_id"] = checkpoint.FirstFrameArtifactID
+	if checkpoint.FirstFrameSourceAssetID != "" {
+		query = query.Where("first_frame_checkpoint_asset_id IS NULL OR (first_frame_checkpoint_asset_id = ? AND first_frame_checkpoint_revision_id = ? AND first_frame_checkpoint_size_bytes = ?)", checkpoint.FirstFrameSourceAssetID, checkpoint.FirstFrameSourceRevisionID, checkpoint.FirstFrameSizeBytes)
+		updates["first_frame_checkpoint_asset_id"] = checkpoint.FirstFrameSourceAssetID
+		updates["first_frame_checkpoint_revision_id"] = checkpoint.FirstFrameSourceRevisionID
 		updates["first_frame_checkpoint_size_bytes"] = checkpoint.FirstFrameSizeBytes
 	}
-	if checkpoint.LastFrameArtifactID != "" {
-		query = query.Where("last_frame_checkpoint_id IS NULL OR (last_frame_checkpoint_id = ? AND last_frame_checkpoint_size_bytes = ?)", checkpoint.LastFrameArtifactID, checkpoint.LastFrameSizeBytes)
-		updates["last_frame_checkpoint_id"] = checkpoint.LastFrameArtifactID
+	if checkpoint.LastFrameSourceAssetID != "" {
+		query = query.Where("last_frame_checkpoint_asset_id IS NULL OR (last_frame_checkpoint_asset_id = ? AND last_frame_checkpoint_revision_id = ? AND last_frame_checkpoint_size_bytes = ?)", checkpoint.LastFrameSourceAssetID, checkpoint.LastFrameSourceRevisionID, checkpoint.LastFrameSizeBytes)
+		updates["last_frame_checkpoint_asset_id"] = checkpoint.LastFrameSourceAssetID
+		updates["last_frame_checkpoint_revision_id"] = checkpoint.LastFrameSourceRevisionID
 		updates["last_frame_checkpoint_size_bytes"] = checkpoint.LastFrameSizeBytes
 	}
 	result := query.Updates(updates)
@@ -170,10 +175,12 @@ func (r *Repository) RecordArtifactCheckpoint(ctx context.Context, generationTas
 		First(&row).Error; err != nil {
 		return false, canvasnodeVideoGenerationReadErr(err)
 	}
-	return (checkpoint.FirstFrameArtifactID == "" || nullableStringValue(row.FirstFrameCheckpointID) == checkpoint.FirstFrameArtifactID) &&
-		(checkpoint.FirstFrameArtifactID == "" || row.FirstFrameCheckpointSizeBytes == checkpoint.FirstFrameSizeBytes) &&
-		(checkpoint.LastFrameArtifactID == "" || nullableStringValue(row.LastFrameCheckpointID) == checkpoint.LastFrameArtifactID) &&
-		(checkpoint.LastFrameArtifactID == "" || row.LastFrameCheckpointSizeBytes == checkpoint.LastFrameSizeBytes) &&
+	return (checkpoint.FirstFrameSourceAssetID == "" || nullableStringValue(row.FirstFrameCheckpointAssetID) == checkpoint.FirstFrameSourceAssetID) &&
+		(checkpoint.FirstFrameSourceAssetID == "" || nullableStringValue(row.FirstFrameCheckpointRevisionID) == checkpoint.FirstFrameSourceRevisionID) &&
+		(checkpoint.FirstFrameSourceAssetID == "" || row.FirstFrameCheckpointSizeBytes == checkpoint.FirstFrameSizeBytes) &&
+		(checkpoint.LastFrameSourceAssetID == "" || nullableStringValue(row.LastFrameCheckpointAssetID) == checkpoint.LastFrameSourceAssetID) &&
+		(checkpoint.LastFrameSourceAssetID == "" || nullableStringValue(row.LastFrameCheckpointRevisionID) == checkpoint.LastFrameSourceRevisionID) &&
+		(checkpoint.LastFrameSourceAssetID == "" || row.LastFrameCheckpointSizeBytes == checkpoint.LastFrameSizeBytes) &&
 		row.FirstFrameAssetID == nil && row.LastFrameAssetID == nil, nil
 }
 
@@ -191,7 +198,7 @@ func (r *Repository) CommitAssets(ctx context.Context, generationTaskRunID, firs
 		return false, err
 	}
 	update := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).
-		Where("task_run_id = ? AND first_last_frame_task_run_id = ? AND hidden_at IS NULL AND first_frame_checkpoint_id = ? AND first_frame_checkpoint_size_bytes = ? AND last_frame_checkpoint_id = ? AND last_frame_checkpoint_size_bytes = ? AND first_frame_asset_id IS NULL AND last_frame_asset_id IS NULL", generationID, firstLastFrameTaskRunID, result.FirstFrameArtifactID, result.FirstFrameSizeBytes, result.LastFrameArtifactID, result.LastFrameSizeBytes).
+		Where("task_run_id = ? AND first_last_frame_task_run_id = ? AND hidden_at IS NULL AND first_frame_checkpoint_asset_id = ? AND first_frame_checkpoint_revision_id = ? AND first_frame_checkpoint_size_bytes = ? AND last_frame_checkpoint_asset_id = ? AND last_frame_checkpoint_revision_id = ? AND last_frame_checkpoint_size_bytes = ? AND first_frame_asset_id IS NULL AND last_frame_asset_id IS NULL", generationID, firstLastFrameTaskRunID, result.FirstFrameSourceAssetID, result.FirstFrameSourceRevisionID, result.FirstFrameSizeBytes, result.LastFrameSourceAssetID, result.LastFrameSourceRevisionID, result.LastFrameSizeBytes).
 		Updates(map[string]any{
 			"first_frame_asset_id": firstID,
 			"last_frame_asset_id":  lastID,
@@ -380,12 +387,15 @@ func toCanvasNodeVideoGenerationRow(generation domainvideo.Generation) (canvasno
 		ProviderTaskID: nullableString(generation.ProviderTaskID), SeedanceTaskID: nullableString(generation.SeedanceTaskID),
 		ProviderVideoURL:  generation.ProviderVideoURL,
 		ProviderErrorCode: generation.ProviderErrorCode, ProviderErrorMessage: generation.ProviderErrorMessage,
-		AssetID:                 assetID,
-		FirstLastFrameTaskRunID: nullableString(generation.FirstLastFrameTaskRunID),
-		FirstFrameCheckpointID:  nullableString(generation.FirstFrameCheckpointID), LastFrameCheckpointID: nullableString(generation.LastFrameCheckpointID),
-		FirstFrameCheckpointSizeBytes: generation.FirstFrameCheckpointSizeBytes,
-		LastFrameCheckpointSizeBytes:  generation.LastFrameCheckpointSizeBytes,
-		FirstFrameAssetID:             firstFrameAssetID, LastFrameAssetID: lastFrameAssetID,
+		AssetID:                        assetID,
+		FirstLastFrameTaskRunID:        nullableString(generation.FirstLastFrameTaskRunID),
+		FirstFrameCheckpointAssetID:    nullableString(generation.FirstFrameCheckpointAssetID),
+		FirstFrameCheckpointRevisionID: nullableString(generation.FirstFrameCheckpointRevisionID),
+		LastFrameCheckpointAssetID:     nullableString(generation.LastFrameCheckpointAssetID),
+		LastFrameCheckpointRevisionID:  nullableString(generation.LastFrameCheckpointRevisionID),
+		FirstFrameCheckpointSizeBytes:  generation.FirstFrameCheckpointSizeBytes,
+		LastFrameCheckpointSizeBytes:   generation.LastFrameCheckpointSizeBytes,
+		FirstFrameAssetID:              firstFrameAssetID, LastFrameAssetID: lastFrameAssetID,
 		Inputs:       generation.Inputs,
 		ErrorMessage: generation.ErrorMessage,
 		CreatedBy:    generation.CreatedBy, CompletedAt: generation.CompletedAt,
@@ -418,11 +428,17 @@ func fromCanvasNodeVideoGenerationRow(row canvasnodeVideoGenerationRow) domainvi
 	if row.FirstLastFrameTaskRunID != nil {
 		generation.FirstLastFrameTaskRunID = *row.FirstLastFrameTaskRunID
 	}
-	if row.FirstFrameCheckpointID != nil {
-		generation.FirstFrameCheckpointID = *row.FirstFrameCheckpointID
+	if row.FirstFrameCheckpointAssetID != nil {
+		generation.FirstFrameCheckpointAssetID = *row.FirstFrameCheckpointAssetID
 	}
-	if row.LastFrameCheckpointID != nil {
-		generation.LastFrameCheckpointID = *row.LastFrameCheckpointID
+	if row.FirstFrameCheckpointRevisionID != nil {
+		generation.FirstFrameCheckpointRevisionID = *row.FirstFrameCheckpointRevisionID
+	}
+	if row.LastFrameCheckpointAssetID != nil {
+		generation.LastFrameCheckpointAssetID = *row.LastFrameCheckpointAssetID
+	}
+	if row.LastFrameCheckpointRevisionID != nil {
+		generation.LastFrameCheckpointRevisionID = *row.LastFrameCheckpointRevisionID
 	}
 	generation.FirstFrameCheckpointSizeBytes = row.FirstFrameCheckpointSizeBytes
 	generation.LastFrameCheckpointSizeBytes = row.LastFrameCheckpointSizeBytes

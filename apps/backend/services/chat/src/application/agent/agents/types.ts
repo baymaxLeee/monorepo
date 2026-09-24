@@ -1,7 +1,7 @@
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import type { ModelMessage } from "ai";
 
-import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
+import type { AgentSkillRef, ProviderSnapshot, SkillFileResource } from "../../../infrastructure/clients/admin.js";
 import type { InstructionInput } from "../context/instructions/index.js";
 import type { OrchestrationState } from "./orchestration.js";
 
@@ -41,5 +41,5 @@ export interface ChatAgentInput {
   botSkills?: AgentSkillRef[];
   /** Pulls a skill's full body by id, for the shared `load_skill` tool. */
   loadSkillBody?: (skillId: string) => Promise<string>;
-  loadSkillFile?: (skillId: string, path: string) => Promise<string>;
+  loadSkillFile?: (skillId: string, path: string) => Promise<SkillFileResource>;
 }

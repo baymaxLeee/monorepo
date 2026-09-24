@@ -62,7 +62,7 @@ func buildFCPXML(projectName string, snapshotAt time.Time, inputs []probedInput)
 	}
 	for index, input := range inputs {
 		assetID := fmt.Sprintf("r%d", assetStart+index)
-		uid := stableUID("asset:" + input.Input.ArtifactID + ":" + input.Input.EntryName)
+		uid := stableUID("asset:" + input.Input.SourceAssetID + ":" + input.Input.EntryName)
 		_, _ = fmt.Fprintf(&body,
 			`    <asset id="%s" name="%s" uid="%s" start="0s" hasVideo="1" videoSources="1" format="%s" duration="%s"`,
 			assetID, xmlEscape(input.Input.EntryName), uid, formatIDs[index], fcpxmlTime(input.Media.Duration),

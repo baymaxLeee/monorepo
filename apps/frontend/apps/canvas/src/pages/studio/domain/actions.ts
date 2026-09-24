@@ -616,7 +616,7 @@ export function materializeCanvasStandaloneAssetReference(
   targetPort: canvasnode.CanvasPort,
   position: canvasnode.CanvasNodePosition,
 ) {
-  const uploaded = "BlobID" in reference;
+  const uploaded = "SourceRevisionID" in reference;
   return canvasMaterializeAssetReference(
     projectId,
     canvasId,
@@ -624,7 +624,13 @@ export function materializeCanvasStandaloneAssetReference(
       target_node_id: targetNodeId,
       reference_type: canvasnode.CanvasNodeMentionReferenceType.ASSET,
       asset_id: uploaded ? undefined : reference.AssetID,
-      uploaded_asset: uploaded ? { blob_id: reference.BlobID, file_name: reference.FileName } : undefined,
+      uploaded_asset: uploaded
+        ? {
+            source_asset_id: reference.SourceAssetID,
+            source_revision_id: reference.SourceRevisionID,
+            file_name: reference.FileName,
+          }
+        : undefined,
       target_port: targetPort,
       asset_node_position: { position_x: position.PositionX, position_y: position.PositionY },
     },

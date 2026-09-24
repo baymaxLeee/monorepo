@@ -111,9 +111,10 @@ export interface CanvasAsset {
 }
 
 export interface CanvasAssetReviewUpload {
-  blob_id: string;
   client_id: string;
   file_name: string;
+  source_asset_id: string;
+  source_revision_id: string;
 }
 
 export interface CanvasAssetReviews {
@@ -623,7 +624,8 @@ export interface CanvasProjectCanvasStats {
 
 export interface CanvasProjectCanvasSummary {
   canvas_id: string;
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   cover_image_url?: string;
   created_at: string;
   created_by: string;
@@ -647,7 +649,8 @@ export interface CanvasProjectStats {
 }
 
 export interface CanvasProjectDetail {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   cover_image_url?: string;
   created_at: string;
   created_by: string;
@@ -731,9 +734,10 @@ export interface CanvasCreateResourceFromAssetResponse {
 }
 
 export interface CanvasCreateResourceInitialAsset {
-  blob_id: string;
   file_name: string;
   name?: string;
+  source_asset_id: string;
+  source_revision_id: string;
 }
 
 export interface CanvasCreateResourceResponse {
@@ -832,7 +836,8 @@ export interface CanvasGetCanvasGraphResponse {
 }
 
 export interface CanvasMemberProjectDetail {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   cover_image_url?: string;
   created_at: string;
   created_by: string;
@@ -1467,7 +1472,8 @@ export interface CanvasListProjectModelsResponse {
 }
 
 export interface CanvasMemberProjectSummary {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   cover_image_url?: string;
   created_at: string;
   created_by: string;
@@ -1483,7 +1489,8 @@ export interface CanvasListProjectsByMemberResponse {
 }
 
 export interface CanvasProjectSummary {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   cover_image_url?: string;
   created_at: string;
   created_by: string;
@@ -1650,8 +1657,9 @@ export interface CanvasReplaceUploadedResourceAssetResponse {
 
 export interface CanvasResourceAssetGenerationUploadedReferenceInput {
   asset_id?: string;
-  blob_id?: string;
   file_name?: string;
+  source_asset_id?: string;
+  source_revision_id?: string;
 }
 
 export interface CanvasResourceAssetGenerationPatch {
@@ -1697,11 +1705,6 @@ export const CanvasSortDirection = {
   /** DESC 表示降序。 */
   DESC: 2,
 } as const;
-
-export interface CanvasStagedUpload {
-  blob_id: string;
-  size_bytes: number;
-}
 
 export interface CanvasStartCanvasGenerationResponse {
   items: CanvasNodeGenerationStart[];
@@ -1764,8 +1767,9 @@ export interface CanvasUpdateResourceResponse {
 }
 
 export interface CanvasUploadedAsset {
-  blob_id: string;
   file_name: string;
+  source_asset_id: string;
+  source_revision_id: string;
 }
 
 export type CanvasAdminListProjectsParams = {
@@ -1774,14 +1778,16 @@ page_num: number;
 };
 
 export type CanvasAdminCreateProjectBody = {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   member_user_ids: string[];
   name: string;
   usage_limit?: number;
 };
 
 export type CanvasAdminUpdateProjectBody = {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   member_user_ids: string[];
   name: string;
   usage_limit?: number;
@@ -1795,14 +1801,16 @@ page_num: number;
 };
 
 export type CanvasCreateProjectBody = {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   member_user_ids: string[];
   name: string;
   usage_limit?: number;
 };
 
 export type CanvasUpdateProjectBody = {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
 };
 
 export type CanvasBatchGetAssetReviewsBody = {
@@ -1822,12 +1830,14 @@ page_num: number;
 };
 
 export type CanvasCreateCanvasBody = {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   name: string;
 };
 
 export type CanvasUpdateCanvasBody = {
-  cover_image_path?: string;
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
   name: string;
 };
 
@@ -1849,8 +1859,9 @@ export type CanvasMaterializeAssetReferenceBody = {
 };
 
 export type CanvasCreateAssetBody = {
-  blob_id: string;
   file_name: string;
+  source_asset_id: string;
+  source_revision_id: string;
 };
 
 export type CanvasDeleteEdgeBody = {
@@ -1984,10 +1995,11 @@ page_num: number;
 
 export type CanvasCreateResourceAssetBody = {
   asset_id?: string;
-  blob_id?: string;
   expected_resource_revision: number;
   file_name?: string;
   name?: string;
+  source_asset_id?: string;
+  source_revision_id?: string;
 };
 
 export type CanvasDeleteResourceAssetBody = {
@@ -2020,11 +2032,12 @@ export type CanvasSetPrimaryResourceAssetBody = {
 };
 
 export type CanvasReplaceResourceAssetBody = {
-  blob_id: string;
   expected_resource_asset_revision: number;
   expected_resource_revision: number;
   file_name: string;
   resource_asset_id: string;
+  source_asset_id: string;
+  source_revision_id: string;
 };
 
 export type CanvasBatchDeleteResourceAssetsBody = {
@@ -2121,15 +2134,6 @@ const canvasListAvailableBenefitPackages = (
  options?: SecondParameter<typeof apiMutator<CanvasListAvailableBenefitPackagesResponse>>,) => {
       return apiMutator<CanvasListAvailableBenefitPackagesResponse>(
       {url: `/api/canvas-server/benefit-packages`, method: 'GET'
-    },
-      options);
-    }
-
-const canvasStageCoverUpload = (
-
- options?: SecondParameter<typeof apiMutator<CanvasStagedUpload>>,) => {
-      return apiMutator<CanvasStagedUpload>(
-      {url: `/api/canvas-server/cover-uploads`, method: 'POST'
     },
       options);
     }
@@ -2976,16 +2980,7 @@ const canvasGetProjectResourceStats = (
       options);
     }
 
-const canvasStageUpload = (
-
- options?: SecondParameter<typeof apiMutator<CanvasStagedUpload>>,) => {
-      return apiMutator<CanvasStagedUpload>(
-      {url: `/api/canvas-server/uploads`, method: 'POST'
-    },
-      options);
-    }
-
-return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasStageCoverUpload,canvasExecuteArchive,canvasExtractVideoFrames,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats,canvasStageUpload}};
+return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasExecuteArchive,canvasExtractVideoFrames,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats}};
 export type CanvasAdminListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminListProjects']>>>
 export type CanvasAdminCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminCreateProject']>>>
 export type CanvasAdminDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminDeleteProject']>>>
@@ -2993,7 +2988,6 @@ export type CanvasAdminGetProjectResult = NonNullable<Awaited<ReturnType<ReturnT
 export type CanvasAdminUpdateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminUpdateProject']>>>
 export type CanvasDownloadProjectUsageResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDownloadProjectUsage']>>>
 export type CanvasListAvailableBenefitPackagesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListAvailableBenefitPackages']>>>
-export type CanvasStageCoverUploadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStageCoverUpload']>>>
 export type CanvasExecuteArchiveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasExecuteArchive']>>>
 export type CanvasExtractVideoFramesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasExtractVideoFrames']>>>
 export type CanvasListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListProjects']>>>
@@ -3064,4 +3058,3 @@ export type CanvasBatchGetResourceGenerationStatesResult = NonNullable<Awaited<R
 export type CanvasBatchDeleteResourcesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchDeleteResources']>>>
 export type CanvasCreateResourceFromAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateResourceFromAsset']>>>
 export type CanvasGetProjectResourceStatsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetProjectResourceStats']>>>
-export type CanvasStageUploadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStageUpload']>>>

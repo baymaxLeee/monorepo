@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 SkillStatus = Literal["draft", "published", "archived"]
 NodeType = Literal["file", "directory"]
+SkillStorageKind = Literal["inline", "asset"]
 _NAME_RE = re.compile("^[a-z](?:[a-z0-9]|-(?=[a-z0-9]))*[a-z0-9]$|^[a-z]$")
 
 
@@ -52,7 +53,14 @@ class InternalSkill(BaseModel):
 
 class InternalSkillFile(BaseModel):
     path: str
-    content: str
+    storage_kind: SkillStorageKind
+    mime_type: str | None = None
+    content: str | None = None
+    asset_id: str | None = None
+    revision_id: str | None = None
+    size_bytes: int | None = None
+    sha256: str | None = None
+    url: str | None = None
 
 
 class CreateSkillInput(BaseModel):
@@ -76,6 +84,11 @@ class SkillFileNode(BaseModel):
     type: NodeType
     parent_id: str | None = None
     mime_type: str | None = None
+    storage_kind: SkillStorageKind = "inline"
+    asset_id: str | None = None
+    revision_id: str | None = None
+    size_bytes: int | None = None
+    sha256: str | None = None
     etag: str
     content: str | None = None
     children: list[SkillFileNode] | None = None
@@ -89,8 +102,36 @@ class SkillWorkspace(BaseModel):
 
 class SkillFileContent(BaseModel):
     id: str
-    content: str
+    storage_kind: SkillStorageKind
+    mime_type: str | None = None
+    content: str | None = None
+    asset_id: str | None = None
+    revision_id: str | None = None
+    size_bytes: int | None = None
+    sha256: str | None = None
+    url: str | None = None
     etag: str
+
+
+class AttachSkillAssetInput(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    parent_id: str | None = None
+    name: str = Field(min_length=1, max_length=255)
+    asset_id: str = Field(min_length=1, max_length=64)
+    revision_id: str = Field(min_length=1, max_length=64)
+
+
+class ImportSkillArchiveInput(BaseModel):
+    asset_id: str = Field(min_length=1, max_length=64)
+    revision_id: str = Field(min_length=1, max_length=64)
+    base_workspace_seq: int = Field(ge=1)
+
+
+class ImportSkillArchiveResult(BaseModel):
+    skill: Skill
+    workspace: SkillWorkspace
+    imported_files: int
+    imported_asset_files: int
 
 
 class CreateSkillNodeInput(BaseModel):

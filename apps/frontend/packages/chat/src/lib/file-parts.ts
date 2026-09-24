@@ -1,9 +1,11 @@
-import { conversationDocumentSourceUrl } from "@repo/api";
+import { assetRevisionContentUrl } from "@repo/api";
 import type { FileUIPart } from "ai";
 
 export function buildUserFilePart(input: {
   conversationId: string;
   documentId: string;
+  assetId: string;
+  revisionId: string;
   filename: string;
   mimeType: string;
 }): FileUIPart {
@@ -11,17 +13,13 @@ export function buildUserFilePart(input: {
     type: "file",
     mediaType: input.mimeType,
     filename: input.filename,
-    url: conversationDocumentSourceUrl(input.conversationId, input.documentId),
+    url: assetRevisionContentUrl(input.assetId, input.revisionId, input.documentId),
   };
 }
 
 export function documentIdFromFilePart(part: FileUIPart): string | null {
-  const match = part.url.match(/\/documents\/([^/?#]+)\/source(?:[?#]|$)/);
-  if (!match?.[1]) {
-    return null;
-  }
   try {
-    return decodeURIComponent(match[1]);
+    return new URL(part.url, window.location.origin).searchParams.get("document_id");
   } catch {
     return null;
   }

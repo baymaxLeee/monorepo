@@ -4,7 +4,7 @@ import type { canvas } from "@/domain";
 
 export interface CanvasFormValues {
   Name: string;
-  CoverImagePath?: string;
+  CoverImage?: { assetId: string; revisionId: string };
 }
 
 export type CanvasDialogState = { mode: "create" } | { mode: "edit"; canvas: canvas.ProjectCanvasSummary };
@@ -14,7 +14,8 @@ function canvasFromDTO(value: Awaited<ReturnType<typeof canvasGetCanvas>>["canva
     CanvasID: value.canvas_id,
     ProjectID: value.project_id,
     Name: value.name,
-    CoverImagePath: value.cover_image_path,
+    CoverImageAssetID: value.cover_image_asset_id,
+    CoverImageRevisionID: value.cover_image_revision_id,
     CoverImageURL: value.cover_image_url,
     CreatedBy: value.created_by,
     CreatedAt: value.created_at,
@@ -39,7 +40,8 @@ export async function saveCanvas(projectId: string, state: CanvasDialogState, va
       (
         await canvasUpdateCanvas(projectId, state.canvas.CanvasID, {
           name: values.Name,
-          cover_image_path: values.CoverImagePath,
+          cover_image_asset_id: values.CoverImage?.assetId,
+          cover_image_revision_id: values.CoverImage?.revisionId,
         })
       ).canvas,
     );
@@ -48,7 +50,8 @@ export async function saveCanvas(projectId: string, state: CanvasDialogState, va
     (
       await canvasCreateCanvas(projectId, {
         name: values.Name,
-        cover_image_path: values.CoverImagePath || undefined,
+        cover_image_asset_id: values.CoverImage?.assetId || undefined,
+        cover_image_revision_id: values.CoverImage?.revisionId || undefined,
       })
     ).canvas,
   );

@@ -39,7 +39,7 @@ const canvasFormSchema = z.object({
     .min(2, t("视频名称长度需为 2-20 个字"))
     .max(20, t("视频名称长度需为 2-20 个字"))
     .refine((value) => !INVALID_NAME_BOUNDARY.test(value), t("不能以连接符（-、_）和空格开头或结尾")),
-  CoverImagePath: z.string().optional(),
+  CoverImage: z.object({ assetId: z.string(), revisionId: z.string() }).optional(),
 });
 type CanvasValues = z.infer<typeof canvasFormSchema>;
 
@@ -48,7 +48,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
   const form = useForm<CanvasValues>({
     resolver: zodResolver(canvasFormSchema),
     mode: "onChange",
-    defaultValues: { Name: "", CoverImagePath: undefined },
+    defaultValues: { Name: "", CoverImage: undefined },
   });
   const name = form.watch("Name");
   const submit = async (values: CanvasValues) => {
@@ -61,7 +61,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
   useEffect(() => {
     form.reset({
       Name: state?.mode === "edit" ? state.canvas.Name : "",
-      CoverImagePath: undefined,
+      CoverImage: undefined,
     });
     setCoverUploading(false);
   }, [form, state]);
@@ -118,7 +118,7 @@ export function CanvasDialog({ state, projectId, onClose, onSuccess }: CanvasDia
             />
             <Controller
               control={form.control}
-              name="CoverImagePath"
+              name="CoverImage"
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor={field.name} className={styles.fieldLabel}>

@@ -13,7 +13,6 @@ import base64
 import logging
 from datetime import UTC, datetime
 
-import anyio
 from bootstrap.config import get_settings
 from domain.chunking import chunk_text, estimate_tokens
 from domain.indexing import IndexResult
@@ -22,9 +21,9 @@ from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import chunks as chunk_crud
 
 from application.admin_client import ProviderNotConfiguredError, ProviderSnapshot, get_admin_client
+from application.asset_client import get_asset_client
 from application.contextual import contextualize_chunks
 from application.embed_client import embed_image, embed_texts, is_multimodal_embedding_model
-from application.object_store import ObjectStore
 
 logger = logging.getLogger("knowledge.indexing")
 
@@ -50,11 +49,13 @@ async def _maybe_append_image_chunk(
         return None
     if not is_multimodal_embedding_model(embed_provider.model):
         return None
-    if not (row.object_bucket and row.object_key):
-        return "image vector skipped: original object missing"
-    bucket, key = (row.object_bucket, row.object_key)
+    if not (row.asset_id and row.source_revision_id and row.tenant_id and row.workspace_id):
+        return "image vector skipped: source Asset revision missing"
     try:
-        image_bytes = await anyio.to_thread.run_sync(lambda: ObjectStore().get_bytes(bucket=bucket, key=key))
+        image_bytes = await get_asset_client().read(
+            tenant_id=row.tenant_id, workspace_id=row.workspace_id, asset_id=row.asset_id,
+            revision_id=row.source_revision_id, max_bytes=get_settings().attachment_max_upload_bytes,
+        )
         mime = (row.source_mime_type or "application/octet-stream").split(";")[0].strip().lower()
         data_uri = f"data:{mime};base64,{base64.b64encode(image_bytes).decode('utf-8')}"
         vector = await embed_image(data_uri, provider=embed_provider)

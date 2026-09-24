@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"github.com/example/monorepo/canvas/internal/api/openapi"
 	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
+	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationcanvasarchive "github.com/example/monorepo/canvas/internal/application/canvasarchive"
@@ -41,6 +41,7 @@ import (
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
 	"github.com/example/monorepo/canvas/internal/infrastructure/artifact"
+	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 	"github.com/example/monorepo/canvas/internal/infrastructure/canvasstoryboardredis"
 	"github.com/example/monorepo/canvas/internal/infrastructure/canvastextgenerationredis"
 	coverimagestore "github.com/example/monorepo/canvas/internal/infrastructure/coverimage"
@@ -49,6 +50,7 @@ import (
 	firstlastframemedia "github.com/example/monorepo/canvas/internal/infrastructure/media/firstlastframe"
 	"github.com/example/monorepo/canvas/internal/infrastructure/observability"
 	assetpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/asset"
+	assetclaimpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/assetclaim"
 	benefitpackagepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/benefitpackage"
 	canvaspersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvas"
 	canvasarchivepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasarchive"
@@ -72,7 +74,6 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/provider"
 	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 	modelcatalog "github.com/example/monorepo/canvas/internal/infrastructure/providercatalog"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
 	"github.com/example/monorepo/canvas/internal/infrastructure/usageobserver"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -253,12 +254,12 @@ func runArchiveCleaner(ctx context.Context, cleaner *applicationcanvasarchive.Cl
 	}
 }
 
-func runAssetGarbageCollector(ctx context.Context, collector *applicationasset.GarbageCollector) {
-	ticker := time.NewTicker(time.Hour)
+func runAssetClaimRelay(ctx context.Context, relay *applicationassetclaim.Relay) {
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
-		if _, err := collector.Run(ctx, 30*time.Second); err != nil && ctx.Err() == nil {
-			slog.Error("collect unreferenced Canvas assets", "error", err)
+		if _, err := relay.RunOnce(ctx, 100); err != nil && ctx.Err() == nil {
+			slog.Error("relay Canvas asset claims", "error", err)
 		}
 		select {
 		case <-ctx.Done():
@@ -348,11 +349,11 @@ func run() error {
 	go runQuotaReconciler(ctx, applicationquota.NewReconciler(quotaRepository, utcClock{}))
 	providers := &admin.Directory{URL: cfg.AdminServiceURL, Token: cfg.InternalToken}
 	models := modelcatalog.New(providers)
-	storageClient := &storage.Client{
-		URL: cfg.KnowledgeServiceURL, Token: cfg.InternalToken,
-	}
-	artifacts := artifact.New(storageClient, cfg.PublicGatewayURL)
-	coverImages := coverimagestore.New(storageClient, uuidGenerator{}, cfg.PublicGatewayURL)
+	assetClient := assetclient.New(cfg.AssetServiceURL, cfg.InternalToken, nil)
+	claimIntents := assetclaimpersistence.NewRepository(db)
+	go runAssetClaimRelay(ctx, applicationassetclaim.NewRelay(claimIntents, assetClient, utcClock{}))
+	artifacts := artifact.New(assetClient, cfg.PublicGatewayURL)
+	coverImages := coverimagestore.New(assetClient, claimIntents, utcClock{}, cfg.PublicGatewayURL)
 	projectUsageExporter := applicationprojectusage.NewExporter(projectUsageRepository, artifacts, uuidGenerator{}, utcClock{})
 	transactions := persistencetransaction.New(db)
 	archiveRepository := canvasarchivepersistence.NewRepository(db)
@@ -365,18 +366,19 @@ func run() error {
 		applicationcanvasarchive.WithCanvasAccessValidator(archiveCanvasAccess{canvases: canvasRepository}),
 		applicationcanvasarchive.WithCancellation(taskRepository, archiveWorkflows),
 		applicationcanvasarchive.WithStorageQuota(quotaService),
+		applicationcanvasarchive.WithClaimIntents(claimIntents),
 	)
 	archiveWorkflows.Bind(archiveService)
 	archiveRuntime := canvasarchivemedia.NewRuntime(
-		archiveService, archiveRepository, taskRepository, transactions, storageClient, utcClock{}, "",
+		archiveService, archiveRepository, taskRepository, transactions, assetClient, utcClock{}, "",
 	)
 	go archiveWorkflows.Run(ctx)
-	archiveObjects := canvasarchivemedia.NewObjectStore(db, storageClient)
-	go runArchiveCleaner(ctx, applicationcanvasarchive.NewCleaner(archiveRepository, archiveObjects, quotaService, utcClock{}))
+	go runArchiveCleaner(ctx, applicationcanvasarchive.NewCleaner(archiveRepository, claimIntents, transactions, quotaService, utcClock{}))
 	executions := applicationtask.NewActiveExecutions()
 	assetService := applicationasset.NewService(
 		assetRepository, assetpersistence.NewOwnerResolver(db), artifacts, uuidGenerator{}, utcClock{},
 		applicationasset.WithReferenceStore(assetRepository),
+		applicationasset.WithClaimIntents(claimIntents, transactions),
 	)
 	reviewCleanup := applicationpackage.NewReviewCleanupService(reviewRepository, taskRepository, transactions, utcClock{})
 	assetService = applicationasset.NewService(
@@ -385,13 +387,8 @@ func run() error {
 		applicationasset.WithReviewReader(reviewRepository),
 		applicationasset.WithReviewCleanup(reviewCleanup, nil),
 		applicationasset.WithStorageQuota(quotaService, transactions),
+		applicationasset.WithClaimIntents(claimIntents, transactions),
 	)
-	assetGarbageCollector := applicationasset.NewGarbageCollector(
-		assetRepository, assetRepository, artifacts, utcClock{}, 24*time.Hour, 7*24*time.Hour,
-		applicationasset.WithGarbageCollectionReviewCleanup(reviewCleanup, nil),
-		applicationasset.WithGarbageCollectionStorageQuota(quotaService),
-	)
-	go runAssetGarbageCollector(ctx, assetGarbageCollector)
 	reviews := applicationpackage.NewReviewService(
 		reviewRepository, assetService, artifacts, resourceRepository, providers, taskRepository, transactions, uuidGenerator{}, utcClock{},
 	)
@@ -456,7 +453,7 @@ func run() error {
 		applicationfirstlastframe.WithTerminalCoordinator(frameTerminalCoordinator),
 	)
 	frameRuntime := firstlastframemedia.NewRuntime(
-		frames, taskRepository, transactions, storageClient, utcClock{}, "",
+		frames, taskRepository, transactions, assetClient, utcClock{}, "",
 	)
 	frameWorkflows := executorclient.NewFirstLastFrameWorkflowStore(db, executorClient, frames, taskRepository)
 	go frameWorkflows.Run(ctx)
@@ -650,9 +647,6 @@ func run() error {
 		},
 		func(ctx context.Context, taskRunID string) (any, error) {
 			return frameRuntime.Execute(ctx, taskRunID)
-		},
-		func(ctx context.Context, reader io.Reader) (string, int64, error) {
-			return artifacts.UploadBlob(ctx, "", "", reader)
 		},
 		func(ctx context.Context) error {
 			return errors.Join(sql.PingContext(ctx), redisClient.Ping(ctx).Err())

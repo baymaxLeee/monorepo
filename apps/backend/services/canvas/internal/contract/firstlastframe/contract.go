@@ -4,17 +4,21 @@ type Execution struct {
 	TaskRunID, GenerationTaskRunID string
 	TenantID, ProjectID, CreatedBy string
 	WorkspaceID                    *string
-	SourceArtifactID               string
-	SourceArtifactNamespace        string
-	FirstFrameCheckpointID         string
-	LastFrameCheckpointID          string
+	SourceSourceAssetID            string
+	SourceSourceRevisionID         string
+	FirstFrameCheckpointAssetID    string
+	FirstFrameCheckpointRevisionID string
+	LastFrameCheckpointAssetID     string
+	LastFrameCheckpointRevisionID  string
 	FirstFrameCheckpointSizeBytes  int64
 	LastFrameCheckpointSizeBytes   int64
 }
 
 type Result struct {
-	FirstFrameArtifactID string `json:"FirstFrameArtifactID"`
-	LastFrameArtifactID  string `json:"LastFrameArtifactID"`
-	FirstFrameSizeBytes  int64  `json:"FirstFrameSizeBytes"`
-	LastFrameSizeBytes   int64  `json:"LastFrameSizeBytes"`
+	FirstFrameSourceAssetID    string `json:"FirstFrameSourceAssetID"`
+	FirstFrameSourceRevisionID string `json:"FirstFrameSourceRevisionID"`
+	LastFrameSourceAssetID     string `json:"LastFrameSourceAssetID"`
+	LastFrameSourceRevisionID  string `json:"LastFrameSourceRevisionID"`
+	FirstFrameSizeBytes        int64  `json:"FirstFrameSizeBytes"`
+	LastFrameSizeBytes         int64  `json:"LastFrameSizeBytes"`
 }

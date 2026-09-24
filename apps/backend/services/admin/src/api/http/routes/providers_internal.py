@@ -8,12 +8,13 @@ MUST be considered tier-1 secrets in transit (HTTPS / cluster-internal mesh).
 
 from typing import Annotated
 
+from application.auth import AuthContext
 from application.contracts.provider import InternalModelProvider, ProviderCatalogItem
 from application.providers import ModelProviderService
 from fastapi import APIRouter, Header, Query
 from kernel.errors import ForbiddenError
 
-from api.http.dependencies import AuthContext, DbSession, InternalCaller
+from api.http.dependencies import DbSession, InternalCaller
 
 router = APIRouter(prefix="/internal/providers", tags=["internal-providers"])
 

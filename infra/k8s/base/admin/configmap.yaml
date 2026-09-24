@@ -9,3 +9,4 @@ data:
   POSTGRES_DATABASE: "admin"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
+  ASSET_SERVICE_URL: "http://asset:8013"

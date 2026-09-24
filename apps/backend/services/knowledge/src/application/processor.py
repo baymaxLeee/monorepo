@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+from datetime import datetime
 
 from bootstrap.config import get_settings
 from infrastructure.persistence.database import get_engine, get_session_factory, write_tx
@@ -12,9 +13,9 @@ from infrastructure.persistence.repositories import documents as document_crud
 from kernel.errors import BaseError
 from sqlalchemy import text
 
-from application.admin_client import get_admin_client
+from application.admin_client import ProviderSnapshot, get_admin_client
+from application.asset_client import get_asset_client
 from application.convert import ConvertService
-from application.object_store import ObjectStore
 
 logger = logging.getLogger("knowledge.processor")
 
@@ -48,9 +49,9 @@ async def _convert_once(document_id: str, *, provider_id: str | None) -> str:
             return "not-source"
         if row.ingest_status == "ready" and row.content_md:
             return "already-ready"
-        if not row.object_bucket or not row.object_key:
+        if not row.asset_id or not row.source_revision_id or not row.tenant_id or not row.workspace_id:
             await document_crud.update_document(
-                session, row, {"ingest_status": "failed", "ingest_error": "document has no stored source object"}
+                session, row, {"ingest_status": "failed", "ingest_error": "document has no source Asset revision"}
             )
             return "failed"
         source_mime = row.source_mime_type or row.mime_type
@@ -59,14 +60,14 @@ async def _convert_once(document_id: str, *, provider_id: str | None) -> str:
         tenant_id = row.tenant_id
         user_id = row.user_id
         captured_updated_at = row.updated_at
-        object_sha256 = row.object_sha256
-        object_bucket = row.object_bucket
-        object_key = row.object_key
+        source_sha256 = row.source_sha256
+        asset_id = row.asset_id
+        source_revision_id = row.source_revision_id
         is_media = source_mime.lower().startswith(("image/", "audio/", "video/"))
-        if not is_media and object_sha256:
+        if not is_media and source_sha256:
             cached_markdown = await document_crud.find_converted_cache(
                 session,
-                object_sha256=object_sha256,
+                source_sha256=source_sha256,
                 workspace_id=workspace_id,
                 tenant_id=tenant_id,
                 user_id=user_id,
@@ -79,7 +80,10 @@ async def _convert_once(document_id: str, *, provider_id: str | None) -> str:
         if cached_markdown is not None:
             markdown = cached_markdown
         else:
-            content = ObjectStore().get_bytes(bucket=object_bucket, key=object_key)
+            content = await get_asset_client().read(
+                tenant_id=tenant_id, workspace_id=workspace_id, asset_id=asset_id,
+                revision_id=source_revision_id, max_bytes=get_settings().attachment_max_upload_bytes,
+            )
             provider = await _resolve_provider(
                 source_mime, workspace_id=workspace_id, tenant_id=tenant_id, provider_id=provider_id
             )
@@ -118,7 +122,7 @@ async def _convert_once(document_id: str, *, provider_id: str | None) -> str:
 
 async def _resolve_provider(
     mime_type: str, *, workspace_id: str | None, tenant_id: str | None, provider_id: str | None
-):
+) -> ProviderSnapshot | None:
     if not mime_type.lower().startswith(("image/", "audio/", "video/")):
         return None
     try:
@@ -129,7 +133,7 @@ async def _resolve_provider(
         return None
 
 
-async def _mark_failed(document_id: str, message: str, *, expected_updated_at) -> None:
+async def _mark_failed(document_id: str, message: str, *, expected_updated_at: datetime) -> None:
     try:
         factory = get_session_factory()
         async with factory() as session, write_tx(session):

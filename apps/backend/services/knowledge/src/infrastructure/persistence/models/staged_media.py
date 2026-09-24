@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.persistence.models.base import Base
@@ -19,9 +19,9 @@ class StagedMediaRow(Base):
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(120), nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
-    object_bucket: Mapped[str] = mapped_column(String(64), nullable=False)
-    object_key: Mapped[str] = mapped_column(String(512), nullable=False)
-    object_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
+    revision_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
+    asset_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     document_id: Mapped[str | None] = mapped_column(String(32), nullable=True)

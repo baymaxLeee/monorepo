@@ -82,16 +82,17 @@ func (r *Repository) Save(ctx context.Context, item domainofficialasset.Official
 	result := scopedQuery(persistencetransaction.DB(ctx, r.db), item.Scope).
 		Where("slug = ?", row.Slug).
 		Updates(map[string]any{
-			"internal_asset_id": row.InternalAssetID,
-			"resource_id":       row.ResourceID,
-			"resource_asset_id": row.ResourceAssetID,
-			"long_live_status":  row.LongLiveStatus,
-			"artifact_id":       row.ArtifactID,
-			"file_sha256":       row.FileSHA256,
-			"file_name":         row.FileName,
-			"media_type":        row.MediaType,
-			"size_bytes":        row.SizeBytes,
-			"updated_at":        row.UpdatedAt,
+			"internal_asset_id":  row.InternalAssetID,
+			"resource_id":        row.ResourceID,
+			"resource_asset_id":  row.ResourceAssetID,
+			"long_live_status":   row.LongLiveStatus,
+			"source_asset_id":    row.SourceAssetID,
+			"source_revision_id": row.SourceRevisionID,
+			"file_sha256":        row.FileSHA256,
+			"file_name":          row.FileName,
+			"media_type":         row.MediaType,
+			"size_bytes":         row.SizeBytes,
+			"updated_at":         row.UpdatedAt,
 		})
 	if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
 		return applicationofficialasset.ErrInternalAssetConflict
@@ -194,21 +195,22 @@ func rowFromDomain(item domainofficialasset.OfficialAsset) (officialAssetRow, er
 		return officialAssetRow{}, fmt.Errorf("map official asset ResourceAsset ID: %w", err)
 	}
 	return officialAssetRow{
-		Slug:            item.Slug,
-		TenantID:        item.Scope.TenantID,
-		WorkspaceID:     cloneString(item.Scope.WorkspaceID),
-		WorkspaceKey:    workspaceKey(item.Scope.WorkspaceID),
-		InternalAssetID: internalAssetID,
-		ResourceID:      resourceID,
-		ResourceAssetID: resourceAssetID,
-		LongLiveStatus:  int16(item.LongLiveStatus),
-		ArtifactID:      nullableString(item.ArtifactID),
-		FileSHA256:      nullableString(item.FileSHA256),
-		FileName:        item.FileName,
-		MediaType:       int16(item.MediaType),
-		SizeBytes:       item.SizeBytes,
-		CreatedAt:       item.CreatedAt,
-		UpdatedAt:       item.UpdatedAt,
+		Slug:             item.Slug,
+		TenantID:         item.Scope.TenantID,
+		WorkspaceID:      cloneString(item.Scope.WorkspaceID),
+		WorkspaceKey:     workspaceKey(item.Scope.WorkspaceID),
+		InternalAssetID:  internalAssetID,
+		ResourceID:       resourceID,
+		ResourceAssetID:  resourceAssetID,
+		LongLiveStatus:   int16(item.LongLiveStatus),
+		SourceAssetID:    nullableString(item.SourceAssetID),
+		SourceRevisionID: nullableString(item.SourceRevisionID),
+		FileSHA256:       nullableString(item.FileSHA256),
+		FileName:         item.FileName,
+		MediaType:        int16(item.MediaType),
+		SizeBytes:        item.SizeBytes,
+		CreatedAt:        item.CreatedAt,
+		UpdatedAt:        item.UpdatedAt,
 	}, nil
 }
 
@@ -218,17 +220,18 @@ func domainFromRow(row officialAssetRow) domainofficialasset.OfficialAsset {
 		Scope: domainofficialasset.Scope{
 			TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID),
 		},
-		ArtifactID:      stringValue(row.ArtifactID),
-		InternalAssetID: uuidString(row.InternalAssetID),
-		ResourceID:      uuidString(row.ResourceID),
-		ResourceAssetID: uuidString(row.ResourceAssetID),
-		LongLiveStatus:  domainofficialasset.LongLiveStatus(row.LongLiveStatus),
-		FileSHA256:      stringValue(row.FileSHA256),
-		FileName:        row.FileName,
-		MediaType:       domainasset.MediaType(row.MediaType),
-		SizeBytes:       row.SizeBytes,
-		CreatedAt:       row.CreatedAt,
-		UpdatedAt:       row.UpdatedAt,
+		SourceAssetID:    stringValue(row.SourceAssetID),
+		SourceRevisionID: stringValue(row.SourceRevisionID),
+		InternalAssetID:  uuidString(row.InternalAssetID),
+		ResourceID:       uuidString(row.ResourceID),
+		ResourceAssetID:  uuidString(row.ResourceAssetID),
+		LongLiveStatus:   domainofficialasset.LongLiveStatus(row.LongLiveStatus),
+		FileSHA256:       stringValue(row.FileSHA256),
+		FileName:         row.FileName,
+		MediaType:        domainasset.MediaType(row.MediaType),
+		SizeBytes:        row.SizeBytes,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
 	}
 }
 

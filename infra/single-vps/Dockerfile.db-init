@@ -34,3 +34,4 @@ COPY infra/single-vps/seed /seed
 ENTRYPOINT ["/init.sh"]
 
 COPY apps/backend/services/canvas/migrations/versions /schema/canvas/migrations/versions
+COPY apps/backend/services/asset/migrations/versions  /schema/asset/migrations/versions

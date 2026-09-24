@@ -1578,14 +1578,15 @@ func (p *GetCanvasGraphResponse) String() string {
 	return fmt.Sprintf("GetCanvasGraphResponse(%+v)", *p)
 }
 
-// CreateCanvasAssetRequest 将临时 Blob 注册为当前 Project 可用的画布素材。
+// CreateCanvasAssetRequest 将平台 Asset revision 注册为当前 Project 可用的画布素材。
 // Asset Owner 由 Server 根据可信 Project/Canvas scope 派生，调用方不能指定。
 type CreateCanvasAssetRequest struct {
-	WorkspaceID *string `json:"WorkspaceID,omitempty"`
-	ProjectID   string  `json:"ProjectID"`
-	CanvasID    string  `json:"CanvasID"`
-	BlobID      string  `json:"BlobID"`
-	FileName    string  `json:"FileName"`
+	WorkspaceID      *string `json:"WorkspaceID,omitempty"`
+	ProjectID        string  `json:"ProjectID"`
+	CanvasID         string  `json:"CanvasID"`
+	SourceAssetID    string  `json:"SourceAssetID"`
+	SourceRevisionID string  `json:"SourceRevisionID"`
+	FileName         string  `json:"FileName"`
 }
 
 func NewCreateCanvasAssetRequest() *CreateCanvasAssetRequest {
@@ -1612,8 +1613,12 @@ func (p *CreateCanvasAssetRequest) GetCanvasID() (v string) {
 	return p.CanvasID
 }
 
-func (p *CreateCanvasAssetRequest) GetBlobID() (v string) {
-	return p.BlobID
+func (p *CreateCanvasAssetRequest) GetSourceAssetID() string {
+	return p.SourceAssetID
+}
+
+func (p *CreateCanvasAssetRequest) GetSourceRevisionID() string {
+	return p.SourceRevisionID
 }
 
 func (p *CreateCanvasAssetRequest) GetFileName() (v string) {
@@ -1662,10 +1667,11 @@ func (p *CreateCanvasAssetResponse) String() string {
 	return fmt.Sprintf("CreateCanvasAssetResponse(%+v)", *p)
 }
 
-// CanvasUploadedAsset 是由节点创建或素材物化直接消费的临时 Blob。
+// CanvasUploadedAsset 是由节点创建或素材物化直接消费的平台 Asset revision。
 type CanvasUploadedAsset struct {
-	BlobID   string `json:"BlobID"`
-	FileName string `json:"FileName"`
+	SourceAssetID    string `json:"SourceAssetID"`
+	SourceRevisionID string `json:"SourceRevisionID"`
+	FileName         string `json:"FileName"`
 }
 
 func NewCanvasUploadedAsset() *CanvasUploadedAsset {
@@ -1675,8 +1681,12 @@ func NewCanvasUploadedAsset() *CanvasUploadedAsset {
 func (p *CanvasUploadedAsset) InitDefault() {
 }
 
-func (p *CanvasUploadedAsset) GetBlobID() (v string) {
-	return p.BlobID
+func (p *CanvasUploadedAsset) GetSourceAssetID() string {
+	return p.SourceAssetID
+}
+
+func (p *CanvasUploadedAsset) GetSourceRevisionID() string {
+	return p.SourceRevisionID
 }
 
 func (p *CanvasUploadedAsset) GetFileName() (v string) {

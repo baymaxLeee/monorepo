@@ -22,7 +22,8 @@ export async function listMyProjects(
   const items = response.items.map((item) => ({
     ProjectID: item.project_id,
     Name: item.name,
-    CoverImagePath: item.cover_image_path,
+    CoverImageAssetID: item.cover_image_asset_id,
+    CoverImageRevisionID: item.cover_image_revision_id,
     CoverImageURL: item.cover_image_url,
     CreatedBy: item.created_by,
     CreatedAt: item.created_at,
@@ -47,7 +48,8 @@ export async function getProjectForRole(canManageProjects: boolean, request: pro
       Project: {
         ProjectID: value.project_id,
         Name: value.name,
-        CoverImagePath: value.cover_image_path,
+        CoverImageAssetID: value.cover_image_asset_id,
+        CoverImageRevisionID: value.cover_image_revision_id,
         CoverImageURL: value.cover_image_url,
         CreatedBy: value.created_by,
         CreatedAt: value.created_at,
@@ -64,7 +66,8 @@ export async function getProjectForRole(canManageProjects: boolean, request: pro
     Project: {
       ProjectID: value.project_id,
       Name: value.name,
-      CoverImagePath: value.cover_image_path,
+      CoverImageAssetID: value.cover_image_asset_id,
+      CoverImageRevisionID: value.cover_image_revision_id,
       CoverImageURL: value.cover_image_url,
       CreatedBy: value.created_by,
       CreatedAt: value.created_at,

@@ -7,14 +7,15 @@
 
 | 服务 | 语言 | 端口 | 公开面 | 数据所有权 | 出站 binding | 说明 |
 |---|---|---|---|---|---|---|
-| gateway | Go | 8000 | `/*`（唯一后端公网入口） | 无业务库 | iam, admin, chat, canvas, knowledge, telemetry | 边缘反向代理 BFF |
+| gateway | Go | 8000 | `/*`（唯一后端公网入口） | 无业务库 | iam, admin, asset, chat, canvas, knowledge, telemetry | 边缘反向代理 BFF |
 | iam | Go | 8002 | `/api/iam-server/*` | PostgreSQL `iam` | — | 身份 / 会话 |
-| admin | Python | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | — | 管理与配置平面 |
-| chat | TypeScript | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | admin, knowledge, executor, canvas | 对话 / Agent runtime |
-| canvas | Go | 8012 | `/api/canvas-server/*` | PostgreSQL `canvas` | admin, executor, knowledge | 项目 / 画布 / 素材与生成编排 |
-| knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin, executor | 知识库 / ingest / artifact |
+| admin | Python | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | asset | 管理与配置平面 |
+| chat | TypeScript | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | admin, knowledge, executor, canvas, asset | 对话 / Agent runtime |
+| canvas | Go | 8012 | `/api/canvas-server/*` | PostgreSQL `canvas` | admin, executor, asset | 项目 / 画布 / 素材与生成编排 |
+| knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin, executor, asset | 知识库 / ingest / RAG |
 | telemetry | Python | 8008 | `/api/telemetry-server/*` | PostgreSQL `telemetry` | — | 可观测 / RUM |
-| executor | TypeScript | 8011 | **internal-only**（无公网 route） | PostgreSQL `executor` (+ `workflow`) | admin, knowledge, canvas | 长任务 durable executor |
+| executor | TypeScript | 8011 | **internal-only**（无公网 route） | PostgreSQL `executor` (+ `workflow`) | admin, knowledge, canvas, asset | 长任务 durable executor |
+| asset | Go | 8013 | `/api/asset-server/*` | PostgreSQL `asset` + 独占 byte volume | — | 统一 Asset revision / Claim / delivery / GC 控制面 |
 
 Failure 责任（摘要）：同步 HTTP binding 的 timeout / 错误映射由 **caller 的 transport client** 负责；gateway 不对 proxied/SSE 请求做 body 重试。长任务重试与跨请求状态在 executor / Workflow，不藏在普通 HTTP handler。
 
@@ -101,12 +102,13 @@ CRUD/DTO 的服务不创建占位 domain。
 provider snapshot,本地内存 TTL 缓存 5 分钟以避免每次流式
 chunk 都打 sibling。
 
-文档与 artifact 由 `knowledge` 持久化; `chat` 通过
-`knowledge:/internal/documents/*` 读取上下文并写入 artifact。
+文档语义、解析和检索由 `knowledge` 持久化；文件 bytes 由 `asset` 统一保存。
+业务服务只持久化 `asset_id + revision_id`，并在本地事务写 Claim intent。
 
 ## 服务文档
 
 - [canvas](./canvas.md)
+- [asset](./asset.md)
 - [chat](./chat.md)
 - [knowledge](./knowledge.md)
 - [executor](./executor.md)

@@ -1,54 +1,33 @@
 package project
 
 import (
-	"strings"
+	"errors"
 	"testing"
 	"time"
 )
 
-func TestProjectUpdateCoverSemantics(t *testing.T) {
-	t.Parallel()
-
+func TestCoverRevisionPairLifecycle(t *testing.T) {
 	now := time.Now().UTC()
-	path := strings.Repeat("a", 64)
-	project, err := New(NewInput{
-		ID: "project", TenantID: "tenant", Name: "Project", CreatedBy: "user",
-		MemberIDs: []string{"user"}, CoverImagePath: &path, Now: now,
-	})
+	item, err := New(NewInput{ID: "project", TenantID: "tenant", Name: "name", CreatedBy: "user", MemberIDs: []string{"user"}, CoverImageAssetID: "asset", CoverImageRevisionID: "revision", Now: now})
 	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatal(err)
 	}
-	project.CoverImageID = "cover"
-	project.CoverImageSHA256 = strings.Repeat("b", 64)
-	project.CoverImageContentType = "image/png"
-	project.CoverImageSizeBytes = 128
-
-	if err = project.Update("Project", []string{"user"}, nil, now.Add(time.Second)); err != nil {
-		t.Fatalf("Update(nil) error = %v", err)
+	item.CoverImageClaimGeneration = 4
+	asset, revision := "", ""
+	if err = item.Update("renamed", []string{"user"}, &asset, &revision, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
 	}
-	if project.CoverImagePath == nil || project.CoverImageID != "cover" {
-		t.Fatalf("Update(nil) changed cover = %#v", project)
+	if item.CoverImageAssetID != "" || item.CoverImageRevisionID != "" {
+		t.Fatalf("cover not cleared: %#v", item)
 	}
-
-	empty := ""
-	if err = project.Update("Project", []string{"user"}, &empty, now.Add(2*time.Second)); err != nil {
-		t.Fatalf("Update(empty) error = %v", err)
-	}
-	if project.CoverImagePath != nil || project.CoverImageID != "" || project.CoverImageSHA256 != "" ||
-		project.CoverImageContentType != "" || project.CoverImageSizeBytes != 0 {
-		t.Fatalf("Update(empty) cover = %#v", project)
+	if item.CoverImageClaimGeneration != 4 {
+		t.Fatalf("claim generation = %d, want 4", item.CoverImageClaimGeneration)
 	}
 }
 
-func TestProjectRejectsDataURLCover(t *testing.T) {
-	t.Parallel()
-
-	value := "data:image/png;base64," + strings.Repeat("A", 256)
-	_, err := New(NewInput{
-		ID: "project", TenantID: "tenant", Name: "Project", CreatedBy: "user",
-		MemberIDs: []string{"user"}, CoverImagePath: &value, Now: time.Now().UTC(),
-	})
-	if err != ErrInvalidCoverImagePath {
-		t.Fatalf("New() error = %v, want ErrInvalidCoverImagePath", err)
+func TestCoverRevisionPairRequired(t *testing.T) {
+	_, err := New(NewInput{ID: "project", TenantID: "tenant", Name: "name", CreatedBy: "user", MemberIDs: []string{"user"}, CoverImageAssetID: "asset", Now: time.Now().UTC()})
+	if !errors.Is(err, ErrInvalidCoverImageReference) {
+		t.Fatalf("error = %v", err)
 	}
 }

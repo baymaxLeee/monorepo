@@ -1,18 +1,19 @@
 """User-facing document management (future knowledge app)."""
 
+from application.asset_client import get_asset_client, mark_document_claim_released
+from application.auth import AuthContext
 from application.contracts.document import Document
 from application.documents import document_to_schema
 from application.executor_client import dispatch_document_now
-from application.object_store import ObjectStore
 from fastapi import APIRouter, Query
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import documents as document_crud
 from kernel.errors import ForbiddenError, NotFoundError
 from pydantic import BaseModel, Field
 
-from api.http.dependencies import AuthContext, CurrentUser, DbSession
+from api.http.dependencies import CurrentUser, DbSession
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -64,13 +65,13 @@ async def batch_delete_my_documents(
             row = by_id.get(doc_id)
             if row is None or not _may_manage(current_user, row):
                 raise ForbiddenError("you may only delete your own documents")
-        object_refs = [(r.object_bucket, r.object_key) for r in rows if r.object_bucket and r.object_key]
         for row in rows:
+            if row.asset_id:
+                await mark_document_claim_released(
+                    session, tenant_id=current_user.tenant_id, workspace_id=current_user.workspace_id, document_id=row.id
+                )
             await document_crud.delete_document(session, row)
         deleted = len(rows)
-    store = ObjectStore()
-    for bucket, key in object_refs:
-        store.delete(bucket=bucket, key=key)
     return BatchDeleteResult(requested=len(payload.ids), deleted=deleted)
 
 
@@ -142,17 +143,28 @@ async def reindex_my_document(document_id: str, current_user: CurrentUser, sessi
 
 
 @router.get("/{document_id}/source")
-async def get_my_document_source(document_id: str, current_user: CurrentUser, session: DbSession) -> Response:
+async def get_my_document_source(document_id: str, current_user: CurrentUser, session: DbSession) -> StreamingResponse:
     row = await document_crud.get_workspace_document(
         session, document_id, current_user.workspace_id, current_user.tenant_id
     )
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
-    if not row.object_bucket or not row.object_key:
-        raise NotFoundError("document has no stored source object")
-    content = ObjectStore().get_bytes(bucket=row.object_bucket, key=row.object_key)
+    if not row.asset_id or not row.source_revision_id:
+        raise NotFoundError("document has no source Asset revision")
     media = row.source_mime_type or "application/octet-stream"
-    return Response(content=content, media_type=media)
+    chunks, headers = await get_asset_client().open_stream(
+        tenant_id=current_user.tenant_id, workspace_id=current_user.workspace_id,
+        asset_id=row.asset_id, revision_id=row.source_revision_id,
+    )
+    return StreamingResponse(
+        chunks,
+        media_type=media,
+        headers={
+            "Content-Disposition": f'inline; filename="{row.source_filename or row.filename}"',
+            **({"Content-Length": headers["Content-Length"]} if "Content-Length" in headers else {}),
+            **({"ETag": headers["ETag"]} if "ETag" in headers else {}),
+        },
+    )
 
 
 @router.delete("/{document_id}", status_code=204)
@@ -165,10 +177,11 @@ async def delete_my_document(document_id: str, current_user: CurrentUser, sessio
             raise NotFoundError(f"document {document_id} not found")
         if not _may_manage(current_user, row):
             raise ForbiddenError("you may only delete your own documents")
-        object_ref = (row.object_bucket, row.object_key) if row.object_bucket and row.object_key else None
+        if row.asset_id:
+            await mark_document_claim_released(
+                session, tenant_id=current_user.tenant_id, workspace_id=current_user.workspace_id, document_id=row.id
+            )
         await document_crud.delete_document(session, row)
-    if object_ref is not None:
-        ObjectStore().delete(bucket=object_ref[0], key=object_ref[1])
 
 
 def _may_manage(current_user: AuthContext, row: DocumentRow) -> bool:

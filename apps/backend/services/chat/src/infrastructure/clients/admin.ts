@@ -69,6 +69,18 @@ export interface AgentSkillRef {
   description: string;
 }
 
+export type SkillFileResource =
+  | { storageKind: "inline"; mimeType: string | null; content: string }
+  | {
+      storageKind: "asset";
+      mimeType: string | null;
+      assetId: string;
+      revisionId: string;
+      sizeBytes: number;
+      sha256: string;
+      url: string;
+    };
+
 export interface ResolvedAgentProviders {
   agentId: string;
   agentName: string;
@@ -236,12 +248,37 @@ export async function getSkillFile(
   tenantId: string,
   workspaceId: string,
   path: string,
-): Promise<string> {
+): Promise<SkillFileResource> {
   try {
-    return (await adminClient().getSkillFile(skillId, tenantId, workspaceId, path)).content;
+    const file = await adminClient().getSkillFile(skillId, tenantId, workspaceId, path);
+    if (file.storage_kind === "inline" && typeof file.content === "string") {
+      return { storageKind: "inline", mimeType: file.mime_type ?? null, content: file.content };
+    }
+    if (
+      file.storage_kind === "asset" &&
+      file.asset_id &&
+      file.revision_id &&
+      typeof file.size_bytes === "number" &&
+      file.sha256 &&
+      file.url
+    ) {
+      return {
+        storageKind: "asset",
+        mimeType: file.mime_type ?? null,
+        assetId: file.asset_id,
+        revisionId: file.revision_id,
+        sizeBytes: file.size_bytes,
+        sha256: file.sha256,
+        url: file.url,
+      };
+    }
+    throw new AdminUnavailableError(`admin returned an invalid skill file descriptor for ${path}`);
   } catch (err) {
     if (err instanceof TransportError && err.status === 404) {
       throw new RequestError(`skill file ${path} not found`);
+    }
+    if (err instanceof AdminUnavailableError) {
+      throw err;
     }
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }

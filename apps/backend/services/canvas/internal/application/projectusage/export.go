@@ -91,6 +91,7 @@ type ExportRepository interface {
 
 type TemporaryFileUpload struct {
 	TenantID         string
+	WorkspaceID      *string
 	CallerID         string
 	ExportID         string
 	InternalFileName string
@@ -197,7 +198,7 @@ func (exporter *Exporter) DownloadXLSX(ctx context.Context, input DownloadXLSXIn
 	now := exporter.clock.Now().UTC()
 	downloadName := exportFileName(projectName, input.ProjectID, now)
 	uploaded, err := exporter.files.UploadTemporary(ctx, TemporaryFileUpload{
-		TenantID: input.Scope.TenantID, CallerID: input.Scope.CallerID, ExportID: exportID,
+		TenantID: input.Scope.TenantID, WorkspaceID: input.Scope.WorkspaceID, CallerID: input.Scope.CallerID, ExportID: exportID,
 		InternalFileName: "project-usage-" + safeASCIIIdentifier(exportID) + ".xlsx",
 		DownloadFileName: downloadName, SHA256: generated.sha256, Size: generated.size,
 		FileTTL: defaultFileTTL, LinkTTL: defaultLinkTTL, Reader: file,

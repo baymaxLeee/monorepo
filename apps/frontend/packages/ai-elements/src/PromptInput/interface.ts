@@ -35,8 +35,8 @@ export interface PromptMentionItem {
   mime?: string;
   url?: string;
   description?: string;
-  /** Merged into the inserted token's `meta` — carry `artifactId` here so the
-   *  host can map the token straight to an official `FileUIPart` on submit. */
+  /** Merged into the inserted token's `meta`; file mentions carry their
+   * document and immutable Asset revision identities here. */
   meta?: Record<string, unknown>;
 }
 

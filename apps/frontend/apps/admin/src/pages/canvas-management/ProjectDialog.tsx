@@ -61,7 +61,8 @@ export function ProjectDialog({
         name: trimmed,
         member_user_ids: memberIds,
         usage_limit: yuan,
-        cover_image_path: value?.cover_image_path,
+        cover_image_asset_id: value?.cover_image_asset_id,
+        cover_image_revision_id: value?.cover_image_revision_id,
       };
       if (value) await canvasAdminUpdateProject(value.project_id, input);
       else await canvasAdminCreateProject(input);

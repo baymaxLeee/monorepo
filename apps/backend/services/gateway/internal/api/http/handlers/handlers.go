@@ -100,6 +100,10 @@ func (p *deadlineAwareProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if p.service == "knowledge-server" && r.Method == http.MethodPost && path == "/ingest" {
 		_ = rc.SetReadDeadline(time.Time{})
 	}
+	if p.service == "asset-server" && (r.Method == http.MethodPost || r.Method == http.MethodGet || r.Method == http.MethodHead) {
+		_ = rc.SetReadDeadline(time.Time{})
+		_ = rc.SetWriteDeadline(time.Time{})
+	}
 	p.inner.ServeHTTP(w, r)
 }
 

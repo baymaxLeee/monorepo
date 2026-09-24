@@ -65,9 +65,9 @@ const (
 	AssetMediaType_AUDIO AssetMediaType = 3
 )
 
-type StagedUpload struct {
-	BlobID    string `json:"blob_id"`
-	SizeBytes int64  `json:"size_bytes"`
+type AssetRevisionRef struct {
+	AssetID    string `json:"AssetID"`
+	RevisionID string `json:"RevisionID"`
 }
 
 func (p AssetMediaType) String() string {
@@ -308,12 +308,12 @@ func (p *Asset) String() string {
 	return fmt.Sprintf("Asset(%+v)", *p)
 }
 
-// AssetReviewUpload 描述送审时需要物化为项目素材的 artifact storage 临时文件。
+// AssetReviewUpload 描述送审时需要物化为项目素材的平台 Asset revision。
 type AssetReviewUpload struct {
 	// ClientID 是调用方为本地草稿分配的稳定标识，用于幂等物化。
-	ClientID string `json:"ClientID"`
-	// BlobID 是 artifact storage 临时上传返回的文件标识。
-	BlobID string `json:"BlobID"`
+	ClientID         string `json:"ClientID"`
+	SourceAssetID    string `json:"SourceAssetID"`
+	SourceRevisionID string `json:"SourceRevisionID"`
 	// FileName 是用户上传时提供的文件名。
 	FileName string `json:"FileName"`
 }
@@ -329,8 +329,12 @@ func (p *AssetReviewUpload) GetClientID() (v string) {
 	return p.ClientID
 }
 
-func (p *AssetReviewUpload) GetBlobID() (v string) {
-	return p.BlobID
+func (p *AssetReviewUpload) GetSourceAssetID() string {
+	return p.SourceAssetID
+}
+
+func (p *AssetReviewUpload) GetSourceRevisionID() string {
+	return p.SourceRevisionID
 }
 
 func (p *AssetReviewUpload) GetFileName() (v string) {

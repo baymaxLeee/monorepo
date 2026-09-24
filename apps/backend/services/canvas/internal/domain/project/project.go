@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	ErrInvalidName           = errors.New("invalid project name")
-	ErrInvalidCoverImagePath = errors.New("invalid project cover image path")
-	ErrMembersRequired       = errors.New("project members required")
+	ErrInvalidName                = errors.New("invalid project name")
+	ErrInvalidCoverImageReference = errors.New("invalid project cover image revision reference")
+	ErrMembersRequired            = errors.New("project members required")
 )
 
 type Project struct {
@@ -20,11 +20,12 @@ type Project struct {
 	WorkspaceID                 *string
 	Name                        string
 	CreatedBy                   string
-	CoverImagePath              *string
-	CoverImageID                string
+	CoverImageAssetID           string
+	CoverImageRevisionID        string
 	CoverImageSHA256            string
 	CoverImageContentType       string
 	CoverImageSizeBytes         int64
+	CoverImageClaimGeneration   int64
 	CoverImageURL               string
 	MemberIDs                   []string
 	CreatedAt                   time.Time
@@ -41,14 +42,14 @@ func (p *Project) Delete(now time.Time) {
 }
 
 type NewInput struct {
-	ID             string
-	TenantID       string
-	WorkspaceID    *string
-	Name           string
-	CreatedBy      string
-	MemberIDs      []string
-	CoverImagePath *string
-	Now            time.Time
+	ID                                      string
+	TenantID                                string
+	WorkspaceID                             *string
+	Name                                    string
+	CreatedBy                               string
+	MemberIDs                               []string
+	CoverImageAssetID, CoverImageRevisionID string
+	Now                                     time.Time
 }
 
 func New(input NewInput) (Project, error) {
@@ -59,28 +60,24 @@ func New(input NewInput) (Project, error) {
 	if err != nil {
 		return Project{}, err
 	}
-	var coverImagePath *string
-	if input.CoverImagePath != nil {
-		coverImagePath, err = normalizeCoverImagePath(*input.CoverImagePath)
-		if err != nil {
-			return Project{}, err
-		}
+	if !validCoverReference(input.CoverImageAssetID, input.CoverImageRevisionID) {
+		return Project{}, ErrInvalidCoverImageReference
 	}
 
 	return Project{
-		ID:             input.ID,
-		TenantID:       input.TenantID,
-		WorkspaceID:    cloneString(input.WorkspaceID),
-		Name:           input.Name,
-		CreatedBy:      input.CreatedBy,
-		MemberIDs:      members,
-		CoverImagePath: coverImagePath,
-		CreatedAt:      input.Now,
-		UpdatedAt:      input.Now,
+		ID:                input.ID,
+		TenantID:          input.TenantID,
+		WorkspaceID:       cloneString(input.WorkspaceID),
+		Name:              input.Name,
+		CreatedBy:         input.CreatedBy,
+		MemberIDs:         members,
+		CoverImageAssetID: input.CoverImageAssetID, CoverImageRevisionID: input.CoverImageRevisionID,
+		CreatedAt: input.Now,
+		UpdatedAt: input.Now,
 	}, nil
 }
 
-func (p *Project) Update(name string, memberIDs []string, coverImagePath *string, now time.Time) error {
+func (p *Project) Update(name string, memberIDs []string, coverImageAssetID, coverImageRevisionID *string, now time.Time) error {
 	if err := validateName(name); err != nil {
 		return err
 	}
@@ -88,63 +85,46 @@ func (p *Project) Update(name string, memberIDs []string, coverImagePath *string
 	if err != nil {
 		return err
 	}
-	var normalizedCoverImagePath *string
-	if coverImagePath != nil {
-		normalizedCoverImagePath, err = normalizeCoverImagePath(*coverImagePath)
-		if err != nil {
-			return err
-		}
+	if (coverImageAssetID == nil) != (coverImageRevisionID == nil) {
+		return ErrInvalidCoverImageReference
 	}
 
 	p.Name = name
 	p.MemberIDs = members
-	if coverImagePath != nil {
-		if !equalStringPointers(p.CoverImagePath, normalizedCoverImagePath) {
-			p.CoverImageID = ""
+	if coverImageAssetID != nil {
+		if !validCoverReference(*coverImageAssetID, *coverImageRevisionID) {
+			return ErrInvalidCoverImageReference
+		}
+		if p.CoverImageAssetID != *coverImageAssetID || p.CoverImageRevisionID != *coverImageRevisionID {
 			p.CoverImageSHA256 = ""
 			p.CoverImageContentType = ""
 			p.CoverImageSizeBytes = 0
 		}
-		p.CoverImagePath = normalizedCoverImagePath
+		p.CoverImageAssetID, p.CoverImageRevisionID = *coverImageAssetID, *coverImageRevisionID
 	}
 	p.UpdatedAt = now
 	return nil
 }
 
-func (p *Project) UpdateByMember(coverImagePath *string, now time.Time) error {
-	if coverImagePath == nil {
+func (p *Project) UpdateByMember(coverImageAssetID, coverImageRevisionID *string, now time.Time) error {
+	if coverImageAssetID == nil && coverImageRevisionID == nil {
 		return nil
 	}
-	normalizedCoverImagePath, err := normalizeCoverImagePath(*coverImagePath)
-	if err != nil {
-		return err
+	if coverImageAssetID == nil || coverImageRevisionID == nil || !validCoverReference(*coverImageAssetID, *coverImageRevisionID) {
+		return ErrInvalidCoverImageReference
 	}
-	if !equalStringPointers(p.CoverImagePath, normalizedCoverImagePath) {
-		p.CoverImageID = ""
+	if p.CoverImageAssetID != *coverImageAssetID || p.CoverImageRevisionID != *coverImageRevisionID {
 		p.CoverImageSHA256 = ""
 		p.CoverImageContentType = ""
 		p.CoverImageSizeBytes = 0
 	}
-	p.CoverImagePath = normalizedCoverImagePath
+	p.CoverImageAssetID, p.CoverImageRevisionID = *coverImageAssetID, *coverImageRevisionID
 	p.UpdatedAt = now
 	return nil
 }
 
-func normalizeCoverImagePath(value string) (*string, error) {
-	if utf8.RuneCountInString(value) > 128 {
-		return nil, ErrInvalidCoverImagePath
-	}
-	if value == "" {
-		return nil, nil
-	}
-	return cloneString(&value), nil
-}
-
-func equalStringPointers(left, right *string) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return *left == *right
+func validCoverReference(assetID, revisionID string) bool {
+	return assetID == "" && revisionID == "" || assetID != "" && revisionID != ""
 }
 
 func validateName(name string) error {

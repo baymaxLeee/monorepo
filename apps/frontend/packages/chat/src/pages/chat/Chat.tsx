@@ -506,13 +506,17 @@ export function ChatSession({
         return segment.text ? [{ type: "text" as const, text: segment.text }] : [];
       }
       const documentId = segment.token.meta?.artifactId;
-      if (typeof documentId !== "string" || !id) {
+      const assetId = segment.token.meta?.assetId;
+      const revisionId = segment.token.meta?.revisionId;
+      if (typeof documentId !== "string" || typeof assetId !== "string" || typeof revisionId !== "string" || !id) {
         return [];
       }
       return [
         buildUserFilePart({
           conversationId: id,
           documentId,
+          assetId,
+          revisionId,
           filename: segment.token.label,
           mimeType: segment.token.mime ?? "application/octet-stream",
         }),
@@ -701,6 +705,8 @@ export function ChatSession({
                   promptRef.current?.updateToken(clientRef, {
                     meta: {
                       artifactId: document.id,
+                      assetId: document.asset_id,
+                      revisionId: document.source_revision_id,
                       ingestStatus: document.ingest_status ?? "received",
                     },
                   });
@@ -741,7 +747,11 @@ export function ChatSession({
                 label: document.filename || document.title,
                 kind: (document.mime_type ?? "").startsWith("image/") ? "image" : "file",
                 mime: document.mime_type,
-                meta: { artifactId: document.id },
+                meta: {
+                  artifactId: document.id,
+                  assetId: document.asset_id,
+                  revisionId: document.source_revision_id,
+                },
               }));
           }}
           onSkillsLoad={loadSkills}

@@ -48,12 +48,12 @@ export interface AssetReviews {
   Reviews: Array<AssetReview>;
 }
 
-/** AssetReviewUpload 描述送审时需要物化为项目素材的 artifact storage 临时文件。 */
+/** AssetReviewUpload 描述送审时需要物化为项目素材的平台 Asset revision。 */
 export interface AssetReviewUpload {
   /** ClientID 是调用方为本地草稿分配的稳定标识，用于幂等物化。 */
   ClientID: string;
-  /** BlobID 是 artifact storage 临时上传返回的文件标识。 */
-  BlobID: string;
+  SourceAssetID: string;
+  SourceRevisionID: string;
   /** FileName 是用户上传时提供的文件名。 */
   FileName: string;
 }

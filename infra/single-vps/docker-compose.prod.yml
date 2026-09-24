@@ -150,6 +150,7 @@ services:
       ADMIN_POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
       CHAT_POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
       CANVAS_POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
+      ASSET_POSTGRES_PASSWORD: ${ASSET_POSTGRES_PASSWORD:?ASSET_POSTGRES_PASSWORD is required}
       EXECUTOR_POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
       KNOWLEDGE_POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       TELEMETRY_POSTGRES_PASSWORD: ${TELEMETRY_POSTGRES_PASSWORD:?TELEMETRY_POSTGRES_PASSWORD is required}
@@ -223,6 +224,7 @@ services:
       REDIS_DB: "1"
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
       ADMIN_SERVICE_URL: http://admin:8001
+      ASSET_SERVICE_URL: http://asset:8013
       CHAT_SERVICE_URL: http://chat:8009
       CANVAS_SERVICE_URL: http://canvas:8012
       IAM_SERVICE_URL: http://iam:8002
@@ -234,6 +236,32 @@ services:
       ALLOWED_FRONTEND_ORIGINS: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       # Ingest stream may upload multiple 10 MiB attachments in one multipart body.
       MAX_REQUEST_BODY_BYTES: "536870912"
+    <<: *restart_policy
+
+  asset:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/asset:${IMAGE_TAG:-main}
+    container_name: monorepo-asset
+    depends_on:
+      postgres: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8013"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: asset
+      POSTGRES_PASSWORD: ${ASSET_POSTGRES_PASSWORD:?ASSET_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: asset
+      POSTGRES_SSLMODE: disable
+      ASSET_DATA_DIR: /data/assets
+      ASSET_MAX_UPLOAD_BYTES: ${ASSET_MAX_UPLOAD_BYTES:-5368709120}
+      ASSET_MIN_FREE_BYTES: ${ASSET_MIN_FREE_BYTES:-1073741824}
+      ASSET_GC_INTERVAL: ${ASSET_GC_INTERVAL:-1h}
+      ASSET_CANDIDATE_AGE: ${ASSET_CANDIDATE_AGE:-24h}
+      ASSET_RETENTION: ${ASSET_RETENTION:-168h}
+      INTERNAL_SERVICE_TOKENS: '{"admin":"${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
+    volumes:
+      - asset_data:/data/assets
     <<: *restart_policy
 
   admin:
@@ -248,6 +276,7 @@ services:
       OTEL_SERVICE_NAME: admin
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8001"
+      ASSET_SERVICE_URL: http://asset:8013
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: admin
@@ -258,6 +287,7 @@ services:
       REDIS_DB: "0"
       # Fernet key encrypting model_providers.api_key_enc.
       ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:?ADMIN_SECRET_KEY is required}
+      INTERNAL_API_TOKEN: ${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}
       INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
@@ -275,7 +305,7 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       EXECUTOR_SERVICE_URL: http://executor:8011
       ADMIN_SERVICE_URL: http://admin:8001
-      KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      ASSET_SERVICE_URL: http://asset:8013
       PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       PORT: "8012"
       POSTGRES_HOST: postgres
@@ -314,6 +344,7 @@ services:
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       EXECUTOR_SERVICE_URL: http://executor:8011
       CANVAS_SERVICE_URL: http://canvas:8012
+      ASSET_SERVICE_URL: http://asset:8013
       INTERNAL_API_TOKEN: ${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}
       TOOL_APPROVAL_SECRET: ${TOOL_APPROVAL_SECRET:?TOOL_APPROVAL_SECRET is required}
       EXA_API_KEY: ${EXA_API_KEY:?EXA_API_KEY is required}
@@ -353,6 +384,7 @@ services:
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       CANVAS_SERVICE_URL: http://canvas:8012
+      ASSET_SERVICE_URL: http://asset:8013
     <<: *restart_policy
 
   knowledge:
@@ -360,7 +392,6 @@ services:
     container_name: monorepo-knowledge
     depends_on:
       db-init: { condition: service_completed_successfully }
-      redis: { condition: service_healthy }
     environment:
       ENVIRONMENT: single-vps
       OTEL_SERVICE_NAME: knowledge
@@ -371,17 +402,11 @@ services:
       POSTGRES_USER: knowledge
       POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: knowledge
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_DB: "3"
       ADMIN_SERVICE_URL: http://admin:8001
       EXECUTOR_SERVICE_URL: http://executor:8011
+      ASSET_SERVICE_URL: http://asset:8013
       INTERNAL_API_TOKEN: ${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}"}'
-      KNOWLEDGE_DATA_DIR: /data/objects
-      MAX_OBJECT_BYTES: ${MAX_OBJECT_BYTES:-10485760}
-    volumes:
-      - knowledge_data:/data/objects
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   telemetry:
@@ -422,8 +447,8 @@ services:
     <<: *restart_policy
 
 volumes:
+  asset_data:
   redis_data:
-  knowledge_data:
   postgres_data:
   clickhouse_data:
   clickhouse_logs:

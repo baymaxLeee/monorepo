@@ -72,7 +72,8 @@ export function ProjectDetails({
         name: project.name,
         member_user_ids: project.member_user_ids,
         usage_limit: yuan,
-        cover_image_path: project.cover_image_path,
+        cover_image_asset_id: project.cover_image_asset_id,
+        cover_image_revision_id: project.cover_image_revision_id,
       });
       setProject(response.project);
       toast.add({ type: "success", title: "项目额度已保存" });

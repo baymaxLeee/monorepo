@@ -3,10 +3,13 @@
 from typing import Annotated
 
 from application.contracts.skill import (
+    AttachSkillAssetInput,
     BulkDeleteSkillsInput,
     BulkDeleteSkillsResult,
     CreateSkillInput,
     CreateSkillNodeInput,
+    ImportSkillArchiveInput,
+    ImportSkillArchiveResult,
     MoveSkillNodeInput,
     PublishSkillInput,
     PublishSkillResult,
@@ -77,6 +80,20 @@ async def create_skill_node(
     session: DbSession,
 ) -> SkillNodeMutationResult:
     return await SkillService(session, current_user).create_node(skill_id, payload)
+
+
+@router.post("/{skill_id}/workspace/assets", response_model=SkillNodeMutationResult)
+async def attach_skill_asset(
+    skill_id: str, payload: AttachSkillAssetInput, current_user: AdminUser, session: DbSession
+) -> SkillNodeMutationResult:
+    return await SkillService(session, current_user).attach_asset(skill_id, payload)
+
+
+@router.post("/{skill_id}/workspace:import-archive", response_model=ImportSkillArchiveResult)
+async def import_skill_archive(
+    skill_id: str, payload: ImportSkillArchiveInput, current_user: AdminUser, session: DbSession
+) -> ImportSkillArchiveResult:
+    return await SkillService(session, current_user).import_archive(skill_id, payload)
 
 
 @router.put("/{skill_id}/workspace/nodes/{node_id}/content", response_model=SkillNodeMutationResult)

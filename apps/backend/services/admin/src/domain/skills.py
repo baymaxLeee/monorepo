@@ -21,6 +21,10 @@ class WorkspaceNode(Protocol):
     node_type: str
     mime_type: str | None
     content: str | None
+    storage_kind: str
+    asset_id: str | None
+    revision_id: str | None
+    sha256: str | None
 
 
 class PublishedNode(Protocol):
@@ -85,6 +89,10 @@ def workspace_hash(nodes: Sequence[WorkspaceNode]) -> str:
         digest.update(node.node_type.encode())
         digest.update(b"\0")
         digest.update((node.content or "").encode())
+        digest.update((node.storage_kind or "inline").encode())
+        digest.update((node.asset_id or "").encode())
+        digest.update((node.revision_id or "").encode())
+        digest.update((node.sha256 or "").encode())
         digest.update(b"\0")
     return digest.hexdigest()
 
@@ -98,6 +106,10 @@ def node_etag(node: WorkspaceNode) -> str:
         node.node_type,
         node.mime_type or "",
         node.content or "",
+        node.storage_kind,
+        node.asset_id or "",
+        node.revision_id or "",
+        node.sha256 or "",
     ):
         digest.update(value.encode())
         digest.update(b"\0")

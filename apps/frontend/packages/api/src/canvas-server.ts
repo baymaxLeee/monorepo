@@ -172,28 +172,6 @@ export async function streamCanvasNodeTextGeneration(
   return current;
 }
 
-export async function stageCanvasUpload(file: File, signal?: AbortSignal) {
-  const response = await authFetch(`${API_BASE_URL}/api/canvas-server/uploads`, {
-    method: "POST",
-    body: file,
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    signal,
-  });
-  if (!response.ok) throw new Error((await response.text()) || response.statusText);
-  return (await response.json()) as { blob_id: string; size_bytes: number };
-}
-
-export async function stageCanvasCoverUpload(file: File, signal?: AbortSignal) {
-  const response = await authFetch(`${API_BASE_URL}/api/canvas-server/cover-uploads`, {
-    method: "POST",
-    body: file,
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    signal,
-  });
-  if (!response.ok) throw new Error((await response.text()) || response.statusText);
-  return (await response.json()) as { blob_id: string; size_bytes: number };
-}
-
 export async function fetchCanvasArchiveContent(
   projectId: string,
   canvasId: string,

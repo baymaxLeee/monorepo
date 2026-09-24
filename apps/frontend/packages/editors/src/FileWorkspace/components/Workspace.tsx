@@ -311,7 +311,7 @@ export const FileWorkspace = forwardRef<FileWorkspaceRef, FileWorkspaceProps>(
             onTabSelect={setActiveFileId}
             onTabClose={handleTabClose}
             onContentChange={handleContentChange}
-            readOnly={readOnly}
+            readOnly={readOnly || activeFile?.contentReadOnly === true}
             codeEditorProps={codeEditorProps}
           />
         </div>

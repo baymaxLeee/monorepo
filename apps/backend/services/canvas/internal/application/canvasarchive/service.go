@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
@@ -40,12 +41,17 @@ type Service struct {
 	executionRuns  ExecutionTaskStore
 	storageQuota   StorageQuota
 	canvasAccess   CanvasAccessValidator
+	claimIntents   ClaimIntentStore
 }
 
 type Option func(*Service)
 
 func WithStorageQuota(quota StorageQuota) Option {
 	return func(service *Service) { service.storageQuota = quota }
+}
+
+func WithClaimIntents(store ClaimIntentStore) Option {
+	return func(service *Service) { service.claimIntents = store }
 }
 
 func WithCanvasAccessValidator(validator CanvasAccessValidator) Option {
@@ -159,12 +165,12 @@ func (s *Service) Create(ctx context.Context, scope Scope, projectID, canvasID s
 		inputs := make([]Input, 0, len(selected))
 		for index := range selected {
 			video := selected[index]
-			if strings.TrimSpace(video.NodeID) == "" || strings.TrimSpace(video.OutputID) == "" || strings.TrimSpace(video.ArtifactID) == "" {
+			if strings.TrimSpace(video.NodeID) == "" || strings.TrimSpace(video.OutputID) == "" || strings.TrimSpace(video.SourceAssetID) == "" {
 				return ErrSelectedVideoUnavailable
 			}
 			inputs = append(inputs, Input{
 				TaskRunID: taskRunID, NodeID: video.NodeID, OutputID: video.OutputID,
-				AssetID: video.AssetID, ArtifactID: video.ArtifactID, ArtifactNamespace: video.ArtifactNamespace,
+				AssetID: video.AssetID, SourceAssetID: video.SourceAssetID, SourceRevisionID: video.SourceRevisionID,
 				EntryName: fmt.Sprintf("S%03d.mp4", index+1), Ordinal: int32(index + 1), MediaSize: video.MediaSize, CreatedAt: now,
 			})
 		}
@@ -275,7 +281,7 @@ func (s *Service) LoadExecution(ctx context.Context, taskRunID string) (Executio
 }
 
 func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result SuccessResult) error {
-	if s.executions == nil || s.executionRuns == nil || result.Path == "" || result.SHA256 == "" || result.Size <= 0 || result.RetentionStartedAt.IsZero() {
+	if s.executions == nil || s.executionRuns == nil || result.AssetID == "" || result.RevisionID == "" || result.SHA256 == "" || result.Size <= 0 || result.RetentionStartedAt.IsZero() {
 		return errors.New("invalid canvas video archive success result")
 	}
 	run, err := s.executionRuns.GetTaskRun(ctx, taskRunID)
@@ -289,13 +295,13 @@ func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result Su
 	if run.RunType != domaintask.RunTypeCanvasVideoArchiveExport || run.SubjectType != domaintask.SubjectTypeCanvas {
 		return ErrExecutionTerminal
 	}
-	if run.Status == domaintask.StatusSucceeded && item.Status == domaintask.StatusSucceeded && item.OutputPath == result.Path && item.OutputSHA256 == result.SHA256 {
+	if run.Status == domaintask.StatusSucceeded && item.Status == domaintask.StatusSucceeded && item.OutputAssetID == result.AssetID && item.OutputRevisionID == result.RevisionID && item.OutputSHA256 == result.SHA256 {
 		return nil
 	}
 	if run.Status != domaintask.StatusRunning || item.Status != domaintask.StatusRunning {
 		return ErrExecutionTerminal
 	}
-	if item.OutputPath == "" || item.RetentionStartedAt == nil || item.OutputPath != result.Path ||
+	if item.OutputAssetID == "" || item.OutputRevisionID == "" || item.RetentionStartedAt == nil || item.OutputAssetID != result.AssetID || item.OutputRevisionID != result.RevisionID ||
 		item.OutputSHA256 != result.SHA256 || item.OutputSize != result.Size {
 		return errors.New("canvas video archive success does not match persisted output checkpoint")
 	}
@@ -322,6 +328,16 @@ func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result Su
 		if !runUpdated {
 			return errLifecycleCASLost
 		}
+		if s.claimIntents == nil {
+			return errors.New("archive asset claim intent store is not configured")
+		}
+		expiresAt := retentionUntil
+		if updateErr = s.claimIntents.EnsureActive(txCtx, applicationassetclaim.Intent{
+			TenantID: item.TenantID, WorkspaceID: workspaceValue(item.WorkspaceID), OwnerType: "canvas_archive", OwnerID: item.TaskRunID, Slot: "output",
+			AssetID: result.AssetID, RevisionID: result.RevisionID, Kind: applicationassetclaim.KindStrong, Generation: 1, DesiredState: applicationassetclaim.DesiredActive, ExpiresAt: &expiresAt,
+		}, now); updateErr != nil {
+			return updateErr
+		}
 		if s.storageQuota != nil {
 			if updateErr = s.storageQuota.RecordAdmittedStorage(
 				txCtx, archiveStorageObject(item, result),
@@ -333,8 +349,15 @@ func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result Su
 	})
 }
 
+func workspaceValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
 func (s *Service) RecordOutput(ctx context.Context, taskRunID string, result SuccessResult) error {
-	if s.executions == nil || s.executionRuns == nil || result.Path == "" || result.SHA256 == "" || result.Size <= 0 || result.RetentionStartedAt.IsZero() {
+	if s.executions == nil || s.executionRuns == nil || result.AssetID == "" || result.RevisionID == "" || result.SHA256 == "" || result.Size <= 0 || result.RetentionStartedAt.IsZero() {
 		return errors.New("invalid canvas video archive output checkpoint")
 	}
 	run, err := s.executionRuns.GetTaskRun(ctx, taskRunID)
@@ -349,8 +372,8 @@ func (s *Service) RecordOutput(ctx context.Context, taskRunID string, result Suc
 		run.Status != domaintask.StatusRunning || item.Status != domaintask.StatusRunning {
 		return ErrExecutionTerminal
 	}
-	if item.OutputPath != "" {
-		if item.OutputPath == result.Path && item.OutputSHA256 == result.SHA256 && item.OutputSize == result.Size {
+	if item.OutputAssetID != "" || item.OutputRevisionID != "" {
+		if item.OutputAssetID == result.AssetID && item.OutputRevisionID == result.RevisionID && item.OutputSHA256 == result.SHA256 && item.OutputSize == result.Size {
 			return nil
 		}
 		return errors.New("canvas video archive output checkpoint conflicts with persisted output")
@@ -367,7 +390,7 @@ func (s *Service) RecordOutput(ctx context.Context, taskRunID string, result Suc
 		}
 		current, readErr := s.executions.GetByTaskRunID(txCtx, taskRunID)
 		if readErr == nil && current.Status == domaintask.StatusRunning &&
-			current.OutputPath == result.Path && current.OutputSHA256 == result.SHA256 &&
+			current.OutputAssetID == result.AssetID && current.OutputRevisionID == result.RevisionID && current.OutputSHA256 == result.SHA256 &&
 			current.OutputSize == result.Size {
 			return nil
 		}
@@ -465,7 +488,7 @@ func (s *Service) Cancel(ctx context.Context, input GetInput) error {
 func archiveStorageObject(item Export, result SuccessResult) applicationquota.StorageObject {
 	return applicationquota.StorageObject{
 		TenantID: item.TenantID, WorkspaceID: item.WorkspaceID,
-		ObjectType: "archive_path", ObjectKey: result.Path,
+		ObjectType: "archive_revision", ObjectKey: result.RevisionID,
 		Category: "archive_export", OwnerType: "canvas_archive", OwnerID: item.TaskRunID,
 		SizeBytes: result.Size, BillingClass: applicationquota.BillingBillable,
 	}

@@ -236,11 +236,11 @@ func (s *Service) persistResult(ctx context.Context, run domaintask.TaskRun, sch
 		applyErr := s.applyPoll(ctx, run, schedule, CanvasNodeVideoPollResult{NextPollingAt: &next, ProviderError: true}, now)
 		return errors.Join(err, applyErr)
 	}
-	artifactID := persisted.ArtifactID
+	sourceAssetID := persisted.SourceAssetID
 	finishedAt := now
 	applied, applyErr := s.applyPollWithHistory(ctx, run, schedule, CanvasNodeVideoPollResult{TerminalStatus: domaintask.StatusSucceeded, FinishedAt: &finishedAt}, "", "", persisted, now)
 	if applyErr != nil {
-		committed, confirmationErr := s.confirmResultCommit(ctx, run.ID, artifactID)
+		committed, confirmationErr := s.confirmResultCommit(ctx, run.ID, sourceAssetID)
 		if committed {
 			s.applyCanvasNodeVideoPostCommit(ctx, run, applied)
 			return nil
@@ -259,7 +259,7 @@ func (s *Service) persistResult(ctx context.Context, run domaintask.TaskRun, sch
 	return nil
 }
 
-func (s *Service) confirmResultCommit(ctx context.Context, taskRunID, artifactID string) (bool, error) {
+func (s *Service) confirmResultCommit(ctx context.Context, taskRunID, sourceAssetID string) (bool, error) {
 	confirmationCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), generationResultConfirmationTimeout)
 	defer cancel()
 	run, err := s.runs.GetTaskRun(confirmationCtx, taskRunID)
@@ -282,7 +282,7 @@ func (s *Service) confirmResultCommit(ctx context.Context, taskRunID, artifactID
 		if assetErr != nil {
 			return false, assetErr
 		}
-		if asset.ArtifactID == artifactID {
+		if asset.SourceAssetID == sourceAssetID {
 			return true, nil
 		}
 	}

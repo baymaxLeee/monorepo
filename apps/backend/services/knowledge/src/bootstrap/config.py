@@ -29,17 +29,12 @@ class Settings(BaseSettings):
     postgres_password: str = "knowledge"
     postgres_database: str = "knowledge"
 
-    redis_host: str = "localhost"
-    redis_port: int = 6379
-    redis_db: int = 3
-
     admin_service_url: str = "http://localhost:8001"
     executor_service_url: str = "http://localhost:8011"
+    asset_service_url: str = "http://localhost:8013"
     internal_api_token: str = _DEV_CALLER_TOKEN
     internal_service_tokens: dict[str, str] = Field(default_factory=lambda: dict(_DEV_INTERNAL_SERVICE_TOKENS))
 
-    knowledge_data_dir: str = "./data/objects"
-    max_object_bytes: int = 10 * 1024 * 1024
     media_max_object_bytes: int = 512 * 1024 * 1024
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
     attachment_markdown_max_chars: int = 12_000
@@ -50,8 +45,8 @@ class Settings(BaseSettings):
     executor_dispatch_interval_seconds: float = 5.0
     executor_dispatch_max_parallel: int = Field(default=16, ge=1, le=100)
     executor_redispatch_after_seconds: float = Field(default=60.0, ge=5.0, le=3600.0)
+    asset_claim_dispatch_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
     llm_timeout_seconds: float = 60.0
-    default_bucket: str = "knowledge"
 
     embedding_dim: int = 2048
     chunk_max_tokens: int = 512
@@ -71,11 +66,6 @@ class Settings(BaseSettings):
         return (
             f"postgresql+asyncpg://{user}:{password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
         )
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def redis_url(self) -> str:
-        return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @property
     def is_production(self) -> bool:
@@ -101,8 +91,6 @@ class Settings(BaseSettings):
                 missing.append("POSTGRES_PASSWORD")
             if self.postgres_host in {"localhost", "127.0.0.1"}:
                 missing.append("POSTGRES_HOST")
-            if self.redis_host in {"localhost", "127.0.0.1"}:
-                missing.append("REDIS_HOST")
         if missing:
             raise ValueError("deployed environment requires explicit values for: " + ", ".join(missing))
         return self

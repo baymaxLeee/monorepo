@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import datetime
 
 from infrastructure.persistence.database import get_engine, get_session_factory, write_tx
 from infrastructure.persistence.models.document import DocumentRow
@@ -76,7 +77,7 @@ async def _index_once(document_id: str) -> str:
             return result.status
 
 
-async def _mark_failed(document_id: str, message: str, *, expected_updated_at) -> None:
+async def _mark_failed(document_id: str, message: str, *, expected_updated_at: datetime) -> None:
     try:
         factory = get_session_factory()
         async with factory() as session, write_tx(session):

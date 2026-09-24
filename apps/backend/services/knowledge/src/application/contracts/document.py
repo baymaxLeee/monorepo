@@ -23,9 +23,9 @@ class Document(BaseModel):
     content_md: str = ""
     source_size: int = 0
     source_mime_type: str | None = None
-    object_bucket: str | None = None
-    object_key: str | None = None
-    object_sha256: str | None = None
+    asset_id: str | None = None
+    source_revision_id: str | None = None
+    source_sha256: str | None = None
     source_filename: str | None = None
     ingest_status: IngestStatus = "ready"
     ingest_progress: int = 100
@@ -55,6 +55,18 @@ class IngestResult(BaseModel):
     failed: list[IngestFailure] = Field(default_factory=list)
 
 
+class AssetIngestItem(BaseModel):
+    client_ref: str = Field(min_length=1, max_length=128)
+    asset_id: str = Field(min_length=36, max_length=36)
+    revision_id: str = Field(min_length=36, max_length=36)
+
+
+class CreateSourceDocumentsInput(BaseModel):
+    assets: list[AssetIngestItem] = Field(min_length=1, max_length=100)
+    conversation_id: str | None = Field(default=None, max_length=32)
+    provider_id: str | None = Field(default=None, max_length=32)
+
+
 class CreateArtifactInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
     workspace_id: str = Field(min_length=1, max_length=26)
@@ -77,20 +89,15 @@ class UpdateArtifactInput(BaseModel):
 
 
 class CreateMediaDocumentInput(BaseModel):
-    """Persist agent-generated binary media (image/video/audio) as a document.
-
-    The bytes are copied into the object store and served back via the existing
-    ``/documents/{id}/source`` route. Callers must never persist a provider's
-    temporary URL as the durable source of truth (ADR-0014)."""
+    """Register an agent-generated immutable Asset revision as a document."""
 
     user_id: str = Field(min_length=1, max_length=26)
     workspace_id: str = Field(min_length=1, max_length=26)
     tenant_id: str = Field(min_length=1, max_length=26)
     conversation_id: str | None = Field(default=None, max_length=32)
     title: str = Field(min_length=1, max_length=120)
-    filename: str = Field(min_length=1, max_length=160)
-    mime_type: str = Field(min_length=1, max_length=120)
-    data_base64: str = Field(min_length=1)
+    asset_id: str = Field(min_length=36, max_length=36)
+    revision_id: str = Field(min_length=36, max_length=36)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
 
 
@@ -108,7 +115,9 @@ class StagedMedia(BaseModel):
     filename: str
     mime_type: str
     size: int
-    object_sha256: str
+    asset_id: str
+    revision_id: str
+    sha256: str
     status: Literal["staged", "published", "discarded"]
     document_id: str | None = None
     created_at: str

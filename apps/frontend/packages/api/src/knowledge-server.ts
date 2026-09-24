@@ -1,3 +1,4 @@
+import { AssetCategory, uploadAssetRevision } from "./asset-server";
 import { authFetch } from "./auth-fetch";
 import type {
   ConversationDocument,
@@ -43,9 +44,9 @@ export function toConversationDocument(doc: Record<string, unknown>, conversatio
     mime_type: String(doc.mime_type),
     source_size: Number(doc.source_size ?? 0),
     source_mime_type: (doc.source_mime_type as string | null) ?? null,
-    source_object_bucket: (doc.object_bucket as string | null) ?? null,
-    source_object_key: (doc.object_key as string | null) ?? null,
-    source_sha256: (doc.object_sha256 as string | null) ?? null,
+    asset_id: (doc.asset_id as string | null) ?? null,
+    source_revision_id: (doc.source_revision_id as string | null) ?? null,
+    source_sha256: (doc.source_sha256 as string | null) ?? null,
     source_filename: (doc.source_filename as string | null) ?? null,
     ingest_status: (doc.ingest_status as ConversationDocument["ingest_status"]) ?? "ready",
     ingest_progress: Number(doc.ingest_progress ?? 100),
@@ -57,30 +58,29 @@ export function toConversationDocument(doc: Record<string, unknown>, conversatio
   };
 }
 
-function buildIngestForm(
+async function ingestFiles(
   files: Array<{ clientRef: string; file: File }>,
-  options?: { conversationId?: string; providerId?: string | null },
-): FormData {
-  const form = new FormData();
-  const clientRefs: string[] = [];
-  for (const item of files) {
-    form.append("files", item.file);
-    clientRefs.push(item.clientRef);
-  }
-  form.append("client_refs", JSON.stringify(clientRefs));
-  if (options?.conversationId) {
-    form.append("conversation_id", options.conversationId);
-  }
-  if (options?.providerId) {
-    form.append("provider_id", options.providerId);
-  }
-  return form;
-}
-
-async function postIngest(form: FormData, conversationId: string): Promise<IngestResult> {
+  conversationId: string,
+  providerId?: string | null,
+): Promise<IngestResult> {
+  const uploaded = await Promise.all(
+    files.map(async ({ clientRef, file }) => ({
+      clientRef,
+      ...(await uploadAssetRevision(file, AssetCategory.KNOWLEDGE_SOURCE)),
+    })),
+  );
   const response = await authFetch(`${API_BASE_URL}${BASE}/ingest`, {
     method: "POST",
-    body: form,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      assets: uploaded.map(({ clientRef, assetId, revisionId }) => ({
+        client_ref: clientRef,
+        asset_id: assetId,
+        revision_id: revisionId,
+      })),
+      ...(conversationId ? { conversation_id: conversationId } : {}),
+      ...(providerId ? { provider_id: providerId } : {}),
+    }),
   });
   if (!response.ok) {
     throw new Error(`ingest failed: ${response.status}`);
@@ -111,13 +111,7 @@ export async function ingestConversationDocuments(
   files: Array<{ clientRef: string; file: File }>,
   ingestOptions?: { providerId?: string | null },
 ): Promise<IngestResult> {
-  return postIngest(
-    buildIngestForm(files, {
-      conversationId,
-      providerId: ingestOptions?.providerId,
-    }),
-    conversationId,
-  );
+  return ingestFiles(files, conversationId, ingestOptions?.providerId);
 }
 
 export async function fetchKnowledgeDocument(documentId: string): Promise<ConversationDocumentDetail> {
@@ -265,7 +259,12 @@ export async function ingestKnowledgeDocuments(
   files: Array<{ clientRef: string; file: File }>,
   ingestOptions?: { providerId?: string | null },
 ): Promise<IngestResult> {
-  return postIngest(buildIngestForm(files, { providerId: ingestOptions?.providerId }), "");
+  return ingestFiles(files, "", ingestOptions?.providerId);
+}
+
+export function assetRevisionContentUrl(assetId: string, revisionId: string, documentId?: string): string {
+  const path = `${API_BASE_URL}/api/asset-server/assets/${encodeURIComponent(assetId)}/revisions/${encodeURIComponent(revisionId)}/content`;
+  return documentId ? `${path}?document_id=${encodeURIComponent(documentId)}` : path;
 }
 
 export type { ConversationDocumentDetail };

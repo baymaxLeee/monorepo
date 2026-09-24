@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVICE_ROOT = ROOT / "apps" / "backend" / "services"
 LEGACY_SHARED_TOKEN = "dev-internal-token"
 DEFAULT_CALLER_TOKENS = {
+    "admin": "dev-admin-internal-token",
     "canvas": "dev-canvas-internal-token",
     "chat": "dev-chat-internal-token",
     "executor": "dev-executor-internal-token",
@@ -28,6 +29,7 @@ RECEIVER_CALLERS = {
     "canvas": ("chat", "executor"),
     "executor": ("canvas", "chat", "knowledge"),
     "knowledge": ("canvas", "chat", "executor"),
+    "asset": ("admin", "canvas", "chat", "executor", "knowledge"),
 }
 ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 

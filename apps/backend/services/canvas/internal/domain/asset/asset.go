@@ -131,44 +131,44 @@ func ProviderAssetReference(providerAssetID string) (string, error) {
 }
 
 type Asset struct {
-	ID                string
-	TenantID          string
-	WorkspaceID       *string
-	OwnerType         OwnerType
-	OwnerID           string
-	CreationKey       string
-	ArtifactID        string
-	ArtifactNamespace string
-	FileName          string
-	MediaType         MediaType
-	ContentType       string
-	SizeBytes         int64
-	BillingClass      BillingClass
-	CreatedBy         string
-	CreatedAt         time.Time
-	Reviews           []Review
+	ID               string
+	TenantID         string
+	WorkspaceID      *string
+	OwnerType        OwnerType
+	OwnerID          string
+	CreationKey      string
+	SourceAssetID    string
+	SourceRevisionID string
+	FileName         string
+	MediaType        MediaType
+	ContentType      string
+	SizeBytes        int64
+	BillingClass     BillingClass
+	CreatedBy        string
+	CreatedAt        time.Time
+	Reviews          []Review
 }
 
 type NewInput struct {
-	ID                string
-	TenantID          string
-	WorkspaceID       *string
-	OwnerType         OwnerType
-	OwnerID           string
-	CreationKey       string
-	ArtifactID        string
-	ArtifactNamespace string
-	FileName          string
-	MediaType         MediaType
-	ContentType       string
-	SizeBytes         int64
-	BillingClass      BillingClass
-	CreatedBy         string
-	Now               time.Time
+	ID               string
+	TenantID         string
+	WorkspaceID      *string
+	OwnerType        OwnerType
+	OwnerID          string
+	CreationKey      string
+	SourceAssetID    string
+	SourceRevisionID string
+	FileName         string
+	MediaType        MediaType
+	ContentType      string
+	SizeBytes        int64
+	BillingClass     BillingClass
+	CreatedBy        string
+	Now              time.Time
 }
 
 func New(input NewInput) (Asset, error) {
-	artifactNamespace := strings.TrimSpace(input.ArtifactNamespace)
+	sourceRevisionID := strings.TrimSpace(input.SourceRevisionID)
 	if !input.OwnerType.Valid() || strings.TrimSpace(input.OwnerID) == "" {
 		return Asset{}, ErrInvalidOwner
 	}
@@ -176,8 +176,8 @@ func New(input NewInput) (Asset, error) {
 		return Asset{}, ErrInvalidMediaType
 	}
 	if strings.TrimSpace(input.ID) == "" || strings.TrimSpace(input.TenantID) == "" ||
-		strings.TrimSpace(input.ArtifactID) == "" || strings.TrimSpace(input.FileName) == "" ||
-		strings.TrimSpace(input.ContentType) == "" || len(artifactNamespace) > 64 || input.SizeBytes <= 0 ||
+		strings.TrimSpace(input.SourceAssetID) == "" || strings.TrimSpace(input.FileName) == "" ||
+		strings.TrimSpace(input.ContentType) == "" || len(sourceRevisionID) > 64 || input.SizeBytes <= 0 ||
 		strings.TrimSpace(input.CreatedBy) == "" || input.Now.IsZero() {
 		return Asset{}, ErrInvalidAsset
 	}
@@ -194,7 +194,7 @@ func New(input NewInput) (Asset, error) {
 	return Asset{
 		ID: input.ID, TenantID: input.TenantID, WorkspaceID: cloneString(input.WorkspaceID),
 		OwnerType: input.OwnerType, OwnerID: input.OwnerID, CreationKey: strings.TrimSpace(input.CreationKey),
-		ArtifactID: input.ArtifactID, ArtifactNamespace: artifactNamespace,
+		SourceAssetID: input.SourceAssetID, SourceRevisionID: sourceRevisionID,
 		FileName: input.FileName, MediaType: input.MediaType, ContentType: input.ContentType,
 		SizeBytes: input.SizeBytes, BillingClass: billingClass,
 		CreatedBy: input.CreatedBy, CreatedAt: input.Now.UTC(),

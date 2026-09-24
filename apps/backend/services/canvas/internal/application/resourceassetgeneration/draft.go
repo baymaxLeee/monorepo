@@ -38,9 +38,10 @@ func NewDraftService(drafts DraftRepository, assets DraftAssetReader, resourceAs
 }
 
 type UploadedReferenceInput struct {
-	AssetID  string
-	BlobID   string
-	FileName string
+	AssetID          string
+	SourceAssetID    string
+	SourceRevisionID string
+	FileName         string
 }
 
 type DraftPatch struct {
@@ -159,16 +160,18 @@ func (service *DraftService) materializeUploadedReferences(ctx context.Context, 
 	prepareItems := make([]applicationasset.PrepareCreateItem, 0, len(references))
 	for index, reference := range references {
 		assetID := strings.TrimSpace(reference.AssetID)
-		blobID := strings.TrimSpace(reference.BlobID)
+		sourceAssetID := strings.TrimSpace(reference.SourceAssetID)
+		sourceRevisionID := strings.TrimSpace(reference.SourceRevisionID)
 		fileName := strings.TrimSpace(reference.FileName)
-		if (assetID == "") == (blobID == "") || (blobID != "" && fileName == "") || (assetID != "" && fileName != "") {
+		hasRevision := sourceAssetID != "" && sourceRevisionID != ""
+		if (sourceAssetID != "") != (sourceRevisionID != "") || (assetID == "") == !hasRevision || (hasRevision && fileName == "") || (assetID != "" && fileName != "") {
 			return nil, nil, ErrDraftReferenceInvalid
 		}
 		if assetID != "" {
 			normalized[index] = domainresourceassetgeneration.UploadedReference{AssetID: assetID}
 			continue
 		}
-		prepareItems = append(prepareItems, applicationasset.PrepareCreateItem{BlobID: blobID, FileName: fileName})
+		prepareItems = append(prepareItems, applicationasset.PrepareCreateItem{SourceAssetID: sourceAssetID, SourceRevisionID: sourceRevisionID, FileName: fileName})
 	}
 	if len(prepareItems) == 0 {
 		return &normalized, nil, nil

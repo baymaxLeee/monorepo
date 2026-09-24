@@ -457,6 +457,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills/{skill_id}/workspace/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach Skill Asset */
+        post: operations["attach_skill_asset_skills__skill_id__workspace_assets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/skills/{skill_id}/workspace:import-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Skill Archive */
+        post: operations["import_skill_archive_skills__skill_id__workspace_import_archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/skills/{skill_id}/workspace/nodes/{node_id}/content": {
         parameters: {
             query?: never;
@@ -902,6 +936,19 @@ export interface components {
             /** Completed At */
             completed_at: string | null;
         };
+        /** AttachSkillAssetInput */
+        AttachSkillAssetInput: {
+            /** Id */
+            id: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Name */
+            name: string;
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
+        };
         /** AttachSkillInput */
         AttachSkillInput: {
             /** Skill Id */
@@ -1229,6 +1276,24 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** ImportSkillArchiveInput */
+        ImportSkillArchiveInput: {
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Base Workspace Seq */
+            base_workspace_seq: number;
+        };
+        /** ImportSkillArchiveResult */
+        ImportSkillArchiveResult: {
+            skill: components["schemas"]["Skill"];
+            workspace: components["schemas"]["SkillWorkspace"];
+            /** Imported Files */
+            imported_files: number;
+            /** Imported Asset Files */
+            imported_asset_files: number;
+        };
         /** InternalBenefitPackage */
         InternalBenefitPackage: {
             /** Id */
@@ -1305,8 +1370,25 @@ export interface components {
         InternalSkillFile: {
             /** Path */
             path: string;
+            /**
+             * Storage Kind
+             * @enum {string}
+             */
+            storage_kind: "inline" | "asset";
+            /** Mime Type */
+            mime_type?: string | null;
             /** Content */
-            content: string;
+            content?: string | null;
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Revision Id */
+            revision_id?: string | null;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /** Sha256 */
+            sha256?: string | null;
+            /** Url */
+            url?: string | null;
         };
         /**
          * ModelProvider
@@ -1511,8 +1593,25 @@ export interface components {
         SkillFileContent: {
             /** Id */
             id: string;
+            /**
+             * Storage Kind
+             * @enum {string}
+             */
+            storage_kind: "inline" | "asset";
+            /** Mime Type */
+            mime_type?: string | null;
             /** Content */
-            content: string;
+            content?: string | null;
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Revision Id */
+            revision_id?: string | null;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /** Sha256 */
+            sha256?: string | null;
+            /** Url */
+            url?: string | null;
             /** Etag */
             etag: string;
         };
@@ -1531,6 +1630,20 @@ export interface components {
             parent_id?: string | null;
             /** Mime Type */
             mime_type?: string | null;
+            /**
+             * Storage Kind
+             * @default inline
+             * @enum {string}
+             */
+            storage_kind: "inline" | "asset";
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Revision Id */
+            revision_id?: string | null;
+            /** Size Bytes */
+            size_bytes?: number | null;
+            /** Sha256 */
+            sha256?: string | null;
             /** Etag */
             etag: string;
             /** Content */
@@ -3169,6 +3282,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillNodeMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_skill_asset_skills__skill_id__workspace_assets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachSkillAssetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillNodeMutationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_skill_archive_skills__skill_id__workspace_import_archive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Auth-Email"?: string | null;
+                "X-Auth-User-ID"?: string | null;
+                "X-Auth-Name"?: string | null;
+                "X-Auth-Workspace-ID"?: string | null;
+                "X-Auth-Tenant-ID"?: string | null;
+                "X-Auth-Workspace-Role"?: string | null;
+                "X-Auth-Roles"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportSkillArchiveInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSkillArchiveResult"];
                 };
             };
             /** @description Validation Error */

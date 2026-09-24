@@ -10,7 +10,6 @@ import (
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	artifactnamespace "github.com/example/monorepo/canvas/internal/infrastructure/storage/namespace"
 )
 
 var (
@@ -21,34 +20,36 @@ var (
 )
 
 type Generation struct {
-	GenerationTaskRunID, FirstLastFrameTaskRunID     string
-	TenantID, ProjectID, CreatedBy, SourceArtifactID string
-	WorkspaceID                                      *string
-	SourceArtifactNamespace                          string
-	FirstFrameAssetID, LastFrameAssetID              string
-	FirstFrameCheckpointID, LastFrameCheckpointID    string
-	FirstFrameCheckpointSizeBytes                    int64
-	LastFrameCheckpointSizeBytes                     int64
-	GenerationStatus                                 domaintask.Status
+	GenerationTaskRunID, FirstLastFrameTaskRunID                string
+	TenantID, ProjectID, CreatedBy, SourceSourceAssetID         string
+	WorkspaceID                                                 *string
+	SourceSourceRevisionID                                      string
+	FirstFrameAssetID, LastFrameAssetID                         string
+	FirstFrameCheckpointAssetID, FirstFrameCheckpointRevisionID string
+	LastFrameCheckpointAssetID, LastFrameCheckpointRevisionID   string
+	FirstFrameCheckpointSizeBytes                               int64
+	LastFrameCheckpointSizeBytes                                int64
+	GenerationStatus                                            domaintask.Status
 }
 
 type Execution struct {
 	TaskRunID, GenerationTaskRunID string
 	TenantID, ProjectID, CreatedBy string
 	WorkspaceID                    *string
-	SourceArtifactID               string
-	SourceArtifactNamespace        string
-	FirstFrameCheckpointID         string
-	LastFrameCheckpointID          string
+	SourceSourceAssetID            string
+	SourceSourceRevisionID         string
+	FirstFrameCheckpointAssetID    string
+	FirstFrameCheckpointRevisionID string
+	LastFrameCheckpointAssetID     string
+	LastFrameCheckpointRevisionID  string
 	FirstFrameCheckpointSizeBytes  int64
 	LastFrameCheckpointSizeBytes   int64
 }
 
 type Result struct {
-	FirstFrameArtifactID string `json:"FirstFrameArtifactID"`
-	LastFrameArtifactID  string `json:"LastFrameArtifactID"`
-	FirstFrameSizeBytes  int64  `json:"FirstFrameSizeBytes"`
-	LastFrameSizeBytes   int64  `json:"LastFrameSizeBytes"`
+	FirstFrameSourceAssetID, FirstFrameSourceRevisionID string
+	LastFrameSourceAssetID, LastFrameSourceRevisionID   string
+	FirstFrameSizeBytes, LastFrameSizeBytes             int64
 }
 
 type GenerationStore interface {
@@ -137,7 +138,7 @@ func (s *Service) LoadExecution(ctx context.Context, taskRunID string) (Executio
 	if err != nil {
 		return Execution{}, err
 	}
-	if generation.GenerationStatus != domaintask.StatusSucceeded || strings.TrimSpace(generation.SourceArtifactID) == "" ||
+	if generation.GenerationStatus != domaintask.StatusSucceeded || strings.TrimSpace(generation.SourceSourceAssetID) == "" ||
 		generation.FirstLastFrameTaskRunID != taskRunID {
 		return Execution{}, ErrExecutionNotReady
 	}
@@ -145,12 +146,14 @@ func (s *Service) LoadExecution(ctx context.Context, taskRunID string) (Executio
 		TaskRunID: taskRunID, GenerationTaskRunID: generation.GenerationTaskRunID,
 		TenantID: generation.TenantID, WorkspaceID: generation.WorkspaceID,
 		ProjectID: generation.ProjectID, CreatedBy: generation.CreatedBy,
-		SourceArtifactID:              generation.SourceArtifactID,
-		SourceArtifactNamespace:       generation.SourceArtifactNamespace,
-		FirstFrameCheckpointID:        generation.FirstFrameCheckpointID,
-		LastFrameCheckpointID:         generation.LastFrameCheckpointID,
-		FirstFrameCheckpointSizeBytes: generation.FirstFrameCheckpointSizeBytes,
-		LastFrameCheckpointSizeBytes:  generation.LastFrameCheckpointSizeBytes,
+		SourceSourceAssetID:            generation.SourceSourceAssetID,
+		SourceSourceRevisionID:         generation.SourceSourceRevisionID,
+		FirstFrameCheckpointAssetID:    generation.FirstFrameCheckpointAssetID,
+		FirstFrameCheckpointRevisionID: generation.FirstFrameCheckpointRevisionID,
+		LastFrameCheckpointAssetID:     generation.LastFrameCheckpointAssetID,
+		LastFrameCheckpointRevisionID:  generation.LastFrameCheckpointRevisionID,
+		FirstFrameCheckpointSizeBytes:  generation.FirstFrameCheckpointSizeBytes,
+		LastFrameCheckpointSizeBytes:   generation.LastFrameCheckpointSizeBytes,
 	}, nil
 }
 
@@ -191,8 +194,8 @@ func (s *Service) RecordCheckpoint(ctx context.Context, taskRunID string, checkp
 }
 
 func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result Result) error {
-	if strings.TrimSpace(result.FirstFrameArtifactID) == "" || result.FirstFrameSizeBytes <= 0 ||
-		strings.TrimSpace(result.LastFrameArtifactID) == "" || result.LastFrameSizeBytes <= 0 {
+	if strings.TrimSpace(result.FirstFrameSourceAssetID) == "" || strings.TrimSpace(result.FirstFrameSourceRevisionID) == "" || result.FirstFrameSizeBytes <= 0 ||
+		strings.TrimSpace(result.LastFrameSourceAssetID) == "" || strings.TrimSpace(result.LastFrameSourceRevisionID) == "" || result.LastFrameSizeBytes <= 0 {
 		return errors.New("first and last frame artifact IDs are required")
 	}
 	if s.assets == nil {
@@ -237,7 +240,7 @@ func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result Re
 			!sameWorkspace(generation.WorkspaceID, preflightGeneration.WorkspaceID) {
 			return ErrLifecycleCASLost
 		}
-		firstInput, err := frameAssetInput(scope, generation.ProjectID, "first.jpg", result.FirstFrameArtifactID, result.FirstFrameSizeBytes)
+		firstInput, err := frameAssetInput(scope, generation.ProjectID, "first.jpg", result.FirstFrameSourceAssetID, result.FirstFrameSourceRevisionID, result.FirstFrameSizeBytes)
 		if err != nil {
 			return err
 		}
@@ -245,7 +248,7 @@ func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result Re
 		if err != nil {
 			return err
 		}
-		lastInput, err := frameAssetInput(scope, generation.ProjectID, "last.jpg", result.LastFrameArtifactID, result.LastFrameSizeBytes)
+		lastInput, err := frameAssetInput(scope, generation.ProjectID, "last.jpg", result.LastFrameSourceAssetID, result.LastFrameSourceRevisionID, result.LastFrameSizeBytes)
 		if err != nil {
 			return err
 		}
@@ -308,16 +311,10 @@ func (s *Service) CommitSuccess(ctx context.Context, taskRunID string, result Re
 	return nil
 }
 
-func frameAssetInput(scope applicationasset.Scope, projectID, fileName, artifactID string, sizeBytes int64) (applicationasset.CreateFromArtifactInput, error) {
-	namespace, err := (artifactnamespace.Scope{
-		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ProjectID: &projectID,
-	}).Namespace()
-	if err != nil {
-		return applicationasset.CreateFromArtifactInput{}, err
-	}
+func frameAssetInput(scope applicationasset.Scope, projectID, fileName, sourceAssetID, sourceRevisionID string, sizeBytes int64) (applicationasset.CreateFromArtifactInput, error) {
 	return applicationasset.CreateFromArtifactInput{
 		Scope: scope, OwnerType: domainasset.OwnerProject, OwnerID: projectID,
-		ArtifactID: artifactID, ArtifactNamespace: namespace, FileName: fileName, MediaType: domainasset.MediaImage,
+		SourceAssetID: sourceAssetID, SourceRevisionID: sourceRevisionID, FileName: fileName, MediaType: domainasset.MediaImage,
 		ContentType: "image/jpeg", SizeBytes: sizeBytes,
 	}, nil
 }
@@ -330,10 +327,10 @@ func sameWorkspace(left, right *string) bool {
 }
 
 func validCheckpoint(checkpoint Result) bool {
-	firstPresent := strings.TrimSpace(checkpoint.FirstFrameArtifactID) != "" || checkpoint.FirstFrameSizeBytes != 0
-	lastPresent := strings.TrimSpace(checkpoint.LastFrameArtifactID) != "" || checkpoint.LastFrameSizeBytes != 0
-	firstValid := !firstPresent || strings.TrimSpace(checkpoint.FirstFrameArtifactID) != "" && checkpoint.FirstFrameSizeBytes > 0
-	lastValid := !lastPresent || strings.TrimSpace(checkpoint.LastFrameArtifactID) != "" && checkpoint.LastFrameSizeBytes > 0
+	firstPresent := strings.TrimSpace(checkpoint.FirstFrameSourceAssetID) != "" || strings.TrimSpace(checkpoint.FirstFrameSourceRevisionID) != "" || checkpoint.FirstFrameSizeBytes != 0
+	lastPresent := strings.TrimSpace(checkpoint.LastFrameSourceAssetID) != "" || strings.TrimSpace(checkpoint.LastFrameSourceRevisionID) != "" || checkpoint.LastFrameSizeBytes != 0
+	firstValid := !firstPresent || strings.TrimSpace(checkpoint.FirstFrameSourceAssetID) != "" && strings.TrimSpace(checkpoint.FirstFrameSourceRevisionID) != "" && checkpoint.FirstFrameSizeBytes > 0
+	lastValid := !lastPresent || strings.TrimSpace(checkpoint.LastFrameSourceAssetID) != "" && strings.TrimSpace(checkpoint.LastFrameSourceRevisionID) != "" && checkpoint.LastFrameSizeBytes > 0
 	return (firstPresent || lastPresent) && firstValid && lastValid
 }
 

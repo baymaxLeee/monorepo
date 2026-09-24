@@ -108,7 +108,7 @@ async def list_files(
                 path=source_path,
                 mime_type=source.source_mime_type or source.mime_type,
                 size=source.source_size,
-                sha256=source.object_sha256 or sha256(content.encode()).hexdigest(),
+                sha256=source.source_sha256 or sha256(content.encode()).hexdigest(),
                 writable=False,
                 derived=False,
             )
@@ -151,7 +151,7 @@ async def read_file(
             path=target,
             mime_type=source.source_mime_type or source.mime_type,
             size=source.source_size,
-            sha256=source.object_sha256 or sha256(content.encode()).hexdigest(),
+            sha256=source.source_sha256 or sha256(content.encode()).hexdigest(),
             writable=False,
             derived=False,
         )

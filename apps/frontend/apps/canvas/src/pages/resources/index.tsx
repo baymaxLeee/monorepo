@@ -182,12 +182,19 @@ export default function ResourcesPage() {
         continue;
       }
       try {
-        const blobId = await uploadResource(file);
+        const uploaded = await uploadResource(file);
         const name = getResourceNameFromFile(file.name);
         await createResource(projectId, {
           name,
           type: selectedType,
-          files: [{ blobId, fileName: file.name, name }],
+          files: [
+            {
+              sourceAssetId: uploaded.SourceAssetID,
+              sourceRevisionId: uploaded.SourceRevisionID,
+              fileName: file.name,
+              name,
+            },
+          ],
         });
         createdCount += 1;
       } catch {
@@ -243,10 +250,11 @@ export default function ResourcesPage() {
       if (item.PrimaryResourceAsset && !primary) {
         throw new Error("Primary audio asset not found");
       }
-      const blobId = await uploadResource(file);
+      const uploaded = await uploadResource(file);
       if (primary) {
         await replaceUploadedResourceAsset(projectId, item.ResourceID, primary, item.Revision, {
-          blobId,
+          sourceAssetId: uploaded.SourceAssetID,
+          sourceRevisionId: uploaded.SourceRevisionID,
           fileName: file.name,
         });
         toast.add({
@@ -255,7 +263,8 @@ export default function ResourcesPage() {
         });
       } else {
         await addResourceFile(projectId, item.ResourceID, item.Revision, {
-          blobId,
+          sourceAssetId: uploaded.SourceAssetID,
+          sourceRevisionId: uploaded.SourceRevisionID,
           fileName: file.name,
           name: getResourceNameFromFile(file.name),
         });

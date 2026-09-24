@@ -123,6 +123,11 @@ export interface SkillFileNode {
   type: "file" | "directory";
   parent_id?: string | null;
   mime_type?: string | null;
+  storage_kind: "inline" | "asset";
+  asset_id?: string | null;
+  revision_id?: string | null;
+  size_bytes?: number | null;
+  sha256?: string | null;
   etag: string;
   /**
    * File nodes only. `null` = content not included in tree listing (lazy-load via
@@ -146,8 +151,22 @@ export interface SkillNodeMutationResult {
 
 export interface SkillFileContent {
   id: string;
-  content: string;
+  storage_kind: "inline" | "asset";
+  mime_type?: string | null;
+  content?: string | null;
+  asset_id?: string | null;
+  revision_id?: string | null;
+  size_bytes?: number | null;
+  sha256?: string | null;
+  url?: string | null;
   etag: string;
+}
+
+export interface ImportSkillArchiveResult {
+  skill: Skill;
+  workspace: SkillWorkspace;
+  imported_files: number;
+  imported_asset_files: number;
 }
 
 export interface SkillValidationIssue {
@@ -199,6 +218,30 @@ export function fetchSkillFile(id: string, nodeId: string): Promise<SkillFileCon
   return request<SkillFileContent>({
     url: `${skillPath(id)}/workspace/files/${nodeId}`,
     method: "GET",
+  });
+}
+
+export function attachSkillAsset(
+  id: string,
+  input: { id: string; parent_id: string | null; name: string; asset_id: string; revision_id: string },
+): Promise<SkillNodeMutationResult> {
+  return request<SkillNodeMutationResult>({
+    url: `${skillPath(id)}/workspace/assets`,
+    method: "POST",
+    data: input,
+  });
+}
+
+export function importSkillArchive(
+  id: string,
+  assetId: string,
+  revisionId: string,
+  baseWorkspaceSeq: number,
+): Promise<ImportSkillArchiveResult> {
+  return request<ImportSkillArchiveResult>({
+    url: `${skillPath(id)}/workspace:import-archive`,
+    method: "POST",
+    data: { asset_id: assetId, revision_id: revisionId, base_workspace_seq: baseWorkspaceSeq },
   });
 }
 

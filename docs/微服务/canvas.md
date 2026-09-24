@@ -1,7 +1,7 @@
 # Canvas
 
 Canvas 是 Go 服务，监听 `8012`，拥有项目、画布、节点、素材、生成任务和用量记录；
-业务元数据归 `canvas` PostgreSQL 数据库所有。媒体对象由 `knowledge` 持久化，
+业务元数据归 `canvas` PostgreSQL 数据库所有。媒体 bytes 由 `asset` 持久化，
 durable 工作流交给 `executor`，模型与运营配置从 `admin` 获取，服务之间只走声明过的
 HTTP binding。
 
@@ -17,7 +17,8 @@ Redis。K8s 的 readiness probe 必须使用 `/readyz`。
 
 ## 媒体链路
 
-浏览器通过 Gateway 调用 `/api/canvas-server/uploads`，Canvas 把临时对象写入
-Knowledge 的内部对象存储。返回给浏览器或外部 provider 的短期媒体 URL 使用
-`PUBLIC_GATEWAY_URL` 补全。Single-VPS 的 Nginx、Gateway 和 Canvas 上传上限均为
-512 MiB；具体端点仍执行更小的业务上限，例如封面为 2 MiB。
+浏览器通过 Gateway 直接流式上传到 `/api/asset-server/assets`，再把 immutable
+`asset_id + revision_id` 注册到 Canvas 的项目、画布、节点或素材业务记录。Canvas
+在同一业务事务写 durable Claim intent，异步 relay 以 generation + CAS 保护地投递到
+Asset。封面、归档、生成输入与产物都遵循同一模型，不再经过 Knowledge object API。
+返回给浏览器或外部 provider 的短期 URL 由 Asset delivery capability 签发。

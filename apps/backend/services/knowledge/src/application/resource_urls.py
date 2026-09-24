@@ -16,7 +16,7 @@ _FILE_SIGNING_CONTEXT = b"knowledge-file-resource-url-v1"
 
 
 def document_resource_version(row: DocumentRow) -> str:
-    return row.object_sha256 or row.updated_at.isoformat()
+    return row.source_sha256 or row.updated_at.isoformat()
 
 
 def create_document_resource_url(row: DocumentRow) -> tuple[str, datetime]:

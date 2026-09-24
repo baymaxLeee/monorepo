@@ -13,6 +13,7 @@ export interface Settings {
   internalApiToken: string;
   internalServiceTokens: Readonly<Record<string, string>>;
   adminServiceUrl: string;
+  assetServiceUrl: string;
   knowledgeServiceUrl: string;
   canvasServiceUrl: string;
   ffmpegPath: string;
@@ -100,6 +101,7 @@ export function getSettings(): Settings {
     internalApiToken,
     internalServiceTokens: internalServiceTokens(environment as Environment),
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
+    assetServiceUrl: envOr("ASSET_SERVICE_URL", "http://localhost:8013"),
     canvasServiceUrl: envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),

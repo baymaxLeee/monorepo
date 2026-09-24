@@ -972,7 +972,7 @@ func (r *Repository) ResolveCurrentResourceAsset(
 	var rows []projectLibraryAssetRow
 	query := qualifiedScopeQuery(
 		r.db.WithContext(ctx).Table("resource_assets").
-			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.artifact_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
+			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
 			Joins("JOIN resources ON resources.id = resource_assets.resource_id AND resources.deleted_at = 0").
 			Joins("JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0").
 			Where("resource_assets.id = ? AND resource_assets.deleted_at = 0", resourceAssetUUID).
@@ -1032,7 +1032,7 @@ func (r *Repository) BatchResolveCurrentResourceAssets(
 	var rows []projectLibraryAssetRow
 	query := qualifiedScopeQuery(
 		r.db.WithContext(ctx).Table("resource_assets").
-			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.artifact_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
+			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
 			Joins("JOIN resources ON resources.id = resource_assets.resource_id AND resources.deleted_at = 0").
 			Joins("JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0").
 			Where("resource_assets.id IN ? AND resource_assets.deleted_at = 0", ids).
@@ -1110,7 +1110,7 @@ func (r *Repository) BatchResolvePrimaryResourceAssets(
 	var rows []projectLibraryAssetRow
 	query := qualifiedScopeQuery(
 		r.db.WithContext(ctx).Table("resources").
-			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.artifact_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
+			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
 			Joins("JOIN resource_assets ON resource_assets.id = resources.primary_resource_asset_id AND resource_assets.deleted_at = 0").
 			Joins("JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0").
 			Where("resources.id IN ? AND resources.deleted_at = 0", ids).
@@ -1195,7 +1195,7 @@ func (r *Repository) availableLooksByResourceIDs(
 	var rows []projectLibraryAssetRow
 	q := qualifiedScopeQuery(
 		r.db.WithContext(ctx).Table("resource_assets").
-			Select("resource_assets.current_asset_id, resource_assets.media_type AS slot_media_type, drafts.active_task_run_id, assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.artifact_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
+			Select("resource_assets.current_asset_id, resource_assets.media_type AS slot_media_type, drafts.active_task_run_id, assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
 			Joins("JOIN resources ON resources.id = resource_assets.resource_id AND resources.deleted_at = 0").
 			Joins(`LEFT JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0 AND (
 				(resources.owner_type = ? AND assets.owner_type = ? AND assets.owner_id = resources.id)
@@ -1233,7 +1233,7 @@ func (r *Repository) availableLooksByResourceIDs(
 
 const projectLibraryAssetRefColumns = "resource_assets.current_asset_id, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resources.primary_resource_asset_id, resources.updated_at AS resource_updated_at, resource_assets.sequence_no"
 
-const projectLibraryAssetColumns = "assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.artifact_id, assets.created_by, assets.created_at, library_assets.resource_id, library_assets.type, library_assets.resource_name, library_assets.description, library_assets.resource_asset_id, library_assets.name, library_assets.primary_resource_asset_id"
+const projectLibraryAssetColumns = "assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, library_assets.resource_id, library_assets.type, library_assets.resource_name, library_assets.description, library_assets.resource_asset_id, library_assets.name, library_assets.primary_resource_asset_id"
 
 type projectLibraryAssetRow struct {
 	CurrentAssetID         *persistenceid.UUID
@@ -1246,7 +1246,8 @@ type projectLibraryAssetRow struct {
 	MediaType              int16
 	ContentType            string
 	SizeBytes              int64
-	ArtifactID             string
+	SourceAssetID          string
+	SourceRevisionID       string
 	CreatedBy              string
 	CreatedAt              time.Time
 	ResourceID             persistenceid.UUID
@@ -1346,7 +1347,7 @@ func projectAssetCandidateFromRow(scope app.Scope, row projectLibraryAssetRow) (
 			ID: assetID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
 			OwnerType: domainasset.OwnerType(row.OwnerType), OwnerID: row.OwnerID.String(),
 			FileName: row.FileName, MediaType: domainasset.MediaType(row.MediaType),
-			ContentType: row.ContentType, SizeBytes: row.SizeBytes, ArtifactID: row.ArtifactID,
+			ContentType: row.ContentType, SizeBytes: row.SizeBytes, SourceAssetID: row.SourceAssetID, SourceRevisionID: row.SourceRevisionID,
 			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt,
 		},
 		Name: name, ResourceAssetID: row.ResourceAssetID.String(), ResourceID: row.ResourceID.String(), ResourceName: row.ResourceName,

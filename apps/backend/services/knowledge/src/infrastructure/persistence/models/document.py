@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.persistence.models.base import Base
@@ -22,9 +22,9 @@ class DocumentRow(Base):
     content_md: Mapped[str] = mapped_column(Text, nullable=False)
     source_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source_mime_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    object_bucket: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    object_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    object_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    asset_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
+    source_revision_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     conversion_provider_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     processing_dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

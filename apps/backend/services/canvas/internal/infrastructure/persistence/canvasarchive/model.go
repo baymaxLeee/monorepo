@@ -19,10 +19,11 @@ type canvasVideoArchiveExportRow struct {
 	ErrorMessage string `gorm:"type:text;not null"`
 	InputCount   int32  `gorm:"not null"`
 
-	OutputFilename string `gorm:"size:255;not null"`
-	OutputPath     string `gorm:"size:512;not null"`
-	OutputSize     int64  `gorm:"not null"`
-	OutputSHA256   string `gorm:"size:64;not null"`
+	OutputFilename   string `gorm:"size:255;not null"`
+	OutputAssetID    string `gorm:"size:64;not null"`
+	OutputRevisionID string `gorm:"size:64;not null"`
+	OutputSize       int64  `gorm:"not null"`
+	OutputSHA256     string `gorm:"size:64;not null"`
 
 	UploadID  string `gorm:"size:255;not null"`
 	PartSize  int64  `gorm:"not null"`

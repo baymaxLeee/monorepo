@@ -294,13 +294,12 @@ func (r *Repository) DeleteByOwner(
 	ownerType domainasset.OwnerType,
 	ownerID string,
 	now time.Time,
-	purgeNotBefore time.Time,
-) ([]applicationasset.GarbageCollectionAsset, error) {
+) ([]applicationasset.RetiredAsset, error) {
 	ownerUUID, err := persistenceid.Parse(ownerID)
 	if err != nil {
 		return nil, applicationasset.ErrNotFound
 	}
-	deleted := make([]applicationasset.GarbageCollectionAsset, 0)
+	deleted := make([]applicationasset.RetiredAsset, 0)
 	err = r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
 		var rows []assetRow
 		if err := assetScopeQuery(tx, scope).Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -308,12 +307,12 @@ func (r *Repository) DeleteByOwner(
 			return err
 		}
 		for index := range rows {
-			changed, deleteErr := softDeleteAsset(tx, rows[index], now, purgeNotBefore)
+			changed, deleteErr := retireAsset(tx, rows[index], now)
 			if deleteErr != nil {
 				return deleteErr
 			}
 			if changed {
-				deleted = append(deleted, garbageCollectionAssetFromRow(rows[index]))
+				deleted = append(deleted, retiredAssetFromRow(rows[index]))
 			}
 		}
 		return nil
@@ -325,11 +324,10 @@ func (r *Repository) DeleteByTenant(
 	ctx context.Context,
 	tenantID string,
 	now time.Time,
-	purgeNotBefore time.Time,
-) ([]applicationasset.GarbageCollectionAsset, error) {
+) ([]applicationasset.RetiredAsset, error) {
 	return r.deleteScope(ctx, func(tx *gorm.DB) *gorm.DB {
 		return tx.Model(&assetRow{}).Where("tenant_id = ?", tenantID)
-	}, now, purgeNotBefore)
+	}, now)
 }
 
 func (r *Repository) DeleteByWorkspace(
@@ -337,32 +335,30 @@ func (r *Repository) DeleteByWorkspace(
 	tenantID string,
 	workspaceID string,
 	now time.Time,
-	purgeNotBefore time.Time,
-) ([]applicationasset.GarbageCollectionAsset, error) {
+) ([]applicationasset.RetiredAsset, error) {
 	return r.deleteScope(ctx, func(tx *gorm.DB) *gorm.DB {
 		return tx.Model(&assetRow{}).Where("tenant_id = ? AND workspace_id = ?", tenantID, workspaceID)
-	}, now, purgeNotBefore)
+	}, now)
 }
 
 func (r *Repository) deleteScope(
 	ctx context.Context,
 	query func(*gorm.DB) *gorm.DB,
 	now time.Time,
-	purgeNotBefore time.Time,
-) ([]applicationasset.GarbageCollectionAsset, error) {
-	deleted := make([]applicationasset.GarbageCollectionAsset, 0)
+) ([]applicationasset.RetiredAsset, error) {
+	deleted := make([]applicationasset.RetiredAsset, 0)
 	err := r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
 		var rows []assetRow
 		if err := query(tx).Clauses(clause.Locking{Strength: "UPDATE"}).Order("id ASC").Find(&rows).Error; err != nil {
 			return err
 		}
 		for index := range rows {
-			changed, err := softDeleteAsset(tx, rows[index], now, purgeNotBefore)
+			changed, err := retireAsset(tx, rows[index], now)
 			if err != nil {
 				return err
 			}
 			if changed {
-				deleted = append(deleted, garbageCollectionAssetFromRow(rows[index]))
+				deleted = append(deleted, retiredAssetFromRow(rows[index]))
 			}
 		}
 		return nil
@@ -370,79 +366,7 @@ func (r *Repository) deleteScope(
 	return deleted, err
 }
 
-func (r *Repository) FindZeroReferenceAssets(ctx context.Context, createdBefore time.Time, afterAssetID string, limit int) ([]applicationasset.GarbageCollectionAsset, error) {
-	if limit <= 0 {
-		return []applicationasset.GarbageCollectionAsset{}, nil
-	}
-	query := r.dbFor(ctx).Model(&assetRow{}).Where("reference_count = 0 AND created_at <= ?", createdBefore)
-	if afterAssetID != "" {
-		after, err := persistenceid.Parse(afterAssetID)
-		if err != nil {
-			return nil, err
-		}
-		var cursor assetRow
-		if err = r.dbFor(ctx).Unscoped().Select("id", "created_at").First(&cursor, "id = ?", after).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-			// A completed GC cycle physically removes the previous cursor. Restarting
-			// is safe because candidate creation is idempotent and avoids stalling
-			// every later scan behind a cursor that can no longer be resolved.
-		} else if err != nil {
-			return nil, err
-		} else {
-			query = query.Where("(created_at > ? OR (created_at = ? AND id > ?))", cursor.CreatedAt, cursor.CreatedAt, after)
-		}
-	}
-	var rows []assetRow
-	if err := query.Order("created_at ASC").Order("id ASC").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	items := make([]applicationasset.GarbageCollectionAsset, 0, len(rows))
-	for index := range rows {
-		items = append(items, garbageCollectionAssetFromRow(rows[index]))
-	}
-	return items, nil
-}
-
-func (r *Repository) SoftDeleteForGarbageCollection(
-	ctx context.Context,
-	item applicationasset.GarbageCollectionAsset,
-	now time.Time,
-	purgeNotBefore time.Time,
-) (bool, error) {
-	id, err := persistenceid.Parse(item.AssetID)
-	if err != nil {
-		return false, err
-	}
-	changed := false
-	err = r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		var row assetRow
-		// Recheck the best-effort count while locking the active Asset row. A
-		// concurrent count writer must then observe deleted_at after commit and
-		// cannot revive an Asset that already entered GC.
-		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
-			"id = ? AND tenant_id = ? AND artifact_id = ? AND reference_count = 0", id, item.TenantID, item.ArtifactID,
-		)
-		query = applyGarbageCollectionWorkspace(query, item.WorkspaceID)
-		if findErr := query.First(&row).Error; errors.Is(findErr, gorm.ErrRecordNotFound) {
-			return nil
-		} else if findErr != nil {
-			return findErr
-		}
-		// The cached count is only a scan hint. Recheck retaining owners while
-		// holding the same Asset lock used by acquire/release, including Undo.
-		var references []assetReferenceRow
-		if readErr := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("asset_id = ?", row.ID).Limit(1).Find(&references).Error; readErr != nil {
-			return readErr
-		}
-		if len(references) != 0 {
-			return nil
-		}
-		changed, err = softDeleteAsset(tx, row, now, purgeNotBefore)
-		return err
-	})
-	return changed, err
-}
-
-func softDeleteAsset(db *gorm.DB, row assetRow, now, purgeNotBefore time.Time) (bool, error) {
+func retireAsset(db *gorm.DB, row assetRow, now time.Time) (bool, error) {
 	update := db.Model(&assetRow{}).Where("id = ?", row.ID).
 		Update("deleted_at", soft_delete.DeletedAt(now.UnixMilli()))
 	if update.Error != nil {
@@ -451,143 +375,15 @@ func softDeleteAsset(db *gorm.DB, row assetRow, now, purgeNotBefore time.Time) (
 	if update.RowsAffected != 1 {
 		return false, nil
 	}
-	candidate := assetGarbageCollectionCandidateRow{
-		AssetID: row.ID, TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID), ArtifactID: row.ArtifactID,
-		ArtifactNamespace: cloneString(row.ArtifactNamespace),
-		DeletedAt:         now, PurgeNotBefore: purgeNotBefore, NextAttemptAt: purgeNotBefore, CreatedAt: now, UpdatedAt: now,
-	}
-	if err := db.Create(&candidate).Error; err != nil {
+	if err := db.Model(&assetReferenceRow{}).Where("asset_id = ? AND deleted_at = 0", row.ID).
+		Updates(map[string]any{"deleted_at": now.UnixMilli(), "updated_at": now}).Error; err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (r *Repository) ClaimGarbageCollection(ctx context.Context, now, leaseUntil time.Time, limit int) ([]applicationasset.GarbageCollectionCandidate, error) {
-	if limit <= 0 {
-		return []applicationasset.GarbageCollectionCandidate{}, nil
-	}
-	claimed := make([]applicationasset.GarbageCollectionCandidate, 0, limit)
-	err := r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		// A candidate is claimable only when no stable predecessor for the same
-		// Artifact exists. This deliberately lets a failed earliest candidate block
-		// later ones so different Server pods cannot concurrently delete a shared Artifact.
-		predecessor := tx.Table("asset_gc_candidates AS predecessor").Select("1").Where(
-			"predecessor.artifact_id = candidate.artifact_id AND (predecessor.created_at < candidate.created_at OR (predecessor.created_at = candidate.created_at AND predecessor.asset_id < candidate.asset_id))",
-		)
-		var rows []assetGarbageCollectionCandidateRow
-		if err := tx.Table("asset_gc_candidates AS candidate").
-			Where("candidate.purge_not_before <= ? AND candidate.next_attempt_at <= ? AND (candidate.lease_until IS NULL OR candidate.lease_until <= ?)", now, now, now).
-			Where("NOT EXISTS (?)", predecessor).
-			Order("candidate.next_attempt_at ASC").Limit(limit).
-			Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).Find(&rows).Error; err != nil {
-			return err
-		}
-		for index := range rows {
-			row := rows[index]
-			update := tx.Model(&assetGarbageCollectionCandidateRow{}).Where(
-				"asset_id = ? AND state_version = ? AND purge_not_before <= ? AND next_attempt_at <= ? AND (lease_until IS NULL OR lease_until <= ?)",
-				row.AssetID, row.StateVersion, now, now, now,
-			).Updates(map[string]any{"lease_until": leaseUntil, "state_version": row.StateVersion + 1, "updated_at": now})
-			if update.Error != nil {
-				return update.Error
-			}
-			if update.RowsAffected != 1 {
-				continue
-			}
-			row.LeaseUntil = &leaseUntil
-			row.StateVersion++
-			row.UpdatedAt = now
-			claimed = append(claimed, garbageCollectionCandidateFromRow(row))
-		}
-		return nil
-	})
-	return claimed, err
-}
-
-func (r *Repository) ArtifactHasOtherAssets(ctx context.Context, item applicationasset.GarbageCollectionCandidate) (bool, error) {
-	id, err := persistenceid.Parse(item.AssetID)
-	if err != nil {
-		return false, err
-	}
-	var count int64
-	// Soft-deleted rows still own Artifact metadata until their candidate completes.
-	err = r.dbFor(ctx).Unscoped().Model(&assetRow{}).Where("artifact_id = ? AND id <> ?", item.ArtifactID, id).Count(&count).Error
-	return count > 0, err
-}
-
-var errGarbageCollectionCAS = errors.New("asset garbage collection state changed")
-
-func (r *Repository) CompleteGarbageCollection(ctx context.Context, item applicationasset.GarbageCollectionCandidate) (bool, error) {
-	id, err := persistenceid.Parse(item.AssetID)
-	if err != nil {
-		return false, err
-	}
-	err = r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		candidateDelete := tx.Where("asset_id = ? AND state_version = ?", id, item.StateVersion).Delete(&assetGarbageCollectionCandidateRow{})
-		if candidateDelete.Error != nil {
-			return candidateDelete.Error
-		}
-		if candidateDelete.RowsAffected != 1 {
-			return errGarbageCollectionCAS
-		}
-		referenceDelete := tx.Unscoped().Where("asset_id = ?", id).Delete(&assetReferenceRow{})
-		if referenceDelete.Error != nil {
-			return referenceDelete.Error
-		}
-		assetDelete := tx.Unscoped().Where("id = ? AND deleted_at <> 0", id).Delete(&assetRow{})
-		if assetDelete.Error != nil {
-			return assetDelete.Error
-		}
-		if assetDelete.RowsAffected != 1 {
-			return errGarbageCollectionCAS
-		}
-		return nil
-	})
-	if errors.Is(err, errGarbageCollectionCAS) {
-		return false, nil
-	}
-	return err == nil, err
-}
-
-func (r *Repository) RescheduleGarbageCollection(
-	ctx context.Context,
-	item applicationasset.GarbageCollectionCandidate,
-	next time.Time,
-	message string,
-	now time.Time,
-) (bool, error) {
-	id, err := persistenceid.Parse(item.AssetID)
-	if err != nil {
-		return false, err
-	}
-	if len(message) > 512 {
-		message = message[:512]
-	}
-	update := r.dbFor(ctx).Model(&assetGarbageCollectionCandidateRow{}).Where("asset_id = ? AND state_version = ?", id, item.StateVersion).
-		Updates(map[string]any{"next_attempt_at": next, "lease_until": nil, "state_version": item.StateVersion + 1, "attempts": item.Attempts + 1, "last_error": message, "updated_at": now})
-	if update.Error != nil {
-		return false, update.Error
-	}
-	return update.RowsAffected == 1, nil
-}
-
-func garbageCollectionAssetFromRow(row assetRow) applicationasset.GarbageCollectionAsset {
-	return applicationasset.GarbageCollectionAsset{AssetID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID), ArtifactID: row.ArtifactID, ArtifactNamespace: stringValue(row.ArtifactNamespace)}
-}
-
-func garbageCollectionCandidateFromRow(row assetGarbageCollectionCandidateRow) applicationasset.GarbageCollectionCandidate {
-	return applicationasset.GarbageCollectionCandidate{
-		GarbageCollectionAsset: applicationasset.GarbageCollectionAsset{AssetID: row.AssetID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID), ArtifactID: row.ArtifactID, ArtifactNamespace: stringValue(row.ArtifactNamespace)},
-		DeletedAt:              row.DeletedAt, PurgeNotBefore: row.PurgeNotBefore, NextAttemptAt: row.NextAttemptAt,
-		LeaseUntil: row.LeaseUntil, StateVersion: row.StateVersion, Attempts: row.Attempts, LastError: row.LastError, CreatedAt: row.CreatedAt,
-	}
-}
-
-func applyGarbageCollectionWorkspace(query *gorm.DB, workspaceID *string) *gorm.DB {
-	if workspaceID == nil {
-		return query.Where("workspace_id IS NULL")
-	}
-	return query.Where("workspace_id = ?", *workspaceID)
+func retiredAssetFromRow(row assetRow) applicationasset.RetiredAsset {
+	return applicationasset.RetiredAsset{AssetID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID), SourceAssetID: row.SourceAssetID, SourceRevisionID: row.SourceRevisionID}
 }
 
 func assetScopeQuery(db *gorm.DB, scope applicationasset.Scope) *gorm.DB {
@@ -610,7 +406,7 @@ func rowFromDomain(item domainasset.Asset) (assetRow, error) {
 	return assetRow{
 		ID: id, TenantID: item.TenantID, WorkspaceID: cloneString(item.WorkspaceID),
 		OwnerType: int16(item.OwnerType), OwnerID: ownerID, CreationKey: nullableString(item.CreationKey),
-		ArtifactID: item.ArtifactID, ArtifactNamespace: nullableString(item.ArtifactNamespace),
+		SourceAssetID: item.SourceAssetID, SourceRevisionID: item.SourceRevisionID,
 		FileName: item.FileName, MediaType: int16(item.MediaType), ContentType: item.ContentType,
 		SizeBytes: item.SizeBytes, BillingClass: string(item.BillingClass),
 		CreatedBy: item.CreatedBy, CreatedAt: item.CreatedAt,
@@ -621,7 +417,7 @@ func domainFromRow(row assetRow) domainasset.Asset {
 	return domainasset.Asset{
 		ID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID),
 		OwnerType: domainasset.OwnerType(row.OwnerType), OwnerID: row.OwnerID.String(),
-		CreationKey: stringValue(row.CreationKey), ArtifactID: row.ArtifactID, ArtifactNamespace: stringValue(row.ArtifactNamespace),
+		CreationKey: stringValue(row.CreationKey), SourceAssetID: row.SourceAssetID, SourceRevisionID: row.SourceRevisionID,
 		FileName: row.FileName, MediaType: domainasset.MediaType(row.MediaType), ContentType: row.ContentType,
 		SizeBytes: row.SizeBytes, BillingClass: domainasset.BillingClass(row.BillingClass),
 		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt,

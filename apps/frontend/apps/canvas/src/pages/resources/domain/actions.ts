@@ -213,7 +213,7 @@ export async function createResource(
     name: string;
     description?: string;
     type: resource.ResourceType;
-    files?: Array<{ blobId: string; fileName: string; name?: string }>;
+    files?: Array<{ sourceAssetId: string; sourceRevisionId: string; fileName: string; name?: string }>;
   },
 ) {
   const response = await canvasCreateResource(projectId, {
@@ -221,7 +221,8 @@ export async function createResource(
     name: input.name.trim(),
     description: input.description?.trim() || undefined,
     initial_assets: input.files?.map((file) => ({
-      blob_id: file.blobId,
+      source_asset_id: file.sourceAssetId,
+      source_revision_id: file.sourceRevisionId,
       file_name: file.fileName,
       name: file.name?.trim() || undefined,
     })),
@@ -261,10 +262,11 @@ export async function addResourceFile(
   projectId: string,
   resourceId: string,
   resourceRevision: number,
-  input: { blobId: string; fileName: string; name?: string },
+  input: { sourceAssetId: string; sourceRevisionId: string; fileName: string; name?: string },
 ) {
   const response = await canvasCreateResourceAsset(projectId, resourceId, {
-    blob_id: input.blobId,
+    source_asset_id: input.sourceAssetId,
+    source_revision_id: input.sourceRevisionId,
     file_name: input.fileName,
     name: input.name?.trim() || undefined,
     expected_resource_revision: resourceRevision,
@@ -426,7 +428,8 @@ export async function updateResourceAssetGeneration(
         watermark: patch.Watermark,
         uploaded_references: patch.UploadedReferences?.map((reference) => ({
           asset_id: reference.AssetID,
-          blob_id: reference.BlobID,
+          source_asset_id: reference.SourceAssetID,
+          source_revision_id: reference.SourceRevisionID,
           file_name: reference.FileName,
         })),
         resource_references: patch.ResourceReferences?.map((reference) => ({
@@ -486,11 +489,12 @@ export async function replaceUploadedResourceAsset(
   resourceId: string,
   current: resource.ResourceAsset,
   expectedResourceRevision: number,
-  input: { blobId: string; fileName: string },
+  input: { sourceAssetId: string; sourceRevisionId: string; fileName: string },
 ) {
   const response = await canvasReplaceResourceAsset(projectId, resourceId, current.ResourceAssetID, {
     resource_asset_id: current.ResourceAssetID,
-    blob_id: input.blobId,
+    source_asset_id: input.sourceAssetId,
+    source_revision_id: input.sourceRevisionId,
     file_name: input.fileName,
     expected_resource_revision: expectedResourceRevision,
     expected_resource_asset_revision: current.Revision,

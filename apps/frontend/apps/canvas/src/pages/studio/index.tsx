@@ -19,8 +19,8 @@ import {
   mentionReferenceIdentity,
 } from "@/components/promptEditor/index";
 import { type asset, canvas as canvasIDL, canvasnode } from "@/domain";
-import type { UploadBlobResult } from "@/hooks/uploads";
-import useSilentUploadBlob from "@/hooks/useSilentUploadBlob";
+import type { UploadAssetResult } from "@/hooks/uploads";
+import useSilentUploadAsset from "@/hooks/useSilentUploadAsset";
 import {
   GetCanvasGraph,
   ConnectCanvasNodes,
@@ -162,7 +162,7 @@ export default function StudioPage() {
 function StudioContent() {
   const navigate = useNavigate();
   const { projectId = "", canvasId = "" } = useParams();
-  const { abortUploadAllFiles, abortUploadFile, customRequest } = useSilentUploadBlob();
+  const { abortUploadAllFiles, abortUploadFile, customRequest } = useSilentUploadAsset();
   const assetStore = useStudioAssetStore();
   const mutationCoordinator = useStudioMutationCoordinator();
   const studioStore = useStore();
@@ -261,8 +261,8 @@ function StudioContent() {
   const reviewRequestIDRef = useRef(0);
   const assetDetailRequestIDRef = useRef(0);
   const canvasGraphRequestIDRef = useRef(0);
-  /** draftId → 后台 artifact storage 直传 Promise。 */
-  const assetTaskRef = useRef(new Map<string, Promise<string>>());
+  /** draftId → 后台平台 Asset 上传 Promise。 */
+  const assetTaskRef = useRef(new Map<string, Promise<UploadAssetResult>>());
   /** 已移除或取消的 draft，禁止后台写回 store。 */
   const cancelledDraftRef = useRef(new Set<string>());
   /** 编辑开始时的正式输入关系，用于取消编辑或保存失败时恢复素材连线。 */
@@ -834,7 +834,7 @@ function StudioContent() {
           .getForShot(shotId)
           .find((item) => item.id === candidate.id || item.draftId === candidate.id);
         if (!local) throw new Error("local asset is not available");
-        if (!local.blobId) {
+        if (!local.sourceAssetId || !local.sourceRevisionId) {
           const task = assetTaskRef.current.get(candidate.id);
           if (!task) throw new Error("local asset upload is not available");
           await task;
@@ -842,8 +842,14 @@ function StudioContent() {
             .getForShot(shotId)
             .find((item) => item.id === candidate.id || item.draftId === candidate.id);
         }
-        if (!local?.blobId) throw new Error("local asset blob is not available");
-        uploadedAsset = { BlobID: local.blobId, FileName: local.title };
+        if (!local?.sourceAssetId || !local.sourceRevisionId) {
+          throw new Error("local Asset revision is not available");
+        }
+        uploadedAsset = {
+          SourceAssetID: local.sourceAssetId,
+          SourceRevisionID: local.sourceRevisionId,
+          FileName: local.title,
+        };
         resolvedCandidate = {
           ...candidate,
           referenceType: "asset",
@@ -907,7 +913,8 @@ function StudioContent() {
           resourceId: resolvedCandidate.resourceId ?? existing.resourceId,
           resourceType: resolvedCandidate.resourceType ?? existing.resourceType,
           review: resolvedCandidate.review ?? existing.review,
-          blobId: undefined,
+          sourceAssetId: undefined,
+          sourceRevisionId: undefined,
           pendingFile: undefined,
           syncStatus: "ready",
           targetPort,
@@ -997,7 +1004,7 @@ function StudioContent() {
           await task;
           current = assetStore.getForShot(shotId).find((item) => item.id === draftId || item.draftId === draftId);
         }
-        if (!current?.blobId) {
+        if (!current?.sourceAssetId || !current.sourceRevisionId) {
           throw new Error(t("素材尚未就绪，请稍后重试"));
         }
         if (requestID !== reviewRequestIDRef.current) return;
@@ -1007,7 +1014,8 @@ function StudioContent() {
           onUpdated,
           shotId,
           upload: {
-            BlobID: current.blobId,
+            SourceAssetID: current.sourceAssetId,
+            SourceRevisionID: current.sourceRevisionId,
             ClientID: draftId,
             FileName: current.title,
           },
@@ -1097,8 +1105,8 @@ function StudioContent() {
   };
 
   /**
-   * 选文件只静默直传 artifact storage，不建 Asset、不绑分镜。
-   * 关浏览器或不保存时服务端绑定与编辑前一致。
+   * 选文件只静默上传平台 Asset revision，不创建 Canvas Asset、不绑分镜。
+   * 未保存的 revision 没有业务 Claim，最终由 Asset GC 回收。
    */
   const startAssetBatchSync = (shotId: string, entries: Array<{ draftId: string; file: File }>) => {
     entries.forEach(({ draftId, file }) => {
@@ -1107,16 +1115,17 @@ function StudioContent() {
           syncStatus: "uploading",
           uploading: false,
         });
-        const blobId = await uploadBlob(file);
+        const uploaded = await uploadAsset(file);
         if (cancelledDraftRef.current.has(draftId)) {
           throw new Error("asset cancelled");
         }
         patchAsset(shotId, draftId, (item) => ({
           ...releaseAssetLocalFile(item),
-          blobId,
+          sourceAssetId: uploaded.SourceAssetID,
+          sourceRevisionId: uploaded.SourceRevisionID,
           syncStatus: "uploaded",
         }));
-        return blobId;
+        return uploaded;
       })().catch((error) => {
         if (!cancelledDraftRef.current.has(draftId)) {
           patchAsset(shotId, draftId, (item) => ({
@@ -2086,18 +2095,18 @@ function StudioContent() {
     setDirty(true);
   };
 
-  const uploadBlob = (file: File) =>
-    new Promise<string>((resolve, reject) => {
+  const uploadAsset = (file: File) =>
+    new Promise<UploadAssetResult>((resolve, reject) => {
       customRequest({
         file,
         onProgress: () => undefined,
         onSuccess: (response) => {
-          const blobId = (response as UploadBlobResult | undefined)?.BlobID;
-          if (blobId) {
-            resolve(blobId);
+          const uploaded = response as UploadAssetResult | undefined;
+          if (uploaded?.SourceAssetID && uploaded.SourceRevisionID) {
+            resolve(uploaded);
             return;
           }
-          reject(new Error(t("缺少 BlobID")));
+          reject(new Error(t("缺少 Asset revision")));
         },
         onError: (error) => reject(error),
       });
@@ -2248,7 +2257,8 @@ function StudioContent() {
           ? {
               ...item,
               assetId: latest.AssetID,
-              blobId: draftId ? undefined : item.blobId,
+              sourceAssetId: draftId ? undefined : item.sourceAssetId,
+              sourceRevisionId: draftId ? undefined : item.sourceRevisionId,
               draftId: draftId ?? item.draftId,
               // 已持久化素材的 id 是 CanvasNodeID；只有本地草稿送审后才切到 AssetID。
               id: draftId ? latest.AssetID : item.id,

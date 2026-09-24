@@ -1,5 +1,8 @@
-export interface UploadBlobResult {
-  BlobID: string;
+import { AssetCategory, uploadAssetRevision } from "@repo/api";
+
+export interface UploadAssetResult {
+  SourceAssetID: string;
+  SourceRevisionID: string;
   Filename: string;
   file?: File;
 }
@@ -9,21 +12,22 @@ export interface UploadOptions {
   onSuccess: (response?: object) => void;
   onError: (response?: object) => void;
 }
-export interface UseUploadBlob {
+export interface UseUploadAsset {
   customRequest: (options: UploadOptions) => { abort: () => void };
   abortUploadFile: (file: File) => void;
   abortUploadAllFiles: () => void;
 }
 export function stageUpload(options: UploadOptions) {
   const controller = new AbortController();
-  void stageCanvasUpload(options.file, controller.signal)
+  void uploadAssetRevision(options.file, AssetCategory.CANVAS_SOURCE, controller.signal)
     .then((result) => {
       options.onProgress(100);
       options.onSuccess({
-        BlobID: result.blob_id,
+        SourceAssetID: result.assetId,
+        SourceRevisionID: result.revisionId,
         Filename: options.file.name,
         file: options.file,
-      } satisfies UploadBlobResult);
+      } satisfies UploadAssetResult);
     })
     .catch((error: unknown) => {
       options.onError(error instanceof Error ? error : new Error(String(error)));
@@ -35,4 +39,3 @@ export function stageUpload(options: UploadOptions) {
     },
   };
 }
-import { stageCanvasUpload } from "@repo/api";

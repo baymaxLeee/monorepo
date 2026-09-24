@@ -175,14 +175,15 @@ func (r *Repository) Update(ctx context.Context, item domaincanvas.Canvas) error
 			return err
 		}
 		return tx.Model(&current).Updates(map[string]any{
-			"name":                     item.Name,
-			"cover_image_path":         cloneString(item.CoverImagePath),
-			"cover_image_id":           row.CoverImageID,
-			"cover_image_sha256":       nullableString(item.CoverImageSHA256),
-			"cover_image_content_type": nullableString(item.CoverImageContentType),
-			"cover_image_size_bytes":   item.CoverImageSizeBytes,
-			"revision":                 item.Revision,
-			"updated_at":               item.UpdatedAt,
+			"name":                         item.Name,
+			"cover_image_revision_id":      nullableString(item.CoverImageRevisionID),
+			"cover_image_asset_id":         row.CoverImageAssetID,
+			"cover_image_sha256":           nullableString(item.CoverImageSHA256),
+			"cover_image_content_type":     nullableString(item.CoverImageContentType),
+			"cover_image_size_bytes":       item.CoverImageSizeBytes,
+			"cover_image_claim_generation": item.CoverImageClaimGeneration,
+			"revision":                     item.Revision,
+			"updated_at":                   item.UpdatedAt,
 		}).Error
 	})
 	return translateWriteError(err)
@@ -239,10 +240,11 @@ func (r *Repository) Delete(ctx context.Context, item domaincanvas.Canvas) error
 		}
 		deletedAt := soft_delete.DeletedAt(item.DeletedAt.UnixMilli())
 		if err := tx.Model(&current).Updates(map[string]any{
-			"cover_image_path": nil, "cover_image_id": nil, "cover_image_sha256": nil,
-			"cover_image_content_type": nil,
-			"cover_image_size_bytes":   0,
-			"revision":                 item.Revision, "updated_at": item.UpdatedAt, "deleted_at": deletedAt,
+			"cover_image_revision_id": nil, "cover_image_asset_id": nil, "cover_image_sha256": nil,
+			"cover_image_content_type":     nil,
+			"cover_image_size_bytes":       0,
+			"cover_image_claim_generation": 0,
+			"revision":                     item.Revision, "updated_at": item.UpdatedAt, "deleted_at": deletedAt,
 		}).Error; err != nil {
 			return err
 		}
@@ -265,7 +267,7 @@ func (r *Repository) DeleteByProject(
 	err = r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
 		var rows []canvasRow
 		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id", "revision", "cover_image_path", "cover_image_id", "cover_image_sha256", "cover_image_content_type", "cover_image_size_bytes").
+			Select("id", "revision", "cover_image_revision_id", "cover_image_asset_id", "cover_image_sha256", "cover_image_content_type", "cover_image_size_bytes", "cover_image_claim_generation").
 			Where("tenant_id = ? AND project_id = ?", scope.TenantID, projectUUID)
 		query = applyWorkspaceScope(query, scope.WorkspaceID)
 		if err := query.Find(&rows).Error; err != nil {
@@ -284,10 +286,11 @@ func (r *Repository) DeleteByProject(
 		}
 		deletedAt := soft_delete.DeletedAt(now.UnixMilli())
 		return tx.Model(&canvasRow{}).Where("id IN ?", ids).Updates(map[string]any{
-			"cover_image_path": nil, "cover_image_id": nil, "cover_image_sha256": nil,
-			"cover_image_content_type": nil,
-			"cover_image_size_bytes":   0,
-			"updated_at":               now, "deleted_at": deletedAt,
+			"cover_image_revision_id": nil, "cover_image_asset_id": nil, "cover_image_sha256": nil,
+			"cover_image_content_type":     nil,
+			"cover_image_size_bytes":       0,
+			"cover_image_claim_generation": 0,
+			"updated_at":                   now, "deleted_at": deletedAt,
 		}).Error
 	})
 	if err != nil {
@@ -323,11 +326,11 @@ func (r *Repository) DeletionMatches(
 }
 
 func coverImageRegistrationFromRow(row canvasRow) *applicationcoverimage.Registration {
-	if row.CoverImagePath == nil || row.CoverImageID == nil || row.CoverImageSHA256 == nil || *row.CoverImageSHA256 == "" {
+	if row.CoverImageRevisionID == nil || row.CoverImageAssetID == nil || row.CoverImageSHA256 == nil || *row.CoverImageSHA256 == "" {
 		return nil
 	}
 	return &applicationcoverimage.Registration{
-		Path: *row.CoverImagePath, ID: row.CoverImageID.String(),
+		TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, Revision: applicationcoverimage.RevisionRef{AssetID: row.CoverImageAssetID.String(), RevisionID: *row.CoverImageRevisionID}, OwnerType: "canvas_cover", OwnerID: row.ID.String(), Generation: row.CoverImageClaimGeneration,
 		SHA256: *row.CoverImageSHA256, ContentType: stringValue(row.CoverImageContentType),
 		SizeBytes: row.CoverImageSizeBytes,
 	}
@@ -362,20 +365,21 @@ func rowFromDomain(item domaincanvas.Canvas) (canvasRow, error) {
 	if err != nil {
 		return canvasRow{}, fmt.Errorf("map Canvas Project ID: %w", err)
 	}
-	coverImageID, err := persistenceid.ParseOptional(item.CoverImageID)
+	coverImageID, err := persistenceid.ParseOptional(item.CoverImageAssetID)
 	if err != nil {
 		return canvasRow{}, fmt.Errorf("map Canvas cover image ID: %w", err)
 	}
 	row := canvasRow{
 		ID: id, TenantID: item.TenantID, WorkspaceID: cloneString(item.WorkspaceID),
 		ProjectID: projectID, Name: item.Name,
-		CoverImagePath: cloneString(item.CoverImagePath), CoverImageID: coverImageID,
+		CoverImageRevisionID: nullableString(item.CoverImageRevisionID), CoverImageAssetID: coverImageID,
 		CoverImageSHA256:      nullableString(item.CoverImageSHA256),
 		CoverImageContentType: nullableString(item.CoverImageContentType),
 		CoverImageSizeBytes:   item.CoverImageSizeBytes, CreatedBy: item.CreatedBy,
-		DefaultView: int16(item.DefaultView),
-		Revision:    item.Revision,
-		CreatedAt:   item.CreatedAt, UpdatedAt: item.UpdatedAt,
+		CoverImageClaimGeneration: item.CoverImageClaimGeneration,
+		DefaultView:               int16(item.DefaultView),
+		Revision:                  item.Revision,
+		CreatedAt:                 item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 	if item.DeletedAt != nil {
 		row.DeletedAt = soft_delete.DeletedAt(item.DeletedAt.UnixMilli())
@@ -386,11 +390,12 @@ func rowFromDomain(item domaincanvas.Canvas) (canvasRow, error) {
 func domainFromRow(row canvasRow) domaincanvas.Canvas {
 	item := domaincanvas.Canvas{
 		ID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID),
-		ProjectID: row.ProjectID.String(), Name: row.Name, CoverImagePath: cloneString(row.CoverImagePath),
-		CoverImageID: uuidStringValue(row.CoverImageID), CoverImageSHA256: stringValue(row.CoverImageSHA256),
-		CoverImageContentType: stringValue(row.CoverImageContentType),
-		CoverImageSizeBytes:   row.CoverImageSizeBytes,
-		CreatedBy:             row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		ProjectID: row.ProjectID.String(), Name: row.Name, CoverImageRevisionID: stringValue(row.CoverImageRevisionID),
+		CoverImageAssetID: uuidStringValue(row.CoverImageAssetID), CoverImageSHA256: stringValue(row.CoverImageSHA256),
+		CoverImageContentType:     stringValue(row.CoverImageContentType),
+		CoverImageSizeBytes:       row.CoverImageSizeBytes,
+		CoverImageClaimGeneration: row.CoverImageClaimGeneration,
+		CreatedBy:                 row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		CanvasNodeCount: row.CanvasNodeCount, SelectedVideoDurationMillis: row.SelectedVideoDurationMillis,
 		DefaultView: domaincanvas.ViewMode(row.DefaultView), Revision: row.Revision,
 	}

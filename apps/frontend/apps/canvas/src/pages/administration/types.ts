@@ -8,7 +8,7 @@ export interface ProjectTableItem extends project.ProjectSummary {
 export interface ProjectFormValues {
   Name: string;
   MemberUserIDs: string[];
-  CoverImagePath?: string;
+  CoverImage?: { assetId: string; revisionId: string };
   UsageLimit?: number;
 }
 

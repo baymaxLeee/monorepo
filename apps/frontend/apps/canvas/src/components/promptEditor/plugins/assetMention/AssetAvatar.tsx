@@ -68,7 +68,7 @@ export function AssetAvatar({
     asset.category === "video" ? (asset.previewUrl ?? asset.thumbnail) : asset.thumbnail,
     asset.draftId ?? asset.id,
   );
-  // 缩略图就是 artifact storage 的预览地址，会过期也会 404。不接住失败只会留下一个空方块。
+  // 缩略图是短期签名预览地址，会过期也会 404。不接住失败只会留下一个空方块。
   const [failedSrc, setFailedSrc] = useState<string>();
 
   if (preview && preview !== failedSrc) {

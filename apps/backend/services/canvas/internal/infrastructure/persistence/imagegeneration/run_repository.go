@@ -172,7 +172,7 @@ func (repository *Repository) saveRun(ctx context.Context, run domainimagegenera
 	}
 	result := query.Updates(map[string]any{
 		"binding_outcome": run.BindingOutcome, "stage": run.Stage, "provider_attempt": run.ProviderAttempt,
-		"provider_image_url": run.ProviderImageURL, "artifact_id": run.ArtifactID,
+		"provider_image_url": run.ProviderImageURL, "source_asset_id": run.SourceAssetID, "source_revision_id": run.SourceRevisionID,
 		"artifact_size_bytes": run.ArtifactSizeBytes, "output_asset_id": outputAssetID,
 		"error_code": run.ErrorCode, "error_message": run.ErrorMessage,
 		"updated_at": run.UpdatedAt, "completed_at": run.CompletedAt,
@@ -205,7 +205,7 @@ func runRowsFromDomain(run domainimagegeneration.Run) (runRow, []runInputRow, er
 		InputSnapshots:  run.InputSnapshots,
 		OutputOwnerType: int16(run.OutputOwner.Type), OutputOwnerID: ownerID, BindingOutcome: string(run.BindingOutcome),
 		Stage: run.Stage, ProviderAttempt: run.ProviderAttempt, ProviderImageURL: run.ProviderImageURL,
-		ArtifactID: run.ArtifactID, ArtifactSizeBytes: run.ArtifactSizeBytes, OutputAssetID: outputAssetID,
+		SourceAssetID: run.SourceAssetID, SourceRevisionID: run.SourceRevisionID, ArtifactSizeBytes: run.ArtifactSizeBytes, OutputAssetID: outputAssetID,
 		ErrorCode: run.ErrorCode, ErrorMessage: run.ErrorMessage,
 		CreatedBy: run.CreatedBy, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt, CompletedAt: run.CompletedAt,
 	}
@@ -229,7 +229,7 @@ func runDomainFromRows(row runRow, inputs []runInputRow) domainimagegeneration.R
 		OutputOwner:    domainimagegeneration.OutputAssetOwner{Type: domainasset.OwnerType(row.OutputOwnerType), ID: row.OutputOwnerID.String()},
 		BindingOutcome: domainimagegeneration.BindingOutcome(row.BindingOutcome), Stage: row.Stage,
 		ProviderAttempt: row.ProviderAttempt, ProviderImageURL: row.ProviderImageURL,
-		ArtifactID: row.ArtifactID, ArtifactSizeBytes: row.ArtifactSizeBytes,
+		SourceAssetID: row.SourceAssetID, SourceRevisionID: row.SourceRevisionID, ArtifactSizeBytes: row.ArtifactSizeBytes,
 		ErrorCode: row.ErrorCode, ErrorMessage: row.ErrorMessage,
 		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, CompletedAt: row.CompletedAt,
 	}

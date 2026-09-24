@@ -4,10 +4,10 @@ set shell := ["bash", "-cu"]
 # Service registry (Python / Node / Go services and their fixed dev ports)
 PY_SERVICES := "admin knowledge telemetry"
 NODE_SERVICES := "chat executor"
-GO_SERVICES := "gateway iam canvas"
+GO_SERVICES := "gateway iam canvas asset"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011,"canvas":8012}'
+PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011,"canvas":8012,"asset":8013}'
 
 default:
     @just --list
@@ -153,7 +153,7 @@ gen-openapi service:
     echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:
-    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} canvas; do just gen-openapi $s; done
+    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} canvas asset; do just gen-openapi $s; done
 
 gen-transport-ts:
     cd libs/transport-ts && pnpm install && pnpm run codegen

@@ -53,7 +53,7 @@ const projectFormSchema = z.object({
     .refine((value) => !INVALID_NAME_BOUNDARY.test(value), t("不能以连接符（-、_）和空格开头或结尾")),
   MemberUserIDs: z.array(z.string()).min(1, t("请至少选择一名项目成员")),
   UsageLimit: z.number().optional(),
-  CoverImagePath: z.string().optional(),
+  CoverImage: z.object({ assetId: z.string(), revisionId: z.string() }).optional(),
 });
 type ProjectValues = z.infer<typeof projectFormSchema>;
 
@@ -88,7 +88,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
       Name: "",
       MemberUserIDs: user?.id ? [user.id] : [],
       UsageLimit: undefined,
-      CoverImagePath: undefined,
+      CoverImage: undefined,
     },
   });
   const name = form.watch("Name");
@@ -104,7 +104,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
             ? [user.id]
             : [],
       UsageLimit: state?.mode === "edit" && "UsageLimit" in state.project ? state.project.UsageLimit : undefined,
-      CoverImagePath: undefined,
+      CoverImage: undefined,
     });
     setMemberQuery("");
     setCoverUploading(false);
@@ -163,7 +163,10 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
   const submit = async (values: ProjectValues) => {
     if (!state) return;
     if (memberOnlyEdit && state.mode === "edit") {
-      await canvasUpdateProject(state.project.ProjectID, { cover_image_path: values.CoverImagePath });
+      await canvasUpdateProject(state.project.ProjectID, {
+        cover_image_asset_id: values.CoverImage?.assetId,
+        cover_image_revision_id: values.CoverImage?.revisionId,
+      });
       onSuccess();
       onClose();
       return;
@@ -172,10 +175,17 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
       await updateProjectWithUsage({
         ProjectID: state.project.ProjectID,
         ...values,
-        CoverImagePath: values.CoverImagePath,
+        CoverImageAssetID: values.CoverImage?.assetId,
+        CoverImageRevisionID: values.CoverImage?.revisionId,
       });
     } else {
-      await createProjectWithUsage(values);
+      await createProjectWithUsage({
+        Name: values.Name,
+        MemberUserIDs: values.MemberUserIDs,
+        UsageLimit: values.UsageLimit,
+        CoverImageAssetID: values.CoverImage?.assetId,
+        CoverImageRevisionID: values.CoverImage?.revisionId,
+      });
     }
     onSuccess();
     onClose();
@@ -337,7 +347,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
 
             <Controller
               control={form.control}
-              name="CoverImagePath"
+              name="CoverImage"
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor={field.name}>{t("项目封面")}</FieldLabel>

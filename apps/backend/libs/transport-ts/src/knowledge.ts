@@ -263,21 +263,14 @@ export class KnowledgeInternalClient {
     );
   }
 
-  /**
-   * Persist agent-generated binary media (image/video/audio) as a document.
-   * The bytes are copied into knowledge's object store and served back via the
-   * existing `/documents/{id}/source` route. Callers must pass raw bytes, never
-   * a provider's temporary URL (ADR-0014). Idempotent on `idempotencyKey`.
-   */
   createMediaDocument(input: {
     userId: string;
     tenantId: string;
     workspaceId: string;
     conversationId?: string;
     title: string;
-    filename: string;
-    mimeType: string;
-    bytes: Uint8Array;
+    assetId: string;
+    revisionId: string;
     idempotencyKey?: string;
   }): Promise<KnowledgeDocument> {
     return this.unwrap(
@@ -288,9 +281,8 @@ export class KnowledgeInternalClient {
           workspace_id: input.workspaceId,
           conversation_id: input.conversationId,
           title: input.title,
-          filename: input.filename,
-          mime_type: input.mimeType,
-          data_base64: base64FromBytes(input.bytes),
+          asset_id: input.assetId,
+          revision_id: input.revisionId,
           idempotency_key: input.idempotencyKey,
         },
       }),
@@ -304,9 +296,8 @@ export class KnowledgeInternalClient {
     workspaceId: string;
     conversationId?: string;
     title: string;
-    filename: string;
-    mimeType: string;
-    bytes: Uint8Array;
+    assetId: string;
+    revisionId: string;
     idempotencyKey?: string;
   }): Promise<StagedMedia> {
     return this.unwrap(
@@ -317,9 +308,8 @@ export class KnowledgeInternalClient {
           workspace_id: input.workspaceId,
           conversation_id: input.conversationId,
           title: input.title,
-          filename: input.filename,
-          mime_type: input.mimeType,
-          data_base64: base64FromBytes(input.bytes),
+          asset_id: input.assetId,
+          revision_id: input.revisionId,
           idempotency_key: input.idempotencyKey,
         },
       }),
@@ -458,10 +448,6 @@ export class KnowledgeInternalClient {
     }
     throw toTransportError(response, error);
   }
-}
-
-function base64FromBytes(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64");
 }
 
 function normalizeDocument(document: KnowledgeDocumentSchema): KnowledgeDocument {

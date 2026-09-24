@@ -266,8 +266,12 @@ export function ResourceAssetsPageContent({
     }
     setUploading(true);
     await mutate(async (targetResourceId, revision) => {
-      const blobId = await uploadResource(file);
-      await addResourceFile(projectId, targetResourceId, revision, { blobId, fileName: file.name });
+      const uploaded = await uploadResource(file);
+      await addResourceFile(projectId, targetResourceId, revision, {
+        sourceAssetId: uploaded.SourceAssetID,
+        sourceRevisionId: uploaded.SourceRevisionID,
+        fileName: file.name,
+      });
     });
     setUploading(false);
   };
@@ -679,9 +683,10 @@ export function ResourceAssetsPageContent({
                   }
                   setUploading(true);
                   await mutate(async (resourceId, revision) => {
-                    const blobId = await uploadResource(file);
+                    const uploaded = await uploadResource(file);
                     await replaceUploadedResourceAsset(projectId, resourceId, detailFile, revision, {
-                      blobId,
+                      sourceAssetId: uploaded.SourceAssetID,
+                      sourceRevisionId: uploaded.SourceRevisionID,
                       fileName: file.name,
                     });
                   });

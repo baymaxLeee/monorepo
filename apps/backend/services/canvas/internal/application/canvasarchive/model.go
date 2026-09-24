@@ -51,42 +51,42 @@ type ListQuery struct {
 }
 
 type SelectedVideo struct {
-	CanvasName, NodeID, OutputID, AssetID, ArtifactID, ArtifactNamespace string
-	MediaSize                                                            int64
+	CanvasName, NodeID, OutputID, AssetID, SourceAssetID, SourceRevisionID string
+	MediaSize                                                              int64
 }
 
 type Export struct {
-	TaskRunID, TenantID, ProjectID, CanvasID, CreatedBy string
-	WorkspaceID                                         *string
-	Status                                              task.Status
-	ErrorCode, ErrorMessage                             string
-	InputCount                                          int32
-	OutputFilename, OutputPath, OutputSHA256            string
-	OutputSize, PartSize                                int64
-	UploadID                                            string
-	RetentionStartedAt, RetentionGuaranteedUntil        *time.Time
-	CleanupStatus                                       CleanupStatus
-	CleanupNextAt, CleanupLeaseUntil                    *time.Time
-	CleanupStateVersion                                 int64
-	CleanupAttempts                                     int32
-	CleanupLastError                                    string
-	StartedAt, FinishedAt                               *time.Time
-	CreatedAt, UpdatedAt                                time.Time
+	TaskRunID, TenantID, ProjectID, CanvasID, CreatedBy           string
+	WorkspaceID                                                   *string
+	Status                                                        task.Status
+	ErrorCode, ErrorMessage                                       string
+	InputCount                                                    int32
+	OutputFilename, OutputAssetID, OutputRevisionID, OutputSHA256 string
+	OutputSize, PartSize                                          int64
+	UploadID                                                      string
+	RetentionStartedAt, RetentionGuaranteedUntil                  *time.Time
+	CleanupStatus                                                 CleanupStatus
+	CleanupNextAt, CleanupLeaseUntil                              *time.Time
+	CleanupStateVersion                                           int64
+	CleanupAttempts                                               int32
+	CleanupLastError                                              string
+	StartedAt, FinishedAt                                         *time.Time
+	CreatedAt, UpdatedAt                                          time.Time
 }
 
 func (item Export) DownloadPath(now time.Time) *string {
-	if item.Status != task.StatusSucceeded || item.OutputPath == "" || item.RetentionGuaranteedUntil == nil || !now.Before(*item.RetentionGuaranteedUntil) {
+	if item.Status != task.StatusSucceeded || item.OutputAssetID == "" || item.OutputRevisionID == "" || item.RetentionGuaranteedUntil == nil || !now.Before(*item.RetentionGuaranteedUntil) {
 		return nil
 	}
-	path := item.OutputPath
-	return &path
+	revisionID := item.OutputRevisionID
+	return &revisionID
 }
 
 type Input struct {
-	TaskRunID, NodeID, OutputID, AssetID, ArtifactID, ArtifactNamespace, EntryName string
-	Ordinal                                                                        int32
-	MediaSize                                                                      int64
-	CreatedAt                                                                      time.Time
+	TaskRunID, NodeID, OutputID, AssetID, SourceAssetID, SourceRevisionID, EntryName string
+	Ordinal                                                                          int32
+	MediaSize                                                                        int64
+	CreatedAt                                                                        time.Time
 }
 
 type LifecycleUpdate struct {
@@ -101,7 +101,8 @@ type Execution struct {
 }
 
 type SuccessResult struct {
-	Path, SHA256, UploadID string
-	Size, PartSize         int64
-	RetentionStartedAt     time.Time
+	AssetID, RevisionID, SHA256 string
+	UploadID                    string
+	Size, PartSize              int64
+	RetentionStartedAt          time.Time
 }

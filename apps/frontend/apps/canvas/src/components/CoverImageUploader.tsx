@@ -1,4 +1,4 @@
-import { stageCanvasCoverUpload } from "@repo/api";
+import { AssetCategory, uploadAssetRevision, type AssetRevisionRef } from "@repo/api";
 import { Spinner, toast, Button } from "@repo/design-system";
 import { ImagePlus, X } from "lucide-react";
 import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, useState } from "react";
@@ -35,9 +35,9 @@ export function CoverImageUploader({
   inputId,
   invalid,
 }: {
-  value?: string;
+  value?: AssetRevisionRef;
   previewURL?: string;
-  onChange?: (value?: string) => void;
+  onChange?: (value: AssetRevisionRef) => void;
   onUploadingChange?: (uploading: boolean) => void;
   imageAlt?: string;
   removeAriaLabel?: string;
@@ -51,7 +51,7 @@ export function CoverImageUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<AbortController | undefined>(undefined);
   const objectURLRef = useRef<string | undefined>(undefined);
-  const uploadedBlobIDRef = useRef<string | undefined>(undefined);
+  const uploadedRevisionRef = useRef<AssetRevisionRef | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [localPreviewURL, setLocalPreviewURL] = useState<string>();
 
@@ -62,11 +62,12 @@ export function CoverImageUploader({
   };
 
   useEffect(() => {
-    if (value !== uploadedBlobIDRef.current) {
-      uploadedBlobIDRef.current = undefined;
+    const uploaded = uploadedRevisionRef.current;
+    if (value?.assetId !== uploaded?.assetId || value?.revisionId !== uploaded?.revisionId) {
+      uploadedRevisionRef.current = undefined;
       clearLocalPreview();
     }
-  }, [value]);
+  }, [value?.assetId, value?.revisionId]);
 
   useEffect(
     () => () => {
@@ -97,15 +98,16 @@ export function CoverImageUploader({
     uploadRef.current = controller;
     setUploading(true);
     onUploadingChange?.(true);
-    void stageCanvasCoverUpload(file, controller.signal)
+    void uploadAssetRevision(file, AssetCategory.CANVAS_COVER, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         clearLocalPreview();
         const objectURL = URL.createObjectURL(file);
         objectURLRef.current = objectURL;
-        uploadedBlobIDRef.current = result.blob_id;
+        const revision = { assetId: result.assetId, revisionId: result.revisionId };
+        uploadedRevisionRef.current = revision;
         setLocalPreviewURL(objectURL);
-        onChange?.(result.blob_id);
+        onChange?.(revision);
       })
       .catch(() => {
         if (!controller.signal.aborted)
@@ -181,9 +183,10 @@ export function CoverImageUploader({
           className={styles.removeButton}
           onClick={(event) => {
             event.stopPropagation();
-            uploadedBlobIDRef.current = "";
+            const cleared = { assetId: "", revisionId: "" };
+            uploadedRevisionRef.current = cleared;
             clearLocalPreview();
-            onChange?.("");
+            onChange?.(cleared);
           }}
           type="button"
         >

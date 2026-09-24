@@ -97,8 +97,8 @@ export interface ConversationDocument {
   mime_type: string;
   source_size: number;
   source_mime_type?: string | null;
-  source_object_bucket?: string | null;
-  source_object_key?: string | null;
+  asset_id?: string | null;
+  source_revision_id?: string | null;
   source_sha256?: string | null;
   source_filename?: string | null;
   ingest_status?: IngestStatus;

@@ -29,9 +29,9 @@ async def create_document(
     conversation_id: str | None = None,
     source_size: int = 0,
     source_mime_type: str | None = None,
-    object_bucket: str | None = None,
-    object_key: str | None = None,
-    object_sha256: str | None = None,
+    asset_id: str | None = None,
+    source_revision_id: str | None = None,
+    source_sha256: str | None = None,
     source_filename: str | None = None,
     conversion_provider_id: str | None = None,
     ingest_status: str = "ready",
@@ -53,9 +53,9 @@ async def create_document(
         content_md=content_md,
         source_size=source_size,
         source_mime_type=source_mime_type,
-        object_bucket=object_bucket,
-        object_key=object_key,
-        object_sha256=object_sha256,
+        asset_id=asset_id,
+        source_revision_id=source_revision_id,
+        source_sha256=source_sha256,
         source_filename=source_filename,
         conversion_provider_id=conversion_provider_id,
         ingest_status=ingest_status,
@@ -197,7 +197,7 @@ async def apply_conversion_if_unchanged(
 async def find_converted_cache(
     session: AsyncSession,
     *,
-    object_sha256: str,
+    source_sha256: str,
     workspace_id: str | None,
     tenant_id: str | None,
     user_id: str,
@@ -213,7 +213,7 @@ async def find_converted_cache(
     stmt = (
         select(DocumentRow.content_md)
         .where(
-            DocumentRow.object_sha256 == object_sha256,
+            DocumentRow.source_sha256 == source_sha256,
             DocumentRow.id != exclude_document_id,
             DocumentRow.ingest_status == "ready",
             DocumentRow.content_md != "",

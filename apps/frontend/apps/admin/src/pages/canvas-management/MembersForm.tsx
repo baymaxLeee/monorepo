@@ -29,7 +29,8 @@ export function MembersForm({
         name: project.name,
         member_user_ids: [...new Set([...memberIds, project.created_by])],
         usage_limit: project.usage_limit,
-        cover_image_path: project.cover_image_path,
+        cover_image_asset_id: project.cover_image_asset_id,
+        cover_image_revision_id: project.cover_image_revision_id,
       });
       onSaved(response.project);
       toast.add({ type: "success", title: "项目成员已保存" });

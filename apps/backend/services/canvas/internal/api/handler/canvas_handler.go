@@ -125,7 +125,8 @@ func (h *CanvasHandler) CreateProjectCanvas(
 	}
 	item, err := h.service.Create(ctx, applicationcanvas.CreateInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID,
-		Name: request.Name, CoverImagePath: request.CoverImagePath,
+		CoverImageAssetID: request.CoverImageAssetID,
+		Name:              request.Name, CoverImageRevisionID: request.CoverImageRevisionID,
 	})
 	if err != nil {
 		return nil, err
@@ -142,7 +143,8 @@ func (h *CanvasHandler) UpdateProjectCanvas(
 	}
 	item, err := h.service.Update(ctx, applicationcanvas.UpdateInput{
 		Scope: canvasRequestScope(ctx, request.WorkspaceID), ProjectID: request.ProjectID, CanvasID: request.CanvasID,
-		Name: request.Name, CoverImagePath: request.CoverImagePath,
+		CoverImageAssetID: request.CoverImageAssetID,
+		Name:              request.Name, CoverImageRevisionID: request.CoverImageRevisionID,
 	})
 	if err != nil {
 		return nil, err
@@ -220,7 +222,7 @@ func canvasSortDirection(sort *thriftcanvas.ProjectCanvasSort) (applicationcanva
 
 func canvasSummary(item domaincanvas.Canvas) *thriftcanvas.ProjectCanvasSummary {
 	return &thriftcanvas.ProjectCanvasSummary{
-		CanvasID: item.ID, ProjectID: item.ProjectID, Name: item.Name, CoverImagePath: cloneString(item.CoverImagePath),
+		CanvasID: item.ID, ProjectID: item.ProjectID, Name: item.Name, CoverImageAssetID: optionalString(item.CoverImageAssetID), CoverImageRevisionID: optionalString(item.CoverImageRevisionID),
 		CoverImageURL: optionalString(item.CoverImageURL),
 		CreatedBy:     item.CreatedBy, CreatedAt: timestamp(item.CreatedAt), UpdatedAt: timestamp(item.UpdatedAt),
 		Stats: &thriftcanvas.ProjectCanvasStats{

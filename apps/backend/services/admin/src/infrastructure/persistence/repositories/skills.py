@@ -21,19 +21,36 @@ async def list_skills(session: AsyncSession, workspace_id: str, tenant_id: str) 
 
 
 async def get_skill(session: AsyncSession, skill_id: str, workspace_id: str, tenant_id: str) -> SkillRow | None:
-    return await session.scalar(
-        select(SkillRow).where(
-            SkillRow.id == skill_id, (SkillRow.workspace_id == workspace_id) & (SkillRow.tenant_id == tenant_id)
-        )
+    return cast(
+        SkillRow | None,
+        await session.scalar(
+            select(SkillRow).where(
+                SkillRow.id == skill_id, (SkillRow.workspace_id == workspace_id) & (SkillRow.tenant_id == tenant_id)
+            )
+        ),
     )
 
 
 async def get_skill_by_name(session: AsyncSession, workspace_id: str, tenant_id: str, name: str) -> SkillRow | None:
-    return await session.scalar(
-        select(SkillRow).where(
-            (SkillRow.workspace_id == workspace_id) & (SkillRow.tenant_id == tenant_id), SkillRow.name == name
-        )
+    return cast(
+        SkillRow | None,
+        await session.scalar(
+            select(SkillRow).where(
+                (SkillRow.workspace_id == workspace_id) & (SkillRow.tenant_id == tenant_id), SkillRow.name == name
+            )
+        ),
     )
+
+
+async def list_skills_by_ids(
+    session: AsyncSession, ids: list[str], workspace_id: str, tenant_id: str
+) -> list[SkillRow]:
+    rows = await session.scalars(
+        select(SkillRow).where(
+            SkillRow.id.in_(ids), SkillRow.workspace_id == workspace_id, SkillRow.tenant_id == tenant_id
+        ).with_for_update()
+    )
+    return list(rows.all())
 
 
 async def create_skill(

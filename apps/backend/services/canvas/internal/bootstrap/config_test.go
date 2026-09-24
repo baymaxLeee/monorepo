@@ -16,7 +16,7 @@ var deployedEnvironment = map[string]string{
 	"REDIS_URL":               "redis://redis:6379/3",
 	"PUBLIC_GATEWAY_URL":      "http://example.test:8080",
 	"ADMIN_SERVICE_URL":       "http://admin:8001",
-	"KNOWLEDGE_SERVICE_URL":   "http://knowledge:8010",
+	"ASSET_SERVICE_URL":       "http://asset:8013",
 	"EXECUTOR_SERVICE_URL":    "http://executor:8011",
 }
 

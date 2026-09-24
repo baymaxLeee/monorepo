@@ -15,7 +15,7 @@
     "./canvas": "./src/canvas.ts"
   },
   "scripts": {
-    "codegen": "openapi-typescript ../../../../schemas/openapi/admin-server.json -o src/schema/admin.ts && openapi-typescript ../../../../schemas/openapi/knowledge-server.json -o src/schema/knowledge.ts && openapi-typescript ../../../../schemas/openapi/executor-server.json -o src/schema/executor.ts && openapi-typescript ../../../../schemas/openapi/canvas-server.json -o src/schema/canvas.ts",
+    "codegen": "openapi-typescript ../../../../schemas/openapi/admin-server.json -o src/schema/admin.ts && openapi-typescript ../../../../schemas/openapi/asset-server.json -o src/schema/asset.ts && openapi-typescript ../../../../schemas/openapi/knowledge-server.json -o src/schema/knowledge.ts && openapi-typescript ../../../../schemas/openapi/executor-server.json -o src/schema/executor.ts && openapi-typescript ../../../../schemas/openapi/canvas-server.json -o src/schema/canvas.ts",
     "test": "tsx --test src/**/*.test.ts",
     "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
   },

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
+	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -52,9 +52,9 @@ func TestStorePersistRemote(t *testing.T) {
 		}))
 		defer server.Close()
 
-		store := New(&storage.Client{URL: server.URL}, "").(*Store)
-		_, _, err := store.persistRemote(
-			context.Background(), "tenant-1", nil, "project-1", server.URL+"/generated.png",
+		store := New(assetclient.New(server.URL, "", nil), "").(*Store)
+		_, err := store.persistRemote(
+			context.Background(), "tenant-1", "workspace-1", "user-1", "result.png", "generated_image", "task-1", server.URL+"/generated.png",
 		)
 		if err == nil {
 			t.Fatal("expected private generated-media URL to be rejected")
@@ -84,9 +84,9 @@ func TestStorePersistRemote(t *testing.T) {
 		})}
 		t.Cleanup(func() { generatedMediaHTTPClient = originalClient })
 
-		store := New(&storage.Client{URL: storageServer.URL}, "").(*Store)
-		_, _, err := store.persistRemote(
-			context.Background(), "tenant-1", nil, "project-1", "https://media.example.com/generated.mp4",
+		store := New(assetclient.New(storageServer.URL, "", nil), "").(*Store)
+		_, err := store.persistRemote(
+			context.Background(), "tenant-1", "workspace-1", "user-1", "result.mp4", "generated_video", "task-1", "https://media.example.com/generated.mp4",
 		)
 		if err == nil {
 			t.Fatal("expected oversized generated media to be rejected")
@@ -100,7 +100,7 @@ func TestStorePersistRemote(t *testing.T) {
 func TestProviderReferenceInlinesImageBytes(t *testing.T) {
 	payload := []byte("small-image")
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet || !strings.HasSuffix(request.URL.Path, "/artifact-1") {
+		if request.Method != http.MethodGet || request.URL.Path != "/internal/assets/asset-1/revisions/revision-1/content" {
 			t.Errorf("unexpected storage request: %s %s", request.Method, request.URL.Path)
 			writer.WriteHeader(http.StatusBadRequest)
 			return
@@ -114,9 +114,10 @@ func TestProviderReferenceInlinesImageBytes(t *testing.T) {
 	}))
 	defer server.Close()
 
-	store := New(&storage.Client{URL: server.URL, Token: "internal-token"}, "http://localhost:8000")
+	store := New(assetclient.New(server.URL, "internal-token", nil), "http://localhost:8000")
+	workspaceID := "workspace-1"
 	reference, err := store.ProviderReference(context.Background(), "tenant-1", "user-1", domainasset.Asset{
-		ArtifactID: "artifact-1", ArtifactNamespace: "namespace-1",
+		TenantID: "tenant-1", WorkspaceID: &workspaceID, SourceAssetID: "asset-1", SourceRevisionID: "revision-1",
 		MediaType: domainasset.MediaImage, ContentType: "image/png", SizeBytes: int64(len(payload)),
 	})
 	if err != nil {
@@ -134,9 +135,10 @@ func TestProviderReferenceRejectsMismatchedImageSize(t *testing.T) {
 	}))
 	defer server.Close()
 
-	store := New(&storage.Client{URL: server.URL}, "http://localhost:8000")
+	store := New(assetclient.New(server.URL, "", nil), "http://localhost:8000")
+	workspaceID := "workspace-1"
 	_, err := store.ProviderReference(context.Background(), "tenant-1", "user-1", domainasset.Asset{
-		ArtifactID: "artifact-1", ArtifactNamespace: "namespace-1",
+		TenantID: "tenant-1", WorkspaceID: &workspaceID, SourceAssetID: "asset-1", SourceRevisionID: "revision-1",
 		MediaType: domainasset.MediaImage, ContentType: "image/png", SizeBytes: 100,
 	})
 	if err == nil {

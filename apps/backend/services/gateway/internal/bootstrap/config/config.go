@@ -25,6 +25,7 @@ type Config struct {
 	Environment              string
 	Port                     string
 	AdminServiceURL          string
+	AssetServiceURL          string
 	ChatServiceURL           string
 	CanvasServiceURL         string
 	IAMServiceURL            string
@@ -59,6 +60,7 @@ func Load() (Config, error) {
 		Environment:         envOr("ENVIRONMENT", EnvDevelopment),
 		Port:                envOr("PORT", "8000"),
 		AdminServiceURL:     envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
+		AssetServiceURL:     envOr("ASSET_SERVICE_URL", "http://localhost:8013"),
 		ChatServiceURL:      envOr("CHAT_SERVICE_URL", "http://localhost:8009"),
 		CanvasServiceURL:    envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
 		IAMServiceURL:       envOr("IAM_SERVICE_URL", "http://localhost:8002"),
@@ -78,7 +80,6 @@ func Load() (Config, error) {
 			"/api/iam-server/refresh",
 			"/api/iam-server/logout",
 			"/api/knowledge-server/resources",
-			"/api/knowledge-server/media/artifacts",
 		}),
 		// Method-aware exact publics: the register page must read the applyable
 		// workspace list before authenticating, but POST /workspaces and /workspaces/{id}/... stay

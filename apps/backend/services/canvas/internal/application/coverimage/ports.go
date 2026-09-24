@@ -3,7 +3,10 @@ package coverimage
 import (
 	"context"
 	"errors"
+	"strconv"
 )
+
+const QuotaObjectType = "cover_attachment"
 
 var (
 	// ErrIDGeneration identifies failures in locally generated cover registration IDs.
@@ -14,16 +17,38 @@ var (
 	ErrInvalidReference  = errors.New("invalid cover image reference")
 )
 
+type RevisionRef struct{ AssetID, RevisionID string }
+
+func (ref RevisionRef) Valid() bool { return ref.AssetID != "" && ref.RevisionID != "" }
+
+type RegisterInput struct {
+	TenantID                   string
+	WorkspaceID                *string
+	UserID, OwnerType, OwnerID string
+	Generation                 int64
+	Revision                   RevisionRef
+}
 type Registration struct {
-	Path        string
-	ID          string
-	SHA256      string
-	ContentType string
-	SizeBytes   int64
+	TenantID           string
+	WorkspaceID        *string
+	Revision           RevisionRef
+	OwnerType, OwnerID string
+	Generation         int64
+	SHA256             string
+	ContentType        string
+	SizeBytes          int64
+}
+
+func LifecycleKey(ownerType, ownerID string, generation int64) string {
+	if ownerType == "" || ownerID == "" || generation <= 0 {
+		return ""
+	}
+	return ownerType + ":" + ownerID + ":" + strconv.FormatInt(generation, 10)
 }
 
 type Store interface {
-	Register(context.Context, string, string, string) (Registration, error)
+	Register(context.Context, RegisterInput) (Registration, error)
+	EnsureActive(context.Context, Registration) error
 	Release(context.Context, Registration) error
 	Presign(context.Context, []Registration) (map[string]string, error)
 }

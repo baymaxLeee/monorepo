@@ -12,6 +12,7 @@ Environment = Literal["development", "staging", "single-vps", "production"]
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin"})
 
 _DEV_ADMIN_SECRET_KEY = "MFnLpzWN-y-Hh0aJtaxKXh4uOFcljnPC6FwpDF4S5Y8="
+_DEV_CALLER_TOKEN = "dev-admin-internal-token"
 _DEV_INTERNAL_SERVICE_TOKENS = {
     "canvas": "dev-canvas-internal-token",
     "chat": "dev-chat-internal-token",
@@ -41,6 +42,12 @@ class Settings(BaseSettings):
     redis_db: int = 0
 
     admin_secret_key: str = _DEV_ADMIN_SECRET_KEY
+    asset_service_url: str = "http://localhost:8013"
+    internal_api_token: str = _DEV_CALLER_TOKEN
+    asset_claim_dispatch_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
+    skill_archive_max_bytes: int = Field(default=256 * 1024 * 1024, gt=0)
+    skill_archive_max_expanded_bytes: int = Field(default=512 * 1024 * 1024, gt=0)
+    skill_archive_max_member_bytes: int = Field(default=32 * 1024 * 1024, gt=0)
 
     internal_service_tokens: dict[str, str] = Field(default_factory=lambda: dict(_DEV_INTERNAL_SERVICE_TOKENS))
 
@@ -66,6 +73,8 @@ class Settings(BaseSettings):
     def _enforce_production_safety(self) -> Settings:
         missing: list[str] = []
         if self.environment != "development":
+            if len(self.internal_api_token) < 32 or self.internal_api_token.startswith("dev-"):
+                missing.append("INTERNAL_API_TOKEN")
             expected_callers = set(_DEV_INTERNAL_SERVICE_TOKENS)
             tokens = self.internal_service_tokens
             if (

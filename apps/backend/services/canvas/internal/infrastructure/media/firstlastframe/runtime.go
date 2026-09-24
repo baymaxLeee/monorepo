@@ -5,22 +5,20 @@ import (
 	"errors"
 	"io"
 	"os"
-	"strings"
 
 	applicationfirstlastframe "github.com/example/monorepo/canvas/internal/application/firstlastframe"
 	firstlastframecontract "github.com/example/monorepo/canvas/internal/contract/firstlastframe"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/artifact"
+	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 	taskpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/task"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
-	"github.com/example/monorepo/canvas/internal/infrastructure/storage"
 )
 
 type Runtime struct {
 	service  *applicationfirstlastframe.Service
 	runs     *taskpersistence.Repository
 	tx       *persistencetransaction.Manager
-	storage  *storage.Client
+	assets   *assetclient.Client
 	clock    applicationfirstlastframe.Clock
 	tempRoot string
 }
@@ -33,15 +31,15 @@ func NewRuntime(
 	service *applicationfirstlastframe.Service,
 	runs *taskpersistence.Repository,
 	tx *persistencetransaction.Manager,
-	storageClient *storage.Client,
+	assets *assetclient.Client,
 	clock applicationfirstlastframe.Clock,
 	tempRoot string,
 ) *Runtime {
-	return &Runtime{service: service, runs: runs, tx: tx, storage: storageClient, clock: clock, tempRoot: tempRoot}
+	return &Runtime{service: service, runs: runs, tx: tx, assets: assets, clock: clock, tempRoot: tempRoot}
 }
 
 func (runtime *Runtime) Execute(ctx context.Context, taskRunID string) (ExecutionResult, error) {
-	if runtime.service == nil || runtime.runs == nil || runtime.tx == nil || runtime.storage == nil || runtime.clock == nil {
+	if runtime.service == nil || runtime.runs == nil || runtime.tx == nil || runtime.assets == nil || runtime.clock == nil {
 		return ExecutionResult{}, errors.New("first last frame runtime is not configured")
 	}
 	run, err := runtime.runs.GetTaskRun(ctx, taskRunID)
@@ -64,7 +62,7 @@ func (runtime *Runtime) Execute(ctx context.Context, taskRunID string) (Executio
 	}
 	executor := NewExecutor(
 		&executionControl{service: runtime.service},
-		&artifactFiles{storage: runtime.storage},
+		&artifactFiles{assets: runtime.assets},
 		NewFFmpegExtractor(nil),
 		runtime.tempRoot,
 	)
@@ -93,11 +91,14 @@ func (control *executionControl) GetExecution(ctx context.Context, taskRunID str
 	return GetExecutionResponse{State: StateReady, Execution: &firstlastframecontract.Execution{
 		TaskRunID: execution.TaskRunID, GenerationTaskRunID: execution.GenerationTaskRunID,
 		TenantID: execution.TenantID, WorkspaceID: execution.WorkspaceID, ProjectID: execution.ProjectID,
-		CreatedBy: execution.CreatedBy, SourceArtifactID: execution.SourceArtifactID,
-		SourceArtifactNamespace: execution.SourceArtifactNamespace,
-		FirstFrameCheckpointID:  execution.FirstFrameCheckpointID, LastFrameCheckpointID: execution.LastFrameCheckpointID,
-		FirstFrameCheckpointSizeBytes: execution.FirstFrameCheckpointSizeBytes,
-		LastFrameCheckpointSizeBytes:  execution.LastFrameCheckpointSizeBytes,
+		CreatedBy: execution.CreatedBy, SourceSourceAssetID: execution.SourceSourceAssetID,
+		SourceSourceRevisionID:         execution.SourceSourceRevisionID,
+		FirstFrameCheckpointAssetID:    execution.FirstFrameCheckpointAssetID,
+		FirstFrameCheckpointRevisionID: execution.FirstFrameCheckpointRevisionID,
+		LastFrameCheckpointAssetID:     execution.LastFrameCheckpointAssetID,
+		LastFrameCheckpointRevisionID:  execution.LastFrameCheckpointRevisionID,
+		FirstFrameCheckpointSizeBytes:  execution.FirstFrameCheckpointSizeBytes,
+		LastFrameCheckpointSizeBytes:   execution.LastFrameCheckpointSizeBytes,
 	}}, nil
 }
 
@@ -115,42 +116,45 @@ func (control *executionControl) CommitFailure(ctx context.Context, taskRunID st
 
 func applicationResult(result firstlastframecontract.Result) applicationfirstlastframe.Result {
 	return applicationfirstlastframe.Result{
-		FirstFrameArtifactID: result.FirstFrameArtifactID, LastFrameArtifactID: result.LastFrameArtifactID,
+		FirstFrameSourceAssetID: result.FirstFrameSourceAssetID, FirstFrameSourceRevisionID: result.FirstFrameSourceRevisionID,
+		LastFrameSourceAssetID: result.LastFrameSourceAssetID, LastFrameSourceRevisionID: result.LastFrameSourceRevisionID,
 		FirstFrameSizeBytes: result.FirstFrameSizeBytes, LastFrameSizeBytes: result.LastFrameSizeBytes,
 	}
 }
 
 type artifactFiles struct {
-	storage *storage.Client
+	assets *assetclient.Client
 }
 
 func (files *artifactFiles) OpenArtifact(
 	ctx context.Context,
-	_, _ string,
-	artifactID string,
-	artifactNamespace string,
+	tenantID, _ string,
+	sourceAssetID string,
+	sourceRevisionID string,
 ) (io.ReadCloser, error) {
-	return files.storage.Get(ctx, artifact.KnowledgeNamespace(artifactNamespace), artifactID)
+	return files.assets.Open(ctx, tenantID, "", assetclient.RevisionRef{AssetID: sourceAssetID, RevisionID: sourceRevisionID})
 }
 
 func (files *artifactFiles) SaveArtifact(
 	ctx context.Context,
-	_, _ string,
-	artifactNamespace string,
-	_ string,
-	path string,
-) (string, error) {
+	tenantID string, workspaceID *string, userID string, filename string,
+	path, idempotencyKey string,
+) (SavedArtifact, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return SavedArtifact{}, err
 	}
 	defer file.Close() //nolint:errcheck
-	stored, err := files.storage.PutObject(ctx, artifact.KnowledgeNamespace(strings.TrimSpace(artifactNamespace)), file)
+	workspace := ""
+	if workspaceID != nil {
+		workspace = *workspaceID
+	}
+	stored, err := files.assets.Upload(ctx, assetclient.UploadInput{TenantID: tenantID, WorkspaceID: workspace, UserID: userID, Filename: filename, MediaType: "image/jpeg", Category: "generated_frame", IdempotencyKey: idempotencyKey, Body: file})
 	if err != nil {
-		return "", err
+		return SavedArtifact{}, err
 	}
-	if stored.ArtifactID == "" || stored.Size <= 0 {
-		return "", errors.New("save frame artifact returned an invalid result")
+	if !stored.Valid() || stored.SizeBytes <= 0 {
+		return SavedArtifact{}, errors.New("save frame artifact returned an invalid result")
 	}
-	return stored.ArtifactID, nil
+	return SavedArtifact{SourceAssetID: stored.AssetID, SourceRevisionID: stored.RevisionID}, nil
 }

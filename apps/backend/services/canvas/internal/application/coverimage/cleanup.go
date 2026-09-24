@@ -21,7 +21,7 @@ func NewCleaner(store Store, quota CleanupQuota) *Cleaner {
 }
 
 func (c *Cleaner) Cleanup(ctx context.Context, registration Registration) error {
-	if registration.ID == "" || registration.SHA256 == "" || c.store == nil {
+	if !registration.Revision.Valid() || registration.SHA256 == "" || c.store == nil {
 		return errors.New("invalid cover cleanup")
 	}
 	if err := c.store.Release(ctx, registration); err != nil {
@@ -30,6 +30,10 @@ func (c *Cleaner) Cleanup(ctx context.Context, registration Registration) error 
 	if c.quota == nil {
 		return nil
 	}
-	_, err := c.quota.ReleaseStorage(ctx, "cover", registration.ID)
+	_, err := c.quota.ReleaseStorage(
+		ctx,
+		QuotaObjectType,
+		LifecycleKey(registration.OwnerType, registration.OwnerID, registration.Generation),
+	)
 	return err
 }

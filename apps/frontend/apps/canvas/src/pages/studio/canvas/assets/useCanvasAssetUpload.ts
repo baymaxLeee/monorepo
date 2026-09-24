@@ -2,8 +2,8 @@ import { toast } from "@repo/design-system";
 import { useCallback } from "react";
 
 import { canvasnode } from "@/domain";
-import type { UploadBlobResult } from "@/hooks/uploads";
-import useSilentUploadBlob from "@/hooks/useSilentUploadBlob";
+import type { UploadAssetResult } from "@/hooks/uploads";
+import useSilentUploadAsset from "@/hooks/useSilentUploadAsset";
 import t from "@/utils/i18n";
 
 import { categoryFromFile } from "../../domain/model";
@@ -19,18 +19,18 @@ export function useCanvasAssetUpload({
     },
   ) => Promise<canvasnode.CanvasNode | undefined>;
 }) {
-  const { customRequest } = useSilentUploadBlob();
-  const uploadBlob = useCallback(
+  const { customRequest } = useSilentUploadAsset();
+  const uploadAsset = useCallback(
     (file: File) =>
-      new Promise<string>((resolve, reject) => {
+      new Promise<UploadAssetResult>((resolve, reject) => {
         customRequest({
           file,
           onError: reject,
           onProgress: () => undefined,
           onSuccess: (response) => {
-            const blobID = (response as UploadBlobResult | undefined)?.BlobID;
-            if (blobID) resolve(blobID);
-            else reject(new Error("missing BlobID"));
+            const uploaded = response as UploadAssetResult | undefined;
+            if (uploaded?.SourceAssetID && uploaded.SourceRevisionID) resolve(uploaded);
+            else reject(new Error("missing Asset revision"));
           },
         });
       }),
@@ -42,7 +42,7 @@ export function useCanvasAssetUpload({
       if (!files.length) return;
       try {
         for (const [index, file] of files.entries()) {
-          const blobID = await uploadBlob(file);
+          const uploaded = await uploadAsset(file);
           const category = categoryFromFile(file);
           const nodeType =
             category === "video"
@@ -52,7 +52,11 @@ export function useCanvasAssetUpload({
                 : canvasnode.CanvasNodeType.IMAGE_ASSET;
           await createNode(nodeType, {
             position: position ? { x: position.x + index * 28, y: position.y + index * 28 } : undefined,
-            uploadedAsset: { BlobID: blobID, FileName: file.name },
+            uploadedAsset: {
+              SourceAssetID: uploaded.SourceAssetID,
+              SourceRevisionID: uploaded.SourceRevisionID,
+              FileName: file.name,
+            },
           });
         }
       } catch {
@@ -62,7 +66,7 @@ export function useCanvasAssetUpload({
         });
       }
     },
-    [createNode, uploadBlob],
+    [createNode, uploadAsset],
   );
 
   return uploadFiles;

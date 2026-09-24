@@ -23,7 +23,7 @@ type Config struct {
 	RedisURL              string
 	PublicGatewayURL      string
 	AdminServiceURL       string
-	KnowledgeServiceURL   string
+	AssetServiceURL       string
 	ExecutorServiceURL    string
 }
 
@@ -108,7 +108,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	knowledgeServiceURL, err := serviceURL("KNOWLEDGE_SERVICE_URL", deployed, "http://localhost:8010")
+	assetServiceURL, err := serviceURL("ASSET_SERVICE_URL", deployed, "http://localhost:8013")
 	if err != nil {
 		return Config{}, err
 	}
@@ -124,7 +124,7 @@ func Load() (Config, error) {
 		PublicGatewayURL:      publicGatewayURL,
 		RedisURL:              redisURL,
 		AdminServiceURL:       adminServiceURL,
-		KnowledgeServiceURL:   knowledgeServiceURL,
+		AssetServiceURL:       assetServiceURL,
 		ExecutorServiceURL:    executorServiceURL,
 		DatabaseURL:           fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", postgresHost, Env("POSTGRES_PORT", "5432"), postgresUser, password, postgresDatabase, Env("POSTGRES_SSLMODE", "disable")),
 	}, nil

@@ -14,11 +14,12 @@ type canvasRow struct {
 	WorkspaceID                 *string            `gorm:"size:64;index:idx_canvases_scope,priority:2"`
 	ProjectID                   persistenceid.UUID `gorm:"not null;index:idx_canvases_scope,priority:3;uniqueIndex:uniq_canvases_project_name_deleted_at,priority:1"`
 	Name                        string             `gorm:"size:80;not null;uniqueIndex:uniq_canvases_project_name_deleted_at,priority:2"`
-	CoverImagePath              *string            `gorm:"type:varchar(128)"`
-	CoverImageID                *persistenceid.UUID
+	CoverImageRevisionID        *string            `gorm:"type:varchar(128)"`
+	CoverImageAssetID           *persistenceid.UUID
 	CoverImageSHA256            *string               `gorm:"type:varchar(64)"`
 	CoverImageContentType       *string               `gorm:"type:varchar(32)"`
 	CoverImageSizeBytes         int64                 `gorm:"not null;default:0"`
+	CoverImageClaimGeneration   int64                 `gorm:"not null;default:0"`
 	CanvasNodeCount             int32                 `gorm:"not null;default:0"`
 	SelectedVideoDurationMillis int64                 `gorm:"not null;default:0"`
 	DefaultView                 int16                 `gorm:"not null;default:1"`

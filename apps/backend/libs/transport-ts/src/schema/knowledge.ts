@@ -55,23 +55,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/artifacts/presign": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Batch Presign */
-        post: operations["batch_presign_internal_artifacts_presign_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/ingest": {
         parameters: {
             query?: never;
@@ -83,7 +66,7 @@ export interface paths {
         put?: never;
         /**
          * Ingest
-         * @description Upload files, store raw bytes, and schedule background conversion.
+         * @description Attach already-uploaded immutable Asset revisions to Knowledge.
          */
         post: operations["ingest_ingest_post"];
         delete?: never;
@@ -332,13 +315,7 @@ export interface paths {
         put?: never;
         /**
          * Create Media Document
-         * @description Persist agent-generated binary media (e.g. a generated image) as a document.
-         *
-         *     Mirrors the artifact-publish path: bytes go into the object store and the
-         *     document row records ``object_bucket``/``object_key`` so the existing
-         *     ``/documents/{id}/source`` route serves them. Idempotent on
-         *     ``idempotency_key`` (typically the tool-call id) so a retried generation
-         *     reuses the same document instead of duplicating storage.
+         * @description Register agent-generated media already persisted by Asset.
          */
         post: operations["create_media_document_internal_media_documents_post"];
         delete?: never;
@@ -495,41 +472,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/objects/{scope}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Put Object */
-        post: operations["put_object_internal_objects__scope__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/objects/{scope}/{artifact_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Object */
-        get: operations["get_object_internal_objects__scope___artifact_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Object */
-        delete: operations["delete_object_internal_objects__scope___artifact_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -710,24 +652,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** ArtifactURLRequest */
-        ArtifactURLRequest: {
-            /** Namespace */
-            namespace: string;
-            /** Artifact Id */
-            artifact_id: string;
-            /** Content Type */
-            content_type: string;
-        };
-        /** BatchArtifactURLRequest */
-        BatchArtifactURLRequest: {
-            /** Items */
-            items: components["schemas"]["ArtifactURLRequest"][];
-        };
-        /** BatchArtifactURLResponse */
-        BatchArtifactURLResponse: {
-            /** Items */
-            items: components["schemas"]["PresignedArtifact"][];
+        /** AssetIngestItem */
+        AssetIngestItem: {
+            /** Client Ref */
+            client_ref: string;
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
         };
         /** BatchDeleteInput */
         BatchDeleteInput: {
@@ -740,17 +672,6 @@ export interface components {
             requested: number;
             /** Deleted */
             deleted: number;
-        };
-        /** Body_ingest_ingest_post */
-        Body_ingest_ingest_post: {
-            /** Files */
-            files: string[];
-            /** Client Refs */
-            client_refs: string;
-            /** Conversation Id */
-            conversation_id?: string | null;
-            /** Provider Id */
-            provider_id?: string | null;
         };
         /** ChangeSet */
         ChangeSet: {
@@ -784,8 +705,8 @@ export interface components {
             deleted_blocks: number;
             /** Deleted Staged Media */
             deleted_staged_media: number;
-            /** Deleted Objects */
-            deleted_objects: number;
+            /** Released Asset Claims */
+            released_asset_claims: number;
         };
         /** CreateArtifactInput */
         CreateArtifactInput: {
@@ -825,11 +746,7 @@ export interface components {
         };
         /**
          * CreateMediaDocumentInput
-         * @description Persist agent-generated binary media (image/video/audio) as a document.
-         *
-         *     The bytes are copied into the object store and served back via the existing
-         *     ``/documents/{id}/source`` route. Callers must never persist a provider's
-         *     temporary URL as the durable source of truth (ADR-0014).
+         * @description Register an agent-generated immutable Asset revision as a document.
          */
         CreateMediaDocumentInput: {
             /** User Id */
@@ -842,14 +759,21 @@ export interface components {
             conversation_id?: string | null;
             /** Title */
             title: string;
-            /** Filename */
-            filename: string;
-            /** Mime Type */
-            mime_type: string;
-            /** Data Base64 */
-            data_base64: string;
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
             /** Idempotency Key */
             idempotency_key?: string | null;
+        };
+        /** CreateSourceDocumentsInput */
+        CreateSourceDocumentsInput: {
+            /** Assets */
+            assets: components["schemas"]["AssetIngestItem"][];
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Provider Id */
+            provider_id?: string | null;
         };
         /** CreateStagedMediaInput */
         CreateStagedMediaInput: {
@@ -863,12 +787,10 @@ export interface components {
             conversation_id?: string | null;
             /** Title */
             title: string;
-            /** Filename */
-            filename: string;
-            /** Mime Type */
-            mime_type: string;
-            /** Data Base64 */
-            data_base64: string;
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
             /** Idempotency Key */
             idempotency_key?: string | null;
         };
@@ -907,12 +829,12 @@ export interface components {
             source_size: number;
             /** Source Mime Type */
             source_mime_type?: string | null;
-            /** Object Bucket */
-            object_bucket?: string | null;
-            /** Object Key */
-            object_key?: string | null;
-            /** Object Sha256 */
-            object_sha256?: string | null;
+            /** Asset Id */
+            asset_id?: string | null;
+            /** Source Revision Id */
+            source_revision_id?: string | null;
+            /** Source Sha256 */
+            source_sha256?: string | null;
             /** Source Filename */
             source_filename?: string | null;
             /**
@@ -1104,17 +1026,6 @@ export interface components {
             /** Failed */
             failed?: components["schemas"]["IngestFailure"][];
         };
-        /** PresignedArtifact */
-        PresignedArtifact: {
-            /** Namespace */
-            namespace: string;
-            /** Artifact Id */
-            artifact_id: string;
-            /** Url */
-            url: string;
-            /** Expires At */
-            expires_at: string;
-        };
         /** ProcessDocumentInput */
         ProcessDocumentInput: {
             /** Provider Id */
@@ -1182,8 +1093,12 @@ export interface components {
             mime_type: string;
             /** Size */
             size: number;
-            /** Object Sha256 */
-            object_sha256: string;
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Sha256 */
+            sha256: string;
             /**
              * Status
              * @enum {string}
@@ -1204,15 +1119,6 @@ export interface components {
             workspace_id: string;
             /** Tenant Id */
             tenant_id: string;
-        };
-        /** StoredServiceObject */
-        StoredServiceObject: {
-            /** Artifact Id */
-            artifact_id: string;
-            /** Size */
-            size: number;
-            /** Sha256 */
-            sha256: string;
         };
         /** UpdateArtifactInput */
         UpdateArtifactInput: {
@@ -1345,42 +1251,6 @@ export interface operations {
             };
         };
     };
-    batch_presign_internal_artifacts_presign_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchArtifactURLRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchArtifactURLResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     ingest_ingest_post: {
         parameters: {
             query?: never;
@@ -1397,7 +1267,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_ingest_ingest_post"];
+                "application/json": components["schemas"]["CreateSourceDocumentsInput"];
             };
         };
         responses: {
@@ -2367,108 +2237,6 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    put_object_internal_objects__scope__post: {
-        parameters: {
-            query?: never;
-            header: {
-                "X-Caller-Service": string;
-                "X-Internal-Token"?: string | null;
-            };
-            path: {
-                scope: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StoredServiceObject"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_object_internal_objects__scope___artifact_id__get: {
-        parameters: {
-            query?: never;
-            header: {
-                "X-Caller-Service": string;
-                "X-Internal-Token"?: string | null;
-            };
-            path: {
-                scope: string;
-                artifact_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_object_internal_objects__scope___artifact_id__delete: {
-        parameters: {
-            query?: never;
-            header: {
-                "X-Caller-Service": string;
-                "X-Internal-Token"?: string | null;
-            };
-            path: {
-                scope: string;
-                artifact_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
                 headers: {
                     [name: string]: unknown;
                 };
