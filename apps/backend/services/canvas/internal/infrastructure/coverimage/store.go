@@ -68,7 +68,7 @@ func coverIntent(registration applicationcoverimage.Registration, desiredState s
 	}
 }
 
-func (s *Store) Presign(ctx context.Context, registrations []applicationcoverimage.Registration) (map[string]string, error) {
+func (s *Store) Presign(ctx context.Context, registrations []applicationcoverimage.Registration) (map[applicationcoverimage.RevisionRef]string, error) {
 	inputs := make([]assetclient.DeliveryCapabilityInput, 0, len(registrations))
 	for _, registration := range registrations {
 		if registration.Revision.Valid() {
@@ -76,15 +76,18 @@ func (s *Store) Presign(ctx context.Context, registrations []applicationcoverima
 		}
 	}
 	if len(inputs) == 0 {
-		return map[string]string{}, nil
+		return map[applicationcoverimage.RevisionRef]string{}, nil
 	}
 	capabilities, err := s.assets.MintDeliveryCapabilities(ctx, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("presign cover images: %w", err)
 	}
-	result := make(map[string]string, len(capabilities))
+	result := make(map[applicationcoverimage.RevisionRef]string, len(capabilities))
 	for _, capability := range capabilities {
-		result[capability.RevisionID] = s.absoluteURL(capability.URL)
+		ref := applicationcoverimage.RevisionRef{
+			AssetID: capability.AssetID, RevisionID: capability.RevisionID,
+		}
+		result[ref] = s.absoluteURL(capability.URL)
 	}
 	return result, nil
 }

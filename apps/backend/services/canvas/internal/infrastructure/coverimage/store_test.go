@@ -73,7 +73,7 @@ func TestStoreRegisterAndEnqueueStrongClaim(t *testing.T) {
 func TestStorePresignReturnsGatewayURL(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		_ = json.NewEncoder(response).Encode(map[string]any{"items": []map[string]any{{"asset_id": "platform", "revision_id": "revision", "url": "/media/platform/revisions/revision/content", "expires_at": time.Now().Add(time.Hour).UTC()}}})
+		_ = json.NewEncoder(response).Encode(map[string]any{"items": []map[string]any{{"asset_id": "platform", "revision_id": "revision", "url": "/api/asset-server/media/platform/revisions/revision/content", "expires_at": time.Now().Add(time.Hour).UTC()}}})
 	}))
 	t.Cleanup(server.Close)
 	store := New(assetclient.New(server.URL, "token", nil), &claimStoreStub{}, clockStub{now: time.Now().UTC()}, "http://gateway")
@@ -81,7 +81,8 @@ func TestStorePresignReturnsGatewayURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Presign() error = %v", err)
 	}
-	if urls["revision"] != "http://gateway/media/platform/revisions/revision/content" {
-		t.Fatalf("URL = %q", urls["revision"])
+	ref := applicationcoverimage.RevisionRef{AssetID: "platform", RevisionID: "revision"}
+	if urls[ref] != "http://gateway/api/asset-server/media/platform/revisions/revision/content" {
+		t.Fatalf("URL = %q", urls[ref])
 	}
 }

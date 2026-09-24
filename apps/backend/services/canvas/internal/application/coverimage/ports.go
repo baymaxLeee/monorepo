@@ -55,5 +55,5 @@ type Store interface {
 	Register(context.Context, RegisterInput) (Registration, error)
 	EnsureActive(context.Context, Registration) error
 	Release(context.Context, Registration) error
-	Presign(context.Context, []Registration) (map[string]string, error)
+	Presign(context.Context, []Registration) (map[RevisionRef]string, error)
 }

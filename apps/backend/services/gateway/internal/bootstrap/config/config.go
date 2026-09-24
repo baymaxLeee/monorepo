@@ -74,6 +74,7 @@ func Load() (Config, error) {
 			"/healthz",
 			"/livez",
 			"/readyz",
+			"/api/asset-server/media",
 			"/api/iam-server/account-availability",
 			"/api/iam-server/login",
 			"/api/iam-server/register",

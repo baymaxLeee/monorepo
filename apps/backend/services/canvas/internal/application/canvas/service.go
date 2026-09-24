@@ -396,7 +396,9 @@ func (s *Service) enrichCoverImages(ctx context.Context, canvases []domaincanvas
 		return
 	}
 	for index := range canvases {
-		canvases[index].CoverImageURL = urls[canvases[index].CoverImageAssetID]
+		canvases[index].CoverImageURL = urls[applicationcoverimage.RevisionRef{
+			AssetID: canvases[index].CoverImageAssetID, RevisionID: canvases[index].CoverImageRevisionID,
+		}]
 	}
 }
 
