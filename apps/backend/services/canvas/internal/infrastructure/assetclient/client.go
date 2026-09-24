@@ -141,7 +141,7 @@ func (client *Client) CreateUploadSession(ctx context.Context, input CreateUploa
 	payload, err := json.Marshal(map[string]any{
 		"tenant_id": input.TenantID, "workspace_id": input.WorkspaceID, "user_id": input.UserID,
 		"filename": input.Filename, "media_type": input.MediaType, "size_bytes": input.SizeBytes,
-		"category": input.Category, "idempotency_key": input.IdempotencyKey,
+		"category": input.Category, "intent_id": input.IdempotencyKey,
 	})
 	if err != nil {
 		return UploadSession{}, err
