@@ -1,36 +1,41 @@
 # @repo/ai-elements — upstream sources
 
-Reusable AI Chat UI capability package. Official AI Elements primitives live here,
-plus composable Chat UI that stays free of app router / store / API / tenant coupling.
-Product domain state machines (video production, todo execution, memory) stay in apps.
+AI Elements follows the [October 2026 shadcn/ui patterns](https://ui.shadcn.com/docs/ai-elements).
+These are source-owned compositions, not an installed AI Elements runtime package.
+Base Nova primitives are generated with the official shadcn CLI in `design-system`.
+The compositions below adapt the official examples and migration prompts to this
+workspace's public imports, theme, AI SDK parts and product callbacks.
 
-The complete public API of every locally owned AI Elements component was rebased
-against the AI Elements 1.9 registry on 2026-09-23. Components with no product
-caller remain registry-installable instead of being copied into this package as
-dead code.
+| Official pattern | Local module |
+| --- | --- |
+| Chain of Thought | `src/AiChat/chain-of-thought.tsx` |
+| Chat | `src/AiChat/conversation.tsx` (Message Scroller) |
+| Checkpoint | `src/AiChat/checkpoint.tsx` |
+| Confirmation | `src/AiChat/confirmation.tsx` |
+| Context | `src/AiChat/context.tsx` |
+| File Tree | `src/AiChat/file-tree.tsx` |
+| Inline Citation, Sources | `src/AiChat/sources.tsx` |
+| Message | `src/AiChat/message.tsx` (Message, Bubble, Streamdown) |
+| Model Selector | `src/AiChat/model-picker.tsx`; searchable `model-selector.tsx` |
+| Plan, Queue, Task | `src/AiChat/workflow.tsx` |
+| Prompt Input | `src/PromptInput/` (Input Group with TipTap) |
+| Reasoning | `src/AiChat/reasoning.tsx` |
+| Stack Trace | `src/AiChat/stack-trace.tsx` |
+| Subagent | `src/AiChat/subagent.tsx` |
+| Suggestion | `src/AiChat/suggestion.tsx` |
+| Terminal | `src/AiChat/terminal.tsx` |
+| Test Results | `src/AiChat/test-results.tsx` |
+| Tool | `src/AiChat/tool.tsx` |
 
-| Local module | Upstream reference |
-|---|---|
-| `src/AiChat/artifact.tsx` | https://elements.ai-sdk.dev/components/artifact |
-| `src/AiChat/attachments.tsx` | https://elements.ai-sdk.dev/components/attachments |
-| `src/AiChat/confirmation.tsx` | https://elements.ai-sdk.dev/components/confirmation |
-| `src/AiChat/conversation.tsx` | https://elements.ai-sdk.dev/components/conversation |
-| `src/AiChat/message.tsx` | https://elements.ai-sdk.dev/components/message |
-| `src/AiChat/model-selector.tsx` | https://elements.ai-sdk.dev/components/model-selector |
-| `src/AiChat/reasoning.tsx` | https://elements.ai-sdk.dev/components/reasoning |
-| `src/AiChat/sources.tsx` | https://elements.ai-sdk.dev/components/sources |
-| `src/AiChat/suggestion.tsx` | https://elements.ai-sdk.dev/components/suggestion |
-| `src/AiChat/tool.tsx` | https://elements.ai-sdk.dev/components/tool |
-| `src/AiChat/context.tsx` | Adapted from https://elements.ai-sdk.dev/components/context ; categories via props |
-| `src/AiChat/workflow.tsx` | Generic Plan/Task/Queue presentation primitives (no product state machine) |
-| `src/PromptInput/**` | Local TipTap prompt composer; host injects skills/mentions/submit via props |
+Trace and Code Block come from `@repo/design-system`. Terminal and highlighted
+code use `@repo/ai-elements/terminal` and `/code-block` subpaths. The composer
+remains under `/prompt-input` so its editor is loaded only when needed.
 
-Adaptations vs upstream: Base UI/`@repo/design-system` primitives, Tailwind v4 tokens,
-safe external URLs, artifact previews, persisted AI SDK tool parts, and bounded
-reasoning/tool content with streaming auto-scroll. Message and reasoning markdown
-share the upstream Streamdown CJK, code, math, and Mermaid plugin baseline. Host apps
-inject transport, state, and product behavior through props / slots / callbacks.
-
-The upstream composition APIs are retained even when the current product does not yet
-render them: message actions/branches, attachment hover/empty states, source
-collapsibles, tool input/output, and the command-dialog model selector.
+Local adaptations retain safe external URLs, tool outcome presentation,
+artifact previews, bounded output and user-controlled disclosure. The searchable
+selector serves configured bots; `ModelPicker` provides the official radio-menu
+pattern for small model or reasoning-option lists. TipTap retains attachments,
+mentions and slash commands while Input Group owns the composer frame.
+`artifact.tsx` and `attachments.tsx` retain the existing source-owned APIs.
+Subagent, checkpoint and test results are presentation capabilities; they do not
+create an agent runtime, restore operation or test runner.

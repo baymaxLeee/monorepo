@@ -61,3 +61,6 @@ export * from "./toggle";
 export * from "./toggle-group";
 export * from "./toast";
 export * from "./tooltip";
+
+export * from "./trace";
+export * from "./code-block";

@@ -23,13 +23,13 @@ Executor 只注册上述两个 durable workflow。同步 HTML 校验/review 路�
 ## 持久化边界
 
 - 业务真相（谁起的任务、什么类型、完没完成）在 executor 自己的 PostgreSQL `tasks` 表——和 chat 的 `agent_runs` 是同一种"业务表 vs 执行态"划分。
-- 执行/重放真相（run、step、重试、event log）在 Workflow World：**本地和每个部署环境都用自建 Postgres World**（`@workflow/world-postgres`，独立的 `postgres` 实例上，和 executor 业务库同实例、不同库）——本地/生产一致是明确的产品决策，不默认退化成文件系统 Local World（仍然可以通过注释掉 `.env` 里的 `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` 手动切回 Local World，比如离线开发）。`just up` 会起这个容器并跑一次 schema 初始化（`scripts/workflow-postgres-bootstrap.sh`，幂等，可重复跑）。**只设置 `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` 不够**——graphile-worker队列要显式调用 `getWorld().start()` 才会真正开始轮询，`src/index.ts` 里已经这样做了（见 AGENTS.md 已知运维事项第 3 条）；这条最初就是因为本地默认用Local World、从没在本地真正跑过 Postgres World 才被隐藏了一整个阶段，直到改成本地/生产一致后才在开发过程中自然暴露出来——这也是"本地要和部署环境一致"这条原则本身最有说服力的例证。
+- 执行/重放真相（run、step、重试、event log）在 Workflow World：**本地和每个部署环境都使用自建 Postgres World**（`@workflow/world-postgres`，与 executor 业务库同实例、不同数据库）。`just up` 运行官方 Workflow 5 schema 初始化；旧版本地 Workflow schema 不在支持范围内。启动时 `src/bootstrap/runtime.ts` 调用 `(await getWorld()).start()` 开始队列轮询。自定义开发服务器和生产构建都只挂载 Workflow 5 合并后的 `/.well-known/workflow/v1/flow` handler。
 - single-VPS 用两个 one-shot job 阻塞 executor 启动：`db-init` 创建并迁移PostgreSQL `executor` 业务库，`workflow-db-init` 运行官方 Postgres World setup CLI。两者任何一个失败，executor 都不会接受任务。
 - `reconcilePendingTasks()` 在进程启动时重新挂载所有 `running` 状态任务的完成监听——对 Workflow 的 durable run 重新 `await` 是安全的，不会重新执行任何已完成的 step。
 
 ## 已知运维事项
 
-Nitro v3（当前 beta）/ Workflow World 撞到几个坑，现已修复或显式处理，详见 `apps/backend/services/executor/AGENTS.md`"已知运维事项"完整列表（`nf3` ESM 互操作 bug 已在 `nf3@0.3.19` 上游修复，当前 Nitro 已依赖 `nf3@^0.3.24`，因此不再打本地 patch 或设置 override；OIDC 路径深度问题在当前构建也已修复，不再运行 post-build 重写；Postgres World 仍需显式调用 `getWorld().start()`，`nitro dev` 与内置 server 对 `.env` 的加载行为也仍然不同）。此外，World 实现由 `WORKFLOW_TARGET_WORLD` 动态加载，静态打包器无法发现； `nitro.config.ts` 必须通过 `traceDeps` 保留 `@workflow/world-postgres`，入口也保留静态引用，确保生产 `.output` 包含完整运行时依赖树。生产镜像还需要把 `.output/server/node_modules` 暴露为 `/app/node_modules`，因为 Workflow 的 `createRequire` 从应用根目录解析环境变量指定的 World 包。当前 Nitro tracer 会把 OIDC 正确打进 `.output/server/_libs`，不要恢复依赖构建机工作区目录深度的复制或路径重写。
+Nitro v3（当前 beta）/ Workflow World 的运维约束详见 `apps/backend/services/executor/AGENTS.md`。Postgres World 仍需显式调用 `(await getWorld()).start()`，`nitro dev` 与内置 server 对 `.env` 的加载行为也不同。World 实现由 `WORKFLOW_TARGET_WORLD` 动态加载，`nitro.config.ts` 通过 `traceDeps` 保留 `@workflow/world-postgres`，确保生产 `.output` 包含完整运行时依赖树。生产镜像还需要把 `.output/server/node_modules` 暴露为 `/app/node_modules`，因为 Workflow 的 `createRequire` 从应用根目录解析环境变量指定的 World 包。
 
 升级 `nitro`/`workflow`/`ai` 时请重新验证这些修复是否还需要。
 

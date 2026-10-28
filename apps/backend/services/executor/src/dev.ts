@@ -14,10 +14,10 @@ type WorkflowHandlerModule = Readonly<Record<string, WorkflowHandler | undefined
 const workflowOutput = resolve("node_modules/.workflow-dev");
 const importHandler = (name: string) =>
   import(pathToFileURL(resolve(workflowOutput, `${name}.mjs`)).href) as Promise<WorkflowHandlerModule>;
-let runtimePromise: Promise<{ flow: WorkflowHandlerModule; step: WorkflowHandlerModule }> | undefined;
+let runtimePromise: Promise<WorkflowHandlerModule> | undefined;
 
 function loadRuntime() {
-  runtimePromise ??= importHandler("steps").then(async (step) => ({ step, flow: await importHandler("workflows") }));
+  runtimePromise ??= importHandler("workflows");
   return runtimePromise;
 }
 const [{ default: executorApp }, { getSettings }, { logger }] = await Promise.all([
@@ -28,11 +28,7 @@ const [{ default: executorApp }, { getSettings }, { logger }] = await Promise.al
 
 const app = new Hono();
 app.all("/.well-known/workflow/v1/flow", async (c) => {
-  const handler = (await loadRuntime()).flow[c.req.method];
-  return handler ? handler(c.req.raw) : c.body(null, 405);
-});
-app.all("/.well-known/workflow/v1/step", async (c) => {
-  const handler = (await loadRuntime()).step[c.req.method];
+  const handler = (await loadRuntime())[c.req.method];
   return handler ? handler(c.req.raw) : c.body(null, 405);
 });
 app.all("/.well-known/workflow/v1/webhook/:token", async (c) => {

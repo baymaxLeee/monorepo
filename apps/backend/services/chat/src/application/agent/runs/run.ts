@@ -168,6 +168,25 @@ function persistedMessageToUiMessage(message: Message): AnyUIMessage {
   } as AnyUIMessage;
 }
 
+export function persistedMessagesToModelUiMessages(messages: Message[]): AnyUIMessage[] {
+  return messages
+    .filter((message) => message.role !== "assistant" || message.status === "ok")
+    .map(persistedMessageToUiMessage);
+}
+
+export function removeStoredResponseReferences(messages: AnyUIMessage[]): AnyUIMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    parts: message.parts.map((part) => {
+      if (!("providerMetadata" in part)) {
+        return part;
+      }
+      const { providerMetadata: _providerMetadata, ...rest } = part;
+      return rest;
+    }) as AnyUIMessage["parts"],
+  }));
+}
+
 export async function createAgentRunResponse(
   auth: AuthContext,
   conversationId: string,
@@ -271,9 +290,8 @@ export async function createAgentRunResponse(
         content: serializeMessageContent(latestMessage),
         status: "ok",
       });
-      modelUiMessages = alreadyPersisted
-        ? persistedMessages.map(persistedMessageToUiMessage)
-        : [...persistedMessages.map(persistedMessageToUiMessage), { ...latestMessage, id: storedMessageId }];
+      const modelHistory = persistedMessagesToModelUiMessages(persistedMessages);
+      modelUiMessages = alreadyPersisted ? modelHistory : [...modelHistory, { ...latestMessage, id: storedMessageId }];
     } else {
       const historyMessages = persistedMessages.map(persistedMessageToUiMessage);
       const continuationIndex = historyMessages.findIndex(
@@ -310,7 +328,10 @@ export async function createAgentRunResponse(
     const supportsStoredContinuation = provider.responsesDialect !== "deepseek_responses";
     const projectionSource =
       lineageIsCurrent && supportsStoredContinuation ? [modelUiMessages.at(-1)!] : modelUiMessages;
-    const projectionUiMessages = projectionSource.map(compactHistoricalSkillOutputs);
+    const replayingFullHistory = !lineageIsCurrent || !supportsStoredContinuation;
+    const projectionUiMessages = replayingFullHistory
+      ? removeStoredResponseReferences(projectionSource.map(compactHistoricalSkillOutputs))
+      : projectionSource.map(compactHistoricalSkillOutputs);
     const projected = await projectModelContext({
       runId,
       conversationId: conversation.id,

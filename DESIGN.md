@@ -228,21 +228,23 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 
 ### 组件映射
 
-| 用户意图或数据                   | 首选能力                              |
-| -------------------------------- | ------------------------------------- |
-| 会话滚动、空状态、回到底部、下载 | `Conversation*`                       |
-| 长会话自动跟随与回到底部按钮     | `MessageScroller*`                    |
-| Agent 向用户收集结构化选择/输入  | `Questionnaire*`                      |
-| 用户/助手消息与流式 Markdown     | `Message*`, `MessageResponse`         |
-| 推理摘要或可披露过程             | `Reasoning*`                          |
-| 来源与行内引用                   | `Sources`, `Source`, `InlineCitation` |
-| 工具调用、参数、结果与状态       | `Tool*`                               |
-| 计划、任务、队列与进度           | `Plan*`, `Task*`, `Queue*`            |
-| 文件和媒体输入                   | `Attachments*`                        |
-| 高影响工具授权                   | `Confirmation*`                       |
-| 模型选择                         | `ModelSelector*`                      |
-| 文档、代码、媒体等持续产物       | `Artifact*`                           |
-| 多模态输入和 composer            | `@repo/ai-elements/prompt-input`      |
+| 用户意图或数据                   | 首选能力                                 |
+| -------------------------------- | ---------------------------------------- |
+| 会话滚动、空状态、回到底部、下载 | `Conversation*`                          |
+| 长会话自动跟随与回到底部按钮     | `MessageScroller*`                       |
+| Agent 向用户收集结构化选择/输入  | `Questionnaire*`                         |
+| 用户/助手消息与流式 Markdown     | `Message*`, `MessageResponse`            |
+| 推理摘要或可披露过程             | `Reasoning*`                             |
+| 来源与行内引用                   | `Sources`, `Source`, `InlineCitation`    |
+| 工具调用、参数、结果与状态       | `Tool*`                                  |
+| 计划、任务、队列与进度           | `Plan*`, `Task*`, `Queue*`               |
+| 文件和媒体输入                   | `Attachments*`                           |
+| 高影响工具授权                   | `Confirmation*`                          |
+| 模型选择                         | `ModelPicker`；需搜索时 `ModelSelector*` |
+| 文档、代码、媒体等持续产物       | `Artifact*`                              |
+| 多模态输入和 composer            | `@repo/ai-elements/prompt-input`         |
+
+AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-elements)。基础组件由 CLI 生成，组合组件在 `@repo/ai-elements` 维护；映射见该包 `UPSTREAM.md`。Agent 步骤统一使用 `Trace*`，代码和工具输出使用 `CodeBlock*`；终端通过 `/terminal` 子路径按需加载。
 
 ### AI 交互规则
 
@@ -374,7 +376,7 @@ pnpm lint:ui-contracts
 - Vercel Web Interface Guidelines：https://vercel.com/design/guidelines
 - Vercel Web Interface Guidelines source：https://github.com/vercel-labs/web-interface-guidelines
 - Vercel Geist：https://vercel.com/geist
-- Vercel AI Elements：https://ai-sdk.dev/elements/overview
+- Vercel AI Elements：https://ui.shadcn.com/docs/ai-elements
 - shadcn/ui：https://ui.shadcn.com/docs
 - Base UI：https://base-ui.com/react/overview/quick-start
 - Base UI composition：https://base-ui.com/react/handbook/composition

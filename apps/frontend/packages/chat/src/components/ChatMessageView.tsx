@@ -39,6 +39,7 @@ import {
 import { ArtifactFileCard } from "./ChatFileArtifactCard";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
+import { ChatTerminalTool } from "./ChatTerminalTool";
 import {
   ChatTodoListCard,
   type DeliverableCompletion,
@@ -189,7 +190,7 @@ function MessagePartView({
       return null;
     }
     return (
-      <Reasoning autoCloseOnFinish autoOpenOnStream isStreaming={isReasoningStreaming}>
+      <Reasoning isStreaming={isReasoningStreaming}>
         <ReasoningTrigger />
         <ReasoningContent>{part.text}</ReasoningContent>
       </Reasoning>
@@ -376,6 +377,17 @@ function ToolPartView({
         state={part.state}
         errorText={errorText}
         onOpen={onOpenArtifact}
+      />
+    );
+  }
+
+  if (kind === "terminal") {
+    return (
+      <ChatTerminalTool
+        input={input}
+        output={output}
+        errorText={errorText}
+        running={part.state === "input-streaming" || part.state === "input-available"}
       />
     );
   }

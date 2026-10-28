@@ -6,7 +6,12 @@ import type { ComponentProps, HTMLAttributes } from "react";
 export type SuggestionsProps = HTMLAttributes<HTMLDivElement>;
 
 export function Suggestions({ className, ...props }: SuggestionsProps) {
-  return <div className={cn("flex flex-wrap gap-2", className)} {...props} />;
+  return (
+    <div
+      className={cn("flex scroll-fade-x scrollbar-none gap-2 overflow-x-auto overscroll-x-contain", className)}
+      {...props}
+    />
+  );
 }
 
 export type SuggestionProps = ComponentProps<typeof Button> & {
@@ -23,7 +28,7 @@ export function Suggestion({
 }: SuggestionProps) {
   return (
     <Button
-      className={cn("h-8 max-w-full justify-start gap-1.5 rounded-full", className)}
+      className={cn("h-8 max-w-full shrink-0 justify-start gap-1.5 rounded-full", className)}
       size={size}
       type="button"
       variant={variant}

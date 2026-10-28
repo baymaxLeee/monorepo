@@ -1,5 +1,6 @@
 import { Button } from "@repo/design-system/shadcn/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@repo/design-system/shadcn/popover";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/design-system/shadcn/hover-card";
+import { Progress } from "@repo/design-system/shadcn/progress";
 import { cn } from "@repo/shared";
 import type { ComponentProps } from "react";
 
@@ -44,7 +45,7 @@ export interface ContextUsageValue {
   categories: ContextUsageCategory[];
 }
 
-export type ContextUsageProps = ComponentProps<typeof Popover> & {
+export type ContextUsageProps = ComponentProps<typeof HoverCard> & {
   value?: ContextUsageValue | null;
   loading?: boolean;
 };
@@ -62,8 +63,8 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
   const ringClass = fraction >= 0.9 ? "text-destructive" : fraction >= 0.7 ? "text-amber-500" : "text-muted-foreground";
 
   return (
-    <Popover {...props}>
-      <PopoverTrigger
+    <HoverCard {...props}>
+      <HoverCardTrigger
         render={
           <Button
             type="button"
@@ -93,8 +94,8 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
             strokeDashoffset={hasUsage && utilization == null ? 0 : CIRCUMFERENCE * (1 - fraction)}
           />
         </svg>
-      </PopoverTrigger>
-      <PopoverContent align="center" side="top" className="w-72 space-y-2.5 p-3">
+      </HoverCardTrigger>
+      <HoverCardContent align="center" side="top" className="w-72 space-y-2.5 p-3">
         <h3 className="text-sm font-medium">Context Usage</h3>
 
         {hasUsage ? (
@@ -105,7 +106,8 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
                 ~{formatTokens(usedTokens)} / {formatTokens(contextWindow)} Tokens
               </span>
             </div>
-            <div className="flex h-1 overflow-hidden rounded-full bg-muted">
+            <Progress value={percent} aria-label="上下文用量" />
+            <div className="flex h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
               {visibleCategories.map((category) => (
                 <span
                   key={category.id}
@@ -129,8 +131,8 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
         ) : (
           <p className="text-xs text-muted-foreground">{percent != null ? `${percent}% Full` : "暂无数据"}</p>
         )}
-      </PopoverContent>
-    </Popover>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 

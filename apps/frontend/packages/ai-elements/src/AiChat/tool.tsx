@@ -1,9 +1,18 @@
 import { Badge } from "@repo/design-system/shadcn/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@repo/design-system/shadcn/collapsible";
+import { CodeBlock, CodeBlockContent } from "@repo/design-system/shadcn/code-block";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@repo/design-system/shadcn/trace";
 import { cn } from "@repo/shared";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
-import { CheckCircleIcon, ChevronDownIcon, CircleIcon, ClockIcon, WrenchIcon, XCircleIcon } from "lucide-react";
-import { isValidElement, type ComponentProps, type ReactNode } from "react";
+import { CheckCircleIcon, CircleIcon, ClockIcon, WrenchIcon, XCircleIcon } from "lucide-react";
+import { isValidElement, type ComponentProps, type ReactNode, useState } from "react";
 
 export type ToolState =
   | "approval-requested"
@@ -56,15 +65,27 @@ export function getToolStatusBadge(status: ToolState) {
   );
 }
 
-export type ToolProps = ComponentProps<typeof Collapsible>;
+export type ToolProps = Omit<ComponentProps<typeof TraceCollapsible>, "defaultOpen" | "onOpenChange" | "open"> & {
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+};
 
-export function Tool({ className, ...props }: ToolProps) {
+export function Tool({ className, defaultOpen = false, onOpenChange, open, ...props }: ToolProps) {
+  const [userOpen, setUserOpen] = useState<boolean>();
+  const isOpen = open ?? userOpen ?? defaultOpen;
+  const setIsOpen = (next: boolean) => {
+    setUserOpen(next);
+    onOpenChange?.(next);
+  };
   return (
-    <Collapsible className={cn("group not-prose w-full rounded-md border bg-background/80", className)} {...props} />
+    <Trace className="not-prose">
+      <TraceCollapsible className={className} open={isOpen} onOpenChange={setIsOpen} {...props} />
+    </Trace>
   );
 }
 
-export type ToolHeaderProps = Omit<ComponentProps<typeof CollapsibleTrigger>, "type"> & {
+export type ToolHeaderProps = Omit<ComponentProps<typeof TraceCollapsibleTrigger>, "type"> & {
   title?: string;
   type: ToolPart["type"];
   state: ToolState;
@@ -73,31 +94,29 @@ export type ToolHeaderProps = Omit<ComponentProps<typeof CollapsibleTrigger>, "t
 
 export function ToolHeader({ className, title, type, state, toolName, children, ...props }: ToolHeaderProps) {
   const derivedName = type === "dynamic-tool" ? toolName : type.split("-").slice(1).join("-");
+  const running = state === "input-streaming" || state === "input-available" || state === "approval-responded";
+  const failed = state === "output-error";
   return (
-    <CollapsibleTrigger
-      className={cn("group/tool-trigger flex w-full cursor-pointer items-center justify-between gap-4 p-3", className)}
-      {...props}
-    >
+    <TraceCollapsibleTrigger className={className} {...props}>
       {children ?? (
-        <>
-          <div className="flex min-w-0 items-center gap-2">
-            <WrenchIcon className="size-4 shrink-0 text-muted-foreground" />
-            <span className="truncate text-sm font-medium">{title ?? derivedName}</span>
-            {getToolStatusBadge(state)}
-          </div>
-          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-panel-open/tool-trigger:rotate-180" />
-        </>
+        <TraceLine status={failed ? "error" : running ? "running" : undefined}>
+          <TraceIcon>
+            <WrenchIcon />
+          </TraceIcon>
+          <TraceTitle>{title ?? derivedName}</TraceTitle>
+          <span className="sr-only">{STATUS_LABELS[state] ?? state}</span>
+        </TraceLine>
       )}
-    </CollapsibleTrigger>
+    </TraceCollapsibleTrigger>
   );
 }
 
-export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
+export type ToolContentProps = ComponentProps<typeof TraceCollapsibleContent>;
 
 export function ToolContent({ className, ...props }: ToolContentProps) {
   return (
-    <CollapsibleContent
-      className={cn("max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto p-4 pt-0 outline-none", className)}
+    <TraceCollapsibleContent
+      className={cn("max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto", className)}
       {...props}
     />
   );
@@ -109,15 +128,11 @@ export type ToolJsonBlockProps = ComponentProps<"pre"> & {
 
 export function ToolJsonBlock({ className, value, ...props }: ToolJsonBlockProps) {
   return (
-    <pre
-      className={cn(
-        "overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted/60 p-2 text-[11px] leading-relaxed",
-        className,
-      )}
-      {...props}
-    >
-      {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
-    </pre>
+    <CodeBlock size="sm">
+      <CodeBlockContent wrap className={cn("max-h-64", className)} {...props}>
+        {typeof value === "string" ? value : (JSON.stringify(value, null, 2) ?? "")}
+      </CodeBlockContent>
+    </CodeBlock>
   );
 }
 

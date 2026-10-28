@@ -97,6 +97,12 @@ const EDITOR_SINGLETON_SPEC = {
   strictVersion: false,
 };
 
+const PROSEMIRROR_SINGLETON_SPEC = {
+  singleton: true,
+  requiredVersion: "^1.0.0",
+  strictVersion: false,
+};
+
 // prosemirror/tiptap must singleton
 const TIER4 = {
   "@tiptap/core": {
@@ -167,6 +173,18 @@ const TIER4 = {
   },
   "@tiptap/extension-text-style": {
     ...EDITOR_SINGLETON_SPEC,
+  },
+  "prosemirror-model": {
+    ...PROSEMIRROR_SINGLETON_SPEC,
+  },
+  "prosemirror-state": {
+    ...PROSEMIRROR_SINGLETON_SPEC,
+  },
+  "prosemirror-transform": {
+    ...PROSEMIRROR_SINGLETON_SPEC,
+  },
+  "prosemirror-view": {
+    ...PROSEMIRROR_SINGLETON_SPEC,
   },
 };
 

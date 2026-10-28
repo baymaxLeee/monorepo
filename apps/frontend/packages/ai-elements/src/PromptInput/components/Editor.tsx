@@ -1,4 +1,5 @@
 import { Button } from "@repo/design-system/shadcn/button";
+import { InputGroup, InputGroupAddon } from "@repo/design-system/shadcn/input-group";
 import { cn, randomId } from "@repo/shared";
 import type { Editor, Extensions, JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -515,41 +516,43 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
           event.currentTarget.value = "";
         }}
       />
-      {toolbarRender?.(api)}
-      <EditorContent editor={editor} className="prompt-input-content" />
-      <div className="prompt-input-footer">
-        <div className="prompt-input-tools">
+      <InputGroup className="h-auto flex-col rounded-3xl">
+        {toolbarRender?.(api)}
+        <EditorContent editor={editor} data-slot="input-group-control" className="prompt-input-content w-full" />
+        <InputGroupAddon align="block-end" className="prompt-input-footer">
+          <div className="prompt-input-tools">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-full"
+              disabled={disabled}
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Attach files"
+            >
+              <Plus className="size-4" />
+            </Button>
+            {footerRender?.(api)}
+          </div>
           <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
-            disabled={disabled}
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Attach files"
+            type={loading && onStop ? "button" : "submit"}
+            size="icon-xs"
+            className="rounded-full mr-2 cursor-pointer"
+            disabled={(disabled || attachmentsUploading) && !loading}
+            aria-label={loading ? "Stop" : attachmentsUploading ? "附件上传中" : "Submit prompt"}
+            onClick={loading ? onStop : undefined}
           >
-            <Plus className="size-4" />
+            {submitLabel ??
+              (loading ? (
+                <Square className="size-3" />
+              ) : attachmentsUploading ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <ArrowUp className="size-3" />
+              ))}
           </Button>
-          {footerRender?.(api)}
-        </div>
-        <Button
-          type={loading && onStop ? "button" : "submit"}
-          size="icon-xs"
-          className="rounded-full mr-2 cursor-pointer"
-          disabled={(disabled || attachmentsUploading) && !loading}
-          aria-label={loading ? "Stop" : attachmentsUploading ? "附件上传中" : "Submit prompt"}
-          onClick={loading ? onStop : undefined}
-        >
-          {submitLabel ??
-            (loading ? (
-              <Square className="size-3" />
-            ) : attachmentsUploading ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <ArrowUp className="size-3" />
-            ))}
-        </Button>
-      </div>
+        </InputGroupAddon>
+      </InputGroup>
     </form>
   );
 });

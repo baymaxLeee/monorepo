@@ -4,7 +4,7 @@ import {
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
-  type StickToBottomContext,
+  type ConversationScrollHandle,
 } from "@repo/ai-elements";
 import {
   type PromptInputRef,
@@ -22,7 +22,7 @@ import {
   fetchConversation,
   ingestConversationDocuments,
 } from "@repo/api";
-import { toast } from "@repo/design-system";
+import { toast, MessageScrollerItem } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { lastAssistantMessageIsCompleteWithApprovalResponses, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -133,7 +133,7 @@ export function ChatSession({
   const [mode, setMode] = useState<"normal" | "plan">("normal");
   const [activatedSkillName, setActivatedSkillName] = useState<string | null>(null);
   const promptRef = useRef<PromptInputRef>(null);
-  const conversationScrollRef = useRef<StickToBottomContext | null>(null);
+  const conversationScrollRef = useRef<ConversationScrollHandle | null>(null);
   const resumedConversationRef = useRef<string | null>(null);
   const reconnectAbortRef = useRef<AbortController | null>(null);
   const skillCommandsCacheRef = useRef(new Map<string, PromptSlashCommand[]>());
@@ -396,7 +396,7 @@ export function ChatSession({
       { parts: [{ type: "text", text: externalRequest.text }] },
       { body: { ...requestBody, mode: "normal" as const } },
     );
-    conversationScrollRef.current?.scrollToBottom();
+    conversationScrollRef.current?.scrollToEnd();
     void sent.catch(() => {
       handledExternalRequestRef.current = null;
     });
@@ -540,7 +540,7 @@ export function ChatSession({
       // Sending always jumps to the latest message even if the user scrolled up
       // to read history (matches ChatGPT/Claude); stick-to-bottom only auto-
       // follows when already pinned, so kick the scroll explicitly here.
-      conversationScrollRef.current?.scrollToBottom();
+      conversationScrollRef.current?.scrollToEnd();
       await sent;
       setActivatedSkillName(null);
     } catch (error) {
@@ -590,7 +590,7 @@ export function ChatSession({
       },
       { body: { ...requestBody, mode: "normal" as const } },
     );
-    conversationScrollRef.current?.scrollToBottom();
+    conversationScrollRef.current?.scrollToEnd();
     await sent;
   }
 
@@ -624,7 +624,7 @@ export function ChatSession({
         <h1 className="max-w-full truncate text-sm font-medium text-foreground">{detail?.title ?? "新对话"}</h1>
       </header>
 
-      <Conversation className="min-h-0 flex-1 basis-0" contextRef={conversationScrollRef}>
+      <Conversation className="min-h-0 flex-1 basis-0" scrollRef={conversationScrollRef}>
         <ConversationContent className="mx-auto w-full max-w-4xl gap-6 px-4 py-2">
           {loading && messages.length === 0 ? (
             <ConversationEmptyState title="加载中" description="正在读取会话..." />
@@ -632,30 +632,31 @@ export function ChatSession({
             <ConversationEmptyState title="开始对话" description="输入你的问题，或粘贴、拖入文件开始。" />
           ) : (
             messages.map((message) => (
-              <ChatMessageView
-                key={message.id}
-                message={message}
-                conversationId={id ?? ""}
-                streaming={busy && message === messages.at(-1)}
-                documents={documents}
-                latestTodoCallId={latestTodoCallId}
-                deliverableCompletion={deliverableCompletion}
-                onOpenArtifact={openArtifact}
-                onOpenFile={openFile}
-                onAnswerClientTool={(toolName, toolCallId, output) => {
-                  answerClientTool(toolName, toolCallId, output);
-                }}
-                onToolApproval={(approvalId, approved) => {
-                  void addToolApprovalResponse({
-                    id: approvalId,
-                    approved,
-                    options: { body: requestBody },
-                  });
-                }}
-                onExecutePlan={(path) => void executePlan(path).catch(() => {})}
-                planExecutedIds={executedPlanPaths}
-                planBusy={busy}
-              />
+              <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
+                <ChatMessageView
+                  message={message}
+                  conversationId={id ?? ""}
+                  streaming={busy && message === messages.at(-1)}
+                  documents={documents}
+                  latestTodoCallId={latestTodoCallId}
+                  deliverableCompletion={deliverableCompletion}
+                  onOpenArtifact={openArtifact}
+                  onOpenFile={openFile}
+                  onAnswerClientTool={(toolName, toolCallId, output) => {
+                    answerClientTool(toolName, toolCallId, output);
+                  }}
+                  onToolApproval={(approvalId, approved) => {
+                    void addToolApprovalResponse({
+                      id: approvalId,
+                      approved,
+                      options: { body: requestBody },
+                    });
+                  }}
+                  onExecutePlan={(path) => void executePlan(path).catch(() => {})}
+                  planExecutedIds={executedPlanPaths}
+                  planBusy={busy}
+                />
+              </MessageScrollerItem>
             ))
           )}
           {showThinkingPlaceholder ? (

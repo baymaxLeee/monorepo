@@ -1,101 +1,106 @@
-import { Badge } from "@repo/design-system/shadcn/badge";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceDescription,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@repo/design-system/shadcn/trace";
 import { cn } from "@repo/shared";
-import { CheckCircleIcon, CircleIcon, ClockIcon, Loader2Icon, XCircleIcon } from "lucide-react";
-import type { HTMLAttributes, ReactNode } from "react";
+import { CheckCircleIcon, CircleIcon, ListTodoIcon, Loader2Icon, XCircleIcon } from "lucide-react";
+import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 export type WorkflowStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
-function statusIcon(status: WorkflowStatus) {
-  switch (status) {
-    case "running":
-      return <Loader2Icon className="size-4 animate-spin text-primary" />;
-    case "completed":
-      return <CheckCircleIcon className="size-4 text-green-600" />;
-    case "failed":
-    case "cancelled":
-      return <XCircleIcon className="size-4 text-destructive" />;
-    default:
-      return <ClockIcon className="size-4 text-muted-foreground" />;
-  }
+export function workflowTraceStatus(status?: WorkflowStatus) {
+  return status === "running"
+    ? "running"
+    : status === "failed"
+      ? "error"
+      : status === "pending"
+        ? "pending"
+        : undefined;
 }
 
-export type PlanProps = HTMLAttributes<HTMLDivElement>;
+function StatusIcon({ status }: { status: WorkflowStatus }) {
+  if (status === "running") return <Loader2Icon className="motion-safe:animate-spin" />;
+  if (status === "completed") return <CheckCircleIcon />;
+  if (status === "failed" || status === "cancelled") return <XCircleIcon />;
+  return <CircleIcon />;
+}
 
+export type PlanProps = ComponentProps<typeof TraceCollapsible>;
 export function Plan({ className, ...props }: PlanProps) {
-  return <div className={cn("space-y-2 rounded-md border bg-background p-3", className)} {...props} />;
-}
-
-export type PlanHeaderProps = HTMLAttributes<HTMLDivElement> & {
-  title?: ReactNode;
-  status?: WorkflowStatus;
-};
-
-export function PlanHeader({ className, title = "Plan", status, children, ...props }: PlanHeaderProps) {
   return (
-    <div className={cn("flex items-center justify-between gap-3", className)} {...props}>
-      <div className="min-w-0 text-sm font-medium">{children ?? title}</div>
-      {status ? (
-        <Badge variant="outline" className="h-5 text-[10px]">
-          {status}
-        </Badge>
-      ) : null}
-    </div>
+    <Trace>
+      <TraceCollapsible defaultOpen className={className} {...props} />
+    </Trace>
   );
 }
 
-export type PlanContentProps = HTMLAttributes<HTMLDivElement>;
-
-export function PlanContent({ className, ...props }: PlanContentProps) {
-  return <div className={cn("space-y-2", className)} {...props} />;
-}
-
-export type TaskProps = HTMLAttributes<HTMLDivElement> & {
+export type PlanHeaderProps = Omit<ComponentProps<typeof TraceCollapsibleTrigger>, "title"> & {
+  title?: ReactNode;
   status?: WorkflowStatus;
 };
+export function PlanHeader({ title = "计划", status, children, ...props }: PlanHeaderProps) {
+  return (
+    <TraceCollapsibleTrigger {...props}>
+      <TraceLine status={workflowTraceStatus(status)}>
+        <TraceIcon>
+          <ListTodoIcon />
+        </TraceIcon>
+        <TraceTitle>{children ?? title}</TraceTitle>
+      </TraceLine>
+    </TraceCollapsibleTrigger>
+  );
+}
 
+export type PlanContentProps = ComponentProps<typeof TraceCollapsibleContent>;
+export function PlanContent({ children, ...props }: PlanContentProps) {
+  return (
+    <TraceCollapsibleContent keepMounted {...props}>
+      <Trace>{children}</Trace>
+    </TraceCollapsibleContent>
+  );
+}
+
+export type TaskProps = HTMLAttributes<HTMLDivElement> & { status?: WorkflowStatus };
 export function Task({ className, status = "pending", children, ...props }: TaskProps) {
   return (
-    <div className={cn("flex min-w-0 items-start gap-2 text-sm", className)} {...props}>
-      <span className="mt-0.5 shrink-0">{statusIcon(status)}</span>
+    <div className={cn("flex min-w-0 items-start gap-2", className)} {...props}>
+      <TraceLine status={workflowTraceStatus(status)} className="mt-0.5 shrink-0">
+        <TraceIcon>
+          <StatusIcon status={status} />
+        </TraceIcon>
+      </TraceLine>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
 
-export type TaskTitleProps = HTMLAttributes<HTMLDivElement>;
-
-export function TaskTitle({ className, ...props }: TaskTitleProps) {
-  return <div className={cn("font-medium", className)} {...props} />;
+export type TaskTitleProps = ComponentProps<typeof TraceTitle>;
+export function TaskTitle(props: TaskTitleProps) {
+  return <TraceTitle {...props} />;
 }
-
-export type TaskDescriptionProps = HTMLAttributes<HTMLDivElement>;
-
+export type TaskDescriptionProps = ComponentProps<typeof TraceDescription>;
 export function TaskDescription({ className, ...props }: TaskDescriptionProps) {
-  return <div className={cn("text-xs text-muted-foreground", className)} {...props} />;
+  return <TraceDescription className={cn("block whitespace-normal text-xs", className)} {...props} />;
 }
 
-export type QueueProps = HTMLAttributes<HTMLDivElement>;
-
-export function Queue({ className, ...props }: QueueProps) {
-  return <div className={cn("space-y-1 rounded-md border bg-background p-2", className)} {...props} />;
+export type QueueProps = ComponentProps<typeof Trace>;
+export function Queue(props: QueueProps) {
+  return <Trace {...props} />;
 }
-
-export type QueueItemProps = HTMLAttributes<HTMLDivElement> & {
-  active?: boolean;
-};
-
-export function QueueItem({ active, className, ...props }: QueueItemProps) {
+export type QueueItemProps = ComponentProps<typeof TraceLine> & { active?: boolean };
+export function QueueItem({ active, children, ...props }: QueueItemProps) {
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded px-2 py-1.5 text-xs",
-        active ? "bg-accent text-accent-foreground" : "text-muted-foreground",
-        className,
-      )}
-      {...props}
-    >
-      {active ? <Loader2Icon className="size-3 animate-spin" /> : <CircleIcon className="size-3" />}
-      <span className="min-w-0 flex-1 truncate">{props.children}</span>
-    </div>
+    <TraceLine status={active ? "running" : "pending"} {...props}>
+      <TraceIcon>
+        <StatusIcon status={active ? "running" : "pending"} />
+      </TraceIcon>
+      <TraceTitle>{children}</TraceTitle>
+    </TraceLine>
   );
 }

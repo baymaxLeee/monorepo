@@ -6,13 +6,13 @@ catalogMode: strict
 
 catalog:
   "@xyflow/react": 12.11.3
-  "@ai-sdk/react": ^4.0.114
+  "@ai-sdk/react": ^4.0.159
   "@base-ui/react": ^1.8.0
   "@hookform/resolvers": ^5.9.1
-  "@streamdown/cjk": ^1.0.3
-  "@streamdown/code": ^1.1.1
-  "@streamdown/math": ^1.0.2
-  "@streamdown/mermaid": ^1.0.2
+  "@streamdown/cjk": ^1.0.4
+  "@streamdown/code": ^2.0.0
+  "@streamdown/math": ^1.0.3
+  "@streamdown/mermaid": ^1.0.3
   "@module-federation/enhanced": ^2.9.1
   "@rspack/cli": ^2.2.7
   "@rspack/core": ^2.2.7
@@ -24,24 +24,39 @@ catalog:
   "@tanstack/react-query": ^5.101.2
   "@types/react": ^19.3.0
   "@types/react-dom": ^19.3.0
-  ai: ^7.0.111
+  ai: ^7.0.155
   lucide-react: ^0.468.0
   react: ^19.3.0
   react-dom: ^19.3.0
   react-hook-form: ^7.88.0
   react-router-dom: ^7.18.1
-  streamdown: ^2.6.0
+  streamdown: ^2.7.1
   tailwindcss: ^4.1.0
   typescript: ^5.4.0
   zod: ^4.6.5
-  shadcn: ^4.21.0
+  shadcn: ^4.23.0
   jotai: 2.20.3
   zustand: ^5.0.2
-  '@tiptap/core': 3.27.1
-  '@tiptap/pm': 3.27.1
-  '@tiptap/extension-mention': 3.27.1
-  '@tiptap/suggestion': 3.27.1
-  '@tiptap/react': 3.27.1
+  '@tiptap/core': 3.32.0
+  '@tiptap/pm': 3.32.0
+  '@tiptap/react': 3.32.0
+  '@tiptap/starter-kit': 3.32.0
+  '@tiptap/suggestion': 3.32.0
+  '@tiptap/extension-mention': 3.32.0
+  '@tiptap/extension-code': 3.32.0
+  '@tiptap/extension-code-block-lowlight': 3.32.0
+  '@tiptap/extension-color': 3.32.0
+  '@tiptap/extension-highlight': 3.32.0
+  '@tiptap/extension-image': 3.32.0
+  '@tiptap/extension-table': 3.32.0
+  '@tiptap/extension-table-header': 3.32.0
+  '@tiptap/extension-table-row': 3.32.0
+  '@tiptap/extension-task-item': 3.32.0
+  '@tiptap/extension-task-list': 3.32.0
+  '@tiptap/extension-text-align': 3.32.0
+  '@tiptap/extension-text-style': 3.32.0
+  '@tiptap/extensions': 3.32.0
+  '@tiptap/markdown': 3.32.0
   '@swc/jest': 0.2.39
   '@testing-library/jest-dom': 6.9.1
   '@testing-library/react': 16.3.0
@@ -58,10 +73,14 @@ catalog:
   react-day-picker: ^10.0.1
   embla-carousel-react: ^8.6.0
   recharts: ^3.10.1
+  shiki: ^4.5.0
 
 overrides:
-  '@tiptap/core': 3.27.1
-  '@tiptap/pm': 3.27.1
+  '@tiptap/core': 3.32.0
+  '@tiptap/pm': 3.32.0
+  prosemirror-model: 1.25.12
+  prosemirror-transform: 1.12.4
+  prosemirror-view: 1.42.8
   '@types/react': "catalog:"
   '@types/react-dom': "catalog:"
   ai: "catalog:"
@@ -78,9 +97,9 @@ allowBuilds:
   unrs-resolver: true
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.89'
-  - '@ai-sdk/react@4.0.114'
-  - ai@7.0.111
+  - '@ai-sdk/gateway@4.0.128'
+  - '@ai-sdk/react@4.0.159'
+  - ai@7.0.155
   - '@rspack/binding-darwin-arm64@2.2.7'
   - '@rspack/binding-darwin-x64@2.2.7'
   - '@rspack/binding-linux-arm64-gnu@2.2.7'
@@ -98,3 +117,7 @@ minimumReleaseAgeExclude:
   - '@rspack/binding@2.2.7'
   - '@rspack/cli@2.2.7'
   - '@rspack/core@2.2.7'
+  - '@ai-sdk/mcp@2.0.86'
+  - '@ai-sdk/provider-utils@5.0.70'
+  - '@shadcn/registry@0.2.1'
+  - shadcn@4.23.0

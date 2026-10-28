@@ -84,7 +84,7 @@ export {
   type ConversationScrollButtonProps,
   downloadConversationMarkdown,
   messagesToMarkdown,
-  type StickToBottomContext,
+  type ConversationScrollHandle,
 } from "./conversation";
 export {
   Message,
@@ -200,3 +200,13 @@ export {
   type TaskTitleProps,
   type WorkflowStatus,
 } from "./workflow";
+
+export * from "./chain-of-thought";
+export * from "./checkpoint";
+export * from "./file-tree";
+export * from "./stack-trace";
+export * from "./subagent";
+export * from "./test-results";
+export * from "@repo/design-system/shadcn/trace";
+export * from "@repo/design-system/shadcn/code-block";
+export * from "./model-picker";

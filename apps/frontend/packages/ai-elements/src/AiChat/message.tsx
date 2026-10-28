@@ -1,4 +1,10 @@
+import { Bubble, BubbleContent } from "@repo/design-system/shadcn/bubble";
 import { Button } from "@repo/design-system/shadcn/button";
+import {
+  Message as MessageRoot,
+  MessageContent as MessageBody,
+  MessageFooter,
+} from "@repo/design-system/shadcn/message";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@repo/design-system/shadcn/tooltip";
 import { cn } from "@repo/shared";
 import { cjk } from "@streamdown/cjk";
@@ -17,47 +23,41 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
 };
 
+const MessageRoleContext = createContext<UIMessage["role"]>("assistant");
+
 export function Message({ className, from, ...props }: MessageProps) {
   return (
-    <div
-      className={cn(
-        "group flex w-full flex-col gap-2",
-        from === "user"
-          ? "is-user ml-auto max-w-[min(100%,36rem)] items-end"
-          : "is-assistant max-w-[min(100%,42rem)] items-start",
-        className,
-      )}
-      {...props}
-    />
+    <MessageRoleContext value={from}>
+      <MessageRoot align={from === "user" ? "end" : "start"} className={cn("flex-col", className)} {...props} />
+    </MessageRoleContext>
   );
 }
 
 export type MessageContentProps = HTMLAttributes<HTMLDivElement>;
 
 export function MessageContent({ children, className, ...props }: MessageContentProps) {
+  const role = useContext(MessageRoleContext);
   return (
-    <div
-      className={cn(
-        "flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-sm leading-relaxed",
-        "group-[.is-user]:rounded-2xl group-[.is-user]:bg-muted group-[.is-user]:px-3.5 group-[.is-user]:py-2.5 group-[.is-user]:text-foreground",
-        "group-[.is-assistant]:rounded-lg group-[.is-assistant]:bg-transparent group-[.is-assistant]:px-0 group-[.is-assistant]:py-1 group-[.is-assistant]:text-foreground",
-        className,
+    <MessageBody>
+      {role === "user" ? (
+        <Bubble align="end" variant="muted" className="max-w-full">
+          <BubbleContent className={className} {...props}>
+            {children}
+          </BubbleContent>
+        </Bubble>
+      ) : (
+        <div className={cn("min-w-0 text-sm leading-relaxed", className)} {...props}>
+          {children}
+        </div>
       )}
-      {...props}
-    >
-      {children}
-    </div>
+    </MessageBody>
   );
 }
 
-export type MessageActionsProps = ComponentProps<"div">;
+export type MessageActionsProps = ComponentProps<typeof MessageFooter>;
 
-export function MessageActions({ className, children, ...props }: MessageActionsProps) {
-  return (
-    <div className={cn("flex items-center gap-1", className)} {...props}>
-      {children}
-    </div>
-  );
+export function MessageActions({ className, ...props }: MessageActionsProps) {
+  return <MessageFooter className={cn("gap-1 px-0", className)} {...props} />;
 }
 
 export type MessageActionProps = ComponentProps<typeof Button> & {

@@ -1,8 +1,17 @@
 import { Badge } from "@repo/design-system/shadcn/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@repo/design-system/shadcn/collapsible";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/design-system/shadcn/hover-card";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@repo/design-system/shadcn/trace";
 import { cn, isPublicHttpUrl } from "@repo/shared";
 import type { SourceUrlUIPart } from "ai";
-import { ChevronDownIcon, ExternalLinkIcon, LinkIcon } from "lucide-react";
+import { ExternalLinkIcon, LinkIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 export type SourceItem =
@@ -17,7 +26,7 @@ export type SourceItem =
       filename?: string;
     };
 
-export type SourcesProps = ComponentProps<typeof Collapsible> & {
+export type SourcesProps = ComponentProps<typeof TraceCollapsible> & {
   sources?: SourceItem[];
 };
 
@@ -26,40 +35,46 @@ export function Sources({ className, sources, children, ...props }: SourcesProps
     return null;
   }
   return (
-    <Collapsible className={cn("not-prose mb-4 text-xs text-primary", className)} {...props}>
-      {children ?? (
-        <>
-          <SourcesTrigger count={sources?.length ?? 0} />
-          <SourcesContent>
-            {sources?.map((source, index) => (
-              <Source key={sourceKey(source, index)} source={source} />
-            ))}
-          </SourcesContent>
-        </>
-      )}
-    </Collapsible>
+    <Trace className={cn("not-prose", className)}>
+      <TraceCollapsible {...props}>
+        {children ?? (
+          <>
+            <SourcesTrigger count={sources?.length ?? 0} />
+            <SourcesContent>
+              {sources?.map((source, index) => (
+                <Source key={sourceKey(source, index)} source={source} />
+              ))}
+            </SourcesContent>
+          </>
+        )}
+      </TraceCollapsible>
+    </Trace>
   );
 }
 
-export type SourcesTriggerProps = ComponentProps<typeof CollapsibleTrigger> & { count: number };
+export type SourcesTriggerProps = ComponentProps<typeof TraceCollapsibleTrigger> & { count: number };
 
 export function SourcesTrigger({ className, count, children, ...props }: SourcesTriggerProps) {
   return (
-    <CollapsibleTrigger className={cn("flex items-center gap-2", className)} {...props}>
+    <TraceCollapsibleTrigger className={cn("flex items-center gap-2", className)} {...props}>
       {children ?? (
         <>
-          <span className="font-medium">Used {count} sources</span>
-          <ChevronDownIcon className="size-4" />
+          <TraceLine>
+            <TraceIcon>
+              <LinkIcon />
+            </TraceIcon>
+            <TraceTitle>使用了 {count} 个来源</TraceTitle>
+          </TraceLine>
         </>
       )}
-    </CollapsibleTrigger>
+    </TraceCollapsibleTrigger>
   );
 }
 
-export type SourcesContentProps = ComponentProps<typeof CollapsibleContent>;
+export type SourcesContentProps = ComponentProps<typeof TraceCollapsibleContent>;
 
 export function SourcesContent({ className, ...props }: SourcesContentProps) {
-  return <CollapsibleContent className={cn("mt-3 flex w-fit flex-col gap-2 outline-none", className)} {...props} />;
+  return <TraceCollapsibleContent className={cn("flex flex-col gap-2", className)} {...props} />;
 }
 
 function sourceKey(source: SourceItem, index: number) {
@@ -78,8 +93,10 @@ export function Source({ className, source, href: propsHref, title: propsTitle, 
   const href = rawHref && isPublicHttpUrl(rawHref) ? rawHref : undefined;
   const content = children ?? (
     <>
-      <LinkIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate">{title}</span>
+      <TraceIcon>
+        <LinkIcon />
+      </TraceIcon>
+      <TraceTitle>{title}</TraceTitle>
       {source?.type ? (
         <Badge variant="outline" className="h-5 shrink-0 text-[10px]">
           {source.type.replace("source-", "")}
@@ -109,7 +126,8 @@ export function Source({ className, source, href: propsHref, title: propsTitle, 
       target="_blank"
       {...props}
     >
-      {content}
+      <TraceLine>{content}</TraceLine>
+      <span className="sr-only">（在新标签页中打开）</span>
     </a>
   );
 }
@@ -135,8 +153,16 @@ export function InlineCitation({ className, index, source, children, href: props
     );
   }
   return (
-    <a className={classNameMerged} href={href} rel="noreferrer" target="_blank" {...props}>
-      {children ?? index ?? "src"}
-    </a>
+    <HoverCard>
+      <HoverCardTrigger
+        render={<a href={href} rel="noreferrer" target="_blank" className={classNameMerged} {...props} />}
+      >
+        {children ?? index ?? "src"}
+        <span className="sr-only">（在新标签页中打开）</span>
+      </HoverCardTrigger>
+      <HoverCardContent className="break-words">
+        <Source source={source} href={href} />
+      </HoverCardContent>
+    </HoverCard>
   );
 }

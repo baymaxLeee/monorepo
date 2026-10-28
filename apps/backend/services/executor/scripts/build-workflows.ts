@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { BaseBuilder, createBaseBuilderConfig, type WorkflowManifest } from "@workflow/builders";
+import { BaseBuilder, createBaseBuilderConfig } from "@workflow/builders";
 
 class DevelopmentBuilder extends BaseBuilder {
   readonly #outputDirectory: string;
@@ -23,15 +23,10 @@ class DevelopmentBuilder extends BaseBuilder {
     const tsconfigPath = await this.findTsConfigPath();
     await mkdir(this.#outputDirectory, { recursive: true });
 
-    const { manifest: workflows, interimBundleCtx } = await this.createWorkflowsBundle({
-      outfile: resolve(this.#outputDirectory, "workflows.mjs"),
+    const { manifest, stepsContext, interimBundleCtx } = await this.createCombinedBundle({
+      flowOutfile: resolve(this.#outputDirectory, "workflows.mjs"),
+      stepsOutfile: resolve(this.#outputDirectory, "steps.mjs"),
       bundleFinalOutput: false,
-      format: "esm",
-      inputFiles,
-      tsconfigPath,
-    });
-    const { manifest: steps, context: stepsContext } = await this.createStepsBundle({
-      outfile: resolve(this.#outputDirectory, "steps.mjs"),
       externalizeNonSteps: true,
       bundleTransitiveLocalStepDependencies: true,
       format: "esm",
@@ -44,11 +39,6 @@ class DevelopmentBuilder extends BaseBuilder {
       bundle: false,
     });
 
-    const manifest: WorkflowManifest = {
-      steps: { ...steps.steps, ...workflows.steps },
-      workflows: { ...steps.workflows, ...workflows.workflows },
-      classes: { ...steps.classes, ...workflows.classes },
-    };
     await this.createManifest({
       workflowBundlePath: resolve(this.#outputDirectory, "workflows.mjs"),
       manifestDir: this.#outputDirectory,

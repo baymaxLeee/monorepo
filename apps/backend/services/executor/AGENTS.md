@@ -190,7 +190,7 @@ Resolved or deliberately handled, and all re-check-worthy whenever
    `nitro@3.0.260903-beta` (checked: it's absent from the package's own
    `exports` map), so the Postgres World doc's official "Starting the World"
    Nitro-plugin example cannot be used as written. Worked around by calling
-   `getWorld().start()` during `bootstrapExecutor()` in
+   `(await getWorld()).start()` during `bootstrapExecutor()` in
    `src/bootstrap/runtime.ts` instead — this is the same mechanism a Nitro
    plugin would trigger, it just doesn't go through Nitro's plugin system.
    This one matters more than the other
@@ -221,7 +221,7 @@ Resolved or deliberately handled, and all re-check-worthy whenever
    (no Nitro build, no watcher).** `pnpm dev` invokes the official Workflow
    builder once with `watch: false`, then starts `src/dev.ts` through `tsx`
    and `@hono/node-server`. The dev entry
-   mounts the generated `flow`, `step`, and `webhook` Web handlers under
+   mounts the Workflow 5 combined `flow` and `webhook` Web handlers under
    `/.well-known/workflow/v1/`; the task registry uses the Workflow SDK's
    supported explicit `{ workflowId }` metadata form because untransformed TS
    functions do not carry client-mode metadata. This is deliberate:
@@ -254,7 +254,7 @@ Resolved or deliberately handled, and all re-check-worthy whenever
    constants/helpers live in `src/application/video/limits.ts` (no `ai`/Node import) so both
    the orchestrator and the steps can import them safely.
 
-Calling `getWorld().start()` is gated on `WORKFLOW_TARGET_WORLD` being set:
+Calling `(await getWorld()).start()` is gated on `WORKFLOW_TARGET_WORLD` being set:
 under the default Local World it throws `Invalid version string: "bundled"`
 (caught, logged, harmless, but pointless noise on every local boot) —
 empirically confirmed, not a documentation assumption.

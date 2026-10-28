@@ -12,7 +12,9 @@ import { createInteractionToolManifests } from "./builtins/interaction.js";
 import { createMediaToolManifests } from "./builtins/media.js";
 import { createMemoryToolManifests } from "./builtins/memory.js";
 import { createPlanningToolManifests } from "./builtins/planning.js";
+import { createRuntimeTools } from "./builtins/runtime.js";
 import { createSearchToolManifests } from "./builtins/search.js";
+import { createToolSearchManifest } from "./discovery.js";
 import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "./manifest.js";
 import type { AgentToolManifest, ToolSource } from "./types.js";
 
@@ -88,77 +90,85 @@ export class ToolCatalog {
     dispose: () => Promise<void>;
   }> {
     const resolvedSkills = resolveSkills(skillSource);
-    const manifests = [
-      ...builtinManifests(context.mode, providers),
-      ...(context.projectId && context.canvasId
-        ? createCanvasToolManifests({
-            textProviderId: providers.textProvider.id,
-            videoProviderId: providers.videoProviderId,
-          })
-        : []),
-      ...resolvedSkills.manifests,
-    ];
-    const skills = [...resolvedSkills.skills];
-    const disposers: Array<() => void | Promise<void>> = [];
+    const runtimeTools = await createRuntimeTools();
+    const disposers: Array<() => void | Promise<void>> = [runtimeTools.dispose];
+    try {
+      const manifests = [
+        ...builtinManifests(context.mode, providers),
+        ...runtimeTools.manifests,
+        createToolSearchManifest(),
+        ...(context.projectId && context.canvasId
+          ? createCanvasToolManifests({
+              textProviderId: providers.textProvider.id,
+              videoProviderId: providers.videoProviderId,
+            })
+          : []),
+        ...resolvedSkills.manifests,
+      ];
+      const skills = [...resolvedSkills.skills];
 
-    for (const extension of [...this.#extensions]) {
-      const contribution = await extension.resolve(context);
-      const source = extensionSource(extension.id);
-      for (const [contributedName, definition] of Object.entries(contribution.tools ?? {})) {
-        const name = extensionToolName(extension.id, contributedName);
-        manifests.push(
-          defineAgentTool(
-            name,
-            definition,
-            {
-              capability: "external",
-              effect: "unknown",
-              trust: "unknown",
-              execution: "inline",
-              modes: ["normal"],
-              source,
-            },
-            {
-              summary:
-                typeof definition.description === "string"
-                  ? definition.description
-                  : `Use ${name} from ${extension.id}.`,
-              prerequisites: [`Enable and authorize ${extension.id}.`],
-            },
-          ),
-        );
+      for (const extension of [...this.#extensions]) {
+        const contribution = await extension.resolve(context);
+        if (contribution.dispose) {
+          disposers.push(contribution.dispose);
+        }
+        const source = extensionSource(extension.id);
+        for (const [contributedName, definition] of Object.entries(contribution.tools ?? {})) {
+          const name = extensionToolName(extension.id, contributedName);
+          manifests.push(
+            defineAgentTool(
+              name,
+              { ...definition, deferLoading: true },
+              {
+                capability: "external",
+                effect: "unknown",
+                trust: "unknown",
+                execution: "inline",
+                modes: ["normal"],
+                source,
+              },
+              {
+                summary:
+                  typeof definition.description === "string"
+                    ? definition.description
+                    : `Use ${name} from ${extension.id}.`,
+                prerequisites: [`Enable and authorize ${extension.id}.`],
+              },
+            ),
+          );
+        }
       }
-      if (contribution.dispose) {
-        disposers.push(contribution.dispose);
+
+      const names = new Set<string>();
+      for (const manifest of manifests) {
+        if (names.has(manifest.name)) {
+          throw new Error(`duplicate agent tool ${manifest.name}`);
+        }
+        names.add(manifest.name);
       }
+
+      // Capability projection is code-generated from resolved manifests and only
+      // in plan mode; normal mode relies on the callable tool schemas directly.
+      const capabilities = context.mode === "plan" ? renderExecutionCapabilities(manifests) || null : null;
+
+      const activeManifests = manifests.filter(
+        (manifest) => manifest.tool && manifest.policy.modes.includes(context.mode),
+      );
+      const tools = manifestsToTools(activeManifests);
+      const activeTools = Object.keys(tools);
+
+      return {
+        tools,
+        activeTools,
+        manifests,
+        contributions: { capabilities, skills },
+        dispose: async () => {
+          await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
+        },
+      };
+    } catch (error) {
+      await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
+      throw error;
     }
-
-    const names = new Set<string>();
-    for (const manifest of manifests) {
-      if (names.has(manifest.name)) {
-        throw new Error(`duplicate agent tool ${manifest.name}`);
-      }
-      names.add(manifest.name);
-    }
-
-    // Capability projection is code-generated from resolved manifests and only
-    // in plan mode; normal mode relies on the callable tool schemas directly.
-    const capabilities = context.mode === "plan" ? renderExecutionCapabilities(manifests) || null : null;
-
-    const activeManifests = manifests.filter(
-      (manifest) => manifest.tool && manifest.policy.modes.includes(context.mode),
-    );
-    const tools = manifestsToTools(activeManifests);
-    const activeTools = Object.keys(tools);
-
-    return {
-      tools,
-      activeTools,
-      manifests,
-      contributions: { capabilities, skills },
-      dispose: async () => {
-        await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
-      },
-    };
   }
 }

@@ -1,5 +1,5 @@
-import { Alert, AlertDescription } from "@repo/design-system/shadcn/alert";
 import { Button } from "@repo/design-system/shadcn/button";
+import { Item, ItemContent, ItemTitle, ItemActions } from "@repo/design-system/shadcn/item";
 import { cn } from "@repo/shared";
 import type { ToolUIPart } from "ai";
 import type { ComponentProps, ReactNode } from "react";
@@ -22,7 +22,7 @@ function useConfirmation() {
   return context;
 }
 
-export type ConfirmationProps = ComponentProps<typeof Alert> & {
+export type ConfirmationProps = ComponentProps<typeof Item> & {
   approval?: ToolApproval;
   state: ToolUIPart["state"];
 };
@@ -34,15 +34,19 @@ export function Confirmation({ approval, state, className, ...props }: Confirmat
   }
   return (
     <ConfirmationContext.Provider value={value}>
-      <Alert className={cn("flex flex-col gap-2", className)} {...props} />
+      <Item variant="outline" size="sm" className={cn("flex flex-col gap-2", className)} {...props} />
     </ConfirmationContext.Provider>
   );
 }
 
-export type ConfirmationTitleProps = ComponentProps<typeof AlertDescription>;
+export type ConfirmationTitleProps = ComponentProps<typeof ItemTitle>;
 
 export function ConfirmationTitle(props: ConfirmationTitleProps) {
-  return <AlertDescription {...props} />;
+  return (
+    <ItemContent>
+      <ItemTitle {...props} />
+    </ItemContent>
+  );
 }
 
 export interface ConfirmationRequestProps {
@@ -79,7 +83,7 @@ export function ConfirmationActions({ className, ...props }: ConfirmationActions
   if (useConfirmation().state !== "approval-requested") {
     return null;
   }
-  return <div className={cn("flex items-center justify-end gap-2", className)} {...props} />;
+  return <ItemActions className={cn("justify-end", className)} {...props} />;
 }
 
 export type ConfirmationActionProps = ComponentProps<typeof Button>;

@@ -8,12 +8,15 @@
   ],
   "exports": {
     ".": "./src/AiChat/index.tsx",
-    "./prompt-input": "./src/PromptInput/index.tsx"
+    "./prompt-input": "./src/PromptInput/index.tsx",
+    "./terminal": "./src/AiChat/terminal.tsx",
+    "./code-block": "./src/AiChat/code-block.ts"
   },
   "scripts": {
     "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/ai-elements/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
     "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
-    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
@@ -23,21 +26,26 @@
     "@streamdown/code": "catalog:",
     "@streamdown/math": "catalog:",
     "@streamdown/mermaid": "catalog:",
-    "@tiptap/core": "^3.22.3",
-    "@tiptap/pm": "^3.22.3",
-    "@tiptap/react": "^3.22.3",
-    "@tiptap/starter-kit": "^3.22.3",
-    "@tiptap/suggestion": "^3.27.1",
+    "@tiptap/core": "catalog:",
+    "@tiptap/pm": "catalog:",
+    "@tiptap/react": "catalog:",
+    "@tiptap/starter-kit": "catalog:",
+    "@tiptap/suggestion": "catalog:",
     "ai": "catalog:",
     "lucide-react": "catalog:",
-    "streamdown": "catalog:",
-    "use-stick-to-bottom": "^1.1.6"
+    "streamdown": "catalog:"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@swc/jest": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/jest": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@typescript/native": "catalog:"
+    "@typescript/native": "catalog:",
+    "jest": "catalog:",
+    "jest-environment-jsdom": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",

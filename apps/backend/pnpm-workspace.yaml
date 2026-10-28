@@ -7,19 +7,23 @@ packages:
 catalogMode: strict
 
 catalog:
-  ai: ^7.0.111
+  ai: ^7.0.155
   "@typescript/native": npm:typescript@7.0.2
-  "@ai-sdk/openai": ^4.0.72
-  "@ai-sdk/provider": ^4.0.17
-  "@ai-sdk/provider-utils": ^5.0.45
+  "@ai-sdk/openai": ^4.0.104
+  "@ai-sdk/provider": ^4.0.34
+  "@ai-sdk/provider-utils": ^5.0.70
   "@hono/node-server": ^2.1.1
   "@hono/zod-validator": ^0.9.1
-  "@workflow/builders": ^4.1.14
-  "@workflow/world-postgres": ^4.3.7
+  "@workflow/builders": ^5.0.6
+  "@workflow/world-postgres": ^5.0.5
   hono: ^4.13.8
   nitro: 3.0.260903-beta
-  workflow: ^4.8.9
+  workflow: ^5.2.3
   zod: ^4.6.5
+  '@ai-sdk/code-mode': 1.0.112
+  '@ai-sdk/sandbox-just-bash': 1.0.166
+  '@ai-sdk/tool-bash': 1.0.9
+  '@ai-sdk/tool-web-fetch': 1.0.5
 
 # These packages ship usable prebuilt/JS fallbacks; no install scripts needed.
 allowBuilds:
@@ -27,10 +31,19 @@ allowBuilds:
   cbor-extract: false
   esbuild: false
   protobufjs: false
+  "@mongodb-js/zstd": false
+  node-liblzma: false
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.89'
-  - ai@7.0.111
+  - '@ai-sdk/gateway@4.0.128'
+  - ai@7.0.155
+  - '@ai-sdk/openai@4.0.104'
+  - '@ai-sdk/provider-utils@5.0.70'
+  - '@ai-sdk/code-mode@1.0.112'
+  - '@ai-sdk/harness@1.0.166'
+  - '@ai-sdk/sandbox-just-bash@1.0.166'
+  - '@ai-sdk/tool-bash@1.0.9'
+  - '@ai-sdk/tool-web-fetch@1.0.5'
 
 overrides:
   zod: "catalog:"

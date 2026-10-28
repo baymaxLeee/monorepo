@@ -11,8 +11,12 @@
     "gen-openapi": "tsx src/gen-openapi.ts"
   },
   "dependencies": {
+    "@ai-sdk/code-mode": "catalog:",
     "@ai-sdk/provider": "catalog:",
     "@ai-sdk/provider-utils": "catalog:",
+    "@ai-sdk/sandbox-just-bash": "catalog:",
+    "@ai-sdk/tool-bash": "catalog:",
+    "@ai-sdk/tool-web-fetch": "catalog:",
     "@backend/kernel-ts": "workspace:*",
     "@backend/transport-ts": "workspace:*",
     "@hono/node-server": "catalog:",

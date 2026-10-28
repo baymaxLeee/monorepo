@@ -14,7 +14,7 @@ export async function bootstrapExecutor(): Promise<void> {
   try {
     await getSql()`SELECT 1`;
     if (process.env.WORKFLOW_TARGET_WORLD) {
-      await getWorld().start?.();
+      await (await getWorld()).start?.();
       markWorkflowWorldStarted();
     }
     await reconcilePendingTasks();

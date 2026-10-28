@@ -259,3 +259,21 @@ and an active workspace. Single-VPS preserves the same ordering: schema-only
 Canonical `just sync`, `just lint`, and `just build` passed; the Single-VPS
 Compose model rendered successfully and its `db-init` image built with all
 eight baselines.
+
+## 2026-10-28 AI SDK 7 and Workflow 5 review
+
+The review covered Chat's tool catalog and UI consumer, the shared AI Elements
+package, Executor's development and production Workflow handlers, and both
+deployment surfaces. It found one upgrade hazard: an older local Workflow
+migration had a timestamp later than four new Workflow 5 migrations, so Drizzle
+skipped them and later failed on a missing column. The local Workflow database
+was backed up and rebuilt from the complete Workflow 5 schema; no compatibility
+migrator was added. Repeated `just up` and the official queue health check then
+passed.
+
+The pass also verified that SDK tool-search markers stay native, excluded tools
+remain unavailable, runtime sessions are disposed on catalog failures, and the
+terminal UI is selected by metadata. The removed Workflow step route has no
+caller. K8s and Single-VPS retain the same Executor artifact and official
+Postgres setup command. Canonical `just sync`, `just lint`, and `just build`
+passed, together with scoped runtime and AI Elements tests.
