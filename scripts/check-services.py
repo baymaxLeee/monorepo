@@ -281,7 +281,7 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
                     )
 
 
-def validate_local_service_identities(services: dict[str, dict[str, Any]]) -> None:
+def validate_service_identities(services: dict[str, dict[str, Any]]) -> None:
     caller_tokens: dict[str, str] = {}
     for service_id, config in services.items():
         if service_id == "gateway" or not config["bindings"]:
@@ -320,6 +320,32 @@ def validate_local_service_identities(services: dict[str, dict[str, Any]]) -> No
                 f"expected={expected} actual={actual}"
             )
 
+        compose_env = load_yaml(SINGLE_VPS_PATH)["services"][receiver]["environment"]
+        secret = load_yaml(K8S_BASE / receiver / "secret.yaml").get("stringData", {})
+        for surface, source in (("single-vps", compose_env), ("K8s Secret", secret)):
+            try:
+                deployed = json.loads(source.get("INTERNAL_SERVICE_TOKENS", "{}"))
+            except (TypeError, json.JSONDecodeError):
+                fail(
+                    f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must be a JSON object"
+                )
+            if not isinstance(deployed, dict) or set(deployed) != callers:
+                fail(
+                    f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must contain callers {sorted(callers)}"
+                )
+            for caller, token in deployed.items():
+                variable = f"{caller.upper().replace('-', '_')}_INTERNAL_API_TOKEN"
+                if surface == "single-vps":
+                    valid = isinstance(token, str) and re.fullmatch(
+                        rf"\$\{{{variable}:\?[^}}]+\}}", token
+                    )
+                else:
+                    valid = token == f"REPLACE_{caller.upper().replace('-', '_')}_TOKEN"
+                if not valid:
+                    fail(
+                        f"{receiver}: {surface} must bind {caller} to its own caller credential"
+                    )
+
 
 def dotenv_keys(path: Path) -> set[str]:
     return {
@@ -330,6 +356,18 @@ def dotenv_keys(path: Path) -> set[str]:
 
 
 def validate_single_vps_environment(services: dict[str, dict[str, Any]]) -> None:
+    compose_env = load_yaml(SINGLE_VPS_PATH)["services"]["asset"]["environment"]
+    if (
+        compose_env.get("ASSET_SIGNING_KEY")
+        != "${ASSET_SIGNING_KEY:?ASSET_SIGNING_KEY is required}"
+    ):
+        fail("asset: single-vps must inject required ASSET_SIGNING_KEY")
+    if (
+        not load_yaml(K8S_BASE / "asset" / "secret.yaml")
+        .get("stringData", {})
+        .get("ASSET_SIGNING_KEY")
+    ):
+        fail("asset: K8s Secret must declare ASSET_SIGNING_KEY")
     render_env = SINGLE_VPS_RENDER_ENV_PATH.read_text()
     internal_match = re.search(r"(?ms)^INTERNAL_KEYS=\(\n(?P<body>.*?)^\)", render_env)
     if not internal_match:
@@ -422,7 +460,7 @@ def main() -> None:
     validate_procfile(services)
     validate_dev_entrypoints(services)
     validate_binding_environment(services)
-    validate_local_service_identities(services)
+    validate_service_identities(services)
     validate_single_vps_environment(services)
     validate_k8s_ports(services)
     validate_gateway_routes(services)

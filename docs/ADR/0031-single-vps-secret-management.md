@@ -43,9 +43,12 @@ VPS 成为"生成型密钥的 source of truth"，compose 的 `.env` **在 VPS �
 1. **运行时变量**（`IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` / `PUBLIC_GATEWAY_URL`）——由
    `deploy.sh` / CI 通过环境变量传入。
 2. **机器内部密钥**（每个服务的 Postgres 密码、每个 workload 独立的
-   `*_INTERNAL_API_TOKEN`、Chat 工具审批签名 `TOOL_APPROVAL_SECRET`）——VPS 上
+   `*_INTERNAL_API_TOKEN`、Chat 工具审批签名 `TOOL_APPROVAL_SECRET`、Asset 下载签名
+   `ASSET_SIGNING_KEY`）——VPS 上
    `openssl rand -hex 24` **生成一次并持久化**到 `${DEPLOY_DIR}/.env.secrets`
    （0600，永不进 git/CI），后续部署缺失才补、否则复用。
+   `ASSET_SIGNING_KEY` 必须跨部署复用，否则尚未过期的签名下载链接会失效；
+   K8s 部署由运维在 `asset-secrets` 中提供同等稳定的随机密钥。
 3. **运维/外部密钥**（super-admin 登录、`EXA_API_KEY` / `TAVILY_API_KEY`、
    `ACCESS_TOKEN_SECRET`、`ADMIN_SECRET_KEY`）——SOPS+age 加密为
    `infra/single-vps/secrets.sops.env` **提交进 git**，**只在 VPS 上**用本机

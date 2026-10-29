@@ -78,7 +78,7 @@ hand-manage the middle-column "operator" secrets:
 | Bucket | Who sets it | Where it lives |
 |---|---|---|
 | `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` / `PUBLIC_GATEWAY_URL` | CI / `deploy.sh` | passed in the environment |
-| Database passwords + per-service `*_INTERNAL_API_TOKEN` credentials + `TOOL_APPROVAL_SECRET` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
+| Database passwords + per-service `*_INTERNAL_API_TOKEN` credentials + `TOOL_APPROVAL_SECRET` + `ASSET_SIGNING_KEY` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
 | super-admin login, `EXA_API_KEY` / `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
 
 ---
@@ -321,6 +321,42 @@ docker compose -f docker-compose.prod.yml start
 ---
 
 ## Troubleshooting
+
+### Workflow Postgres 4.3.7 → 5.0.5: missing `run.attributes`
+
+Version 4.3.7 recorded migration `0015` without `0011`–`0014`. Drizzle's
+timestamp cutoff skips those earlier migrations during the upgrade, so `0021`
+fails. `repair-workflow-4-to-5.sh` is a one-time, data-preserving repair for
+that exact history. It reads the four official SQL files from the failed init
+container's 5.0.5 image, backs up the `workflow` database, and applies the SQL
+and SHA-256 journal records in one transaction. Unexpected histories are rejected;
+repeating the repair before the official upgrade is a no-op.
+
+Copy the script to the VPS deployment directory. Ensure no deployment job is
+running, then execute on the VPS:
+
+```bash
+cd /opt/monorepo
+docker stop monorepo-executor monorepo-workflow-db-init
+bash repair-workflow-4-to-5.sh
+```
+
+Keep the printed `workflow-repair.*/workflow.dump` backup. If repair succeeds,
+rerun the failed `deploy-single-vps` job with the same image tag to finish the
+official migrations and restart services. Do not start the old executor before
+this upgrade. If repair fails, keep services stopped and inspect the error;
+do not delete migration records or reset volumes.
+
+The script only repairs the Workflow World database; it does not alter service
+database baselines. Its regression check uses an isolated disposable PostgreSQL
+container and the official 4.3.7 package:
+
+```bash
+python3 infra/single-vps/tests/test-workflow-repair.py
+```
+
+This check requires Docker (`postgres:16-alpine`), Node.js, installed executor
+dependencies at 5.0.5, and access to the npm registry.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
