@@ -43,3 +43,9 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
   files and imported ZIP sources are immutable Asset revisions; published
   snapshots pin exact revision IDs and protect them with snapshot Claims.
 - Errors via `libs.kernel.errors.*`, NEVER raw HTTPException
+
+## Verification after code changes
+
+Run `just test backend/admin` from the repository root. Test conventions and
+runner configuration are owned by `apps/backend/AGENTS.md`; add regression
+coverage for changed behavior before reporting completion.

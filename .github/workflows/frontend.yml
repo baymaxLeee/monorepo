@@ -8,6 +8,8 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'mise.toml'
+      - 'justfile'
+      - 'scripts/test.mjs'
       - '.github/workflows/frontend.yml'
   push:
     branches: [main]
@@ -25,8 +27,10 @@ jobs:
         working-directory: .
         run: pnpm install --frozen-lockfile
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
+      - name: Frontend behavior tests
+        working-directory: .
+        run: just test frontend
+      - run: just lint
       - run: pnpm -F platform build
       - run: pnpm -F admin build
       - run: pnpm -F chat build

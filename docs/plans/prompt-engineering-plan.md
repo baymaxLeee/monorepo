@@ -63,7 +63,7 @@
 - admin 配置只能收窄或描述行为，不能新增工具、取消审批、改变 mode 或覆盖核心策略。
 - 只有 `core_policy` 是真正跨 run 稳定的前缀；`runtime_contract` 随 mode 变化、capability 随 mode 与 provider 配置变化，Bot/context/environment 放后部，尽量后置动态内容以保留 provider prompt caching 的可能性。
 - 不引入兼容 shim：demo 阶段直接移除 `system_prompt` 全链路，更新 seed 和 ADR，不同时保留 persona 新旧路径。
-- 本项目 demo 阶段不新增测试文件或测试脚手架；使用 typecheck、lint、build 与手工验收。
+- 测试遵循 ADR-0075；使用 `just test`、typecheck、lint、build 与必要的集成验证。
 - DB migration 位于禁止无授权编辑区；实施前必须取得用户对 admin migration 的明确授权。
 
 ## 实施方案
@@ -228,5 +228,5 @@ admin ResolvedAgent
 - 不按 Bot 固化任何 tool/`activeTools`/approval；Bot 差异只由上层装配（skill/MCP/角色提示词）产生。
 - 本期不建设通用 Prompt CMS、在线 prompt A/B 平台或任意模板语言。
 - 本期不把 MCP server 返回的 prompts 接入 system instructions。
-- 本期不新增测试文件、fixture、mock、测试配置或 CI test job。
+- 测试与 CI 遵循 ADR-0075，覆盖本期改变的行为。
 - 本期不新增 Bot/Agent 并行身份模型或第二套 internal snapshot endpoint。

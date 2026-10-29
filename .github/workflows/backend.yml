@@ -8,75 +8,38 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'mise.toml'
+      - 'justfile'
+      - 'scripts/**'
+      - 'services.yaml'
       - '.github/workflows/backend.yml'
   push:
     branches: [main]
 
 jobs:
-  python:
+  check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/backend
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - run: uv lock --check
-      - run: uv sync --all-packages
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - name: mypy
-        run: |
-          uv run mypy libs
-          for svc in admin knowledge telemetry; do
-            (cd "services/$svc" && uv run mypy .)
-          done
-      # Demo phase: most services have no tests/ yet (see root AGENTS.md).
-      # The guard skips services without a tests/ directory rather than
-      # failing the build.
-      - name: pytest (services with tests/)
-        run: |
-          for svc in services/*/; do
-            if [ -d "$svc/tests" ]; then
-              echo "==> pytest $svc"
-              (cd "$svc" && uv run pytest -q)
-            fi
-          done
-
-  node:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [chat, executor]
-    defaults:
-      run:
-        working-directory: apps/backend/services/${{ matrix.service }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - name: Install root lint tooling
-        working-directory: .
-        run: pnpm install --frozen-lockfile
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run lint
-      - run: pnpm run build
-
-  go:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service: [gateway, iam, canvas]
-    defaults:
-      run:
-        working-directory: apps/backend/services/${{ matrix.service }}
-    env:
-      GOWORK: "off"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - run: go mod tidy && git diff --exit-code -- go.mod go.sum
-      - run: go mod download
-      - run: go vet ./...
-      - run: go build ./...
+      - run: pnpm --dir apps/backend install --frozen-lockfile
+      - run: uv lock --project apps/backend --check
+      - run: uv sync --project apps/backend --all-packages
+      - name: Test every backend service and library
+        run: just test backend
+      - name: Static checks and formatting
+        working-directory: apps/backend
+        run: |
+          just lint
+          uv run ruff format --check .
+      - name: Build backend services
+        working-directory: apps/backend
+        run: |
+          just build-go
+          just build-node
+      - name: Go module consistency
+        working-directory: apps/backend
+        run: |
+          for manifest in services/*/go.mod; do
+            (cd "$(dirname "$manifest")" && go mod tidy && git diff --exit-code -- go.mod go.sum)
+          done

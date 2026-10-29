@@ -72,3 +72,6 @@ apps/backend/services/*/bin/
 # Service-local object storage (runtime uploads)
 apps/backend/services/knowledge/data/
 apps/backend/services/asset/data/
+
+# Vitest artifacts
+.vitest/

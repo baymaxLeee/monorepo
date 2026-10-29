@@ -50,6 +50,8 @@ NITS:
 
 ## Constraints
 - Read-only. NEVER edit files.
-- Do not run tests (main agent already did).
+- Reuse the main agent's passing results when they cover the final code.
+  Run focused checks through root `just test <target>` when evidence is missing
+  or a concrete finding needs reproduction; do not assume tests already ran.
 - Do not load full repo docs — that defeats the freshness.
 - Return concise reports, not paragraphs.

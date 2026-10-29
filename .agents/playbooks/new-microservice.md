@@ -72,6 +72,10 @@ For Node services, lint/typecheck scripts must invoke the repository tools:
 root Oxlint and the explicit `node_modules/@typescript/native/bin/tsc` binary.
 Do not use a bare `tsc` or add nested formatter/linter configs.
 
+Every new service must include behavior tests and participate in root
+`just test backend/<name>`: pytest configuration for Python, a `test` script
+using `node:test` for Node, or colocated Go tests. No demo-phase exemption applies.
+
 ## 5. Validate the migration
 
 From the repository root:
@@ -81,6 +85,7 @@ just install
 just up
 just sync
 just lint
+just test backend/<name>
 just build
 just dev
 kubectl kustomize --load-restrictor=LoadRestrictionsNone infra/k8s/overlays/dev

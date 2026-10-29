@@ -23,7 +23,7 @@ Plan: `docs/plans/engineering-structure-restructure.md`.
 5. Duplicate `.agents/service-catalog.yaml` had no callers — deleted instead of retaining a compatibility mirror.
 6. Backend justfile retained permission/audit/notification ghost ports — removed; runtime groups and ports now match the seven deployables exactly.
 7. Initial validator only compared a subset of local files — expanded to service directories, justfile, Procfile, env bindings, gateway routes, K8s, and Single-VPS.
-8. Backend rules, microservice playbook, and scaffold still regenerated nonexistent auth/audit SDKs and test-era steps — aligned with ADR-0060/0061 and demo-phase policy.
+8. Backend rules, microservice playbook, and scaffold still regenerated nonexistent auth/audit SDKs — aligned with ADR-0060/0061. Testing now follows ADR-0075.
 9. README and dependency installer retained old app/package/capability names — updated to the actual package graph and commands.
 
 ## Runtime evidence

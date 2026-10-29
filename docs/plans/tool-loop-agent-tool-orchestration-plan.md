@@ -176,7 +176,7 @@ Directive 优先级固定为：
 
 ### 检查命令
 
-Demo 阶段不新增测试文件、fixture 或测试配置，也不运行 `just fmt`。
+测试遵循 ADR-0075，执行受影响目标的 `just test`；`just fmt` 仅在格式漂移时运行。
 
 ```bash
 cd apps/backend

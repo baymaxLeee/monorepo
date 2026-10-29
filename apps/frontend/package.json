@@ -6,13 +6,23 @@
     "build": "turbo run build",
     "lint": "pnpm --dir ../.. lint:ts:frontend",
     "format": "pnpm --dir ../.. format:ts:frontend",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck && node node_modules/@typescript/native/bin/tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@testing-library/react": "catalog:",
     "@types/node": "^24.0.0",
+    "@typescript/native": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "tailwindcss": "catalog:",
-    "turbo": "^2.0.0"
+    "turbo": "^2.0.0",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": "24.18.0"

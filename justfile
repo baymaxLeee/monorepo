@@ -95,9 +95,17 @@ lint:
     cd apps/backend && just lint
     cd apps/frontend && just lint
 
-# Aggregate lint + OpenAPI/client sync check (demo phase: no test gate).
+# Run all tests, or one target from test-list; trailing arguments go to that runner.
+test *args:
+    @node scripts/test.mjs "$@"
+
+test-list:
+    @node scripts/test.mjs --list
+
+# Aggregate static checks, behavior tests, and generated contract consistency.
 check:
     @just lint
+    @just test
     @just sync-check
 
 sync-check:

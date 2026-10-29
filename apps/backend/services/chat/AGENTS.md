@@ -62,3 +62,9 @@ Conversation + agent runtime service. It owns conversation/message/run observabi
 - `src/gen-openapi.ts` — OpenAPI export
 
 Run from `apps/backend`: `just lint chat`, `just build chat`, `just gen-openapi chat`.
+
+## Verification after code changes
+
+Run `just test backend/chat` from the repository root. Test conventions and
+runner configuration are owned by `apps/backend/AGENTS.md`; add regression
+coverage for changed behavior before reporting completion.

@@ -253,6 +253,9 @@ importers:
       '@typescript/native':
         specifier: 'catalog:'
         version: typescript@7.0.2
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
 
   libs/transport-ts:
     dependencies:

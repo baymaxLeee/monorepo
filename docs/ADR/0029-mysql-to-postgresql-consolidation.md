@@ -61,7 +61,7 @@ re-wire executor 的 Workflow World env;正名为 `postgres` 纯 cosmetic 却会
    脚本;合并现有 `knowledge-db-init`,保留 `workflow-db-init` 跑官方 setup。
 6. **最终 schema 对齐**:每个服务完成后,对比"空库执行全部 migration"的实际
    schema 与 ORM 模型 / 约束 / 索引,不只靠查找替换方言。
-7. **不新增测试脚手架**:遵守 demo 阶段规则,仅跑既有 lint/build + 手工/API smoke。
+7. **测试门禁**：遵循 [ADR-0075](0075-first-class-monorepo-testing.md)，测试与 lint/build、集成验证共同构成交付门禁。
 
 ### 连接池预算
 

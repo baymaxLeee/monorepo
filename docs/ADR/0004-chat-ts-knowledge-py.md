@@ -38,7 +38,7 @@ Accepted — 2026-06
 - 数据迁移：storage → knowledge 已完成；`storage` 微服务与 `storage` 数据库已下线。
 - chat `conversation_documents` 表在 v1.5.0 迁移中删除。
 - CI：`build-images` chat 使用 Node context；matrix 中 storage → knowledge。
-- demo 阶段不新增测试脚手架（见根 `AGENTS.md`）。
+- 测试要求已由 [ADR-0075](0075-first-class-monorepo-testing.md) 统一：修改行为必须增加并执行测试。
 
 ## Alternatives considered
 

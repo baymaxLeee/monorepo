@@ -30,10 +30,8 @@ build target="":
         echo "✗ Unknown target: {{ target }} (not in apps/ or packages/)"; exit 1; \
     fi
 
-test pkg="":
-    @if [ -z "{{ pkg }}" ]; then pnpm test; \
-    elif [ -d "apps/{{ pkg }}" ]; then pnpm -F {{ pkg }} test; \
-    else pnpm -F {{ pkg }} test; fi
+test pkg="" *args:
+    @node ../../scripts/test.mjs "frontend/$1" "${@:2}"
 
 # ─── quality ────────────────────────────────────────────
 lint:

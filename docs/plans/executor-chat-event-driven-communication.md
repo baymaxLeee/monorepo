@@ -68,5 +68,5 @@ interface TaskWatchFrame {
 - Chat/Executor 重启或 stream 断开：重连 SSE 并通过首帧权威快照收敛。
 - Stop：仍取消 task、Workflow 和任务类型补偿。
 - 任务等待链路不再出现固定 `GET /tasks/*` / `GET /video-productions/*`。
-- Demo 阶段不新增测试文件。执行 `just gen-openapi executor`、`just sync`、scoped lint/build、
+- 测试遵循 ADR-0075，新增行为须补测试并运行受影响目标的 `just test`。执行 `just gen-openapi executor`、`just sync`、scoped lint/build、
   根 `just lint` / `just build`，最后按 ADR-0016 做实现后复审。

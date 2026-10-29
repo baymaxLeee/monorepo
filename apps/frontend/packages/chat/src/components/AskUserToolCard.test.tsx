@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, isInaccessible, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AskUserInput } from "../lib/ask-user";
 import { AskUserToolCard } from "./AskUserToolCard";
@@ -32,7 +33,7 @@ const batchedInput: AskUserInput = {
 
 describe("AskUserToolCard", () => {
   it("collects a single fixed choice using the ask_user output contract", () => {
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
     const input: AskUserInput = { questions: [{ ...batchedInput.questions[1] }] };
 
     render(<AskUserToolCard input={input} onSubmit={onSubmit} />);
@@ -44,12 +45,12 @@ describe("AskUserToolCard", () => {
   });
 
   it("walks a required batch and preserves all multiple-choice values", () => {
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
 
     render(<AskUserToolCard input={batchedInput} onSubmit={onSubmit} />);
 
-    expect(screen.getByText("选择技术栈")).toBeVisible();
-    expect(screen.getByText("选择优先级")).not.toBeVisible();
+    expect(isInaccessible(screen.getByText("选择技术栈"))).toBe(false);
+    expect(isInaccessible(screen.getByText("选择优先级"))).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: "React" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Vue" }));
     fireEvent.change(screen.getByRole("textbox", { name: "其他技术栈" }), {
@@ -57,8 +58,8 @@ describe("AskUserToolCard", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
 
-    expect(screen.getByText("选择技术栈")).not.toBeVisible();
-    expect(screen.getByText("选择优先级")).toBeVisible();
+    expect(isInaccessible(screen.getByText("选择技术栈"))).toBe(true);
+    expect(isInaccessible(screen.getByText("选择优先级"))).toBe(false);
     fireEvent.click(screen.getByRole("radio", { name: "低" }));
     fireEvent.click(screen.getByRole("button", { name: "提交" }));
 
@@ -71,16 +72,16 @@ describe("AskUserToolCard", () => {
   });
 
   it("keeps the user on an unanswered required question", () => {
-    render(<AskUserToolCard input={batchedInput} onSubmit={jest.fn()} />);
+    render(<AskUserToolCard input={batchedInput} onSubmit={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "下一步" }));
 
-    expect(screen.getByText("选择技术栈")).toBeVisible();
-    expect(screen.getByRole("alert")).toHaveTextContent("请选择或输入一个答案后继续。");
+    expect(isInaccessible(screen.getByText("选择技术栈"))).toBe(false);
+    expect(screen.getByRole("alert").textContent).toContain("请选择或输入一个答案后继续。");
   });
 
   it("treats freeform text as the single selected answer", () => {
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
     const input: AskUserInput = {
       questions: [{ ...batchedInput.questions[1], allowFreeform: true }],
     };
@@ -95,7 +96,7 @@ describe("AskUserToolCard", () => {
   });
 
   it("supports a required freeform-only question", () => {
-    const onSubmit = jest.fn();
+    const onSubmit = vi.fn();
     const input: AskUserInput = {
       questions: [
         {

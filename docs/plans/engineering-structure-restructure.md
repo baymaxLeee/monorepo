@@ -123,7 +123,7 @@ Eve 可以继续用于研究：
 - 不新增、拆分或合并业务微服务。
 - 不改变数据库 schema 或数据所有权。
 - 不重写 Chat agent runtime。
-- 不引入测试脚手架。
+- 测试遵循 ADR-0075，新增行为须补测试并执行受影响目标的 `just test`。
 - 不删除 proto/buf；是否继续使用必须另立契约 ADR。
 - 不为了结构“对称”创建没有真实消费者的 package。
 - 不把所有 justfile、Procfile、K8s、文档一次性改成由新 manifest 生成。
@@ -532,7 +532,7 @@ just dev
 just sync
 ~~~
 
-demo 阶段不添加测试脚手架。
+测试遵循 ADR-0075，执行受影响目标的 `just test`。
 
 ## 11. 学习目标
 

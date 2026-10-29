@@ -35,6 +35,7 @@ while descending into the target directory.
 | Plan, design, architecture, review, refactor, or tech selection | `.cursor/skills/plan/SKILL.md` |
 | Chat stream or custom `data-*`/`onData` field | `schemas/streaming/chat-uimessage-stream.md` |
 | Unclear edit scope | `.agents/scopes/default.yaml` |
+| Behavior fix, contract/config change, or lifecycle logic | `.agents/playbooks/change-verification.md` |
 
 ## Global hard rules
 
@@ -78,6 +79,38 @@ claim can only be verified through rendered layout, real interaction,
 accessibility, or browser-only runtime behavior. Never use them to reread data
 already available locally, and never expose credentials or unrelated user data.
 
+### Close the implementation loop
+
+- Before editing behavior, trace the entry point, implementation, consumers and
+  existing tests. State the expected observable result and the invariant being
+  protected; do not infer a contract from a field name or one similar caller.
+- Verify unfamiliar dependency APIs against the installed version's types,
+  source or documentation. Use current official sources for design decisions,
+  then confirm the chosen API exists in the installed version.
+- For bug fixes, first reproduce the failure with a focused regression test.
+  Confirm it fails for the reported defect, then passes after the fix. When
+  automated reproduction is unavailable, record the concrete reproduction and
+  verification gap; do not claim unobserved red/green results.
+- For lifecycle, authorization, concurrency or retry changes, cover the relevant
+  failure/cleanup path as well as success. A mock that bypasses the changed
+  boundary cannot prove that boundary works.
+- Follow `.agents/playbooks/change-verification.md` for coupled changes. Turn
+  recurring, mechanically detectable mistakes into focused tests or existing
+  checks rather than accumulating prompt-only prohibitions.
+
+### Keep durable context actionable
+
+- Put a rule in the closest owning `AGENTS.md`; keep root rules cross-cutting.
+  Give specialized rules a trigger, invariant, source of truth and verification
+  command. Link to the owner instead of copying its rules into another file.
+- Long-lived docs explain decisions and constraints that code alone cannot
+  convey. Update the owning document when behavior changes; label planned
+  behavior explicitly. Do not make a second architecture manual or preserve
+  task logs as current guidance.
+- For subtle cross-file constraints, ask whether a plausible incorrect change
+  would pass the tests and appear consistent with the documentation. Close the
+  specific gap in scope; this does not require a separate review report.
+
 ### Protect public workflows and user work
 
 - Treat root `just` recipes as the public CLI. Renames, moves, port changes,
@@ -101,7 +134,10 @@ Run from the repository root unless a routed instruction says otherwise.
 | `just dev` | Start the composed development stack |
 | `just build [target]` | Build all or one service/app |
 | `just sync` | Regenerate backend contracts and frontend clients |
-| `just lint` | Run repository checks |
+| `just test [target] [args...]` | Run behavior tests; scope with `backend/name` or `frontend/package-name` |
+| `just test-list` | List discovered test targets and missing suites |
+| `just check` | Run lint, tests, and generated contract checks |
+| `just lint` | Run static repository checks |
 | `just fmt` | Rewrite formatting; run only when requested or needed |
 | `just status` / `just doctor` | Inspect repository and environment health |
 | `just new-service <name>` / `just new-mfe <name>` | Scaffold a component through its playbook |
@@ -120,7 +156,18 @@ briefly in the conversation. Do not create a separate validation report or
 perform an additional broad review unless the user requests one or a concrete
 failure requires it.
 
-1. Run the affected unit/integration tests and add coverage for changed behavior.
+Validation applies to the final affected code: later edits, code generation or
+merges invalidate the affected results. Formatting, lint, typechecking, tests
+and builds prove different things; do not report one as another. Missing tools
+or services mean a check is unverified, not passed. For documentation-only
+changes, check links, commands and consistency; no application build is needed.
+
+1. After changing code, run `just test <target>` for every affected target and
+   add coverage for changed behavior. Use `just test-list` to locate targets;
+   frontend package names retain `@repo/` (for example `frontend/@repo/chat`).
+   Run `just test` for repository-wide testing infrastructure changes.
+   Demo-phase exemptions from writing/running tests are retired (ADR-0075).
+   Never turn missing tests, skipped tests or missing dependencies into a pass.
 2. Run scoped checks, then root `just lint` for repository-wide changes.
 3. Run `just sync` after contract changes and verify both producer and consumer.
 4. Build every affected service, app, or shared consumer.

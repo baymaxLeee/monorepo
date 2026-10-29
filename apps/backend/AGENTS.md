@@ -84,6 +84,7 @@ capability.
 | Command | Purpose |
 |---|---|
 | `just dev <service>` | Run one registered service locally |
+| `just test [service-or-library] [args...]` | Run isolated pytest, Node test runner, or Go race tests |
 | `just lint [service]` | Oxc/TS7 plus scoped or all Python/Node/Go checks |
 | `just fmt` | Rewrite supported source using root Oxfmt, Ruff, and gofmt; run only when requested or needed |
 | `just gen-openapi <service>` | Export one Python/Node OpenAPI contract |
@@ -113,3 +114,25 @@ capability.
 4. If a shared capability changed, list every consumer and verify each one.
 5. If composition changed, validate `just install`, `just up`, `just dev`,
    affected builds, K8s, and Single-VPS according to the root migration rules.
+
+## Tests are part of implementation
+
+After changing code, run root `just test backend/<service-or-library>` (or
+`just test <name>` here). Run `just test backend` from root when changing
+backend-wide tooling. CI calls the same root CLI and discovers every service
+and library; a target with no test files fails.
+
+- Go: colocate `*_test.go`; the CLI runs `go test -race ./...`.
+- Node: colocate `src/**/*.test.ts`; use `node:test` and `node:assert/strict`.
+  Each package exposes `pnpm test` using Node with the existing tsx loader.
+- Python: colocate `test_*.py` under `src`; use pytest and pytest-asyncio.
+  Each project owns its pytest import path and asyncio configuration. Services
+  run in separate processes because their top-level package names overlap.
+- Keep unit tests independent of running databases, local `.env` values, paid
+  models and external services. Test integration behavior separately against
+  the real boundary; mocks cannot prove transaction or transport correctness.
+- Start defect fixes with a reproducing regression test; add failure-path
+  coverage for lifecycle and authorization changes. Never suppress collection
+  failures or use an empty smoke assertion to satisfy the gate.
+
+See `docs/ADR/0075-first-class-monorepo-testing.md` for the shared policy.

@@ -198,6 +198,6 @@ data-artifact-edit-target:
   - 同文档双编辑：`SELECT FOR UPDATE` + `base_revision_id` 复核下只有一方成功。
   - 伪造的 postMessage（source 非预览 iframe、或 block_id 不在 inventory）被拒。
 - 使用浏览器在桌面和移动视口点选、编辑、重载并截图检查。
-- 运行 `just sync`、affected builds 和 `just lint`；demo 阶段不新增测试脚手架。
+- 运行 `just sync`、affected builds 和 `just lint`；测试遵循 ADR-0075，执行受影响目标的 `just test`。
 - 默认“点选 block 锚定编辑”；元素级锚点在 payload 预留、v1 在块粒度落地；任意块内 DOM
   节点级编辑器不进入本轮范围。

@@ -291,3 +291,9 @@ Canvas 图片任务仅接受 Canvas caller，使用已认证的租户/工作空�
 Canvas 视频节点独立使用 canvas-video-generation，支持参考媒体和首尾帧；不改变 Chat video-generation 的非串联短剧约束。取消清理函数放在 application/canvas，不能作为普通导出置于 Workflow 文件，否则其 Node 依赖进入 Workflow 沙箱导致构建失败。
 
 Canvas 归档使用 canvas-archive Workflow，通过生成的 CanvasInternalClient 调用 Go 内部媒体执行端点，取消信号传到 HTTP。Go 持有原导出快照、checkpoint 和 CAS 状态机，保留 ZIP/FCPXML 实现；Executor 不复制此业务逻辑。Go outbox 只派发并关联 Workflow，旧 Go MQ/调度器不启动。
+
+## Verification after code changes
+
+Run `just test backend/executor` from the repository root. Test conventions and
+runner configuration are owned by `apps/backend/AGENTS.md`; add regression
+coverage for changed behavior before reporting completion.

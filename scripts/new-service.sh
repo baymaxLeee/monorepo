@@ -46,6 +46,12 @@ package = false
 mypy_path = "src"
 explicit_package_bases = true
 files = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["src"]
+asyncio_mode = "auto"
+addopts = "--strict-config --strict-markers"
 EOF
 
 cat > "$SVC_DIR/AGENTS.md" <<EOF
@@ -54,6 +60,7 @@ cat > "$SVC_DIR/AGENTS.md" <<EOF
 Document the service responsibility, owned data, public/internal status,
 outbound bindings, and resource-specific module boundaries before adding
 business behavior. Follow the parent backend rules and ADR-0060/0061.
+After code changes run root \`just test backend/$NAME\`; add tests for changed behavior.
 EOF
 
 cat > "$SVC_DIR/src/main.py" <<EOF
@@ -104,6 +111,20 @@ async def readyz() -> dict[str, str]:
 @router.get("/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}
+EOF
+
+cat > "$SVC_DIR/src/api/http/routes/test_health.py" <<'EOF'
+import httpx
+
+from main import create_app
+
+
+async def test_health_routes_are_available() -> None:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app()), base_url="http://test") as client:
+        for path in ("/livez", "/readyz", "/healthz"):
+            response = await client.get(path)
+            assert response.status_code == 200
+            assert response.json() == {"status": "ok"}
 EOF
 
 echo "✓ Created $SVC_DIR"

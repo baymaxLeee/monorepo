@@ -10,7 +10,7 @@
     "./store/*": "./src/store/*.ts"
   },
   "scripts": {
-    "test": "jest",
+    "test": "pnpm --dir ../.. test --project @repo/chat",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {
@@ -35,14 +35,10 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@swc/jest": "catalog:",
-    "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
-    "@types/jest": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@typescript/native": "catalog:",
-    "jest": "catalog:",
-    "jest-environment-jsdom": "catalog:"
+    "vitest": "catalog:"
   }
 }

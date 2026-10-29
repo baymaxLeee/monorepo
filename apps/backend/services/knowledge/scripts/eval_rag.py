@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-"""Manual RAG retrieval quality check (NOT an automated test / NOT CI).
+"""Manual RAG retrieval quality evaluation against a running Knowledge service.
 
-Demo phase forbids test scaffolding; this is a human-run diagnostic to tune
-chunking / top_k / RRF / rerank against a small golden set. It calls the
+This diagnostic complements the automated behavior tests run through
+`just test backend/knowledge`. Use it to tune chunking / top_k / RRF / rerank
+against a small golden set. It calls the
 knowledge `/internal/retrieve` endpoint and reports simple retrieval metrics:
 
   - recall@k         : share of queries whose expected document appears in top-k

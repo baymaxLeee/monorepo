@@ -7,5 +7,6 @@
 | 审计 | 由服务按其领域与存储边界实现；共享能力须先满足 ADR-0061 consumer matrix |
 | 权限 | gateway 负责公共鉴权边界，服务执行自身授权；不得预设不存在的共享 SDK |
 | 前端设计系统 | [DESIGN.md](../../DESIGN.md) |
+| 测试与 CLI | [ADR-0075](../ADR/0075-first-class-monorepo-testing.md)，根 `just test` / `just test-list` |
 | 提交 | Conventional Commits with scope (`feat(bot):`、`fix(mfe-admin):`) |
 | 模块大小 | 详见各 AGENTS.md |

@@ -13,15 +13,17 @@ window**. Do NOT split into separate frontend/backend sub-agents.
 ## Checklist
 
 ```
-[ ] 1. Clarify API contract with user (paths, request/response, error codes)
+[ ] 1. Trace the existing API and consumers; establish expected behavior
+       (paths, request/response, error codes). Ask only for unresolved product
+       decisions. Follow change-verification.md for relevant change triggers.
 
 [ ] 2. (If non-trivial) draft ADR at docs/ADR/NNNN-<slug>.md
 
 [ ] 3. BACKEND
        cd apps/backend/services/<svc>
        Read svc-level AGENTS.md ONCE
-       Implement route + Pydantic models
-       Add or update tests for changed behavior
+       Write focused behavior tests; reproduce a bug before fixing it
+       Implement using the service's actual stack and contract conventions
        From apps/backend: `just gen-openapi <svc>`
        → schemas/openapi/<svc>.json updated
 
@@ -36,7 +38,8 @@ window**. Do NOT split into separate frontend/backend sub-agents.
        Implement UI and update affected tests
 
 [ ] 6. INTEGRATION CHECK
-       Run affected tests, then from root: `just lint && just build`
+       Run `just test backend/<svc>` and `just test frontend/<workspace-name>`,
+       then from root: `just lint && just build`
        Exercise the changed flow against the running stack
 
 [ ] 7. (Optional) Fresh-eyes review

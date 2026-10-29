@@ -112,7 +112,7 @@
 - 不自动把旧 `edit_file` 平铺参数改写成 `edits[]`。
 - 不增加 exact-tool 强制调度、通用 prerequisite graph 或 verification gate。
 - 不自动重试业务失败、Provider 生成或有副作用工具。
-- 不新增测试文件、测试框架、数据库迁移或自定义 stream part。
+- 不新增数据库迁移或自定义 stream part。测试遵循 ADR-0075，覆盖改变的行为。
 
 ## 验收
 
@@ -125,7 +125,8 @@
   SHA、task id 和失败事实。
 - [x] Trace 不再把 `ToolOutcome.ok=false` 标为成功。
 - [x] `just lint chat`、`just build chat`、根级 `just lint`、`just build` 和
-  `git diff --check` 通过；Demo 阶段未新增或运行测试脚手架。
+  `git diff --check` 通过。该历史记录仅证明上述检查通过，不代表行为测试通过；
+  后续修改按 [ADR-0075](../ADR/0075-first-class-monorepo-testing.md) 补充并执行测试。
 
 ## 官方参考
 

@@ -133,7 +133,7 @@ primary proves independent outputs exceed its practical budget
 - [x] 成功的 delegated batch 原子发布全部独立文件。
 - [x] 运行时代码无 `generate_files` 和 `html-artifact`。
 - [x] Executor 不含 HTML brief/theme/outline planner。
-- [x] 不新增自定义 stream part 或测试脚手架。
+- [x] 不新增自定义 stream part。测试政策现由 ADR-0075 规定。
 - [x] `just sync`、affected build/lint、root build/lint 通过。
 - [x] ADR-0016 post-implementation review 完成。
 

@@ -145,6 +145,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 | `just dev <mfe>`    | Start a single MFE (port from PORTS map)          |
 | `just dev-all`      | Start platform + all MFEs (heavy)                 |
 | `just lint`         | Oxlint + Oxfmt check + TS7 typecheck + boundaries |
+| `just test [workspace-name]` | Run Vitest; use `@repo/chat` for the shared chat package |
 | `just boundaries`   | Package dependency-tag rules only                 |
 | `just fmt`          | Oxfmt rewrite (auto-run, no need to ask)          |
 | `just gen-client`   | Regen `@repo/api` from `schemas/openapi/`         |
@@ -165,3 +166,26 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 2. `just test <workspace>` for affected behavior
 3. `just fmt` only when formatting actually drifted — not after every edit
 4. `pnpm -F <app> build` to verify the MF artifact is valid
+
+## Frontend testing
+
+After changing behavior, run root `just test frontend/<workspace-name>`, for
+example `just test frontend/@repo/chat` or `just test frontend/chat`. Run root
+`just test frontend` after shared testing changes. CI uses this same command.
+
+- Vitest is the sole frontend unit/component runner. Colocate `*.test.ts(x)` in `src` or `test`.
+- `vitest.config.mts` discovers app/package projects and preserves workspace
+  package exports; app-local `@` resolves to that app's `src`.
+- Use explicit imports from `vitest`, React Testing Library for interaction,
+  standard DOM properties / Testing Library accessibility queries for assertions,
+  and the shared `test/setup.ts` for cleanup.
+- The workspace exposes `pnpm test` (one run) and `pnpm test:watch`. A selected
+  project with no tests fails; `just test-list` exposes packages without suites.
+- Rspack remains the build tool. Test configuration must not load federation
+  plugins or replace workspace exports with unrelated source files. Vitest
+  does not replace TS7 typechecking, Rspack builds or federation integration tests.
+- `.pnpmfile.mjs` removes unused webpack peers from the Rspack loaders/plugins.
+  Keep it in every install context, including Docker. After changing the hook or
+  upgrading its consumers, regenerate the lockfile and run root `just build frontend`.
+- New frontend packages with tests declare their test dependencies using the
+  workspace catalog, including `vitest`; no package-specific test framework.

@@ -35,3 +35,4 @@ This survives `/clear` and allows resumption.
 
 - Root `AGENTS.md` — universal rules
 - `playbooks/full-stack-feature.md` — most common workflow
+- `playbooks/change-verification.md` — change triggers, coupled surfaces and evidence

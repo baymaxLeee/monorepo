@@ -24,3 +24,9 @@ package = false
 mypy_path = "src"
 explicit_package_bases = true
 files = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["src"]
+asyncio_mode = "auto"
+addopts = "--strict-config --strict-markers"

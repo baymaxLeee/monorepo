@@ -187,7 +187,7 @@ HTML 与 Video 分两次可独立审阅的实现批次，但新旧 task contract
 
 ### 检查命令
 
-Demo 阶段不新增 test file、fixture、mock 或测试配置，也不运行 `just test`；`just fmt` 只在生成或机械修改确有格式漂移时运行。
+测试遵循 ADR-0075，新增行为须补测试并运行受影响目标的 `just test`；`just fmt` 只在生成或机械修改确有格式漂移时运行。
 
 `just lint <target>` / `just build <target>` 的 scoped 形式只在 `apps/backend` 下有效；根目录没有 `just lint chat` 这类 recipe，且根目录 `just build chat` 会命中前端 `apps/frontend/apps/chat` 而非后端 chat 服务。因此后端服务的 scoped 校验必须在 `apps/backend` 内执行，根目录只跑跨栈 `just sync` 与全量校验。
 

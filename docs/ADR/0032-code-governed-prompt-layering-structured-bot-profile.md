@@ -128,7 +128,7 @@ only narrows their injection seam to a typed contract.
 - Chat MFE consumption of `welcome_message` / `suggested_questions` in the empty
   conversation experience is deferred additive work; the fields are stored and
   served today.
-- No test scaffolding is added (demo phase). Contract regeneration ran for admin
+- Testing now follows [ADR-0075](0075-first-class-monorepo-testing.md). Contract regeneration ran for admin
   OpenAPI → transport-ts → frontend typed client.
 
 ## References

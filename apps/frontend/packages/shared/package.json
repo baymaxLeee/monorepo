@@ -9,7 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "test": "pnpm --dir ../.. test --project @repo/shared",
     "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -18,6 +18,7 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@typescript/native": "catalog:"
+    "@typescript/native": "catalog:",
+    "vitest": "catalog:"
   }
 }

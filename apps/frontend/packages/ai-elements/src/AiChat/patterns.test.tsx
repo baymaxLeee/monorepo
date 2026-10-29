@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, isInaccessible, render, screen } from "@testing-library/react";
+import { expect, test, vi } from "vitest";
 
 import {
   Confirmation,
@@ -12,7 +13,7 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from "./reasoning";
 import { TestResults } from "./test-results";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "./tool";
 
-jest.mock("./message", () => ({ MessageResponse: ({ children }: { children: string }) => <div>{children}</div> }));
+vi.mock("./message", () => ({ MessageResponse: ({ children }: { children: string }) => <div>{children}</div> }));
 
 test("tool input may be absent while streaming, and errors remain inspectable", () => {
   const { rerender } = render(
@@ -23,7 +24,7 @@ test("tool input may be absent while streaming, and errors remain inspectable", 
       </ToolContent>
     </Tool>,
   );
-  expect(screen.getByRole("button", { name: /fetch/ })).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("button", { name: /fetch/ }).getAttribute("aria-expanded")).toBe("true");
   rerender(
     <Tool defaultOpen>
       <ToolHeader type="tool-fetch" state="output-error" />
@@ -32,7 +33,7 @@ test("tool input may be absent while streaming, and errors remain inspectable", 
       </ToolContent>
     </Tool>,
   );
-  expect(screen.getByText("请求失败")).toBeVisible();
+  expect(isInaccessible(screen.getByText("请求失败"))).toBe(false);
 });
 
 test("a user's tool disclosure choice survives tool state updates", () => {
@@ -44,12 +45,12 @@ test("a user's tool disclosure choice survives tool state updates", () => {
   );
   const { rerender } = render(view(true));
   const trigger = screen.getByRole("button", { name: /fetch/ });
-  expect(trigger).toHaveAttribute("aria-expanded", "true");
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
   fireEvent.click(trigger);
   rerender(view(false));
-  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
   rerender(view(true));
-  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
 });
 
 test("a user's reasoning disclosure choice survives streaming updates", () => {
@@ -60,18 +61,18 @@ test("a user's reasoning disclosure choice survives streaming updates", () => {
     </Reasoning>
   );
   const { rerender } = render(view(true));
-  expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("true");
   fireEvent.click(screen.getByRole("button"));
   rerender(view(true));
-  expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("false");
   rerender(view(false));
   fireEvent.click(screen.getByRole("button"));
   rerender(view(true));
-  expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("true");
 });
 
 test("approval actions appear only while waiting and keep the user's decision", () => {
-  const approve = jest.fn();
+  const approve = vi.fn();
   const view = (state: "approval-requested" | "approval-responded") => (
     <Confirmation
       state={state}
@@ -89,12 +90,12 @@ test("approval actions appear only while waiting and keep the user's decision", 
   fireEvent.click(screen.getByRole("button", { name: "允许" }));
   expect(approve).toHaveBeenCalledTimes(1);
   rerender(view("approval-responded"));
-  expect(screen.queryByRole("button", { name: "允许" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "允许" })).toBeNull();
 });
 
 test("file actions are independent of file selection", () => {
-  const select = jest.fn();
-  const download = jest.fn();
+  const select = vi.fn();
+  const download = vi.fn();
   render(
     <FileTree onSelect={select}>
       <FileTreeFolder name="src" defaultOpen>
@@ -107,7 +108,7 @@ test("file actions are independent of file selection", () => {
   expect(select).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "main.ts" }));
   expect(select).toHaveBeenCalledWith("src/main.ts");
-  expect(screen.getByRole("button", { name: "main.ts" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "main.ts" }).getAttribute("aria-pressed")).toBe("true");
 });
 
 test("failed suites expand to the failure details", () => {
@@ -118,6 +119,6 @@ test("failed suites expand to the failure details", () => {
       ]}
     />,
   );
-  expect(screen.getByText("期望值不匹配")).toBeVisible();
-  expect(screen.getByRole("button", { name: /1 项失败/ })).toHaveAttribute("aria-expanded", "true");
+  expect(isInaccessible(screen.getByText("期望值不匹配"))).toBe(false);
+  expect(screen.getByRole("button", { name: /1 项失败/ }).getAttribute("aria-expanded")).toBe("true");
 });

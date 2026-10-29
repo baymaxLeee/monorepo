@@ -69,7 +69,7 @@
 - 不新增自定义 SSE 或 `data-*` part。
 - 不新增数据库表或迁移。
 - 不把密钥、认证头、完整 stack、原始二进制或超大 Provider 响应交给模型。
-- 不在本任务中引入测试框架或测试文件；Demo 阶段以类型检查、构建和手工验收为准。
+- 测试遵循 ADR-0075，与类型检查、构建和集成验证共同构成交付门禁。
 - 不兼容旧的工具输出 Wire Shape，不回填历史消息；必要时重置 Demo 会话数据。
 
 ## 5. 统一公共协议
@@ -542,7 +542,7 @@ Tool part 即使是 `output-available`，只要 outcome `ok:false`，UI 使用 `
 
 ## 15. 验证命令
 
-遵循 Demo 阶段规则，不新增测试文件，不运行 `just test`：
+遵循 ADR-0075，增加行为测试并运行受影响目标的 `just test`，同时执行：
 
 ```bash
 cd apps/backend

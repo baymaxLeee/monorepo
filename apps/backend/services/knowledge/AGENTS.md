@@ -36,7 +36,8 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
   retrieval, embed/rerank client, and contextual retrieval
 - `src/domain/` — text chunking rules and indexing outcomes
 - `src/gen_openapi.py` — OpenAPI export
-- `scripts/eval_rag.py` — manual retrieval quality check (NOT CI / NOT tests)
+- `scripts/eval_rag.py` — manual retrieval quality evaluation against a running
+  service; complements `just test backend/knowledge`, never replaces it
 
 ## Conventions
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
@@ -77,3 +78,9 @@ Knowledge persists only platform `asset_id` + immutable `revision_id` references
 It never stores filesystem paths, buckets, object keys, or raw source bytes.
 Public uploads and service-generated files enter the Asset service first; Knowledge
 then parses/indexes the referenced revision and owns its semantic document lifecycle.
+
+## Verification after code changes
+
+Run `just test backend/knowledge` from the repository root. Test conventions and
+runner configuration are owned by `apps/backend/AGENTS.md`; add regression
+coverage for changed behavior before reporting completion.

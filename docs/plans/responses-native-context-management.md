@@ -22,4 +22,4 @@
 - 多轮、工具循环、审批 continuation、reasoning、取消、chain 失效回放均保持语义完整且不重复执行工具。
 - Provider 连通性检查必须覆盖 Responses function call 与 continuation；不支持者在配置阶段失败，不增加 Chat Completions fallback。
 - 前后端使用同一 AI SDK 协议版本；Hono/Nitro/Workflow 构建和运行契约不回退。
-- demo 阶段不新增测试脚手架。
+- 测试遵循 ADR-0075，执行受影响目标的 `just test`。

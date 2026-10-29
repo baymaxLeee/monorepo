@@ -10,7 +10,8 @@
     "./trace": "./src/trace.ts"
   },
   "scripts": {
-    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
@@ -23,7 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "@typescript/native": "catalog:"
+    "@typescript/native": "catalog:",
+    "tsx": "^4.19.0"
   },
   "peerDependencies": {
     "hono": "catalog:"

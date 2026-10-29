@@ -114,5 +114,6 @@ Artifact Job
 - 双标签发送只产生一个 run；Stop 真正终止模型和 Artifact；刷新恢复同一 run，不重复生成。
 - Artifact 进程崩溃后续跑，用户 Stop 后不后台继续但可复用 blocks；10/50/100 页 HTML
   可生成、更新、预览和内部跳转。
-- 执行 scoped lint/build、chat frontend build、knowledge lint 和 `just sync`；demo 阶段不
-  新增测试脚手架。
+- 测试遵循 [ADR-0075](../ADR/0075-first-class-monorepo-testing.md)，新增行为和缺陷修复
+  补充相应测试并执行受影响目标的根 `just test <target>`；同时执行 scoped lint/build、
+  chat frontend build、knowledge lint 和 `just sync`。

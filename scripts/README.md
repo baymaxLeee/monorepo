@@ -22,6 +22,13 @@ running `just <recipe>` from the repository root.
 - `dev-stack.sh`: shell fallback for starting the local demo stack.
 - `doctor.sh`: checks required tools and local Docker services.
 
+## Tests
+
+- `test.mjs`: dispatches root `just test [target] [args...]` to native Go/Node,
+  pytest and frontend Vitest. `just test-list` lists targets and empty suites.
+- `test-cli.test.mjs`: exercises discovery, scoping, empty suites and failure
+  propagation; run `just test tooling`.
+
 ## Helpers
 
 - `build-target.sh`: dispatches root `just build [target]` to frontend/backend

@@ -16,7 +16,7 @@
     "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/ai-elements/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
     "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
-    "test": "jest --runInBand"
+    "test": "pnpm --dir ../.. test --project @repo/ai-elements"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
@@ -37,15 +37,11 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
-    "@swc/jest": "catalog:",
-    "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
-    "@types/jest": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@typescript/native": "catalog:",
-    "jest": "catalog:",
-    "jest-environment-jsdom": "catalog:"
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",

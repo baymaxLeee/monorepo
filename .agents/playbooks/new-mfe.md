@@ -76,7 +76,7 @@ fetch for ordinary service APIs.
 [ ] update docs/微前端/index.md and domain documentation
 [ ] just install
 [ ] just sync
-[ ] just test <name>
+[ ] just test frontend/<name>
 [ ] just lint
 [ ] just build <name>
 [ ] just build platform

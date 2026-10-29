@@ -30,6 +30,11 @@ cat > "$MFE_DIR/AGENTS.md" <<EOF
 - Exposes \`./routes\` from \`src/router/index.tsx\`.
 - The platform owns the only \`RouterProvider\`; this remote exports relative \`RouteObject[]\` only.
 
+## Verification
+
+Run root \`just test frontend/$NAME\` after behavior changes. Use Vitest and
+React Testing Library; the shared frontend config discovers this app automatically.
+
 ## Module Federation
 
 - Remote name: \`$REMOTE_NAME\`
@@ -45,6 +50,7 @@ cat > "$MFE_DIR/package.json" <<EOF
   "type": "module",
   "scripts": {
     "dev": "rspack serve",
+    "test": "pnpm --dir ../.. test --project $NAME",
     "build": "rspack build",
     "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/apps/$NAME/src",
     "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/apps/$NAME/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
@@ -70,7 +76,9 @@ cat > "$MFE_DIR/package.json" <<EOF
     "@swc/helpers": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@typescript/native": "catalog:"
+    "@typescript/native": "catalog:",
+    "vitest": "catalog:",
+    "@testing-library/react": "catalog:"
   }
 }
 EOF

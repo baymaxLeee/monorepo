@@ -5,6 +5,10 @@ packages:
 catalogMode: strict
 
 catalog:
+  vitest: 5.0.5
+  vite: ^8.0.0
+  "@vitejs/plugin-react": 6.1.2
+  jsdom: 30.1.3
   "@xyflow/react": 12.11.3
   "@ai-sdk/react": ^4.0.159
   "@base-ui/react": ^1.8.0
@@ -37,35 +41,30 @@ catalog:
   shadcn: ^4.23.0
   jotai: 2.20.3
   zustand: ^5.0.2
-  '@tiptap/core': 3.32.0
-  '@tiptap/pm': 3.32.0
-  '@tiptap/react': 3.32.0
-  '@tiptap/starter-kit': 3.32.0
-  '@tiptap/suggestion': 3.32.0
-  '@tiptap/extension-mention': 3.32.0
-  '@tiptap/extension-code': 3.32.0
-  '@tiptap/extension-code-block-lowlight': 3.32.0
-  '@tiptap/extension-color': 3.32.0
-  '@tiptap/extension-highlight': 3.32.0
-  '@tiptap/extension-image': 3.32.0
-  '@tiptap/extension-table': 3.32.0
-  '@tiptap/extension-table-header': 3.32.0
-  '@tiptap/extension-table-row': 3.32.0
-  '@tiptap/extension-task-item': 3.32.0
-  '@tiptap/extension-task-list': 3.32.0
-  '@tiptap/extension-text-align': 3.32.0
-  '@tiptap/extension-text-style': 3.32.0
-  '@tiptap/extensions': 3.32.0
-  '@tiptap/markdown': 3.32.0
-  '@swc/jest': 0.2.39
-  '@testing-library/jest-dom': 6.9.1
-  '@testing-library/react': 16.3.0
-  '@types/jest': 30.0.0
-  jest: 30.2.0
-  jest-environment-jsdom: 30.2.0
+  "@tiptap/core": 3.32.0
+  "@tiptap/pm": 3.32.0
+  "@tiptap/react": 3.32.0
+  "@tiptap/starter-kit": 3.32.0
+  "@tiptap/suggestion": 3.32.0
+  "@tiptap/extension-mention": 3.32.0
+  "@tiptap/extension-code": 3.32.0
+  "@tiptap/extension-code-block-lowlight": 3.32.0
+  "@tiptap/extension-color": 3.32.0
+  "@tiptap/extension-highlight": 3.32.0
+  "@tiptap/extension-image": 3.32.0
+  "@tiptap/extension-table": 3.32.0
+  "@tiptap/extension-table-header": 3.32.0
+  "@tiptap/extension-table-row": 3.32.0
+  "@tiptap/extension-task-item": 3.32.0
+  "@tiptap/extension-task-list": 3.32.0
+  "@tiptap/extension-text-align": 3.32.0
+  "@tiptap/extension-text-style": 3.32.0
+  "@tiptap/extensions": 3.32.0
+  "@tiptap/markdown": 3.32.0
+  "@testing-library/react": 16.3.0
   less: ^4.9.1
   less-loader: ^13.0.0
-  '@dagrejs/dagre': 3.1.1
+  "@dagrejs/dagre": 3.1.1
   ahooks: 3.8.5
   copy-to-clipboard: 3.3.3
   cn: ^0.3.2
@@ -76,13 +75,13 @@ catalog:
   shiki: ^4.5.0
 
 overrides:
-  '@tiptap/core': 3.32.0
-  '@tiptap/pm': 3.32.0
+  "@tiptap/core": 3.32.0
+  "@tiptap/pm": 3.32.0
   prosemirror-model: 1.25.12
   prosemirror-transform: 1.12.4
   prosemirror-view: 1.42.8
-  '@types/react': "catalog:"
-  '@types/react-dom': "catalog:"
+  "@types/react": "catalog:"
+  "@types/react-dom": "catalog:"
   ai: "catalog:"
   react: "catalog:"
   react-dom: "catalog:"
@@ -91,33 +90,33 @@ overrides:
 
 # esbuild validates its platform binary; MSW's notice script is optional.
 allowBuilds:
-  '@swc/core': true
+  "@swc/core": true
   esbuild: true
   msw: false
   unrs-resolver: true
 
 minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.128'
-  - '@ai-sdk/react@4.0.159'
+  - "@ai-sdk/gateway@4.0.128"
+  - "@ai-sdk/react@4.0.159"
   - ai@7.0.155
-  - '@rspack/binding-darwin-arm64@2.2.7'
-  - '@rspack/binding-darwin-x64@2.2.7'
-  - '@rspack/binding-linux-arm64-gnu@2.2.7'
-  - '@rspack/binding-linux-arm64-musl@2.2.7'
-  - '@rspack/binding-linux-ppc64-gnu@2.2.7'
-  - '@rspack/binding-linux-riscv64-gnu@2.2.7'
-  - '@rspack/binding-linux-riscv64-musl@2.2.7'
-  - '@rspack/binding-linux-s390x-gnu@2.2.7'
-  - '@rspack/binding-linux-x64-gnu@2.2.7'
-  - '@rspack/binding-linux-x64-musl@2.2.7'
-  - '@rspack/binding-wasm32-wasi@2.2.7'
-  - '@rspack/binding-win32-arm64-msvc@2.2.7'
-  - '@rspack/binding-win32-ia32-msvc@2.2.7'
-  - '@rspack/binding-win32-x64-msvc@2.2.7'
-  - '@rspack/binding@2.2.7'
-  - '@rspack/cli@2.2.7'
-  - '@rspack/core@2.2.7'
-  - '@ai-sdk/mcp@2.0.86'
-  - '@ai-sdk/provider-utils@5.0.70'
-  - '@shadcn/registry@0.2.1'
+  - "@rspack/binding-darwin-arm64@2.2.7"
+  - "@rspack/binding-darwin-x64@2.2.7"
+  - "@rspack/binding-linux-arm64-gnu@2.2.7"
+  - "@rspack/binding-linux-arm64-musl@2.2.7"
+  - "@rspack/binding-linux-ppc64-gnu@2.2.7"
+  - "@rspack/binding-linux-riscv64-gnu@2.2.7"
+  - "@rspack/binding-linux-riscv64-musl@2.2.7"
+  - "@rspack/binding-linux-s390x-gnu@2.2.7"
+  - "@rspack/binding-linux-x64-gnu@2.2.7"
+  - "@rspack/binding-linux-x64-musl@2.2.7"
+  - "@rspack/binding-wasm32-wasi@2.2.7"
+  - "@rspack/binding-win32-arm64-msvc@2.2.7"
+  - "@rspack/binding-win32-ia32-msvc@2.2.7"
+  - "@rspack/binding-win32-x64-msvc@2.2.7"
+  - "@rspack/binding@2.2.7"
+  - "@rspack/cli@2.2.7"
+  - "@rspack/core@2.2.7"
+  - "@ai-sdk/mcp@2.0.86"
+  - "@ai-sdk/provider-utils@5.0.70"
+  - "@shadcn/registry@0.2.1"
   - shadcn@4.23.0

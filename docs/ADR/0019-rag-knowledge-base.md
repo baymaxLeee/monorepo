@@ -106,8 +106,8 @@ chat; OpenAPI + transport-ts regenerated. Runtime (manual, requires `just up`):
 upload -> auto-index -> `knowledge_search` in chat returns cited passages;
 edit/delete a document and confirm retrieval reflects it. A lightweight,
 manual-only retrieval quality script lives at
-`apps/backend/services/knowledge/scripts/eval_rag.py` (not CI, not pytest — the
-demo-phase test ban still holds).
+`apps/backend/services/knowledge/scripts/eval_rag.py` (a manual quality evaluation). Automated behavior testing now follows
+[ADR-0075](0075-first-class-monorepo-testing.md).
 
 ## Update — v1.1.0: dense ANN index (halfvec HNSW)
 

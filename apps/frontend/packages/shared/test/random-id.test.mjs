@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+
+import { afterEach, test } from "vitest";
 
 import { randomId } from "../src/index.ts";
 

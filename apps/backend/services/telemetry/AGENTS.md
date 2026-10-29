@@ -54,3 +54,9 @@ range, revisit ClickHouse — the migration path is documented in
 `docs/微服务/index.md`.
 
 Consider these rules if they affect your changes.
+
+## Verification after code changes
+
+Run `just test backend/telemetry` from the repository root. Test conventions and
+runner configuration are owned by `apps/backend/AGENTS.md`; add regression
+coverage for changed behavior before reporting completion.

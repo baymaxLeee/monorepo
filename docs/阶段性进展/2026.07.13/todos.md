@@ -86,4 +86,4 @@
 - [ ] Todo UI 的运行中、完成、失败和取消状态仍由 Tool 轨迹与领域状态正确计算。
 - [ ] 对比重构前后的 Instructions token 数、稳定前缀长度和 Provider cache 命中指标。
 - [ ] 文档与代码一致性：`techloge-shar.md` 不再宣称 provider 存在"三条物理管道"，且第 2 章真实捕获的 `core_policy` 不再残留 `<current_todo_list>` / `<active_plan_artifact>` 等已迁出的引用。
-- [ ] 运行 chat service 的 scoped lint 与 build；本项目 DEMO 阶段不新增测试脚手架。
+- [ ] 运行 chat service 的 scoped lint 与 build；测试遵循 ADR-0075，执行受影响目标的 `just test`。

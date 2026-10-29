@@ -215,7 +215,10 @@ skills (
   `ChatComposerControls` 加 bot `ModelSelector`；`Chat.tsx` 的 `requestBody` 增 `bot_id`
 - 可选：`/` slash 唤起技能列表（占位文案 `Chat.tsx` 已在）；本期可先靠模型自动匹配，不做交互
 
-### F. 验收（DoD，demo 阶段免测试）
+### F. 验收（DoD）
+
+测试遵循 [ADR-0075](../ADR/0075-first-class-monorepo-testing.md)：新增行为与缺陷修复
+补充相应测试，代码完成后执行根 `just test <target>`；不要求一次补齐全量覆盖。
 
 1. `just gen-openapi admin` + `just sync`，两端能 build
 2. `just migrate-new admin v1.6.0` 后 `just up` 迁移通过

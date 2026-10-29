@@ -102,7 +102,7 @@ messages; tool contracts belong in tools.
   suffix after any successfully committed batches.
 - No API, stream part, database schema, or migration changes are required.
 - Existing version-1 context snapshots are intentionally rebuilt on demand.
-- Demo-phase policy applies: this refactor adds no test scaffolding. Chat scoped
+- Current testing policy is [ADR-0075](0075-first-class-monorepo-testing.md). Chat scoped
   lint and build are the required implementation checks.
 
 ## References

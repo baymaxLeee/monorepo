@@ -108,6 +108,9 @@ build-images registry="local" tag="latest":
     @echo "✓ All backend images built with tag {{ registry }}/<svc>:{{ tag }}"
 
 # ─── quality ────────────────────────────────────────────
+test target="" *args:
+    @node ../../scripts/test.mjs "backend/$1" "${@:2}"
+
 fmt:
     pnpm --dir ../.. format:ts:backend
     uv run ruff check --fix .
