@@ -198,13 +198,14 @@ async def get_document_source(
     if max_dim is not None and (not is_image):
         raise RequestError("max_dim is only supported for image sources")
     content = await get_asset_client().read(
-        tenant_id=row.tenant_id, workspace_id=row.workspace_id, asset_id=row.asset_id,
-        revision_id=row.source_revision_id, max_bytes=get_settings().attachment_max_upload_bytes,
+        tenant_id=row.tenant_id,
+        workspace_id=row.workspace_id,
+        asset_id=row.asset_id,
+        revision_id=row.source_revision_id,
+        max_bytes=get_settings().attachment_max_upload_bytes,
     )
     if max_dim is not None and is_image:
-        variant = await anyio.to_thread.run_sync(
-            partial(build_vision_variant, content, max_dim=max_dim)
-        )
+        variant = await anyio.to_thread.run_sync(partial(build_vision_variant, content, max_dim=max_dim))
         return Response(content=variant, media_type="image/jpeg")
     media = row.source_mime_type or "application/octet-stream"
     return Response(content=content, media_type=media)
@@ -270,8 +271,10 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
         if existing is not None:
             return document_to_schema(existing, include_content=True)
     asset = await get_asset_client().describe(
-        tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
-        asset_id=payload.asset_id, revision_id=payload.revision_id,
+        tenant_id=payload.tenant_id,
+        workspace_id=payload.workspace_id,
+        asset_id=payload.asset_id,
+        revision_id=payload.revision_id,
     )
     if asset.created_by != payload.user_id:
         raise RequestError("asset was not created for the requested user")
@@ -306,8 +309,12 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
                 document_id=document_id or storage_document_id,
             )
             await ensure_document_claim_active(
-                session, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id, document_id=row.id,
-                asset_id=asset.asset_id, revision_id=asset.revision_id,
+                session,
+                tenant_id=payload.tenant_id,
+                workspace_id=payload.workspace_id,
+                document_id=row.id,
+                asset_id=asset.asset_id,
+                revision_id=asset.revision_id,
             )
     except IntegrityError:
         if document_id is None:
@@ -330,8 +337,10 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
         if existing is not None:
             return staged_media_to_schema(existing)
     asset = await get_asset_client().describe(
-        tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
-        asset_id=payload.asset_id, revision_id=payload.revision_id,
+        tenant_id=payload.tenant_id,
+        workspace_id=payload.workspace_id,
+        asset_id=payload.asset_id,
+        revision_id=payload.revision_id,
     )
     if asset.created_by != payload.user_id:
         raise RequestError("asset was not created for the requested user")
@@ -364,8 +373,12 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
                 idempotency_key=payload.idempotency_key,
             )
             await ensure_staged_media_claim_active(
-                session, tenant_id=row.tenant_id, workspace_id=row.workspace_id, staged_id=row.id,
-                asset_id=asset.asset_id, revision_id=asset.revision_id,
+                session,
+                tenant_id=row.tenant_id,
+                workspace_id=row.workspace_id,
+                staged_id=row.id,
+                asset_id=asset.asset_id,
+                revision_id=asset.revision_id,
             )
     except IntegrityError:
         if not payload.idempotency_key:
@@ -393,8 +406,11 @@ async def get_staged_media_source(staged_id: str, session: DbSession, user_id: s
     if not row.asset_id or not row.revision_id:
         raise NotFoundError(f"staged media {staged_id} has no Asset revision")
     content = await get_asset_client().read(
-        tenant_id=row.tenant_id, workspace_id=row.workspace_id, asset_id=row.asset_id,
-        revision_id=row.revision_id, max_bytes=get_settings().media_max_object_bytes,
+        tenant_id=row.tenant_id,
+        workspace_id=row.workspace_id,
+        asset_id=row.asset_id,
+        revision_id=row.revision_id,
+        max_bytes=get_settings().media_max_object_bytes,
     )
     return Response(content=content, media_type=row.mime_type)
 
@@ -432,8 +448,12 @@ async def publish_staged_media(staged_id: str, payload: StagedMediaActionInput, 
         if not row.asset_id or not row.revision_id:
             raise ConflictError("staged media has no Asset revision")
         await ensure_document_claim_active(
-            session, tenant_id=row.tenant_id, workspace_id=row.workspace_id, document_id=document.id,
-            asset_id=row.asset_id, revision_id=row.revision_id,
+            session,
+            tenant_id=row.tenant_id,
+            workspace_id=row.workspace_id,
+            document_id=document.id,
+            asset_id=row.asset_id,
+            revision_id=row.revision_id,
         )
         await mark_staged_media_claim_released(
             session, tenant_id=row.tenant_id, workspace_id=row.workspace_id, staged_id=row.id

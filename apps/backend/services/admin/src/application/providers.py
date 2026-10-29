@@ -236,9 +236,7 @@ class ModelProviderService:
                 values["is_enabled"] = payload.is_enabled
             next_kind = payload.provider_kind if payload.provider_kind is not None else row.provider_kind
             next_dialect = (
-                payload.responses_dialect
-                if "responses_dialect" in payload.model_fields_set
-                else row.responses_dialect
+                payload.responses_dialect if "responses_dialect" in payload.model_fields_set else row.responses_dialect
             )
             if next_kind == PROVIDER_KIND_CHAT and next_dialect is None:
                 raise RequestError("responses_dialect is required for chat providers")

@@ -8,6 +8,7 @@ hash + params, so repeated conversation turns never re-encode. This is exactly
 what desktop chat clients do (resize to ~1568px before the model ever sees it);
 here it runs server-side so the original is preserved for download and RAG.
 """
+
 from __future__ import annotations
 
 import io

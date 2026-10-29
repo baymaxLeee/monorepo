@@ -105,12 +105,18 @@ async def cleanup_conversation_artifacts(
             )
         ).all()
         released_claims = await mark_asset_claims_released(
-            session, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
-            owner_type="staged_media", owner_ids=[row.id for row in staged]
+            session,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            owner_type="staged_media",
+            owner_ids=[row.id for row in staged],
         )
         released_claims += await mark_asset_claims_released(
-            session, tenant_id=payload.tenant_id, workspace_id=payload.workspace_id,
-            owner_type="document", owner_ids=[row.id for row in documents]
+            session,
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            owner_type="document",
+            owner_ids=[row.id for row in documents],
         )
     return CleanupConversationArtifactsResult(
         conversation_id=payload.conversation_id,

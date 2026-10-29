@@ -68,7 +68,10 @@ async def batch_delete_my_documents(
         for row in rows:
             if row.asset_id:
                 await mark_document_claim_released(
-                    session, tenant_id=current_user.tenant_id, workspace_id=current_user.workspace_id, document_id=row.id
+                    session,
+                    tenant_id=current_user.tenant_id,
+                    workspace_id=current_user.workspace_id,
+                    document_id=row.id,
                 )
             await document_crud.delete_document(session, row)
         deleted = len(rows)
@@ -153,8 +156,10 @@ async def get_my_document_source(document_id: str, current_user: CurrentUser, se
         raise NotFoundError("document has no source Asset revision")
     media = row.source_mime_type or "application/octet-stream"
     chunks, headers = await get_asset_client().open_stream(
-        tenant_id=current_user.tenant_id, workspace_id=current_user.workspace_id,
-        asset_id=row.asset_id, revision_id=row.source_revision_id,
+        tenant_id=current_user.tenant_id,
+        workspace_id=current_user.workspace_id,
+        asset_id=row.asset_id,
+        revision_id=row.source_revision_id,
     )
     return StreamingResponse(
         chunks,

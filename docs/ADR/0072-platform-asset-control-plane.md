@@ -316,6 +316,17 @@ semantics or an object-store adapter. Database backup alone is not sufficient:
 the Asset database and byte volume must be backed up to a mutually consistent
 recovery point.
 
+Asset runs as UID/GID `65532`. Its image provides `/data/assets` owned by that
+user with mode `0750`, so Docker's [empty-volume initialization](https://docs.docker.com/engine/storage/volumes/)
+preserves a writable root without running the service as root. Kubernetes uses
+`fsGroup: 65532` and `fsGroupChangePolicy: OnRootMismatch` for the mounted PVC
+([volume permissions](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/)).
+An existing volume with incorrect ownership requires an operator repair while
+Asset is stopped; rebuilding the image is not a migration of existing volume
+metadata. Do not replace this with world-writable permissions. The
+`asset-storage` CI workflow verifies fresh-volume writes as the image user and
+preservation of bytes when the container is recreated.
+
 When an S3-compatible adapter is eventually configured, native lifecycle rules
 may clean abandoned multipart uploads, isolated staging prefixes, noncurrent
 physical versions, and already-deleted recovery copies. They never delete active

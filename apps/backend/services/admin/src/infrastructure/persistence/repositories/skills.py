@@ -46,9 +46,9 @@ async def list_skills_by_ids(
     session: AsyncSession, ids: list[str], workspace_id: str, tenant_id: str
 ) -> list[SkillRow]:
     rows = await session.scalars(
-        select(SkillRow).where(
-            SkillRow.id.in_(ids), SkillRow.workspace_id == workspace_id, SkillRow.tenant_id == tenant_id
-        ).with_for_update()
+        select(SkillRow)
+        .where(SkillRow.id.in_(ids), SkillRow.workspace_id == workspace_id, SkillRow.tenant_id == tenant_id)
+        .with_for_update()
     )
     return list(rows.all())
 

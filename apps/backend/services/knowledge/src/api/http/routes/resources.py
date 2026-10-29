@@ -94,8 +94,10 @@ async def get_signed_resource(
         raise NotFoundError("resource URL is invalid or expired")
     remaining_seconds = max(0, expires - int(datetime.now(UTC).timestamp()))
     chunks, asset_headers = await get_asset_client().open_stream(
-        tenant_id=row.tenant_id, workspace_id=row.workspace_id,
-        asset_id=row.asset_id, revision_id=row.source_revision_id,
+        tenant_id=row.tenant_id,
+        workspace_id=row.workspace_id,
+        asset_id=row.asset_id,
+        revision_id=row.source_revision_id,
     )
     return StreamingResponse(
         chunks,

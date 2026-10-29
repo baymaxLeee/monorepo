@@ -48,7 +48,9 @@ async def test_download_to_streams_and_verifies_revision_digest(tmp_path: Path) 
     try:
         with pytest.raises(ValueError, match="checksum"):
             await client.download_to(
-                revision=revision, tenant_id="tenant-1", workspace_id="workspace-1",
+                revision=revision,
+                tenant_id="tenant-1",
+                workspace_id="workspace-1",
                 target=tmp_path / "source.zip",
             )
     finally:
@@ -57,9 +59,7 @@ async def test_download_to_streams_and_verifies_revision_digest(tmp_path: Path) 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("desired_state", "expected_action"), [("active", "activate"), ("released", "release")])
-async def test_deliver_claim_prepares_before_terminal_action(
-    desired_state: str, expected_action: str
-) -> None:
+async def test_deliver_claim_prepares_before_terminal_action(desired_state: str, expected_action: str) -> None:
     requests: list[httpx.Request] = []
 
     async def respond(request: httpx.Request) -> httpx.Response:
@@ -68,11 +68,23 @@ async def test_deliver_claim_prepares_before_terminal_action(
 
     client = await _client_with_transport(httpx.MockTransport(respond))
     intent = AssetClaimIntentRow(
-        tenant_id="tenant-1", workspace_id="workspace-1", owner_type="skill_node",
-        owner_id="node-1", slot="content", asset_id="019d0000-0000-7000-8000-000000000001",
-        revision_id="019d0000-0000-7000-8000-000000000002", kind="strong", generation=7,
-        desired_state=desired_state, delivered_at=None, attempt_count=0, next_attempt_at=datetime.now(UTC),
-        lease_until=None, state_version=1, last_error=None, created_at=datetime.now(UTC),
+        tenant_id="tenant-1",
+        workspace_id="workspace-1",
+        owner_type="skill_node",
+        owner_id="node-1",
+        slot="content",
+        asset_id="019d0000-0000-7000-8000-000000000001",
+        revision_id="019d0000-0000-7000-8000-000000000002",
+        kind="strong",
+        generation=7,
+        desired_state=desired_state,
+        delivered_at=None,
+        attempt_count=0,
+        next_attempt_at=datetime.now(UTC),
+        lease_until=None,
+        state_version=1,
+        last_error=None,
+        created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
     try:
@@ -81,7 +93,8 @@ async def test_deliver_claim_prepares_before_terminal_action(
         await client.aclose()
 
     assert [request.url.path for request in requests] == [
-        "/internal/claims:prepare", f"/internal/claims:{expected_action}"
+        "/internal/claims:prepare",
+        f"/internal/claims:{expected_action}",
     ]
     prepare = requests[0].content.decode()
     terminal = requests[1].content.decode()

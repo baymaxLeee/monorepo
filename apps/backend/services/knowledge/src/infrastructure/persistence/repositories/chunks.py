@@ -72,7 +72,5 @@ async def sparse_search(
     stmt = text(
         "\n        SELECT id, document_id, chunk_index, content,\n               word_similarity(:q, content) AS score\n        FROM document_chunks\n        WHERE tenant_id = :tenant AND workspace_id = :workspace AND (:q) <% content\n        ORDER BY score DESC\n        LIMIT :lim\n        "
     )
-    result = await session.execute(
-        stmt, {"q": query, "tenant": tenant_id, "workspace": workspace_id, "lim": limit}
-    )
+    result = await session.execute(stmt, {"q": query, "tenant": tenant_id, "workspace": workspace_id, "lim": limit})
     return result.all()

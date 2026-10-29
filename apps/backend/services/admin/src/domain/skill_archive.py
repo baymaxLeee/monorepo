@@ -12,9 +12,29 @@ from pathlib import Path, PurePosixPath
 from kernel.errors import RequestError
 
 _INLINE_EXTENSIONS = {
-    ".css", ".csv", ".html", ".ini", ".java", ".js", ".json", ".jsx", ".kt",
-    ".md", ".py", ".rb", ".rs", ".sh", ".sql", ".swift", ".toml", ".ts",
-    ".tsx", ".txt", ".xml", ".yaml", ".yml",
+    ".css",
+    ".csv",
+    ".html",
+    ".ini",
+    ".java",
+    ".js",
+    ".json",
+    ".jsx",
+    ".kt",
+    ".md",
+    ".py",
+    ".rb",
+    ".rs",
+    ".sh",
+    ".sql",
+    ".swift",
+    ".toml",
+    ".ts",
+    ".tsx",
+    ".txt",
+    ".xml",
+    ".yaml",
+    ".yml",
 }
 _MAX_INLINE_BYTES = 200_000
 _MAX_COMPRESSION_RATIO = 100
@@ -81,8 +101,12 @@ def extract_skill_archive(
             content = _read_inline(destination, relative, mime_type)
             result.append(
                 ArchiveFile(
-                    path=relative, mime_type=mime_type, size_bytes=actual, sha256=digest.hexdigest(),
-                    content=content, extracted_path=None if content is not None else destination,
+                    path=relative,
+                    mime_type=mime_type,
+                    size_bytes=actual,
+                    sha256=digest.hexdigest(),
+                    content=content,
+                    extracted_path=None if content is not None else destination,
                 )
             )
         if "SKILL.md" not in {item.path for item in result}:

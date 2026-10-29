@@ -1,0 +1,26 @@
+name: asset-storage
+
+on:
+  pull_request:
+    paths:
+      - 'apps/backend/services/asset/**'
+      - 'infra/single-vps/tests/test-asset-volume.py'
+      - '.github/workflows/asset-storage.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/backend/services/asset/**'
+      - 'infra/single-vps/tests/test-asset-volume.py'
+      - '.github/workflows/asset-storage.yml'
+
+jobs:
+  volume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: docker build -t monorepo-asset:volume-test apps/backend/services/asset
+      - name: Verify non-root volume writes and container recreation
+        env:
+          ASSET_TEST_IMAGE: monorepo-asset:volume-test
+        run: python3 infra/single-vps/tests/test-asset-volume.py

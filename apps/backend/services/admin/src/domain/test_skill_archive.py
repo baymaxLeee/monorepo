@@ -31,9 +31,7 @@ def test_extract_skill_archive_routes_text_and_binary_storage(tmp_path: Path) ->
         ],
     )
 
-    result = extract_skill_archive(
-        archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096
-    )
+    result = extract_skill_archive(archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096)
 
     by_path = {item.path: item for item in result}
     assert set(by_path) == {"SKILL.md", "references/guide.txt", "assets/icon.png"}
@@ -59,9 +57,7 @@ def test_extract_skill_archive_rejects_unsafe_paths(tmp_path: Path, entry_name: 
     _write_archive(archive, [(entry_name, b"unsafe")])
 
     with pytest.raises(RequestError, match=message):
-        extract_skill_archive(
-            archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096
-        )
+        extract_skill_archive(archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096)
 
 
 def test_extract_skill_archive_rejects_symbolic_links(tmp_path: Path) -> None:
@@ -76,9 +72,7 @@ def test_extract_skill_archive_rejects_symbolic_links(tmp_path: Path) -> None:
         package.writestr(link, "SKILL.md")
 
     with pytest.raises(RequestError, match="symbolic links"):
-        extract_skill_archive(
-            archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096
-        )
+        extract_skill_archive(archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096)
 
 
 def test_extract_skill_archive_counts_directory_entries_against_budget(tmp_path: Path) -> None:
@@ -92,9 +86,7 @@ def test_extract_skill_archive_counts_directory_entries_against_budget(tmp_path:
     )
 
     with pytest.raises(RequestError, match="at most 2 entries"):
-        extract_skill_archive(
-            archive, target, max_files=2, max_member_bytes=1024, max_expanded_bytes=4096
-        )
+        extract_skill_archive(archive, target, max_files=2, max_member_bytes=1024, max_expanded_bytes=4096)
 
 
 def test_extract_skill_archive_requires_root_manifest(tmp_path: Path) -> None:
@@ -104,6 +96,4 @@ def test_extract_skill_archive_requires_root_manifest(tmp_path: Path) -> None:
     _write_archive(archive, [("README.md", b"missing manifest")])
 
     with pytest.raises(RequestError, match=r"root SKILL\.md"):
-        extract_skill_archive(
-            archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096
-        )
+        extract_skill_archive(archive, target, max_files=10, max_member_bytes=1024, max_expanded_bytes=4096)
