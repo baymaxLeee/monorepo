@@ -117,7 +117,8 @@ capability.
 
 ## Tests are part of implementation
 
-After changing code, run root `just test backend/<service-or-library>` (or
+After changing code, run root `just test-affected HEAD backend` or
+`just test backend/<service-or-library>` (or
 `just test <name>` here). Run `just test backend` from root when changing
 backend-wide tooling. CI calls the same root CLI and discovers every service
 and library; a target with no test files fails.

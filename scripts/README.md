@@ -28,6 +28,11 @@ running `just <recipe>` from the repository root.
   pytest and frontend Vitest. `just test-list` lists targets and empty suites.
 - `test-cli.test.mjs`: exercises discovery, scoping, empty suites and failure
   propagation; run `just test tooling`.
+- `test-affected.mjs`: powers `just test-affected [base] [scope] [--list]`.
+  The default base is HEAD; tracked and untracked local edits are included.
+  App/service edits select that target, shared libraries select their stack,
+  and global configuration or an unavailable base selects all scopes.
+  `test-affected.test.mjs` verifies selection and Git change discovery.
 
 ## Helpers
 

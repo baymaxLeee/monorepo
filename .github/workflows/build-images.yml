@@ -27,14 +27,18 @@ on:
     paths:
       - "apps/backend/**"
       - "apps/frontend/**"
+      - "schemas/**"
       - "infra/single-vps/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "mise.toml"
+      - "justfile"
+      - "services.yaml"
+      - "*config.*"
       # db-init bakes scripts/db-migrate.sh (see Dockerfile.db-init); a change
       # there MUST rebuild images or the deployed migrator stays stale.
       - "scripts/**"
-      - ".github/workflows/build-images.yml"
+      - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       tag:
@@ -48,22 +52,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typecheck-typescript:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - working-directory: apps/frontend
-        run: pnpm install --frozen-lockfile
-      - working-directory: apps/frontend
-        run: pnpm typecheck
-      - working-directory: apps/backend
-        run: pnpm install --frozen-lockfile
-      - working-directory: apps/backend
-        run: pnpm --filter chat run build && pnpm --filter executor run typecheck
+  backend:
+    uses: ./.github/workflows/backend.yml
+
+  frontend:
+    uses: ./.github/workflows/frontend.yml
+
+  tooling:
+    uses: ./.github/workflows/tooling.yml
+
+  contracts:
+    uses: ./.github/workflows/contracts.yml
 
   build:
-    needs: typecheck-typescript
+    needs: [backend, frontend, tooling, contracts]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

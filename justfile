@@ -99,6 +99,10 @@ lint:
 test *args:
     @node scripts/test.mjs "$@"
 
+# Run tests affected by changes since base, including local uncommitted changes.
+test-affected base="HEAD" scope="all" *args:
+    @node scripts/test-affected.mjs "$@"
+
 test-list:
     @node scripts/test.mjs --list
 

@@ -1,6 +1,7 @@
 name: backend
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - 'apps/backend/**'
@@ -12,21 +13,23 @@ on:
       - 'scripts/**'
       - 'services.yaml'
       - '.github/workflows/backend.yml'
-  push:
-    branches: [main]
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: jdx/mise-action@v2
       - run: pnpm install --frozen-lockfile
       - run: pnpm --dir apps/backend install --frozen-lockfile
       - run: uv lock --project apps/backend --check
       - run: uv sync --project apps/backend --all-packages
-      - name: Test every backend service and library
-        run: just test backend
+      - name: Test affected backend services and libraries
+        env:
+          TEST_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'all' }}
+        run: just test-affected "$TEST_BASE" backend
       - name: Static checks and formatting
         working-directory: apps/backend
         run: |

@@ -103,9 +103,8 @@ export function runTargets(targets, root = ROOT, args = [], spawn = spawnSync) {
   return failed ? 1 : 0;
 }
 
-function main() {
-  const [selection = "all", ...args] = process.argv.slice(2);
-  const targets = discoverTargets();
+export function runSelection(selection, root = ROOT, args = []) {
+  const targets = discoverTargets(root);
   if (selection === "--list") {
     for (const target of targets)
       console.log(
@@ -120,7 +119,7 @@ function main() {
   const frontend = selected.filter((target) => target.runtime === "frontend");
   let status = 0;
   if (frontend.length > 1) {
-    const result = spawnSync("pnpm", ["test"], { cwd: join(ROOT, "apps/frontend"), stdio: "inherit" });
+    const result = spawnSync("pnpm", ["test"], { cwd: join(root, "apps/frontend"), stdio: "inherit" });
     if (result.error) console.error(result.error.message);
     if (result.status !== 0) status = 1;
   }
@@ -128,7 +127,7 @@ function main() {
     status,
     runTargets(
       selected.filter((target) => target.runtime !== "frontend" || frontend.length === 1),
-      ROOT,
+      root,
       args,
     ),
   );
@@ -136,7 +135,8 @@ function main() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    process.exitCode = main();
+    const [selection = "all", ...args] = process.argv.slice(2);
+    process.exitCode = runSelection(selection, ROOT, args);
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

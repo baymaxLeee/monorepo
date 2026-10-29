@@ -169,9 +169,11 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 
 ## Frontend testing
 
-After changing behavior, run root `just test frontend/<workspace-name>`, for
+After changing behavior, run root `just test-affected HEAD frontend` or
+`just test frontend/<workspace-name>`, for
 example `just test frontend/@repo/chat` or `just test frontend/chat`. Run root
-`just test frontend` after shared testing changes. CI uses this same command.
+`just test frontend` after shared testing changes. CI uses `just test-affected`
+with the PR/push base SHA to select the same test targets.
 
 - Vitest is the sole frontend unit/component runner. Colocate `*.test.ts(x)` in `src` or `test`.
 - `vitest.config.mts` discovers app/package projects and preserves workspace

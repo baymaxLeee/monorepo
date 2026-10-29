@@ -28,7 +28,9 @@
 `just sync-check` 会重新生成并与 Git 比较；未提交的预期契约变化也会产生差异。
 须检查差异内容，不能为了让命令变绿而丢弃用户修改或自动提交。
 
-所有代码修改完成后必须执行根 `just test <target>`；用 `just test-list` 定位目标。
+所有代码修改完成后执行根 `just test-affected`（默认比较 HEAD，包含暂存、未暂存与未跟踪文件），
+或明确执行 `just test <target>`；用 `just test-list` 定位目标。
+比较分支时显式传入分叉基线；`just test-affected <base> all --list` 可预览选择。
 全仓测试工具变更执行 `just test`。测试政策见 ADR-0075。
 
 ## 完成时核对

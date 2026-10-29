@@ -1,6 +1,7 @@
 name: tooling
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - 'scripts/**'
@@ -8,13 +9,16 @@ on:
       - 'mise.toml'
       - 'services.yaml'
       - '.github/workflows/tooling.yml'
-  push:
-    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: jdx/mise-action@v2
-      - run: just test tooling
+      - name: Test affected CLI behavior
+        env:
+          TEST_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'all' }}
+        run: just test-affected "$TEST_BASE" tooling

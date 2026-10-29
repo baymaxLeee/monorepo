@@ -136,6 +136,7 @@ Run from the repository root unless a routed instruction says otherwise.
 | `just sync` | Regenerate backend contracts and frontend clients |
 | `just test [target] [args...]` | Run behavior tests; scope with `backend/name` or `frontend/package-name` |
 | `just test-list` | List discovered test targets and missing suites |
+| `just test-affected [base] [scope] [--list]` | Run affected app/service tests since base (default HEAD), including local edits |
 | `just check` | Run lint, tests, and generated contract checks |
 | `just lint` | Run static repository checks |
 | `just fmt` | Rewrite formatting; run only when requested or needed |
@@ -162,7 +163,7 @@ and builds prove different things; do not report one as another. Missing tools
 or services mean a check is unverified, not passed. For documentation-only
 changes, check links, commands and consistency; no application build is needed.
 
-1. After changing code, run `just test <target>` for every affected target and
+1. After changing code, run `just test-affected` or `just test <target>` for every affected target and
    add coverage for changed behavior. Use `just test-list` to locate targets;
    frontend package names retain `@repo/` (for example `frontend/@repo/chat`).
    Run `just test` for repository-wide testing infrastructure changes.

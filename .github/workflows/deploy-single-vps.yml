@@ -1,6 +1,6 @@
 name: deploy-single-vps
 
-# Deploys the single-VPS stack after build-images succeeds on main.
+# Deploys after build-images passes its test/contract gates and publishes images.
 #
 # Trigger:
 #   • Auto: when build-images workflow completes on main (so images are ready)
@@ -53,6 +53,9 @@ jobs:
       # if you want a manual approval gate before every deploy.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_run defaults to the latest main; deploy the checked revision.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Resolve image tag
         id: vars

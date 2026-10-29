@@ -1,6 +1,7 @@
 name: frontend
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - 'apps/frontend/**'
@@ -9,10 +10,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'mise.toml'
       - 'justfile'
-      - 'scripts/test.mjs'
+      - 'scripts/test*.mjs'
       - '.github/workflows/frontend.yml'
-  push:
-    branches: [main]
 
 jobs:
   test:
@@ -22,14 +21,18 @@ jobs:
         working-directory: apps/frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: jdx/mise-action@v2
       - name: Install root lint tooling
         working-directory: .
         run: pnpm install --frozen-lockfile
       - run: pnpm install --frozen-lockfile
-      - name: Frontend behavior tests
+      - name: Affected frontend behavior tests
         working-directory: .
-        run: just test frontend
+        env:
+          TEST_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'all' }}
+        run: just test-affected "$TEST_BASE" frontend
       - run: just lint
       - run: pnpm -F platform build
       - run: pnpm -F admin build

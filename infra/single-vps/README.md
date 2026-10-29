@@ -259,8 +259,8 @@ And optionally these **Variables**:
 | `IMAGE_REGISTRY` | (auto-derived from repo) |
 
 Done. Now every `git push origin main`:
-1. `build-images.yml` builds & pushes the 10 images
-2. `deploy-single-vps.yml` waits for build-images success, then SSH's to the VPS and runs the deploy
+1. For release-affecting changes, `build-images.yml` runs affected backend/frontend/tooling tests and contract checks through reusable workflows, then builds & pushes the 11 images only if all checks succeed.
+2. `deploy-single-vps.yml` waits for build-images success, checks out that exact commit, then SSH's to the VPS and runs the deploy
 3. After the health check succeeds, the deploy removes images not referenced by any container
 
 The CI overrides `IMAGE_TAG` to the just-built `sha-<short>` so each deploy is pinned to the commit that triggered it.

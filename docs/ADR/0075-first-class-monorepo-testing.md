@@ -27,6 +27,21 @@ Python 使用 pytest / pytest-asyncio，前端统一使用 Vitest / React Testin
 测试报告不替代类型检查、lint、构建、生成契约检查或真实系统集成测试。
 根 `just check` 聚合 lint、测试和生成契约一致性检查。
 
+日常默认执行 `just test-affected [base] [scope] [--list]`：应用/服务内变更只选对应
+目标；共享库与 workspace 配置保守选择所属整栈；全局配置、契约或未知影响范围
+选择全仓。README、AGENTS 和 docs 变更不触发行为测试，源码目录内的 Markdown
+仍按行为文件处理。直接选中的目标没有测试时失败，不能用其他包的用例代替。
+`base` 默认为 HEAD，包含本地暂存、未暂存及未跟踪文件；`--list` 只预览。
+CI 对 PR 比较 base SHA，对 push 比较推送前 SHA；无可靠基线时回退全量。
+
+`backend`、`frontend`、`tooling`、`contracts` 工作流同时支持 PR 和 `workflow_call`。
+主分支发布统一由 `build-images` 调用，镜像 job 必须 `needs` 四项检查全部成功，
+再发布镜像并触发自动部署，避免独立工作流全绿与否不影响发布的问题。
+契约生成一致性通过根 `just sync-check` 校验；Protobuf lint/breaking 在 Proto
+改动或无可靠基线时执行，比较真实变更前版本，不与当前 main 自身比较。
+自动部署 checkout 被验证的 SHA，保证部署脚本与镜像来自同一提交。
+手动指定既有镜像的部署仍是运维回滚入口，不等同于新提交通过自动门禁。
+
 默认测试不依赖运行中的服务、真实凭证或付费模型。外部服务通过显式接口替身隔离；
 数据库事务、并发与真实传输语义必须另外使用集成测试验证，不能以 mock 宣称已覆盖。
 需要外部环境的测试必须有清晰标记和运行说明，缺环境时不能算通过。
