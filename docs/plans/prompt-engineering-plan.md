@@ -1,6 +1,6 @@
 # Agent 提示词工程分层与 Bot 结构化配置计划
 
-> 状态：已实施（demo 阶段直接改到最终态）。admin `system_prompt` 全链路已删除，改为结构化 Bot profile；chat 分层 XML 装配已落地。经用户授权，admin migration `v1.9.0.sql` 已直接删除 `system_prompt` 列并新增结构化列，不兼容历史数据。
+> 状态：历史实施记录。admin 已改为结构化 Bot profile，chat 分层 XML 装配已落地。历史破坏性转换不构成当前操作许可；后续变更必须新增迁移，保留原始数据并验证回填，遵循[数据库迁移规范](../开发规范/database-migrations.md)。
 >
 > 与原计划的偏差：原计划把「`InstructionContributions.workflow: string[]` → 结构化贡献」延后到后续 skill/MCP 工作；本次按用户「直接改到最终心态」的要求提前完成——已改为 `skills: SkillListing[]`，`<available_skills>` 由 renderer 生成，并移除 extension 的裸 `instructions?: string[]` 注入通道。oncall 完整 RCA 工作流仍延后到 skill 装配。
 
@@ -62,7 +62,7 @@
 - XML 是可读结构和模型提示，不是安全沙箱；安全性必须由 schema、转义、`activeTools`、approval 和 tool implementation 强制保证。转义只防标签突破，`role_description` 等仍是模型会 honor 的自然语言，能力边界的唯一硬保证是代码 policy 层，不是 XML 结构。
 - admin 配置只能收窄或描述行为，不能新增工具、取消审批、改变 mode 或覆盖核心策略。
 - 只有 `core_policy` 是真正跨 run 稳定的前缀；`runtime_contract` 随 mode 变化、capability 随 mode 与 provider 配置变化，Bot/context/environment 放后部，尽量后置动态内容以保留 provider prompt caching 的可能性。
-- 不引入兼容 shim：demo 阶段直接移除 `system_prompt` 全链路，更新 seed 和 ADR，不同时保留 persona 新旧路径。
+- 持久化字段采用扩展、回填、校验、切换、收缩流程；旧字段在数据转换和应用回退窗口结束后，通过新迁移移除，同步更新 seed 和 ADR。
 - 测试遵循 ADR-0075；使用 `just test`、typecheck、lint、build 与必要的集成验证。
 - DB migration 位于禁止无授权编辑区；实施前必须取得用户对 admin migration 的明确授权。
 
@@ -116,7 +116,7 @@ context/instructions/
 
 ### 2. admin 用结构化 Bot 配置替代 `system_prompt`
 
-直接从 Bot model/schema/API 删除 `system_prompt`，新增：
+目标 Bot model/schema/API 移除 `system_prompt`；数据库通过分阶段迁移保留和转换历史数据，新增：
 
 ```text
 role_description      varchar/text，必填或有安全默认值，建议上限 500

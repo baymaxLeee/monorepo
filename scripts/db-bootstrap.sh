@@ -9,7 +9,7 @@ PG_ADMIN_USER="${POSTGRES_ADMIN_USER:-workflow}"
 PG_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-workflow}"
 
 service_has_sql_migrations() {
-  compgen -G "$1/migrations/versions/*.sql" >/dev/null
+  compgen -G "$1/migrations/v*/*.up.sql" >/dev/null
 }
 
 echo "→ discovering service-owned database migrations"
@@ -21,7 +21,7 @@ while IFS= read -r service_dir; do
 done < <(find "$SERVICES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
 if [ "${#SERVICE_DIRS[@]}" -eq 0 ]; then
-  echo "⚠ no service SQL migrations found under $SERVICES_DIR/*/migrations/versions" >&2
+  echo "⚠ no service SQL migrations found under $SERVICES_DIR/*/migrations/v*/*.up.sql" >&2
   exit 1
 fi
 

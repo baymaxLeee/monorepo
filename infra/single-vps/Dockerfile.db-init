@@ -12,20 +12,29 @@
 #     .
 
 # bookworm ships bash + psql; db-migrate.sh relies on bash [[ ]] regex + find/awk.
+FROM golang:1.26.3-bookworm AS migrator-build
+WORKDIR /src
+COPY scripts/dbmigrate/go.mod scripts/dbmigrate/go.sum ./
+RUN go mod download
+COPY scripts/dbmigrate ./
+RUN CGO_ENABLED=0 go build -trimpath -o /db-migrate ./cmd/db-migrate
+
 FROM postgres:16-bookworm
+COPY --from=migrator-build /db-migrate /usr/local/bin/db-migrate
+ENV DB_MIGRATE_BINARY=/usr/local/bin/db-migrate
 
 COPY scripts/db-migrate.sh /db-migrate.sh
 COPY infra/single-vps/postgres-init.sh /init.sh
 RUN chmod +x /db-migrate.sh /init.sh
 
-# db-migrate.sh expects <service-dir>/migrations/versions/*.sql. Directory names
+# db-migrate.sh expects <service-dir>/migrations/<release>/<release>.<step>.up.sql. Directory names
 # MUST match the service → database mapping in postgres-init.sh's SERVICES list.
-COPY apps/backend/services/iam/migrations/versions       /schema/iam/migrations/versions
-COPY apps/backend/services/admin/migrations/versions     /schema/admin/migrations/versions
-COPY apps/backend/services/chat/migrations/versions      /schema/chat/migrations/versions
-COPY apps/backend/services/executor/migrations/versions  /schema/executor/migrations/versions
-COPY apps/backend/services/knowledge/migrations/versions /schema/knowledge/migrations/versions
-COPY apps/backend/services/telemetry/migrations/versions /schema/telemetry/migrations/versions
+COPY apps/backend/services/iam/migrations       /schema/iam/migrations
+COPY apps/backend/services/admin/migrations     /schema/admin/migrations
+COPY apps/backend/services/chat/migrations      /schema/chat/migrations
+COPY apps/backend/services/executor/migrations  /schema/executor/migrations
+COPY apps/backend/services/knowledge/migrations /schema/knowledge/migrations
+COPY apps/backend/services/telemetry/migrations /schema/telemetry/migrations
 
 # Prod-only seed data (env-specific config rows, e.g. the app-registry with
 # same-origin MFE manifest URLs). Layout: /seed/<db>/*.sql, applied AFTER schema.
@@ -33,5 +42,5 @@ COPY infra/single-vps/seed /seed
 
 ENTRYPOINT ["/init.sh"]
 
-COPY apps/backend/services/canvas/migrations/versions /schema/canvas/migrations/versions
-COPY apps/backend/services/asset/migrations/versions  /schema/asset/migrations/versions
+COPY apps/backend/services/canvas/migrations /schema/canvas/migrations
+COPY apps/backend/services/asset/migrations  /schema/asset/migrations

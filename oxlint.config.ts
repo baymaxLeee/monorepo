@@ -20,7 +20,7 @@ export default defineConfig({
     "**/pnpm-lock.yaml",
     "**/.rspack-build",
     "**/dist-mfe",
-    "**/migrations/versions",
+    "**/migrations",
     "**/patches",
     "apps/backend/libs/transport-ts/src/schema",
   ],

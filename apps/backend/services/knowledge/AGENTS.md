@@ -10,7 +10,7 @@ conversations. See [file and Asset ownership](../../../../docs/ADR/files-and-ass
   (docker-compose `postgres`, image `pgvector/pgvector:pg16`): the
   `knowledge` database sits alongside executor's `workflow` database.
 - Migrations run through the shared Postgres path: `scripts/db-migrate.sh`
-  applies `migrations/versions/*.sql` via psql, and `just up` migrates it once
+  applies `migrations/<release>/<release>.<step>.up.sql` via the shared migration binary, and `just up` migrates it once
   Postgres is ready.
 
 ## Owns

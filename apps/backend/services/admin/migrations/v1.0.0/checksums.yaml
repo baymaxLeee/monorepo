@@ -1,0 +1,7 @@
+version: v1.0.0
+algorithm: sha256
+steps:
+    - version: v1.0.0.0
+      checksum: 1942463f67e452a23830101d2fe565c915d0168dac3eaa1e37d9e483ab7609b7
+      files:
+        v1.0.0.0.up.sql: 5aed7175c387b41d17bb2bbf0f230d3f38e99fa37bf8a116376764e1e98cdd36

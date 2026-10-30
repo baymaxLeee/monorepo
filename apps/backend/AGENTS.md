@@ -20,8 +20,8 @@ and record high-risk extraction decisions before moving code.
 ### Service autonomy
 
 - Each service owns its runtime, dependency manifest, Dockerfile, and data.
-- Each service owns its SQL migrations under `services/<name>/migrations/versions/`.
-  The current initial baseline is `v1.0.0.sql`.
+- Each service owns its SQL migrations under `services/<name>/migrations/<release>/`.
+  The current initial baseline is `v1.0.0/v1.0.0.0.up.sql`.
 - Services never import another service's source.
 - Cross-service calls use explicit bindings from `services.yaml` and transport
   clients; asynchronous flows use shared event contracts where appropriate.
@@ -30,11 +30,22 @@ and record high-risk extraction decisions before moving code.
 ### Database migrations
 
 - Preserve existing data in local and deployed databases. Applied SQL, including
-  `v1.0.0.sql`, is immutable; add a new numbered SQL file for schema/data changes.
-- `scripts/db-migrate.sh` owns ordered upgrades, checksum history, serialization
+  `v1.0.0/v1.0.0.0.up.sql`, is immutable; append new step-prefixed files within the release directory for schema/data changes.
+- Steps are contiguous from zero within each three-part release directory.
+  Four-part IDs target exact steps; three-part CLI targets select the release head.
+  Old three-part database records identify step zero only.
+- Each release directory must include a generated `checksums.yaml`. Run root
+  `just migrate-checksums <service> <version>` when authoring, then
+  `just migrate-check`; never regenerate applied versions to bypass drift.
+- Use SQL for schema and simple data changes; use compiled, registered Go
+  functions for complex transactional transformations. Never mix SQL and Go in
+  one step or run arbitrary Go source during deployment.
+- `scripts/db-migrate.sh` and the Goose adapter in `scripts/dbmigrate/` own ordered upgrades, checksum history, serialization
   and transactional rollback. Processes do not create schemas at startup.
 - Never reset a database or rewrite checksums to make an upgrade pass. Application
-  rollback does not imply schema downgrade; no generic DOWN executor exists.
+  rollback does not imply schema downgrade. Explicit DOWN requires a verified
+  `migrations/<release>/<release>.<step>.down.sql`; missing reverse SQL fails closed. Never reverse
+  the initial step `v1.0.0.0`. Preserve data and record irreversible changes explicitly.
 - Read [database migrations](../../docs/开发规范/database-migrations.md) for upgrade,
   rollback and backfill contracts. Verify with `just test-db-migrations` and the
   affected service's tests; run `just migrate-up <service>` to apply pending SQL.
@@ -91,6 +102,7 @@ capability.
 | `just gen-openapi <service>` | Export one Python/Node OpenAPI contract |
 | `just gen-openapi-all` | Export all registered Python/Node contracts |
 | `just migrate-up <svc>` | Apply pending versioned SQL and verify applied checksums |
+| `just migrate-down <svc> <target>` | Apply verified reverse SQL to an explicit target |
 
 ### TypeScript 7
 
@@ -104,7 +116,7 @@ capability.
 
 ## Forbidden zones for unprompted edits
 
-- `services/*/migrations/versions/**`
+- `services/*/migrations/**`
 - `**/.env*`
 
 ## Done checklist

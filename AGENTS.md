@@ -43,8 +43,11 @@ Read only relevant routes and every closer AGENTS file. See the
 - Reuse official AI SDK message, stream, tool and artifact primitives. Verify
   unfamiliar APIs against installed types/source and platform decisions against
   current primary sources. Do not invent limits or orchestration policy.
-- Refactor systemic problems directly; there is no legacy-compatibility obligation.
-  Preserve user data and unrelated working-tree changes.
+- Refactor systemic problems directly while preserving stored data and deployment
+  compatibility. Database changes require new versioned migrations, never edits
+  to applied baselines or data resets. Follow
+  [database migrations](docs/开发规范/database-migrations.md).
+  Preserve unrelated working-tree changes.
 
 ## Work and verification
 

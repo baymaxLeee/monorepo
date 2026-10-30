@@ -169,3 +169,7 @@ gen-proto:
 # ─── db ─────────────────────────────────────────────────
 migrate-up service target="":
     @bash ../../scripts/db-migrate.sh "services/{{ service }}" "{{ target }}"
+
+# Explicit schema downgrade; refuses missing or unsafe reverse migrations.
+migrate-down service target:
+    @bash ../../scripts/db-migrate.sh "services/{{ service }}" "{{ target }}" down

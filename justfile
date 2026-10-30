@@ -31,6 +31,17 @@ reset-demo-data:
 migrate-up service target="":
     @bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}"
 
+# Explicit schema downgrade; refuses missing or unsafe reverse migrations.
+migrate-down service target:
+    @bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}" down
+
+# Generate a version manifest explicitly; never updates database history.
+migrate-checksums service version:
+    @bash scripts/db-checksums.sh write "{{ service }}" "{{ version }}"
+
+migrate-check:
+    @bash scripts/db-checksums.sh check
+
 # Integration tests create and remove their own disposable PostgreSQL container.
 test-db-migrations:
     @python3 scripts/tests/test-db-migrate.py
@@ -99,6 +110,8 @@ fmt:
 
 lint:
     @just check-repo
+    @just migrate-check
+    cd scripts/dbmigrate && GOWORK=off go vet ./...
     @uv run --project apps/backend python scripts/check-services.py
     pnpm lint:ts
     cd apps/backend && just lint

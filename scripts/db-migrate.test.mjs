@@ -8,7 +8,7 @@ import { test } from "node:test";
 test("invalid migration plans fail before connecting to a database", (t) => {
   const root = mkdtempSync(join(tmpdir(), "migration-plan-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const versions = join(root, "canvas/migrations/versions");
+  const versions = join(root, "canvas/migrations");
   const bin = join(root, "bin");
   mkdirSync(versions, { recursive: true });
   mkdirSync(bin);
@@ -20,12 +20,30 @@ test("invalid migration plans fail before connecting to a database", (t) => {
       encoding: "utf8",
     });
   assert.notEqual(run().status, 0);
-  writeFileSync(join(versions, "v1.0.0.sql"), "SELECT 1;\n");
+  mkdirSync(join(versions, "v1.0.0"), { recursive: true });
+  writeFileSync(join(versions, "v1.0.0/v1.0.0.0.up.sql"), "SELECT 1;\n");
   assert.notEqual(run("v9.0.0").status, 0);
   assert.notEqual(run("v1.0.0'; SELECT 1").status, 0);
-  writeFileSync(join(versions, "v01.0.1.sql"), "SELECT 1;\n");
+  mkdirSync(join(versions, "v01.0.1"), { recursive: true });
+  writeFileSync(join(versions, "v01.0.1/v01.0.1.0.up.sql"), "SELECT 1;\n");
   const invalid = run();
   assert.notEqual(invalid.status, 0);
-  assert.match(invalid.stderr, /invalid migration filename/);
+  assert.match(invalid.stderr, /invalid migration directory/);
   assert.equal(existsSync(marker), false);
+});
+
+test("Go migration catalog and registration contracts", () => {
+  const result = spawnSync("go", ["test", "-race", "./..."], {
+    cwd: resolve("scripts/dbmigrate"),
+    env: { ...process.env, GOWORK: "off" },
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test("repository migration checksum manifests match committed artifacts", () => {
+  const result = spawnSync("bash", ["scripts/db-checksums.sh", "check"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
 });

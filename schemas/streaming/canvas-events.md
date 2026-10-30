@@ -38,4 +38,4 @@ Canvas 合同的生成源是 `apps/backend/services/canvas/internal/api/contract
 - `just test backend/gateway`：events 路由流式 deadline 与跨域回执。
 - `just test frontend/canvas`：原子 reducer、重放/恢复/回执及卸载。
 - `just test frontend/@repo/api`：SSE 解析、reader 清理与命令回执。
-- 独立 PostgreSQL 集成：先按版本顺序将 Canvas `migrations/versions/*.sql` 应用到专用测试数据库，再运行 `CANVAS_STREAM_TEST_DSN='<专用数据库 DSN>' mise exec -- go -C apps/backend/services/canvas test -race -tags=integration ./internal/infrastructure/persistence/canvasnode -run TestCanvasJournalPostgres -count=1`。不要把该 DSN 指向开发或生产数据库；测试会注入失败约束。
+- 独立 PostgreSQL 集成：先按版本顺序将 Canvas `migrations/<release>/<release>.<step>.up.sql` 应用到专用测试数据库，再运行 `CANVAS_STREAM_TEST_DSN='<专用数据库 DSN>' mise exec -- go -C apps/backend/services/canvas test -race -tags=integration ./internal/infrastructure/persistence/canvasnode -run TestCanvasJournalPostgres -count=1`。不要把该 DSN 指向开发或生产数据库；测试会注入失败约束。

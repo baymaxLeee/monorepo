@@ -3,7 +3,7 @@ guard_rails:
   generated_or_sensitive:
     - "**/generated/**"
     - "schemas/openapi/**"
-    - "apps/backend/services/*/migrations/versions/**"
+    - "apps/backend/services/*/migrations/**"
     - "**/.env*"
     - "**/pnpm-lock.yaml"
     - "**/uv.lock"

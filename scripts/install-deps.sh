@@ -60,6 +60,7 @@ fi
 echo ""
 echo "── 5. Backend Go services ──"
 if command -v go >/dev/null 2>&1; then
+  (cd scripts/dbmigrate && GOWORK=off go mod download)
   for svc in gateway iam canvas asset; do
     echo "  → $svc"
     (cd "apps/backend/services/$svc" && go mod download && go mod tidy)

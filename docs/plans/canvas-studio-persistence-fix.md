@@ -1,7 +1,7 @@
 # Canvas Studio persistence 500 修复计划
 
 日期：2026-09-22
-状态：已完成
+状态：历史修复记录；下述验证仅描述当时执行结果，不作为当前迁移操作指南。
 
 ## 事实
 
@@ -12,9 +12,9 @@
 
 ## 决定
 
-- 将 `asset_references.asset_id` 直接改为 `character(36)`，与 `assets.id` 和所有引用方统一。
-- 不在查询中增加 cast，不增加兼容 migration、双类型支持或运行时适配。
-- 项目无数据兼容要求，修改最终首次 migration 后清库重装。
+- 目标类型为 `character(36)`，与 `assets.id` 和所有引用方统一。
+- 当前同类修复必须新增版本化 migration，验证类型转换、引用关系及已有数据保留。
+- 已应用的首次 migration 不可修改，不得清库重装；升级、失败回滚和恢复遵循[数据库迁移规范](../开发规范/database-migrations.md)。
 
 ## 验证
 

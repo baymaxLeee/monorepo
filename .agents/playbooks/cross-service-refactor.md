@@ -26,7 +26,8 @@ ask only for an unresolved product, scope or external-state decision.
 [ ] 4. Order matters:
        a) Build the docs/ADR/architecture.md consumer matrix and decide whether code should be shared
        b) Update the shared contract or capability only when justified
-       c) Update every consumer and delete the old path in the same migration; demo phase has no compatibility shims
+       c) Update every consumer; for persisted data use expand/backfill/verify/contract migrations
+          Preserve old paths until deployment compatibility and rollback windows allow removal
 
 [ ] 5. Per service:
        cd apps/backend/services/<svc>

@@ -17,7 +17,7 @@ kernel = { workspace = true }
 [tool.ruff]
 line-length = 120
 target-version = "py314"
-extend-exclude = ["**/migrations/versions/**", "**/__pycache__/**"]
+extend-exclude = ["**/migrations/**", "**/__pycache__/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "PT", "RUF"]

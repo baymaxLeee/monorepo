@@ -51,7 +51,15 @@ just test-affected HEAD frontend --list
   applies pending versioned SQL without discarding data, seeds Admin configuration, and
   bootstraps the IAM super-admin.
 - `db-migrate.sh`: validates immutable SQL history and applies pending versions in
-  one locked transaction; root `just migrate-up <service> [target]`.
+  one locked transaction; root `just migrate-up <service> [target]` and explicit
+  `just migrate-down <service> <target>`. SQL lives in `migrations/<release>/<release>.<step>.up.sql`
+  and optional `down.sql`;
+  missing reversals fail closed. `migration_audit` retains UP/DOWN execution checksums.
+- `db-checksums.sh`: explicit per-version manifest generation and read-only catalog
+  verification through `just migrate-checksums` / `just migrate-check`.
+- `dbmigrate/`: pinned Goose transaction execution with the repository version-directory
+  and checksum adapter. Registered service Go migrations share the SQL transaction
+  and ledger; `just test tooling` includes its Go unit tests.
 - `tests/test-db-migrate.py`: disposable PostgreSQL integration tests for upgrades
   and failure recovery; root `just test-db-migrations`.
 - `reset-demo-data.sh`: destroys and recreates every local service database and
