@@ -1,6 +1,6 @@
 # Post-implementation review — engineering structure restructure
 
-Follows [ADR-0016](../ADR/0016-post-implementation-review.md).  
+Follows [ADR-0016](../ADR/engineering.md).
 Plan: `docs/plans/engineering-structure-restructure.md`.
 
 ## Checklist

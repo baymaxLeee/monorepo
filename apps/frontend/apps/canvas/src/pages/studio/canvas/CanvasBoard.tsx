@@ -1,4 +1,4 @@
-import { toast, Button } from "@repo/design-system";
+import { Button, toast } from "@repo/design-system";
 import {
   Background,
   type Edge,
@@ -8,7 +8,7 @@ import {
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { Upload as IconUpload } from "lucide-react";
 import {
   Fragment,
@@ -27,14 +27,11 @@ import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
 import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { type AssetMentionItem, type AssetMentionSource } from "@/components/promptEditor/index";
 import { canvasnode } from "@/domain";
-import { UpdateCanvasNode, CreateCanvasNode, CopyCanvasNode } from "@/pages/studio/domain/persistence";
-import { resolveArtifactURL } from "@/utils/artifactURL";
-import { latestAssetReview } from "@/utils/assetReview";
+import { CopyCanvasNode, CreateCanvasNode, UpdateCanvasNode } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
 
 import { CANVAS_ASSET_DRAG_TYPE, type CanvasAssetDragData } from "../components/StudioAssetPanel";
 import { canvasRequestErrorMessage } from "../domain/actions";
-import type { CanvasStatePubSub } from "../domain/canvasStatePubSub";
 import { assetFromCanvasNode, projectCanvasNodeAssets } from "../domain/model";
 import { canvasAssetDetailsAtom, useStudioAssetStore } from "../store/assets";
 import {
@@ -44,16 +41,14 @@ import {
   defaultImageModelIdAtom,
   defaultTextModelIdAtom,
   defaultVideoModelIdAtom,
-  updateCanvasRevisionAtom,
-  upsertCanvasNodesAtom,
   useStudioMutationCoordinator,
 } from "../store/index";
 import { CanvasAddToLibraryDialog } from "./assets/CanvasAddToLibraryDialog";
 import { useCanvasAssetUpload } from "./assets/useCanvasAssetUpload";
 import { useCanvasNodeAssets } from "./assets/useCanvasNodeAssets";
 import {
-  type CanvasContentActionsContextValue,
   CanvasContentActionsContext,
+  type CanvasContentActionsContextValue,
   CanvasEditingContext,
   CanvasQuickCreateContext,
   TextGenerationWaitingContext,
@@ -70,9 +65,9 @@ import { CanvasNodeHistoryDialog } from "./generation/CanvasNodeHistoryDialog";
 import { useCanvasGeneration } from "./generation/useCanvasGeneration";
 import { canvasEdgeTypes } from "./graph/CanvasEdge";
 import {
-  MATERIALIZED_NODE_HORIZONTAL_GAP,
   type AddMenu,
   type CanvasInteractionMode,
+  MATERIALIZED_NODE_HORIZONTAL_GAP,
   canvasNodeClassName,
   contentAssetID,
   dtoToEdges,
@@ -113,13 +108,11 @@ function CanvasBoardInner({
   defaultVideoModelId,
   defaultImageModelId,
   defaultTextModelId,
-  onCanvasRevisionChange,
   onDeleteStoryboardDraft,
   onOpenStoryboardDraft,
   onRefreshGraph,
   nodePubSub,
   projectId,
-  statePubSub,
 }: {
   assetsOpen: boolean;
   canvasId: string;
@@ -127,13 +120,11 @@ function CanvasBoardInner({
   defaultVideoModelId: string;
   defaultImageModelId: string;
   defaultTextModelId: string;
-  onCanvasRevisionChange: (revision: number) => void;
   onDeleteStoryboardDraft: (nodeId: string) => Promise<boolean>;
   onOpenStoryboardDraft: (nodeId: string) => void;
   onRefreshGraph: () => Promise<void>;
   nodePubSub: CanvasNodeStore;
   projectId: string;
-  statePubSub: CanvasStatePubSub;
 }) {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const assetStore = useStudioAssetStore();
@@ -141,7 +132,7 @@ function CanvasBoardInner({
   const graphNodes = useAtomValue(canvasNodesAtom);
   const graphLoaded = useAtomValue(canvasGraphLoadedAtom);
   const assetDetails = useAtomValue(canvasAssetDetailsAtom);
-  const upsertCanvasNodes = useSetAtom(upsertCanvasNodesAtom);
+
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [historyNode, setHistoryNode] = useState<canvasnode.CanvasNode>();
@@ -222,15 +213,13 @@ function CanvasBoardInner({
   const { generateNode, cancelNodeGeneration, textGenerationWaitingNodeIDs } = useCanvasGeneration({
     canvasId,
     projectId,
-    nodePubSub,
-    statePubSub,
   });
 
   const patchNode = useCallback(
     (item: canvasnode.CanvasNode, patch: ContentPatch) => {
       if (isDeletedReferenceNode(item)) return Promise.resolve(item);
       const execute = async () => {
-        const response = await UpdateCanvasNode(
+        await UpdateCanvasNode(
           {
             ProjectID: projectId,
             CanvasID: canvasId,
@@ -239,18 +228,9 @@ function CanvasBoardInner({
           },
           { skipErrorNotify: true },
         );
-        upsertCanvasNodes([response.CanvasNode]);
-        setNodes((current) =>
-          current.map((node) =>
-            node.id === item.NodeID
-              ? {
-                  ...node,
-                  data: { ...node.data, item: response.CanvasNode },
-                }
-              : node,
-          ),
-        );
-        return response.CanvasNode;
+        const confirmed = nodePubSub.getSnapshot(item.NodeID).node;
+        if (!confirmed) throw new Error("节点已被删除");
+        return confirmed;
       };
       return enqueueCanvasMutation(execute).catch((error) => {
         toast.add({
@@ -260,7 +240,7 @@ function CanvasBoardInner({
         throw error;
       });
     },
-    [canvasId, enqueueCanvasMutation, nodePubSub.store, projectId, setNodes, upsertCanvasNodes],
+    [canvasId, enqueueCanvasMutation, nodePubSub.store, projectId, setNodes],
   );
 
   const swapNodeFrames = useCallback(
@@ -273,10 +253,6 @@ function CanvasBoardInner({
             projectId,
             canvasId,
             item: current,
-            onUpdate: (response) => {
-              upsertCanvasNodes([response.TargetNode]);
-              onCanvasRevisionChange(response.CanvasRevision);
-            },
           });
         });
       } catch (error) {
@@ -284,7 +260,7 @@ function CanvasBoardInner({
           type: "error",
           title: canvasRequestErrorMessage(error, t("首尾帧交换失败，请刷新后重试")),
         });
-        // 刷新必须在写队列外，避免 refresh 等待当前 mutation 造成死锁。
+        // 多命令补偿失败时，用 HTTP 快照恢复当前正式状态。
         try {
           await onRefreshGraph();
         } catch {
@@ -295,15 +271,7 @@ function CanvasBoardInner({
         }
       }
     },
-    [
-      canvasId,
-      enqueueCanvasMutation,
-      nodePubSub.store,
-      onCanvasRevisionChange,
-      onRefreshGraph,
-      projectId,
-      upsertCanvasNodes,
-    ],
+    [canvasId, enqueueCanvasMutation, nodePubSub.store, onRefreshGraph, projectId],
   );
 
   const {
@@ -356,7 +324,6 @@ function CanvasBoardInner({
     projectId,
     nodesRef,
     resolveConnection,
-    onCanvasRevisionChange,
   });
 
   useEffect(() => {
@@ -469,7 +436,6 @@ function CanvasBoardInner({
     setEdges,
     resolveConnection,
     onDeleteStoryboardDraft,
-    onCanvasRevisionChange,
   });
 
   const createNode = useCallback(
@@ -545,21 +511,9 @@ function CanvasBoardInner({
             },
             { skipErrorNotify: true },
           );
-          onCanvasRevisionChange(created.CanvasRevision);
-          upsertCanvasNodes([created.CanvasNode]);
+
           return created;
         });
-        setNodes((current) => [
-          ...current,
-          dtoToNode(
-            response.CanvasNode,
-            nodePubSub,
-            openHistory,
-            (itemToPatch, patch) => patchNode(itemToPatch, patch),
-            (...args) => queryNodeAssets(response.CanvasNode.NodeID, ...args),
-            (candidate) => selectNodeAssetWithFeedback(response.CanvasNode, candidate),
-          ),
-        ]);
         if (quickConnection && quickAnchor) {
           await persistConnection(
             quickConnection.side === "output" ? quickAnchor.data.item : response.CanvasNode,
@@ -597,14 +551,12 @@ function CanvasBoardInner({
       enqueueCanvasMutation,
       nodePubSub.store,
       nodePubSub,
-      onCanvasRevisionChange,
       openEditor,
       openHistory,
       persistConnection,
       projectId,
       setEdges,
       setNodes,
-      upsertCanvasNodes,
     ],
   );
 
@@ -741,24 +693,10 @@ function CanvasBoardInner({
             },
             { skipErrorNotify: true },
           );
-          onCanvasRevisionChange(copied.CanvasRevision);
-          upsertCanvasNodes([copied.CanvasNode]);
+
           return copied;
         });
-        const copiedDetail = assetFromCanvasNode(response.CanvasNode);
-        assetStore.cacheDetails([copiedDetail]);
-        const copiedNode = dtoToNode(
-          response.CanvasNode,
-          nodePubSub,
-          openHistory,
-          (itemToPatch, patch) => patchNode(itemToPatch, patch),
-          (...args) => queryNodeAssets(response.CanvasNode.NodeID, ...args),
-          (candidate) => selectNodeAssetWithFeedback(response.CanvasNode, candidate),
-        );
-        setNodes((current) => [
-          ...current.map((node) => ({ ...node, selected: false })),
-          { ...copiedNode, selected: true },
-        ]);
+        setNodes((current) => current.map((node) => ({ ...node, selected: node.id === response.CanvasNode.NodeID })));
         toast.add({
           type: "success",
           title: t("已复制节点"),
@@ -777,14 +715,12 @@ function CanvasBoardInner({
       instance,
       nodePubSub.store,
       nodePubSub,
-      onCanvasRevisionChange,
       openHistory,
       patchNode,
       projectId,
       queryNodeAssets,
       selectNodeAssetWithFeedback,
       setNodes,
-      upsertCanvasNodes,
     ],
   );
 
@@ -1189,11 +1125,7 @@ function CanvasBoardInner({
           items={reviewNode ? [{ assetId: contentAssetID(reviewNode) }] : []}
           materialName={t("素材")}
           onClose={() => setReviewNode(undefined)}
-          onPartialSuccess={(results) => {
-            results.forEach((result) => assetStore.updateReview(result.AssetID, result.Review));
-          }}
-          onSuccess={(results) => {
-            results.forEach((result) => assetStore.updateReview(result.AssetID, result.Review));
+          onSuccess={() => {
             setReviewNode(undefined);
           }}
           projectId={projectId}
@@ -1212,15 +1144,8 @@ function CanvasBoardInner({
           }
           materialName={mentionReviewRequest?.item.category === "audio" ? t("音频素材") : t("形象素材")}
           onClose={() => setMentionReviewRequest(undefined)}
-          onPartialSuccess={(results) => {
-            results.forEach((result) => assetStore.updateReview(result.AssetID, result.Review));
-            const latest = results.at(-1);
-            if (latest) mentionReviewRequest?.onUpdated(latest.Review);
-          }}
-          onSuccess={(results) => {
-            results.forEach((result) => assetStore.updateReview(result.AssetID, result.Review));
-            const latest = results.at(-1);
-            if (latest) mentionReviewRequest?.onUpdated(latest.Review);
+
+          onSuccess={() => {
             setMentionReviewRequest(undefined);
           }}
           projectId={projectId}
@@ -1230,33 +1155,7 @@ function CanvasBoardInner({
           canvasId={canvasId}
           item={libraryNode}
           onClose={() => setLibraryNode(undefined)}
-          onSuccess={(response) => {
-            if (!libraryNode || !response.CanvasNodeBinding) return;
-            const binding = response.CanvasNodeBinding;
-            const updated: canvasnode.CanvasNode = {
-              ...libraryNode,
-              AssetID: undefined,
-              CurrentAssetID: binding.CurrentAssetID,
-              ResourceAssetID: binding.ResourceAssetID,
-              ResourceAssetIsPrimary: response.ResourceAsset.IsPrimary,
-              ResourceAssetRevision: response.ResourceAsset.Revision,
-              Revision: binding.CanvasNodeRevision,
-              SelectedAssetID: undefined,
-              SelectedOutputID: undefined,
-            };
-            upsertCanvasNodes([updated]);
-            assetStore.cacheDetails([
-              {
-                ...assetFromCanvasNode(updated),
-                assetId: binding.CurrentAssetID,
-                previewUrl: resolveArtifactURL(response.ResourceAsset.PreviewURL ?? ""),
-                resourceAssetId: binding.ResourceAssetID,
-                resourceId: response.Resource.ResourceID,
-                review: latestAssetReview(response.ResourceAsset.Reviews),
-                reviews: response.ResourceAsset.Reviews,
-              },
-            ]);
-          }}
+          onSuccess={() => setLibraryNode(undefined)}
           projectId={projectId}
         />
       </section>
@@ -1277,18 +1176,13 @@ export const CanvasBoard = forwardRef<
     onDeleteStoryboardDraft: (nodeId: string) => Promise<boolean>;
     onOpenStoryboardDraft: (nodeId: string) => void;
     onRefreshGraph: () => Promise<void>;
-    statePubSub: CanvasStatePubSub;
   }
->(function CanvasBoard(
-  { nodePubSub, onDeleteStoryboardDraft, onOpenStoryboardDraft, onRefreshGraph, statePubSub },
-  ref,
-) {
+>(function CanvasBoard({ nodePubSub, onDeleteStoryboardDraft, onOpenStoryboardDraft, onRefreshGraph }, ref) {
   const { projectId = "", canvasId = "" } = useParams();
   const assetsOpen = useAtomValue(assetsPanelOpenAtom);
   const defaultVideoModelId = useAtomValue(defaultVideoModelIdAtom);
   const defaultImageModelId = useAtomValue(defaultImageModelIdAtom);
   const defaultTextModelId = useAtomValue(defaultTextModelIdAtom);
-  const onCanvasRevisionChange = useSetAtom(updateCanvasRevisionAtom);
 
   return (
     <ReactFlowProvider>
@@ -1300,12 +1194,10 @@ export const CanvasBoard = forwardRef<
         defaultTextModelId={defaultTextModelId}
         defaultVideoModelId={defaultVideoModelId}
         nodePubSub={nodePubSub}
-        onCanvasRevisionChange={onCanvasRevisionChange}
         onDeleteStoryboardDraft={onDeleteStoryboardDraft}
         onOpenStoryboardDraft={onOpenStoryboardDraft}
         onRefreshGraph={onRefreshGraph}
         projectId={projectId}
-        statePubSub={statePubSub}
       />
     </ReactFlowProvider>
   );

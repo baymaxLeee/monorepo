@@ -1,5 +1,5 @@
 import { canvasnode } from "@/domain";
-import { DeleteCanvasEdge, ConnectCanvasNodes } from "@/pages/studio/domain/persistence";
+import { ConnectCanvasNodes, DeleteCanvasEdge } from "@/pages/studio/domain/persistence";
 
 type FrameMutationResponse = canvasnode.DeleteCanvasEdgeResponse;
 
@@ -8,12 +8,10 @@ export async function swapCanvasFrames({
   projectId,
   canvasId,
   item,
-  onUpdate,
 }: {
   projectId: string;
   canvasId: string;
   item: canvasnode.CanvasNode;
-  onUpdate: (response: FrameMutationResponse) => void;
 }) {
   if (
     item.ActiveTaskRunID ||
@@ -30,7 +28,6 @@ export async function swapCanvasFrames({
   let current = item;
   const apply = (response: FrameMutationResponse) => {
     current = response.TargetNode;
-    onUpdate(response);
   };
   const deleteEdge = async (edge: canvasnode.CanvasEdge) => {
     apply(

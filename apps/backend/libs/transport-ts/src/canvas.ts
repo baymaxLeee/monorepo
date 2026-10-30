@@ -3,7 +3,6 @@ import type { components, operations, paths } from "./schema/canvas.js";
 
 export type CanvasNode = components["schemas"]["CanvasNode"];
 export type CanvasGraph = components["schemas"]["CanvasGetCanvasGraphResponse"];
-export type CanvasNodeStateTarget = components["schemas"]["CanvasNodeStateTarget"];
 export type CanvasNodePatch = operations["canvasUpdateNode"]["requestBody"]["content"]["application/json"];
 export type CanvasStoryboardDraftInput =
   operations["canvasStartStoryboardDrafts"]["requestBody"]["content"]["application/json"];
@@ -77,26 +76,6 @@ export class CanvasInternalClient {
     });
     if (data) return data;
     return this.failure(response, "read", error);
-  }
-
-  async nodeStates(
-    actor: CanvasActor,
-    projectId: string,
-    canvasId: string,
-    targets: CanvasNodeStateTarget[],
-    signal?: AbortSignal,
-  ) {
-    const { data, error, response } = await this.client.POST(
-      "/projects/{projectId}/canvases/{canvasId}/node-states:batchGet",
-      {
-        params: { path: { projectId, canvasId } },
-        headers: this.headers(actor),
-        body: { targets },
-        signal,
-      },
-    );
-    if (data) return data;
-    return this.failure(response, "state read", error);
   }
 
   async startStoryboardDrafts(

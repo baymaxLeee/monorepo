@@ -1,6 +1,6 @@
 # Org 归属 + RBAC + 身份 header 化 落地方案
 
-> 状态：**已实现 / 被 [ADR-0027](../ADR/0027-platform-org-scoped-rbac.md) 取代**。
+> 状态：**已实现 / 被 [ADR-0027](../ADR/identity-and-configuration.md) 取代**。
 > Phase 1/2（role 进 JWT → gateway `X-Auth-Roles`/`X-Auth-Org-Role` header、下游按
 > role 授权、删硬编码 email 判定、admin 写门控、`/internal` header 身份化、admin
 > `v1.8.0` org 化迁移）已落地；Phase 3（skills/mcps 配置存储）仍未做。最终身份/RBAC

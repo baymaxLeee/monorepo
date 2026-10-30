@@ -1,69 +1,43 @@
-# 系统架构总览
+# 当前系统架构
 
-```
-┌─────────────────────────────────────────────────┐
-│                  Browser                        │
-│  ┌────────────────────────────────────────┐     │
-│  │  platform (host @ :3000)               │     │
-│  │   ├─ loads admin @ :3001               │     │
-│  │   ├─ loads chat @ :3005                │     │
-│  │   └─ ...                               │     │
-│  └────────────────────────────────────────┘     │
-└──────────────────┬──────────────────────────────┘
-                   │ HTTP
-                   ▼
-┌──────────────────────────────────────────────────┐
-│  gateway (Go @ :8000) — sole public API edge     │
-│    - Authentication / X-Auth-*                   │
-│    - X-Trace-Id + W3C traceparent                │
-│    - Prefix reverse proxy (not business agg)     │
-│    - Does not expose executor (internal-only)    │
-└──────┬─────────────┬─────────────┬───────────────┘
-       │             │             │
-       ▼             ▼             ▼
-┌─────────┐    ┌─────────┐    ┌─────────┐
-│ admin   │    │ chat    │    │ ...     │
-│ :8001   │    │ :8009   │    │         │
-│ Python  │    │ Node.js │    │         │
-└────┬────┘    └────┬────┘    └─────────┘
-     │              │
-     ▼              ▼
-  ┌──────┐      ┌──────┐
-  │ DB   │      │ DB   │   (each service owns its own)
-  └──────┘      └──────┘
+```text
+Browser → Platform → Admin / Chat / Canvas remotes
+                  ↓ typed API / native streams
+               Gateway
+                  ↓ declared bindings + authenticated scope
+       IAM · Admin · Chat · Canvas · Knowledge · Telemetry · Asset
+                         ↘ Executor → Workflow Postgres World
 ```
 
-服务图真源：`services.yaml`（[ADR-0060](../ADR/0060-service-composition-and-bindings.md)）。
-前端 package 边界：next-forge 风格 capability 拆分；Eve 不用于服务注册。
+Platform 是唯一用户入口，Gateway 是唯一公共 API 边缘；Executor 只通过内部
+契约访问。服务组成、端口、binding 和数据库唯一清单是
+[services.yaml](../../services.yaml)，不在总览维护第二份。
 
-## 数据流
+## 所有权
 
-- **同步**: REST(对外)/ gRPC(服务间内部)
-- **异步**: 长任务使用 Workflow DevKit + PostgreSQL 持久执行；Executor 任务状态通过
-  Workflow 持久流向内部消费者通知。当前未部署通用 Kafka/RabbitMQ 事件总线。
+IAM 拥有身份与 tenant/workspace；Admin 拥有运营配置；Chat 拥有会话与交互
+Agent；Canvas 拥有画布业务；Knowledge 拥有文档语义/虚拟文件；Asset 拥有
+durable bytes、revision、Claim 和交付；Executor 拥有耐久执行；Telemetry
+接收和查询观测数据。详细[业务词表](../领域模型/index.md)原地维护。
 
-## 契约
+## 架构决策入口
 
-唯一的跨栈/跨服务耦合点: `schemas/`
-- `openapi/<svc>.json` — 各 Python / Node 服务按声明自动导出
-- `proto/<svc>/v1/*.proto` — 手写,Buf 管理
-- `events/*.cloudevents.json` — JSON Schema
+- [服务与代码边界](../ADR/architecture.md)：分层、共享、事务和显式 binding。
+- [Agent 与上下文](../ADR/agent-runtime.md)：一个 ToolLoopAgent、原生 UIMessage、
+  权限/审批、压缩与可变权威引用。
+- [耐久执行](../ADR/durable-execution.md)：Workflow、内部 task SSE 与取消补偿。
+- [文件与媒体](../ADR/files-and-assets.md)：业务语义和物理 bytes 分离。
+- [身份与配置](../ADR/identity-and-configuration.md)：认证 scope 与配置所有者。
+- [前端](../ADR/frontend.md)：MFE、公共能力包、host 路由与设计系统。
+- [运行部署](../ADR/operations.md)：Postgres、密钥、ClickHouse/OTel。
+- [工程与文档](../ADR/engineering.md)：可查询上下文、依赖验证和当前快照。
 
-## 部署
+同步跨服务调用使用声明的 HTTP transport；已有 Proto/event schemas 只代表
+契约面，不能据此声称部署了通用 gRPC 网络或消息 broker。Chat 的 Redis stream
+负责 transport resume，Workflow 负责持久执行，服务数据库负责业务状态。
 
-- 每个 service / MFE 独立 Docker 镜像
-- K8s 部署清单在 `infra/k8s/base/<name>/`
-- 环境覆盖在 `infra/k8s/overlays/{dev,prod}/`
-- CI 路径过滤,只构建受影响的部分
+## 事实与验证
 
-## 可观测性
-
-- Logs: 全栈统一结构化 JSON(stdout / NDJSON),保留字段 `time`/`level`/`msg`/
-  `service` + 可选 `trace_id`。各语言用原生结构化 logger——Python `structlog`、
-  Go `log/slog`、Node `pino`——不引入 OTel SDK。契约见
-  `schemas/observability/logging.md`(ADR-0026)
-- Traces: `X-Trace-Id`(兼容 W3C `traceparent`)由 gateway 边缘生成/规范化,
-  写回响应、透传下游;每个服务入站中间件把 `trace_id` 存入原生请求上下文,
-  logger 自动注入每条日志,出站客户端回填头部,实现全链路串联。后续接
-  OpenTelemetry Collector 时按契约字段表 transform,无需改服务代码
-- Metrics: Prometheus
+[schemas](../../schemas/AGENTS.md)拥有线协议；源码和测试确认当前行为。
+[根 AGENTS](../../AGENTS.md)路由工作，`just context <path-or-target>` 定位 owner。
+当前实现与本文不一致时追踪契约并修正文档或缺陷，不从旧计划推断实现。

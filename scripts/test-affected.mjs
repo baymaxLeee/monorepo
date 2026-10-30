@@ -2,7 +2,8 @@ import { spawnSync } from "node:child_process";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { discoverTargets, runSelection } from "./test.mjs";
+import { consumersOf } from "./repository.mjs";
+import { discoverTargets, runSelections } from "./test.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scopes = ["backend", "frontend", "tooling"];
@@ -27,17 +28,29 @@ export function affectedSelections(files, targets, root, scope = "all") {
   const all = () => scopes.forEach((area) => selected.add(area));
   if (files === null) all();
   for (const file of files ?? []) {
+    if (
+      /(^|\/)AGENTS(?:\.override)?\.md$/.test(file) ||
+      file.startsWith(".agents/") ||
+      file.startsWith(".cursor/") ||
+      file === "docs/index.md"
+    ) {
+      selected.add("tooling");
+      continue;
+    }
     // Documentation changes do not alter executable behavior.
-    if (/(^|\/)(AGENTS|README)\.md$/.test(file) || file.startsWith("docs/") || file.startsWith(".agents/")) continue;
+    if (/(^|\/)README\.md$/.test(file) || file.startsWith("docs/")) continue;
     const area = file.startsWith("apps/frontend/") ? "frontend" : file.startsWith("apps/backend/") ? "backend" : null;
     if (area) {
-      const kind = area === "frontend" ? "apps" : "services";
       const owner = targets.find((target) => {
         const dir = relative(root, target.dir).split("\\").join("/");
-        return dir.startsWith(`apps/${area}/${kind}/`) && file.startsWith(`${dir}/`);
+        return dir.startsWith(`apps/${area}/`) && file.startsWith(`${dir}/`);
       });
-      // Shared libraries, workspace configuration and removed targets affect the stack.
-      selected.add(owner?.id ?? area);
+      const graphIncomplete = targets.some((p) => p.area === area && p.dependencyErrors?.length);
+      if (!owner || /\/(package\.json|pyproject\.toml|go\.mod)$/.test(file) || graphIncomplete) selected.add(area);
+      else if (owner.dependencies && ["frontend", "node"].includes(owner.runtime)) {
+        for (const id of consumersOf(targets, [owner.id])) selected.add(id);
+      } else if (file.startsWith(`apps/${area}/libs/`) || file.startsWith(`apps/${area}/packages/`)) selected.add(area);
+      else selected.add(owner.id);
     } else if (!file.startsWith("apps/test/")) {
       all();
     }
@@ -59,9 +72,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       `Affected tests (${base}, ${scope}): ${selections.join(", ") || "none — no affected executable files"}`,
     );
     if (option !== "--list") {
-      let status = 0;
-      for (const selection of selections) status = Math.max(status, runSelection(selection));
-      process.exitCode = status;
+      process.exitCode = runSelections(selections);
     }
   } catch (error) {
     console.error(error.message);

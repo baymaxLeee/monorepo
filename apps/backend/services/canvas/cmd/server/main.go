@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -44,7 +45,6 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/artifact"
 	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 	"github.com/example/monorepo/canvas/internal/infrastructure/canvasstoryboardredis"
-	"github.com/example/monorepo/canvas/internal/infrastructure/canvastextgenerationredis"
 	coverimagestore "github.com/example/monorepo/canvas/internal/infrastructure/coverimage"
 	executorclient "github.com/example/monorepo/canvas/internal/infrastructure/executor"
 	canvasarchivemedia "github.com/example/monorepo/canvas/internal/infrastructure/media/canvasarchive"
@@ -330,6 +330,10 @@ func run() error {
 	}
 	log := zap.NewNop()
 	nodeRepository := canvasnodepersistence.NewRepository(db)
+	canvasJournal := canvasnodepersistence.NewEventJournal(db, nodeRepository)
+	if err := canvasJournal.Register(); err != nil {
+		return err
+	}
 	canvasRepository := canvaspersistence.NewRepository(db)
 	taskRepository := taskpersistence.NewRepository(db)
 	videoRepository := videogenerationpersistence.NewRepository(db)
@@ -474,7 +478,6 @@ func run() error {
 	)
 	textGenerations := applicationcanvastextgeneration.NewService(
 		nodeRepository,
-		canvastextgenerationredis.New(redisClient),
 		canvastextgenerationpersistence.NewRepository(db),
 		taskRepository,
 		taskRepository,
@@ -490,7 +493,6 @@ func run() error {
 	generations := applicationcanvasgeneration.NewService(
 		nodeRepository, imageEngine, videos, textGenerations, assetService,
 		applicationcanvasgeneration.WithImageModelCatalog(models),
-		applicationcanvasgeneration.WithGenerationStateReaders(nodeRepository, taskRepository, videoRepository),
 	)
 	nodes := applicationcanvas.NewCanvasNodeService(
 		nodeRepository, uuidGenerator{}, utcClock{},
@@ -544,7 +546,8 @@ func run() error {
 		applicationresourceassetgeneration.WithImageModelCatalog(models),
 		applicationresourceassetgeneration.WithUploadedReferenceReader(assetService),
 	)
-	nodeHandler := maturehttp.NewCanvasNodeHandler(nodes, assets, generations, storyboards, textGenerations)
+	nodeHandler := maturehttp.NewCanvasNodeHandler(nodes, assets, generations, storyboards)
+	nodeHandler.SetStream(canvasJournal)
 	resourceHandler := maturehttp.NewResourceHandler(resourceService, assetService, resourceGenerations)
 	memberAccess := projectaccesspersistence.NewChecker(db, redisClient, log)
 	access := applicationprojectaccess.NewAuthorizer(gatewayProjectPermissions{}, memberAccess)
@@ -557,6 +560,7 @@ func run() error {
 		applicationcanvas.WithCanvasDeletionQueue(deletionQueue),
 		applicationcanvas.WithStorageQuota(quotaService, transactions),
 	)
+	nodeHandler.SetCanvasMetadata(canvasService)
 	projectService := applicationproject.NewService(
 		projectRepository, coverImages, uuidGenerator{}, utcClock{},
 		applicationproject.WithProjectChildCleanup(
@@ -628,6 +632,20 @@ func run() error {
 		},
 	})
 	go runDeletionProcessor(ctx, deletionProcessor)
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := canvasJournal.Prune(ctx); err != nil {
+					slog.Error("prune canvas events", "error", err)
+				}
+			}
+		}
+	}()
 	processors := []applicationtask.PollProcessor{videos, imageProcessor, textGenerations, storyboards, nodes, reviews}
 	for _, processor := range processors {
 		scheduler, schedulerErr := applicationtask.NewRunTypePollScheduler(
@@ -663,7 +681,7 @@ func run() error {
 			return true
 		}
 	}))
-	server := &http.Server{Addr: ":" + cfg.Port, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	server := &http.Server{Addr: ":" + cfg.Port, Handler: handler, BaseContext: func(net.Listener) context.Context { return ctx }, ReadHeaderTimeout: 10 * time.Second}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
 	select {

@@ -94,7 +94,8 @@ type deadlineAwareProxy struct {
 func (p *deadlineAwareProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := stripServicePrefix(r.URL.Path, p.externalPrefix)
 	rc := http.NewResponseController(w)
-	if p.service == "chat-server" && strings.HasSuffix(path, "/agents/run/stream") {
+	if (p.service == "chat-server" && strings.HasSuffix(path, "/agents/run/stream")) ||
+		(p.service == "canvas-server" && r.Method == http.MethodGet && strings.HasSuffix(path, "/events")) {
 		_ = rc.SetWriteDeadline(time.Time{})
 	}
 	if p.service == "knowledge-server" && r.Method == http.MethodPost && path == "/ingest" {

@@ -595,6 +595,9 @@ importers:
       '@swc/helpers':
         specifier: 'catalog:'
         version: 0.5.23
+      '@testing-library/react':
+        specifier: 'catalog:'
+        version: 16.3.0(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -610,6 +613,9 @@ importers:
       less-loader:
         specifier: 'catalog:'
         version: 13.0.0(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(less@4.9.1(supports-color@8.1.1))
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.13.3)(jsdom@30.1.3)(vite@8.3.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.9.1(supports-color@8.1.1))(terser@5.48.0)(yaml@2.9.0))
 
   apps/chat:
     dependencies:
@@ -881,6 +887,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.13.3)(jsdom@30.1.3)(vite@8.3.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.9.1(supports-color@8.1.1))(terser@5.48.0)(yaml@2.9.0))
 
   packages/build-config:
     dependencies:

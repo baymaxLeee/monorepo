@@ -1,299 +1,70 @@
-# executor service (TypeScript)
+# Executor service
 
-Durable task executor. It is the "Hands + Session" half of the chat agent's
-tool-loop + workflow combination: `chat`'s `ToolLoopAgent` (the "Brain")
-delegates any long-running, must-survive-process-loss unit of work to this
-service instead of running it inline. See
-`docs/ADR/0015-agent-task-executor.md` and the `agent_task_执行时服务` plan
-for the full rationale.
-
-## Runtime contract
-
-- One `POST /tasks` starts exactly one durable `workflow` run and returns
-  immediately (`status: "queued"` or `"running"`). Callers never block an
-  HTTP request on task completion. `GET /tasks/:id` is the durable read
-  (snapshot incl. `progress`). `GET /tasks/:id/stream` is an authenticated
-  service-to-service SSE view over the run's Workflow durable stream
-  (ADR-0058). Workflow chunks are wakeups only; the route reloads the
-  authoritative task and video projection before emitting a snapshot. It is
-  not a browser stream and must not duplicate Chat's UIMessage SSE.
-- Progress: a task's `progress` column is a `{ done, total }` counter the
-  workflow reports per completed unit of work (see `reportTaskProgress` in
-  `src/application/tasks/notify.ts`, called from `reportProgressStep` in the workflow). It
-  is written to the DB and surfaced through authoritative status-stream
-  snapshots. Chat reconnects the SSE after transport interruption and emits
-  progress as preliminary tool-results on the main useChat stream. It is
-  best-effort UI sugar, never a correctness signal.
-- Workflow progress chunks are wakeups, not completion truth. The task SSE
-  route races the durable readable stream with the same run's `returnValue`;
-  completion settles the task row and immediately emits the authoritative
-  completed/failed/cancelled snapshot. Never wait for readable-stream EOF to
-  infer Workflow completion: Postgres World runs can complete without an EOF
-  chunk.
-- `owner_service` + `owner_ref` is the task-row idempotency key. It does not make
-  Workflow `start()` itself idempotent. A Workflow start failure marks the
-  inserted row failed immediately; callers must not automatically start a
-  second Workflow under the same user-visible tool call.
-- Every registered Workflow accepts the Executor task ID as its second argument
-  and calls `claimTaskStep` before business or paid side effects. The claim binds
-  the run atomically and rejects terminal tasks; boot recovery fails unbound
-  orphans instead of launching another run.
-- Cancellation records durable `cleanup_pending` intent. Recovery retries Workflow
-  and Provider cleanup after errors/restarts, including failed runs; recording a
-  late external task ID re-arms cleanup. Owner cancellation may create a terminal
-  tombstone before dispatch, preventing a delayed submission from starting work.
-- Task execution durability comes from `workflow` (Workflow DevKit), not
-  from this service's own process. `reconcilePendingTasks()` re-attaches to
-  any `running` task's workflow run on every boot — safe to call every time,
-  it replays against the durable run rather than re-executing anything.
-- Business truth (who started what, for what, is it done) lives in this
-  service's own PostgreSQL `tasks` table. Execution truth (steps, retries, replay)
-  lives in the Workflow World (self-hosted Postgres via
-  `@workflow/world-postgres`). **Dev/prod parity is an explicit product
-  decision here**: local dev runs the same `postgres` container as
-  every deployed environment (`docker-compose.yml`'s `postgres`
-  service, started by `just up`) rather than defaulting to the
-  filesystem-backed Local World — see "Known operational notes" #3, which
-  this parity choice is what actually surfaced. Local World still exists as
-  a fallback (comment out `WORKFLOW_TARGET_WORLD`/`WORKFLOW_POSTGRES_URL` in
-  `.env` to use it, e.g. to work offline from Docker) but is not the default.
-
-## TaskType registry
-
-- `src/application/tasks/registry.ts` maps a `type` string to a Zod input schema and a
-  `"use workflow"` function. This is the seam a future `harness`-backed
-  execution engine plugs into: the registry and the HTTP layer never depend
-  on how a task actually executes.
-- Adding a new task type: define its `workflows/<name>.ts` (with `"use step"`
-  functions for the actual work) and register it in `src/application/tasks/registry.ts`.
-  Do not put business logic directly in `src/api/http/routes/tasks.ts` or
-  `src/application/tasks/service.ts` — those stay type-agnostic.
-- `file-task-batch`, `video-generation`, `canvas-archive`, `canvas-video-frames`, and
-  `knowledge-document-process` are registered. Executor does not
-  host smoke workflows or synchronous HTML validation/review endpoints.
-- `canvas-video-frames` is a durable one-step media post-processing task. Canvas
-  owns the video/frame business state and an idempotent internal execution
-  endpoint; Executor only supplies replay, retry, cancellation, and recovery.
-- `knowledge-document-process` durably sequences idempotent convert then index
-  commands owned by Knowledge. Executor never reads Knowledge's database or
-  carries document content; it only retries authenticated internal commands.
-- `file-task-batch` accepts a frozen shared context and independent
-  `{id,instruction,outputPath}` tasks. Every output path is unique. Each Workflow
-  step performs one context-free complete-file generation and writes only its
-  assigned staged path. Executor does not receive chat history and does not plan
-  HTML sections, themes, narratives, or repairs.
-  File content is exact model output. Executor does not sanitize HTML or remove
-  JavaScript/browser capabilities; the rendering host owns isolation.
-  Chart-bearing HTML follows the same authoring contract as Chat: the generated
-  file owns complete ECharts options and one cached Promise loader that tries the
-  pinned platform ECharts 6.1.0 runtime before the pinned jsDelivr SRI fallback.
-  Chart panels use elastic Grid/Flex layouts without collapsing long grids into
-  one viewport: parent tracks establish usable minimum heights, each logical
-  chart owns one DOM container, instances are registered at creation, and each
-  observes its own container with `ResizeObserver` plus a first-frame resize.
-  Executor does not compile chart DSL, inject scripts, or hydrate chart markup.
-- `video-generation` is a durable **Chat-owned plan -> per-shot
-  create/poll -> ffmpeg-assemble** workflow for vertical short-drama (see
-  ADR-0018 and ADR-0049). Chat passes a complete typed creative plan; Executor
-  deterministically materializes its Script/ShotPlan artifacts and may only run
-  the best-effort `generateCharacterSheet` generation step (optional image provider) ->
-  `createSegmentStep`/`waitSegmentStep` (Ark create + poll) ->
-  `assembleStep` (`src/application/video/assembler.ts`). Clip URLs are the durable step state
-  (bytes never cross a step boundary). It needs the **ffmpeg** OS binary (see
-  operational note #6) and three providers threaded from chat's `catalog.ts`
-  (video + text-required + optional image).
-  - **ONE segment == ONE story beat == ONE Seedance generation == ONE continuous,
-    single-take action.** We do NOT subdivide a segment into multiple in-prompt
-    shots/timecodes: a beat is one event, and asking the model to "cover" it from
-    several angles in one generation is what produced **块内剧情重复** (the same
-    moment re-shot). Cut density comes from MORE short segments hard-cut at
-    assembly (Seedance renders a single take per generation; true cuts = concat).
-  - **Length is Chat-owned**: shot count and each shot's `seconds` (integer 4–15,
-    summing to `targetDurationSec`) come from the typed Chat plan; Executor does not
-    derive a count from duration. `ark.ts` still clamps to the real integer 4–15
-    range (`clampArkDuration` in `src/application/video/limits.ts`), and the pipeline
-    always sends an explicit integer `duration` in EVERY mode including reference
-    mode (the official 2.x API accepts it — there is no "strip duration in reference
-    mode" case).
-  - **Anti-repetition is a Chat plan invariant**: every submitted shot is one
-    distinct beat and one continuous action. Executor validates the typed plan
-    and does not reinterpret, repair, or invent a dramatic arc.
-  - **Reliability**: Ark create is a paid side effect without a provider
-    idempotency key, so `createSegmentStep.maxRetries = 0`; 4xx, 429, 5xx, and
-    network errors become that segment's structured failure instead of silently
-    creating another task. The pre-assembly completion gate requires every user-supplied
-    every submitted shot. Failed shots never cause Executor to invent a
-    replacement or assemble across a plot hole.
-  - **Assembly is hard-cut ONLY, always parallel.** Every segment references the
-    character sheet and fans out via `mapConcurrent` with
-    `VIDEO_SEGMENT_CONCURRENCY` (default 12, matching the max segment count), then
-    concatenates with hard cuts. Seed is per-segment derived (soft reproducibility
-    on 2.x). There is NO serial/seamless mode: the `continuity: "chain"` option
-    (last-frame → next first-frame chaining) was removed — it was serial, so an
-    N-segment reel took ≈N × per-segment render time and blew past chat's 30-min
-    `waitForTaskTerminal` cap, getting the task cancelled (see ADR-0018 final
-    update). Do NOT reintroduce chaining, `return_last_frame`, `first_frame`
-    segment input, or any `continuity` knob.
-  - Do NOT reintroduce multi-shot-per-segment prompting, in-prompt timecodes, or a
-    fixed `seconds`/`duration` admin default without re-reading ADR-0018.
-
-## Boundaries
-
-- No direct imports from `chat`, `knowledge`, or `admin`. Calls to those
-  services go through `@backend/transport-ts`, called from inside
-  `"use step"` functions (workflow sandbox functions must not statically
-  import Node-only dependencies — see Workflow DevKit's directive docs).
-- `chat` calls this service through `@backend/transport-ts`'s
-  `ExecutorInternalClient`; it never imports this service's source.
-- This service owns no chat/artifact domain concepts (conversation, message,
-  document). It only knows about tasks, types, and payloads.
-- DB transactions (ADR-0037): same-DB multi-step writes use
-  `getDb().transaction(async (tx) => ...)` (as `tasks/notify.ts` already does);
-  Workflow starts / HTTP calls are external side effects and stay OUTSIDE the tx.
-
-## Task status notifications
-
-- Executor does not callback into Chat and owns no browser stream.
-  Workflow steps write lightweight durable change signals; the authenticated
-  task SSE route consumes them and reloads `tasks` / `video_productions`.
-  Consumers treat events as at-least-once snapshots and reconnect the stream
-  for a fresh authoritative snapshot. The JSON task read is an ordinary query
-  and debugging endpoint, not a task-wait fallback. Do not put business truth
-  in Workflow chunks or introduce a second UIMessage stream.
+TypeScript/Hono/Nitro + Workflow 5. Read the current
+[durable execution decision](../../../../docs/ADR/durable-execution.md) for
+ownership and failure semantics. No service-to-service source imports.
 
 ## Entry points
 
-- `nitro.config.ts` — Nitro + `workflow/nitro` build config; routes `/**` to
-  `src/index.ts`.
-- `src/index.ts` — Nitro-mounted Hono app entry + boot-time task reconciler.
-- `src/dev.ts` — low-resource local entry: serves Hono directly after the
-  one-shot Workflow compilation performed by `pnpm dev:prepare`; it never
-  watches source files.
-- `src/bootstrap/app.ts` — route wiring, auth, error mapping.
-- `src/api/http/routes/tasks.ts` — Task API (start/get/watch/cancel).
-- `src/application/tasks/service.ts` — task lifecycle, idempotency, completion watching.
-- `src/application/tasks/notify.ts` — progress recording plus Workflow change signals.
-- `src/application/tasks/registry.ts` — TaskType registry.
-- `workflows/*.ts` — one file per TaskType's actual `"use workflow"`/`"use step"`
-  implementation.
+- `src/application/tasks/registry.ts`: supported task types and schemas.
+- `src/api/http/routes/tasks.ts`: start/read/watch/cancel and caller authorization.
+- `src/application/tasks/service.ts`: idempotency, lifecycle and completion.
+- `src/application/tasks/notify.ts`: persisted progress and durable wakeups.
+- `src/application/tasks/cleanup.ts`: durable compensation/recovery.
+- `src/bootstrap/runtime.ts`: database checks, World start and recovery.
+- `src/dev.ts` / `scripts/build-workflows.ts`: local runtime/build entry;
+  check the actual package script before changing development wiring.
+- `workflows/`: Workflow orchestrators and steps.
+- `src/application/video-production/`: durable video projection and approval.
 
-## Known operational notes (Nitro v3 beta / Workflow World gotchas)
+## Runtime invariants
 
-Resolved or deliberately handled, and all re-check-worthy whenever
-`nitro`/`workflow`/`ai` are bumped:
+- Postgres World is required in configured deployments. Initialize its official
+  schema before startup, then explicitly start World in bootstrap. Service data
+  and Workflow execution data have separate ownership.
+- Workflow 5 uses combined `/.well-known/workflow/v1/flow` plus webhook routes.
+  Do not restore the old step handler.
+- Keep Node-only imports, provider calls, database and HTTP I/O within
+  `use step` boundaries; pass plain data through `use workflow` orchestration.
+- Local development compiles workflows once then runs Hono via tsx. Restart after
+  edits; watcher use is explicit. Production remains Nitro build/output.
+- Check installed Nitro/Workflow types and production dependency tracing before
+  upgrade changes; do not reapply obsolete OIDC patches from old plans.
+- Same-database multi-step writes share one transaction. HTTP and Workflow start
+  are external effects and remain outside it.
 
-1. **`nf3`/`@vercel/nft` ESM interop and OIDC tracing bugs are fixed upstream.**
-   Nitro's production bundle now contains `@vercel/oidc` in its generated
-   `_libs` tree, so the former pnpm override, local patch, and post-build copy/
-   rewrite script have all been removed.
-2. **`nitro/~internal/runtime/plugin` still isn't exported** by
-   `nitro@3.0.260903-beta` (checked: it's absent from the package's own
-   `exports` map), so the Postgres World doc's official "Starting the World"
-   Nitro-plugin example cannot be used as written. Worked around by calling
-   `(await getWorld()).start()` during `bootstrapExecutor()` in
-   `src/bootstrap/runtime.ts` instead — this is the same mechanism a Nitro
-   plugin would trigger, it just doesn't go through Nitro's plugin system.
-   This one matters more than the other
-   two: without it, a deployment on the Postgres World would create workflow
-   runs whose steps never advance (the docs are explicit that setting
-   `WORKFLOW_TARGET_WORLD` alone does not start the graphile-worker queue
-   that processes them) — silently, since `POST /tasks` still returns
-   `"running"` immediately either way. Empirically verified end to end
-   against a real `postgres` container (`workflow.workflow_runs`
-   gained a row, `.workflow-data/` was never created, task reached
-   `completed`) — this had never actually been tested before, only assumed
-   from reading the docs.
+## State, progress and cancellation
 
-3. **`nitro dev` auto-loads `.env`; the built server does not.** The Nitro
-   dev watcher (now `pnpm dev:watch`) picks up `WORKFLOW_TARGET_WORLD` etc.
-   from `.env` automatically — verified by dispatching a real task and
-   confirming no `.workflow-data/` appeared. Running `node
-   .output/server/index.mjs` directly does **not** load `.env` at all (also
-   verified: same task, `.workflow-data/` did appear, meaning it silently fell
-   back to Local World even with `.env` correctly configured). `package.json`'s
-   `start` script is `node --env-file=.env .output/server/index.mjs`
-   specifically to close this gap for the production build locally. This
-   doesn't affect real deployments — `docker-compose.prod.yml`/k8s inject env
-   vars directly, never through a `.env` file — but it matters for local
-   testing: don't assume `.env` "just works" for every way of running this.
+- Task/projection tables are business truth. Workflow stream chunks are wakeups;
+  the internal SSE route reloads snapshots and starts every connection with one.
+- Completion is independently observed through the run return value; EOF is not
+  completion. Consumers reconnect SSE without a task-wait polling fallback.
+- Executor owns no browser UIMessage stream and never callbacks into Chat.
+- Persist cancellation before cleanup. Workflow cancellation alone cannot cancel
+  a provider job; long provider waits observe task cancellation and task types
+  owning external durable state implement compensation. Cleanup failure must not
+  resurrect the task.
+- Classify `WorkflowRunCancelledError` separately from ordinary failure.
+- Caller identity and authenticated tenant/workspace scope travel with every
+  task. A caller-supplied owner ref or resource ID does not authorize access.
 
-4. **Local dev runs TypeScript directly after one Workflow-only compilation
-   (no Nitro build, no watcher).** `pnpm dev` invokes the official Workflow
-   builder once with `watch: false`, then starts `src/dev.ts` through `tsx`
-   and `@hono/node-server`. The dev entry
-   mounts the Workflow 5 combined `flow` and `webhook` Web handlers under
-   `/.well-known/workflow/v1/`; the task registry uses the Workflow SDK's
-   supported explicit `{ workflowId }` metadata form because untransformed TS
-   functions do not carry client-mode metadata. This is deliberate:
-   `nitro dev`'s file watcher is expensive and, more importantly, returns HTTP
-   **503/500** from its dev proxy for the seconds it takes to rebuild on every save — which surfaced as
-   a `TransportError: executor request failed: 503` in chat once
-   `write_file`/`edit_file` originally began foreground-polling
-   `GET /tasks/:id` across a whole generation (Chat now watches the
-   Workflow-backed status stream and falls back on transient transport
-   failures, but the rebuild churn is still pointless). Edit Executor code,
-   then restart the process to pick it up. Use
-   `pnpm dev:watch` only if you specifically want the watcher back. Production
-   remains `nitro build` plus `.output/server/index.mjs`.
+## File and media work
 
-6. **`video-generation` needs ffmpeg, and the `"use workflow"` orchestrator
-   must stay Node-module-free.** The Dockerfile installs `ffmpeg` via `apt`
-   (deliberately not `ffmpeg-static` — a native binary would hit the same nft
-   bundling class of bug as #1/#2); local dev needs it on PATH
-   (`brew install ffmpeg`). `FFMPEG_PATH` overrides the binary. Separately: the
-   Workflow DevKit build (`Discovering workflow directives`) **fails the whole
-   `nitro build`** if the `"use workflow"` orchestrator — or any non-`"use step"`
-   helper it calls — transitively imports a Node-dependent module (`node:net`
-   via `provider-url`, the `ai` package, etc.). This bit `video-generation`
-   once: calling `buildSegmentContent` (exported from `storyboard.ts`, which
-   imports `ai`/`ark`) inside the `mapConcurrent` worker pulled `ai` into the
-   orchestrator chunk. Fix: compose segment prompts **inside**
-   `createSegmentStep`, so every Node-touching import is reachable only from a
-   `"use step"` body. Pass plain data (segment, script) across the step boundary,
-   never call a Node-touching helper from the orchestrator. Pure numeric planning
-   constants/helpers live in `src/application/video/limits.ts` (no `ai`/Node import) so both
-   the orchestrator and the steps can import them safely.
+- File batches receive frozen shared context and independent complete-file
+  instructions. Chat owns planning and publishes/discards the Knowledge change set.
+- Knowledge processing calls Knowledge-owned convert/index commands; no foreign
+  DB access. Canvas archive/frame workflows preserve Canvas domain ownership.
+- Video approval binds to projection version. Paid create calls must not retry
+  blindly after an ambiguous provider response. Persist provider IDs for cleanup.
+- Stream large media through scratch files and Asset upload; don't buffer whole
+  videos. ffmpeg is a deployment/local executable dependency.
+- Task kinds are defined by the registry, not by old docs describing removed
+  Canvas text/image/video task types.
 
-Calling `(await getWorld()).start()` is gated on `WORKFLOW_TARGET_WORLD` being set:
-under the default Local World it throws `Invalid version string: "bundled"`
-(caught, logged, harmless, but pointless noise on every local boot) —
-empirically confirmed, not a documentation assumption.
+## Verification
 
-The generic `file-task-batch` keeps every provider/model call and Knowledge
-write inside `use step` functions. The workflow orchestrator receives only
-plain frozen task data, applies bounded concurrency, and returns staged paths;
-compilation, validation, and publication remain with the calling service.
-
-## Cancellation
-
-`run.cancel()` makes the Workflow run terminal and prevents new orchestration,
-but it is not a provider-specific compensation protocol. Empirical inspection
-of a cancelled video run showed already-running `use step` polls continuing
-after the run became `cancelled`. Every long provider call therefore combines
-its normal timeout with `observeTaskCancellation()`; every task type that owns
-external durable state registers a `cancel` hook. Video records Ark task ids and
-DELETEs them. File batches own no external provider job; Chat discards their
-unpublished Knowledge change set when the task becomes terminal. Cancellation
-state is persisted before cleanup, and cleanup failures are logged without
-resurrecting the task.
-
-`run.returnValue` rejects with `WorkflowRunCancelledError` (from
-`"workflow/errors"`), not a generic `AbortError`; `watchCompletion()` still
-uses `WorkflowRunCancelledError.is(error)` for classification.
-
-Run from `apps/backend`: `just lint executor`, `just build executor`,
-`just gen-openapi executor`.
-
-Canvas 通过内部 HTTP 提交 `text-generation`，按 generation ID 使用 owner 幂等键，并消费同一个任务状态 SSE。文本任务直接使用 Admin 的组织级 chat Provider，不运行第二套 Agent；付费模型调用禁用自动重试，取消信号传入 AI SDK。
-
-Canvas 图片任务仅接受 Canvas caller，使用已认证的租户/工作空间 Provider，参考图和输出在 Knowledge 的 Canvas 不可变对象命名空间读写。Workflow 只持久化对象定位符；图片字节留在 step 内，生成不自动重试。Canvas 负责资产与生成历史的同事务引用，不绑定 Chat 会话。
-
-Canvas 视频节点独立使用 canvas-video-generation，支持参考媒体和首尾帧；不改变 Chat video-generation 的非串联短剧约束。取消清理函数放在 application/canvas，不能作为普通导出置于 Workflow 文件，否则其 Node 依赖进入 Workflow 沙箱导致构建失败。
-
-Canvas 归档使用 canvas-archive Workflow，通过生成的 CanvasInternalClient 调用 Go 内部媒体执行端点，取消信号传到 HTTP。Go 持有原导出快照、checkpoint 和 CAS 状态机，保留 ZIP/FCPXML 实现；Executor 不复制此业务逻辑。Go outbox 只派发并关联 Workflow，旧 Go MQ/调度器不启动。
-
-## Verification after code changes
-
-Run `just test backend/executor` from the repository root. Test conventions and
-runner configuration are owned by `apps/backend/AGENTS.md`; add regression
-coverage for changed behavior before reporting completion.
+Run root `just test backend/executor`, affected caller tests and
+`just build executor`; API changes additionally require `just sync`.
+Real Workflow/DB checks cover duplicate/replayed notifications, terminal delivery,
+approval recovery and cancellation compensation. Mocks cannot establish these
+boundaries. Do not claim live checks based on historical ADR results.

@@ -144,7 +144,7 @@
 - 在 Executor 定义 discriminated task payload：`src/api/http/routes/tasks.ts` 的 create-task Zod schema、`src/application/tasks/registry.ts` 的 per-type `inputSchema`、以及 `src/gen-openapi.ts`（当前把 `payload` 输出为无类型 description）都要改成按 `type` 判别；随后重新生成 `schemas/openapi/executor-server.json` 与 `apps/backend/libs/transport-ts` client。运行时校验（registry `inputSchema.safeParse`）已存在，本轮是把它提升为 OpenAPI/transport 层的真实契约，并消除 Chat 侧 `infrastructure/clients/executor.ts` 与 `libs/transport-ts` 的 `payload: unknown`。
 - trace 中区分 `planning` 与 `generation` span，并记录 plan schema version、Chat model、tool-call ID、task ID；不记录未脱敏的完整会话。
 - 更新 ADR-0015、ADR-0018、ADR-0046、ADR-0047，以及 Chat/Executor domain docs 和已失效的 `AGENTS.md` 描述。
-- 新增 `docs/ADR/0049-chat-owned-generation-planning.md`，记录唯一规划者、允许的 Executor 模型边界、失败回主 loop 以及直接替换旧契约的决策。
+- 新增 `docs/ADR/agent-runtime.md`，记录唯一规划者、允许的 Executor 模型边界、失败回主 loop 以及直接替换旧契约的决策。
 
 ## 6. 实施顺序
 
@@ -207,7 +207,7 @@ just lint
 just build
 ```
 
-完成后按 `docs/ADR/0016-post-implementation-review.md` 做多服务 implementation review，并确认没有非预期 generated diff。
+完成后按 `docs/ADR/engineering.md` 做多服务 implementation review，并确认没有非预期 generated diff。
 
 ## 已锁定决策
 

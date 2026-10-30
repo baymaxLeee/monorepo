@@ -84,6 +84,7 @@ var operations = []operationSpec{
 	{"GET", "/projects/{projectId}/canvases/{canvasId}/archives/{taskRunId}/content", "canvasArchiveContent", nil, nil},
 	{"POST", "/internal/worker/archives/{archiveId}/execute", "canvasExecuteArchive", nil, contractType[*contractcanvas.ProjectCanvasVideoArchiveExport]()},
 	{"POST", "/internal/worker/video-generations/{taskRunId}/extract-frames", "canvasExtractVideoFrames", nil, contractType[*contractbase.Empty]()},
+	{"GET", "/projects/{projectId}/canvases/{canvasId}/events", "canvasSubscribe", nil, contractType[*contractcanvasnode.CanvasPatchEvent]()},
 	{"GET", "/projects/{projectId}/canvases/{canvasId}/nodes", "canvasGetGraph", nil, contractType[*contractcanvasnode.GetCanvasGraphResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes", "canvasCreateNode", contractType[*contractcanvasnode.CreateCanvasNodeRequest](), contractType[*contractcanvasnode.CreateCanvasNodeResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/assets", "canvasCreateAsset", contractType[*contractcanvasnode.CreateCanvasAssetRequest](), contractType[*contractcanvasnode.CreateCanvasAssetResponse]()},
@@ -95,7 +96,6 @@ var operations = []operationSpec{
 	{"DELETE", "/projects/{projectId}/canvases/{canvasId}/edges", "canvasDeleteEdge", contractType[*contractcanvasnode.DeleteCanvasEdgeRequest](), contractType[*contractcanvasnode.DeleteCanvasEdgeResponse]()},
 	{"PUT", "/projects/{projectId}/canvases/{canvasId}/storyboard-order", "canvasReorderStoryboard", contractType[*contractcanvasnode.ReorderStoryboardNodesRequest](), contractType[*contractcanvasnode.ReorderStoryboardNodesResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/generations", "canvasStartNodeGeneration", nil, contractType[*contractcanvasnode.StartCanvasNodeGenerationResponse]()},
-	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/text-generations:stream", "canvasStreamNodeTextGeneration", nil, contractType[*contractcanvasnode.CanvasNodeTextGenerationResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/generations", "canvasStartGeneration", nil, contractType[*contractcanvasnode.StartCanvasGenerationResponse]()},
 	{"GET", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/histories", "canvasListNodeHistories", nil, contractType[*contractcanvasnode.ListCanvasNodeHistoriesResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/histories/{historyId}:select", "canvasSelectNodeHistory", nil, contractType[*contractcanvasnode.SelectCanvasNodeHistoryResponse]()},
@@ -109,7 +109,6 @@ var operations = []operationSpec{
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/storyboard-drafts", "canvasStartStoryboardDrafts", contractType[*contractcanvasnode.CreateCanvasNodesRequest](), contractType[*contractcanvasnode.CreateCanvasNodesResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/storyboard-drafts/{taskRunId}:confirm", "canvasConfirmStoryboardDrafts", contractType[*contractcanvasnode.ConfirmCanvasNodeDraftsRequest](), contractType[*contractcanvasnode.ConfirmCanvasNodeDraftsResponse]()},
 	{"POST", "/projects/{projectId}/canvases/{canvasId}/storyboard-drafts/{taskRunId}:cancel", "canvasCancelStoryboardDrafts", nil, contractType[*contractbase.Empty]()},
-	{"POST", "/projects/{projectId}/canvases/{canvasId}/node-states:batchGet", "canvasBatchGetNodeStates", contractType[*contractcanvasnode.BatchGetCanvasNodeStatesRequest](), contractType[*contractcanvasnode.BatchGetCanvasNodeStatesResponse]()},
 }
 
 func Spec() map[string]any {
@@ -129,6 +128,13 @@ func Spec() map[string]any {
 			},
 		}
 		parameters := pathParameters(route.path)
+		success := operation["responses"].(map[string]any)["200"].(map[string]any)
+		if route.id == "canvasSubscribe" {
+			success["content"] = map[string]any{"text/event-stream": map[string]any{"schema": contractSchema(route.output, schemas)}}
+			parameters = append(parameters, map[string]any{"name": "Last-Event-ID", "in": "header", "schema": map[string]any{"type": "string"}})
+		} else if route.method != "GET" && strings.Contains(route.path, "/canvases/{canvasId}/") {
+			success["headers"] = map[string]any{"X-Canvas-Cursor": map[string]any{"description": "Committed Canvas cursor; await the page stream before dependent commands", "schema": map[string]any{"type": "integer"}}}
+		}
 		for _, parameter := range queryParameters(route.id) {
 			parameters = append(parameters, map[string]any{
 				"name": parameter.name, "in": "query", "required": parameter.required,
@@ -157,6 +163,8 @@ func Spec() map[string]any {
 
 func queryParameters(operationID string) []queryParameterSpec {
 	switch operationID {
+	case "canvasSubscribe":
+		return []queryParameterSpec{{name: "cursor", kind: "integer"}}
 	case "canvasAdminListProjects":
 		return []queryParameterSpec{
 			{name: "page_size", kind: "integer", required: true},

@@ -1,6 +1,6 @@
 # Design System
 
-本文件是仓库级 UI 设计规范，也是 code agent 处理前端界面的首要设计上下文。它定义产品视觉语言、组件选型、交互与无障碍规则、AI 界面模式以及浮层策略。`AGENTS.md` 负责把相关任务路由到这里；ADR 记录历史决策，不覆盖本文件中的当前规则。
+本文件是仓库级 UI 设计规范，也是 code agent 处理前端界面的首要设计上下文。它定义产品视觉语言、组件选型、交互与无障碍规则、AI 界面模式以及浮层策略。`AGENTS.md` 负责路由；按主题维护的 ADR 解释当前架构取舍，具体 UI 规则在本文件原地维护。
 
 本规范以仓库现状为事实基础，并将 Vercel Web Interface Guidelines、AI Elements、shadcn/ui 与 Base UI 的成熟实践改写为本项目可执行的约束。不要为了“更像 Vercel”复制私有样式或创造第二套 token；应复用相同的设计原则和本仓库的公共组件。
 
@@ -21,7 +21,7 @@
 | 新增或升级组件 | [标准 UI 栈](#标准-ui-栈)、[Components](#components-与-composition) | design-system exports、shadcn registry、closest `AGENTS.md` |
 | 表单或异步操作 | [Forms、validation 与 feedback](#formsvalidation-与-feedback) | schema、错误恢复、pending/empty/error |
 | Chat、Agent 或生成式 UI | [AI-native interfaces](#ai-native-interfaces) | AI SDK parts、`@repo/ai-elements`、streaming contract |
-| Dialog、Popover 或 portal | [Overlay layering](#overlay-layering) | React 所有权、stacking context、ADR-0068 |
+| Dialog、Popover 或 portal | [Overlay layering](#overlay-layering) | React 所有权、stacking context、docs/ADR/frontend.md |
 | UI review | [UI review checklist](#ui-review-checklist) | scoped typecheck、lint、build、必要的渲染验证 |
 
 ## 产品设计原则
@@ -263,7 +263,7 @@ AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-
 
 ## Overlay layering
 
-本节是 `@repo/design-system` 中 Dialog、AlertDialog、Sheet、Drawer 与 portalled popup 的唯一层级约定。架构原因见 [ADR-0068](docs/ADR/0068-contextual-overlay-layering.md)。
+本节是 `@repo/design-system` 中 Dialog、AlertDialog、Sheet、Drawer 与 portalled popup 的唯一层级约定。架构原因见 [docs/ADR/frontend.md](docs/ADR/frontend.md)。
 
 ### 默认规则
 

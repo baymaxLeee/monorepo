@@ -138,9 +138,6 @@ type GenerationUpdate struct {
 	UpdatedAt                     time.Time
 }
 
-type FailedProviderFacts struct {
-	ErrorCode, SeedanceTaskID string
-}
 type GenerationStore interface {
 	CreateGeneration(context.Context, domainvideo.Generation) error
 	GetGeneration(context.Context, Scope, string) (domainvideo.Generation, error)

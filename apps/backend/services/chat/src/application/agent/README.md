@@ -12,14 +12,13 @@ agent/
 ├── runs/            # run 编排、lease/cancel、trace persistence
 ├── streams/         # Redis-backed UIMessage SSE transport resume
 ├── memory/          # durable memory 与 extraction
-├── providers/       # provider/model adapter
 └── observability/   # product run/step/tool lifecycle
 ```
 
 ## Runtime policy
 
 - `ToolLoopAgent` 是当前默认且唯一启用的交互 runtime（Brain）。
-- 必须跨进程、部署、重试或长时间等待后恢复的工作**不会**塞进主 ToolLoopAgent。它们委派给独立的 `executor` 服务（真实的 Workflow DevKit，`apps/backend/services/executor`），通过 `@backend/transport-ts` 的 `ExecutorInternalClient` 非阻塞地起一个 task 就返回。 `delegate_tasks` 是文件 materialization 的例子，详见 `agent_task_执行时服务` plan 与 `apps/backend/services/executor/AGENTS.md`。
+- 必须跨进程、部署、重试或长期等待后恢复的工作交给独立 Executor Workflow。`delegate_tasks` 创建 task 后消费内部状态 SSE，等批次终态再原子发布或丢弃 change set；视频创建工具在初始规划持久化后返回，后续审批/生成仍由 Workflow 执行。当前分工见 `docs/ADR/durable-execution.md`，不从旧任务计划推断返回边界。
 - Runtime 在 run 开始前由 profile/policy 明确选择并持久化，模型不能自行切换 runtime。
 
 ## Context and tools
@@ -31,7 +30,7 @@ agent/
 - `ToolCatalog` 是可实例化对象。默认 catalog 只作为应用 composition root，禁止模块级数组泄漏租户状态。
 - 新 run 的 context projection 将历史 `write_file`/`edit_file`/`delegate_tasks` 压缩为路径、SHA、task id 和失败事实；不把大正文、旧 edit 参数或无效 Schema 调用重新示范给模型。持久化 UIMessage 不变。
 - Skills 可以贡献 instructions 和 tools；MCP 必须显式筛选工具/schema，不能直接暴露远端全集。
-- 系统 Skill 采用渐进披露：初始 prompt 只含 name/description，命中后由通用 `load_skill` 读取代码版本化的 `SKILL.md`。纯工作流、证据规则和输出模板属于 Skill，不为此新增垂直业务 tool。
+- Skill 采用渐进披露：初始 prompt 只含 name/description，命中后由 `load_skill` 从 Admin 读取已发布快照的 `SKILL.md`。纯工作流、证据规则和输出模板属于 Skill，不为此新增垂直业务 tool。
 - Subagent 通过 tool delegation 运行独立 context，并将压缩后的 `toModelOutput` 返回主模型。
 
 ## Persistence boundaries

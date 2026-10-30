@@ -41,10 +41,10 @@ root URL 不是业务入口，也不提供状态页；本地与生产都通过 p
 - UI 包(`@repo/design-system` / `ai-elements` / `editors` / `viewers`)**不进 MF shared**,
   保持普通 workspace 依赖,让每个 app 按需 tree-shake
 - remote 使用 `import: false` 消费共享依赖，不打包 React、Router 或平台基础包的 fallback
-- 跨 MFE 状态原语放在 `@repo/runtime`；Zustand 版本由 runtime 包依赖锁定，不在子应用重复声明
+- 跨 MFE 状态原语放在 `@repo/runtime`；Zustand 版本由 workspace catalog 管理，实际消费者声明依赖
 - 子应用私有 store 可以存在于各自 `src/store/`，`create` / `useShallow` 直接从 `zustand` 包导入；MF shared 保证运行时仍消费 host 提供的同一份库
 - remote 产物保留业务代码、服务 API client、业务直接依赖以及 federation entry/chunks
-- Tailwind 仅 platform 构建全局 CSS；remote 不导入 CSS、不注册 PostCSS
+- Tailwind 仅 platform 构建全局 CSS；remote 不另建 Tailwind/PostCSS，组件自有第三方 CSS 可在 lazy 入口导入
 
 ## 路由契约
 

@@ -1,187 +1,98 @@
 # Project Monorepo
 
-Repository-wide instructions for coding agents. This file is the entry point;
-the closest `AGENTS.md` to the edited file owns stack- and domain-specific
-rules. Historical ADRs and plans explain decisions but are not active agent
-instructions.
+Python, TypeScript and Go services in `apps/backend/`; React/Rspack micro-frontends
+in `apps/frontend/`. Run commands from the repository root.
 
-## Repository map
+## Locate the task
 
-```text
-apps/frontend/  pnpm + Rspack micro-frontends
-apps/backend/   Python, TypeScript, and Go microservices
-schemas/        OpenAPI, Proto, events, and streaming contracts
-infra/          deployment and local infrastructure
-.agents/        scopes, playbooks, and agent infrastructure
-docs/           architecture, ADRs, and conventions
-```
-
-## Route before editing
-
-Read only the routes relevant to the task, plus every closer `AGENTS.md` found
-while descending into the target directory.
+Use `just context <path-or-target>` for owner, AGENTS chain, dependencies,
+consumers and test command. `just repo-map` lists projects; both support `--json`.
+Read only relevant routes and every closer AGENTS file. See the
+[CLI usage guide](scripts/README.md#agent-command-guide) for examples and limits.
 
 | Task | Required route |
 |---|---|
-| Frontend UI, design-system, or overlay | `apps/frontend/AGENTS.md` → `DESIGN.md` → closest app/package `AGENTS.md` |
-| Frontend app/package (non-UI) | `apps/frontend/AGENTS.md` → closest app/package `AGENTS.md` |
-| Backend service/library | `apps/backend/AGENTS.md` → service `AGENTS.md` when present |
-| Contracts/codegen | `schemas/AGENTS.md` |
-| Infrastructure/deployment | `infra/AGENTS.md` |
-| Full-stack feature | `.agents/playbooks/full-stack-feature.md` |
-| New microservice | `.agents/playbooks/new-microservice.md` + `docs/微服务/index.md` |
-| New micro-frontend | `.agents/playbooks/new-mfe.md` + `docs/微前端/index.md` |
-| Cross-service refactor | `.agents/playbooks/cross-service-refactor.md` |
-| Plan, design, architecture, review, refactor, or tech selection | `.cursor/skills/plan/SKILL.md` |
-| Chat stream or custom `data-*`/`onData` field | `schemas/streaming/chat-uimessage-stream.md` |
-| Unclear edit scope | `.agents/scopes/default.yaml` |
-| Behavior fix, contract/config change, or lifecycle logic | `.agents/playbooks/change-verification.md` |
+| Frontend UI/design-system/overlay | [frontend](apps/frontend/AGENTS.md) → [DESIGN.md](DESIGN.md) → closest AGENTS |
+| Frontend non-UI | [frontend](apps/frontend/AGENTS.md) → closest AGENTS |
+| Backend service/library | [backend](apps/backend/AGENTS.md) → closest AGENTS |
+| Contracts/codegen | [schemas](schemas/AGENTS.md) |
+| Infrastructure/deployment | [infra](infra/AGENTS.md) |
+| Repository scripts/CI/test tooling | [tooling](scripts/AGENTS.md) |
+| Architecture/business documentation | [documentation rules](docs/AGENTS.md) → [current specs](docs/index.md) |
+| Design/architecture/review/refactor/non-trivial planning | [plan skill](.agents/skills/plan/SKILL.md) |
+| Full-stack feature | [full-stack playbook](.agents/playbooks/full-stack-feature.md) |
+| New service / MFE | [service](.agents/playbooks/new-microservice.md) / [MFE](.agents/playbooks/new-mfe.md) |
+| Cross-service refactor | [refactor playbook](.agents/playbooks/cross-service-refactor.md) |
+| Chat stream or custom `data-*`/`onData` | [stream contract](schemas/streaming/chat-uimessage-stream.md) |
+| Behavior/config/contract/lifecycle change | [change verification](.agents/playbooks/change-verification.md) |
+| Unclear edit scope | [scope guidance](.agents/scopes/default.yaml) |
 
-## Global hard rules
+## Architectural invariants
 
-### Work in one feature context
+- One primary agent owns a feature end to end. Helpers are limited to mechanical
+  work, read-only exploration and independent review; never split frontend and
+  backend ownership of one feature.
+- Services never import another service's source or access its database. MFEs
+  never import another app. Use declared transports/events, URL state, runtime
+  events or backend state.
+- Cross-stack and cross-service contracts belong in `schemas/`. Shared libraries
+  contain proven infrastructure capabilities, never domain models.
+- IAM owns identity, tenants/workspaces, membership and roles. Admin owns scoped
+  operator configuration: providers, bots, skills, integrations and app registry.
+  Consumers fetch/cache authoritative state rather than replicating owner tables.
+- Reuse official AI SDK message, stream, tool and artifact primitives. Verify
+  unfamiliar APIs against installed types/source and platform decisions against
+  current primary sources. Do not invent limits or orchestration policy.
+- Refactor systemic problems directly; there is no legacy-compatibility obligation.
+  Preserve user data and unrelated working-tree changes.
 
-One full-stack agent owns a feature across both stacks. Sub-agents are limited
-to context-free mechanical work, read-only exploration, and fresh-eyes review.
-Do not split frontend and backend ownership for the same feature. Follow the
-full-stack playbook for cross-stack work.
+## Work and verification
 
-### Preserve boundaries
-
-- Backend services never import another service's source or access its database;
-  use declared transport clients or events.
-- Frontend apps never import another app; use URL state, the runtime event bus,
-  or backend state.
-- Frontend/backend and cross-service contracts live in `schemas/`.
-- Shared `libs/` contain infrastructure capabilities, never domain models.
-- `admin` owns operator-managed configuration such as tenants, RBAC, feature
-  flags, integrations, credentials, bots, and curated skills. Consumers fetch
-  and cache it; they do not replicate admin-owned tables.
-
-### Design from evidence
-
-- The `plan` skill is mandatory for design, architecture, review, refactors,
-  tech selection, and non-trivial implementation planning.
-- Check current primary sources and established implementations before making
-  platform or AI-runtime decisions. Do not invent policy, limits, or primitives
-  without a product, operational, or official-practice basis.
-- Prefer AI-native primitives for AI surfaces and reuse official AI SDK message,
-  stream, tool, and artifact parts before creating custom protocol.
-- This repository has no legacy-compatibility obligation. Refactor systemic
-  problems directly and remove obsolete paths instead of adding shims.
-
-### Restrict browser and computer use
-
-Do not use browser automation or computer-use tools by default. Use persisted
-records, logs, source, configuration, tests, and local API responses first.
-These UI tools are allowed only when the user explicitly requests them or the
-claim can only be verified through rendered layout, real interaction,
-accessibility, or browser-only runtime behavior. Never use them to reread data
-already available locally, and never expose credentials or unrelated user data.
-
-### Close the implementation loop
-
-- Before editing behavior, trace the entry point, implementation, consumers and
-  existing tests. State the expected observable result and the invariant being
-  protected; do not infer a contract from a field name or one similar caller.
-- Verify unfamiliar dependency APIs against the installed version's types,
-  source or documentation. Use current official sources for design decisions,
-  then confirm the chosen API exists in the installed version.
-- For bug fixes, first reproduce the failure with a focused regression test.
-  Confirm it fails for the reported defect, then passes after the fix. When
-  automated reproduction is unavailable, record the concrete reproduction and
-  verification gap; do not claim unobserved red/green results.
-- For lifecycle, authorization, concurrency or retry changes, cover the relevant
-  failure/cleanup path as well as success. A mock that bypasses the changed
-  boundary cannot prove that boundary works.
-- Follow `.agents/playbooks/change-verification.md` for coupled changes. Turn
-  recurring, mechanically detectable mistakes into focused tests or existing
-  checks rather than accumulating prompt-only prohibitions.
-
-### Keep durable context actionable
-
-- Put a rule in the closest owning `AGENTS.md`; keep root rules cross-cutting.
-  Give specialized rules a trigger, invariant, source of truth and verification
-  command. Link to the owner instead of copying its rules into another file.
-- Long-lived docs explain decisions and constraints that code alone cannot
-  convey. Update the owning document when behavior changes; label planned
-  behavior explicitly. Do not make a second architecture manual or preserve
-  task logs as current guidance.
-- For subtle cross-file constraints, ask whether a plausible incorrect change
-  would pass the tests and appear consistent with the documentation. Close the
-  specific gap in scope; this does not require a separate review report.
-
-### Protect public workflows and user work
-
-- Treat root `just` recipes as the public CLI. Renames, moves, port changes,
-  environment changes, and workspace changes must update every caller and keep
-  affected recipes working.
-- Preserve unrelated working-tree changes. Never rewrite, delete, or stage them.
-- Do not hand-edit generated files; change their source and regenerate them.
-- Do not edit migrations, secrets, `.env*`, generated output, worktrees, or lock
-  files unless the task explicitly requires it or the routed instructions say
-  how to regenerate them.
-- Comments explain only non-obvious constraints and reasons, never routine code.
-
-## Canonical commands
-
-Run from the repository root unless a routed instruction says otherwise.
+Before behavior edits, trace entry point → implementation → consumers → tests.
+State the observable result and protected invariant. Reproduce bugs with a focused
+failing test before fixing them; if unavailable, state the gap. Lifecycle,
+authorization, concurrency and retry changes need failure/cleanup coverage.
 
 | Command | Purpose |
 |---|---|
-| `just install` | Install all dependencies and initialize local examples |
-| `just up` / `just down` | Start or stop local infrastructure |
-| `just dev` | Start the composed development stack |
-| `just build [target]` | Build all or one service/app |
-| `just sync` | Regenerate backend contracts and frontend clients |
-| `just test [target] [args...]` | Run behavior tests; scope with `backend/name` or `frontend/package-name` |
-| `just test-list` | List discovered test targets and missing suites |
-| `just test-affected [base] [scope] [--list]` | Run affected app/service tests since base (default HEAD), including local edits |
-| `just check` | Run lint, tests, and generated contract checks |
-| `just lint` | Run static repository checks |
-| `just fmt` | Rewrite formatting; run only when requested or needed |
-| `just status` / `just doctor` | Inspect repository and environment health |
-| `just new-service <name>` / `just new-mfe <name>` | Scaffold a component through its playbook |
+| `just install` | Dependencies and local examples |
+| `just up` / `just down` / `just dev` | Local infrastructure/development |
+| `just build [target]` | Build apps/services |
+| `just sync` | Regenerate contracts and clients |
+| `just test-list` | Targets and missing suites |
+| `just test <target> [args...]` | Target tests, e.g. `frontend/@repo/chat` |
+| `just test-affected [base] [scope] [--list]` | Dependency-aware tests; HEAD includes local edits |
+| `just check-repo` | Project graph and documentation navigation |
+| `just lint` / `just check` | Static checks / lint + tests + generated-contract checks |
+| `just status` / `just doctor` | Repository/environment health |
 
-For structural changes, validate the affected install, infrastructure, dev,
-build, sync, and lint paths. Do not claim a migration is complete while a public
-recipe is broken.
+After code changes, run affected-target tests and builds. Test infrastructure
+changes require root `just test`; repository-wide changes require root `just lint`.
+Contract changes require `just sync` and producer/consumer verification. Structural
+changes must keep affected install, infra, dev, build, sync and lint recipes
+working. Multi-phase/service work follows the
+[completion review](.agents/playbooks/completion-review.md).
+[Test policy](docs/开发规范/testing.md) owns empty-suite and runner behavior.
 
-## Definition of done
+Reuse passing checks until affected code changes. Missing dependencies, skipped
+tests and absent suites are unverified, never passes. Distinguish tests, lint,
+typechecks, builds and integration checks. Report results/gaps briefly, without
+a separate validation report. Documentation-only work needs link, command and
+consistency checks, not application builds.
 
-For rapid local iteration, run only the checks needed for the changed behavior
-and reuse passing results until a later edit invalidates them. Follow an
-explicit user request to narrow verification or review; state any remaining
-unverified gate instead of claiming it passed. Report changes and verification
-briefly in the conversation. Do not create a separate validation report or
-perform an additional broad review unless the user requests one or a concrete
-failure requires it.
+## Editing and context discipline
 
-Validation applies to the final affected code: later edits, code generation or
-merges invalidate the affected results. Formatting, lint, typechecking, tests
-and builds prove different things; do not report one as another. Missing tools
-or services mean a check is unverified, not passed. For documentation-only
-changes, check links, commands and consistency; no application build is needed.
-
-1. After changing code, run `just test-affected` or `just test <target>` for every affected target and
-   add coverage for changed behavior. Use `just test-list` to locate targets;
-   frontend package names retain `@repo/` (for example `frontend/@repo/chat`).
-   Run `just test` for repository-wide testing infrastructure changes.
-   Demo-phase exemptions from writing/running tests are retired (ADR-0075).
-   Never turn missing tests, skipped tests or missing dependencies into a pass.
-2. Run scoped checks, then root `just lint` for repository-wide changes.
-3. Run `just sync` after contract changes and verify both producer and consumer.
-4. Build every affected service, app, or shared consumer.
-5. Update an ADR for new architectural behavior and domain docs for changed
-   conventions.
-6. For multi-phase or multi-service work, complete the review in
-   `docs/ADR/0016-post-implementation-review.md`.
-
-Use Conventional Commits with a scope, for example `feat(canvas): ...` or
-`fix(mfe-admin): ...`.
-
-## When stuck
-
-Re-read the closest `AGENTS.md`, then the routed playbook and recent commits in
-the same area. Ask the user when the remaining decision changes scope, product
-behavior, or external state.
+- Root `just` recipes are the public CLI; update every caller when changing them.
+- Preserve unrelated edits; never reset, stage or rewrite them.
+- Never hand-edit generated output. Do not edit secrets, `.env*`, migrations,
+  worktrees or lockfiles unless required by the task or owning routed rules.
+- Run `just fmt` only when requested or needed. Comments explain non-obvious reasons.
+- Use source, logs, tests and local APIs first. Browser/computer tools require an
+  explicit request or a claim only verifiable through rendering/interaction.
+- Put rules in the closest AGENTS. Update current architecture/business conventions
+  in place through [docs/index.md](docs/index.md). Topic-based ADRs describe current
+  decisions; Git preserves prior versions. Old plans/progress notes are opt-in
+  history. Do not append conflicting updates to a current specification.
+- Ask only when a remaining decision changes scope, product behavior or external
+  state. Existing user authorization applies throughout the task.
+- Use Conventional Commits with a scope, e.g. `fix(canvas): ...`.

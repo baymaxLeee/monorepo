@@ -5,7 +5,7 @@
 `schemas/` 下。目标只有一个:无论日志来自哪种语言,落到 stdout 的每一行 JSON 都能
 被同一套查询/聚合规则消费,并且能用 `trace_id` 把一次请求在多个服务里的日志串起来。
 
-> 底座选型(见 `docs/ADR/0026-unified-structured-logging.md`):各语言用**原生
+> 底座选型(见 `docs/ADR/operations.md`):各语言用**原生
 > 结构化 logger**——Go `log/slog`、Python `structlog`、Node `pino`——**不引入
 > OpenTelemetry SDK**。字段命名对齐 OTel 日志语义约定,只是为了将来接
 > OTel Collector 时能零改造 transform。

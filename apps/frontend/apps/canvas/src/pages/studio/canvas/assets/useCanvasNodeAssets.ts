@@ -1,9 +1,8 @@
 import { canvasMaterializeAssetReference, canvasMaterializeResourceReference } from "@repo/api";
 import { toast } from "@repo/design-system";
-import { useSetAtom } from "jotai";
 import { useCallback, type RefObject } from "react";
 
-import { type AssetMentionItem, mentionReferenceIdentity } from "@/components/promptEditor";
+import { mentionReferenceIdentity, type AssetMentionItem } from "@/components/promptEditor";
 import type { canvasnode } from "@/domain";
 import { ConnectCanvasNodes, presentNode } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
@@ -11,7 +10,7 @@ import t from "@/utils/i18n";
 import { canvasRequestErrorMessage, queryMentionTree } from "../../domain/actions";
 import { assetFromCanvasNode, materializedCanvasNodeAssetId } from "../../domain/model";
 import type { StoryboardAsset } from "../../domain/types";
-import { upsertCanvasNodesAtom, useStudioMutationCoordinator } from "../../store";
+import { useStudioMutationCoordinator } from "../../store";
 import { useStudioAssetStore } from "../../store/assets";
 import { isDeletedReferenceNode, MATERIALIZED_NODE_HORIZONTAL_GAP } from "../graph/canvasNodeHelpers";
 import type { CanvasFlowNode } from "../graph/canvasNodeTypes";
@@ -23,7 +22,6 @@ export function useCanvasNodeAssets({
   projectId,
   nodesRef,
   resolveConnection,
-  onCanvasRevisionChange,
 }: {
   canvasId: string;
   projectId: string;
@@ -32,11 +30,10 @@ export function useCanvasNodeAssets({
     source: canvasnode.CanvasNode,
     target: canvasnode.CanvasNode,
   ) => ReturnType<typeof resolveCanvasConnection>;
-  onCanvasRevisionChange: (revision: number) => void;
 }) {
   const assetStore = useStudioAssetStore();
   const enqueueCanvasMutation = useStudioMutationCoordinator().enqueue;
-  const upsertCanvasNodes = useSetAtom(upsertCanvasNodesAtom);
+
   const queryNodeAssets = useCallback(
     (nodeID: string, query: string, cursor: string | undefined, limit: number, signal: AbortSignal) => {
       signal.throwIfAborted();
@@ -81,7 +78,7 @@ export function useCanvasNodeAssets({
         }
         const targetPort = resolution.targetPort;
         if (!liveTarget.IncomingEdges.some((edge) => edge.SourceNodeID === source.NodeID)) {
-          const result = await enqueueCanvasMutation(async () => {
+          await enqueueCanvasMutation(async () => {
             const connected = await ConnectCanvasNodes(
               {
                 ProjectID: projectId,
@@ -92,10 +89,9 @@ export function useCanvasNodeAssets({
               },
               { skipErrorNotify: true },
             );
-            onCanvasRevisionChange(connected.CanvasRevision);
+
             return connected;
           });
-          upsertCanvasNodes([result.TargetNode]);
         }
         const selected: StoryboardAsset = {
           ...assetFromCanvasNode(source, undefined, targetPort),
@@ -107,7 +103,7 @@ export function useCanvasNodeAssets({
           resourceAssetId: candidate.resourceAssetId ?? source.ResourceAssetID,
           syncStatus: "ready",
         };
-        assetStore.cacheDetails([selected]);
+
         return selected;
       }
       const targetWidth = liveTargetNode.measured?.width;
@@ -146,7 +142,7 @@ export function useCanvasNodeAssets({
               skipErrorNotify: true,
             },
           );
-          onCanvasRevisionChange(materialized.canvas_revision);
+
           return {
             assetNode: presentNode(materialized.asset_node),
             targetNode: presentNode(materialized.target_node),
@@ -170,7 +166,7 @@ export function useCanvasNodeAssets({
             skipErrorNotify: true,
           },
         );
-        onCanvasRevisionChange(materialized.canvas_revision);
+
         return {
           assetNode: presentNode(materialized.resource_asset_node),
           targetNode: presentNode(materialized.target_node),
@@ -187,25 +183,10 @@ export function useCanvasNodeAssets({
         resourceId: response.assetNode.ResourceID ?? candidate.resourceId,
         resourceAssetId: response.assetNode.ResourceAssetID ?? candidate.resourceAssetId,
       };
-      assetStore.cacheDetails([
-        {
-          ...selected,
-          description: selected.description ?? "",
-          syncStatus: "ready",
-        },
-      ]);
-      upsertCanvasNodes([response.assetNode, response.targetNode]);
+
       return selected;
     },
-    [
-      assetStore,
-      canvasId,
-      enqueueCanvasMutation,
-      onCanvasRevisionChange,
-      projectId,
-      resolveConnection,
-      upsertCanvasNodes,
-    ],
+    [assetStore, canvasId, enqueueCanvasMutation, projectId, resolveConnection],
   );
 
   const selectNodeAssetWithFeedback = useCallback(

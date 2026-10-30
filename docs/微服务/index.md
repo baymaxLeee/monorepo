@@ -1,6 +1,6 @@
 # 微服务
 
-服务组合与 binding 的架构决策见 [ADR-0060](../ADR/0060-service-composition-and-bindings.md)。
+服务组合与 binding 的架构决策见 [docs/ADR/architecture.md](../ADR/architecture.md)。
 机器可读真源：仓库根目录 `services.yaml`（`just lint` 会跑 drift check）。
 
 ## 现有服务
@@ -24,12 +24,12 @@ Failure 责任（摘要）：同步 HTTP binding 的 timeout / 错误映射由 *
 参见 `apps/backend/AGENTS.md`。核心约束:
 - 服务自治: 各自的 DB、各自的部署、不互相 import
 - 跨服务调用: 显式 binding + `libs/transport-*` 或服务内 client，不走直接 import
-- 共享内核(`libs/`): 只放有 consumer matrix 依据的基础设施,**禁止**放领域模型（见 ADR-0061）
+- 共享内核(`libs/`): 只放有 consumer matrix 依据的基础设施,**禁止**放领域模型（见 docs/ADR/architecture.md）
 - 参照边界: next-forge → 前端 package；Vercel Services → 组合/routing/binding；Eve **仅** agent runtime，不是微服务注册模板
 
 ## 服务内统一分层
 
-服务是业务与部署边界，服务内部统一按技术职责分层（ADR-0045）：
+服务是业务与部署边界，服务内部统一按技术职责分层（docs/ADR/architecture.md）：
 
 ```text
 bootstrap/       启动、配置、依赖装配与生命周期
@@ -52,15 +52,10 @@ CRUD/DTO 的服务不创建占位 domain。
 
 ## 数据库迁移
 
-- 每个服务只保留一个可重装 schema baseline:
-  `apps/backend/services/<svc>/migrations/versions/v1.0.0.sql`。
-- schema 变化直接修改 `v1.0.0.sql`;在新的 ADR 明确引入持久数据兼容要求前,
-  不新增后续版本,也不提供数据迁移、升级或降级路径。
-- 每个服务库必须有 `migration` 表,只保留 `id = 1` 一行,记录当前库
-  schema 版本、baseline SHA-256 与更新时间。
-- `just up` 会扫描所有服务并调用 `scripts/db-migrate.sh`;版本或 checksum
-  不一致时必须运行 `just reset-demo-data` 全量重建。
-- 服务启动时禁止自动建表; schema 只能由 migration 管理。
+服务独占自己的版本化 SQL，已执行文件不可修改。开发与部署均保留已有数据，
+通过 `just migrate-up <service>` 或部署的 `db-init` 执行待应用版本。
+升级、应用回退、schema 修复、数据回填与备份恢复的唯一流程见
+[数据库迁移规范](../开发规范/database-migrations.md)。
 
 ## Gateway
 
@@ -70,7 +65,7 @@ CRUD/DTO 的服务不创建占位 domain。
 - 日志相关 ID 继续使用 `X-Trace-Id`; 不使用 `X-Request-Id`。标准分布式
   trace 使用 W3C `traceparent`，gateway 生成或透传后写回响应并继续传给
   下游服务。
-- 单 VPS 观测底座为 ClickHouse + OpenTelemetry Collector（ADR-0038）。
+- 单 VPS 观测底座为 ClickHouse + OpenTelemetry Collector（docs/ADR/operations.md）。
   第一版 trace 优先、7 天 TTL，不逐条保存 SSE token chunk，不默认保存完整
   prompt / response 正文。
 
@@ -80,8 +75,9 @@ CRUD/DTO 的服务不创建占位 domain。
 
 ## 服务间通信
 
-- **同步**: gRPC(优先,定义在 `schemas/proto/`)或 REST(`schemas/openapi/`)
-- **异步**: CloudEvents(`schemas/events/`)
+- **当前同步调用**：声明 binding 的 HTTP transport，契约在 `schemas/`。
+- **耐久任务通知**：Executor 的 Workflow-backed 内部 SSE；Chat 使用原生 UIMessage 流。
+- Proto 与 CloudEvents 保留契约目录，不表示已经部署通用 gRPC 网络或消息 broker。
 
 ### 内部 API (`/internal/*`)
 
@@ -92,21 +88,21 @@ CRUD/DTO 的服务不创建占位 domain。
 - 调用方在 header 携带自己的 `X-Caller-Service` 与
   `X-Internal-Token`；被调方用 `INTERNAL_SERVICE_TOKENS` 的 caller→token
   映射做 constant-time 校验。每个 workload 的 token 必须独立，禁止共享。
-- 业务身份(目标用户)通过 query 参数 `user_id=<uid>` 显式传递,由调用方
-  在公开入口完成鉴权后再发起内部调用。
+- 业务身份按具体契约携带 tenant/workspace/user，由调用方从认证上下文取得；
+  接收方继续校验资源 scope，不能只凭 caller token 或 user_id 授权。
 - 内部响应可包含**解密后**的敏感字段(API key 等),公开 API **绝不**
   返回相同形态 —— 必须脱敏(参考 `admin.services.encryption.mask`)。
 
-典型场景: `chat` 在每次发消息时调
-`admin:/internal/providers/default?user_id=<uid>` 取一份解密后的
-provider snapshot,本地内存 TTL 缓存 5 分钟以避免每次流式
-chunk 都打 sibling。
+典型场景：Chat 通过 Admin client 解析当前作用域的 provider snapshot。
+具体路由、缓存与刷新策略以 client 和 owner 契约为准，不把旧 TTL 写成平台规则。
 
 文档语义、解析和检索由 `knowledge` 持久化；文件 bytes 由 `asset` 统一保存。
 业务服务只持久化 `asset_id + revision_id`，并在本地事务写 Claim intent。
 
 ## 服务文档
 
+- [iam](./iam.md)
+- [admin](./admin.md)
 - [canvas](./canvas.md)
 - [asset](./asset.md)
 - [chat](./chat.md)

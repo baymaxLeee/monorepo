@@ -22,6 +22,7 @@
 # Env:
 #   IMAGE_REGISTRY  (required)     registry path images were pushed to
 #   IMAGE_TAG       (default main) which tag to deploy
+#   DB_INIT_IMAGE_TAG (default IMAGE_TAG) migration image; retain newer tag for compatible app rollback
 #   PUBLIC_PORT     (default 8080) host port nginx binds
 #   PUBLIC_GATEWAY_URL (default http://<remote-host>:<public-port>) browser-reachable gateway origin
 #   DEPLOY_DIR      (default /opt/monorepo) remote path
@@ -40,6 +41,7 @@ DEPLOY_DIR="${DEPLOY_DIR:-/opt/monorepo}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:?set IMAGE_REGISTRY, e.g. ghcr.io/owner/repo}"
 IMAGE_TAG="${IMAGE_TAG:-main}"
+DB_INIT_IMAGE_TAG="${DB_INIT_IMAGE_TAG:-$IMAGE_TAG}"
 PUBLIC_PORT="${PUBLIC_PORT:-8080}"
 REMOTE_HOST="${REMOTE#*@}"
 PUBLIC_GATEWAY_URL="${PUBLIC_GATEWAY_URL:-http://${REMOTE_HOST}:${PUBLIC_PORT}}"
@@ -83,7 +85,7 @@ rsync -avz --delete \
     "${HERE}/" "${REMOTE}:${DEPLOY_DIR}/"
 
 echo "→ rendering .env on remote (generate internal secrets + decrypt operator secrets)"
-ssh "${REMOTE}" "cd ${DEPLOY_DIR} && IMAGE_REGISTRY='${IMAGE_REGISTRY}' IMAGE_TAG='${IMAGE_TAG}' PUBLIC_PORT='${PUBLIC_PORT}' PUBLIC_GATEWAY_URL='${PUBLIC_GATEWAY_URL}' bash render-env.sh"
+ssh "${REMOTE}" "cd ${DEPLOY_DIR} && IMAGE_REGISTRY='${IMAGE_REGISTRY}' IMAGE_TAG='${IMAGE_TAG}' DB_INIT_IMAGE_TAG='${DB_INIT_IMAGE_TAG}' PUBLIC_PORT='${PUBLIC_PORT}' PUBLIC_GATEWAY_URL='${PUBLIC_GATEWAY_URL}' bash render-env.sh"
 
 # Compose validates every required interpolation as the final source of truth.
 echo "→ validating compose config on remote"

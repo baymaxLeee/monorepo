@@ -5,10 +5,10 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 ## Owns
 - DB tables for bots, skills, model providers, and the platform app registry
 - HTTP APIs externally exposed by gateway under `/api/admin-server/*`
-- gRPC API: `bot.v1.BotService` (defined in `schemas/proto/bot/v1/`)
 
 ## Does NOT own
-- Bot audit log (→ audit service via events)
+- IAM identity, tenants/workspaces, membership and roles (→ iam). Resource
+  authorization and business audit remain the owning service's responsibility.
 - Skill attachment/archive bytes, physical retention, signed delivery, and GC
   (→ asset service). Admin stores exact Asset revision references and owns
   editable skill-tree and publication semantics.
@@ -21,14 +21,13 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 - `src/domain/skills.py` — Skill workspace and publishing invariants
 - `src/infrastructure/persistence/repositories/*.py` — persistence operations
 - `src/infrastructure/persistence/models/*.py` — SQLAlchemy ORM table models
-- `src/grpc/server.py` — gRPC server (when added)
 - `src/gen_openapi.py` — OpenAPI export (run by `just gen-openapi admin`)
 
 ## Conventions
 - Routers are thin: request/response wiring only.
 - Business orchestration lives in `application/`.
 - DB access lives in `infrastructure/persistence/repositories/`; routes never touch SQLAlchemy directly.
-- Transactions (ADR-0037): repositories only read/stage (`add`/`flush`/`delete`/
+- Transactions (docs/ADR/architecture.md): repositories only read/stage (`add`/`flush`/`delete`/
   `select`) and NEVER commit. The `application/` method that owns a write unit of
   work opens `async with write_tx(session):` before any DB access and does all
   its reads + writes inside that block (autobegin-first). Keep external IO (DNS

@@ -1,5 +1,4 @@
 export {
-  canvasBatchGetNodeStates,
   canvasCancelStoryboardDrafts,
   canvasConfirmStoryboardDrafts,
   canvasStartStoryboardDrafts,

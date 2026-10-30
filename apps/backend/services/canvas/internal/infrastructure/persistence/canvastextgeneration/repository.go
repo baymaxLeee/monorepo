@@ -166,3 +166,22 @@ func parseHistoryScopeIDs(projectID, canvasID, nodeID string) (persistenceid.UUI
 	node, err := persistenceid.Parse(nodeID)
 	return project, canvas, node, err
 }
+
+// Offset fences duplicate/out-of-order provider writes. The journal callback
+// persists this checkpoint and its UTF-8 suffix in the same database transaction.
+func (r *Repository) Append(ctx context.Context, scope applicationcanvas.Scope, id string, offset int64, delta string, now time.Time) error {
+	parsed, err := persistenceid.Parse(id)
+	if err != nil {
+		return app.ErrNotFound
+	}
+	result := scopeQuery(r.dbFor(ctx).Model(&row{}), scope).
+		Where("task_run_id = ? AND created_by = ? AND status = ? AND octet_length(content) = ?", parsed, scope.CallerID, task.StatusRunning, offset).
+		Updates(map[string]any{"content": gorm.Expr("content || ?", delta), "updated_at": now})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return app.ErrNotFound
+	}
+	return nil
+}

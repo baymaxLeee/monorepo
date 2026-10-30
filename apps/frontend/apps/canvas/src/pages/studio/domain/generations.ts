@@ -1,5 +1,4 @@
 import {
-  canvasBatchGetNodeStates,
   canvasCancelNodeGeneration,
   canvasListNodeHistories,
   canvasSelectNodeHistory,
@@ -10,8 +9,6 @@ import {
 } from "@repo/api";
 
 import type { canvasnode } from "@/domain";
-
-import { presentNode } from "./persistence";
 
 export async function StartCanvasNodeGeneration(
   input: { CanvasID: string; NodeID: string; ProjectID?: string },
@@ -40,39 +37,6 @@ export async function CancelCanvasNodeGeneration(
 ) {
   if (!input.ProjectID || !input.NodeID) throw new Error("缺少生成任务范围");
   await canvasCancelNodeGeneration(input.ProjectID, input.CanvasID, input.NodeID, input.TaskRunID, options);
-}
-
-export async function BatchGetCanvasNodeStates(
-  input: {
-    CanvasID: string;
-    ProjectID?: string;
-    Targets: Array<{ NodeID: string; TaskRunID: string; TaskType?: canvasnode.CanvasNodeTaskType }>;
-  },
-  options?: ApiRequestConfig,
-) {
-  if (!input.ProjectID) throw new Error("缺少项目标识");
-  const response = await canvasBatchGetNodeStates(
-    input.ProjectID,
-    input.CanvasID,
-    { targets: input.Targets.map((item) => ({ node_id: item.NodeID, task_run_id: item.TaskRunID })) },
-    options,
-  );
-  return {
-    Items: response.items.map(
-      (state): canvasnode.CanvasNodeState => ({
-        NodeID: state.node_id,
-        TaskRunID: state.task_run_id,
-        Status: state.status,
-        TaskType: state.task_type,
-        Node: presentNode(state.node, state),
-        RelatedNodes: state.related_nodes.map((node) => presentNode(node)),
-        ErrorCode: state.error_code,
-        ErrorMessage: state.error_message,
-        SeedanceTaskID: state.seedance_task_id,
-        VideoProviderStatus: state.video_provider_status,
-      }),
-    ),
-  };
 }
 
 function presentHistory(value: CanvasNodeHistory): canvasnode.CanvasNodeHistory {

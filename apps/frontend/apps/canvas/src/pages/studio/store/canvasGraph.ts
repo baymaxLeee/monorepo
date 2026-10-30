@@ -2,203 +2,118 @@ import { atom } from "jotai";
 
 import { canvasnode } from "@/domain";
 
+import { canvasFromDTO } from "../../canvases/actions";
 import { shotFromDTO, storyboardDraftShotFromNode } from "../domain/actions";
 import type { CanvasGenerationRuntimeState } from "../domain/generationCancellation";
-import type { CanvasGenerationFailure, Shot } from "../domain/types";
+import { presentNode } from "../domain/persistence";
+import type { CanvasGenerationFailure } from "../domain/types";
+import type { CanvasProjection } from "./streamProjection";
 
-type CanvasGraphState = {
-  nodeIds: string[];
-  nodesById: Map<string, canvasnode.CanvasNode>;
-};
-
-const emptyGraph = (): CanvasGraphState => ({
-  nodeIds: [],
-  nodesById: new Map(),
-});
-
-const mergeCanvasNode = (
-  current: canvasnode.CanvasNode | undefined,
-  next: canvasnode.CanvasNode,
-): canvasnode.CanvasNode => {
-  if (!current) return next;
-  const sameResourceAsset = current.ResourceAssetID === next.ResourceAssetID;
-  const nextCurrentAssetID = next.CurrentAssetID ?? (sameResourceAsset ? current.CurrentAssetID : undefined);
-  return {
-    ...next,
-    CanvasNodeNo: next.CanvasNodeNo || current.CanvasNodeNo,
-    CurrentAssetID: nextCurrentAssetID,
-    ResourceAssetRevision:
-      next.ResourceAssetRevision ?? (sameResourceAsset ? current.ResourceAssetRevision : undefined),
-    ResourceAssetIsPrimary:
-      next.ResourceAssetIsPrimary ?? (sameResourceAsset ? current.ResourceAssetIsPrimary : undefined),
-  };
-};
-
-export const canvasGraphAtom = atom<CanvasGraphState>(emptyGraph());
-export const canvasGraphLoadedAtom = atom(false);
-export const canvasNodesAtom = atom((get) => {
-  const graph = get(canvasGraphAtom);
-  return graph.nodeIds.flatMap((id) => {
-    const node = graph.nodesById.get(id);
-    return node ? [node] : [];
-  });
-});
-
-export const canvasGenerationFailuresAtom = atom<Map<string, CanvasGenerationFailure>>(new Map());
-
-/** 平台任务状态和视频 provider 观察分开保存；仅 providerStatus 用于取消判断。 */
-export const canvasGenerationRuntimeStatesAtom = atom<Map<string, CanvasGenerationRuntimeState>>(new Map());
-
-export const setCanvasGenerationRuntimeStateAtom = atom(
-  null,
-  (get, set, update: CanvasGenerationRuntimeState & { nodeId: string }) => {
-    const current = get(canvasGenerationRuntimeStatesAtom);
-    const previous = current.get(update.nodeId);
-    if (
-      previous?.taskRunId === update.taskRunId &&
-      previous.status === update.status &&
-      previous.providerStatus === update.providerStatus
-    ) {
-      return;
-    }
-    const next = new Map(current);
-    const { nodeId, ...state } = update;
-    next.set(nodeId, state);
-    set(canvasGenerationRuntimeStatesAtom, next);
-  },
-);
-
-export const clearCanvasGenerationRuntimeStateAtom = atom(
-  null,
-  (get, set, update: { nodeId: string; taskRunId?: string }) => {
-    const current = get(canvasGenerationRuntimeStatesAtom);
-    const state = current.get(update.nodeId);
-    if (!state || (update.taskRunId && state.taskRunId !== update.taskRunId)) {
-      return;
-    }
-    const next = new Map(current);
-    next.delete(update.nodeId);
-    set(canvasGenerationRuntimeStatesAtom, next);
-  },
-);
-
-export const setCanvasGenerationFailureAtom = atom(
-  null,
-  (
-    get,
-    set,
-    update: CanvasGenerationFailure & {
-      nodeId: string;
-    },
-  ) => {
-    const next = new Map(get(canvasGenerationFailuresAtom));
-    const { nodeId, ...failure } = update;
-    next.set(nodeId, failure);
-    set(canvasGenerationFailuresAtom, next);
-  },
-);
-
-export const clearCanvasGenerationFailureAtom = atom(null, (get, set, nodeId: string) => {
-  const current = get(canvasGenerationFailuresAtom);
-  if (!current.has(nodeId)) return;
-  const next = new Map(current);
-  next.delete(nodeId);
-  set(canvasGenerationFailuresAtom, next);
-});
-
-export const replaceCanvasNodesAtom = atom(null, (_get, set, nodes: canvasnode.CanvasNode[]) => {
-  set(canvasGraphAtom, {
-    nodeIds: nodes.map((node) => node.NodeID),
-    nodesById: new Map(nodes.map((node) => [node.NodeID, node])),
-  });
-  set(
-    canvasGenerationFailuresAtom,
-    new Map(
-      nodes.flatMap((node) => {
-        const failure = node.LatestGenerationFailure;
-        return failure
-          ? [
-              [
-                node.NodeID,
-                {
-                  taskRunId: failure.TaskRunID,
-                  errorCode: failure.ErrorCode,
-                  errorMessage: failure.ErrorMessage,
-                  seedanceTaskId: failure.SeedanceTaskID,
-                },
-              ] as const,
-            ]
-          : [];
-      }),
-    ),
+type RawNode = CanvasProjection["nodes"] extends Map<string, infer N> ? N : never;
+type Task = CanvasProjection["tasks"] extends Map<string, infer T> ? T : never;
+type Text = CanvasProjection["texts"] extends Map<string, infer T> ? T : never;
+const presentationCache = new WeakMap<
+  RawNode,
+  { task: Task | undefined; text: Text | undefined; value: canvasnode.CanvasNode }
+>();
+function presentProjectedNode(node: RawNode, task: Task | undefined, text: Text | undefined) {
+  const cached = presentationCache.get(node);
+  if (cached && cached.task === task && cached.text === text) return cached.value;
+  const value = presentNode(node);
+  value.ActiveTaskType = task?.task_type;
+  if (task && isPending(task)) value.ActiveTaskRunID = task.task_run_id;
+  if (value.ActiveTaskRunID) {
+    value.Status =
+      task?.task_type === canvasnode.CanvasNodeTaskType.ASSETS_MATCH
+        ? node.selected_output_id ||
+          node.selected_asset_id ||
+          node.selected_output_text ||
+          node.resource_asset_id ||
+          node.resource_id
+          ? canvasnode.CanvasNodeStatus.READY
+          : canvasnode.CanvasNodeStatus.EMPTY
+        : canvasnode.CanvasNodeStatus.GENERATING;
+  }
+  if (text && text.task_run_id === value.ActiveTaskRunID && (text.status === "running" || text.status === "queued"))
+    value.SelectedOutputText = text.content;
+  presentationCache.set(node, { task, text, value });
+  return value;
+}
+function isPending(task: Task) {
+  return (
+    task.status === canvasnode.CanvasGenerationStatus.RUNNING ||
+    task.status === canvasnode.CanvasGenerationStatus.QUEUED
   );
-  set(canvasGraphLoadedAtom, true);
+}
+const projectionAtom = atom<CanvasProjection | undefined>(undefined);
+export const canvasAtom = atom((get) => {
+  const projection = get(projectionAtom);
+  return projection ? canvasFromDTO(projection.canvas) : undefined;
 });
-
-export const upsertCanvasNodesAtom = atom(null, (get, set, nodes: canvasnode.CanvasNode[]) => {
-  if (!nodes.length) return;
-  const current = get(canvasGraphAtom);
-  const nodeIds = [...current.nodeIds];
-  const nodesById = new Map(current.nodesById);
-  for (const node of nodes) {
-    if (!nodesById.has(node.NodeID)) nodeIds.push(node.NodeID);
-    nodesById.set(node.NodeID, mergeCanvasNode(nodesById.get(node.NodeID), node));
-  }
-  set(canvasGraphAtom, { nodeIds, nodesById });
-});
-
-export const patchCanvasNodeAtom = atom(
-  null,
-  (
-    get,
-    set,
-    update: {
-      nodeId: string;
-      patch: Partial<canvasnode.CanvasNode>;
-    },
-  ) => {
-    const current = get(canvasGraphAtom);
-    const node = current.nodesById.get(update.nodeId);
-    if (!node) return;
-    const nodesById = new Map(current.nodesById);
-    nodesById.set(update.nodeId, { ...node, ...update.patch });
-    set(canvasGraphAtom, { ...current, nodesById });
-  },
+export const canvasArchivesAtom = atom((get) =>
+  [...(get(projectionAtom)?.archives.values() ?? [])].sort(
+    (a, b) => b.created_at.localeCompare(a.created_at) || b.task_run_id.localeCompare(a.task_run_id),
+  ),
 );
 
-export const removeCanvasNodeAtom = atom(null, (get, set, nodeId: string) => {
-  const current = get(canvasGraphAtom);
-  if (!current.nodesById.has(nodeId)) return;
-  const nodesById = new Map(current.nodesById);
-  nodesById.delete(nodeId);
-  for (const [id, node] of nodesById) {
-    const incomingEdges = node.IncomingEdges.filter((edge) => edge.SourceNodeID !== nodeId);
-    if (incomingEdges.length !== node.IncomingEdges.length) {
-      nodesById.set(id, { ...node, IncomingEdges: incomingEdges });
-    }
+export const canvasGraphLoadedAtom = atom((get) => Boolean(get(projectionAtom)));
+export const canvasGraphAtom = atom((get) => {
+  const projection = get(projectionAtom);
+  const pendingByNode = new Map(
+    [...(projection?.tasks.values() ?? [])].filter(isPending).map((task) => [task.node_id, task]),
+  );
+  const nodes = [...(projection?.nodes.values() ?? [])].map((node) => {
+    // Video output can be committed before its frame extraction task finishes.
+    const active = node.active_task_run_id
+      ? projection?.tasks.get(node.active_task_run_id)
+      : pendingByNode.get(node.node_id);
+    return presentProjectedNode(node, active, projection?.texts.get(node.node_id));
+  });
+  return { nodeIds: nodes.map((node) => node.NodeID), nodesById: new Map(nodes.map((node) => [node.NodeID, node])) };
+});
+export const canvasNodesAtom = atom((get) => [...get(canvasGraphAtom).nodesById.values()]);
+export const installCanvasProjectionAtom = atom(
+  (get) => get(canvasNodesAtom),
+  (_get, set, projection: CanvasProjection) => set(projectionAtom, projection),
+);
+export const canvasGenerationFailuresAtom = atom((get) => {
+  const failures = new Map<string, CanvasGenerationFailure>();
+  const projection = get(projectionAtom);
+  for (const task of projection?.tasks.values() ?? []) {
+    const node = projection?.nodes.get(task.node_id);
+    if (!node || (node.active_task_run_id && node.active_task_run_id !== task.task_run_id)) continue;
+    if (
+      task.task_type !== canvasnode.CanvasNodeTaskType.ASSETS_MATCH &&
+      task.status === canvasnode.CanvasGenerationStatus.FAILED
+    )
+      failures.set(task.node_id, {
+        taskRunId: task.task_run_id,
+        errorCode: task.error_code,
+        errorMessage: task.error_message,
+        seedanceTaskId: task.seedance_task_id,
+      });
   }
-  set(canvasGraphAtom, {
-    nodeIds: current.nodeIds.filter((id) => id !== nodeId),
-    nodesById,
-  });
-  const generationStates = new Map(get(canvasGenerationRuntimeStatesAtom));
-  generationStates.delete(nodeId);
-  set(canvasGenerationRuntimeStatesAtom, generationStates);
+  return failures;
 });
-
-export const reorderStoryboardNodesAtom = atom(null, (get, set, orderedIds: string[]) => {
-  const current = get(canvasGraphAtom);
-  const nodesById = new Map(current.nodesById);
-  orderedIds.forEach((nodeId, index) => {
-    const node = nodesById.get(nodeId);
-    if (node) {
-      nodesById.set(nodeId, { ...node, StoryboardRank: index + 1 });
-    }
-  });
-  set(canvasGraphAtom, { ...current, nodesById });
+export const canvasGenerationRuntimeStatesAtom = atom((get) => {
+  const runtime = new Map<string, CanvasGenerationRuntimeState>();
+  const projection = get(projectionAtom);
+  for (const task of projection?.tasks.values() ?? []) {
+    const node = projection?.nodes.get(task.node_id);
+    if (!node || (node.active_task_run_id && node.active_task_run_id !== task.task_run_id)) continue;
+    if (
+      task.task_type !== canvasnode.CanvasNodeTaskType.ASSETS_MATCH &&
+      (task.status === canvasnode.CanvasGenerationStatus.RUNNING ||
+        task.status === canvasnode.CanvasGenerationStatus.QUEUED)
+    )
+      runtime.set(task.node_id, {
+        taskRunId: task.task_run_id,
+        status: task.status,
+        providerStatus: task.video_provider_status,
+      });
+  }
+  return runtime;
 });
-
-export const storyboardOptimisticShotsAtom = atom<Shot[]>([]);
 
 export const storyboardShotsAtom = atom((get) => {
   const failures = get(canvasGenerationFailuresAtom);
@@ -224,25 +139,9 @@ export const storyboardShotsAtom = atom((get) => {
           }
         : shot;
     });
-  const projected = [...formal];
-  for (const shot of get(storyboardOptimisticShotsAtom)) {
-    const afterIndex = shot.optimisticAfterNodeId
-      ? projected.findIndex((item) => item.id === shot.optimisticAfterNodeId)
-      : -1;
-    const insertIndex = shot.optimisticAfterNodeId ? (afterIndex >= 0 ? afterIndex + 1 : projected.length) : 0;
-    projected.splice(insertIndex, 0, shot);
-  }
   const draftTasks = get(canvasNodesAtom).flatMap((node) => {
     const task = storyboardDraftShotFromNode(node);
     return task ? [task] : [];
   });
-  return [...projected, ...draftTasks];
-});
-
-export const resetCanvasGraphAtom = atom(null, (_get, set) => {
-  set(canvasGraphAtom, emptyGraph());
-  set(canvasGraphLoadedAtom, false);
-  set(storyboardOptimisticShotsAtom, []);
-  set(canvasGenerationFailuresAtom, new Map());
-  set(canvasGenerationRuntimeStatesAtom, new Map());
+  return [...formal, ...draftTasks];
 });

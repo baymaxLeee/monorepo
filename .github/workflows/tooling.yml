@@ -5,6 +5,18 @@ on:
   pull_request:
     paths:
       - 'scripts/**'
+      - 'apps/backend/services/**/migrations/**'
+      - 'infra/single-vps/Dockerfile.db-init'
+      - 'infra/single-vps/postgres-init.sh'
+      - '**/AGENTS.md'
+      - '**/AGENTS.override.md'
+      - '.agents/**'
+      - '.cursor/**'
+      - 'docs/**'
+      - 'README.md'
+      - 'DESIGN.md'
+      - 'package.json'
+      - 'apps/**/package.json'
       - 'justfile'
       - 'mise.toml'
       - 'services.yaml'
@@ -18,7 +30,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
+      - name: Check repository graph and documentation navigation
+        run: just check-repo
       - name: Test affected CLI behavior
         env:
           TEST_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'all' }}
         run: just test-affected "$TEST_BASE" tooling
+
+  database-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Verify data-preserving upgrades on disposable PostgreSQL
+        run: just test-db-migrations

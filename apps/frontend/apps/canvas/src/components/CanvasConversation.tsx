@@ -5,12 +5,10 @@ import { useEffect, useState } from "react";
 export function CanvasConversation({
   projectId,
   canvasId,
-  onChange,
   request,
 }: {
   projectId: string;
   canvasId: string;
-  onChange: () => void;
   request?: { id: string; text: string } | null;
 }) {
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -48,12 +46,7 @@ export function CanvasConversation({
   if (!conversationId) return null;
   return (
     <div className="relative flex h-full min-w-0 min-h-0 flex-col overflow-hidden [&_[role=log]>div]:[-ms-overflow-style:none] [&_[role=log]>div]:[scrollbar-width:none] [&_[role=log]>div::-webkit-scrollbar]:hidden">
-      <ChatSession
-        key={conversationId}
-        conversationId={conversationId}
-        externalRequest={request}
-        onCanvasChange={onChange}
-      />
+      <ChatSession key={conversationId} conversationId={conversationId} externalRequest={request} />
       <ChatWorkspacePanel conversationId={conversationId} />
     </div>
   );

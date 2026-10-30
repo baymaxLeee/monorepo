@@ -34,57 +34,6 @@ func (r *Repository) GetVisibleGeneration(ctx context.Context, scope app.Scope, 
 	return r.getCanvasNodeVideoGeneration(ctx, scope, taskRunID, true)
 }
 
-// BatchGetProviderStatuses reads provider observations independently of TaskRun status.
-func (r *Repository) BatchGetProviderStatuses(ctx context.Context, scope app.Scope, taskRunIDs []string) (map[string]domainvideo.ProviderStatus, error) {
-	ids := persistenceid.ParseValid(taskRunIDs)
-	result := make(map[string]domainvideo.ProviderStatus, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	var rows []struct {
-		TaskRunID      persistenceid.UUID
-		ProviderStatus domainvideo.ProviderStatus
-	}
-	if err := scopeQuery(r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}), scope).
-		Select("task_run_id", "provider_status").Where("task_run_id IN ? AND hidden_at IS NULL", ids).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		result[row.TaskRunID.String()] = row.ProviderStatus
-	}
-	return result, nil
-}
-
-func (r *Repository) BatchGetFailedProviderFacts(
-	ctx context.Context,
-	scope app.Scope,
-	generationTaskRunIDs []string,
-) (map[string]app.FailedProviderFacts, error) {
-	ids := persistenceid.ParseValid(generationTaskRunIDs)
-	result := make(map[string]app.FailedProviderFacts, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	var rows []struct {
-		TaskRunID         persistenceid.UUID
-		ProviderErrorCode string
-		RealTaskID        *string
-	}
-	query := scopeQuery(r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}), scope)
-	if err := query.
-		Select("task_run_id", "provider_error_code", "real_task_id").
-		Where("task_run_id IN ? AND hidden_at IS NULL AND provider_status = ?", ids, domainvideo.ProviderStatusFailed).
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		result[row.TaskRunID.String()] = app.FailedProviderFacts{
-			ErrorCode: strings.TrimSpace(row.ProviderErrorCode), SeedanceTaskID: strings.TrimSpace(nullableStringValue(row.RealTaskID)),
-		}
-	}
-	return result, nil
-}
-
 func (r *Repository) GetByFirstLastFrameTaskRunID(ctx context.Context, taskRunID string) (applicationfirstlastframe.Generation, error) {
 	return r.getByFirstLastFrameTaskRunID(ctx, taskRunID, false)
 }

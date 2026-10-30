@@ -38,4 +38,4 @@ durable Claim intent；relay 至少一次投递，Asset 按 owner identity + gen
 具备共享一致性语义的文件系统或新增对象存储 adapter。数据库与 byte volume 必须做
 一致恢复点备份，只有物理删除确认后才清理元数据。
 
-完整状态机、安全约束与消费者矩阵见 [ADR-0072](../ADR/0072-platform-asset-control-plane.md)。
+完整状态机、安全约束与消费者矩阵见 [docs/ADR/files-and-assets.md](../ADR/files-and-assets.md)。

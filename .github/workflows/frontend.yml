@@ -10,7 +10,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'mise.toml'
       - 'justfile'
-      - 'scripts/test*.mjs'
+      - 'scripts/*.mjs'
       - '.github/workflows/frontend.yml'
 
 jobs:

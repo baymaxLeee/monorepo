@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { discoverTargets, selectTargets, commandFor, runTargets } from "./test.mjs";
+import { discoverTargets, selectTargets, commandFor, runTargets, runSelections } from "./test.mjs";
 
 test("discovers newly added services and colocated Python tests without a service allowlist", (t) => {
   const root = mkdtempSync(join(tmpdir(), "monorepo-tests-"));
@@ -47,4 +47,57 @@ test("preserves argument boundaries and propagates runner failures", (t) => {
     return { status: 7 };
   });
   assert.equal(status, 1);
+});
+
+test("batches only selected frontend projects and reports missing suites", (t) => {
+  t.mock.method(console, "log", () => {});
+  const errors = t.mock.method(console, "error", () => {});
+  const targets = ["one", "two", "empty"].map((name) => ({
+    id: `frontend/${name}`,
+    packageName: name,
+    runtime: "frontend",
+    dir: `/repo/apps/frontend/apps/${name}`,
+    files: name === "empty" ? [] : ["src/app.test.ts"],
+  }));
+  const calls = [];
+  const status = runTargets(targets, "/repo", [], (cmd, args, options) => {
+    calls.push({ cmd, args, options });
+    return { status: 0 };
+  });
+  assert.equal(status, 1);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].args, ["test", "--project", "one", "--project", "two"]);
+  assert.equal(calls[0].options.cwd, "/repo/apps/frontend");
+  assert.match(errors.mock.calls[0].arguments[0], /empty: no test files/);
+});
+
+test("overlapping selections run once and a failed grouped frontend runner propagates", (t) => {
+  t.mock.method(console, "log", () => {});
+  const targets = ["one", "two"].map((name) => ({
+    id: `frontend/${name}`,
+    packageName: name,
+    runtime: "frontend",
+    dir: `/repo/${name}`,
+    files: ["src/test.ts"],
+  }));
+  const calls = [];
+  const result = runSelections(["frontend", "frontend/one"], "/repo", [], targets, (command, args) => {
+    calls.push({ command, args });
+    return { status: 9 };
+  });
+  assert.equal(result, 1);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].args, ["test", "--project", "one", "--project", "two"]);
+});
+
+test("aggregate frontend reports empty projects but cannot pass an entirely empty stack", (t) => {
+  t.mock.method(console, "log", () => {});
+  const errors = t.mock.method(console, "error", () => {});
+  const empty = { id: "frontend/empty", runtime: "frontend", files: [] };
+  const tested = { id: "frontend/tested", runtime: "frontend", packageName: "tested", files: ["src/test.ts"] };
+  const success = () => ({ status: 0 });
+  assert.equal(runSelections(["frontend"], "/repo", [], [empty, tested], success), 0);
+  assert.match(errors.mock.calls[0].arguments[0], /^UNTESTED/);
+  assert.equal(runSelections(["frontend"], "/repo", [], [empty], success), 1);
+  assert.equal(runSelections(["frontend/empty"], "/repo", [], [empty], success), 1);
 });

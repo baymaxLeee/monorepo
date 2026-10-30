@@ -23,7 +23,6 @@ import (
 
 const (
 	lifetime                       = 9 * time.Minute
-	liveProjectionRetention        = 30 * time.Minute
 	textGenerationCallOrdinal      = int32(1)
 	textGenerationInterruptedCause = "canvas text generation was interrupted after a provider call began"
 )
@@ -48,19 +47,8 @@ type Session struct {
 	FinishedAt                                                       *time.Time
 }
 
-type Delta struct {
-	Cursor string
-	Text   string
-}
-
-type Cache interface {
-	Create(context.Context, applicationcanvas.Scope, Session) (bool, error)
-	Get(context.Context, applicationcanvas.Scope, string, string, string, string) (Session, error)
-	Append(context.Context, applicationcanvas.Scope, string, string, string, string, string) error
-	ReadDeltas(context.Context, applicationcanvas.Scope, string, string, string, string, string, time.Duration) ([]Delta, error)
-	Retire(context.Context, applicationcanvas.Scope, string, string, string, string, time.Duration) error
-}
 type Repository interface {
+	Append(context.Context, applicationcanvas.Scope, string, int64, string, time.Time) error
 	Create(context.Context, applicationcanvas.Scope, Session) error
 	Get(context.Context, applicationcanvas.Scope, string) (Session, error)
 	GetHistory(context.Context, applicationcanvas.Scope, string, string, string, string) (Session, error)
@@ -131,7 +119,6 @@ type UsageFinalizer interface {
 
 type Service struct {
 	nodes          NodeStore
-	cache          Cache
 	repository     Repository
 	runs           applicationtask.TaskRunStore
 	schedules      applicationtask.PollScheduleStore
@@ -163,8 +150,8 @@ func WithGenerationInputs(nodes InputNodeStore, assets InputAssetReader, resolve
 	}
 }
 
-func NewService(nodes NodeStore, cache Cache, repository Repository, runs applicationtask.TaskRunStore, schedules applicationtask.PollScheduleStore, executions *applicationtask.ActiveExecutions, transactions applicationtask.TransactionManager, ids IDGenerator, clock Clock, models applicationmodel.Catalog, provider Provider, options ...Option) *Service {
-	service := &Service{nodes: nodes, cache: cache, repository: repository, runs: runs, schedules: schedules, executions: executions, transactions: transactions, ids: ids, clock: clock, models: models, provider: provider}
+func NewService(nodes NodeStore, repository Repository, runs applicationtask.TaskRunStore, schedules applicationtask.PollScheduleStore, executions *applicationtask.ActiveExecutions, transactions applicationtask.TransactionManager, ids IDGenerator, clock Clock, models applicationmodel.Catalog, provider Provider, options ...Option) *Service {
+	service := &Service{nodes: nodes, repository: repository, runs: runs, schedules: schedules, executions: executions, transactions: transactions, ids: ids, clock: clock, models: models, provider: provider}
 	for _, option := range options {
 		option(service)
 	}
@@ -361,9 +348,6 @@ func (s *Service) ProcessPollClaim(ctx context.Context, run domaintask.TaskRun, 
 	if state.Status != domaintask.StatusRunning {
 		return nil
 	}
-	if err = s.ensureCache(ctx, scope, state); err != nil {
-		return s.finish(context.WithoutCancel(ctx), scope, run, schedule, domaintask.StatusFailed, &Failure{Code: string(errno.ErrInternalError), Message: errno.Meta(errno.ErrInternalError).Message}, "")
-	}
 	providerCtx, cancel := context.WithDeadline(ctx, schedule.DeadlineAt)
 	defer cancel()
 	selection, err := s.models.LoadSelection(providerCtx, scope.TenantID, scope.WorkspaceID, applicationmodel.CapabilityCanvasTextGeneration, state.ModelServiceID)
@@ -388,6 +372,10 @@ func (s *Service) ProcessPollClaim(ctx context.Context, run domaintask.TaskRun, 
 			)
 		}
 	}
+	checkpoint := newCheckpointWriter(providerCtx, func(ctx context.Context, offset int64, delta string) error {
+		return s.repository.Append(ctx, scope, state.ID, offset, delta, s.clock.Now())
+	}, int64(len(state.Content)))
+	defer checkpoint.close()
 	var providerResult ProviderResult
 	providerInvoked := false
 	if err == nil {
@@ -402,13 +390,11 @@ func (s *Service) ProcessPollClaim(ctx context.Context, run domaintask.TaskRun, 
 				}
 				state.Content += delta
 				state.UpdatedAt = s.clock.Now()
-				if e := s.cache.Append(providerCtx, scope, state.ProjectID, state.CanvasID, state.NodeID, state.ID, delta); e != nil {
-					return e
-				}
-				return nil
+				return checkpoint.append(delta)
 			},
 		})
 	}
+	err = errors.Join(err, checkpoint.close())
 	if s.usageCalls != nil && providerInvoked {
 		captureErr := validateTextProviderCall(providerResult.Call, state.ID, state.ModelServiceID)
 		if captureErr == nil {
@@ -482,7 +468,6 @@ func (s *Service) finish(ctx context.Context, scope applicationcanvas.Scope, run
 		return s.closeUsage(tx, run.ID)
 	})
 	if err == nil {
-		s.retireCache(ctx, scope, state.ProjectID, state.CanvasID, state.NodeID, state.ID)
 		s.triggerUsage(run.ID)
 	}
 	return err
@@ -552,13 +537,6 @@ func (s *Service) getSession(ctx context.Context, scope applicationcanvas.Scope,
 	if durable.ProjectID != projectID || durable.CanvasID != canvasID || durable.NodeID != nodeID {
 		return Session{}, errno.New(errno.ErrNotFound)
 	}
-	if durable.Status != domaintask.StatusQueued && durable.Status != domaintask.StatusRunning {
-		return durable, nil
-	}
-	live, e := s.cache.Get(ctx, scope, projectID, canvasID, nodeID, taskRunID)
-	if e == nil {
-		return live, nil
-	}
 	return durable, nil
 }
 
@@ -602,48 +580,13 @@ func (s *Service) Cancel(ctx context.Context, scope applicationcanvas.Scope, pro
 	})
 	if err == nil {
 		s.executions.Cancel(taskRunID)
-		s.retireCache(ctx, scope, projectID, canvasID, nodeID, taskRunID)
 		s.triggerUsage(taskRunID)
 	}
 	return err
 }
 
-// retireCache keeps the ordered delta stream briefly after terminal commit so
-// an SSE reader can drain every provider event even when generation finishes
-// between two reads. Durable terminal reads still bypass this projection.
-func (s *Service) retireCache(ctx context.Context, scope applicationcanvas.Scope, projectID, canvasID, nodeID, taskRunID string) {
-	if err := s.cache.Retire(ctx, scope, projectID, canvasID, nodeID, taskRunID, liveProjectionRetention); err != nil {
-		return
-	}
-}
-
-func (s *Service) ReadDeltas(ctx context.Context, scope applicationcanvas.Scope, projectID, canvasID, nodeID, taskRunID, cursor string, block time.Duration) ([]Delta, error) {
-	if !s.configured() || strings.TrimSpace(projectID) == "" || strings.TrimSpace(canvasID) == "" ||
-		strings.TrimSpace(nodeID) == "" || strings.TrimSpace(taskRunID) == "" || strings.TrimSpace(cursor) == "" || block <= 0 {
-		return nil, errno.New(errno.ErrInvalidArgument)
-	}
-	if _, err := s.Get(ctx, scope, projectID, canvasID, nodeID, taskRunID); err != nil {
-		return nil, err
-	}
-	return s.cache.ReadDeltas(ctx, scope, projectID, canvasID, nodeID, taskRunID, cursor, block)
-}
-
-func (s *Service) ensureCache(ctx context.Context, scope applicationcanvas.Scope, state Session) error {
-	created, err := s.cache.Create(ctx, scope, state)
-	if err != nil || created {
-		return err
-	}
-	live, err := s.cache.Get(ctx, scope, state.ProjectID, state.CanvasID, state.NodeID, state.ID)
-	if err != nil {
-		return err
-	}
-	if live.ID != state.ID {
-		return errors.New("text generation cache conflict")
-	}
-	return nil
-}
 func (s *Service) configured() bool {
-	return s != nil && s.nodes != nil && s.cache != nil && s.repository != nil && s.runs != nil && s.schedules != nil && s.executions != nil && s.transactions != nil && s.ids != nil && s.clock != nil && s.models != nil && s.provider != nil &&
+	return s != nil && s.nodes != nil && s.repository != nil && s.runs != nil && s.schedules != nil && s.executions != nil && s.transactions != nil && s.ids != nil && s.clock != nil && s.models != nil && s.provider != nil &&
 		(s.usageCalls == nil) == (s.usageFinalizer == nil)
 }
 

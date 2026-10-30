@@ -126,7 +126,7 @@
 - [x] Trace 不再把 `ToolOutcome.ok=false` 标为成功。
 - [x] `just lint chat`、`just build chat`、根级 `just lint`、`just build` 和
   `git diff --check` 通过。该历史记录仅证明上述检查通过，不代表行为测试通过；
-  后续修改按 [ADR-0075](../ADR/0075-first-class-monorepo-testing.md) 补充并执行测试。
+  后续修改按 [ADR-0075](../ADR/engineering.md) 补充并执行测试。
 
 ## 官方参考
 

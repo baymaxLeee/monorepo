@@ -568,7 +568,7 @@ pnpm -F chat build
 - Chat `generate_video` terminal failure 的 throw 改为标准 failed outcome。
 - Repository 的安全 JSON error 序列化保留，并用于统一 normalizer/持久化。
 - Runtime Prompt 中“新可见 tool call 才是重试”的原则保留，措辞改为统一 outcome。
-- 暂存的视频错误 ADR 直接重写并重命名为 `docs/ADR/0042-agent-tool-outcomes.md`，不新增 superseding ADR，不保留已经被本计划否定的 native-error 决策。
+- 暂存的视频错误 ADR 直接重写并重命名为 `docs/ADR/agent-runtime.md`，不新增 superseding ADR，不保留已经被本计划否定的 native-error 决策。
 - ADR 0035 和 `schemas/streaming/chat-uimessage-stream.md` 更新为：进度与业务失败都使用官方 tool output；只有控制流/协议异常使用 output-error。
 
 ## 17. 最终完成定义

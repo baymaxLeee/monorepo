@@ -1,1 +1,1 @@
-export { canvasBatchGetNodeStates, canvasCancelNodeAssetMatch, canvasStartNodeAssetMatch } from "./canvas-server";
+export { canvasCancelNodeAssetMatch, canvasStartNodeAssetMatch } from "./canvas-server";

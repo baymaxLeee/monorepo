@@ -11,7 +11,7 @@ routes, outbound bindings, owned databases, and optional OpenAPI artifacts.
 - `libs/kernel-ts/` — thin TypeScript runtime primitives
 - `libs/transport-ts/` — generated-contract-based internal HTTP clients
 
-Do not create a shared package for language symmetry. Follow ADR-0061: build a
+Do not create a shared package for language symmetry. Follow docs/ADR/architecture.md: build a
 consumer matrix, choose share implementation / share contract / keep local,
 and record high-risk extraction decisions before moving code.
 
@@ -20,8 +20,8 @@ and record high-risk extraction decisions before moving code.
 ### Service autonomy
 
 - Each service owns its runtime, dependency manifest, Dockerfile, and data.
-- Each service owns exactly one reinstall-only SQL schema baseline at
-  `services/<name>/migrations/versions/v1.0.0.sql`.
+- Each service owns its SQL migrations under `services/<name>/migrations/versions/`.
+  The current initial baseline is `v1.0.0.sql`.
 - Services never import another service's source.
 - Cross-service calls use explicit bindings from `services.yaml` and transport
   clients; asynchronous flows use shared event contracts where appropriate.
@@ -29,14 +29,15 @@ and record high-risk extraction decisions before moving code.
 
 ### Database migrations
 
-- Each service database contains a single-row `migration` table with `id = 1`,
-  `version`, `checksum`, and `update_time`.
-- Edit `v1.0.0.sql` directly when the schema changes. Do not add a later
-  migration until a new ADR establishes persisted-data compatibility.
-- `just up` applies service-owned baselines through `scripts/db-migrate.sh`;
-  processes do not create or mutate schemas at startup. A version or checksum
-  mismatch requires `just reset-demo-data`; there is no upgrade, downgrade, or
-  data-copy path.
+- Preserve existing data in local and deployed databases. Applied SQL, including
+  `v1.0.0.sql`, is immutable; add a new numbered SQL file for schema/data changes.
+- `scripts/db-migrate.sh` owns ordered upgrades, checksum history, serialization
+  and transactional rollback. Processes do not create schemas at startup.
+- Never reset a database or rewrite checksums to make an upgrade pass. Application
+  rollback does not imply schema downgrade; no generic DOWN executor exists.
+- Read [database migrations](../../docs/开发规范/database-migrations.md) for upgrade,
+  rollback and backfill contracts. Verify with `just test-db-migrations` and the
+  affected service's tests; run `just migrate-up <service>` to apply pending SQL.
 
 ### Gateway responsibilities
 
@@ -89,7 +90,7 @@ capability.
 | `just fmt` | Rewrite supported source using root Oxfmt, Ruff, and gofmt; run only when requested or needed |
 | `just gen-openapi <service>` | Export one Python/Node OpenAPI contract |
 | `just gen-openapi-all` | Export all registered Python/Node contracts |
-| `just migrate-up <svc>` | Apply or verify the service's `v1.0.0` baseline |
+| `just migrate-up <svc>` | Apply pending versioned SQL and verify applied checksums |
 
 ### TypeScript 7
 
@@ -136,4 +137,4 @@ and library; a target with no test files fails.
   coverage for lifecycle and authorization changes. Never suppress collection
   failures or use an empty smoke assertion to satisfy the gate.
 
-See `docs/ADR/0075-first-class-monorepo-testing.md` for the shared policy.
+See `docs/开发规范/testing.md` for the shared policy.

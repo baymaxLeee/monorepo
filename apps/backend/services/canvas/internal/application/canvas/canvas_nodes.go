@@ -208,21 +208,22 @@ type CanvasNodeView struct {
 	Reviews    []domainasset.Review
 }
 
-func (s *CanvasNodeService) ListGraph(ctx context.Context, scope Scope, projectID, canvasID string) ([]CanvasNodeView, error) {
-	items, err := s.List(ctx, scope, projectID, canvasID)
+func (s *CanvasNodeService) ProjectViews(ctx context.Context, scope Scope, items []domain.CanvasNode) ([]CanvasNodeView, error) {
+	views, err := s.ProjectStreamViews(ctx, scope, items)
 	if err != nil {
 		return nil, err
 	}
-	return s.ProjectViews(ctx, scope, items)
+	if err = s.projectAssetsMatching(ctx, scope, views); err != nil {
+		return nil, err
+	}
+	return views, nil
 }
 
-func (s *CanvasNodeService) ProjectViews(ctx context.Context, scope Scope, items []domain.CanvasNode) ([]CanvasNodeView, error) {
+// ProjectStreamViews enriches frozen identities with delivery URLs, without reading live task state.
+func (s *CanvasNodeService) ProjectStreamViews(ctx context.Context, scope Scope, items []domain.CanvasNode) ([]CanvasNodeView, error) {
 	views := make([]CanvasNodeView, len(items))
 	for index := range items {
 		views[index].CanvasNode = items[index]
-	}
-	if err := s.projectAssetsMatching(ctx, scope, views); err != nil {
-		return nil, err
 	}
 	if s.assetReader == nil {
 		return views, nil

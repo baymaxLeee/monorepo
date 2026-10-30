@@ -49,10 +49,12 @@
     "@rspack/core": "catalog:",
     "@rspack/dev-server": "catalog:",
     "@swc/helpers": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@typescript/native": "catalog:",
     "less": "catalog:",
-    "less-loader": "catalog:"
+    "less-loader": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -12,3 +12,5 @@ export * from "./canvas-server";
 export * from "./canvas-settings";
 
 export * from "./canvas-storyboard";
+
+export * from "./canvas-stream";

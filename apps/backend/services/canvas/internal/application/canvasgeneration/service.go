@@ -3,6 +3,7 @@ package canvasgeneration
 import (
 	"context"
 	"errors"
+	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	"strings"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
-	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domaincanvas "github.com/example/monorepo/canvas/internal/domain/canvas"
 	domainimagegeneration "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
@@ -25,32 +25,6 @@ import (
 type NodeReader interface {
 	Get(context.Context, applicationcanvas.Scope, string, string, string) (domaincanvas.CanvasNode, error)
 	SelectGeneratedAsset(context.Context, applicationcanvas.Scope, string, string, string, string, string, domaincanvas.NodeType, time.Time) (bool, error)
-}
-
-type GenerationNodeBatchReader interface {
-	BatchGet(context.Context, applicationcanvas.Scope, string, string, []string) ([]domaincanvas.CanvasNode, error)
-}
-
-type VideoFrameTaskBatchReader interface {
-	BatchGetProviderStatuses(context.Context, applicationcanvas.Scope, []string) (map[string]domainvideo.ProviderStatus, error)
-	BatchGetFailedProviderFacts(context.Context, applicationcanvas.Scope, []string) (map[string]applicationvideogeneration.FailedProviderFacts, error)
-}
-
-type GenerationRunBatchReader interface {
-	applicationtask.TaskRunBatchReader
-	applicationtask.ScopedTaskRunBatchReader
-	applicationtask.LatestTaskRunBatchReader
-}
-
-type GenerationTarget struct {
-	NodeID, TaskRunID string
-}
-
-type GenerationState struct {
-	VideoProviderStatus *domainvideo.ProviderStatus
-	Node                domaincanvas.CanvasNode
-	Run                 domaintask.TaskRun
-	SeedanceTaskID      string
 }
 
 type GenerationFailure struct {
@@ -73,15 +47,12 @@ type ImageModelCatalog interface {
 }
 
 type Service struct {
-	nodes           NodeReader
-	images          ImageEngine
-	videos          *applicationvideogeneration.Service
-	texts           *applicationtextgeneration.Service
-	assets          AssetPreviewer
-	models          ImageModelCatalog
-	generationNodes GenerationNodeBatchReader
-	generationRuns  GenerationRunBatchReader
-	videoFrameTasks VideoFrameTaskBatchReader
+	nodes  NodeReader
+	images ImageEngine
+	videos *applicationvideogeneration.Service
+	texts  *applicationtextgeneration.Service
+	assets AssetPreviewer
+	models ImageModelCatalog
 }
 
 type ServiceOption func(*Service)
@@ -89,18 +60,6 @@ type ServiceOption func(*Service)
 func WithImageModelCatalog(models ImageModelCatalog) ServiceOption {
 	return func(service *Service) {
 		service.models = models
-	}
-}
-
-func WithGenerationStateReaders(
-	nodes GenerationNodeBatchReader,
-	runs GenerationRunBatchReader,
-	videoFrameTasks VideoFrameTaskBatchReader,
-) ServiceOption {
-	return func(service *Service) {
-		service.generationNodes = nodes
-		service.generationRuns = runs
-		service.videoFrameTasks = videoFrameTasks
 	}
 }
 
@@ -138,200 +97,6 @@ func (s *Service) Start(ctx context.Context, scope applicationcanvas.Scope, proj
 		return run.TaskRunID, nil
 	default:
 		return "", errno.New(errno.ErrInvalidArgument)
-	}
-}
-
-func (s *Service) BatchGetStates(ctx context.Context, scope applicationcanvas.Scope, projectID, canvasID string, targets []GenerationTarget) ([]GenerationState, error) {
-	if s == nil || s.generationNodes == nil || s.generationRuns == nil || s.videoFrameTasks == nil || strings.TrimSpace(scope.TenantID) == "" ||
-		strings.TrimSpace(scope.CallerID) == "" || strings.TrimSpace(projectID) == "" || strings.TrimSpace(canvasID) == "" ||
-		len(targets) == 0 || len(targets) > 100 {
-		return nil, errno.New(errno.ErrInvalidArgument)
-	}
-	unique := make([]GenerationTarget, 0, len(targets))
-	nodeIDs := make([]string, 0, len(targets))
-	taskRunIDs := make([]string, 0, len(targets))
-	seen := make(map[string]struct{}, len(targets))
-	seenNodes := make(map[string]struct{}, len(targets))
-	seenTaskRuns := make(map[string]struct{}, len(targets))
-	for _, target := range targets {
-		nodeID := strings.TrimSpace(target.NodeID)
-		taskRunID := strings.TrimSpace(target.TaskRunID)
-		if nodeID == "" || taskRunID == "" {
-			return nil, errno.New(errno.ErrInvalidArgument)
-		}
-		key := nodeID + "\x00" + taskRunID
-		if _, duplicate := seen[key]; duplicate {
-			continue
-		}
-		seen[key] = struct{}{}
-		unique = append(unique, GenerationTarget{NodeID: nodeID, TaskRunID: taskRunID})
-		if _, exists := seenNodes[nodeID]; !exists {
-			seenNodes[nodeID] = struct{}{}
-			nodeIDs = append(nodeIDs, nodeID)
-		}
-		if _, exists := seenTaskRuns[taskRunID]; !exists {
-			seenTaskRuns[taskRunID] = struct{}{}
-			taskRunIDs = append(taskRunIDs, taskRunID)
-		}
-	}
-	runs, err := s.generationRuns.BatchGetTaskRuns(ctx, applicationtask.Scope{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID}, taskRunIDs)
-	if err != nil {
-		return nil, classify(err)
-	}
-	nodes, err := s.generationNodes.BatchGet(ctx, scope, projectID, canvasID, nodeIDs)
-	if err != nil {
-		return nil, classify(err)
-	}
-	videoTaskRunIDs := make([]string, 0, len(runs))
-	failedVideoTaskRunIDs := make([]string, 0, len(runs))
-	for _, run := range runs {
-		if run.RunType == domaintask.RunTypeCanvasNodeVideoGeneration {
-			videoTaskRunIDs = append(videoTaskRunIDs, run.ID)
-		}
-		if run.RunType == domaintask.RunTypeCanvasNodeVideoGeneration && run.Status == domaintask.StatusFailed {
-			failedVideoTaskRunIDs = append(failedVideoTaskRunIDs, run.ID)
-		}
-	}
-	failedProviderFacts := make(map[string]applicationvideogeneration.FailedProviderFacts, len(failedVideoTaskRunIDs))
-	if len(failedVideoTaskRunIDs) > 0 {
-		failedProviderFacts, err = s.videoFrameTasks.BatchGetFailedProviderFacts(ctx, scope, failedVideoTaskRunIDs)
-		if err != nil {
-			return nil, classify(err)
-		}
-	}
-	providerStatuses := map[string]domainvideo.ProviderStatus{}
-	if len(videoTaskRunIDs) > 0 {
-		providerStatuses, err = s.videoFrameTasks.BatchGetProviderStatuses(ctx, scope, videoTaskRunIDs)
-		if err != nil {
-			return nil, classify(err)
-		}
-	}
-	nodesByID := make(map[string]domaincanvas.CanvasNode, len(nodes))
-	for _, node := range nodes {
-		nodesByID[node.ID] = node
-	}
-	runsByID := make(map[string]domaintask.TaskRun, len(runs))
-	for _, run := range runs {
-		runsByID[run.ID] = run
-	}
-	references := make([]applicationasset.AssetReference, 0, len(nodes)*2)
-	for _, node := range nodes {
-		if node.SelectedAssetID != "" && node.SelectedOutputID != "" {
-			ownerType := applicationasset.ReferenceOwnerVideoGenerationOutput
-			if node.Type == domaincanvas.NodeTypeImageGeneration {
-				ownerType = applicationasset.ReferenceOwnerImageGenerationOutput
-			}
-			references = append(references, applicationasset.AssetReference{Owner: applicationasset.ReferenceOwner{Type: ownerType, Key: node.SelectedOutputID}, AssetID: node.SelectedAssetID})
-		}
-		if node.FirstFrameAssetID != "" && node.SelectedOutputID != "" {
-			references = append(references, applicationasset.AssetReference{Owner: applicationasset.ReferenceOwner{Type: applicationasset.ReferenceOwnerVideoGenerationFirstFrame, Key: node.SelectedOutputID}, AssetID: node.FirstFrameAssetID})
-		}
-	}
-	urls, err := s.previewURLs(ctx, scope, references)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]GenerationState, 0, len(unique))
-	for _, target := range unique {
-		node, nodeFound := nodesByID[target.NodeID]
-		run, runFound := runsByID[target.TaskRunID]
-		if !nodeFound || !runFound || run.SubjectID != node.ID || !generationRunMatchesNode(run.RunType, node.Type) {
-			continue
-		}
-		node.SelectedOutputURL = urls[node.SelectedAssetID]
-		node.FirstFrameURL = urls[node.FirstFrameAssetID]
-		state := GenerationState{Node: node, Run: run, SeedanceTaskID: failedProviderFacts[run.ID].SeedanceTaskID}
-		if run.RunType == domaintask.RunTypeCanvasNodeVideoGeneration {
-			status, found := providerStatuses[run.ID]
-			if !found {
-				status = domainvideo.ProviderStatusUnknown
-			}
-			state.VideoProviderStatus = &status
-		}
-		items = append(items, state)
-	}
-	return items, nil
-}
-
-func (s *Service) BatchGetLatestFailures(ctx context.Context, scope applicationcanvas.Scope, nodes []domaincanvas.CanvasNode) (map[string]GenerationFailure, error) {
-	if s == nil || s.generationRuns == nil || s.videoFrameTasks == nil || strings.TrimSpace(scope.TenantID) == "" || strings.TrimSpace(scope.CallerID) == "" {
-		return nil, errno.New(errno.ErrInvalidArgument)
-	}
-	subjects := make([]applicationtask.TaskRunSubject, 0, len(nodes))
-	for _, node := range nodes {
-		var subject applicationtask.TaskRunSubject
-		subject.SubjectID = node.ID
-		switch node.Type {
-		case domaincanvas.NodeTypeTextGeneration:
-			subject.RunType = domaintask.RunTypeCanvasNodeTextGeneration
-			subject.SubjectType = domaintask.SubjectTypeCanvasNode
-		case domaincanvas.NodeTypeImageGeneration:
-			subject.RunType = domaintask.RunTypeImageGeneration
-			subject.SubjectType = domaintask.SubjectTypeImageGeneration
-		case domaincanvas.NodeTypeVideoGeneration:
-			subject.RunType = domaintask.RunTypeCanvasNodeVideoGeneration
-			subject.SubjectType = domaintask.SubjectTypeCanvasNode
-		default:
-			continue
-		}
-		subjects = append(subjects, subject)
-	}
-	result := make(map[string]GenerationFailure)
-	for start := 0; start < len(subjects); start += 100 {
-		end := min(start+100, len(subjects))
-		runs, err := s.generationRuns.BatchGetLatestTaskRunsBySubjects(
-			ctx,
-			applicationtask.Scope{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID},
-			subjects[start:end],
-		)
-		if err != nil {
-			return nil, classify(err)
-		}
-		failedVideoRunIDs := make([]string, 0, len(runs))
-		for _, run := range runs {
-			if run.Status != domaintask.StatusFailed {
-				continue
-			}
-			result[run.SubjectID] = GenerationFailure{TaskRunID: run.ID, ErrorCode: run.ErrorCode, ErrorMessage: run.ErrorMessage}
-			if run.RunType == domaintask.RunTypeCanvasNodeVideoGeneration {
-				failedVideoRunIDs = append(failedVideoRunIDs, run.ID)
-			}
-		}
-		if len(failedVideoRunIDs) == 0 {
-			continue
-		}
-		failedProviderFacts, err := s.videoFrameTasks.BatchGetFailedProviderFacts(ctx, scope, failedVideoRunIDs)
-		if err != nil {
-			return nil, classify(err)
-		}
-		for nodeID, failure := range result {
-			if facts, ok := failedProviderFacts[failure.TaskRunID]; ok {
-				if failure.ErrorCode == "" {
-					failure.ErrorCode = facts.ErrorCode
-				}
-				failure.SeedanceTaskID = facts.SeedanceTaskID
-				result[nodeID] = failure
-			}
-		}
-	}
-	return result, nil
-}
-
-func generationRunMatchesNode(runType domaintask.RunType, nodeType domaincanvas.NodeType) bool {
-	if runType == domaintask.RunTypeCanvasNodeAssetsMatch {
-		return nodeType == domaincanvas.NodeTypeImageGeneration || nodeType == domaincanvas.NodeTypeVideoGeneration
-	}
-	switch nodeType {
-	case domaincanvas.NodeTypeTextGeneration:
-		return runType == domaintask.RunTypeCanvasNodeTextGeneration
-	case domaincanvas.NodeTypeImageGeneration:
-		return runType == domaintask.RunTypeImageGeneration
-	case domaincanvas.NodeTypeVideoGeneration:
-		return runType == domaintask.RunTypeCanvasNodeVideoGeneration
-	case domaincanvas.NodeTypeStoryboardDraft:
-		return runType == domaintask.RunTypeCanvasStoryboardGeneration
-	default:
-		return false
 	}
 }
 

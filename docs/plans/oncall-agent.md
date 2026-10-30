@@ -1,14 +1,14 @@
 # Oncall Agent 落地方案
 
 > 状态：**已落地并演进**。Phase 1 画像链路 + org 团队知识共享见
-> `docs/ADR/0026-oncall-agent-org-knowledge-sharing.md`。
+> `docs/ADR/identity-and-configuration.md`。
 >
 > **架构演进（ADR-0033）**：面向 to-B 前场支持场景，能力沉淀为 Admin 管理并绑定到 Bot 的
 > `oncall-rca` Skill。Chat 初始上下文只暴露名称与描述，命中场景后由通用
 > `load_skill` 按需载入完整工作流；主 `ToolLoopAgent` 继续使用 `ask_user`、
 > `knowledge_search`、`web_search` 和 `write_file` 等通用工具，不增加专用 oncall tool、
 > 嵌套 agent 或手写模型 pipeline。持久决策见
-> `docs/ADR/0033-admin-managed-skills-end-to-end.md`。
+> `docs/ADR/identity-and-configuration.md`。
 
 ## 落地状态（as-built）
 

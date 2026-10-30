@@ -1,17 +1,12 @@
-import { type createStore, atom, useAtomValue } from "jotai";
-import { useCallback, useRef, useSyncExternalStore } from "react";
+import { type createStore } from "jotai";
+import { useCallback, useSyncExternalStore } from "react";
 
 import type { canvasnode } from "@/domain";
 import { PubSub } from "@/lib/pubsub";
 
 import type { CanvasGenerationRuntimeState } from "../../domain/generationCancellation";
 import type { CanvasGenerationFailure } from "../../domain/types";
-import {
-  canvasGenerationFailuresAtom,
-  canvasGenerationRuntimeStatesAtom,
-  canvasGraphAtom,
-  patchCanvasNodeAtom,
-} from "../../store";
+import { canvasGenerationFailuresAtom, canvasGenerationRuntimeStatesAtom, canvasGraphAtom } from "../../store";
 
 export type CanvasNodeSnapshot = {
   node?: canvasnode.CanvasNode;
@@ -25,13 +20,6 @@ export class CanvasNodeStore {
   private readonly listeners = new Map<string, number>();
   private readonly snapshots = new Map<string, CanvasNodeSnapshot>();
   private unsubscribes: Array<() => void> = [];
-
-  readonly targetsAtom = atom((get) =>
-    get(canvasGraphAtom).nodeIds.flatMap((NodeID) => {
-      const node = get(canvasGraphAtom).nodesById.get(NodeID);
-      return node?.ActiveTaskRunID ? [{ NodeID, TaskRunID: node.ActiveTaskRunID, TaskType: node.ActiveTaskType }] : [];
-    }),
-  );
 
   constructor(readonly store: ReturnType<typeof createStore>) {}
 
@@ -97,38 +85,10 @@ export class CanvasNodeStore {
       return node ? [node] : [];
     });
   }
-
-  update(nodeId: string, update: (current: canvasnode.CanvasNode) => canvasnode.CanvasNode) {
-    const current = this.store.get(canvasGraphAtom).nodesById.get(nodeId);
-    if (!current) return;
-    this.store.set(patchCanvasNodeAtom, {
-      nodeId,
-      patch: update(current),
-    });
-  }
 }
 
 export function useCanvasNodeSnapshot(store: CanvasNodeStore, nodeId: string) {
   const subscribe = useCallback((listener: () => void) => store.subscribe(nodeId, listener), [store, nodeId]);
   const getSnapshot = useCallback(() => store.getSnapshot(nodeId), [store, nodeId]);
   return useSyncExternalStore(subscribe, getSnapshot);
-}
-
-export function useCanvasGenerationTargets(store: CanvasNodeStore) {
-  const targets = useAtomValue(store.targetsAtom, { store: store.store });
-  const stableTargets = useRef(targets);
-  const unchanged =
-    stableTargets.current.length === targets.length &&
-    stableTargets.current.every(
-      (target, index) =>
-        target.NodeID === targets[index]?.NodeID &&
-        target.TaskRunID === targets[index]?.TaskRunID &&
-        target.TaskType === targets[index]?.TaskType,
-    );
-
-  // Polling responses update node result projections, which recomputes the
-  // derived atom with a fresh array. Keep the reference stable so that those
-  // projection-only updates cannot restart the effect and bypass its 3s delay.
-  if (!unchanged) stableTargets.current = targets;
-  return stableTargets.current;
 }

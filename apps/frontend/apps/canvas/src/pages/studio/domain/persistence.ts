@@ -2,19 +2,17 @@ import {
   canvasBatchDeleteNodes,
   canvasConnectNodes,
   canvasCopyNode,
+  canvasCreateNode,
   canvasDeleteEdge,
   canvasDeleteNode,
-  canvasGetGraph,
-  canvasCreateNode,
   canvasReorderStoryboard,
   canvasUpdateNode,
   canvasUpdateNodePositions,
   type ApiRequestConfig,
   type CanvasNode as CanvasNodeDTO,
-  type CanvasNodeState,
 } from "@repo/api";
 
-import { canvasnode as view } from "@/domain";
+import type { canvasnode as view } from "@/domain";
 
 export const ratios: Record<number, string> = {
   1: "21:9",
@@ -44,24 +42,7 @@ function presentGenerationConfig(
   };
 }
 
-export function presentNode(node: CanvasNodeDTO, state?: CanvasNodeState): view.CanvasNode {
-  const stateIsTerminal =
-    state?.status === view.CanvasGenerationStatus.SUCCEEDED ||
-    state?.status === view.CanvasGenerationStatus.FAILED ||
-    state?.status === view.CanvasGenerationStatus.CANCELLED;
-  const serverStartedNewerTask = Boolean(
-    stateIsTerminal && node.active_task_run_id && node.active_task_run_id !== state?.task_run_id,
-  );
-  const activeTaskRunID = serverStartedNewerTask
-    ? node.active_task_run_id
-    : stateIsTerminal
-      ? undefined
-      : (state?.task_run_id ?? node.active_task_run_id);
-  const activeTaskType = serverStartedNewerTask
-    ? node.active_task_type
-    : stateIsTerminal
-      ? undefined
-      : (state?.task_type ?? node.active_task_type);
+export function presentNode(node: CanvasNodeDTO): view.CanvasNode {
   return {
     NodeID: node.node_id,
     CanvasID: node.canvas_id,
@@ -91,8 +72,8 @@ export function presentNode(node: CanvasNodeDTO, state?: CanvasNodeState): view.
     UpdatedAt: node.updated_at,
     CreatedBy: node.created_by,
     UpdatedBy: node.updated_by,
-    ActiveTaskRunID: activeTaskRunID,
-    ActiveTaskType: activeTaskType,
+    ActiveTaskRunID: node.active_task_run_id,
+    ActiveTaskType: node.active_task_type,
     FirstFrameAssetID: node.first_frame_asset_id,
     FirstFrameURL: node.first_frame_url,
     LastFrameAssetID: node.last_frame_asset_id,
@@ -124,15 +105,6 @@ export function presentNode(node: CanvasNodeDTO, state?: CanvasNodeState): view.
       TargetOrder: edge.target_order,
     })),
   };
-}
-
-export async function presentGraph(nodes: CanvasNodeDTO[], states: CanvasNodeState[] = []) {
-  return nodes.map((node) =>
-    presentNode(
-      node,
-      states.find((state) => state.node_id === node.node_id),
-    ),
-  );
 }
 
 function generationConfigPatch(config: view.CanvasNodeGenerationConfigPatch) {
@@ -170,11 +142,6 @@ export async function CreateCanvasNode(request: view.CreateCanvasNodeRequest, op
     options,
   );
   return { CanvasNode: presentNode(response.canvas_node), CanvasRevision: response.canvas_revision };
-}
-
-export async function GetCanvasGraph(request: view.GetCanvasGraphRequest, options?: ApiRequestConfig) {
-  const response = await canvasGetGraph(request.ProjectID, request.CanvasID, options);
-  return { Nodes: await presentGraph(response.nodes) };
 }
 
 export async function UpdateCanvasNode(request: view.UpdateCanvasNodeRequest, options?: ApiRequestConfig) {

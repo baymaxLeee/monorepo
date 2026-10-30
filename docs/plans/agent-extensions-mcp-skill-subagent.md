@@ -217,7 +217,7 @@ skills (
 
 ### F. 验收（DoD）
 
-测试遵循 [ADR-0075](../ADR/0075-first-class-monorepo-testing.md)：新增行为与缺陷修复
+测试遵循 [ADR-0075](../ADR/engineering.md)：新增行为与缺陷修复
 补充相应测试，代码完成后执行根 `just test <target>`；不要求一次补齐全量覆盖。
 
 1. `just gen-openapi admin` + `just sync`，两端能 build
@@ -278,6 +278,6 @@ skills (
 ## 相关阅读
 
 - `apps/backend/services/chat/src/application/agent/README.md` —— 扩展/runtime 边界（本方案的设计源头）
-- `docs/ADR/0011-tool-loop-agent-core.md` —— 主 agent 用 ToolLoopAgent
-- `docs/ADR/0015-agent-task-executor.md` —— 长任务 executor + `TaskType`（长时 SubAgent 的家）
+- `docs/ADR/agent-runtime.md` —— 主 agent 用 ToolLoopAgent
+- `docs/ADR/durable-execution.md` —— 长任务 executor + `TaskType`（长时 SubAgent 的家）
 - `schemas/streaming/chat-uimessage-stream.md` —— 流协议：优先复用官方 part

@@ -1,8 +1,8 @@
 import { canvasCreateArchive, canvasUpdateCanvasView, fetchCanvasSettings } from "@repo/api";
-import { toast, Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
+import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from "@repo/design-system";
 import { Provider, useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AssetReviewDialog } from "@/components/AssetReviewDialog/index";
@@ -22,17 +22,14 @@ import { type asset, canvas as canvasIDL, canvasnode } from "@/domain";
 import type { UploadAssetResult } from "@/hooks/uploads";
 import useSilentUploadAsset from "@/hooks/useSilentUploadAsset";
 import {
-  GetCanvasGraph,
   ConnectCanvasNodes,
-  DeleteCanvasNode,
   DeleteCanvasEdge,
+  DeleteCanvasNode,
   ReorderStoryboardNodes,
 } from "@/pages/studio/domain/persistence";
-import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 
-import { getCanvas } from "../canvases/actions";
 import { createResourceFromExistingAsset } from "../resources/domain/actions";
 import { MaterialMatchButton } from "./assetMatching/MaterialMatchButton";
 import { useMaterialMatching } from "./assetMatching/useMaterialMatching";
@@ -56,27 +53,23 @@ import {
 import { StudioAssetPanel } from "./components/StudioAssetPanel";
 import { StudioHeader } from "./components/StudioHeader";
 import {
-  StoryboardDraftNotFoundError,
   cancelCancellableVideoGeneration,
   cancelCanvasNodeDrafts,
-  canvasGenerationFailureFromError,
   canvasRequestErrorMessage,
   confirmCanvasNodeDrafts,
   createCanvasNode,
   deleteCanvasNode,
   generationConfigPatch,
-  getCanvasNodeAssets,
   materializeCanvasResourceAssetReference,
   materializeCanvasStandaloneAssetReference,
   queryMentionTree,
-  recoverCanvasNodeDrafts,
   selectCanvasNodeHistory,
   startCanvasGeneration,
+  startCanvasNodeDrafts,
   startCanvasNodeGeneration,
-  streamCanvasNodeDrafts,
+  storyboardDraftFromSession,
   updateCanvasNode,
 } from "./domain/actions";
-import { createCanvasStatePubSub } from "./domain/canvasStatePubSub";
 import { hasExportableCanvasVideo } from "./domain/exportAvailability";
 import { isVideoGenerationCancellationDisabled, videoProviderStatusForRun } from "./domain/generationCancellation";
 import {
@@ -102,7 +95,7 @@ import {
 } from "./domain/types";
 import { listStudioModels } from "./domain/videoModels";
 import { waitForCanvasEditingBeforeViewChange } from "./domain/viewTransition";
-import { activeAssetsAtom, canvasAssetDetailsAtom, useStudioAssetStore } from "./store/assets";
+import { AssetDraftProvider, canvasAssetDetailsAtom, useActiveAssets, useStudioAssetStore } from "./store/assets";
 import {
   assetsPanelOpenAtom,
   canvasAtom,
@@ -110,25 +103,16 @@ import {
   canvasGraphLoadedAtom,
   canvasLayoutRequestAtom,
   canvasNodesAtom,
-  clearCanvasGenerationFailureAtom,
   defaultModelsAtom,
   defaultStoryboardModelIdAtom,
   defaultVideoModelIdAtom,
   imageModelsAtom,
-  patchCanvasNodeAtom,
-  removeCanvasNodeAtom,
-  reorderStoryboardNodesAtom,
-  replaceCanvasNodesAtom,
-  setCanvasGenerationFailureAtom,
-  setCanvasGenerationRuntimeStateAtom,
   storyboardModelsAtom,
-  storyboardOptimisticShotsAtom,
   storyboardShotsAtom,
   studioReadyAtom,
   studioViewAtom,
   studioViewChangingAtom,
   textModelsAtom,
-  upsertCanvasNodesAtom,
   useStudioMutationCoordinator,
   videoModelsAtom,
 } from "./store/index";
@@ -144,8 +128,7 @@ import { type AddShotMode, ShotTimeline } from "./storyboard/ShotTimeline";
 import { ShotTitle } from "./storyboard/ShotTitle";
 import { StoryboardPreviewDialog } from "./storyboard/StoryboardPreviewDialog";
 import { StoryboardToolbar } from "./storyboard/StoryboardToolbar";
-import { useCanvasStatePolling } from "./useCanvasStatePolling";
-import { useStudioAssetReviewPolling } from "./useStudioAssetReviewPolling";
+import { useCanvasStream } from "./useCanvasStream";
 
 const CHAT_PANEL_MIN_WIDTH = 320;
 const CHAT_PANEL_MAX_WIDTH = 640;
@@ -154,7 +137,9 @@ export default function StudioPage() {
   const { projectId = "", canvasId = "" } = useParams();
   return (
     <Provider key={`${projectId}:${canvasId}`}>
-      <StudioContent />
+      <AssetDraftProvider>
+        <StudioContent />
+      </AssetDraftProvider>
     </Provider>
   );
 }
@@ -167,10 +152,9 @@ function StudioContent() {
   const mutationCoordinator = useStudioMutationCoordinator();
   const studioStore = useStore();
   const [nodePubSub] = useState(() => new CanvasNodeStore(studioStore));
-  const [statePubSub] = useState(createCanvasStatePubSub);
-  const assets = useAtomValue(activeAssetsAtom);
+  const assets = useActiveAssets();
 
-  const [canvas, setCanvas] = useAtom(canvasAtom);
+  const canvas = useAtomValue(canvasAtom);
   const [studioReady, setStudioReady] = useAtom(studioReadyAtom);
   const [view, setView] = useAtom(studioViewAtom);
   const [viewChanging, setViewChanging] = useAtom(studioViewChangingAtom);
@@ -185,30 +169,24 @@ function StudioContent() {
   const canvasAssetDetails = useAtomValue(canvasAssetDetailsAtom);
   const canvasGraphLoaded = useAtomValue(canvasGraphLoadedAtom);
   const canvasGenerationRuntimeStates = useAtomValue(canvasGenerationRuntimeStatesAtom);
-  useCanvasStatePolling({ canvasId, nodePubSub, projectId, statePubSub });
-  useStudioAssetReviewPolling(projectId, canvasGraphLoaded);
-  const setOptimisticShots = useSetAtom(storyboardOptimisticShotsAtom);
+  const recoverCanvasGraph = useCanvasStream(projectId, canvasId);
 
   useEffect(() => () => chatResizeCleanupRef.current?.(), []);
-  useEffect(() => () => statePubSub.clear(), [statePubSub]);
+
   useEffect(() => () => nodePubSub.clear(), [nodePubSub]);
-  const upsertCanvasNodes = useSetAtom(upsertCanvasNodesAtom);
-  const replaceCanvasNodes = useSetAtom(replaceCanvasNodesAtom);
-  const patchCanvasNode = useSetAtom(patchCanvasNodeAtom);
-  const clearCanvasGenerationFailure = useSetAtom(clearCanvasGenerationFailureAtom);
-  const setCanvasGenerationFailure = useSetAtom(setCanvasGenerationFailureAtom);
-  const removeCanvasNode = useSetAtom(removeCanvasNodeAtom);
-  const reorderStoryboardNodes = useSetAtom(reorderStoryboardNodesAtom);
+
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   /** design 剧本输入；preview 分镜预览（含生成中 / 生成后）。 */
   const [storyboardStep, setStoryboardStep] = useState<"design" | "preview">();
   const [storyboardPlot, setStoryboardPlot] = useState("");
   const [storyboardTaskRunId, setStoryboardTaskRunId] = useState("");
-  const [, setStoryboardDraftPresent] = useState(false);
-  const [storyboardDraftStatus, setStoryboardDraftStatus] = useState<"running" | "completed" | "failed">("running");
-  const [previewShots, setPreviewShots] = useState<Shot[]>([]);
-  const [previewGenerating, setPreviewGenerating] = useState(false);
+  const [storyboardStarting, setStoryboardStarting] = useState(false);
+  const storyboardSession = canvasNodes.find((node) => node.NodeID === storyboardTaskRunId)?.DraftSession;
+  const storyboardDraft = storyboardSession ? storyboardDraftFromSession(storyboardSession) : undefined;
+  const storyboardDraftStatus = storyboardDraft?.status ?? "running";
+  const previewShots = storyboardDraft?.canvasnodes ?? [];
+  const previewGenerating = storyboardStarting || Boolean(storyboardDraft?.generating);
   const [previewConfirming, setPreviewConfirming] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySelecting, setHistorySelecting] = useState(false);
@@ -259,8 +237,6 @@ function StudioContent() {
     upload?: asset.AssetReviewUpload;
   }>();
   const reviewRequestIDRef = useRef(0);
-  const assetDetailRequestIDRef = useRef(0);
-  const canvasGraphRequestIDRef = useRef(0);
   /** draftId → 后台平台 Asset 上传 Promise。 */
   const assetTaskRef = useRef(new Map<string, Promise<UploadAssetResult>>());
   /** 已移除或取消的 draft，禁止后台写回 store。 */
@@ -356,67 +332,11 @@ function StudioContent() {
   }, [canvasGraphLoaded, selectShot, selectedShotId, shots]);
 
   useEffect(() => {
-    let active = true;
-    setStudioReady(false);
-    getCanvas(projectId, canvasId)
-      .then((result) => {
-        if (active) {
-          setCanvas(result);
-          setView(result.DefaultView === canvasIDL.CanvasViewMode.STORYBOARD ? "storyboard" : "canvas");
-        }
-      })
-      .catch(() => {
-        // 请求失败的提示由请求层统一处理，页面保留默认标题。
-      })
-      .finally(() => {
-        if (active) {
-          setStudioReady(true);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [canvasId, projectId]);
-
-  const refreshCanvasGraph = useCallback(async () => {
-    const requestID = ++canvasGraphRequestIDRef.current;
-    await mutationCoordinator.waitForIdle();
-    const snapshotEpoch = mutationCoordinator.snapshotEpoch();
-    const response = await GetCanvasGraph({
-      ProjectID: projectId,
-      CanvasID: canvasId,
-    });
-    if (requestID !== canvasGraphRequestIDRef.current || !mutationCoordinator.isSnapshotCurrent(snapshotEpoch)) {
-      return;
-    }
-    const nodes = response.Nodes;
-    assetStore.cacheDetails(
-      nodes.map((item) => {
-        const detail = assetFromCanvasNode(item);
-        const previewURL = resolveArtifactURL(item.PreviewURL ?? "");
-        return {
-          ...detail,
-          previewUrl: previewURL || undefined,
-          review: latestAssetReview(item.Reviews),
-          reviews: item.Reviews,
-          thumbnail: detail.category === "image" ? previewURL || undefined : detail.thumbnail,
-        };
-      }),
-    );
-    // 先准备展示详情，再替换整图。批量采纳产生的新分镜首次进入顶层
-    // canvasNodes 时即可拿到资产库预览，不暴露 nodes / details 的中间态。
-    replaceCanvasNodes(nodes);
-  }, [assetStore, canvasId, mutationCoordinator, projectId, replaceCanvasNodes]);
-
+    setStudioReady(canvasGraphLoaded);
+  }, [canvasGraphLoaded, setStudioReady]);
   useEffect(() => {
-    if (!studioReady) return;
-    void refreshCanvasGraph().catch(() => {
-      // 请求层已统一提示，保留加载态供重新进入页面重试。
-    });
-    return () => {
-      canvasGraphRequestIDRef.current += 1;
-    };
-  }, [refreshCanvasGraph, studioReady]);
+    if (canvas) setView(canvas.DefaultView === canvasIDL.CanvasViewMode.STORYBOARD ? "storyboard" : "canvas");
+  }, [canvas?.DefaultView, setView]);
 
   useEffect(() => {
     let active = true;
@@ -484,34 +404,9 @@ function StudioContent() {
     setStoryboardStep(undefined);
     setStoryboardPlot("");
     setStoryboardTaskRunId("");
-    setStoryboardDraftPresent(false);
-    setStoryboardDraftStatus("running");
-    setPreviewShots([]);
-    setPreviewGenerating(false);
+
     setLoading(false);
   }, [canvasGraphLoaded, studioReady]);
-
-  /** 正式关系已可同步投影；异步请求只补充签名 URL、审核等展示信息。 */
-  useEffect(() => {
-    if (view !== "storyboard" || !selectedShotId) return;
-    const targetNode = canvasNodes.find((node) => node.NodeID === selectedShotId);
-    if (!targetNode) return;
-    const requestID = ++assetDetailRequestIDRef.current;
-    getCanvasNodeAssets(targetNode, canvasNodes).then(
-      (assets) => {
-        if (requestID !== assetDetailRequestIDRef.current) return;
-        assetStore.cacheDetails(assets);
-      },
-      () => {
-        // 请求层已统一提示；画布节点占位仍保留，展示详情可稍后重试。
-      },
-    );
-    return () => {
-      if (requestID === assetDetailRequestIDRef.current) {
-        assetDetailRequestIDRef.current += 1;
-      }
-    };
-  }, [assetStore, canvasNodes, selectedShotId, view]);
 
   /** Provider 虽按画布隔离，卸载时仍需释放本地预览。 */
   useEffect(
@@ -528,133 +423,18 @@ function StudioContent() {
     setPlayingShotId(undefined);
   };
 
-  const patchShot = (id: string, patch: Partial<Shot>) => {
-    const nodePatch: Partial<canvasnode.CanvasNode> = {};
-    if (patch.revision !== undefined) nodePatch.Revision = patch.revision;
-    if (patch.script !== undefined) nodePatch.Prompt = patch.script;
-    if (patch.videoInputMode !== undefined) nodePatch.VideoInputMode = patch.videoInputMode;
-    if ("activeGenerationRunId" in patch) nodePatch.ActiveTaskRunID = patch.activeGenerationRunId;
-    if ("selectedOutputId" in patch) nodePatch.SelectedOutputID = patch.selectedOutputId;
-    if ("videoUrl" in patch) nodePatch.SelectedOutputURL = patch.videoUrl;
-    if ("firstFrameAssetId" in patch) nodePatch.FirstFrameAssetID = patch.firstFrameAssetId;
-    if ("firstFrameUrl" in patch) nodePatch.FirstFrameURL = patch.firstFrameUrl;
-    if (patch.duration !== undefined) {
-      const duration = Number.parseInt(patch.duration, 10);
-      if (Number.isFinite(duration)) nodePatch.SelectedOutputDurationSeconds = duration;
-    }
-    if (patch.status !== undefined) {
-      nodePatch.Status =
-        patch.status === "generating"
-          ? canvasnode.CanvasNodeStatus.GENERATING
-          : patch.status === "ready"
-            ? canvasnode.CanvasNodeStatus.READY
-            : canvasnode.CanvasNodeStatus.EMPTY;
-    }
-    patchCanvasNode({ nodeId: id, patch: nodePatch });
-  };
-
   const updateCanvasNodePartially = (shotId: string, patch: Parameters<typeof updateCanvasNode>[3]) => {
     const execute = async () => {
       const saved = await updateCanvasNode(projectId, canvasId, shotId, patch);
-      upsertCanvasNodes([saved.node]);
       return saved;
     };
     return mutationCoordinator.enqueue(execute);
   };
 
-  /** 列表状态只是快照；点击任何草稿项都走同一个 Fetch SSE，由服务端按最新 DB 状态决策重放或跟随。 */
   const openStoryboardTask = (target: Shot) => {
-    const taskRunId = target.storyboardTaskRunId;
-    if (!taskRunId) {
-      return;
-    }
-    storyboardAbortRef.current?.abort();
-    const controller = new AbortController();
-    storyboardAbortRef.current = controller;
-    const requestId = storyboardRequestIDRef.current + 1;
-    storyboardRequestIDRef.current = requestId;
-    setStoryboardTaskRunId(taskRunId);
-    setStoryboardPlot(target.script);
-    setStoryboardDraftPresent(true);
-    setStoryboardDraftStatus(
-      target.timelineStatus === "pending-confirmation"
-        ? "completed"
-        : target.timelineStatus === "failed"
-          ? "failed"
-          : "running",
-    );
-    setPreviewGenerating(target.timelineStatus === "generating");
-    setPreviewShots([]);
+    if (!target.storyboardTaskRunId) return;
+    setStoryboardTaskRunId(target.storyboardTaskRunId);
     setStoryboardStep("preview");
-    const frontendSettings = {
-      ...target.settings,
-      model: target.settings.model || defaultVideoModelId,
-    };
-    setStoryboardBatchSettings(frontendSettings);
-    void recoverCanvasNodeDrafts(
-      statePubSub,
-      taskRunId,
-      frontendSettings,
-      controller.signal,
-      (session) => {
-        if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
-          return;
-        }
-        setStoryboardPlot(session.plot);
-        if (session.inferenceModelServiceId) {
-          setStoryboardInferenceModelId(session.inferenceModelServiceId);
-        }
-        setStoryboardBatchSettings(session.settings);
-        if (session.canvasnodeDurationMinSeconds && session.canvasnodeDurationMaxSeconds) {
-          setStoryboardShotDuration({
-            min: session.canvasnodeDurationMinSeconds,
-            max: session.canvasnodeDurationMaxSeconds,
-          });
-        }
-        if (session.totalDurationMinSeconds && session.totalDurationMaxSeconds) {
-          setStoryboardVideoDuration({
-            min: session.totalDurationMinSeconds / 60,
-            max: session.totalDurationMaxSeconds / 60,
-          });
-        }
-        setStoryboardDraftStatus(session.status);
-        setPreviewGenerating(session.generating);
-      },
-      (shot) => {
-        if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
-          return;
-        }
-        setPreviewShots((current) =>
-          [...current.filter((item) => item.id !== shot.id), shot].sort(
-            (left, right) => (left.draftCanvasNodeNo ?? 0) - (right.draftCanvasNodeNo ?? 0),
-          ),
-        );
-      },
-    )
-      .then(() => {
-        if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
-          return;
-        }
-        setPreviewGenerating(false);
-        setStoryboardDraftStatus("completed");
-        void refreshCanvasGraph();
-      })
-      .catch((error) => {
-        if (
-          controller.signal.aborted ||
-          requestId !== storyboardRequestIDRef.current ||
-          error instanceof StoryboardDraftNotFoundError
-        ) {
-          return;
-        }
-        setPreviewGenerating(false);
-        setStoryboardDraftStatus("failed");
-        void refreshCanvasGraph();
-        toast.add({
-          type: "error",
-          title: error instanceof Error ? error.message : t("恢复分镜草稿失败"),
-        });
-      });
   };
 
   const openShot = (id: string) => {
@@ -766,7 +546,7 @@ function StudioContent() {
         }
         const targetPort = resolution.targetPort;
         if (!target.IncomingEdges.some((edge) => edge.SourceNodeID === sourceNodeId)) {
-          const connected = await mutationCoordinator.enqueue(() =>
+          await mutationCoordinator.enqueue(() =>
             ConnectCanvasNodes(
               {
                 ProjectID: projectId,
@@ -778,8 +558,6 @@ function StudioContent() {
               { skipErrorNotify: true },
             ),
           );
-          upsertCanvasNodes([connected.TargetNode]);
-          setCanvas((current) => (current ? { ...current, Revision: connected.CanvasRevision } : current));
         }
         const selected: StoryboardAsset = {
           ...candidate,
@@ -791,7 +569,7 @@ function StudioContent() {
           source: "canvasnode",
           targetPort,
         };
-        assetStore.cacheDetails([selected]);
+
         assetStore.updateDraft(shotId, (items) =>
           items.some((item) => item.id === selected.id) ? items : [...items, selected],
         );
@@ -864,16 +642,12 @@ function StudioContent() {
         throw new Error("asset reference is not available");
       }
       let materializedNode: canvasnode.CanvasNode;
-      let materializedTarget: canvasnode.CanvasNode;
-      let materializedCanvasRevision: number;
       let createdMaterializedNode = false;
       if (reference && (reference.kind === "resource" || reference.kind === "resourceAsset")) {
         const materialized = await mutationCoordinator.enqueue(() =>
           materializeCanvasResourceAssetReference(projectId, canvasId, shotId, reference, targetPort, target.Position),
         );
         materializedNode = materialized.ResourceAssetNode;
-        materializedTarget = materialized.TargetNode;
-        materializedCanvasRevision = materialized.CanvasRevision;
         createdMaterializedNode = materialized.CreatedResourceAssetNode;
       } else {
         const standaloneReference = uploadedAsset ?? (reference?.kind === "asset" ? reference : undefined);
@@ -889,12 +663,9 @@ function StudioContent() {
           ),
         );
         materializedNode = materialized.AssetNode;
-        materializedTarget = materialized.TargetNode;
-        materializedCanvasRevision = materialized.CanvasRevision;
         createdMaterializedNode = materialized.CreatedAssetNode;
       }
-      setCanvas((current) => (current ? { ...current, Revision: materializedCanvasRevision } : current));
-      upsertCanvasNodes([materializedNode, materializedTarget]);
+
       if (createdMaterializedNode) {
         draftCreatedNodeIdsRef.current.add(materializedNode.NodeID);
       }
@@ -919,7 +690,7 @@ function StudioContent() {
           syncStatus: "ready",
           targetPort,
         });
-        assetStore.cacheDetails([selected]);
+
         assetStore.updateDraft(shotId, (items) => items.map((item) => (item === existing ? selected : item)));
         return selected;
       }
@@ -943,23 +714,13 @@ function StudioContent() {
         review: resolvedCandidate.review,
         targetPort,
       };
-      assetStore.cacheDetails([selected]);
+
       assetStore.updateDraft(shotId, (items) =>
         items.some((item) => item.id === selected.id) ? items : [...items, selected],
       );
       return selected;
     },
-    [
-      assetStore,
-      canvasId,
-      draftVideoInputMode,
-      mutationCoordinator,
-      projectId,
-      selectedShotId,
-      setCanvas,
-      studioStore,
-      upsertCanvasNodes,
-    ],
+    [assetStore, canvasId, draftVideoInputMode, mutationCoordinator, projectId, selectedShotId, studioStore],
   );
 
   const selectMentionAssetWithFeedback = useCallback(
@@ -1047,46 +808,17 @@ function StudioContent() {
   const addMentionAssetToLibrary = useCallback<NonNullable<AssetMentionSource["addToLibrary"]>>(
     async (candidate, input) => {
       const nodeId = candidate.canvasNodeId;
-      const response = await createResourceFromExistingAsset(projectId, candidate.assetId ?? candidate.id, {
+      await createResourceFromExistingAsset(projectId, candidate.assetId ?? candidate.id, {
         ...input,
         canvasId: nodeId ? canvasId : undefined,
         canvasNodeId: nodeId,
       });
-      const binding = response.CanvasNodeBinding;
-      if (binding) {
-        const current = studioStore.get(canvasNodesAtom).find((item) => item.NodeID === binding.CanvasNodeID);
-        if (current) {
-          const updated: canvasnode.CanvasNode = {
-            ...current,
-            AssetID: undefined,
-            CurrentAssetID: binding.CurrentAssetID,
-            ResourceAssetID: binding.ResourceAssetID,
-            ResourceAssetIsPrimary: response.ResourceAsset.IsPrimary,
-            ResourceAssetRevision: response.ResourceAsset.Revision,
-            Revision: binding.CanvasNodeRevision,
-            SelectedAssetID: undefined,
-            SelectedOutputID: undefined,
-          };
-          upsertCanvasNodes([updated]);
-          assetStore.cacheDetails([
-            {
-              ...assetFromCanvasNode(updated),
-              assetId: binding.CurrentAssetID,
-              previewUrl: resolveArtifactURL(response.ResourceAsset.PreviewURL ?? ""),
-              resourceAssetId: binding.ResourceAssetID,
-              resourceId: response.Resource.ResourceID,
-              review: latestAssetReview(response.ResourceAsset.Reviews),
-              reviews: response.ResourceAsset.Reviews,
-            },
-          ]);
-        }
-      }
       toast.add({
         type: "success",
         title: t("已添加到资产库"),
       });
     },
-    [assetStore, canvasId, projectId, studioStore, upsertCanvasNodes],
+    [assetStore, canvasId, projectId, studioStore],
   );
 
   const patchAsset = (
@@ -1194,10 +926,10 @@ function StudioContent() {
   ) => {
     const removed = target.IncomingEdges.filter((edge) => !desiredSourceIDs.has(edge.SourceNodeID));
     if (!removed.length) return;
-    let canvasRevision: number | undefined;
+
     for (const edge of removed) {
       if (draftCreatedNodeIdsRef.current.has(edge.SourceNodeID)) {
-        const response = await mutationCoordinator.enqueue(() =>
+        await mutationCoordinator.enqueue(() =>
           DeleteCanvasNode(
             {
               ProjectID: projectId,
@@ -1207,12 +939,11 @@ function StudioContent() {
             { skipErrorNotify: true },
           ),
         );
-        canvasRevision = response.CanvasRevision;
+
         draftCreatedNodeIdsRef.current.delete(edge.SourceNodeID);
-        removeCanvasNode(edge.SourceNodeID);
         continue;
       }
-      const response = await mutationCoordinator.enqueue(() =>
+      await mutationCoordinator.enqueue(() =>
         DeleteCanvasEdge(
           {
             ProjectID: projectId,
@@ -1223,11 +954,6 @@ function StudioContent() {
           { skipErrorNotify: true },
         ),
       );
-      canvasRevision = response.CanvasRevision;
-      upsertCanvasNodes([response.TargetNode]);
-    }
-    if (canvasRevision !== undefined) {
-      setCanvas((current) => (current ? { ...current, Revision: canvasRevision } : current));
     }
   };
 
@@ -1243,12 +969,11 @@ function StudioContent() {
     let currentTarget = studioStore.get(canvasNodesAtom).find((node) => node.NodeID === shotId);
     if (!currentTarget) return;
 
-    let canvasRevision: number | undefined;
     for (const edge of [...baseline.edges].sort((left, right) => left.TargetOrder - right.TargetOrder)) {
       if (currentTarget.IncomingEdges.some((current) => current.SourceNodeID === edge.SourceNodeID)) {
         continue;
       }
-      const connected = await mutationCoordinator.enqueue(() =>
+      await mutationCoordinator.enqueue(() =>
         ConnectCanvasNodes(
           {
             ProjectID: projectId,
@@ -1260,12 +985,8 @@ function StudioContent() {
           { skipErrorNotify: true },
         ),
       );
-      canvasRevision = connected.CanvasRevision;
-      currentTarget = connected.TargetNode;
-      upsertCanvasNodes([connected.TargetNode]);
-    }
-    if (canvasRevision !== undefined) {
-      setCanvas((current) => (current ? { ...current, Revision: canvasRevision } : current));
+      currentTarget = studioStore.get(canvasNodesAtom).find((node) => node.NodeID === shotId);
+      if (!currentTarget) return;
     }
   };
 
@@ -1295,11 +1016,10 @@ function StudioContent() {
         return;
       }
 
-      let canvasRevision: number | undefined;
       for (const item of desired) {
         const edge = currentBySource.get(item.sourceNodeId);
         if (!edge) continue;
-        const deleted = await DeleteCanvasEdge(
+        await DeleteCanvasEdge(
           {
             ProjectID: projectId,
             CanvasID: canvasId,
@@ -1308,12 +1028,10 @@ function StudioContent() {
           },
           { skipErrorNotify: true },
         );
-        canvasRevision = deleted.CanvasRevision;
-        upsertCanvasNodes([deleted.TargetNode]);
       }
 
       for (const item of desired) {
-        const connected = await ConnectCanvasNodes(
+        await ConnectCanvasNodes(
           {
             ProjectID: projectId,
             CanvasID: canvasId,
@@ -1323,12 +1041,6 @@ function StudioContent() {
           },
           { skipErrorNotify: true },
         );
-        canvasRevision = connected.CanvasRevision;
-        upsertCanvasNodes([connected.TargetNode]);
-      }
-
-      if (canvasRevision !== undefined) {
-        setCanvas((current) => (current ? { ...current, Revision: canvasRevision } : current));
       }
     });
   };
@@ -1482,37 +1194,13 @@ function StudioContent() {
     }
     const afterCanvasNodeId = canvasnodeIDBefore(index);
     const previousSelectedShotId = selectedShotId;
-    const optimisticId = `optimistic-create-${Date.now()}`;
-    const optimisticSettings = sanitizeGenerationSettings(
-      { ...DEFAULT_SETTINGS, model: modelServiceId },
-      getVideoModelParamConfigByOption(modelServiceId, videoModels),
-    );
-    setOptimisticShots([
-      {
-        id: optimisticId,
-        detailLoaded: false,
-        timelineStatus: "creating",
-        optimisticCreate: true,
-        optimisticAfterNodeId: afterCanvasNodeId,
-        duration: optimisticSettings.duration,
-        status: "empty",
-        script: "",
-        settings: optimisticSettings,
-        videoInputMode: canvasnode.CanvasVideoInputMode.REFERENCE,
-      },
-    ]);
-    if (!previousSelectedShotId) {
-      selectShot(optimisticId);
-    }
     setCreating(true);
     try {
       const created = await mutationCoordinator.enqueue(async () => {
         const result = await createCanvasNode(projectId, canvasId, modelServiceId, afterCanvasNodeId);
-        upsertCanvasNodes([result.node]);
         return result;
       });
-      setCanvas((current) => (current ? { ...current, Revision: created.canvasRevision } : current));
-      setOptimisticShots([]);
+
       // 新分镜没有可继承的播放上下文；否则 previewShot 会继续命中上一分镜，
       // 导致时间轴已选中新分镜时右侧仍残留旧视频及其播放能力。
       stopPlayback();
@@ -1520,7 +1208,6 @@ function StudioContent() {
       setEditing(false);
       setDirty(false);
     } catch {
-      setOptimisticShots([]);
       if (!previousSelectedShotId) selectShot("");
       // 请求层已统一提示，乐观分镜已撤销。
     } finally {
@@ -1549,8 +1236,7 @@ function StudioContent() {
     setStoryboardShotDuration(DEFAULT_SHOT_DURATION_RANGE);
     setStoryboardVideoDuration(DEFAULT_VIDEO_DURATION_RANGE);
     setStoryboardTaskRunId("");
-    setStoryboardDraftPresent(false);
-    setStoryboardDraftStatus("running");
+
     setStoryboardStep("design");
   };
 
@@ -1560,10 +1246,7 @@ function StudioContent() {
     setStoryboardStep(undefined);
     setStoryboardPlot("");
     setStoryboardTaskRunId("");
-    setStoryboardDraftPresent(false);
-    setStoryboardDraftStatus("running");
-    setPreviewShots([]);
-    setPreviewGenerating(false);
+
     setPreviewConfirming(false);
   };
 
@@ -1586,104 +1269,38 @@ function StudioContent() {
     setStoryboardShotDuration(durations.shot);
     setStoryboardVideoDuration(durations.video);
     setStoryboardStep("preview");
-    setPreviewShots([]);
-    setPreviewGenerating(true);
+    setStoryboardStarting(true);
     storyboardAbortRef.current?.abort();
     const controller = new AbortController();
     storyboardAbortRef.current = controller;
-
-    void (async () => {
-      let sessionReceived = false;
-      const modelServiceId = batchSettings.model || defaultVideoModelId;
-      if (!modelServiceId) {
-        toast.add({
-          type: "error",
-          title: t("暂无可用视频模型"),
-        });
-        setStoryboardStep("design");
-        setPreviewGenerating(false);
-        return;
-      }
-      const frontendSettings = sanitizeGenerationSettings(
-        { ...batchSettings, model: modelServiceId },
-        getVideoModelParamConfigByOption(modelServiceId, videoModels),
-      );
-      try {
-        await streamCanvasNodeDrafts(
-          projectId,
-          canvasId,
-          plot,
-          {
-            inferenceModelServiceId,
-            videoModelServiceId: modelServiceId,
-          },
-          durations,
-          frontendSettings,
-          statePubSub,
-          controller.signal,
-          (session) => {
-            const firstSession = !sessionReceived;
-            sessionReceived = true;
-            if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
-              return;
-            }
-            setStoryboardPlot(session.plot);
-            if (session.inferenceModelServiceId) {
-              setStoryboardInferenceModelId(session.inferenceModelServiceId);
-            }
-            setStoryboardBatchSettings(session.settings);
-            if (session.canvasnodeDurationMinSeconds && session.canvasnodeDurationMaxSeconds) {
-              setStoryboardShotDuration({
-                min: session.canvasnodeDurationMinSeconds,
-                max: session.canvasnodeDurationMaxSeconds,
-              });
-            }
-            if (session.totalDurationMinSeconds && session.totalDurationMaxSeconds) {
-              setStoryboardVideoDuration({
-                min: session.totalDurationMinSeconds / 60,
-                max: session.totalDurationMaxSeconds / 60,
-              });
-            }
-            setStoryboardTaskRunId(session.taskRunId);
-            setStoryboardDraftPresent(true);
-            setStoryboardDraftStatus(session.status);
-            setPreviewGenerating(session.generating);
-            if (firstSession) void refreshCanvasGraph();
-          },
-          (shot) => {
-            if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
-              return;
-            }
-            setPreviewShots((current) =>
-              [...current.filter((item) => item.id !== shot.id), shot].sort(
-                (left, right) => (left.draftCanvasNodeNo ?? 0) - (right.draftCanvasNodeNo ?? 0),
-              ),
-            );
-          },
-        );
-        if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
-          return;
-        }
-        setPreviewGenerating(false);
-        setStoryboardDraftStatus("completed");
-        await refreshCanvasGraph();
-      } catch (error) {
-        if (controller.signal.aborted || requestId !== storyboardRequestIDRef.current) {
-          return;
-        }
-        toast.add({
-          type: "error",
-          title: error instanceof Error ? error.message : t("分镜生成失败"),
-        });
-        setPreviewGenerating(false);
-        setStoryboardDraftStatus("failed");
-        if (sessionReceived) {
-          void refreshCanvasGraph();
-        }
-        // 已入库的失败草稿节点必须显式放弃后才能重建；建节点前失败才回设计页。
-        setStoryboardStep(sessionReceived ? "preview" : "design");
-      }
-    })();
+    const modelServiceId = batchSettings.model || defaultVideoModelId;
+    if (!modelServiceId) {
+      setStoryboardStarting(false);
+      setStoryboardStep("design");
+      return;
+    }
+    const settings = sanitizeGenerationSettings(
+      { ...batchSettings, model: modelServiceId },
+      getVideoModelParamConfigByOption(modelServiceId, videoModels),
+    );
+    void startCanvasNodeDrafts(
+      projectId,
+      canvasId,
+      plot,
+      { inferenceModelServiceId, videoModelServiceId: modelServiceId },
+      durations,
+      settings,
+      controller.signal,
+    )
+      .then((nodeId) => {
+        if (!controller.signal.aborted && requestId === storyboardRequestIDRef.current) setStoryboardTaskRunId(nodeId);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setStoryboardStep("design");
+      })
+      .finally(() => {
+        if (requestId === storyboardRequestIDRef.current) setStoryboardStarting(false);
+      });
   };
 
   const cancelStoryboardDraft = async () => {
@@ -1692,7 +1309,7 @@ function StudioContent() {
     }
     try {
       await mutationCoordinator.enqueue(() => cancelCanvasNodeDrafts(projectId, canvasId, storyboardTaskRunId));
-      await refreshCanvasGraph();
+
       storyboardRequestIDRef.current += 1;
       resetStoryboardFlow();
     } catch {
@@ -1732,8 +1349,7 @@ function StudioContent() {
           })),
         ),
       );
-      setCanvas((current) => (current ? { ...current, Revision: confirmed.canvasRevision } : current));
-      await refreshCanvasGraph();
+
       requestCanvasLayout({
         requestId: Date.now(),
         seedNodeIds: confirmed.canvasNodeIds,
@@ -1759,11 +1375,10 @@ function StudioContent() {
 
   const removeShot = async (id: string) => {
     if (!canvas) return;
-    const response = await mutationCoordinator.enqueue(() => deleteCanvasNode(projectId, canvasId, id));
-    setCanvas((current) => (current ? { ...current, Revision: response.CanvasRevision } : current));
+    await mutationCoordinator.enqueue(() => deleteCanvasNode(projectId, canvasId, id));
+
     const index = shots.findIndex((shot) => shot.id === id);
     const nextShots = shots.filter((shot) => shot.id !== id);
-    removeCanvasNode(id);
     const removedAssets = assetStore.getForShot(id);
     assetStore.dropShot(id);
     revokeUnusedAssetBlobUrls(removedAssets, assetStore.listAll());
@@ -1808,7 +1423,6 @@ function StudioContent() {
       void mutationCoordinator
         .enqueue(() => cancelCanvasNodeDrafts(projectId, canvasId, targetTaskRunId))
         .then(async () => {
-          await refreshCanvasGraph();
           if (storyboardTaskRunId === target.storyboardTaskRunId) {
             resetStoryboardFlow();
           }
@@ -1843,23 +1457,12 @@ function StudioContent() {
       return;
     }
     stopPlayback();
-    patchShot(shotId, {
-      status: "generating",
-    });
     const start = mutationCoordinator.enqueue(() => startCanvasNodeGeneration(projectId, canvasId, shotId));
     generationStartRef.current.set(shotId, start);
     try {
-      const runId = await start;
-      clearCanvasGenerationFailure(shotId);
-      patchShot(shotId, { activeGenerationRunId: runId });
+      await start;
     } catch (error) {
-      setCanvasGenerationFailure({
-        nodeId: shotId,
-        ...canvasGenerationFailureFromError(error, t("视频生成启动失败")),
-      });
-      patchShot(shotId, {
-        status: currentShot.videoUrl ? "ready" : "empty",
-      });
+      toast.add({ type: "error", title: canvasRequestErrorMessage(error, t("视频生成启动失败")) });
     } finally {
       if (generationStartRef.current.get(shotId) === start) {
         generationStartRef.current.delete(shotId);
@@ -1886,16 +1489,6 @@ function StudioContent() {
       const accepted = new Map(response.Items.map((item) => [item.NodeID, item.TaskRunID]));
       if (accepted.size > 0) {
         stopPlayback();
-        accepted.forEach((runId, nodeId) => {
-          clearCanvasGenerationFailure(nodeId);
-          patchCanvasNode({
-            nodeId,
-            patch: {
-              Status: canvasnode.CanvasNodeStatus.GENERATING,
-              ActiveTaskRunID: runId,
-            },
-          });
-        });
       }
       if (accepted.size === 0) {
         toast.add({
@@ -1941,20 +1534,7 @@ function StudioContent() {
         return;
       }
       stopPlayback();
-      patchCanvasNode({
-        nodeId: currentShot.id,
-        patch: {
-          Status: canvasnode.CanvasNodeStatus.READY,
-          SelectedOutputID: selectedHistory.HistoryID,
-          SelectedAssetID: selectedHistory.OutputAssetID,
-          SelectedOutputURL: selectedVideoURL,
-          SelectedOutputDurationSeconds: selectedHistory.DurationSeconds,
-          FirstFrameAssetID: selectedHistory.FirstFrameAssetID,
-          LastFrameAssetID: selectedHistory.LastFrameAssetID,
-          FirstFrameURL: selectedHistory.FirstFrameURL,
-        },
-      });
-      clearCanvasGenerationFailure(currentShot.id);
+
       setHistoryOpen(false);
       toast.add({
         type: "success",
@@ -2033,39 +1613,8 @@ function StudioContent() {
     setStoppingGenerationShotId(shotId);
     try {
       const runId = await Promise.resolve(runIdOrPromise);
-      const result = await mutationCoordinator.enqueue(() =>
-        cancelCancellableVideoGeneration(projectId, canvasId, shotId, runId),
-      );
-      if (
-        result.status === canvasnode.CanvasGenerationStatus.QUEUED ||
-        result.status === canvasnode.CanvasGenerationStatus.RUNNING
-      ) {
-        studioStore.set(setCanvasGenerationRuntimeStateAtom, {
-          nodeId: shotId,
-          taskRunId: runId,
-          status: result.status,
-          providerStatus: result.providerStatus,
-        });
-      }
-      if (!result.cancelled) {
-        if (isVideoGenerationCancellationDisabled(result.providerStatus)) {
-          toast.add({
-            type: "info",
-            title: t("视频已开始生成，无法取消"),
-          });
-        } else {
-          toast.add({
-            type: "warning",
-            title: t("生成任务尚未就绪，请稍后重试"),
-          });
-        }
-        return;
-      }
-      patchShot(shotId, {
-        status: "empty",
-        activeGenerationRunId: undefined,
-      });
-      clearCanvasGenerationFailure(shotId);
+      await mutationCoordinator.enqueue(() => cancelCancellableVideoGeneration(projectId, canvasId, shotId, runId));
+
       toast.add({
         type: "success",
         title: t("已终止视频生成"),
@@ -2238,10 +1787,10 @@ function StudioContent() {
   };
 
   const applyReviewResults = (results: asset.SubmitAssetReviewResponse[]) => {
-    if (!reviewRequest || !results.length) return;
+    if (!reviewRequest || !results.length || reviewRequest.item.canvasNodeId) return;
     const latest = results.at(-1);
     if (!latest) return;
-    results.forEach((result) => assetStore.updateReview(result.AssetID, result.Review));
+
     const reviews = results.reduce<asset.AssetReview[]>(
       (current, result) => [...current.filter((review) => review.PackageID !== result.Review.PackageID), result.Review],
       reviewRequest.item.reviews ?? [],
@@ -2341,14 +1890,6 @@ function StudioContent() {
           { skipErrorNotify: true },
         ),
       );
-      setCanvas((current) =>
-        current
-          ? {
-              ...current,
-              DefaultView: next === "canvas" ? canvasIDL.CanvasViewMode.CANVAS : canvasIDL.CanvasViewMode.STORYBOARD,
-            }
-          : current,
-      );
     } catch {
       setView(previous);
       toast.add({
@@ -2362,16 +1903,14 @@ function StudioContent() {
 
   const handleReorderShots = async (orderedIds: string[]) => {
     if (!canvas || editing || saving) return;
-    const previousIds = shots.filter((shot) => !shot.storyboardTaskRunId).map((shot) => shot.id);
     const byId = new Map(shots.map((shot) => [shot.id, shot]));
     const ordered = orderedIds.flatMap((id) => {
       const shot = byId.get(id);
       return shot ? [shot] : [];
     });
     if (ordered.length !== orderedIds.length) return;
-    reorderStoryboardNodes(orderedIds);
     try {
-      const response = await mutationCoordinator.enqueue(() =>
+      await mutationCoordinator.enqueue(() =>
         ReorderStoryboardNodes(
           {
             ProjectID: projectId,
@@ -2384,10 +1923,7 @@ function StudioContent() {
           { skipErrorNotify: true },
         ),
       );
-      setCanvas((current) => (current ? { ...current, Revision: response.CanvasRevision } : current));
-      upsertCanvasNodes(response.Nodes);
     } catch {
-      reorderStoryboardNodes(previousIds);
       toast.add({
         type: "error",
         title: t("分镜排序保存失败，请重试"),
@@ -2551,7 +2087,7 @@ function StudioContent() {
                   onDeleteStoryboardDraft={async (nodeId) => {
                     try {
                       await mutationCoordinator.enqueue(() => cancelCanvasNodeDrafts(projectId, canvasId, nodeId));
-                      await refreshCanvasGraph();
+
                       if (storyboardTaskRunId === nodeId) resetStoryboardFlow();
                       return true;
                     } catch {
@@ -2562,9 +2098,8 @@ function StudioContent() {
                     const task = shots.find((shot) => shot.storyboardTaskRunId === nodeId);
                     if (task) openStoryboardTask(task);
                   }}
-                  onRefreshGraph={refreshCanvasGraph}
+                  onRefreshGraph={recoverCanvasGraph}
                   ref={canvasBoardRef}
-                  statePubSub={statePubSub}
                 />
               </div>
             ) : null}
@@ -2848,13 +2383,7 @@ function StudioContent() {
                   }`}
                 />
               </div>
-              <CanvasConversation
-                projectId={projectId}
-                canvasId={canvasId}
-                onChange={() => {
-                  void refreshCanvasGraph();
-                }}
-              />
+              <CanvasConversation projectId={projectId} canvasId={canvasId} />
             </aside>
           ) : null}
         </div>

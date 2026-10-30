@@ -9,7 +9,9 @@ export interface CanvasFormValues {
 
 export type CanvasDialogState = { mode: "create" } | { mode: "edit"; canvas: canvas.ProjectCanvasSummary };
 
-function canvasFromDTO(value: Awaited<ReturnType<typeof canvasGetCanvas>>["canvas"]): canvas.ProjectCanvasSummary {
+export function canvasFromDTO(
+  value: Awaited<ReturnType<typeof canvasGetCanvas>>["canvas"],
+): canvas.ProjectCanvasSummary {
   return {
     CanvasID: value.canvas_id,
     ProjectID: value.project_id,

@@ -4,9 +4,9 @@
 
 ## When main agent uses you
 - "How is permission checked in identity service?"
-- "Find all callers of libs.transport.retry"
+- "Find consumers of @backend/transport-ts"
 - "Summarize how the audit pipeline routes events"
-- "What MFEs consume @api-client/admin?"
+- "What MFEs consume @repo/api?"
 
 ## Procedure
 1. Use grep/glob/read tools heavily

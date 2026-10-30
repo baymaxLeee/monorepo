@@ -16,25 +16,25 @@ Required input:
 
 1. Run `git diff <range> --stat` to see scope
 2. Run `git diff <range>` to see changes
-3. For each file changed, read it WITHOUT loading repo docs first
+3. Read the applicable AGENTS and current specification, then inspect the affected
+   implementation independently of the author's reasoning. Do not load old plans.
 4. Apply these checks:
 
 ### Universal
 - Any leaked secrets/PII in logs?
 - Any hand-edited generated/ files?
 - Any TODO/FIXME without a tracking issue?
-- Module size limits respected? (500/250 LoC)
+- Does the implementation preserve the closest owner's documented boundaries?
 
 ### Backend
 - Any raw `HTTPException` raised? (must use `libs.kernel.errors`)
 - Any cross-service imports between services/?
 - Any new code in `libs/` that smells like domain logic?
-- Are mutation endpoints audit-wrapped?
-- Are auth decorators present on protected routes?
+- Do changed mutations preserve the resource's authorization and audit contract?
 
 ### Frontend
 - Any imports across MFEs?
-- Any raw `fetch()` calls? (must use `@repo/api`)
+- Are API calls routed through `@repo/api`, including its authenticated stream path?
 - Any `any` types?
 - Any hardcoded color/spacing? (must use design tokens)
 
@@ -53,5 +53,5 @@ NITS:
 - Reuse the main agent's passing results when they cover the final code.
   Run focused checks through root `just test <target>` when evidence is missing
   or a concrete finding needs reproduction; do not assume tests already ran.
-- Do not load full repo docs — that defeats the freshness.
+- Read only relevant current specs; do not substitute the author's plan for evidence.
 - Return concise reports, not paragraphs.

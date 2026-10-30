@@ -3,8 +3,8 @@ package http
 import (
 	"context"
 	"fmt"
+	stream "github.com/example/monorepo/canvas/internal/application/canvasstream"
 	"strings"
-	"time"
 
 	arkmodel "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 
@@ -15,7 +15,6 @@ import (
 	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationcanvasgeneration "github.com/example/monorepo/canvas/internal/application/canvasgeneration"
-	applicationcanvastextgeneration "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domaincanvasnode "github.com/example/monorepo/canvas/internal/domain/canvas"
@@ -32,7 +31,7 @@ type canvasnodeService interface {
 	CancelAssetsMatch(context.Context, applicationcanvasnode.Scope, string, string, string, string) error
 	StartAssetsMatch(context.Context, applicationcanvasnode.StartAssetsMatchInput) (domaintask.TaskRun, error)
 	BatchGetViews(context.Context, applicationcanvasnode.Scope, string, string, []string) ([]applicationcanvasnode.CanvasNodeView, error)
-	ListGraph(context.Context, applicationcanvasnode.Scope, string, string) ([]applicationcanvasnode.CanvasNodeView, error)
+	ProjectStreamViews(context.Context, applicationcanvasnode.Scope, []domaincanvasnode.CanvasNode) ([]applicationcanvasnode.CanvasNodeView, error)
 	ProjectViews(context.Context, applicationcanvasnode.Scope, []domaincanvasnode.CanvasNode) ([]applicationcanvasnode.CanvasNodeView, error)
 	Create(context.Context, applicationcanvasnode.Scope, applicationcanvasnode.CreateNodeInput) (domaincanvasnode.CanvasNode, int32, int64, error)
 	Copy(context.Context, applicationcanvasnode.Scope, applicationcanvasnode.CopyNodeInput) (applicationcanvasnode.CopyNodeResult, error)
@@ -50,13 +49,6 @@ type canvasnodeGraphService interface {
 	BatchDeleteNodes(context.Context, applicationcanvasnode.BatchDeleteNodesInput) (int64, error)
 	DeleteEdge(context.Context, applicationcanvasnode.DeleteEdgeInput) (applicationcanvasnode.DeleteEdgeResult, error)
 	ReorderStoryboard(context.Context, applicationcanvasnode.ReorderStoryboardInput) (applicationcanvasnode.ReorderStoryboardResult, error)
-}
-
-type canvasTextGenerationService interface {
-	Start(context.Context, applicationcanvasnode.Scope, string, string, string) (applicationcanvastextgeneration.Session, error)
-	Cancel(context.Context, applicationcanvasnode.Scope, string, string, string, string) error
-	Get(context.Context, applicationcanvasnode.Scope, string, string, string, string) (applicationcanvastextgeneration.Session, error)
-	ReadDeltas(context.Context, applicationcanvasnode.Scope, string, string, string, string, string, time.Duration) ([]applicationcanvastextgeneration.Delta, error)
 }
 
 func (h *CanvasNodeHandler) MaterializeCanvasStandaloneAssetReference(ctx context.Context, r *thriftcanvasnode.MaterializeCanvasStandaloneAssetReferenceRequest) (*thriftcanvasnode.MaterializeCanvasStandaloneAssetReferenceResponse, error) {
@@ -153,8 +145,6 @@ func (h *CanvasNodeHandler) CreateCanvasAsset(
 
 type generationService interface {
 	Start(context.Context, applicationcanvasnode.Scope, string, string, string) (string, error)
-	BatchGetStates(context.Context, applicationcanvasnode.Scope, string, string, []applicationcanvasgeneration.GenerationTarget) ([]applicationcanvasgeneration.GenerationState, error)
-	BatchGetLatestFailures(context.Context, applicationcanvasnode.Scope, []domaincanvasnode.CanvasNode) (map[string]applicationcanvasgeneration.GenerationFailure, error)
 	StartCanvas(context.Context, applicationcanvasnode.Scope, string, string) ([]applicationvideogeneration.CanvasStart, int, error)
 	List(context.Context, applicationcanvasnode.Scope, string, string, string) ([]applicationvideogeneration.TaskRun, error)
 	Select(context.Context, applicationcanvasnode.Scope, string, string, string, string) (applicationvideogeneration.TaskRun, error)
@@ -296,12 +286,13 @@ func (h *CanvasNodeHandler) CancelCanvasNodeGeneration(ctx context.Context, r *t
 }
 
 type CanvasNodeHandler struct {
-	canvas_nodes    canvasnodeService
-	graph           canvasnodeGraphService
-	assets          canvasnodeAssetService
-	generations     generationService
-	drafts          storyboardDraftService
-	textGenerations canvasTextGenerationService
+	canvasMetadata *applicationcanvasnode.Service
+	stream         stream.Source
+	canvas_nodes   canvasnodeService
+	graph          canvasnodeGraphService
+	assets         canvasnodeAssetService
+	generations    generationService
+	drafts         storyboardDraftService
 }
 
 func NewCanvasNodeHandler(
@@ -309,52 +300,10 @@ func NewCanvasNodeHandler(
 	assets *applicationcanvasnode.CanvasNodeAssetService,
 	generations *applicationcanvasgeneration.Service,
 	drafts *applicationcanvasnode.StoryboardService,
-	textGenerations *applicationcanvastextgeneration.Service,
 ) *CanvasNodeHandler {
 	return &CanvasNodeHandler{
-		canvas_nodes: canvas_nodes, graph: canvas_nodes, assets: assets, generations: generations, drafts: drafts, textGenerations: textGenerations,
+		canvas_nodes: canvas_nodes, graph: canvas_nodes, assets: assets, generations: generations, drafts: drafts,
 	}
-}
-
-func (h *CanvasNodeHandler) StartCanvasNodeTextGeneration(ctx context.Context, r *thriftcanvasnode.StartCanvasNodeTextGenerationRequest) (*thriftcanvasnode.CanvasNodeTextGenerationResponse, error) {
-	if err := requireAction(ctx, "StartCanvasNodeTextGeneration"); err != nil {
-		return nil, err
-	}
-	state, err := h.textGenerations.Start(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID)
-	if err != nil {
-		return nil, err
-	}
-	return &thriftcanvasnode.CanvasNodeTextGenerationResponse{Session: textGenerationSessionDTO(state)}, nil
-}
-
-func (h *CanvasNodeHandler) CancelCanvasNodeTextGeneration(ctx context.Context, r *thriftcanvasnode.CancelCanvasNodeTextGenerationRequest) (*thriftbase.Empty, error) {
-	if err := requireAction(ctx, "CancelCanvasNodeTextGeneration"); err != nil {
-		return nil, err
-	}
-	if err := h.textGenerations.Cancel(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, r.NodeID, r.TaskRunID); err != nil {
-		return nil, err
-	}
-	return &thriftbase.Empty{}, nil
-}
-
-func textGenerationSessionDTO(state applicationcanvastextgeneration.Session) *thriftcanvasnode.CanvasTextGenerationSession {
-	status := thriftcanvasnode.CanvasGenerationStatus_QUEUED
-	switch state.Status {
-	case applicationcanvastextgeneration.StatusRunning:
-		status = thriftcanvasnode.CanvasGenerationStatus_RUNNING
-	case applicationcanvastextgeneration.StatusSucceeded:
-		status = thriftcanvasnode.CanvasGenerationStatus_SUCCEEDED
-	case applicationcanvastextgeneration.StatusFailed:
-		status = thriftcanvasnode.CanvasGenerationStatus_FAILED
-	case applicationcanvastextgeneration.StatusCancelled:
-		status = thriftcanvasnode.CanvasGenerationStatus_CANCELLED
-	}
-	dto := &thriftcanvasnode.CanvasTextGenerationSession{TaskRunID: state.ID, NodeID: state.NodeID, Status: status, Content: state.Content}
-	if state.Failure != nil {
-		dto.ErrorCode = optionalCanvasNodeString(state.Failure.Code)
-		dto.ErrorMessage = optionalCanvasNodeString(state.Failure.Message)
-	}
-	return dto
 }
 
 func (h *CanvasNodeHandler) GetCanvasGraph(
@@ -364,59 +313,11 @@ func (h *CanvasNodeHandler) GetCanvasGraph(
 	if err := requireAction(ctx, "GetCanvasGraph"); err != nil {
 		return nil, err
 	}
-	items, err := h.canvas_nodes.ListGraph(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID)
+	state, err := h.stream.Snapshot(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID)
 	if err != nil {
 		return nil, err
 	}
-	graphNodes := make([]domaincanvasnode.CanvasNode, 0, len(items))
-	for _, item := range items {
-		graphNodes = append(graphNodes, item.CanvasNode)
-	}
-	failures, err := h.generations.BatchGetLatestFailures(ctx, canvasnodeScope(ctx, r.WorkspaceID), graphNodes)
-	if err != nil {
-		return nil, err
-	}
-	nodes := make([]*thriftcanvasnode.CanvasNode, 0, len(items))
-	videoNo := int32(0)
-	for _, item := range items {
-		no := int32(0)
-		if item.Type == domaincanvasnode.NodeTypeVideoGeneration {
-			videoNo++
-			no = videoNo
-		}
-		nodes = append(nodes, canvasnodeViewDTO(item, no, failures[item.ID]))
-	}
-	if err = h.attachStoryboardDraftSessions(ctx, canvasnodeScope(ctx, r.WorkspaceID), r.ProjectID, r.CanvasID, nodes); err != nil {
-		return nil, err
-	}
-	return &thriftcanvasnode.GetCanvasGraphResponse{Nodes: nodes}, nil
-}
-
-func (h *CanvasNodeHandler) attachStoryboardDraftSessions(
-	ctx context.Context,
-	scope applicationcanvasnode.Scope,
-	projectID, canvasID string,
-	nodes []*thriftcanvasnode.CanvasNode,
-) error {
-	draftNodes := make(map[string]*thriftcanvasnode.CanvasNode)
-	for _, node := range nodes {
-		if node != nil && node.Type == thriftcanvasnode.CanvasNodeType_STORYBOARD_DRAFT {
-			draftNodes[node.NodeID] = node
-		}
-	}
-	if len(draftNodes) == 0 {
-		return nil
-	}
-	drafts, err := h.drafts.List(ctx, scope, projectID, canvasID)
-	if err != nil {
-		return err
-	}
-	for _, draft := range drafts {
-		if node := draftNodes[draft.ID]; node != nil {
-			node.DraftSession = draftSessionDTO(draft, true)
-		}
-	}
-	return nil
+	return h.streamSnapshotDTO(ctx, canvasnodeScope(ctx, r.WorkspaceID), state)
 }
 
 func (h *CanvasNodeHandler) CreateCanvasNode(ctx context.Context, r *thriftcanvasnode.CreateCanvasNodeRequest) (*thriftcanvasnode.CreateCanvasNodeResponse, error) {
@@ -854,7 +755,7 @@ func generationConfigDTO(v domainvideo.Config) *thriftcanvasnode.CanvasNodeGener
 	}
 }
 func canvasnodeDTO(v domaincanvasnode.CanvasNode, no int32) *thriftcanvasnode.CanvasNode {
-	// ActiveTaskRunID directly exposes the node's current TaskRun for polling and cancellation.
+	// ActiveTaskRunID identifies the task that currently owns the node.
 	status := thriftcanvasnode.CanvasNodeStatus_EMPTY
 	if v.ActiveTaskRunID != "" {
 		status = thriftcanvasnode.CanvasNodeStatus_GENERATING
@@ -1113,110 +1014,6 @@ func (h *CanvasNodeHandler) StartCanvasNodeAssetsMatch(ctx context.Context, r *t
 		return nil, err
 	}
 	return &thriftcanvasnode.StartCanvasNodeAssetsMatchResponse{TaskRunID: run.ID}, nil
-}
-
-func (h *CanvasNodeHandler) BatchGetCanvasNodeStates(ctx context.Context, r *thriftcanvasnode.BatchGetCanvasNodeStatesRequest) (*thriftcanvasnode.BatchGetCanvasNodeStatesResponse, error) {
-	if err := requireAction(ctx, "BatchGetCanvasNodeStates"); err != nil {
-		return nil, err
-	}
-	scope := canvasnodeScope(ctx, r.WorkspaceID)
-	targets := make([]applicationcanvasgeneration.GenerationTarget, 0, len(r.Targets))
-	for _, target := range r.Targets {
-		if target == nil {
-			return nil, errno.New(errno.ErrInvalidArgument)
-		}
-		targets = append(targets, applicationcanvasgeneration.GenerationTarget{NodeID: target.NodeID, TaskRunID: target.TaskRunID})
-	}
-	states := make([]applicationcanvasgeneration.GenerationState, 0, len(targets))
-	if len(targets) > 0 {
-		var err error
-		states, err = h.generations.BatchGetStates(ctx, scope, r.ProjectID, r.CanvasID, targets)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// Project only requested nodes and the source nodes needed by completed matches.
-	ids := make([]string, 0, len(states))
-	seen := map[string]bool{}
-	add := func(id string) {
-		if !seen[id] {
-			ids = append(ids, id)
-			seen[id] = true
-		}
-	}
-	for _, state := range states {
-		add(state.Node.ID)
-	}
-	views, err := h.canvas_nodes.BatchGetViews(ctx, scope, r.ProjectID, r.CanvasID, ids)
-	if err != nil {
-		return nil, err
-	}
-	byID := make(map[string]*thriftcanvasnode.CanvasNode, len(views))
-	for _, view := range views {
-		byID[view.ID] = canvasnodeViewDTO(view, 0, applicationcanvasgeneration.GenerationFailure{})
-	}
-	// Derive required sources from the same node projection returned to the client.
-	// A task may commit between the initial task read and this node read.
-	sourceIDs := make([]string, 0)
-	for _, state := range states {
-		if state.Run.RunType != domaintask.RunTypeCanvasNodeAssetsMatch {
-			continue
-		}
-		if node := byID[state.Node.ID]; node != nil {
-			for _, edge := range node.IncomingEdges {
-				if !seen[edge.SourceNodeID] {
-					seen[edge.SourceNodeID] = true
-					sourceIDs = append(sourceIDs, edge.SourceNodeID)
-				}
-			}
-		}
-	}
-	if len(sourceIDs) > 0 {
-		sources, readErr := h.canvas_nodes.BatchGetViews(ctx, scope, r.ProjectID, r.CanvasID, sourceIDs)
-		if readErr != nil {
-			return nil, readErr
-		}
-		for _, source := range sources {
-			byID[source.ID] = canvasnodeViewDTO(source, 0, applicationcanvasgeneration.GenerationFailure{})
-		}
-	}
-	items := make([]*thriftcanvasnode.CanvasNodeState, 0, len(states))
-	for _, state := range states {
-		node := byID[state.Node.ID]
-		if node == nil {
-			continue
-		}
-		item := &thriftcanvasnode.CanvasNodeState{NodeID: node.NodeID, TaskRunID: state.Run.ID, Status: generationStatusDTO(string(state.Run.Status)), TaskType: thriftcanvasnode.CanvasNodeTaskType_GENERATION, Node: node, RelatedNodes: []*thriftcanvasnode.CanvasNode{}, ErrorCode: optionalString(state.Run.ErrorCode), ErrorMessage: optionalString(state.Run.ErrorMessage), SeedanceTaskID: optionalString(state.SeedanceTaskID)}
-		if state.Run.RunType == domaintask.RunTypeCanvasNodeAssetsMatch {
-			item.TaskType = thriftcanvasnode.CanvasNodeTaskType_ASSETS_MATCH
-			for _, edge := range node.IncomingEdges {
-				if source := byID[edge.SourceNodeID]; source != nil {
-					item.RelatedNodes = append(item.RelatedNodes, source)
-				}
-			}
-		}
-		if !state.Run.Terminal() && node.ActiveTaskRunID == nil {
-			// A node can commit after the task read, or while video frame extraction is pending.
-			node.ActiveTaskRunID = &item.TaskRunID
-			node.ActiveTaskType = &item.TaskType
-			if item.TaskType == thriftcanvasnode.CanvasNodeTaskType_GENERATION {
-				node.Status = thriftcanvasnode.CanvasNodeStatus_GENERATING
-			}
-		}
-		if state.VideoProviderStatus != nil {
-			status := providerStatusDTO(*state.VideoProviderStatus)
-			item.VideoProviderStatus = &status
-		}
-		items = append(items, item)
-	}
-	requestedNodes := make([]*thriftcanvasnode.CanvasNode, 0, len(items))
-	for _, item := range items {
-		requestedNodes = append(requestedNodes, item.Node)
-	}
-	if err = h.attachStoryboardDraftSessions(ctx, scope, r.ProjectID, r.CanvasID, requestedNodes); err != nil {
-		return nil, err
-	}
-	return &thriftcanvasnode.BatchGetCanvasNodeStatesResponse{Items: items}, nil
 }
 
 func (h *CanvasNodeHandler) CancelCanvasNodeAssetsMatch(ctx context.Context, r *thriftcanvasnode.CancelCanvasNodeAssetsMatchRequest) (*thriftbase.Empty, error) {

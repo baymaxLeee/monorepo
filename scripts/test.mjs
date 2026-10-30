@@ -1,7 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, globSync, readFileSync } from "node:fs";
+import { globSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { discoverProjects } from "./repository.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const patterns = {
@@ -12,40 +14,13 @@ const patterns = {
 };
 
 export function discoverTargets(root = ROOT) {
-  const targets = [];
-  for (const area of ["backend", "frontend"]) {
-    for (const kind of area === "backend" ? ["services", "libs"] : ["apps", "packages"]) {
-      for (const relative of globSync(`apps/${area}/${kind}/*`, { cwd: root }).sort()) {
-        const dir = join(root, relative);
-        if (area === "frontend" && !existsSync(join(dir, "package.json"))) continue;
-        const name =
-          area === "frontend"
-            ? JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).name
-            : relative.split("/").at(-1);
-        const runtime =
-          area === "frontend"
-            ? "frontend"
-            : existsSync(join(dir, "go.mod"))
-              ? "go"
-              : existsSync(join(dir, "pyproject.toml"))
-                ? "python"
-                : existsSync(join(dir, "package.json"))
-                  ? "node"
-                  : null;
-        if (!runtime) continue;
-        targets.push({
-          id: `${area}/${name}`,
-          dir,
-          runtime,
-          packageName: runtime === "frontend" ? JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).name : null,
-          files: globSync(patterns[runtime], {
-            cwd: dir,
-            exclude: ["**/node_modules/**", "**/.venv/**", "**/vendor/**"],
-          }),
-        });
-      }
-    }
-  }
+  const targets = discoverProjects(root).map((project) => ({
+    ...project,
+    files: globSync(patterns[project.runtime], {
+      cwd: project.dir,
+      exclude: ["**/node_modules/**", "**/.venv/**", "**/vendor/**"],
+    }),
+  }));
   targets.push({ id: "tooling", runtime: "tooling", dir: root, files: globSync("scripts/*.test.mjs", { cwd: root }) });
   return targets;
 }
@@ -86,12 +61,18 @@ export function commandFor(target, root, args) {
   }
 }
 
-export function runTargets(targets, root = ROOT, args = [], spawn = spawnSync) {
+export function runTargets(targets, root = ROOT, args = [], spawn = spawnSync, aggregateFrontend = false) {
   let failed = false;
+  const frontend = [];
   for (const target of targets) {
     if (!target.files.length) {
-      console.error(`FAIL ${target.id}: no test files found`);
-      failed = true;
+      const allowed = aggregateFrontend && target.runtime === "frontend";
+      console.error(`${allowed ? "UNTESTED" : "FAIL"} ${target.id}: no test files found`);
+      if (!allowed) failed = true;
+      continue;
+    }
+    if (target.runtime === "frontend") {
+      frontend.push(target);
       continue;
     }
     const [command, ...commandArgs] = commandFor(target, root, args);
@@ -99,6 +80,17 @@ export function runTargets(targets, root = ROOT, args = [], spawn = spawnSync) {
     const result = spawn(command, commandArgs, { cwd: target.dir, stdio: "inherit" });
     if (result.error) console.error(result.error.message);
     if (result.status !== 0) failed = true;
+  }
+  if (frontend.length) {
+    console.log(`\nTesting ${frontend.map((p) => p.id).join(", ")}`);
+    const result = spawn("pnpm", ["test", ...frontend.flatMap((p) => ["--project", p.packageName]), ...args], {
+      cwd: join(root, "apps/frontend"),
+      stdio: "inherit",
+    });
+    if (result.error) console.error(result.error.message);
+    if (result.status !== 0) failed = true;
+  } else if (aggregateFrontend && targets.some((p) => p.runtime === "frontend")) {
+    failed = true;
   }
   return failed ? 1 : 0;
 }
@@ -112,25 +104,16 @@ export function runSelection(selection, root = ROOT, args = []) {
       );
     return 0;
   }
-  const selected = selectTargets(targets, selection.replace(/\/$/, ""));
+  return runSelections([selection.replace(/\/$/, "")], root, args, targets);
+}
+
+export function runSelections(selections, root = ROOT, args = [], targets = discoverTargets(root), spawn = spawnSync) {
+  const selected = [
+    ...new Map(selections.flatMap((selection) => selectTargets(targets, selection)).map((p) => [p.id, p])).values(),
+  ];
   if (args.length && selected.length !== 1)
     throw new Error("Runner arguments require a single target. Run just test-list.");
-  // Vitest owns frontend project scheduling; untested projects remain visible in test-list.
-  const frontend = selected.filter((target) => target.runtime === "frontend");
-  let status = 0;
-  if (frontend.length > 1) {
-    const result = spawnSync("pnpm", ["test"], { cwd: join(root, "apps/frontend"), stdio: "inherit" });
-    if (result.error) console.error(result.error.message);
-    if (result.status !== 0) status = 1;
-  }
-  return Math.max(
-    status,
-    runTargets(
-      selected.filter((target) => target.runtime !== "frontend" || frontend.length === 1),
-      root,
-      args,
-    ),
-  );
+  return runTargets(selected, root, args, spawn, selections.includes("all") || selections.includes("frontend"));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

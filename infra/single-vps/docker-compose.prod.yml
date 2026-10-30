@@ -136,7 +136,7 @@ services:
   # the per-service databases and applies pending migrations against the shared
   # Postgres instance over TCP, creating one database and login role per service.
   db-init:
-    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/db-init:${IMAGE_TAG:-main}
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/db-init:${DB_INIT_IMAGE_TAG:-${IMAGE_TAG:-main}}
     container_name: monorepo-db-init
     depends_on:
       postgres:

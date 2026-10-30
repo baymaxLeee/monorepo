@@ -308,6 +308,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{projectId}/canvases/{canvasId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["canvasSubscribe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}/canvases/{canvasId}/generations": {
         parameters: {
             query?: never;
@@ -338,22 +354,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["canvasUpdateNodePositions"];
-        trace?: never;
-    };
-    "/projects/{projectId}/canvases/{canvasId}/node-states:batchGet": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["canvasBatchGetNodeStates"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/projects/{projectId}/canvases/{canvasId}/nodes": {
@@ -494,22 +494,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["canvasSelectNodeHistory"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/text-generations:stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["canvasStreamNodeTextGeneration"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1027,9 +1011,6 @@ export interface components {
         CanvasBatchGetAssetReviewsResponse: {
             items: components["schemas"]["CanvasAssetReviews"][];
         };
-        CanvasBatchGetCanvasNodeStatesResponse: {
-            items: components["schemas"]["CanvasNodeState"][];
-        };
         CanvasBatchGetResourceAssetGenerationStatesResponse: {
             items: components["schemas"]["CanvasResourceAssetGenerationState"][];
         };
@@ -1207,7 +1188,13 @@ export interface components {
          */
         CanvasGenerationStatus: 1 | 2 | 3 | 4 | 5;
         CanvasGetCanvasGraphResponse: {
+            archives: components["schemas"]["CanvasProjectCanvasVideoArchiveExport"][];
+            canvas: components["schemas"]["CanvasProjectCanvasSummary"];
+            cursor: number;
             nodes: components["schemas"]["CanvasNode"][];
+            protected_node_ids: string[];
+            tasks: components["schemas"]["CanvasStreamTask"][];
+            texts: components["schemas"]["CanvasTextCheckpoint"][];
         };
         CanvasGetProjectByMemberResponse: {
             project: components["schemas"]["CanvasMemberProjectDetail"];
@@ -1654,21 +1641,10 @@ export interface components {
             current_asset_id: string;
             resource_asset_id: string;
         };
-        CanvasNodeState: {
-            error_code?: string;
-            error_message?: string;
-            node: components["schemas"]["CanvasNode"];
+        CanvasNodeReviews: {
+            asset_id: string;
             node_id: string;
-            related_nodes: components["schemas"]["CanvasNode"][];
-            seedance_task_id?: string;
-            status: components["schemas"]["CanvasGenerationStatus"];
-            task_run_id: string;
-            task_type: components["schemas"]["CanvasNodeTaskType"];
-            video_provider_status?: components["schemas"]["CanvasNodeVideoProviderStatus"];
-        };
-        CanvasNodeStateTarget: {
-            node_id: string;
-            task_run_id: string;
+            reviews: components["schemas"]["CanvasAssetReview"][];
         };
         /**
          * Format: int64
@@ -1681,11 +1657,6 @@ export interface components {
          * @enum {integer}
          */
         CanvasNodeTaskType: 1 | 2;
-        CanvasNodeTextGenerationResponse: {
-            completed?: components["schemas"]["CanvasTextGenerationCompleted"];
-            delta?: components["schemas"]["CanvasTextGenerationDelta"];
-            session?: components["schemas"]["CanvasTextGenerationSession"];
-        };
         /**
          * Format: int64
          * @enum {integer}
@@ -1717,6 +1688,27 @@ export interface components {
             path?: string;
             required?: boolean;
             type?: string;
+        };
+        CanvasPatchEvent: {
+            action: string;
+            base_cursor: number;
+            cursor: number;
+            occurred_at: string;
+            operations: components["schemas"]["CanvasPatchOperation"][];
+            protocol_version: number;
+            request_id: string;
+        };
+        CanvasPatchOperation: {
+            archive?: components["schemas"]["CanvasProjectCanvasVideoArchiveExport"];
+            canvas?: components["schemas"]["CanvasProjectCanvasSummary"];
+            key: string;
+            kind: string;
+            node?: components["schemas"]["CanvasNode"];
+            node_id?: string;
+            node_reviews?: components["schemas"]["CanvasNodeReviews"];
+            task?: components["schemas"]["CanvasStreamTask"];
+            text_delta?: components["schemas"]["CanvasTextDelta"];
+            text_status?: components["schemas"]["CanvasTextStatus"];
         };
         CanvasPdDisaggregationConfig: {
             decode_config: components["schemas"]["CanvasPdDisaggregationResourceConfig"];
@@ -2212,6 +2204,16 @@ export interface components {
             resolution: components["schemas"]["CanvasNodeResolution"];
             watermark: boolean;
         };
+        CanvasStreamTask: {
+            error_code: string;
+            error_message: string;
+            node_id: string;
+            seedance_task_id: string;
+            status: components["schemas"]["CanvasGenerationStatus"];
+            task_run_id: string;
+            task_type: components["schemas"]["CanvasNodeTaskType"];
+            video_provider_status?: components["schemas"]["CanvasNodeVideoProviderStatus"];
+        };
         CanvasSubmitAssetReviewItem: {
             asset_id?: string;
             package_id: string;
@@ -2234,20 +2236,24 @@ export interface components {
             multi_language?: components["schemas"]["CanvasMultiLanguageConfig"];
             multi_voice?: components["schemas"]["CanvasMultiVoiceConfig"];
         };
-        CanvasTextGenerationCompleted: {
+        CanvasTextCheckpoint: {
             content: string;
+            node_id: string;
+            offset: number;
+            status: string;
             task_run_id: string;
         };
-        CanvasTextGenerationDelta: {
-            delta: string;
-            offset: number;
-        };
-        CanvasTextGenerationSession: {
+        CanvasTextDelta: {
             content: string;
-            error_code?: string;
-            error_message?: string;
+            end_offset: number;
             node_id: string;
-            status: components["schemas"]["CanvasGenerationStatus"];
+            start_offset: number;
+            task_run_id: string;
+        };
+        CanvasTextStatus: {
+            node_id: string;
+            offset: number;
+            status: string;
             task_run_id: string;
         };
         /**
@@ -3695,6 +3701,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3872,6 +3880,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3941,6 +3951,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4007,6 +4019,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4074,6 +4088,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4139,10 +4155,74 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasDeleteCanvasEdgeResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    canvasSubscribe: {
+        parameters: {
+            query?: {
+                cursor?: number;
+            };
+            header?: {
+                "Last-Event-ID"?: string;
+            };
+            path: {
+                projectId: string;
+                canvasId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["CanvasPatchEvent"];
                 };
             };
             /** @description Invalid input */
@@ -4197,6 +4277,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4261,74 +4343,12 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasBatchUpdateCanvasNodePositionsResponse"];
-                };
-            };
-            /** @description Invalid input */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or inaccessible resource */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Revision conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    canvasBatchGetNodeStates: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                projectId: string;
-                canvasId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    targets: components["schemas"]["CanvasNodeStateTarget"][];
-                };
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanvasBatchGetCanvasNodeStatesResponse"];
                 };
             };
             /** @description Invalid input */
@@ -4455,6 +4475,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4518,6 +4540,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4588,6 +4612,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4653,6 +4679,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4713,6 +4741,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4781,6 +4811,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4840,6 +4872,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4900,6 +4934,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5019,69 +5055,12 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["CanvasSelectCanvasNodeHistoryResponse"];
-                };
-            };
-            /** @description Invalid input */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Missing or inaccessible resource */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Revision conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    canvasStreamNodeTextGeneration: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                projectId: string;
-                canvasId: string;
-                nodeId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CanvasNodeTextGenerationResponse"];
                 };
             };
             /** @description Invalid input */
@@ -5144,6 +5123,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5208,6 +5189,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5277,6 +5260,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5343,6 +5328,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5402,6 +5389,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5467,6 +5456,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5531,6 +5522,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5595,6 +5588,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Committed Canvas cursor; await the page stream before dependent commands */
+                    "X-Canvas-Cursor"?: number;
                     [name: string]: unknown;
                 };
                 content: {

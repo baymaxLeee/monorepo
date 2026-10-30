@@ -108,7 +108,7 @@ There is **one** stream — the main chat stream:
   (`apps/frontend/apps/chat/src/lib/chat-message.ts`).
 
 There is no separate task-progress SSE stream. Delegated file and video progress
-now ride the main stream as **preliminary `tool-*` results** (see ADR-0035): the
+now ride the main stream as **preliminary `tool-*` results** (see docs/ADR/agent-runtime.md): the
 `delegate_tasks` and `create_video_production` tools poll executor
 `GET /tasks/:id` and `yield` running snapshots (`done`/`total`,
 `progress_done`/`progress_total`) that the SDK emits as preliminary tool
@@ -121,7 +121,7 @@ no `data-artifact-progress`.
 | -------------------------- | ------ | ----------- | ---------------- | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `data-conversation-title`  | main   | transient   | no               | server → client  | `agent/runs/run.ts` (`writer.write`, first turn)              | `pages/Chat.tsx` `onData` → header + sidebar               | No official "conversation title" part; title is conversation-level, not message-level, so metadata is wrong too. Transient + `onData` is the documented pattern. |
 | `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/agents/tool-loop.ts` | No official "execute this file" part. The part persists only the stable Plan path; the run projects that reference and forces `read_file` over contiguous line ranges until the selected Plan is fully read before execution tools are enabled. |
-| `data-skill-activation`    | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`submit`, added to the user message when a `/` skill is active) | `agent/context/file-parts.ts` (`activatedSkillNameFromParts` → server injects `<activated_skill>` body for that turn) + `components/ChatMessageView.tsx` (renders a skill badge) | No official "invoke this skill" part. Mirrors `data-plan-execution` (client→server reference): the L2 body never rides the part — only the skill `name`. Persisted so history/continuation show which skill drove the turn; the projector's `convertDataPart` returns `undefined` for it, so older turns are dropped from model context and the body is injected server-side only for the turn its message triggers (ADR-0033 §4, ADR-0036). |
+| `data-skill-activation`    | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`submit`, added to the user message when a `/` skill is active) | `agent/context/file-parts.ts` (`activatedSkillNameFromParts` → server injects `<activated_skill>` body for that turn) + `components/ChatMessageView.tsx` (renders a skill badge) | No official "invoke this skill" part. Mirrors `data-plan-execution` (client→server reference): the L2 body never rides the part — only the skill `name`. Persisted so history/continuation show which skill drove the turn; the projector's `convertDataPart` returns `undefined` for it, so older turns are dropped from model context and the body is injected server-side only for the turn its message triggers (docs/ADR/identity-and-configuration.md §4, docs/ADR/agent-runtime.md). |
 
 ### Verdict on redundancy
 
@@ -142,7 +142,7 @@ no `data-artifact-progress`.
     (`done`/`total`) on the SAME `tool-delegate_tasks` part:
     preliminary `yield`s while polling executor `GET /tasks/:id`, then a
     terminal `yield` with the atomically published `paths`.
-    There is no separate progress channel (ADR-0035 collapsed the old
+    There is no separate progress channel (docs/ADR/agent-runtime.md collapsed the old
     task-progress SSE into these preliminary tool results).
   - `generate_images` (media generation) returns its result **as tool output**,
     not a custom part: an inline async-generator tool emits a running
@@ -154,14 +154,14 @@ no `data-artifact-progress`.
     model-side `error-json`; Abort and protocol failures use `output-error`. A multi-image request is ONE call with a
     `prompts[]` array (one image per prompt, processed serially); `count` is
     the requested total and `failed` how many prompts dropped (partial gallery).
-    See ADR-0059 for the serial generation-orchestration model. The frontend
+    See docs/ADR/agent-runtime.md for the serial generation-orchestration model. The frontend
     `ChatImageCard` renders a
     **lightweight reference card** (icon + count, zero bytes fetched at render);
     clicking it opens the image lightbox, which fetches the group from those
     `document_id`s on demand (served via `/documents/:id/source`, the same route
     `file` parts use) — no `data-*` part is needed because the tool part already
     carries everything. Generated bytes live in Knowledge, never a temporary
-    provider URL (ADR-0014); the transcript never inlines them (ADR-0021).
+    provider URL (docs/ADR/identity-and-configuration.md); the transcript never inlines them (docs/ADR/frontend.md).
   - `create_video_production` creates a durable production task. It yields
     preliminary `{ status, task_id, kind: "video" }` results while Executor
     plans, then a completed result carrying `production_id` once the initial
@@ -184,15 +184,15 @@ no `data-artifact-progress`.
     deliverable card while the model is between snapshots. This is display-layer
     derivation from official tool parts (the completion fact already on the
     wire), so no `data-*` part is added; the model's next-step `update_todos`
-    remains the canonical snapshot. See ADR 0024 and ADR 0059.
+    remains the canonical snapshot. See docs/ADR/agent-runtime.md and docs/ADR/agent-runtime.md.
   - Persisted `tool-update_todos` UIMessage output is also the model-side truth
     source while it remains in retained history. The context projector never
-    reconstructs or dynamically injects Todo business state (ADR 0041).
+    reconstructs or dynamically injects Todo business state (docs/ADR/agent-runtime.md).
   - On explicit user cancellation, unfinished official tool parts are persisted
     as `output-error`; no cancellation `data-*` part is added. Non-completed
     `update_todos` items become `cancelled`, which is a terminal persisted todo
     status. Navigation-only disconnects do not perform this transition. See
-    ADR 0025.
+    docs/ADR/agent-runtime.md.
 
 ---
 

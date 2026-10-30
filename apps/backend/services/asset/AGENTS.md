@@ -19,4 +19,4 @@ exclusive local filesystem volume containing durable bytes.
 - The filesystem adapter is supported for single-VPS production and requires a
   single writer. Future object stores implement the same application port.
 
-Follow the parent backend rules and ADR-0072.
+Follow the parent backend rules and docs/ADR/files-and-assets.md.

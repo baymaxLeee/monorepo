@@ -26,8 +26,6 @@ export function canvasClient() {
   return {
     generateNodes: (...args: Parameters<CanvasInternalClient["generateNodes"]>) =>
       client.generateNodes(...args).catch(canvasError),
-    nodeStates: (...args: Parameters<CanvasInternalClient["nodeStates"]>) =>
-      client.nodeStates(...args).catch(canvasError),
     startStoryboardDrafts: (...args: Parameters<CanvasInternalClient["startStoryboardDrafts"]>) =>
       client.startStoryboardDrafts(...args).catch(canvasError),
     updateNode: (...args: Parameters<CanvasInternalClient["updateNode"]>) =>

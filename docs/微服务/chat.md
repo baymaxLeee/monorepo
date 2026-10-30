@@ -92,5 +92,4 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   scripts 等文本资源，草稿树永不进入运行时。
 
 跨服务调用必须经过 `@backend/transport-ts`；provider 配置归 admin，虚拟文件存储
-归 knowledge，长任务执行归 executor。架构决策见 ADR-0011、ADR-0012、ADR-0013、
-ADR-0015、ADR-0055。
+归 knowledge，长任务执行归 executor。当前决策见 [Agent runtime](../ADR/agent-runtime.md)、[文件与 Asset](../ADR/files-and-assets.md) 与 [耐久执行](../ADR/durable-execution.md)。

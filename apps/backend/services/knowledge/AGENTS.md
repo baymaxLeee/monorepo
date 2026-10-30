@@ -3,9 +3,9 @@
 User-owned document knowledge base: parsing, MarkItDown conversion, virtual
 agent workspaces, and RAG retrieval. Chat consumes documents and retrieval
 via internal HTTP; a future knowledge MFE manages lifecycle independently of
-conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
+conversations. See [file and Asset ownership](../../../../docs/ADR/files-and-assets.md).
 
-## Runtime / storage (ADR-0019)
+## Runtime / storage (docs/ADR/files-and-assets.md)
 - Runs on **Postgres + pgvector**, on the shared instance
   (docker-compose `postgres`, image `pgvector/pgvector:pg16`): the
   `knowledge` database sits alongside executor's `workflow` database.
@@ -52,7 +52,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
   transactional outbox. User-uploaded `source` documents remain independently
   owned Knowledge content.
 - Both **convert and indexing are async and decoupled from ingest progress**
-  (ADR-0019 v1.6.0 + v1.7.0). Durable intent is the document row's
+  Durable intent is the document row's
   `received`/`pending` state. A bounded dispatcher submits the idempotent
   `knowledge-document-process` task to Executor Workflow, which calls back into
   Knowledge for convert then index. Knowledge retains all document state and DB
@@ -65,7 +65,7 @@ conversations. See [ADR-0019](../../../../docs/ADR/0019-rag-knowledge-base.md).
 - Embedding model and the `vector(N)` column dimension must agree; changing the
   model requires altering the column + re-indexing.
 - Errors via `kernel.errors.*`, NEVER raw HTTPException.
-- Transactions (ADR-0037): persistence repositories only read/stage and never commit; the
+- Transactions (docs/ADR/architecture.md): persistence repositories only read/stage and never commit; the
   router/service owning a write opens `async with write_tx(session):`
   (autobegin-first) around its reads + writes. Asset-service IO stays outside the block;
   ownership changes use the durable asset-claim intent relay. `index_document` is DB-free (snapshot -> chunks); the

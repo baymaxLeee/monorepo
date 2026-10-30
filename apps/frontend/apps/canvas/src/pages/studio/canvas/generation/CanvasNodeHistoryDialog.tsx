@@ -1,5 +1,4 @@
 import { toast } from "@repo/design-system";
-import { useSetAtom } from "jotai";
 import { useState } from "react";
 
 import { canvasnode } from "@/domain";
@@ -8,7 +7,6 @@ import t from "@/utils/i18n";
 
 import { GenerationHistoryDialog } from "../../components/GenerationHistoryDialog";
 import type { GenerationHistoryItem } from "../../domain/types";
-import { clearCanvasGenerationFailureAtom, patchCanvasNodeAtom } from "../../store/index";
 
 export function CanvasNodeHistoryDialog({
   canvasId,
@@ -24,8 +22,7 @@ export function CanvasNodeHistoryDialog({
   shotIndex: number;
 }) {
   const [historySelecting, setHistorySelecting] = useState(false);
-  const patchCanvasNode = useSetAtom(patchCanvasNodeAtom);
-  const clearCanvasGenerationFailure = useSetAtom(clearCanvasGenerationFailureAtom);
+
   const historyItem =
     item?.Type === canvasnode.CanvasNodeType.IMAGE_GENERATION ||
     item?.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION ||
@@ -50,27 +47,7 @@ export function CanvasNodeHistoryDialog({
           },
           { skipErrorNotify: true },
         )
-          .then((response) => {
-            patchCanvasNode({
-              nodeId: historyItem.NodeID,
-              patch: {
-                Status: canvasnode.CanvasNodeStatus.READY,
-                SelectedOutputText: response.History.OutputText,
-                CurrentAssetID: response.History.OutputAssetID,
-                ResourceID: undefined,
-                ResourceAssetID: undefined,
-                ResourceAssetIsPrimary: undefined,
-                ResourceAssetRevision: undefined,
-                SelectedOutputID: response.History.HistoryID,
-                SelectedAssetID: response.History.OutputAssetID,
-                SelectedOutputURL: response.History.OutputURL ?? response.History.VideoURL,
-                SelectedOutputDurationSeconds: response.History.DurationSeconds,
-                FirstFrameAssetID: response.History.FirstFrameAssetID,
-                LastFrameAssetID: response.History.LastFrameAssetID,
-                FirstFrameURL: response.History.FirstFrameURL,
-              },
-            });
-            clearCanvasGenerationFailure(historyItem.NodeID);
+          .then(() => {
             onClose();
             toast.add({
               type: "success",

@@ -207,7 +207,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domaincanvas.C
 		return domaincanvas.Canvas{}, classifyRepositoryError(err)
 	}
 	s.refreshProjectStatistics(ctx, input.Scope, input.ProjectID, applicationprojectstatistics.CanvasCountField)
-	created = s.enrichedCoverImage(ctx, created)
+	created = s.EnrichCoverImage(ctx, created)
 	return created, nil
 }
 
@@ -219,7 +219,7 @@ func (s *Service) Get(ctx context.Context, input GetInput) (domaincanvas.Canvas,
 	if err != nil {
 		return domaincanvas.Canvas{}, classifyRepositoryError(err)
 	}
-	item = s.enrichedCoverImage(ctx, item)
+	item = s.EnrichCoverImage(ctx, item)
 	return item, nil
 }
 
@@ -377,7 +377,7 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domaincanvas.C
 		)
 		return domaincanvas.Canvas{}, classifyRepositoryError(err)
 	}
-	current = s.enrichedCoverImage(ctx, current)
+	current = s.EnrichCoverImage(ctx, current)
 	return current, nil
 }
 
@@ -402,7 +402,7 @@ func (s *Service) enrichCoverImages(ctx context.Context, canvases []domaincanvas
 	}
 }
 
-func (s *Service) enrichedCoverImage(ctx context.Context, canvas domaincanvas.Canvas) domaincanvas.Canvas {
+func (s *Service) EnrichCoverImage(ctx context.Context, canvas domaincanvas.Canvas) domaincanvas.Canvas {
 	canvases := []domaincanvas.Canvas{canvas}
 	s.enrichCoverImages(ctx, canvases)
 	return canvases[0]

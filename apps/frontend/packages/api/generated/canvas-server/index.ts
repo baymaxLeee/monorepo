@@ -161,6 +161,76 @@ export interface CanvasBatchGetAssetReviewsResponse {
   items: CanvasAssetReviews[];
 }
 
+export type CanvasResourceAssetGenerationRunStatus = typeof CanvasResourceAssetGenerationRunStatus[keyof typeof CanvasResourceAssetGenerationRunStatus];
+
+
+export const CanvasResourceAssetGenerationRunStatus = {
+  QUEUED: 1,
+  RUNNING: 2,
+  SUCCEEDED: 3,
+  FAILED: 4,
+  CANCELLED: 5,
+} as const;
+
+export interface CanvasResourceAssetGenerationState {
+  error_code?: string;
+  error_message?: string;
+  resource_asset_id: string;
+  status: CanvasResourceAssetGenerationRunStatus;
+  task_run_id: string;
+}
+
+export interface CanvasBatchGetResourceAssetGenerationStatesResponse {
+  items: CanvasResourceAssetGenerationState[];
+}
+
+export type CanvasResourceAssetSourceType = typeof CanvasResourceAssetSourceType[keyof typeof CanvasResourceAssetSourceType];
+
+
+export const CanvasResourceAssetSourceType = {
+  UPLOAD: 1,
+  GENERATED: 2,
+} as const;
+
+export interface CanvasResourceAsset {
+  created_at: string;
+  current_asset_id?: string;
+  expires_at?: string;
+  generation_state?: CanvasResourceAssetGenerationState;
+  is_primary: boolean;
+  media_type: CanvasAssetMediaType;
+  name: string;
+  preview_url?: string;
+  resource_asset_id: string;
+  resource_id: string;
+  reviews?: CanvasAssetReview[];
+  revision: number;
+  sequence_no: number;
+  source_type: CanvasResourceAssetSourceType;
+  updated_at: string;
+}
+
+export interface CanvasResourceAssetGroup {
+  items: CanvasResourceAsset[];
+  resource_id: string;
+}
+
+export interface CanvasBatchListResourceAssetsResponse {
+  groups: CanvasResourceAssetGroup[];
+}
+
+export interface CanvasSubmitAssetReviewResult {
+  asset_id?: string;
+  error_code?: string;
+  error_message?: string;
+  package_id: string;
+  review?: CanvasAssetReview;
+}
+
+export interface CanvasBatchSubmitAssetReviewsResponse {
+  items: CanvasSubmitAssetReviewResult[];
+}
+
 export type CanvasNodeTaskType = typeof CanvasNodeTaskType[keyof typeof CanvasNodeTaskType];
 
 
@@ -398,123 +468,6 @@ export interface CanvasNode {
   updated_at: string;
   updated_by: string;
   video_input_mode?: CanvasVideoInputMode;
-}
-
-/**
- * CanvasGenerationStatus 是画布生成操作的即时状态。
- */
-export type CanvasGenerationStatus = typeof CanvasGenerationStatus[keyof typeof CanvasGenerationStatus];
-
-
-export const CanvasGenerationStatus = {
-  QUEUED: 1,
-  RUNNING: 2,
-  SUCCEEDED: 3,
-  FAILED: 4,
-  CANCELLED: 5,
-} as const;
-
-/**
- * CanvasNodeVideoProviderStatus 是视频 provider 的独立执行状态。
- */
-export type CanvasNodeVideoProviderStatus = typeof CanvasNodeVideoProviderStatus[keyof typeof CanvasNodeVideoProviderStatus];
-
-
-export const CanvasNodeVideoProviderStatus = {
-  PENDING: 1,
-  QUEUED: 2,
-  RUNNING: 3,
-  SUCCEEDED: 4,
-  FAILED: 5,
-  CANCELLED: 6,
-  UNKNOWN: 7,
-} as const;
-
-export interface CanvasNodeState {
-  error_code?: string;
-  error_message?: string;
-  node: CanvasNode;
-  node_id: string;
-  related_nodes: CanvasNode[];
-  seedance_task_id?: string;
-  status: CanvasGenerationStatus;
-  task_run_id: string;
-  task_type: CanvasNodeTaskType;
-  video_provider_status?: CanvasNodeVideoProviderStatus;
-}
-
-export interface CanvasBatchGetCanvasNodeStatesResponse {
-  items: CanvasNodeState[];
-}
-
-export type CanvasResourceAssetGenerationRunStatus = typeof CanvasResourceAssetGenerationRunStatus[keyof typeof CanvasResourceAssetGenerationRunStatus];
-
-
-export const CanvasResourceAssetGenerationRunStatus = {
-  QUEUED: 1,
-  RUNNING: 2,
-  SUCCEEDED: 3,
-  FAILED: 4,
-  CANCELLED: 5,
-} as const;
-
-export interface CanvasResourceAssetGenerationState {
-  error_code?: string;
-  error_message?: string;
-  resource_asset_id: string;
-  status: CanvasResourceAssetGenerationRunStatus;
-  task_run_id: string;
-}
-
-export interface CanvasBatchGetResourceAssetGenerationStatesResponse {
-  items: CanvasResourceAssetGenerationState[];
-}
-
-export type CanvasResourceAssetSourceType = typeof CanvasResourceAssetSourceType[keyof typeof CanvasResourceAssetSourceType];
-
-
-export const CanvasResourceAssetSourceType = {
-  UPLOAD: 1,
-  GENERATED: 2,
-} as const;
-
-export interface CanvasResourceAsset {
-  created_at: string;
-  current_asset_id?: string;
-  expires_at?: string;
-  generation_state?: CanvasResourceAssetGenerationState;
-  is_primary: boolean;
-  media_type: CanvasAssetMediaType;
-  name: string;
-  preview_url?: string;
-  resource_asset_id: string;
-  resource_id: string;
-  reviews?: CanvasAssetReview[];
-  revision: number;
-  sequence_no: number;
-  source_type: CanvasResourceAssetSourceType;
-  updated_at: string;
-}
-
-export interface CanvasResourceAssetGroup {
-  items: CanvasResourceAsset[];
-  resource_id: string;
-}
-
-export interface CanvasBatchListResourceAssetsResponse {
-  groups: CanvasResourceAssetGroup[];
-}
-
-export interface CanvasSubmitAssetReviewResult {
-  asset_id?: string;
-  error_code?: string;
-  error_message?: string;
-  package_id: string;
-  review?: CanvasAssetReview;
-}
-
-export interface CanvasBatchSubmitAssetReviewsResponse {
-  items: CanvasSubmitAssetReviewResult[];
 }
 
 export interface CanvasBatchUpdateCanvasNodePositionsResponse {
@@ -831,29 +784,19 @@ export interface CanvasFunctionCallPromptConfig {
   enable_inline_chat_histories?: boolean;
 }
 
-export interface CanvasGetCanvasGraphResponse {
-  nodes: CanvasNode[];
-}
+/**
+ * CanvasGenerationStatus 是画布生成操作的即时状态。
+ */
+export type CanvasGenerationStatus = typeof CanvasGenerationStatus[keyof typeof CanvasGenerationStatus];
 
-export interface CanvasMemberProjectDetail {
-  cover_image_asset_id?: string;
-  cover_image_revision_id?: string;
-  cover_image_url?: string;
-  created_at: string;
-  created_by: string;
-  name: string;
-  project_id: string;
-  stats: CanvasProjectStats;
-  updated_at: string;
-}
 
-export interface CanvasGetProjectByMemberResponse {
-  project: CanvasMemberProjectDetail;
-}
-
-export interface CanvasGetProjectCanvasResponse {
-  canvas: CanvasProjectCanvasSummary;
-}
+export const CanvasGenerationStatus = {
+  QUEUED: 1,
+  RUNNING: 2,
+  SUCCEEDED: 3,
+  FAILED: 4,
+  CANCELLED: 5,
+} as const;
 
 /**
  * CanvasVideoArchiveExportStatus 是剧集视频压缩包导出的生命周期状态。
@@ -884,6 +827,71 @@ export interface CanvasProjectCanvasVideoArchiveExport {
   started_at?: string;
   status: CanvasVideoArchiveExportStatus;
   task_run_id: string;
+}
+
+/**
+ * CanvasNodeVideoProviderStatus 是视频 provider 的独立执行状态。
+ */
+export type CanvasNodeVideoProviderStatus = typeof CanvasNodeVideoProviderStatus[keyof typeof CanvasNodeVideoProviderStatus];
+
+
+export const CanvasNodeVideoProviderStatus = {
+  PENDING: 1,
+  QUEUED: 2,
+  RUNNING: 3,
+  SUCCEEDED: 4,
+  FAILED: 5,
+  CANCELLED: 6,
+  UNKNOWN: 7,
+} as const;
+
+export interface CanvasStreamTask {
+  error_code: string;
+  error_message: string;
+  node_id: string;
+  seedance_task_id: string;
+  status: CanvasGenerationStatus;
+  task_run_id: string;
+  task_type: CanvasNodeTaskType;
+  video_provider_status?: CanvasNodeVideoProviderStatus;
+}
+
+export interface CanvasTextCheckpoint {
+  content: string;
+  node_id: string;
+  offset: number;
+  status: string;
+  task_run_id: string;
+}
+
+export interface CanvasGetCanvasGraphResponse {
+  archives: CanvasProjectCanvasVideoArchiveExport[];
+  canvas: CanvasProjectCanvasSummary;
+  cursor: number;
+  nodes: CanvasNode[];
+  protected_node_ids: string[];
+  tasks: CanvasStreamTask[];
+  texts: CanvasTextCheckpoint[];
+}
+
+export interface CanvasMemberProjectDetail {
+  cover_image_asset_id?: string;
+  cover_image_revision_id?: string;
+  cover_image_url?: string;
+  created_at: string;
+  created_by: string;
+  name: string;
+  project_id: string;
+  stats: CanvasProjectStats;
+  updated_at: string;
+}
+
+export interface CanvasGetProjectByMemberResponse {
+  project: CanvasMemberProjectDetail;
+}
+
+export interface CanvasGetProjectCanvasResponse {
+  canvas: CanvasProjectCanvasSummary;
 }
 
 export interface CanvasGetProjectCanvasVideoArchiveExportResponse {
@@ -1586,34 +1594,48 @@ export interface CanvasNodePositionUpdate {
   position: CanvasNodePosition;
 }
 
-export interface CanvasNodeStateTarget {
+export interface CanvasNodeReviews {
+  asset_id: string;
   node_id: string;
-  task_run_id: string;
+  reviews: CanvasAssetReview[];
 }
 
-export interface CanvasTextGenerationCompleted {
+export interface CanvasTextDelta {
   content: string;
+  end_offset: number;
+  node_id: string;
+  start_offset: number;
   task_run_id: string;
 }
 
-export interface CanvasTextGenerationDelta {
-  delta: string;
+export interface CanvasTextStatus {
+  node_id: string;
   offset: number;
-}
-
-export interface CanvasTextGenerationSession {
-  content: string;
-  error_code?: string;
-  error_message?: string;
-  node_id: string;
-  status: CanvasGenerationStatus;
+  status: string;
   task_run_id: string;
 }
 
-export interface CanvasNodeTextGenerationResponse {
-  completed?: CanvasTextGenerationCompleted;
-  delta?: CanvasTextGenerationDelta;
-  session?: CanvasTextGenerationSession;
+export interface CanvasPatchOperation {
+  archive?: CanvasProjectCanvasVideoArchiveExport;
+  canvas?: CanvasProjectCanvasSummary;
+  key: string;
+  kind: string;
+  node?: CanvasNode;
+  node_id?: string;
+  node_reviews?: CanvasNodeReviews;
+  task?: CanvasStreamTask;
+  text_delta?: CanvasTextDelta;
+  text_status?: CanvasTextStatus;
+}
+
+export interface CanvasPatchEvent {
+  action: string;
+  base_cursor: number;
+  cursor: number;
+  occurred_at: string;
+  operations: CanvasPatchOperation[];
+  protocol_version: number;
+  request_id: string;
 }
 
 /**
@@ -1889,12 +1911,12 @@ export type CanvasConnectNodesBody = {
   target_port: CanvasPort;
 };
 
-export type CanvasUpdateNodePositionsBody = {
-  items: CanvasNodePositionUpdate[];
+export type CanvasSubscribeParams = {
+cursor?: number;
 };
 
-export type CanvasBatchGetNodeStatesBody = {
-  targets: CanvasNodeStateTarget[];
+export type CanvasUpdateNodePositionsBody = {
+  items: CanvasNodePositionUpdate[];
 };
 
 export type CanvasCreateNodeBody = {
@@ -2415,6 +2437,18 @@ const canvasConnectNodes = (
       options);
     }
 
+const canvasSubscribe = (
+    projectId: string,
+    canvasId: string,
+    params?: CanvasSubscribeParams,
+ options?: SecondParameter<typeof apiMutator<CanvasPatchEvent>>,) => {
+      return apiMutator<CanvasPatchEvent>(
+      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/events`, method: 'GET',
+        params
+    },
+      options);
+    }
+
 const canvasStartGeneration = (
     projectId: string,
     canvasId: string,
@@ -2434,19 +2468,6 @@ const canvasUpdateNodePositions = (
       {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/node-positions`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: canvasUpdateNodePositionsBody
-    },
-      options);
-    }
-
-const canvasBatchGetNodeStates = (
-    projectId: string,
-    canvasId: string,
-    canvasBatchGetNodeStatesBody: CanvasBatchGetNodeStatesBody,
- options?: SecondParameter<typeof apiMutator<CanvasBatchGetCanvasNodeStatesResponse>>,) => {
-      return apiMutator<CanvasBatchGetCanvasNodeStatesResponse>(
-      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/node-states:batchGet`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: canvasBatchGetNodeStatesBody
     },
       options);
     }
@@ -2584,17 +2605,6 @@ const canvasSelectNodeHistory = (
  options?: SecondParameter<typeof apiMutator<CanvasSelectCanvasNodeHistoryResponse>>,) => {
       return apiMutator<CanvasSelectCanvasNodeHistoryResponse>(
       {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/nodes/${nodeId}/histories/${historyId}:select`, method: 'POST'
-    },
-      options);
-    }
-
-const canvasStreamNodeTextGeneration = (
-    projectId: string,
-    canvasId: string,
-    nodeId: string,
- options?: SecondParameter<typeof apiMutator<CanvasNodeTextGenerationResponse>>,) => {
-      return apiMutator<CanvasNodeTextGenerationResponse>(
-      {url: `/api/canvas-server/projects/${projectId}/canvases/${canvasId}/nodes/${nodeId}/text-generations:stream`, method: 'POST'
     },
       options);
     }
@@ -3012,7 +3022,7 @@ const canvasPrepareUpload = (
       options);
     }
 
-return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasExecuteArchive,canvasExtractVideoFrames,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasStartGeneration,canvasUpdateNodePositions,canvasBatchGetNodeStates,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasStreamNodeTextGeneration,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats,canvasPrepareUpload}};
+return {canvasAdminListProjects,canvasAdminCreateProject,canvasAdminDeleteProject,canvasAdminGetProject,canvasAdminUpdateProject,canvasDownloadProjectUsage,canvasListAvailableBenefitPackages,canvasExecuteArchive,canvasExtractVideoFrames,canvasListProjects,canvasCreateProject,canvasDeleteProject,canvasGetProject,canvasUpdateProject,canvasBatchGetAssetReviews,canvasBatchSubmitAssetReviews,canvasListCanvases,canvasCreateCanvas,canvasDeleteCanvas,canvasGetCanvas,canvasUpdateCanvas,canvasListArchives,canvasCreateArchive,canvasGetArchive,canvasArchiveContent,canvasCancelArchive,canvasMaterializeAssetReference,canvasCreateAsset,canvasDeleteEdge,canvasConnectNodes,canvasSubscribe,canvasStartGeneration,canvasUpdateNodePositions,canvasGetGraph,canvasCreateNode,canvasDeleteNode,canvasUpdateNode,canvasStartNodeAssetMatch,canvasCancelNodeAssetMatch,canvasSearchNodeAssets,canvasStartNodeGeneration,canvasCancelNodeGeneration,canvasListNodeHistories,canvasSelectNodeHistory,canvasCopyNode,canvasBatchDeleteNodes,canvasMaterializeResourceReference,canvasStartStoryboardDrafts,canvasCancelStoryboardDrafts,canvasConfirmStoryboardDrafts,canvasReorderStoryboard,canvasUpdateCanvasView,canvasListProjectModels,canvasBatchListResourceAssets,canvasListResources,canvasCreateResource,canvasDeleteResource,canvasGetResource,canvasUpdateResource,canvasListResourceAssets,canvasCreateResourceAsset,canvasDeleteResourceAsset,canvasUpdateResourceAsset,canvasGetResourceGeneration,canvasUpdateResourceGeneration,canvasStartResourceGeneration,canvasGetResourceGenerationRun,canvasCancelResourceGeneration,canvasSetPrimaryResourceAsset,canvasReplaceResourceAsset,canvasBatchDeleteResourceAssets,canvasCreateGeneratedResourceAsset,canvasBatchGetResourceGenerationStates,canvasBatchDeleteResources,canvasCreateResourceFromAsset,canvasGetProjectResourceStats,canvasPrepareUpload}};
 export type CanvasAdminListProjectsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminListProjects']>>>
 export type CanvasAdminCreateProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminCreateProject']>>>
 export type CanvasAdminDeleteProjectResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasAdminDeleteProject']>>>
@@ -3043,9 +3053,9 @@ export type CanvasMaterializeAssetReferenceResult = NonNullable<Awaited<ReturnTy
 export type CanvasCreateAssetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateAsset']>>>
 export type CanvasDeleteEdgeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteEdge']>>>
 export type CanvasConnectNodesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasConnectNodes']>>>
+export type CanvasSubscribeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasSubscribe']>>>
 export type CanvasStartGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStartGeneration']>>>
 export type CanvasUpdateNodePositionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasUpdateNodePositions']>>>
-export type CanvasBatchGetNodeStatesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchGetNodeStates']>>>
 export type CanvasGetGraphResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasGetGraph']>>>
 export type CanvasCreateNodeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCreateNode']>>>
 export type CanvasDeleteNodeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasDeleteNode']>>>
@@ -3057,7 +3067,6 @@ export type CanvasStartNodeGenerationResult = NonNullable<Awaited<ReturnType<Ret
 export type CanvasCancelNodeGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCancelNodeGeneration']>>>
 export type CanvasListNodeHistoriesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasListNodeHistories']>>>
 export type CanvasSelectNodeHistoryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasSelectNodeHistory']>>>
-export type CanvasStreamNodeTextGenerationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasStreamNodeTextGeneration']>>>
 export type CanvasCopyNodeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasCopyNode']>>>
 export type CanvasBatchDeleteNodesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasBatchDeleteNodes']>>>
 export type CanvasMaterializeResourceReferenceResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getCanvasService>['canvasMaterializeResourceReference']>>>

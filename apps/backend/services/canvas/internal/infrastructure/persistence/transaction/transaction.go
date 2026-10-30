@@ -18,7 +18,28 @@ func New(db *gorm.DB) *Manager {
 
 func (m *Manager) WithinTransaction(ctx context.Context, run func(context.Context) error) error {
 	return DB(ctx, m.db).Transaction(func(tx *gorm.DB) error {
-		return run(context.WithValue(ctx, contextKey{}, tx))
+		txCtx := context.WithValue(ctx, contextKey{}, tx)
+		parent, nested := ctx.Value(hooksKey{}).(*hooks)
+		h := &hooks{callbacks: map[string]func(context.Context) error{}}
+		txCtx = context.WithValue(txCtx, hooksKey{}, h)
+		if err := run(txCtx); err != nil {
+			return err
+		}
+		if nested {
+			for _, key := range h.order {
+				if _, exists := parent.callbacks[key]; !exists {
+					parent.order = append(parent.order, key)
+				}
+				parent.callbacks[key] = h.callbacks[key]
+			}
+			return nil
+		}
+		for _, key := range h.order {
+			if err := h.callbacks[key](txCtx); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

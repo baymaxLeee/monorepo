@@ -1,12 +1,12 @@
 import { toast } from "@repo/design-system";
 import { type Edge, type ReactFlowInstance } from "@xyflow/react";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
 import { BatchUpdateCanvasNodePositions } from "@/pages/studio/domain/persistence";
 import t from "@/utils/i18n";
 
-import { canvasLayoutRequestAtom, upsertCanvasNodesAtom, useStudioMutationCoordinator } from "../../store";
+import { canvasLayoutRequestAtom, useStudioMutationCoordinator } from "../../store";
 import type { CanvasFlowNode } from "./canvasNodeTypes";
 import { connectedNodeIDs, hasCanvasLayoutSeedNodes, hasMeasuredCanvasNodes, layoutCanvasNodes } from "./layout";
 import { canvasNodePositionUpdates } from "./nodePositionPersistence";
@@ -35,7 +35,7 @@ export function useCanvasLayout({
   onRefreshGraph: () => Promise<void>;
 }) {
   const enqueueCanvasMutation = useStudioMutationCoordinator().enqueue;
-  const upsertCanvasNodes = useSetAtom(upsertCanvasNodesAtom);
+
   const layoutRequest = useAtomValue(canvasLayoutRequestAtom);
   const loadedLayoutRequestRef = useRef(0);
   const handledLayoutRequestRef = useRef(0);
@@ -58,7 +58,7 @@ export function useCanvasLayout({
         }),
       );
       try {
-        const response = await enqueueCanvasMutation(async () => {
+        await enqueueCanvasMutation(async () => {
           const updated = await BatchUpdateCanvasNodePositions(
             {
               ProjectID: projectId,
@@ -77,15 +77,6 @@ export function useCanvasLayout({
           );
           return updated;
         });
-        const updatedByID = new Map(response.Items.map((item) => [item.NodeID, item]));
-        upsertCanvasNodes(response.Items);
-        setNodes((current) =>
-          current.map((node) => {
-            const item = updatedByID.get(node.id);
-            const position = positions.get(node.id);
-            return item && position ? { ...node, position, data: { ...node.data, item } } : node;
-          }),
-        );
         window.requestAnimationFrame(() => {
           void instance?.fitView({
             duration: 300,
@@ -99,7 +90,7 @@ export function useCanvasLayout({
         return false;
       }
     },
-    [canvasId, enqueueCanvasMutation, instance, onRefreshGraph, projectId, setNodes, upsertCanvasNodes],
+    [canvasId, enqueueCanvasMutation, instance, onRefreshGraph, projectId, setNodes],
   );
 
   useEffect(() => {
@@ -141,7 +132,7 @@ export function useCanvasLayout({
     async (_: unknown, node: CanvasFlowNode, draggedNodes: CanvasFlowNode[]) => {
       const positionUpdates = canvasNodePositionUpdates(node, draggedNodes);
       try {
-        const response = await enqueueCanvasMutation(async () => {
+        await enqueueCanvasMutation(async () => {
           const updated = await BatchUpdateCanvasNodePositions(
             {
               ProjectID: projectId,
@@ -152,19 +143,6 @@ export function useCanvasLayout({
           );
           return updated;
         });
-        const updatedByID = new Map(response.Items.map((item) => [item.NodeID, item]));
-        setNodes((current) =>
-          current.map((currentNode) => {
-            const item = updatedByID.get(currentNode.id);
-            return item
-              ? {
-                  ...currentNode,
-                  data: { ...currentNode.data, item },
-                }
-              : currentNode;
-          }),
-        );
-        upsertCanvasNodes(response.Items);
       } catch {
         toast.add({
           type: "error",
@@ -173,7 +151,7 @@ export function useCanvasLayout({
         void onRefreshGraph();
       }
     },
-    [canvasId, enqueueCanvasMutation, onRefreshGraph, projectId, setNodes, upsertCanvasNodes],
+    [canvasId, enqueueCanvasMutation, onRefreshGraph, projectId, setNodes],
   );
 
   return { arrangeNodes, persistPosition };

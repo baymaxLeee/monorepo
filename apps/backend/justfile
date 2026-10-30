@@ -167,5 +167,5 @@ gen-proto:
     @echo "✓ proto codegen done"
 
 # ─── db ─────────────────────────────────────────────────
-migrate-up service:
-    @../../scripts/db-migrate.sh services/{{ service }}
+migrate-up service target="":
+    @bash ../../scripts/db-migrate.sh "services/{{ service }}" "{{ target }}"

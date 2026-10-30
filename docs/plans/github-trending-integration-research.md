@@ -5,7 +5,7 @@
 > 输出"哪些已正确引入、哪些应深化、哪些真缺、哪些不做"的差距分析，并给出按 P0/P1/P2 排序、
 > 带验收信号的候选清单、Admin Ops 总览页信息架构，以及 P0 主线的实施拆分。
 >
-> 约束来源：`.cursor/skills/plan/SKILL.md` 五条硬约束 + 根 `AGENTS.md`（demo 阶段禁测、单 agent 优先、
+> 约束来源：`.agents/skills/plan/SKILL.md` 五条硬约束 + 根 `AGENTS.md`（demo 阶段禁测、单 agent 优先、
 > AI-Native、future-first、libs kernel-only、跨栈只经 `schemas/`）。具体 star/版本以官方仓库为准。
 
 ## 一、筛选标准

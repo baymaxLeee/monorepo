@@ -1,5 +1,4 @@
 export {
-  canvasBatchGetNodeStates,
   canvasCancelNodeGeneration,
   canvasListNodeHistories,
   canvasSelectNodeHistory,

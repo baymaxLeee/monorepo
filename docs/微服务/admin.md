@@ -15,7 +15,7 @@
 - 内部 HTTP API（gateway **不**代理；仅集群内 sibling 服务可调）：
   - `GET /internal/providers/default?user_id=<uid>` —— 取用户默认 provider 快照
   - `GET /internal/providers/{id}?user_id=<uid>` —— 取指定 provider 快照
-  - `GET /internal/skills/{id}?org_id=<org>` —— 读取已发布 `SKILL.md`
+  - `/internal/skills/*` —— 作用域鉴权后读取已发布 Skill 与其文件
   - 鉴权：`X-Caller-Service` + 对应的 `X-Internal-Token`（constant-time 校验）
 
 ## 域所有权

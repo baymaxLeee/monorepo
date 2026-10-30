@@ -163,19 +163,22 @@ IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 
 Output ends with the URL to open in a browser.
 
-The current database contract is reinstall-only. When a release changes a
-service's `v1.0.0` baseline, perform a destructive deployment instead of an
-in-place schema or data migration:
+Database upgrades preserve existing data: `db-init` verifies applied SQL checksums
+and runs pending versions before services start. Do not set `RESET_DATA=true` for
+a schema upgrade. That option is an explicitly destructive whole-stack reinstall.
+
+For an application rollback verified to accept the current schema, keep the
+migration image pinned to the release that owns that schema:
 
 ```bash
-RESET_DATA=true IMAGE_REGISTRY=ghcr.io/<owner>/<repo> \
-  ./infra/single-vps/deploy.sh root@<vps-ip>
+IMAGE_TAG=<compatible-previous-app-sha> DB_INIT_IMAGE_TAG=<current-schema-sha> \
+IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 ```
 
-This removes every Compose data volume, recreates all service schemas, and then
-runs `iam-bootstrap`. The super-admin account/password come from
-`secrets.sops.env`, so the freshly installed VPS is immediately login-capable;
-no old account row is copied.
+`DB_INIT_IMAGE_TAG` defaults to `IMAGE_TAG` on ordinary deployments. It separates
+business schema setup only; Workflow World version requirements remain independent.
+Upgrade verification, backups, recovery and data backfills follow the
+[database migration specification](../../docs/开发规范/database-migrations.md).
 
 ---
 

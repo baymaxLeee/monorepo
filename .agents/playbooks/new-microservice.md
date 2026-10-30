@@ -1,8 +1,8 @@
 # Playbook: New microservice
 
 Use this checklist for `apps/backend/services/<name>/`. Reference an existing
-service with the same runtime. `services.yaml` and ADR-0060 define composition;
-ADR-0061 defines when backend code may be shared.
+service with the same runtime. `services.yaml` and docs/ADR/architecture.md define composition;
+docs/ADR/architecture.md defines when backend code may be shared.
 
 ## 1. Decide the boundary first
 
@@ -65,7 +65,7 @@ directories, runtime groups, ports, routes, bindings, K8s, and Single-VPS agree.
 - Put cross-service Proto and event contracts under `schemas/`.
 - Never import another service's source or database.
 - Add or reuse a transport client based on generated contracts. A new shared
-  implementation requires the ADR-0061 consumer matrix.
+  implementation requires the docs/ADR/architecture.md consumer matrix.
 - Internal-only does not mean unauthenticated or omitted from deployment.
 
 For Node services, lint/typecheck scripts must invoke the repository tools:

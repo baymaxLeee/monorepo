@@ -1,4 +1,4 @@
-# Canonical backend service graph — see docs/ADR/0060-service-composition-and-bindings.md
+# Canonical backend service graph — see docs/ADR/architecture.md
 # Validation only: scripts/check-services.py (no generators).
 
 services:

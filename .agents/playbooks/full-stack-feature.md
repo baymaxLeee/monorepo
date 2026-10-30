@@ -17,7 +17,8 @@ window**. Do NOT split into separate frontend/backend sub-agents.
        (paths, request/response, error codes). Ask only for unresolved product
        decisions. Follow change-verification.md for relevant change triggers.
 
-[ ] 2. (If non-trivial) draft ADR at docs/ADR/NNNN-<slug>.md
+[ ] 2. Update the relevant current decision topic in docs/ADR/ and its owning
+       business specification when the architecture changes; no numbered successor
 
 [ ] 3. BACKEND
        cd apps/backend/services/<svc>

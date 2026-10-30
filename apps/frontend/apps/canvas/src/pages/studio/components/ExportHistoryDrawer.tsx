@@ -1,7 +1,6 @@
 import {
-  canvasListArchives,
-  fetchCanvasArchiveContent,
   CanvasVideoArchiveExportStatus,
+  fetchCanvasArchiveContent,
   type CanvasProjectCanvasVideoArchiveExport,
 } from "@repo/api";
 import {
@@ -13,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@repo/design-system";
+import { useAtomValue } from "jotai";
 import {
   History as IconAgentHistory,
   Download as IconDownloadFine,
@@ -25,6 +25,8 @@ import { ActionButton } from "@/components/ActionButton";
 import { FileList, type FileListPage } from "@/components/FileList/FileList";
 import { saveBlob } from "@/utils/download";
 import t from "@/utils/i18n";
+
+import { canvasArchivesAtom } from "../store";
 
 const PAGE_SIZE = 10;
 
@@ -90,7 +92,8 @@ function ExportStatusAction({ item, canvasId, projectId }: { item: ExportItem; c
     );
   }
 
-  const expired = !item.path;
+  const expired =
+    !item.path || !item.retention_guaranteed_until || Date.now() >= Date.parse(item.retention_guaranteed_until);
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="inline-flex max-w-full" />}>
@@ -128,17 +131,11 @@ export function ExportHistoryDrawer({
   projectId: string;
   visible: boolean;
 }) {
-  const loadPage = async (pageNum: number, pageSize: number): Promise<FileListPage<ExportItem>> => {
-    const result = await canvasListArchives(projectId, canvasId, {
-      page_num: pageNum,
-      page_size: pageSize,
-      sort_direction: "desc",
-    });
-    return {
-      hasMore: pageNum < result.page.total_page,
-      items: result.items,
-    };
-  };
+  const archives = useAtomValue(canvasArchivesAtom);
+  const loadPage = async (pageNum: number, pageSize: number): Promise<FileListPage<ExportItem>> => ({
+    hasMore: pageNum * pageSize < archives.length,
+    items: archives.slice((pageNum - 1) * pageSize, pageNum * pageSize),
+  });
 
   return (
     <Sheet open={visible} onOpenChange={(open) => !open && onClose()}>
@@ -166,7 +163,7 @@ export function ExportHistoryDrawer({
             renderIcon={() => <IconZip className="text-[28px] text-primary" />}
             renderTitle={(item) => formatDateTime(item.created_at)}
             retryText={t("重新加载")}
-            sourceKey={`${projectId}:${canvasId}:${visible}`}
+            sourceKey={`${projectId}:${canvasId}:${visible}:${JSON.stringify(archives)}`}
           />
         </div>
       </SheetContent>

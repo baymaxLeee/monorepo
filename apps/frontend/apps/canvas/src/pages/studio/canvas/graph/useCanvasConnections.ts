@@ -1,6 +1,5 @@
 import { toast } from "@repo/design-system";
 import { type Connection, type Edge, type OnBeforeDelete } from "@xyflow/react";
-import { useSetAtom } from "jotai";
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
 import { canvasnode } from "@/domain";
@@ -8,7 +7,7 @@ import { BatchDeleteCanvasNodes, ConnectCanvasNodes, DeleteCanvasEdge } from "@/
 import t from "@/utils/i18n";
 
 import { canvasRequestErrorMessage } from "../../domain/actions";
-import { removeCanvasNodeAtom, upsertCanvasNodesAtom, useStudioMutationCoordinator } from "../../store";
+import { useStudioMutationCoordinator } from "../../store";
 import type { CanvasFlowNode } from "./canvasNodeTypes";
 import type { resolveCanvasConnection } from "./connectionPolicy";
 import { canvasNodeInputWarning } from "./nodeProtocol";
@@ -23,7 +22,6 @@ export function useCanvasConnections({
   setEdges,
   resolveConnection,
   onDeleteStoryboardDraft,
-  onCanvasRevisionChange,
 }: {
   canvasId: string;
   projectId: string;
@@ -37,11 +35,9 @@ export function useCanvasConnections({
     target: canvasnode.CanvasNode,
   ) => ReturnType<typeof resolveCanvasConnection>;
   onDeleteStoryboardDraft: (nodeId: string) => Promise<boolean>;
-  onCanvasRevisionChange: (revision: number) => void;
 }) {
   const enqueueCanvasMutation = useStudioMutationCoordinator().enqueue;
-  const upsertCanvasNodes = useSetAtom(upsertCanvasNodesAtom);
-  const removeCanvasNode = useSetAtom(removeCanvasNodeAtom);
+
   const pendingConnectionKeysRef = useRef(new Set<string>());
   const deleteNodes = useCallback(
     async (items: canvasnode.CanvasNode[]) => {
@@ -84,11 +80,11 @@ export function useCanvasConnections({
             },
             { skipErrorNotify: true },
           );
-          onCanvasRevisionChange(result.CanvasRevision);
+
           return result;
         });
         setNodes((current) => current.filter((node) => !nodeIDs.has(node.id)));
-        for (const nodeID of nodeIDs) removeCanvasNode(nodeID);
+
         setEdges((current) => current.filter((edge) => !nodeIDs.has(edge.source) && !nodeIDs.has(edge.target)));
         return true;
       } catch {
@@ -99,16 +95,7 @@ export function useCanvasConnections({
         return false;
       }
     },
-    [
-      canvasId,
-      enqueueCanvasMutation,
-      onCanvasRevisionChange,
-      onDeleteStoryboardDraft,
-      projectId,
-      removeCanvasNode,
-      setEdges,
-      setNodes,
-    ],
+    [canvasId, enqueueCanvasMutation, onDeleteStoryboardDraft, projectId, setEdges, setNodes],
   );
 
   const persistConnection = useCallback(
@@ -132,7 +119,7 @@ export function useCanvasConnections({
       const targetPort = resolution.targetPort;
       pendingConnectionKeysRef.current.add(connectionKey);
       try {
-        const result = await enqueueCanvasMutation(async () => {
+        await enqueueCanvasMutation(async () => {
           const connected = await ConnectCanvasNodes(
             {
               ProjectID: projectId,
@@ -143,10 +130,9 @@ export function useCanvasConnections({
             },
             { skipErrorNotify: true },
           );
-          onCanvasRevisionChange(connected.CanvasRevision);
+
           return connected;
         });
-        upsertCanvasNodes([result.TargetNode]);
         return true;
       } catch (error) {
         toast.add({
@@ -158,7 +144,7 @@ export function useCanvasConnections({
         pendingConnectionKeysRef.current.delete(connectionKey);
       }
     },
-    [canvasId, enqueueCanvasMutation, onCanvasRevisionChange, projectId, resolveConnection, upsertCanvasNodes],
+    [canvasId, enqueueCanvasMutation, projectId, resolveConnection],
   );
 
   const connect = useCallback(
@@ -184,7 +170,7 @@ export function useCanvasConnections({
         return false;
       }
       try {
-        const deleted = await enqueueCanvasMutation(async () => {
+        await enqueueCanvasMutation(async () => {
           const deleted = await DeleteCanvasEdge(
             {
               ProjectID: projectId,
@@ -194,10 +180,9 @@ export function useCanvasConnections({
             },
             { skipErrorNotify: true },
           );
-          onCanvasRevisionChange(deleted.CanvasRevision);
+
           return deleted;
         });
-        upsertCanvasNodes([deleted.TargetNode]);
         return true;
       } catch {
         toast.add({
@@ -207,7 +192,7 @@ export function useCanvasConnections({
         return false;
       }
     },
-    [byID, canvasId, enqueueCanvasMutation, onCanvasRevisionChange, projectId, upsertCanvasNodes],
+    [byID, canvasId, enqueueCanvasMutation, projectId],
   );
 
   const deleteSelectedElements = useCallback<OnBeforeDelete<CanvasFlowNode, Edge>>(

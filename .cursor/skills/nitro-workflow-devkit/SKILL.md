@@ -20,7 +20,7 @@ description: >-
 
 Context: `apps/backend/services/executor` is the first (and, as of writing,
 only) service using `nitro build`/`nitro dev` + `workflow` (Workflow DevKit)
-in this repo. See `docs/ADR/0015-agent-task-executor.md` and
+in this repo. See `docs/ADR/durable-execution.md` and
 `apps/backend/services/executor/AGENTS.md` for the full story. This skill is
 the condensed, actionable version for the next service that hits the same
 class of bugs.

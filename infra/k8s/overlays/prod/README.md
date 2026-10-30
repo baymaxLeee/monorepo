@@ -86,6 +86,7 @@ kubectl rollout undo deployment/iam     -n monorepo-prod
 # ... etc
 ```
 
-For schema changes, rollback also requires running the previous migration's
-DOWN script — kept simple by only making backward-compatible schema changes
-during the demo phase.
+Application rollback keeps the newer schema only after compatibility has been
+verified. Keep the migration Job image that recognizes the installed schema;
+there is no automatic DOWN executor. Use a reviewed forward repair or a verified
+restore for incompatible data changes. See [database migrations](../../../../docs/开发规范/database-migrations.md).

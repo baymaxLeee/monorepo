@@ -1,28 +1,17 @@
-# iam 微服务
+# IAM
 
-`iam` 是 Go 微服务，负责用户身份、登录态、角色和用户基础偏好。
+IAM 是 Go 身份服务，拥有账号、凭据、tenant/workspace、成员关系、角色、
+refresh token、会话与用户偏好；Gateway 负责公共请求验证，业务服务负责资源授权。
 
-## 数据所有权
+认证端点在服务根路径挂载 login/register/refresh/logout/me，经 Gateway 的
+`/api/iam-server/*` 公开。tenant/workspace、成员申请/审批、角色分配与活跃 workspace
+切换也由 IAM 提供。完整路由以
+[router](../../apps/backend/services/iam/internal/api/http/router/router.go) 为准。
 
-- `users`: 账号主表和常用个人配置字段，包括邮箱、展示名、头像、手机号、语言、时区、主题、营销订阅、邮箱验证状态、禁用状态、最近登录时间。
-- `user_credentials`: 密码哈希、密码变更时间、失败次数和锁定时间。
-- `refresh_tokens`: refresh token 哈希、过期时间、吊销时间、设备信息、IP、轮换链路。
-- `roles`: 平台角色定义。
-- `user_roles`: 用户与角色的绑定关系。
+Gateway 清除客户端伪造身份头，向下游传递已验证的 tenant、user、workspace 和
+roles；不能把 user ID 或任意业务参数作为完整授权。workspace 切换更新会话范围，
+服务访问仍需按资源 scope 检查。
 
-## API
-
-- `POST /v1/auth/register`
-- `POST /v1/auth/login`
-- `POST /v1/auth/refresh`
-- `POST /v1/auth/logout`
-- `GET /v1/auth/me`
-- `GET /v1/iam/roles`
-- `POST /v1/iam/roles`
-- `GET /v1/iam/users/{userID}/roles`
-- `POST /v1/iam/users/{userID}/roles`
-- `DELETE /v1/iam/users/{userID}/roles/{roleID}`
-
-外部访问经由 `gateway` 的 `/v1/auth/*` 与 `/v1/iam/*` 代理进入。
-业务服务不直接解析 token；gateway 校验 JWT 后只向下游注入
-`X-Auth-User-ID`。
+[身份与配置决策](../ADR/identity-and-configuration.md)说明 IAM 与 Admin 的
+分工；[IAM AGENTS](../../apps/backend/services/iam/AGENTS.md)提供实现入口。
+验证：`just test backend/iam`、`just build iam`，涉及 claims/认证时同时验证 Gateway。

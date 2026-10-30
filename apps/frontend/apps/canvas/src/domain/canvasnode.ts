@@ -1,5 +1,6 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
+import type { CanvasNodeDraftSession as CanvasNodeDraftSessionDTO } from "@repo/api";
 import {
   CanvasGenerationStatus,
   CanvasNodeAspectRatio,
@@ -15,7 +16,6 @@ import {
   CanvasPort,
   CanvasVideoInputMode,
 } from "@repo/api";
-import type { CanvasNodeDraftSession as CanvasNodeDraftSessionDTO } from "@repo/api";
 
 import type * as asset from "./asset";
 import type * as resource from "./resource";
@@ -50,19 +50,6 @@ export interface BatchDeleteCanvasNodesResponse {
   CanvasRevision: Int64;
 }
 
-export interface BatchGetCanvasNodeStatesRequest {
-  WorkspaceID?: string;
-  ProjectID: string;
-  CanvasID: string;
-  Targets: Array<CanvasNodeStateTarget>;
-}
-
-export interface BatchGetCanvasNodeStatesResponse {
-  Items: Array<CanvasNodeState>;
-  /** Canvas 适配层用于同步图级乐观锁；Canvas 原服务使用节点级 Revision。 */
-  CanvasRevision?: number;
-}
-
 export interface BatchUpdateCanvasNodePositionsRequest {
   WorkspaceID?: string;
   ProjectID: string;
@@ -90,14 +77,6 @@ export interface CancelCanvasNodeDraftsRequest {
 }
 
 export interface CancelCanvasNodeGenerationRequest {
-  WorkspaceID?: string;
-  ProjectID: string;
-  CanvasID: string;
-  NodeID: string;
-  TaskRunID: string;
-}
-
-export interface CancelCanvasNodeTextGenerationRequest {
   WorkspaceID?: string;
   ProjectID: string;
   CanvasID: string;
@@ -356,50 +335,6 @@ export interface CanvasNodePosition {
 export interface CanvasNodePositionUpdate {
   NodeID: string;
   Position: CanvasNodePosition;
-}
-
-/** Node 与 RelatedNodes 是已持久化业务数据；匹配与生成使用不同 TaskType。 */
-export interface CanvasNodeState {
-  NodeID: string;
-  TaskRunID: string;
-  Status: CanvasGenerationStatus;
-  TaskType: CanvasNodeTaskType;
-  Node: CanvasNode;
-  RelatedNodes: Array<CanvasNode>;
-  ErrorCode?: string;
-  ErrorMessage?: string;
-  SeedanceTaskID?: string;
-  VideoProviderStatus?: CanvasNodeVideoProviderStatus;
-}
-
-export interface CanvasNodeStateTarget {
-  NodeID: string;
-  TaskRunID: string;
-}
-
-export interface CanvasNodeTextGenerationResponse {
-  Session?: CanvasTextGenerationSession;
-  Delta?: CanvasTextGenerationDelta;
-  Completed?: CanvasTextGenerationCompleted;
-}
-
-export interface CanvasTextGenerationCompleted {
-  TaskRunID: string;
-  Content: string;
-}
-
-export interface CanvasTextGenerationDelta {
-  Delta: string;
-  Offset: Int64;
-}
-
-export interface CanvasTextGenerationSession {
-  TaskRunID: string;
-  NodeID: string;
-  Status: CanvasGenerationStatus;
-  Content: string;
-  ErrorCode?: string;
-  ErrorMessage?: string;
 }
 
 /** CanvasUploadedAsset 是由节点创建或素材物化直接消费的平台 Asset revision。 */
@@ -691,13 +626,6 @@ export interface StartCanvasNodeGenerationRequest {
 
 export interface StartCanvasNodeGenerationResponse {
   TaskRunID: string;
-}
-
-export interface StartCanvasNodeTextGenerationRequest {
-  WorkspaceID?: string;
-  ProjectID: string;
-  CanvasID: string;
-  NodeID: string;
 }
 
 /** StoryboardModelConfig 保存批量分镜任务使用的模型与视频生成参数。

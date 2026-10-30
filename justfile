@@ -27,6 +27,14 @@ up-observability:
 reset-demo-data:
     @./scripts/reset-demo-data.sh
 
+# Apply pending migrations without resetting data. Empty target means latest.
+migrate-up service target="":
+    @bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}"
+
+# Integration tests create and remove their own disposable PostgreSQL container.
+test-db-migrations:
+    @python3 scripts/tests/test-db-migrate.py
+
 down:
     docker compose --profile observability down
 
@@ -90,6 +98,7 @@ fmt:
     cd apps/frontend && just fmt
 
 lint:
+    @just check-repo
     @uv run --project apps/backend python scripts/check-services.py
     pnpm lint:ts
     cd apps/backend && just lint
@@ -103,8 +112,21 @@ test *args:
 test-affected base="HEAD" scope="all" *args:
     @node scripts/test-affected.mjs "$@"
 
+# List test target IDs and missing suites.
 test-list:
     @node scripts/test.mjs --list
+
+# List project IDs, paths, runtimes and dependencies; accepts --json.
+repo-map *args:
+    @node scripts/repo.mjs map "$@"
+
+# Locate owner, AGENTS chain, consumers and test commands: <path-or-target> [--json].
+context *args:
+    @node scripts/repo.mjs context "$@"
+
+# Validate declared project dependencies and documentation navigation links.
+check-repo:
+    @node scripts/repo.mjs check
 
 # Aggregate static checks, behavior tests, and generated contract consistency.
 check:

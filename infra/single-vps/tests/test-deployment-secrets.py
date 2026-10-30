@@ -50,6 +50,48 @@ class DeploymentSecretsTest(unittest.TestCase):
                     with self.assertRaises(SystemExit):
                         checker.validate_service_identities(services)
 
+    def test_rollback_can_pin_migration_image_independently(self):
+        compose = VPS / "docker-compose.prod.yml"
+        required = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*):\?", compose.read_text()))
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / "compose.env"
+            env_file.write_text("\n".join(f"{key}=test-only" for key in required))
+            env = {
+                **os.environ,
+                "IMAGE_REGISTRY": "example.invalid/test",
+                "IMAGE_TAG": "old-app",
+                "PUBLIC_PORT": "8080",
+            }
+            env.pop("DB_INIT_IMAGE_TAG", None)
+            for migration_tag in (None, "new-schema"):
+                if migration_tag:
+                    env["DB_INIT_IMAGE_TAG"] = migration_tag
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "compose",
+                        "--env-file",
+                        str(env_file),
+                        "-f",
+                        str(compose),
+                        "config",
+                        "--format",
+                        "json",
+                    ],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                services = json.loads(result.stdout)["services"]
+                self.assertEqual(
+                    services["canvas"]["image"], "example.invalid/test/canvas:old-app"
+                )
+                self.assertEqual(
+                    services["db-init"]["image"],
+                    f"example.invalid/test/db-init:{migration_tag or 'old-app'}",
+                )
+
     def test_signing_key_is_generated_once(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
@@ -63,6 +105,8 @@ class DeploymentSecretsTest(unittest.TestCase):
                 os.environ,
                 PATH=f"{path}:{os.environ['PATH']}",
                 IMAGE_REGISTRY="example.invalid/test",
+                IMAGE_TAG="old-app",
+                DB_INIT_IMAGE_TAG="new-schema",
                 PUBLIC_GATEWAY_URL="https://example.invalid",
                 SOPS_AGE_KEY_FILE=str(path / "age.key"),
             )
@@ -81,6 +125,7 @@ class DeploymentSecretsTest(unittest.TestCase):
                 )
 
             first = render()
+            self.assertIn("DB_INIT_IMAGE_TAG=new-schema", (path / ".env").read_text())
             self.assertIn("ASSET_SIGNING_KEY", first)
             self.assertGreaterEqual(len(first["ASSET_SIGNING_KEY"]), 32)
             self.assertEqual(render(), first)

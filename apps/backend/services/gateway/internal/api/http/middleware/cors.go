@@ -27,8 +27,8 @@ func CORS(allowedOrigins []string, allowLocalDev bool) func(http.Handler) http.H
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Set("Vary", "Origin")
 			}
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Trace-Id, traceparent, baggage")
-			w.Header().Set("Access-Control-Expose-Headers", "X-Trace-Id, traceparent")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Trace-Id, traceparent, baggage, Last-Event-ID")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Trace-Id, traceparent, X-Canvas-Cursor")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Max-Age", strconv.Itoa(preflightMaxAgeSeconds))
 			if r.Method == http.MethodOptions {

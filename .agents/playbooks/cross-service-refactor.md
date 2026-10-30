@@ -5,8 +5,8 @@ auth contract change, OTel propagation).
 
 ## Warning
 
-This is the **highest-risk** category of change. Default stance: ask before
-proceeding. Prefer N small per-service PRs over one mega-PR.
+Trace every affected consumer. Continue within the user's authorized scope;
+ask only for an unresolved product, scope or external-state decision.
 
 ## Steps
 
@@ -16,15 +16,15 @@ proceeding. Prefer N small per-service PRs over one mega-PR.
        - Is it a libs/ change or a contract change?
        - Are there in-flight migrations?
 
-[ ] 2. Write an ADR FIRST:
-       docs/ADR/NNNN-<slug>.md must exist before code changes
+[ ] 2. State the target contract before editing. Update the relevant current
+       decision topic in docs/ADR/ and its owning specification in place.
 
 [ ] 3. (Optional) Dispatch `explorer` sub-agent:
        "List all callers of libs.X in apps/backend/services/"
        Use compact report to plan
 
 [ ] 4. Order matters:
-       a) Build the ADR-0061 consumer matrix and decide whether code should be shared
+       a) Build the docs/ADR/architecture.md consumer matrix and decide whether code should be shared
        b) Update the shared contract or capability only when justified
        c) Update every consumer and delete the old path in the same migration; demo phase has no compatibility shims
 

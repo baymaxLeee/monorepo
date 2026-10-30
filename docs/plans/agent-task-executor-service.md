@@ -1,8 +1,8 @@
 # Agent Task 执行时服务（tool-loop + workflow 组合）
 
 > 状态：全部 Phase 已完成并验证。这是原始实施计划的完整记录（含 Phase 0 的排障过程），
-> 面向决策的精简版本见 [ADR-0015](../ADR/0015-agent-task-executor.md)；后续对本计划本身的
-> 批判性复盘见 [ADR-0016](../ADR/0016-post-implementation-review.md)。
+> 面向决策的精简版本见 [ADR-0015](../ADR/durable-execution.md)；后续对本计划本身的
+> 批判性复盘见 [ADR-0016](../ADR/engineering.md)。
 
 ## 概述
 
@@ -16,26 +16,26 @@
 - Phase 0-4 全部完成，包括两处未预见的 Nitro v3 beta 上游 bug（已修复并文档化）。
 - 端到端验证：真实 provider 跑通 `html-artifact` task（2 页文档、19697 字符、
   0 失败块）；chat → executor 的 task 状态代理路由验证通过。
-- 详见 [ADR-0015](../ADR/0015-agent-task-executor.md) 与
+- 详见 [ADR-0015](../ADR/durable-execution.md) 与
   `apps/backend/services/executor/AGENTS.md`。
 
 ## 背景与延续性
 
 这不是新方向，是兑现本仓库自己 ADR 链条里明确留白的部分：
 
-- [ADR-0011](../ADR/0011-tool-loop-agent-core.md)（当前生效）：主 agent 用
+- [ADR-0011](../ADR/agent-runtime.md)（当前生效）：主 agent 用
   `ToolLoopAgent`，明确写下 "A future background job must introduce
   Workflow/queue infrastructure at that job boundary, not wrap the core chat
   agent."
-- [ADR-0012](../ADR/0012-agent-file-tools.md)（当前生效）：`write_file` 收敛
+- [ADR-0012](../ADR/files-and-assets.md)（当前生效）：`write_file` 收敛
   成一个工具调用；consequences 明确承认 "Active process loss still cancels
   the run... remain for later product-level recovery work."
-- 早期 [ADR-0008](../ADR/0008-artifact-platform.md)/
-  [0009](../ADR/0009-large-html-artifact.md) 尝试过把**整个主循环**换成
+- 早期 [ADR-0008](../ADR/files-and-assets.md)/
+  [0009](../ADR/files-and-assets.md) 尝试过把**整个主循环**换成
   Nitro durable workflow runtime，因为 `@backend/transport-ts` 是 source-only
   workspace 包，Nitro 编译期留下无法解析的裸 import，加上 pause/cancel/
   reconnect 语义和已有的 UIMessage SSE 协议冲突，被
-  [ADR-0011](../ADR/0011-tool-loop-agent-core.md) 撤销。这次的关键区别：
+  [ADR-0011](../ADR/agent-runtime.md) 撤销。这次的关键区别：
   **只把 workflow 用在任务边界，不碰主循环**，Nitro 风险因此被限制在一个全新
   的、独立部署的服务里，且用 Phase 0 spike 提前验证。
 
@@ -189,7 +189,7 @@ Phase 1 直接用真正的 Workflow DevKit（`workflow` + `workflow/nitro`），
 
 ## Phase 4 — 文档与收尾（已完成）
 
-- 新增 [ADR-0015](../ADR/0015-agent-task-executor.md) 记录本次决策，标注它
+- 新增 [ADR-0015](../ADR/durable-execution.md) 记录本次决策，标注它
   延续/落实 ADR-0011、0012 的留白。
 - 修正了 chat `AGENTS.md` 中与实际工具名不符的描述。
 - 清理了根 `AGENTS.md`/README/`.env.example` 里已经停用但仍被提及的
@@ -207,4 +207,4 @@ Phase 1 直接用真正的 Workflow DevKit（`workflow` + `workflow/nitro`），
   见 [executor-task-progress-notifications.md](./executor-task-progress-notifications.md)。
 - 一次系统性批判性复盘发现的其余问题（部署配置缺口、重复的 SSRF 防护代码、
   `knowledge` 里的死代码、`just lint` 被新服务破坏等）已在
-  [ADR-0016](../ADR/0016-post-implementation-review.md) 中记录并修复。
+  [ADR-0016](../ADR/engineering.md) 中记录并修复。

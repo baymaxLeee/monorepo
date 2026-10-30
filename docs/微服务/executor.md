@@ -1,38 +1,39 @@
-# executor service
+# Executor
 
-TypeScript / Hono / Nitro v3 / Workflow DevKit。durable task executor —— chat的 `ToolLoopAgent`（Brain）委派任何"必须在进程崩溃/重启后仍能完成"的工作给它（Hands + Session），而不是塞进主对话循环。详见 ADR-0015。
+Executor 是 TypeScript/Hono/Nitro 服务，使用 Workflow 5 + Postgres World 执行耐久任务。
+Chat 负责交互意图与创作规划，Executor 负责任务、执行投影、重放、审批和补偿。
 
-## API
+## 入口与任务
 
-- `POST /tasks`：`{ type, owner_service, owner_ref, payload }` → 立即返回 `{ id, status: "queued" | "running", ... }`。按 `(owner_service, owner_ref)` 幂等。
-- `GET /tasks/{id}`：任务快照（status/result/error）。轮询是目前唯一的进度通道；没有 `GET /tasks/{id}/stream`——评审时发现它是提前建的、从未被任何调用方用过的占位端点，已删除，等真正需要 sub-poll-interval 进度时再补一个有明确 chunk 格式的版本。
-- `POST /tasks/{id}/cancel`：请求取消底层 workflow run。实测 `run.cancel()` 即使命中正在执行的 step，也在数秒内 resolve——不是"等当前 block 跑完"。因此没有、也不应该在 `"use step"` 函数里加自制的取消轮询。
-- `/video-productions/{id}` 与 `/video-productions/{id}/decisions`：读取耐久制片投影并提交带版本的审批。视频 Workflow 在分镜、Take 审核和正式发布前等待 Workflow Hook；Chat SSE 可正常结束，审批从 UI 直接恢复原 run。分镜修改产生新的不可变 artifact 版本并使旧审批失效；Take 审核可对单镜头显式付费重拍，并要求每个镜头选择一个成功 Take 后才允许合成。
+`POST /tasks` 按 owner identity 幂等启动，`GET /tasks/:id` 返回快照，
+`GET /tasks/:id/stream` 提供鉴权后的内部状态 SSE，cancel 路由请求取消。
+状态 stream 每次连接先返回当前快照，再用 Workflow durable stream 唤醒并重读
+业务表；Chat 重连此 stream，不用额外 polling fallback 或浏览器第二条流。
 
-## TaskType registry
+当前 task type 以
+[registry](../../apps/backend/services/executor/src/application/tasks/registry.ts)
+为准：file-task-batch、knowledge-document-process、video-generation、
+canvas-archive、canvas-video-frames。类型/schema 与 workflow 实现在同一注册点连接，
+不要从旧计划恢复已删除任务。
 
-`src/tasks/registry.ts` 把一个 `type` 字符串映射到 Zod input schema 和一个 `"use workflow"` 函数。这是未来接入 harness（Codex/Claude Code/Pi 风格外部 session）的替换点——只需要新增一种执行引擎实现，Task API 契约和调用方（chat）都不用变。
+视频制片通过 projection 和带版本的 decisions 管理审批；Workflow Hook 恢复原 run。
+创建工具在初始分镜/预算持久化后返回 production ID，后续付费生成、Take 审核、
+合成与发布在 Workflow 中继续。业务细节与取消边界见
+[耐久执行决策](../ADR/durable-execution.md)。
 
-已注册类型：
+## 运行与持久化
 
-- `file-task-batch`：接收调用方冻结的 `sharedContext` 与一组唯一 `{ id, instruction, outputPath }`，有界并发执行上下文无关的单文件 materialization，每个任务生成一个完整文件并只写调用方创建的 Knowledge change set。它不理解 HTML 页数、不生成 spec、不编译 fragment 或 artifact shell；是否委派由主 Agent 决定，成功批次由 Chat 原子发布。
-- `video-generation`：`CreativeBrief → Script → ShotPlan → 预算审批 → 单镜头付费生成 → Take 审核/局部重拍 → RenderReport → 确定性 QA → 暂存预览 → 发布审批 → Knowledge`。Ark create 始终不自动重试；每次调用先 reserve，创建后 reconcile，创建失败 release。确定性 QA 覆盖解码、时长、尺寸、音轨、黑帧和冻结帧；语义 QA 仍需人工复核时，发布审批必须填写豁免理由并记录 actor。失败或取消会幂等清理尚未发布的暂存对象。视频 Provider 必须在 Admin 配置 generated-second 单价和币种，否则无法计算审批预算，Workflow 会在任何付费生成前失败。
+业务 task 在 Executor 数据库；执行态在 Workflow World。数据库初始化先于启动，
+bootstrap 显式启动 World 并恢复未终态任务与补偿。跨服务 I/O 在 use step 中，
+orchestrator 保持可重放且不依赖 Node 模块。
 
-Executor 只注册上述两个 durable workflow。同步 HTML 校验/review 路由与 smoke workflow 已删除；`/tasks` 是统一启动、查询和取消入口，`/video-productions` 是 Video workflow 的耐久制片投影与审批接口，不是额外 TaskType。
+本地通过官方 builder 做一次 Workflow 编译后运行 Hono/tsx，不默认启用 watcher；
+修改后重启。生产用 Nitro build。开发入口挂载合并 flow 和 webhook，没有旧
+step handler。实际装配见 [dev.ts](../../apps/backend/services/executor/src/dev.ts)
+与 [bootstrap](../../apps/backend/services/executor/src/bootstrap/runtime.ts)。
 
-## 持久化边界
+`run.cancel()` 不自动撤销付费 provider job；外部任务需要持久 ID、取消观察与
+task-specific compensation。不能把 stream EOF 当业务完成或忽略清理失败。
 
-- 业务真相（谁起的任务、什么类型、完没完成）在 executor 自己的 PostgreSQL `tasks` 表——和 chat 的 `agent_runs` 是同一种"业务表 vs 执行态"划分。
-- 执行/重放真相（run、step、重试、event log）在 Workflow World：**本地和每个部署环境都使用自建 Postgres World**（`@workflow/world-postgres`，与 executor 业务库同实例、不同数据库）。`just up` 运行官方 Workflow 5 schema 初始化；旧版本地 Workflow schema 不在支持范围内。启动时 `src/bootstrap/runtime.ts` 调用 `(await getWorld()).start()` 开始队列轮询。自定义开发服务器和生产构建都只挂载 Workflow 5 合并后的 `/.well-known/workflow/v1/flow` handler。
-- single-VPS 用两个 one-shot job 阻塞 executor 启动：`db-init` 创建并迁移PostgreSQL `executor` 业务库，`workflow-db-init` 运行官方 Postgres World setup CLI。两者任何一个失败，executor 都不会接受任务。
-- `reconcilePendingTasks()` 在进程启动时重新挂载所有 `running` 状态任务的完成监听——对 Workflow 的 durable run 重新 `await` 是安全的，不会重新执行任何已完成的 step。
-
-## 已知运维事项
-
-Nitro v3（当前 beta）/ Workflow World 的运维约束详见 `apps/backend/services/executor/AGENTS.md`。Postgres World 仍需显式调用 `(await getWorld()).start()`，`nitro dev` 与内置 server 对 `.env` 的加载行为也不同。World 实现由 `WORKFLOW_TARGET_WORLD` 动态加载，`nitro.config.ts` 通过 `traceDeps` 保留 `@workflow/world-postgres`，确保生产 `.output` 包含完整运行时依赖树。生产镜像还需要把 `.output/server/node_modules` 暴露为 `/app/node_modules`，因为 Workflow 的 `createRequire` 从应用根目录解析环境变量指定的 World 包。
-
-升级 `nitro`/`workflow`/`ai` 时请重新验证这些修复是否还需要。
-
-本地 `cd apps/backend && just dev executor`（以及仓库根目录的组合式 `just dev`）不再先执行完整 `nitro build`，也不默认启动 `nitro dev` watcher。它只在启动时通过官方 `@workflow/builders` API 运行一次 `watch: false` 的 Workflow-only 编译，随后由 `tsx` + `@hono/node-server` 直接运行 TypeScript Hono 服务，并挂载生成的 `/.well-known/workflow/v1/{flow,step,webhook}` handlers。修改 Executor 源码后需手动重启；只有明确需要热更新时才使用 `pnpm dev:watch`。生产构建与启动仍为 `nitro build` 和 `.output/server/index.mjs`。
-
-跨服务调用必须经过 `@backend/transport-ts`；executor 不拥有 conversation、message、document 等领域概念，只知道 task、type 和 payload。
+开发命令：根 `just test backend/executor`、`just build executor`。
+运行约束见 [Executor AGENTS](../../apps/backend/services/executor/AGENTS.md)。

@@ -64,3 +64,8 @@ func canvasNodeNameFromSource(source string, nodeType domain.NodeType) (string, 
 	}
 	return defaultCanvasNodeName(nodeType)
 }
+
+// CanvasNodeNameFromSource derives the same name for reads and journal checkpoints.
+func CanvasNodeNameFromSource(source string, nodeType domain.NodeType) (string, error) {
+	return canvasNodeNameFromSource(source, nodeType)
+}

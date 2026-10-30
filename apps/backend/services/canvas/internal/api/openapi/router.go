@@ -558,6 +558,7 @@ func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.Pro
 			return transport.archives.CancelProjectCanvasVideoArchiveExport(ctx, input)
 		}))
 		r.Get("/archives/{taskRunId}/content", transport.archiveContentRoute())
+		r.Get("/events", transport.nodeStreamRoute("GetCanvasGraph", applicationprojectaccess.AccessRead, transport.canvasStream))
 		r.Get("/nodes", transport.nodeRoute("GetCanvasGraph", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
 			input := &contractcanvasnode.GetCanvasGraphRequest{}
 			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
@@ -645,12 +646,6 @@ func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.Pro
 			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
 			input.NodeID = chi.URLParam(request, "nodeId")
 			return transport.nodes.StartCanvasNodeGeneration(ctx, input)
-		}))
-		r.Post("/nodes/{nodeId}/text-generations:stream", transport.nodeStreamRoute("StartCanvasNodeTextGeneration", applicationprojectaccess.AccessUpdate, func(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
-			input := new(contractcanvasnode.StartCanvasNodeTextGenerationRequest)
-			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
-			input.NodeID = chi.URLParam(request, "nodeId")
-			return transport.nodes.StreamCanvasNodeTextGeneration(ctx, writer, input)
 		}))
 		r.Post("/generations", transport.nodeRoute("StartCanvasGeneration", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
 			input := new(contractcanvasnode.StartCanvasGenerationRequest)
@@ -752,14 +747,6 @@ func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.Pro
 			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
 			input.TaskRunID = chi.URLParam(request, "taskRunId")
 			return transport.nodes.CancelCanvasNodeDrafts(ctx, input)
-		}))
-		r.Post("/node-states:batchGet", transport.nodeRoute("BatchGetCanvasNodeStates", applicationprojectaccess.AccessRead, func(ctx context.Context, request *http.Request) (any, error) {
-			input := new(contractcanvasnode.BatchGetCanvasNodeStatesRequest)
-			if err := decodeContract(request, input); err != nil {
-				return nil, err
-			}
-			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)
-			return transport.nodes.BatchGetCanvasNodeStates(ctx, input)
 		}))
 	})
 	return router
@@ -949,6 +936,14 @@ func (transport *Router) nodeRoute(action string, access applicationprojectacces
 			slog.Error("canvas request failed", "action", action, "error", err)
 			writeProblem(w, err)
 			return
+		}
+		if request.Method != http.MethodGet && request.Method != http.MethodHead && chi.URLParam(request, "canvasId") != "" && action != "DeleteProjectCanvas" {
+			cursor, receiptErr := transport.nodes.CanvasCursor(ctx, &workspaceID, chi.URLParam(request, "projectId"), chi.URLParam(request, "canvasId"))
+			if receiptErr != nil {
+				writeProblem(w, receiptErr)
+				return
+			}
+			w.Header().Set("X-Canvas-Cursor", strconv.FormatInt(cursor, 10))
 		}
 		writeJSON(w, http.StatusOK, toSnakeJSON(value))
 	}

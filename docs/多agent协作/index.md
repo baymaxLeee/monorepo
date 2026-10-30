@@ -1,43 +1,16 @@
-# 多 Agent 协作
+# AI 开发协作
 
-## 核心理念
+一个主 agent 对同一需求端到端负责，通过切换目录保持前后端上下文。
+机械工作、只读探索与独立评审可使用边界明确的 helper；不把一个功能拆成
+互相独立的前后端产品决策。
 
-**单一 fullstack agent + 单一 context window** 是开发一个需求的最优形态。
+- 规则入口：[根 AGENTS](../../AGENTS.md)。
+- 定位 owner、规则与消费者：`just context <path-or-target>`。
+- 图与项目列表：`just repo-map --json`。
+- 实施路线：[agent workspace](../../.agents/README.md)。
+- 影响预览：`just test-affected HEAD all --list`。
+- 当前架构：[决策索引](../ADR/README.md)。
 
-跨栈切换通过 `cd`,而不是切换 agent 身份 —— 因为 sub-agent 拥有独立的 context
-window,跨栈派工反而会丢失你刚刚建立的设计上下文。
-
-## Sub-agent 的合法用途
-
-只有三类:
-
-1. **苦力活**(无需上下文): codegen、批量重命名
-2. **干净视角评审**: reviewer 不应看到主 agent 的设计动机
-3. **只读探索**: 深挖代码并返回浓缩报告,避免污染主 context
-
-详见 `.agents/subagents/` 目录。
-
-## Playbook(给主 agent 的工序卡)
-
-| 场景 | Playbook |
-|---|---|
-| 跨栈一个需求 | `.agents/playbooks/full-stack-feature.md` |
-| 新建微服务 | `.agents/playbooks/new-microservice.md` |
-| 新建 MFE | `.agents/playbooks/new-mfe.md` |
-| 跨服务重构 | `.agents/playbooks/cross-service-refactor.md` |
-
-## Worktree 的使用边界
-
-**默认不用**。仅当 ≥ 2 个 agent **进程** 同时运行时才需要。in-context
-sub-agent dispatch 是顺序执行,不会撕裂 git 状态。
-
-详见 `scripts/worktree.sh` 注释。
-
-## Scope 护栏
-
-`.agents/scopes/default.yaml` 给主 agent 列了三档:
-- `forbidden`: 绝对不动
-- `caution`: 改之前先问
-- `free`: 自由发挥
-
-这不是为了"派工",而是主 agent 自我约束的备忘录。
+长任务只维护一份当前计划，替换失效状态；进展日志不变成永久规则。
+Worktree 用于真正并发写入的隔离，不是“用了 helper 就必须建”的流程。
+Scope 文件只是风险提示，不能覆盖用户已明确授权的任务。

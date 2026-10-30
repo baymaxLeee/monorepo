@@ -43,7 +43,7 @@ durable Claim intent 将引用激活或释放；不得把物理 locator 重新�
 
 `documents` 保存业务与处理状态，核心引用为：
 
-- `user_id` / `org_id` / `conversation_id`：业务归属与来源。
+- `user_id` / `tenant_id` / `workspace_id` / `conversation_id`：业务归属与来源。
 - `kind`：`source` 或 `artifact`；这是语义文档分类，不是存储类型。
 - `asset_id` / `revision_id`：精确指向不可变 Asset revision。
 - `content_md`：解析后的可检索文本或 agent 生成正文。

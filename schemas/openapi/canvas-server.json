@@ -299,21 +299,6 @@
         ],
         "type": "object"
       },
-      "CanvasBatchGetCanvasNodeStatesResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/CanvasNodeState"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "type": "object"
-      },
       "CanvasBatchGetResourceAssetGenerationStatesResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1016,14 +1001,50 @@
       "CanvasGetCanvasGraphResponse": {
         "additionalProperties": false,
         "properties": {
+          "archives": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasProjectCanvasVideoArchiveExport"
+            },
+            "type": "array"
+          },
+          "canvas": {
+            "$ref": "#/components/schemas/CanvasProjectCanvasSummary"
+          },
+          "cursor": {
+            "type": "integer"
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/CanvasNode"
             },
             "type": "array"
+          },
+          "protected_node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasStreamTask"
+            },
+            "type": "array"
+          },
+          "texts": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasTextCheckpoint"
+            },
+            "type": "array"
           }
         },
         "required": [
+          "canvas",
+          "archives",
+          "cursor",
+          "tasks",
+          "texts",
+          "protected_node_ids",
           "nodes"
         ],
         "type": "object"
@@ -2766,66 +2787,26 @@
         ],
         "type": "object"
       },
-      "CanvasNodeState": {
+      "CanvasNodeReviews": {
         "additionalProperties": false,
         "properties": {
-          "error_code": {
+          "asset_id": {
             "type": "string"
-          },
-          "error_message": {
-            "type": "string"
-          },
-          "node": {
-            "$ref": "#/components/schemas/CanvasNode"
           },
           "node_id": {
             "type": "string"
           },
-          "related_nodes": {
+          "reviews": {
             "items": {
-              "$ref": "#/components/schemas/CanvasNode"
+              "$ref": "#/components/schemas/CanvasAssetReview"
             },
             "type": "array"
-          },
-          "seedance_task_id": {
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/CanvasGenerationStatus"
-          },
-          "task_run_id": {
-            "type": "string"
-          },
-          "task_type": {
-            "$ref": "#/components/schemas/CanvasNodeTaskType"
-          },
-          "video_provider_status": {
-            "$ref": "#/components/schemas/CanvasNodeVideoProviderStatus"
           }
         },
         "required": [
           "node_id",
-          "task_run_id",
-          "status",
-          "task_type",
-          "node",
-          "related_nodes"
-        ],
-        "type": "object"
-      },
-      "CanvasNodeStateTarget": {
-        "additionalProperties": false,
-        "properties": {
-          "node_id": {
-            "type": "string"
-          },
-          "task_run_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "node_id",
-          "task_run_id"
+          "asset_id",
+          "reviews"
         ],
         "type": "object"
       },
@@ -2873,21 +2854,6 @@
           "GENERATION",
           "ASSETS_MATCH"
         ]
-      },
-      "CanvasNodeTextGenerationResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "completed": {
-            "$ref": "#/components/schemas/CanvasTextGenerationCompleted"
-          },
-          "delta": {
-            "$ref": "#/components/schemas/CanvasTextGenerationDelta"
-          },
-          "session": {
-            "$ref": "#/components/schemas/CanvasTextGenerationSession"
-          }
-        },
-        "type": "object"
       },
       "CanvasNodeType": {
         "enum": [
@@ -3046,6 +3012,85 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "CanvasPatchEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "base_cursor": {
+            "type": "integer"
+          },
+          "cursor": {
+            "type": "integer"
+          },
+          "occurred_at": {
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasPatchOperation"
+            },
+            "type": "array"
+          },
+          "protocol_version": {
+            "type": "integer"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "protocol_version",
+          "base_cursor",
+          "cursor",
+          "occurred_at",
+          "request_id",
+          "action",
+          "operations"
+        ],
+        "type": "object"
+      },
+      "CanvasPatchOperation": {
+        "additionalProperties": false,
+        "properties": {
+          "archive": {
+            "$ref": "#/components/schemas/CanvasProjectCanvasVideoArchiveExport"
+          },
+          "canvas": {
+            "$ref": "#/components/schemas/CanvasProjectCanvasSummary"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "node": {
+            "$ref": "#/components/schemas/CanvasNode"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "node_reviews": {
+            "$ref": "#/components/schemas/CanvasNodeReviews"
+          },
+          "task": {
+            "$ref": "#/components/schemas/CanvasStreamTask"
+          },
+          "text_delta": {
+            "$ref": "#/components/schemas/CanvasTextDelta"
+          },
+          "text_status": {
+            "$ref": "#/components/schemas/CanvasTextStatus"
+          }
+        },
+        "required": [
+          "kind",
+          "key"
         ],
         "type": "object"
       },
@@ -4950,6 +4995,45 @@
         ],
         "type": "object"
       },
+      "CanvasStreamTask": {
+        "additionalProperties": false,
+        "properties": {
+          "error_code": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "seedance_task_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CanvasGenerationStatus"
+          },
+          "task_run_id": {
+            "type": "string"
+          },
+          "task_type": {
+            "$ref": "#/components/schemas/CanvasNodeTaskType"
+          },
+          "video_provider_status": {
+            "$ref": "#/components/schemas/CanvasNodeVideoProviderStatus"
+          }
+        },
+        "required": [
+          "node_id",
+          "task_run_id",
+          "status",
+          "task_type",
+          "error_code",
+          "error_message",
+          "seedance_task_id"
+        ],
+        "type": "object"
+      },
       "CanvasSubmitAssetReviewItem": {
         "additionalProperties": false,
         "properties": {
@@ -5025,65 +5109,83 @@
         },
         "type": "object"
       },
-      "CanvasTextGenerationCompleted": {
+      "CanvasTextCheckpoint": {
         "additionalProperties": false,
         "properties": {
           "content": {
-            "type": "string"
-          },
-          "task_run_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "task_run_id",
-          "content"
-        ],
-        "type": "object"
-      },
-      "CanvasTextGenerationDelta": {
-        "additionalProperties": false,
-        "properties": {
-          "delta": {
-            "type": "string"
-          },
-          "offset": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "delta",
-          "offset"
-        ],
-        "type": "object"
-      },
-      "CanvasTextGenerationSession": {
-        "additionalProperties": false,
-        "properties": {
-          "content": {
-            "type": "string"
-          },
-          "error_code": {
-            "type": "string"
-          },
-          "error_message": {
             "type": "string"
           },
           "node_id": {
             "type": "string"
           },
+          "offset": {
+            "type": "integer"
+          },
           "status": {
-            "$ref": "#/components/schemas/CanvasGenerationStatus"
+            "type": "string"
           },
           "task_run_id": {
             "type": "string"
           }
         },
         "required": [
-          "task_run_id",
           "node_id",
+          "task_run_id",
+          "content",
           "status",
-          "content"
+          "offset"
+        ],
+        "type": "object"
+      },
+      "CanvasTextDelta": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "end_offset": {
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "start_offset": {
+            "type": "integer"
+          },
+          "task_run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "task_run_id",
+          "content",
+          "start_offset",
+          "end_offset"
+        ],
+        "type": "object"
+      },
+      "CanvasTextStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "task_run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "task_run_id",
+          "status",
+          "offset"
         ],
         "type": "object"
       },
@@ -6765,7 +6867,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -6948,7 +7058,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7038,7 +7156,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7118,7 +7244,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7194,7 +7328,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7275,6 +7417,82 @@
                 }
               }
             },
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing or inaccessible resource"
+          },
+          "409": {
+            "description": "Revision conflict"
+          }
+        },
+        "tags": [
+          "canvas"
+        ]
+      }
+    },
+    "/projects/{projectId}/canvases/{canvasId}/events": {
+      "get": {
+        "operationId": "canvasSubscribe",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "canvasId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasPatchEvent"
+                }
+              }
+            },
             "description": "Success"
           },
           "400": {
@@ -7328,7 +7546,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7403,82 +7629,15 @@
                 }
               }
             },
-            "description": "Success"
-          },
-          "400": {
-            "description": "Invalid input"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Missing or inaccessible resource"
-          },
-          "409": {
-            "description": "Revision conflict"
-          }
-        },
-        "tags": [
-          "canvas"
-        ]
-      }
-    },
-    "/projects/{projectId}/canvases/{canvasId}/node-states:batchGet": {
-      "post": {
-        "operationId": "canvasBatchGetNodeStates",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projectId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "canvasId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "targets": {
-                    "items": {
-                      "$ref": "#/components/schemas/CanvasNodeStateTarget"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "targets"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
                 "schema": {
-                  "$ref": "#/components/schemas/CanvasBatchGetCanvasNodeStatesResponse"
+                  "type": "integer"
                 }
               }
-            },
-            "description": "Success"
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7626,7 +7785,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7699,7 +7866,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7789,7 +7964,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7869,7 +8052,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -7938,7 +8129,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8030,7 +8229,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8091,7 +8298,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8160,7 +8375,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8290,68 +8513,15 @@
                 }
               }
             },
-            "description": "Success"
-          },
-          "400": {
-            "description": "Invalid input"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Missing or inaccessible resource"
-          },
-          "409": {
-            "description": "Revision conflict"
-          }
-        },
-        "tags": [
-          "canvas"
-        ]
-      }
-    },
-    "/projects/{projectId}/canvases/{canvasId}/nodes/{nodeId}/text-generations:stream": {
-      "post": {
-        "operationId": "canvasStreamNodeTextGeneration",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "projectId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "canvasId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "nodeId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
                 "schema": {
-                  "$ref": "#/components/schemas/CanvasNodeTextGenerationResponse"
+                  "type": "integer"
                 }
               }
-            },
-            "description": "Success"
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8435,7 +8605,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8510,7 +8688,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8600,7 +8786,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8680,7 +8874,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8741,7 +8943,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8824,7 +9034,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8899,7 +9117,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -8968,7 +9194,15 @@
                 }
               }
             },
-            "description": "Success"
+            "description": "Success",
+            "headers": {
+              "X-Canvas-Cursor": {
+                "description": "Committed Canvas cursor; await the page stream before dependent commands",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid input"

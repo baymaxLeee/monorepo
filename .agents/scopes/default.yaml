@@ -1,37 +1,26 @@
-# Self-imposed guard rails for the MAIN fullstack agent.
-#
-# This is NOT for dispatching sub-agents. It's a memory aid for the main agent
-# to remember "what should I avoid editing unprompted".
-
+# Guidance, not an execution permission system. Respect already-authorized scope.
 guard_rails:
-  # FORBIDDEN: never write here without explicit user request
-  forbidden:
+  generated_or_sensitive:
     - "**/generated/**"
+    - "schemas/openapi/**"
     - "apps/backend/services/*/migrations/versions/**"
-    - ".worktrees/**"
     - "**/.env*"
+    - "**/pnpm-lock.yaml"
+    - "**/uv.lock"
+    - "**/go.sum"
+    - ".worktrees/**"
     - "**/node_modules/**"
     - "**/.venv/**"
-    - "**/target/**"
-    - "pnpm-lock.yaml"   # let pnpm regenerate
-    - "uv.lock"          # let uv regenerate
-    - "go.sum"           # let go regenerate
-
-  # CAUTION: ask user before touching (high blast radius)
-  caution:
-    - "apps/backend/libs/**"          # shared kernel; affects many services
-    - "schemas/proto/**"              # gRPC contracts; breaking-change risk
-    - "schemas/openapi/**"            # but only writeable via gen-openapi
-    - "infra/**"                      # deploy; affects production
+  trace_consumers_before_editing:
+    - "apps/backend/libs/**"
+    - "apps/frontend/packages/**"
+    - "schemas/**"
+    - "infra/**"
     - ".github/workflows/**"
     - "docker-compose.yml"
-    - "apps/frontend/apps/platform/**"   # MF host; affects all MFEs
-    - "AGENTS.md"                     # rules; only on explicit request
-
-  # FREE: edit freely as feature work demands
-  free:
-    - "apps/backend/services/*/src/**"
-    - "apps/backend/services/*/tests/**"
-    - "apps/frontend/apps/mfe-*/**"
-    - "apps/frontend/packages/!(api-client)/**"
+    - "apps/frontend/apps/platform/**"
+    - "AGENTS.md"
+  usual_feature_locations:
+    - "apps/backend/services/**"
+    - "apps/frontend/apps/**"
     - "docs/**"

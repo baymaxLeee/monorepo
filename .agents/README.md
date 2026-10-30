@@ -1,38 +1,23 @@
-# Agent Infrastructure
+# Agent workspace
 
-Shared workspace for ALL coding agents. Tool-agnostic (Claude / Codex / Cursor).
+The root [AGENTS.md](../AGENTS.md) routes work for every coding tool.
+`just context <path-or-target>` shows rules and consumers; `just repo-map --json`
+exposes the project graph without source dumps.
 
-## Layout
+- `skills/`: tool-independent workflows, loaded for matching tasks.
+- `playbooks/`: implementation and verification routes.
+- `scopes/`: scope guidance subordinate to the authorized task.
+- `subagents/`: optional mechanical, exploration and review briefs.
+- `tasks/`: gitignored current working state for long tasks.
 
-- `playbooks/`  — Step-by-step checklists for the main fullstack agent
-- `subagents/`  — Definitions for narrow specialist sub-agents
-- `scopes/`     — Self-imposed guard rails (free / caution / forbidden)
-- `tasks/`      — Runtime blackboard per task (gitignored except `_template/`)
+One primary agent owns a feature. Helpers receive bounded tasks, explicit files
+and return compact results. Concurrent writers may need isolated worktrees.
 
-## Multi-agent model
+Keep one current task plan with objective, scope, progress, decisions and
+validation gaps; replace stale state. Task notes are not architecture docs.
+Current specifications live behind [docs/index.md](../docs/index.md).
 
-**Default**: one main fullstack agent works in a single context window
-spanning frontend + backend. Switch stacks by `cd`, not by handing off.
-
-**Sub-agents are narrow specialists**, used only for:
-1. Context-free grunt work (codegen, mass rename)
-2. Fresh-eyes review (audit without design bias)
-3. Read-only exploration (deep digs that would pollute main context)
-
-Do NOT dispatch a "frontend agent" and "backend agent" for the same feature —
-they have independent context windows and lose all your cross-stack reasoning.
-
-## Task ledger pattern (optional, for long tasks)
-
-For multi-step tasks, the main agent can create `.agents/tasks/<task-id>/`:
-- `plan.md`     — overall plan, updated as work progresses
-- `status.md`   — append-only event log
-- `artifacts/`  — intermediate outputs
-
-This survives `/clear` and allows resumption.
-
-## See also
-
-- Root `AGENTS.md` — universal rules
-- `playbooks/full-stack-feature.md` — most common workflow
-- `playbooks/change-verification.md` — change triggers, coupled surfaces and evidence
+Codex uses hierarchical AGENTS; Cursor points to the same source. Current Claude
+Code supports AGENTS subject to client version, configuration and existing CLAUDE
+files. Confirm loaded instructions in the client when needed; do not duplicate
+rules or modify user settings automatically.

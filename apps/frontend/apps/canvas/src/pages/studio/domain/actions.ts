@@ -1,39 +1,29 @@
 import {
-  canvasStartStoryboardDrafts,
-  canvasConfirmStoryboardDrafts,
   canvasCancelStoryboardDrafts,
+  canvasConfirmStoryboardDrafts,
   canvasMaterializeAssetReference,
   canvasMaterializeResourceReference,
   canvasSearchNodeAssets,
-  type CanvasNodeDraftSession,
+  canvasStartStoryboardDrafts,
   type ApiRequestConfig,
+  type CanvasNodeDraftSession,
 } from "@repo/api";
 
 import type { MentionNode, MentionReferenceIdentity, MentionTreeResult } from "@/components/promptEditor";
 import { asset, canvasnode } from "@/domain";
 import {
-  StartCanvasNodeGeneration,
-  StartCanvasGeneration,
-  BatchGetCanvasNodeStates,
   CancelCanvasNodeGeneration,
   ListCanvasNodeHistories,
   SelectCanvasNodeHistory,
+  StartCanvasGeneration,
+  StartCanvasNodeGeneration,
 } from "@/pages/studio/domain/generations";
-import { CreateCanvasNode, UpdateCanvasNode, DeleteCanvasNode, presentNode } from "@/pages/studio/domain/persistence";
+import { CreateCanvasNode, DeleteCanvasNode, presentNode, UpdateCanvasNode } from "@/pages/studio/domain/persistence";
 import { resolveArtifactURL } from "@/utils/artifactURL";
 import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 
-import { requestCanvasState, type CanvasStatePubSub, watchCanvasTarget } from "./canvasStatePubSub";
-import { isVideoGenerationCancellationAllowed } from "./generationCancellation";
-import { materializedCanvasNodeAssetId } from "./model";
-import {
-  DEFAULT_SETTINGS,
-  type GenerationHistoryItem,
-  type Shot,
-  type StoryboardAsset,
-  type StoryboardSettings,
-} from "./types";
+import { DEFAULT_SETTINGS, type GenerationHistoryItem, type Shot, type StoryboardSettings } from "./types";
 
 type ResourceMentionReference = Extract<MentionReferenceIdentity, { kind: "resource" | "resourceAsset" }>;
 type AssetMentionReference = Extract<MentionReferenceIdentity, { kind: "asset" }>;
@@ -262,9 +252,7 @@ const scope = (projectId: string, canvasId: string) => ({
   CanvasID: canvasId,
 });
 
-const SILENT_POLL: ApiRequestConfig = { skipErrorNotify: true };
-
-const SILENT_REQUEST = SILENT_POLL;
+const SILENT_REQUEST: ApiRequestConfig = { skipErrorNotify: true };
 
 export function storyboardDraftShotFromNode(node: canvasnode.CanvasNode): Shot | undefined {
   if (node.Type !== canvasnode.CanvasNodeType.STORYBOARD_DRAFT) return undefined;
@@ -280,60 +268,6 @@ export function storyboardDraftShotFromNode(node: canvasnode.CanvasNode): Shot |
     script: session?.plot ?? node.Prompt ?? "",
     settings,
   };
-}
-
-export async function getCanvasNodeAssets(target: canvasnode.CanvasNode, graphNodes: canvasnode.CanvasNode[]) {
-  const incomingBySourceID = new Map(target.IncomingEdges.map((edge) => [edge.SourceNodeID, edge]));
-  const sourceNodes = graphNodes.filter((node) => incomingBySourceID.has(node.NodeID));
-  const connectedAssets = sourceNodes.flatMap<StoryboardAsset>((node) => {
-    if (node.Type === canvasnode.CanvasNodeType.TEXT || node.Type === canvasnode.CanvasNodeType.TEXT_GENERATION) {
-      return [
-        {
-          id: node.NodeID,
-          canvasNodeId: node.NodeID,
-          category: "text" as const,
-          title: node.Name || t("文本"),
-          description:
-            node.Type === canvasnode.CanvasNodeType.TEXT_GENERATION
-              ? (node.SelectedOutputText ?? "")
-              : (node.Text ?? ""),
-          syncStatus: "ready" as const,
-          source: "canvasnode",
-          targetPort: incomingBySourceID.get(node.NodeID)?.TargetPort,
-        },
-      ];
-    }
-    const assetID = materializedCanvasNodeAssetId(node);
-    if (!assetID) return [];
-    const category =
-      node.Type === canvasnode.CanvasNodeType.VIDEO_ASSET || node.Type === canvasnode.CanvasNodeType.VIDEO_GENERATION
-        ? "video"
-        : node.Type === canvasnode.CanvasNodeType.AUDIO_ASSET
-          ? "audio"
-          : "image";
-    const previewURL = node.PreviewURL ? resolveArtifactURL(node.PreviewURL) : undefined;
-    return [
-      {
-        id: node.NodeID,
-        assetId: assetID,
-        canvasNodeId: node.NodeID,
-        category,
-        title: node.Name,
-        description: "",
-        previewUrl: previewURL,
-        thumbnail: category === "image" ? previewURL : undefined,
-        syncStatus: "ready",
-        review: latestAssetReview(node.Reviews),
-        reviews: node.Reviews,
-        referenceType: "canvasNode",
-        resourceId: node.ResourceID,
-        resourceAssetId: node.ResourceAssetID,
-        source: "canvasnode",
-        targetPort: incomingBySourceID.get(node.NodeID)?.TargetPort,
-      },
-    ];
-  });
-  return connectedAssets;
 }
 
 export async function createCanvasNode(
@@ -360,17 +294,14 @@ export async function createCanvasNode(
   };
 }
 
-export async function streamCanvasNodeDrafts(
+export async function startCanvasNodeDrafts(
   projectId: string,
   canvasId: string,
   plot: string,
   modelBindings: { inferenceModelServiceId: string; videoModelServiceId: string },
   durations: { shot: { min: number; max: number }; video: { min: number; max: number } },
   frontendSettings: StoryboardSettings,
-  statePubSub: CanvasStatePubSub,
   signal: AbortSignal,
-  onSession: (session: StoryboardDraftSession) => void,
-  onCanvasNode: (shot: Shot) => void,
 ) {
   const started = await canvasStartStoryboardDrafts(
     projectId,
@@ -397,7 +328,7 @@ export async function streamCanvasNodeDrafts(
     { signal },
   );
   if (!started.session) throw new Error(t("分镜任务启动失败"));
-  return observeDraft(statePubSub, started.session, signal, onSession, onCanvasNode);
+  return started.session.task_run_id;
 }
 
 export interface StoryboardDraftSession {
@@ -413,24 +344,6 @@ export interface StoryboardDraftSession {
   totalDurationMinSeconds?: number;
   totalDurationMaxSeconds?: number;
   settings: StoryboardSettings;
-}
-
-export class StoryboardDraftNotFoundError extends Error {}
-
-export async function recoverCanvasNodeDrafts(
-  statePubSub: CanvasStatePubSub,
-  taskRunId: string,
-  _frontendSettings: StoryboardSettings,
-  signal: AbortSignal,
-  onSession: (session: StoryboardDraftSession) => void,
-  onCanvasNode: (shot: Shot) => void,
-) {
-  const stopWatching = watchCanvasTarget(statePubSub, { NodeID: taskRunId, TaskRunID: taskRunId });
-  const result = await requestCanvasState(statePubSub).finally(stopWatching);
-  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-  const draft = result.Items.find((item) => item.NodeID === taskRunId)?.Node.DraftSession;
-  if (!draft) throw new StoryboardDraftNotFoundError();
-  return observeDraft(statePubSub, draft, signal, onSession, onCanvasNode);
 }
 
 export async function confirmCanvasNodeDrafts(projectId: string, canvasId: string, taskRunId: string, shots: Shot[]) {
@@ -472,38 +385,13 @@ export async function startCanvasGeneration(projectId: string, canvasId: string)
   return StartCanvasGeneration(scope(projectId, canvasId), SILENT_REQUEST);
 }
 
-export async function getCanvasGenerationState(
-  projectId: string,
-  canvasId: string,
-  canvasnodeId: string,
-  taskRunId: string,
-) {
-  const response = await BatchGetCanvasNodeStates(
-    {
-      ...scope(projectId, canvasId),
-      Targets: [{ NodeID: canvasnodeId, TaskRunID: taskRunId }],
-    },
-    SILENT_REQUEST,
-  );
-  return response.Items.find((item) => item.NodeID === canvasnodeId && item.TaskRunID === taskRunId);
-}
-
 export async function cancelCancellableVideoGeneration(
   projectId: string,
   canvasId: string,
-  canvasnodeId: string,
+  nodeId: string,
   taskRunId: string,
 ) {
-  const state = await getCanvasGenerationState(projectId, canvasId, canvasnodeId, taskRunId);
-  const status = state?.Status;
-  const providerStatus = state?.VideoProviderStatus;
-  const active =
-    status === canvasnode.CanvasGenerationStatus.QUEUED || status === canvasnode.CanvasGenerationStatus.RUNNING;
-  if (!active || !isVideoGenerationCancellationAllowed(providerStatus)) {
-    return { cancelled: false, status, providerStatus } as const;
-  }
-  await cancelCanvasNodeGeneration(projectId, canvasId, canvasnodeId, taskRunId);
-  return { cancelled: true, status, providerStatus } as const;
+  await cancelCanvasNodeGeneration(projectId, canvasId, nodeId, taskRunId);
 }
 
 export function cancelCanvasNodeGeneration(
@@ -741,63 +629,20 @@ function shotFromDraftSession(
   );
 }
 
-async function observeDraft(
-  statePubSub: CanvasStatePubSub,
-  draft: CanvasNodeDraftSession,
-  signal: AbortSignal,
-  onSession: (session: StoryboardDraftSession) => void,
-  onShot: (shot: Shot) => void,
-) {
-  let snapshot = draft;
-  const publish = (next: CanvasNodeDraftSession) => {
-    snapshot = next;
-    const settings = storyboardSettings(next);
-    const shots = (next.canvas_nodes ?? []).map((shot) => shotFromDraftSession(next, shot));
-    const running = next.status === 1;
-    onSession({
-      taskRunId: next.task_run_id,
-      plot: next.plot,
-      status: running ? "running" : next.status === 3 ? "failed" : "completed",
-      generating: running,
-      canvasnodes: shots,
-      inferenceModelServiceId: next.model_config?.inference_model_service_id,
-      videoModelServiceId: next.model_config?.video_model_service_id,
-      canvasnodeDurationMinSeconds: next.planning_config?.canvas_node_duration_min_seconds,
-      canvasnodeDurationMaxSeconds: next.planning_config?.canvas_node_duration_max_seconds,
-      totalDurationMinSeconds: next.planning_config?.total_duration_min_seconds,
-      totalDurationMaxSeconds: next.planning_config?.total_duration_max_seconds,
-      settings,
-    });
-    for (const shot of shots) onShot(shot);
+export function storyboardDraftFromSession(next: CanvasNodeDraftSession): StoryboardDraftSession {
+  const running = next.status === 1;
+  return {
+    taskRunId: next.task_run_id,
+    plot: next.plot,
+    status: running ? "running" : next.status === 3 ? "failed" : "completed",
+    generating: running,
+    canvasnodes: (next.canvas_nodes ?? []).map((shot) => shotFromDraftSession(next, shot)),
+    inferenceModelServiceId: next.model_config?.inference_model_service_id,
+    videoModelServiceId: next.model_config?.video_model_service_id,
+    canvasnodeDurationMinSeconds: next.planning_config?.canvas_node_duration_min_seconds,
+    canvasnodeDurationMaxSeconds: next.planning_config?.canvas_node_duration_max_seconds,
+    totalDurationMinSeconds: next.planning_config?.total_duration_min_seconds,
+    totalDurationMaxSeconds: next.planning_config?.total_duration_max_seconds,
+    settings: storyboardSettings(next),
   };
-  publish(draft);
-  if (snapshot.status !== 1) return snapshot;
-  return new Promise<CanvasNodeDraftSession>((resolve, reject) => {
-    let settled = false;
-    const cleanup = () => {
-      unsubscribe();
-      stopWatching();
-      signal.removeEventListener("abort", onAbort);
-    };
-    const settle = (callback: () => void) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      callback();
-    };
-    const onAbort = () => settle(() => reject(new DOMException("Aborted", "AbortError")));
-    const unsubscribe = statePubSub.on("snapshot", (result) => {
-      const next = result.Items.find((item) => item.NodeID === draft.task_run_id)?.Node.DraftSession;
-      // 关注登记可能与上一个在途批次重叠；该快照未包含新会话时等待下个统一周期。
-      if (!next) return;
-      publish(next);
-      if (next.status !== 1) settle(() => resolve(next));
-    });
-    const stopWatching = watchCanvasTarget(statePubSub, {
-      NodeID: draft.task_run_id,
-      TaskRunID: draft.task_run_id,
-    });
-    signal.addEventListener("abort", onAbort, { once: true });
-    if (signal.aborted) onAbort();
-  });
 }

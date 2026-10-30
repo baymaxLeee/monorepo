@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { affectedSelections, changedFiles } from "./test-affected.mjs";
+import { discoverTargets } from "./test.mjs";
 
 const root = "/repo";
 const targets = [
@@ -48,11 +49,9 @@ test("global configuration and missing diff bases conservatively select all scop
   assert.throws(() => affectedSelections([], targets, root, "typo"), /Unknown test scope/);
 });
 
-test("documentation-only changes select no tests", () => {
-  assert.deepEqual(
-    affectedSelections(["AGENTS.md", "docs/plan.md", "apps/frontend/apps/chat/README.md"], targets, root),
-    [],
-  );
+test("ordinary documentation selects no tests; agent instructions select tooling", () => {
+  assert.deepEqual(affectedSelections(["docs/plan.md", "apps/frontend/apps/chat/README.md"], targets, root), []);
+  assert.deepEqual(affectedSelections(["AGENTS.md"], targets, root), ["tooling"]);
 });
 
 test("runtime Markdown and renamed files remain in the affected scope", () => {
@@ -63,6 +62,44 @@ test("runtime Markdown and renamed files remain in the affected scope", () => {
     affectedSelections(["apps/frontend/apps/chat/src/old.ts", "apps/frontend/apps/admin/src/new.ts"], targets, root),
     ["frontend/admin", "frontend/chat"],
   );
+});
+
+test("shared workspace changes select transitive consumers without unrelated apps", (t) => {
+  const repo = mkdtempSync(join(tmpdir(), "affected-graph-"));
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  for (const [path, name, dependencies] of [
+    ["packages/base", "@repo/base", {}],
+    ["packages/feature", "@repo/feature", { "@repo/base": "workspace:*" }],
+    ["apps/chat", "chat", { "@repo/feature": "workspace:*" }],
+    ["apps/admin", "admin", {}],
+  ]) {
+    const dir = join(repo, "apps/frontend", path);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ name, dependencies }));
+  }
+  assert.deepEqual(affectedSelections(["apps/frontend/packages/base/src/id.ts"], discoverTargets(repo), repo), [
+    "frontend/@repo/base",
+    "frontend/@repo/feature",
+    "frontend/chat",
+  ]);
+  // A removed edge cannot be reconstructed from the current manifest alone.
+  assert.deepEqual(affectedSelections(["apps/frontend/packages/base/package.json"], discoverTargets(repo), repo), [
+    "frontend",
+  ]);
+  writeFileSync(
+    join(repo, "apps/frontend/apps/admin/package.json"),
+    JSON.stringify({
+      name: "admin",
+      dependencies: { "@repo/missing": "workspace:*" },
+    }),
+  );
+  assert.deepEqual(affectedSelections(["apps/frontend/packages/base/src/id.ts"], discoverTargets(repo), repo), [
+    "frontend",
+  ]);
+});
+
+test("agent tooling changes run tooling checks while ordinary docs remain free", () => {
+  assert.deepEqual(affectedSelections([".agents/skills/plan/SKILL.md"], targets, root), ["tooling"]);
 });
 
 test("diff includes deleted paths, staged edits, unstaged edits and untracked files", (t) => {

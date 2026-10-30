@@ -1,5 +1,6 @@
 import { canvasnode } from "@/domain";
 import { resolveArtifactURL } from "@/utils/artifactURL";
+import { latestAssetReview } from "@/utils/assetReview";
 import t from "@/utils/i18n";
 
 import { ASSET_ACCEPT, type AssetCategory, type Shot, type StoryboardAsset } from "./types";
@@ -38,18 +39,18 @@ export function assetFromCanvasNode(
     assetId,
     canvasNodeId: node.NodeID,
     category,
-    description: detail?.description ?? description,
+    description,
     previewUrl: nodePreview ?? (detailMatchesAsset ? detail?.previewUrl : undefined),
     referenceType: "canvasNode",
     resourceId: node.ResourceID,
     resourceAssetId: node.ResourceAssetID,
-    review: detailMatchesAsset ? detail?.review : undefined,
-    reviews: detailMatchesAsset ? detail?.reviews : undefined,
+    review: latestAssetReview(node.Reviews),
+    reviews: node.Reviews,
     source: "canvasnode",
     syncStatus: "ready",
     targetPort,
     thumbnail: (category === "image" ? nodePreview : undefined) ?? (detailMatchesAsset ? detail?.thumbnail : undefined),
-    title: detail?.title || node.Name || t("未命名素材"),
+    title: node.Name || t("未命名素材"),
   };
 }
 
