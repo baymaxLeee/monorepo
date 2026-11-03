@@ -1,3 +1,4 @@
+import { MessageScrollerItem } from "@repo/design-system/shadcn/message-scroller";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -13,9 +14,16 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from "./reasoning";
 vi.mock("./message", () => ({ MessageResponse: ({ children }: { children: string }) => <div>{children}</div> }));
 
 const observers = new Map<Element, ResizeObserverCallback>();
+const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollTo");
 
 beforeEach(() => {
   vi.useFakeTimers();
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    configurable: true,
+    value(this: HTMLElement, options: ScrollToOptions) {
+      if (options.top !== undefined) this.scrollTop = options.top;
+    },
+  });
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -38,6 +46,9 @@ afterEach(async () => {
   await vi.advanceTimersByTimeAsync(100);
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  if (originalScrollTo) Object.defineProperty(HTMLElement.prototype, "scrollTo", originalScrollTo);
+  else Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
   observers.clear();
 });
 
@@ -53,11 +64,16 @@ async function setupConversation() {
   const content = () => (
     <Conversation scrollRef={scrollRef}>
       <ConversationContent>
-        <Reasoning isStreaming>
-          <ReasoningTrigger />
-          <ReasoningContent>{`推理 ${height}`}</ReasoningContent>
-        </Reasoning>
-        <div>正文 {height}</div>
+        <MessageScrollerItem messageId="question" scrollAnchor>
+          问题
+        </MessageScrollerItem>
+        <MessageScrollerItem messageId="reply">
+          <Reasoning isStreaming>
+            <ReasoningTrigger />
+            <ReasoningContent>{`推理 ${height}`}</ReasoningContent>
+          </Reasoning>
+          <div>正文 {height}</div>
+        </MessageScrollerItem>
       </ConversationContent>
       <ConversationScrollButton />
     </Conversation>
@@ -82,6 +98,12 @@ async function setupConversation() {
       },
     },
   });
+  const rect = (y: number, h: number) => new DOMRect(0, y, 300, h);
+  vi.spyOn(viewport, "getBoundingClientRect").mockImplementation(() => rect(0, 200));
+  vi.spyOn(transcript, "getBoundingClientRect").mockImplementation(() => rect(-top, height));
+  const rows = transcript.querySelectorAll<HTMLElement>("[data-message-id]");
+  vi.spyOn(rows[0]!, "getBoundingClientRect").mockImplementation(() => rect(-top, 80));
+  vi.spyOn(rows[1]!, "getBoundingClientRect").mockImplementation(() => rect(80 - top, height - 80));
   async function resize() {
     act(() => {
       const callback = observers.get(transcript)!;
@@ -112,6 +134,10 @@ async function setupConversation() {
     await settle();
   }
   await resize();
+  act(() => {
+    scrollRef.current?.scrollToEnd();
+  });
+  await settle();
   return { ...view, viewport, transcript, append, scrollTo, scrollRef };
 }
 
@@ -139,24 +165,77 @@ test("manual return to the bottom resumes continuous output without the button",
     await append();
     expect(viewport.scrollTop).toBe(100);
   }
-  expect(screen.getByRole("button", { name: "回到底部" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "回到底部" }).getAttribute("data-active")).toBe("true");
 
   fireEvent.wheel(viewport, { deltaY: 100 });
   await scrollTo(viewport.scrollHeight - viewport.clientHeight);
-  fireEvent.wheel(viewport, { deltaY: 12 });
   for (let i = 0; i < 5; i++) {
     await append();
     expectAtBottom(viewport);
   }
-  expect(screen.queryByRole("button", { name: "回到底部" })).toBeNull();
+  expect(screen.getByRole("button", { name: "回到底部" }).getAttribute("data-active")).toBe("false");
+});
+
+test("a trailing downward wheel at the bottom keeps following the next streamed chunk", async () => {
+  const { viewport, append, scrollTo } = await setupConversation();
+  fireEvent.wheel(viewport, { deltaY: -100 });
+  await scrollTo(100);
+  await scrollTo(viewport.scrollHeight - viewport.clientHeight);
+  fireEvent.wheel(viewport, { deltaY: 12 });
+  await append();
+  expectAtBottom(viewport);
+});
+
+test("downward keyboard and touch intent at the bottom keep following", async () => {
+  const { viewport, append } = await setupConversation();
+  for (const key of ["End", "PageDown", "ArrowDown", " "]) {
+    fireEvent.keyDown(viewport, { key });
+    await append();
+    expectAtBottom(viewport);
+  }
+  fireEvent.touchStart(viewport, { touches: [{ clientY: 200 }] });
+  fireEvent.touchMove(viewport, { touches: [{ clientY: 180 }] });
+  await append();
+  expectAtBottom(viewport);
+  fireEvent.touchEnd(viewport, { touches: [] });
+});
+
+test("upward intent pauses following and downward intent away from the bottom does not jump", async () => {
+  const { viewport, append } = await setupConversation();
+  fireEvent.wheel(viewport, { deltaY: -12 });
+  const top = viewport.scrollTop;
+  await append();
+  expect(viewport.scrollTop).toBe(top);
+  fireEvent.wheel(viewport, { deltaY: 12 });
+  await append();
+  expect(viewport.scrollTop).toBe(top);
+});
+
+test("horizontal scrolling does not force the chat to follow", async () => {
+  const { viewport, append } = await setupConversation();
+  fireEvent.wheel(viewport, { deltaX: 30, deltaY: 0 });
+  const top = viewport.scrollTop;
+  await append();
+  expect(viewport.scrollTop).toBe(top);
+});
+
+test("End explicitly returns to the live edge before the next chunk arrives", async () => {
+  const { viewport, append, scrollTo } = await setupConversation();
+  fireEvent.wheel(viewport, { deltaY: -100 });
+  await scrollTo(100);
+  fireEvent.keyDown(viewport, { key: "End" });
+  await append();
+  expectAtBottom(viewport);
 });
 
 test("button and send-message handle restore following; unmount disconnects observation", async () => {
   const { viewport, append, scrollTo, scrollRef, unmount } = await setupConversation();
+  fireEvent.wheel(viewport, { deltaY: -100 });
   await scrollTo(100);
   fireEvent.click(screen.getByRole("button", { name: "回到底部" }));
   await settle();
   expectAtBottom(viewport);
+  fireEvent.wheel(viewport, { deltaY: -100 });
   await scrollTo(100);
   act(() => {
     scrollRef.current?.scrollToEnd();

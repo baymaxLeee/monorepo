@@ -9,7 +9,7 @@ workspace's public imports, theme, AI SDK parts and product callbacks.
 | Official pattern | Local module |
 | --- | --- |
 | Chain of Thought | `src/AiChat/chain-of-thought.tsx` |
-| Chat | `src/AiChat/conversation.tsx` (Vercel Conversation / `use-stick-to-bottom`) |
+| Chat | `src/AiChat/conversation.tsx` (shadcn Message Scroller) |
 | Checkpoint | `src/AiChat/checkpoint.tsx` |
 | Confirmation | `src/AiChat/confirmation.tsx` |
 | Context | `src/AiChat/context.tsx` |
@@ -40,14 +40,23 @@ mentions and slash commands while Input Group owns the composer frame.
 Subagent, checkpoint and test results are presentation capabilities; they do not
 create an agent runtime, restore operation or test runner.
 
-Conversation uses the [`use-stick-to-bottom` composition from Vercel AI Elements](https://github.com/vercel/ai-elements/blob/main/packages/elements/src/conversation.tsx).
+Conversation follows the current [shadcn Chat composition and migration guide](https://ui.shadcn.com/docs/ai-elements/base/chat),
+using Message Scroller from `@shadcn/react`. Every transcript row, including
+placeholders, is a MessageScrollerItem; user messages anchor new turns.
+The provider owns resize observation, position and following. Explicit jumps use
+`behavior="auto"` to avoid extra motion during streaming.
 Reasoning follows the [shadcn Trace disclosure pattern](https://ui.shadcn.com/docs/ai-elements/base/reasoning):
 expanded reasoning grows in the conversation viewport, without its own height
-limit or scroll button. The upstream hook owns resize observation, manual
-bottom re-entry and nested scroll detection. Initial, resize and explicit jumps
-are instant to avoid adding motion during streaming. Message Scroller remains
-available in design-system for turn-anchored transcript interfaces; it is not
-nested inside reasoning or mixed into this conversation's scroll state.
+limit or scroll button.
+
+`conversation-viewport.tsx` handles a reproduced `@shadcn/react` 0.3.1 edge case:
+an input event at the bottom clears following even when no native scroll event
+occurs. Downward wheel, keyboard and touch input at the physical bottom invokes
+the public `scrollToEnd` command. This keeps upstream state authoritative without
+another following flag, observer or animation loop. Regression tests cover this
+boundary; re-evaluate the adaptation when upgrading the upstream package.
+The focused viewport's End key also uses that command so a native animated jump
+cannot finish at an outdated bottom while new chunks arrive.
 
 Tool details use [shadcn Trace disclosure](https://ui.shadcn.com/docs/ai-elements/base/tool).
 Our conversation defaults ordinary tools and terminal logs to collapsed summaries;

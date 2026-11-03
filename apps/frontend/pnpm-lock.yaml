@@ -332,9 +332,6 @@ catalogs:
     typescript:
       specifier: ^5.4.0
       version: 5.9.3
-    use-stick-to-bottom:
-      specifier: ^1.1.6
-      version: 1.1.6
     vite:
       specifier: ^8.0.0
       version: 8.3.5
@@ -846,9 +843,6 @@ importers:
       streamdown:
         specifier: 'catalog:'
         version: 2.7.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@8.1.1)
-      use-stick-to-bottom:
-        specifier: 'catalog:'
-        version: 1.1.6(react@19.3.0)
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
@@ -6260,11 +6254,6 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
-
-  use-stick-to-bottom@1.1.6:
-    resolution: {integrity: sha512-z3Up8jYQGTkUCsGBnwg6/wj70KgXoW5Kz1AAc1j8MtQuYMBo6ZsdhrIXoegxa7gaMMilgQYyTohTrt3p94jHog==}
-    peerDependencies:
-      react: ^19.3.0
 
   use-sync-external-store@1.7.0:
     resolution: {integrity: sha512-6L+EeigHMQhdaIPNIFUKwfWJSwWFQ8gJbJ2DLOs5sDIegTwR9fRxvnM3uciHKjIZhFz+KAv2emhWMRvDmMcY8A==}
@@ -11917,10 +11906,6 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 19.3.0
-
-  use-stick-to-bottom@1.1.6(react@19.3.0):
-    dependencies:
-      react: 19.3.0
 
   use-sync-external-store@1.7.0(react@19.3.0):
     dependencies:

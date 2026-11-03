@@ -1,60 +1,57 @@
 import { Button } from "@repo/design-system/shadcn/button";
+import {
+  MessageScroller,
+  MessageScrollerProvider,
+  MessageScrollerContent,
+  MessageScrollerButton,
+  useMessageScroller,
+} from "@repo/design-system/shadcn/message-scroller";
 import { cn } from "@repo/shared";
 import type { UIMessage } from "ai";
-import { ArrowDownIcon, DownloadIcon } from "lucide-react";
+import { DownloadIcon } from "lucide-react";
 import type { ComponentProps, ReactNode, Ref } from "react";
 import { useCallback, useImperativeHandle } from "react";
-import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
+
+import { ConversationViewport } from "./conversation-viewport";
 
 export type ConversationScrollHandle = { scrollToEnd: () => void };
 
-export type ConversationProps = ComponentProps<typeof StickToBottom> & {
+export type ConversationProps = ComponentProps<typeof MessageScroller> & {
   scrollRef?: Ref<ConversationScrollHandle>;
 };
 
 function ScrollHandle({ scrollRef }: Pick<ConversationProps, "scrollRef">) {
-  const { scrollToBottom } = useStickToBottomContext();
+  const { scrollToEnd } = useMessageScroller();
   useImperativeHandle(
     scrollRef,
     () => ({
       scrollToEnd: () => {
-        void scrollToBottom({ animation: "instant" });
+        scrollToEnd({ behavior: "auto" });
       },
     }),
-    [scrollToBottom],
+    [scrollToEnd],
   );
   return null;
 }
 
 export function Conversation({ className, scrollRef, children, ...props }: ConversationProps) {
   return (
-    <StickToBottom
-      initial="instant"
-      resize="instant"
-      className={cn("relative min-h-0 flex-1 overflow-hidden", className)}
-      {...props}
-    >
-      {(context) => (
-        <>
-          <ScrollHandle scrollRef={scrollRef} />
-          {typeof children === "function" ? children(context) : children}
-        </>
-      )}
-    </StickToBottom>
+    <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+      <ScrollHandle scrollRef={scrollRef} />
+      <MessageScroller className={cn("min-h-0 flex-1", className)} {...props}>
+        {children}
+      </MessageScroller>
+    </MessageScrollerProvider>
   );
 }
 
-export type ConversationContentProps = ComponentProps<typeof StickToBottom.Content>;
+export type ConversationContentProps = ComponentProps<typeof MessageScrollerContent> & { scrollClassName?: string };
 
 export function ConversationContent({ className, scrollClassName, ...props }: ConversationContentProps) {
   return (
-    <StickToBottom.Content
-      scrollClassName={cn("min-h-0 min-w-0 overflow-auto overscroll-contain", scrollClassName)}
-      className={cn("flex flex-col gap-4 p-4", className)}
-      role="log"
-      aria-relevant="additions"
-      {...props}
-    />
+    <ConversationViewport className={scrollClassName}>
+      <MessageScrollerContent className={cn("gap-4 p-4", className)} {...props} />
+    </ConversationViewport>
   );
 }
 
@@ -90,25 +87,10 @@ export function ConversationEmptyState({
   );
 }
 
-export type ConversationScrollButtonProps = ComponentProps<typeof Button>;
+export type ConversationScrollButtonProps = ComponentProps<typeof MessageScrollerButton>;
 
-export function ConversationScrollButton({ className, onClick, children, ...props }: ConversationScrollButtonProps) {
-  const { isAtBottom, scrollToBottom } = useStickToBottomContext();
-  return !isAtBottom ? (
-    <Button
-      className={cn("absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full", className)}
-      aria-label="回到底部"
-      size="icon-sm"
-      variant="outline"
-      onClick={(event) => {
-        onClick?.(event);
-        if (!event.defaultPrevented) void scrollToBottom({ animation: "instant" });
-      }}
-      {...props}
-    >
-      {children ?? <ArrowDownIcon />}
-    </Button>
-  ) : null;
+export function ConversationScrollButton(props: ConversationScrollButtonProps) {
+  return <MessageScrollerButton aria-label="回到底部" behavior="auto" {...props} />;
 }
 
 function getMessageText(message: UIMessage): string {

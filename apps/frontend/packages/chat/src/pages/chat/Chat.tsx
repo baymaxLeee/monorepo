@@ -22,7 +22,7 @@ import {
   fetchConversation,
   ingestConversationDocuments,
 } from "@repo/api";
-import { toast } from "@repo/design-system";
+import { toast, MessageScrollerItem } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { lastAssistantMessageIsCompleteWithApprovalResponses, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -537,9 +537,8 @@ export function ChatSession({
     promptRef.current?.clear();
     try {
       const sent = sendMessage({ parts }, { body: requestBody });
-      // Sending always jumps to the latest message even if the user scrolled up
-      // to read history (matches ChatGPT/Claude); stick-to-bottom only auto-
-      // follows when already pinned, so kick the scroll explicitly here.
+      // Sending returns to the live conversation; the new user row then becomes
+      // MessageScroller's turn anchor, even when the user was reading history.
       conversationScrollRef.current?.scrollToEnd();
       await sent;
       setActivatedSkillName(null);
@@ -627,15 +626,16 @@ export function ChatSession({
       <Conversation className="min-h-0 flex-1 basis-0" scrollRef={conversationScrollRef}>
         <ConversationContent className="mx-auto w-full max-w-4xl gap-6 px-4 py-2">
           {loading && messages.length === 0 ? (
-            <ConversationEmptyState title="加载中" description="正在读取会话..." />
+            <MessageScrollerItem>
+              <ConversationEmptyState title="加载中" description="正在读取会话..." />
+            </MessageScrollerItem>
           ) : messages.length === 0 ? (
-            <ConversationEmptyState title="开始对话" description="输入你的问题，或粘贴、拖入文件开始。" />
+            <MessageScrollerItem>
+              <ConversationEmptyState title="开始对话" description="输入你的问题，或粘贴、拖入文件开始。" />
+            </MessageScrollerItem>
           ) : (
             messages.map((message) => (
-              <div
-                key={message.id}
-                className="min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]"
-              >
+              <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
                 <ChatMessageView
                   message={message}
                   conversationId={id ?? ""}
@@ -659,11 +659,11 @@ export function ChatSession({
                   planExecutedIds={executedPlanPaths}
                   planBusy={busy}
                 />
-              </div>
+              </MessageScrollerItem>
             ))
           )}
           {showThinkingPlaceholder ? (
-            <div
+            <MessageScrollerItem
               className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
               role="status"
               aria-live="polite"
@@ -674,7 +674,7 @@ export function ChatSession({
                 <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:300ms]" />
               </span>
               正在思考…
-            </div>
+            </MessageScrollerItem>
           ) : null}
         </ConversationContent>
         <ConversationScrollButton />
