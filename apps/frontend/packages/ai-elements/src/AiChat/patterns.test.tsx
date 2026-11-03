@@ -61,14 +61,15 @@ test("a user's reasoning disclosure choice survives streaming updates", () => {
     </Reasoning>
   );
   const { rerender } = render(view(true));
-  expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("true");
-  fireEvent.click(screen.getByRole("button"));
+  const trigger = screen.getByRole("button", { name: "思考中…" });
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  fireEvent.click(trigger);
   rerender(view(true));
-  expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("false");
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
   rerender(view(false));
-  fireEvent.click(screen.getByRole("button"));
+  fireEvent.click(trigger);
   rerender(view(true));
-  expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("true");
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
 });
 
 test("approval actions appear only while waiting and keep the user's decision", () => {

@@ -35,7 +35,7 @@ export function StackTrace({ trace, onFilePathClick, ...props }: StackTraceProps
         </div>
         <TraceCollapsibleContent>
           <CodeBlock size="sm" variant="destructive">
-            <CodeBlockContent wrap className="max-h-64">
+            <CodeBlockContent wrap>
               {frames.map((frame, index) => {
                 const match = frame.match(/(?:\(|\s)([^()\s]+):(\d+):(\d+)\)?$/);
                 return (

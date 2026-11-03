@@ -33,7 +33,8 @@
     "@tiptap/suggestion": "catalog:",
     "ai": "catalog:",
     "lucide-react": "catalog:",
-    "streamdown": "catalog:"
+    "streamdown": "catalog:",
+    "use-stick-to-bottom": "catalog:"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

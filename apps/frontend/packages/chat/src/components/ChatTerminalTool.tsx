@@ -1,4 +1,4 @@
-import { ToolJsonBlock } from "@repo/ai-elements";
+import { Skeleton } from "@repo/design-system";
 import { lazy, Suspense } from "react";
 
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
@@ -24,7 +24,7 @@ export function ChatTerminalTool({
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const failure = errorText ?? (outcome?.ok === false ? outcome.error.message : undefined);
   return (
-    <Suspense fallback={<ToolJsonBlock value={output ?? input} />}>
+    <Suspense fallback={<Skeleton className="h-5 w-48" />}>
       <Terminal
         command={typeof args.command === "string" ? args.command : "运行命令"}
         output={[stdout, stderr, failure !== stderr ? failure : undefined].filter(Boolean).join("\n")}

@@ -104,13 +104,7 @@ export function ChatMessageView({
 
   return (
     <AiMessage from={message.role} className={cn(!isUser && "max-w-full items-stretch")}>
-      <MessageContent
-        className={cn(
-          isUser
-            ? "scrollbar-thin max-h-[min(24rem,50vh)] overflow-x-hidden overflow-y-auto! overscroll-contain"
-            : "w-full",
-        )}
-      >
+      <MessageContent className={cn(!isUser && "w-full")}>
         <div className={cn(isUser ? "flex flex-wrap items-center gap-x-1 gap-y-2 leading-relaxed" : "space-y-3")}>
           {message.parts.map((part, index) => (
             <MessagePartView
@@ -441,10 +435,11 @@ function ToolPartView({
         ? "output-available"
         : "input-available"
       : part.state;
-  const isOpenByDefault = todoList != null ? !todoSettled : part.state !== "output-available";
+  const isOpenByDefault =
+    todoList != null ? !todoSettled : (askUserInput != null && part.state === "input-available") || hasError;
 
   return (
-    <Tool defaultOpen={isOpenByDefault || outputErrorReason != null}>
+    <Tool defaultOpen={isOpenByDefault}>
       <ToolHeader
         type={part.type}
         toolName={part.type === "dynamic-tool" ? toolName : undefined}

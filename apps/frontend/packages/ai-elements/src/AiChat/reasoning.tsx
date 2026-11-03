@@ -92,7 +92,7 @@ export type ReasoningContentProps = ComponentProps<"div"> & { children: string }
 export function ReasoningContent({ className, children, ...props }: ReasoningContentProps) {
   const { isStreaming } = useReasoning();
   return (
-    <TraceCollapsibleContent keepMounted className={cn("max-h-96 overflow-y-auto text-sm", className)} {...props}>
+    <TraceCollapsibleContent keepMounted className={cn("text-sm", className)} {...props}>
       <MessageResponse isAnimating={isStreaming}>{children}</MessageResponse>
     </TraceCollapsibleContent>
   );

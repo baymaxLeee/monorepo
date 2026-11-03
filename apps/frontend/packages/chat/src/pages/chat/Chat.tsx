@@ -22,7 +22,7 @@ import {
   fetchConversation,
   ingestConversationDocuments,
 } from "@repo/api";
-import { toast, MessageScrollerItem } from "@repo/design-system";
+import { toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { lastAssistantMessageIsCompleteWithApprovalResponses, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -632,7 +632,10 @@ export function ChatSession({
             <ConversationEmptyState title="开始对话" description="输入你的问题，或粘贴、拖入文件开始。" />
           ) : (
             messages.map((message) => (
-              <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
+              <div
+                key={message.id}
+                className="min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]"
+              >
                 <ChatMessageView
                   message={message}
                   conversationId={id ?? ""}
@@ -656,7 +659,7 @@ export function ChatSession({
                   planExecutedIds={executedPlanPaths}
                   planBusy={busy}
                 />
-              </MessageScrollerItem>
+              </div>
             ))
           )}
           {showThinkingPlaceholder ? (

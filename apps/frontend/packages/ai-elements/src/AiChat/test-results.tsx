@@ -90,9 +90,7 @@ export function Test({ result }: { result: TestResult }) {
       </TraceLine>
       {result.error ? (
         <CodeBlock size="sm" variant="destructive">
-          <CodeBlockContent wrap className="max-h-64">
-            {result.error}
-          </CodeBlockContent>
+          <CodeBlockContent wrap>{result.error}</CodeBlockContent>
         </CodeBlock>
       ) : null}
     </div>

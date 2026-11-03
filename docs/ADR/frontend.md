@@ -36,6 +36,14 @@ Overlay 层级按 React 所有权和 portal-layer 管理，不维护业务 z-ind
 AI UI 消费原生消息/工具/审批/来源/文件部分，依据 metadata 选择展示，不靠
 工具名称硬编码另一套协议。AI Elements 保持源码组合和重型子路径边界。
 
+Chat 使用 Vercel Conversation 的 `use-stick-to-bottom` 组合，正文、展开的推理
+和工具详情共享一个滚动视口；Reasoning 与工具沿用 shadcn Trace 折叠结构。由上游 hook 负责尺寸
+变化、用户上翻和手动触底恢复，避免嵌套消息滚动器及并行的滚轮跟随状态。
+`MessageScroller` 保留为 design-system 的独立轮次锚定能力，不参与该会话视口。
+普通工具的原始输入输出、Bash 完整命令与日志默认折叠，摘要保留执行状态；
+授权、待回答问题和错误反馈保持可见，手动展开选择不被流式更新覆盖。
+展开内容以及消息代码块、表格随会话纵向增长，宽内容仍可横向滚动。
+
 ## 取舍与验证
 
 独立 remote 构建/部署带来 host 单例和路由契约的协调成本；统一准入、依赖标签、

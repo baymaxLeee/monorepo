@@ -5,6 +5,7 @@ import {
   TraceCollapsible,
   TraceCollapsibleContent,
   TraceCollapsibleTrigger,
+  TraceDescription,
   TraceIcon,
   TraceLine,
   TraceTitle,
@@ -104,7 +105,7 @@ export function ToolHeader({ className, title, type, state, toolName, children, 
             <WrenchIcon />
           </TraceIcon>
           <TraceTitle>{title ?? derivedName}</TraceTitle>
-          <span className="sr-only">{STATUS_LABELS[state] ?? state}</span>
+          <TraceDescription>{STATUS_LABELS[state] ?? state}</TraceDescription>
         </TraceLine>
       )}
     </TraceCollapsibleTrigger>
@@ -114,12 +115,7 @@ export function ToolHeader({ className, title, type, state, toolName, children, 
 export type ToolContentProps = ComponentProps<typeof TraceCollapsibleContent>;
 
 export function ToolContent({ className, ...props }: ToolContentProps) {
-  return (
-    <TraceCollapsibleContent
-      className={cn("max-h-[min(24rem,60vh)] space-y-4 overflow-y-auto", className)}
-      {...props}
-    />
-  );
+  return <TraceCollapsibleContent className={cn("space-y-4", className)} {...props} />;
 }
 
 export type ToolJsonBlockProps = ComponentProps<"pre"> & {
@@ -129,7 +125,7 @@ export type ToolJsonBlockProps = ComponentProps<"pre"> & {
 export function ToolJsonBlock({ className, value, ...props }: ToolJsonBlockProps) {
   return (
     <CodeBlock size="sm">
-      <CodeBlockContent wrap className={cn("max-h-64", className)} {...props}>
+      <CodeBlockContent wrap className={className} {...props}>
         {typeof value === "string" ? value : (JSON.stringify(value, null, 2) ?? "")}
       </CodeBlockContent>
     </CodeBlock>

@@ -9,7 +9,7 @@ workspace's public imports, theme, AI SDK parts and product callbacks.
 | Official pattern | Local module |
 | --- | --- |
 | Chain of Thought | `src/AiChat/chain-of-thought.tsx` |
-| Chat | `src/AiChat/conversation.tsx` (Message Scroller) |
+| Chat | `src/AiChat/conversation.tsx` (Vercel Conversation / `use-stick-to-bottom`) |
 | Checkpoint | `src/AiChat/checkpoint.tsx` |
 | Confirmation | `src/AiChat/confirmation.tsx` |
 | Context | `src/AiChat/context.tsx` |
@@ -32,10 +32,26 @@ code use `@repo/ai-elements/terminal` and `/code-block` subpaths. The composer
 remains under `/prompt-input` so its editor is loaded only when needed.
 
 Local adaptations retain safe external URLs, tool outcome presentation,
-artifact previews, bounded output and user-controlled disclosure. The searchable
+artifact previews and user-controlled disclosure. The searchable
 selector serves configured bots; `ModelPicker` provides the official radio-menu
 pattern for small model or reasoning-option lists. TipTap retains attachments,
 mentions and slash commands while Input Group owns the composer frame.
 `artifact.tsx` and `attachments.tsx` retain the existing source-owned APIs.
 Subagent, checkpoint and test results are presentation capabilities; they do not
 create an agent runtime, restore operation or test runner.
+
+Conversation uses the [`use-stick-to-bottom` composition from Vercel AI Elements](https://github.com/vercel/ai-elements/blob/main/packages/elements/src/conversation.tsx).
+Reasoning follows the [shadcn Trace disclosure pattern](https://ui.shadcn.com/docs/ai-elements/base/reasoning):
+expanded reasoning grows in the conversation viewport, without its own height
+limit or scroll button. The upstream hook owns resize observation, manual
+bottom re-entry and nested scroll detection. Initial, resize and explicit jumps
+are instant to avoid adding motion during streaming. Message Scroller remains
+available in design-system for turn-anchored transcript interfaces; it is not
+nested inside reasoning or mixed into this conversation's scroll state.
+
+Tool details use [shadcn Trace disclosure](https://ui.shadcn.com/docs/ai-elements/base/tool).
+Our conversation defaults ordinary tools and terminal logs to collapsed summaries;
+approvals, questions and errors remain visible. Expanding details grows the shared
+viewport instead of creating another bounded output scroller. Streamdown's native
+[`codeBlockMaxHeight` and `tableMaxHeight`](https://streamdown.ai/docs/configuration)
+are set to `0` for messages, retaining horizontal scrolling for wide content.

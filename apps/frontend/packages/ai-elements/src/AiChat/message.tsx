@@ -234,6 +234,8 @@ export const MessageResponse = memo(
     <Streamdown
       className={cn("size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
       plugins={streamdownPlugins}
+      codeBlockMaxHeight={0}
+      tableMaxHeight={0}
       {...props}
     />
   ),
