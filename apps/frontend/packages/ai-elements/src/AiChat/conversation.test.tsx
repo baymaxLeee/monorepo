@@ -122,9 +122,12 @@ async function setupConversation() {
     });
     await settle();
   }
-  async function append() {
+  function grow() {
     height += 100;
     view.rerender(content());
+  }
+  async function append() {
+    grow();
     await resize();
   }
   async function scrollTo(top: number) {
@@ -138,7 +141,7 @@ async function setupConversation() {
     scrollRef.current?.scrollToEnd();
   });
   await settle();
-  return { ...view, viewport, transcript, append, scrollTo, scrollRef };
+  return { ...view, viewport, transcript, append, grow, resize, scrollTo, scrollRef };
 }
 
 function expectAtBottom(viewport: HTMLElement) {
@@ -211,10 +214,45 @@ test("upward intent pauses following and downward intent away from the bottom do
   expect(viewport.scrollTop).toBe(top);
 });
 
-test("horizontal scrolling does not force the chat to follow", async () => {
-  const { viewport, append } = await setupConversation();
-  fireEvent.wheel(viewport, { deltaX: 30, deltaY: 0 });
+test("a trackpad's horizontal or zero-delta tail preserves following at the bottom", async () => {
+  const { viewport, append, scrollTo } = await setupConversation();
+  fireEvent.wheel(viewport, { deltaY: -100 });
+  await scrollTo(100);
+  await append();
+  fireEvent.wheel(viewport, { deltaY: 100 });
+  await scrollTo(viewport.scrollHeight - viewport.clientHeight);
+  for (const deltaX of [2, 0]) {
+    fireEvent.wheel(viewport, { deltaX, deltaY: 0 });
+    await append();
+    expectAtBottom(viewport);
+  }
+});
+
+test.each([0, 3])("trackpad deltaY=%i preserves following while a streamed resize is pending", async (deltaY) => {
+  const { viewport, grow, resize, append } = await setupConversation();
+  grow();
+  fireEvent.wheel(viewport, { deltaX: 2, deltaY });
+  await resize();
+  expectAtBottom(viewport);
+  await append();
+  expectAtBottom(viewport);
+});
+
+test("horizontal trackpad input while reading history does not return to the bottom", async () => {
+  const { viewport, append, scrollTo } = await setupConversation();
+  fireEvent.wheel(viewport, { deltaY: -100 });
+  await scrollTo(100);
+  fireEvent.wheel(viewport, { deltaX: 2, deltaY: 0 });
+  await append();
+  expect(viewport.scrollTop).toBe(100);
+});
+
+test("upward input cancels following even while a streamed resize is pending", async () => {
+  const { viewport, grow, resize, append } = await setupConversation();
   const top = viewport.scrollTop;
+  grow();
+  fireEvent.wheel(viewport, { deltaY: -3 });
+  await resize();
   await append();
   expect(viewport.scrollTop).toBe(top);
 });

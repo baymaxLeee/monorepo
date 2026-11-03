@@ -1,8 +1,13 @@
-import { MessageScrollerViewport, useMessageScroller } from "@repo/design-system/shadcn/message-scroller";
+import {
+  MessageScrollerViewport,
+  useMessageScroller,
+  useMessageScrollerScrollable,
+} from "@repo/design-system/shadcn/message-scroller";
 import { useRef, type ReactNode } from "react";
 
 export function ConversationViewport({ className, children }: { className?: string; children: ReactNode }) {
   const { scrollToEnd } = useMessageScroller();
+  const { end: canScrollDown } = useMessageScrollerScrollable();
   const touchY = useRef<number | undefined>(undefined);
 
   // @shadcn/react 0.3.1 clears following on every wheel/key/touch intent, even
@@ -17,7 +22,12 @@ export function ConversationViewport({ className, children }: { className?: stri
     <MessageScrollerViewport
       className={className}
       onWheel={(event) => {
-        if (!event.defaultPrevented && event.deltaY > 0) resumeAtBottom(event.currentTarget);
+        if (event.defaultPrevented) return;
+        // Preserve following for downward, horizontal and zero-delta trackpad tails.
+        // The DOM can grow before the upstream resize callback; use its live-edge
+        // snapshot as well as geometry so that growth cannot look like scrolling away.
+        if (event.deltaY >= 0 && !canScrollDown) scrollToEnd({ behavior: "auto" });
+        else if (event.deltaY > 0) resumeAtBottom(event.currentTarget);
       }}
       onKeyDown={(event) => {
         if (event.defaultPrevented || event.target !== event.currentTarget) return;

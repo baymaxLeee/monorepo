@@ -55,6 +55,10 @@ occurs. Downward wheel, keyboard and touch input at the physical bottom invokes
 the public `scrollToEnd` command. This keeps upstream state authoritative without
 another following flag, observer or animation loop. Regression tests cover this
 boundary; re-evaluate the adaptation when upgrading the upstream package.
+Downward, horizontal and zero-delta trackpad tails preserve the upstream live-edge
+state reported by `useMessageScrollerScrollable`, including when content has grown
+but resize handling is pending. Upward input still stops following; input while
+reading history must not jump to the bottom.
 The focused viewport's End key also uses that command so a native animated jump
 cannot finish at an outdated bottom while new chunks arrive.
 
