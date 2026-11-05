@@ -178,16 +178,7 @@ export function ChatLayout() {
     <Layout className="relative flex h-svh min-h-0 flex-col scrollbar-hide [&_*]:[scrollbar-width:none] [&_*]:[-ms-overflow-style:none] [&_*::-webkit-scrollbar]:hidden">
       <div
         ref={shell.containerRef}
-        className={cn(
-          "relative grid min-h-0 flex-1",
-          "transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none",
-          shell.isDragging && "transition-none [&_iframe]:pointer-events-none",
-        )}
-        style={{
-          gridTemplateColumns: shell.compact
-            ? "0 minmax(0, 1fr) 0"
-            : `${shell.leftWidth}px minmax(0, 1fr) ${shell.rightWidth}px`,
-        }}
+        className={cn("relative grid min-h-0 flex-1", shell.isDragging && "[&_iframe]:pointer-events-none")}
       >
         {shell.compact && (sidebarOpen || workspaceOpen) ? (
           <Button
@@ -199,6 +190,7 @@ export function ChatLayout() {
           />
         ) : null}
         <ChatConversationSidebar
+          panelRef={shell.leftPanelRef}
           conversations={conversations}
           activePath={location.pathname}
           creating={creating}
@@ -225,18 +217,12 @@ export function ChatLayout() {
         </main>
 
         <div
+          ref={shell.rightPanelRef}
           className={cn(
             "relative z-10 col-start-3 flex min-h-0 min-w-0 flex-col bg-background",
             workspaceOpen ? "opacity-100" : "pointer-events-none opacity-0",
             shell.compact && "absolute inset-y-0 right-0 z-30 shadow-xl max-[639px]:w-full",
           )}
-          style={
-            shell.compact && workspaceOpen
-              ? {
-                  width: `min(${shell.panelRightWidth}px, calc(100% - 3rem))`,
-                }
-              : undefined
-          }
           aria-hidden={!workspaceOpen}
         >
           <ChatPanelResizeHandle

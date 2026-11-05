@@ -1,9 +1,9 @@
 import { cn } from "@repo/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface ChatPanelResizeHandleProps {
   edge: "left-panel" | "right-panel";
-  onDrag: (deltaX: number) => void;
+  onDrag: (deltaX: number) => number | void;
   onDragStart: () => void;
   onDragEnd: () => void;
   disabled?: boolean;
@@ -22,35 +22,14 @@ export function ChatPanelResizeHandle({
   minValue,
   maxValue,
 }: ChatPanelResizeHandleProps) {
-  const draggingRef = useRef(false);
-  const pointerIdRef = useRef<number | null>(null);
-  const lastClientXRef = useRef(0);
-  const bodyStyleRef = useRef({ cursor: "", userSelect: "" });
+  const stopDragRef = useRef<((commitPending: boolean) => void) | null>(null);
   const [dragging, setDragging] = useState(false);
-
-  const restoreBody = useCallback(() => {
-    document.body.style.cursor = bodyStyleRef.current.cursor;
-    document.body.style.userSelect = bodyStyleRef.current.userSelect;
-  }, []);
-
-  const finishDrag = useCallback(() => {
-    if (!draggingRef.current) {
-      return;
-    }
-    draggingRef.current = false;
-    pointerIdRef.current = null;
-    setDragging(false);
-    restoreBody();
-    onDragEnd();
-  }, [onDragEnd, restoreBody]);
 
   useEffect(
     () => () => {
-      if (draggingRef.current) {
-        restoreBody();
-      }
+      stopDragRef.current?.(false);
     },
-    [restoreBody],
+    [disabled],
   );
 
   if (disabled) {
@@ -86,16 +65,18 @@ export function ChatPanelResizeHandle({
         onDragEnd();
       }}
       onPointerDown={(event) => {
-        if (event.button !== 0) {
+        if (event.button !== 0 || stopDragRef.current) {
           return;
         }
         event.preventDefault();
         event.stopPropagation();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        draggingRef.current = true;
-        pointerIdRef.current = event.pointerId;
-        lastClientXRef.current = event.clientX;
-        bodyStyleRef.current = {
+        const target = event.currentTarget;
+        const pointerId = event.pointerId;
+        target.setPointerCapture(pointerId);
+        let lastClientX = event.clientX;
+        let pendingDelta = 0;
+        let frame: number | null = null;
+        const bodyStyle = {
           cursor: document.body.style.cursor,
           userSelect: document.body.style.userSelect,
         };
@@ -104,29 +85,59 @@ export function ChatPanelResizeHandle({
         setDragging(true);
         onDragStart();
 
+        const flush = () => {
+          frame = null;
+          const delta = pendingDelta;
+          pendingDelta = 0;
+          if (delta !== 0) {
+            const width = onDrag(delta);
+            if (typeof width === "number") target.setAttribute("aria-valuenow", String(Math.round(width)));
+          }
+        };
+
         const onMove = (moveEvent: PointerEvent) => {
-          if (!draggingRef.current || pointerIdRef.current !== moveEvent.pointerId) {
+          if (pointerId !== moveEvent.pointerId) {
             return;
           }
           moveEvent.preventDefault();
-          const deltaX = moveEvent.clientX - lastClientXRef.current;
-          lastClientXRef.current = moveEvent.clientX;
-          onDrag(deltaX);
+          pendingDelta += moveEvent.clientX - lastClientX;
+          lastClientX = moveEvent.clientX;
+          // Pointer input may outpace painting. Resize the transcript at most once per frame.
+          if (frame === null) frame = window.requestAnimationFrame(flush);
         };
 
         const onUp = (upEvent: PointerEvent) => {
-          if (pointerIdRef.current !== upEvent.pointerId) {
+          if (pointerId !== upEvent.pointerId) {
             return;
           }
+          finish(true);
+        };
+
+        const onInterrupted = () => finish(true);
+        const finish = (commitPending: boolean) => {
+          if (stopDragRef.current !== finish) return;
+          stopDragRef.current = null;
+          if (frame !== null) window.cancelAnimationFrame(frame);
+          // Commit the last frame before the shell persists its width; discard it on unmount/disable.
+          if (commitPending) flush();
           window.removeEventListener("pointermove", onMove);
           window.removeEventListener("pointerup", onUp);
           window.removeEventListener("pointercancel", onUp);
-          finishDrag();
+          window.removeEventListener("blur", onInterrupted);
+          target.removeEventListener("lostpointercapture", onInterrupted);
+          if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+          document.body.style.cursor = bodyStyle.cursor;
+          document.body.style.userSelect = bodyStyle.userSelect;
+          setDragging(false);
+          onDragEnd();
         };
 
+        stopDragRef.current = finish;
         window.addEventListener("pointermove", onMove);
         window.addEventListener("pointerup", onUp);
         window.addEventListener("pointercancel", onUp);
+        window.addEventListener("blur", onInterrupted);
+        target.addEventListener("lostpointercapture", onInterrupted);
       }}
     >
       <span

@@ -22,12 +22,14 @@ import {
   RouteIcon,
   Trash2Icon,
 } from "lucide-react";
+import type { Ref } from "react";
 import { Link } from "react-router-dom";
 
 import { ChatPanelResizeHandle } from "./ChatPanelResizeHandle";
 import { ChatUserMenu } from "./ChatUserMenu";
 
 export type ChatConversationSidebarProps = {
+  panelRef: Ref<HTMLElement>;
   conversations: Conversation[] | null;
   activePath: string;
   creating: boolean;
@@ -40,7 +42,7 @@ export type ChatConversationSidebarProps = {
   onExport: (id: string) => void;
   onOpenTrace: (id: string) => void;
   onToggle: () => void;
-  onResize: (deltaX: number) => void;
+  onResize: (deltaX: number) => number | undefined;
   onResizeStart: () => void;
   onResizeEnd: () => void;
   resizeMin?: number;
@@ -48,6 +50,7 @@ export type ChatConversationSidebarProps = {
 };
 
 export function ChatConversationSidebar({
+  panelRef,
   conversations,
   activePath,
   creating,
@@ -69,12 +72,12 @@ export function ChatConversationSidebar({
   return (
     <>
       <Aside
+        ref={panelRef}
         className={cn(
           "relative z-10 w-full min-w-0 gap-2 overflow-visible !border-r-0 bg-background p-1.5",
           compact && "absolute inset-y-0 left-0 z-30 shadow-xl",
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
-        style={compact && open ? { width } : undefined}
         aria-hidden={!open}
       >
         <div className="relative flex h-full min-w-0 flex-col gap-2 overflow-hidden">
