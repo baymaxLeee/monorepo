@@ -27,7 +27,7 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 - `ask_user` 没有服务端 execute；一次调用以稳定语义 ID 批量携带当前所有独立问题，
   客户端一次性回填结构化 `answers` 后由 `addToolOutput` 发起下一次 run；依赖前序答案的
   问题才使用后续 continuation。Plan mode 保留 provider 并行 tool calls，但模型
-  middleware 会过滤与 `ask_user` 同 step 的 plan-mode `write_file`，使计划只能在
+  middleware 会过滤与 `ask_user` 同 step 的 plan-mode `write_plan`，使计划只能在
   用户回答后的 continuation 落库；搜索、读取等独立只读工具仍可同 step 并发。正常模式
   的 Markdown、HTML、图片和视频生成调用按计划顺序串行，只有 `delegate_tasks`
   会在一次调用内部并发生成多个独立完整文件。
@@ -36,25 +36,19 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 - 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方
   `output-error`，并把未完成 todo 改为 `cancelled`；取消接口等待本地 run finalizer，
   因而重新进入会话不会把已取消卡片恢复成 loading。
-- `write_file` 负责创建或整文件覆盖文本；Plan mode 只允许结构完整的
-  `*-plan.md` 并更新 `active_plan_path`。
+- `write_plan` 在 Plan mode 保存完整 `*-plan.md` 并更新 `active_plan_path`。
 
 ## Files
 
-- `files` capability 统一为 path-based `list_files`、`read_file`、`search_files`、
-  `write_file`、`edit_file` 和通用 `delegate_tasks`；不再存在独立 artifact
-  tool category、document-id 文本写入或 revision/block 公共契约。
-- 普通文本由 `write_file` 完整写入并立即发布；`edit_file` 原子应用互不重叠的
-  `{old_text,new_text,replace_all?}` 精确替换。`old_text` 默认必须唯一；确定性的全局
-  替换可显式启用 `replace_all`。`expected_sha256` 是可选的提前冲突检查。
-- `write_file` 完整写入后立即发布，HTML 无需等待检查即可预览；`edit_file` 在单次调用中
-  原子应用一组互不重叠的精确替换并立即发布。Harness 不提供 HTML 专用校验或修复流程；
-  主 Agent 根据用户反馈和真实运行证据决定后续精准编辑。
-- 主 Agent 默认自己决定 HTML 的生成粒度：能在一次输出中保持整体一致性时直接写完整
-  HTML；更大的产物通过多轮 `write_file`/`edit_file` 创建页面或模块。只有独立完整文件
-  确实会挤压主模型输出或上下文预算时，才把冻结的共享上下文交给 `delegate_tasks`。
-  Executor 的 `file-task-batch` 只并发生成指定的完整文件；Chat 不再编译 fragment、
-  artifact shell 或维护 verification 状态机，成功批次直接原子发布。
+- Bash 操作真实的 run 工作区，支持普通文件与二进制文件的创建、读取、修改、删除、
+  转换和验证。`write_stdin` 继续长命令、轮询增量输出或发送交互输入。
+- `save_sandbox_file` 显式上传文件至 Asset，并在当前会话注册不可变快照。保存前的
+  工作文件仅存在于沙箱；run 结束后销毁。原始附件和已保存成果可在后续 run 重新导入。
+- `list_conversation_files` / `read_conversation_file` 查询持久会话资源及旧文件树；
+  `load_conversation_files` 返回沙箱内精确路径，也支持重新导入本轮其他工具新增的文件。
+- `delegate_tasks` 保留独立完整文件的 durable 批次生成与原子发布。普通单文件由
+  主 Agent 通过 Bash 编写、验证后发布；没有 HTML compiler/block/verification 状态机。
+- 运行隔离、出口策略、回收与部署见 [Sandbox](sandbox.md)。
 - HTML 类型与生成规模正交。报告、动态 Dashboard、H5 游戏、模拟器和互动课件均可
   使用完整 JavaScript/DOM/Canvas/SVG/WebGL/媒体能力；direct 与 delegated 的差异
   只是谁 materialize 文件，不改变浏览器能力。前端使用普通 iframe 预览，不通过
@@ -79,9 +73,9 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 - Plan mode 只加载研究、交互和计划工具，同时获得执行能力摘要，因此能规划
   `delegate_tasks`、`generate_images`、`create_video_production`，但不能提前执行。
 - 用户从 Plan 卡片执行时，`data-plan-execution` 携带稳定 path；ToolLoop 只开放并
-  强制调用 `read_file`，直到连续行区间覆盖 Plan 最新全文，之后才开放
+  强制调用 `read_conversation_file`，直到连续行区间覆盖 Plan 最新全文，之后才开放
   `update_todos` 和生成工具。用户仅用自然语言要求执行 Plan 时，由模型先调用
-  `list_files` 自行发现；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、
+  `list_conversation_files` 自行发现；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、
   Harness 选择器或动态候选注入。
 - 每个 run 对本轮使用的可变权威引用重新取最新快照：Plan 从 Knowledge 读取，激活的
   Skill（含 client-tool continuation）从 Admin 读取最新发布版本，其他 instruction/
@@ -92,4 +86,4 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
   scripts 等文本资源，草稿树永不进入运行时。
 
 跨服务调用必须经过 `@backend/transport-ts`；provider 配置归 admin，虚拟文件存储
-归 knowledge，长任务执行归 executor。当前决策见 [Agent runtime](../ADR/agent-runtime.md)、[文件与 Asset](../ADR/files-and-assets.md) 与 [耐久执行](../ADR/durable-execution.md)。
+归 knowledge，临时命令执行归 sandbox，长任务执行归 executor。当前决策见 [Agent runtime](../ADR/agent-runtime.md)、[文件与 Asset](../ADR/files-and-assets.md) 与 [耐久执行](../ADR/durable-execution.md)。

@@ -1,8 +1,8 @@
 import { getCanvasService } from "../generated/canvas-server/index";
 import { getChatService } from "../generated/chat-server/index";
-import type { AssetUploadPlan } from "./asset-server";
 import { authFetch } from "./auth-fetch";
 import { API_BASE_URL } from "./http";
+import type { AssetUploadPlan } from "./storage-server";
 
 export * from "../generated/canvas-server/index";
 

@@ -13,6 +13,7 @@ export {
   ArtifactHeader,
   type ArtifactHeaderProps,
   ArtifactPreview,
+  resolveArtifactPreviewKind,
   type ArtifactPreviewKind,
   type ArtifactPreviewProps,
   type ArtifactProps,

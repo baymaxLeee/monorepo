@@ -14,8 +14,8 @@ from kernel.errors import BaseError
 from sqlalchemy import text
 
 from application.admin_client import ProviderSnapshot, get_admin_client
-from application.asset_client import get_asset_client
 from application.convert import ConvertService
+from application.storage_client import get_storage_client
 
 logger = logging.getLogger("knowledge.processor")
 
@@ -80,7 +80,7 @@ async def _convert_once(document_id: str, *, provider_id: str | None) -> str:
         if cached_markdown is not None:
             markdown = cached_markdown
         else:
-            content = await get_asset_client().read(
+            content = await get_storage_client().read(
                 tenant_id=tenant_id,
                 workspace_id=workspace_id,
                 asset_id=asset_id,

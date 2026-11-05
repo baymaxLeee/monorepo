@@ -1,6 +1,12 @@
-import { ArtifactAction, ArtifactPreview } from "@repo/ai-elements";
+import { ArtifactAction, resolveArtifactPreviewKind } from "@repo/ai-elements";
 import type { ConversationDocumentDetail } from "@repo/api";
-import { fetchConversationDocument, updateConversationDocument } from "@repo/api";
+import {
+  createStorageDownloadUrl,
+  downloadAssetUrl,
+  fetchAssetText,
+  fetchConversationDocument,
+  updateConversationDocument,
+} from "@repo/api";
 import { Button, toast } from "@repo/design-system";
 import { MarkdownEditor } from "@repo/editors/markdown-editor";
 import { getErrorMessage } from "@repo/shared";
@@ -8,8 +14,9 @@ import { DownloadIcon, Loader2Icon, Maximize2Icon, Minimize2Icon, XIcon } from "
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { downloadConversationDocument, useDocumentBlobUrl, useDocumentResourceUrl } from "../hooks/useDocumentSource";
+import { downloadConversationDocument } from "../hooks/useDocumentSource";
 import { useChatStore } from "../store/useChatStore";
+import { ChatArtifactPreview } from "./ChatArtifactPreview";
 
 // Autosave fires 1.5s after the user stops typing — long enough to coalesce a
 // burst of keystrokes into a single PATCH, short enough to feel automatic.
@@ -17,28 +24,10 @@ const AUTOSAVE_DELAY_MS = 1500;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-function needsBinarySource(mimeType: string | undefined) {
-  return Boolean(
-    mimeType?.startsWith("image/") ||
-    mimeType?.startsWith("video/") ||
-    mimeType?.startsWith("audio/") ||
-    mimeType?.includes("pdf"),
-  );
-}
-
-function usesDirectResourceUrl(mimeType: string | undefined) {
-  return Boolean(
-    mimeType === "text/html" ||
-    mimeType?.startsWith("video/") ||
-    mimeType?.startsWith("audio/") ||
-    mimeType?.includes("pdf"),
-  );
-}
-
 // Only agent-authored Markdown artifacts (plans, notes, ...) are editable in
 // place; uploaded sources stay read-only and binary previews have no text body.
 function isEditableMarkdown(artifact: ConversationDocumentDetail | null) {
-  return artifact?.kind === "artifact" && artifact.mime_type === "text/markdown";
+  return artifact?.kind === "artifact" && artifact.mime_type === "text/markdown" && artifact.editable_source;
 }
 
 export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void }) {
@@ -63,26 +52,10 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
   const savedContentRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const binarySource = needsBinarySource(artifact?.mime_type);
-  const directResource = usesDirectResourceUrl(artifact?.mime_type);
-  const blobSource = binarySource && !directResource;
+  const previewMimeType = artifact?.source_mime_type || artifact?.mime_type;
+  const previewFilename = artifact?.source_filename || artifact?.filename;
+  const previewKind = resolveArtifactPreviewKind(undefined, previewMimeType, previewFilename);
   const editable = isEditableMarkdown(artifact);
-  const {
-    blobUrl,
-    loading: blobLoading,
-    error: blobError,
-  } = useDocumentBlobUrl(
-    conversationId ?? undefined,
-    documentId,
-    Boolean(open && blobSource),
-    artifact?.updated_at ?? "",
-  );
-  const {
-    resourceUrl,
-    loading: resourceLoading,
-    error: resourceError,
-  } = useDocumentResourceUrl(documentId, Boolean(open && directResource), artifact?.updated_at ?? "");
-  const previewSrc = directResource ? resourceUrl : blobUrl;
 
   useEffect(() => {
     if (!open || !conversationId || !documentId) {
@@ -90,11 +63,26 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
       return;
     }
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setArtifact(null);
     setSaveState("idle");
-    void fetchConversationDocument(conversationId, documentId)
-      .then((document) => {
+    void fetchConversationDocument(conversationId, documentId, { includeContent: false, signal: controller.signal })
+      .then(async (metadata) => {
+        let document = metadata;
+        if (isEditableMarkdown(metadata) && metadata.asset_id && metadata.source_revision_id) {
+          const capability = await createStorageDownloadUrl(
+            {
+              assetId: metadata.asset_id,
+              revisionId: metadata.source_revision_id,
+              owner: { kind: "conversation-document", conversationId, documentId },
+            },
+            controller.signal,
+          );
+          document = { ...metadata, content_md: await fetchAssetText(capability.url, controller.signal) };
+        } else if (!metadata.asset_id || !metadata.source_revision_id) {
+          throw new Error("Document has no stored source revision");
+        }
         if (!active) {
           return;
         }
@@ -117,13 +105,12 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
       });
     return () => {
       active = false;
+      controller.abort();
     };
   }, [conversationId, documentId, open, token]);
 
-  const previewLoading =
-    loading || Boolean(artifact && blobSource && blobLoading) || Boolean(artifact && directResource && resourceLoading);
-  const previewFailed = Boolean(blobError) || Boolean(resourceError);
-  const isHtmlPreview = artifact?.mime_type === "text/html";
+  const previewLoading = loading;
+  const isHtmlPreview = previewKind === "html";
 
   useEffect(() => {
     const sync = () => {
@@ -172,12 +159,25 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
     }
     setDownloading(true);
     try {
-      await downloadConversationDocument(
-        conversationId,
-        documentId,
-        artifact,
-        editable ? draftRef.current : artifact.content_md,
-      );
+      if (editable) {
+        const url = URL.createObjectURL(new Blob([draftRef.current], { type: "text/markdown;charset=utf-8" }));
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = artifact.filename;
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+        return;
+      }
+      if (artifact.asset_id && artifact.source_revision_id) {
+        const capability = await createStorageDownloadUrl({
+          assetId: artifact.asset_id,
+          revisionId: artifact.source_revision_id,
+          owner: { kind: "conversation-document", conversationId, documentId },
+        });
+        downloadAssetUrl(capability.url, capability.filename);
+        return;
+      }
+      await downloadConversationDocument(conversationId, documentId, artifact);
     } catch (error) {
       toast.add({ type: "error", title: getErrorMessage(error, "下载失败") });
     } finally {
@@ -264,7 +264,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
             {downloading ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
           </ArtifactAction>
         ) : null}
-        {isHtmlPreview && !previewLoading && !previewFailed ? (
+        {isHtmlPreview && !previewLoading ? (
           <Button
             type="button"
             variant="ghost"
@@ -301,17 +301,21 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
               className="h-full w-full overflow-y-auto"
             />
           </div>
-        ) : previewFailed ? (
-          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-            无法加载预览
-          </div>
         ) : artifact ? (
-          <ArtifactPreview
+          <ChatArtifactPreview
             title={artifact.title}
-            filename={artifact.filename}
-            mimeType={artifact.mime_type}
+            filename={previewFilename}
+            mimeType={previewMimeType}
             content={artifact.content_md}
-            src={previewSrc ?? undefined}
+            asset={
+              artifact.asset_id && artifact.source_revision_id
+                ? {
+                    assetId: artifact.asset_id,
+                    revisionId: artifact.source_revision_id,
+                    owner: { kind: "conversation-document", conversationId: conversationId!, documentId: documentId! },
+                  }
+                : undefined
+            }
             showHeader={false}
             className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&>div]:overscroll-contain [&>div]:[scrollbar-width:none] [&>div]:[-ms-overflow-style:none] [&>div::-webkit-scrollbar]:hidden [&_iframe]:h-full [&_iframe]:min-h-0 [&_pre]:min-h-0 [&_pre]:overflow-visible"
           />

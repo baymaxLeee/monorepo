@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestBodyLimitScopesLargeUploadsToAsset(t *testing.T) {
+func TestBodyLimitScopesLargeUploadsToStorage(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -23,10 +23,10 @@ func TestBodyLimitScopesLargeUploadsToAsset(t *testing.T) {
 		want int
 	}{
 		"ordinary endpoint": {path: "/api/chat-server/messages", want: http.StatusRequestEntityTooLarge},
-		"asset upload":      {path: "/api/asset-server/assets", want: http.StatusNoContent},
+		"asset upload":      {path: "/api/storage-server/upload-sessions/id/content", want: http.StatusNoContent},
 	} {
 		t.Run(name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, testCase.path, strings.NewReader("12345"))
+			request := httptest.NewRequest(http.MethodPut, testCase.path, strings.NewReader("12345"))
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
 			if response.Code != testCase.want {

@@ -1,4 +1,3 @@
-import { executeAssetUploadPlan, type AssetUploadPlan } from "./asset-server";
 import { authFetch } from "./auth-fetch";
 import type {
   ConversationDocument,
@@ -6,7 +5,8 @@ import type {
   ConversationDocumentKind,
   UpdateConversationDocumentInput,
 } from "./chat-server";
-import { API_BASE_URL, type ApiRequestConfig, apiHttp, request } from "./http";
+import { API_BASE_URL, type ApiRequestConfig, request } from "./http";
+import { executeStorageUploadPlan, type AssetUploadPlan } from "./storage-server";
 
 const BASE = "/api/knowledge-server";
 type RequestOptions = Pick<ApiRequestConfig, "skipErrorNotify">;
@@ -46,6 +46,7 @@ export function toConversationDocument(doc: Record<string, unknown>, conversatio
     source_mime_type: (doc.source_mime_type as string | null) ?? null,
     asset_id: (doc.asset_id as string | null) ?? null,
     source_revision_id: (doc.source_revision_id as string | null) ?? null,
+    editable_source: doc.editable_source === true,
     source_sha256: (doc.source_sha256 as string | null) ?? null,
     source_filename: (doc.source_filename as string | null) ?? null,
     ingest_status: (doc.ingest_status as ConversationDocument["ingest_status"]) ?? "ready",
@@ -96,7 +97,7 @@ async function ingestFiles(
     prepared.uploads.map((upload) => {
       const file = filesByClientRef.get(upload.client_ref);
       if (!file) throw new Error(`upload plan returned unknown client_ref ${upload.client_ref}`);
-      return executeAssetUploadPlan(
+      return executeStorageUploadPlan(
         {
           uploadSessionId: upload.upload_session_id,
           intentId: upload.intent_id,
@@ -240,56 +241,9 @@ export async function batchDeleteKnowledgeDocuments(ids: string[]): Promise<Batc
   });
 }
 
-export function knowledgeDocumentSourceUrl(documentId: string): string {
-  return `${API_BASE_URL}${BASE}/documents/${encodeURIComponent(documentId)}/source`;
-}
-
-export interface KnowledgeDocumentResourceURL {
-  url: string;
-  expires_at: string;
-  mime_type: string;
-  filename: string;
-}
-
-export async function createKnowledgeDocumentResourceUrl(documentId: string): Promise<KnowledgeDocumentResourceURL> {
-  const resource = await request<KnowledgeDocumentResourceURL>({
-    url: `${BASE}/documents/${encodeURIComponent(documentId)}/resource-url`,
-    method: "POST",
-  });
-  return {
-    ...resource,
-    url: new URL(resource.url, API_BASE_URL || window.location.origin).toString(),
-  };
-}
-
-export async function createKnowledgeFileResourceUrl(
-  conversationId: string,
-  path: string,
-): Promise<KnowledgeDocumentResourceURL> {
-  const resource = await request<KnowledgeDocumentResourceURL>({
-    url: `${BASE}/files/resource-url`,
-    method: "POST",
-    data: {
-      conversation_id: conversationId,
-      path,
-    },
-  });
-  return {
-    ...resource,
-    url: new URL(resource.url, API_BASE_URL || window.location.origin).toString(),
-  };
-}
-
 export function isMediaConversationDocument(document: ConversationDocument): boolean {
   const mime = (document.source_mime_type || document.mime_type || "").toLowerCase();
   return mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/");
-}
-
-export async function fetchKnowledgeDocumentSource(documentId: string): Promise<Blob> {
-  const response = await apiHttp.get<Blob>(`${BASE}/documents/${encodeURIComponent(documentId)}/source`, {
-    responseType: "blob",
-  });
-  return response.data;
 }
 
 /**
@@ -303,11 +257,6 @@ export async function ingestKnowledgeDocuments(
   ingestOptions?: { providerId?: string | null },
 ): Promise<IngestResult> {
   return ingestFiles(files, "", ingestOptions?.providerId);
-}
-
-export function assetRevisionContentUrl(assetId: string, revisionId: string, documentId?: string): string {
-  const path = `${API_BASE_URL}/api/asset-server/assets/${encodeURIComponent(assetId)}/revisions/${encodeURIComponent(revisionId)}/content`;
-  return documentId ? `${path}?document_id=${encodeURIComponent(documentId)}` : path;
 }
 
 export type { ConversationDocumentDetail };

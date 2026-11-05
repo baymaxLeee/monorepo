@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: sandbox-proxy }
+  template:
+    metadata:
+      labels: { app: sandbox-proxy }
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: sandbox-proxy }
+      containers:
+        - name: proxy
+          image: ghcr.io/example/sandbox-proxy:latest
+          ports:
+            - { name: proxy, containerPort: 3128 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL], add: [SETUID, SETGID, CHOWN] }
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 256Mi, ephemeral-storage: 64Mi }
+          readinessProbe:
+            tcpSocket: { port: proxy }
+          livenessProbe:
+            tcpSocket: { port: proxy }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: run, mountPath: /run }
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
+        - name: run
+          emptyDir: { medium: Memory, sizeLimit: 16Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-proxy
+spec:
+  selector: { app: sandbox-proxy }
+  ports:
+    - { port: 3128, targetPort: proxy }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sandbox-proxy
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: sandbox-proxy }

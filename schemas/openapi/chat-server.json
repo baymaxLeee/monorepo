@@ -210,11 +210,19 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "include_content",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "conversation document detail"
+            "description": "conversation document detail; include_content=false returns metadata with an empty content_md"
           }
         }
       },
@@ -244,7 +252,90 @@
         }
       }
     },
-    "/conversations/{conversation_id}/documents/{document_id}/source": {
+    "/conversations/{conversation_id}/documents/{document_id}/delivery": {
+      "post": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max_dim",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "authorized Storage capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageDelivery"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "document not accessible"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/files/delivery": {
+      "post": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "authorized Storage capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageDelivery"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "file not accessible"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/documents/{document_id}/content": {
       "get": {
         "parameters": [
           {
@@ -265,8 +356,18 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "conversation document source bytes"
+          "307": {
+            "description": "Authorized redirect to Storage",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "document not accessible"
           }
         }
       }
@@ -288,6 +389,14 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "include_content",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
             }
           }
         ],
@@ -463,7 +572,7 @@
         }
       }
     },
-    "/conversations/{conversation_id}/video-productions/{production_id}/preview": {
+    "/conversations/{conversation_id}/video-productions/{production_id}/preview-url": {
       "get": {
         "parameters": [
           {
@@ -487,10 +596,22 @@
           "200": {
             "description": "staged video preview",
             "content": {
-              "video/mp4": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "format": "binary"
+                  "type": "object",
+                  "required": [
+                    "url",
+                    "expires_at"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
                 }
               }
             }
@@ -501,7 +622,7 @@
         }
       }
     },
-    "/conversations/{conversation_id}/video-productions/{production_id}/shots/{shot_id}/takes/{take_id}/preview": {
+    "/conversations/{conversation_id}/video-productions/{production_id}/shots/{shot_id}/takes/{take_id}/preview-url": {
       "get": {
         "parameters": [
           {
@@ -541,10 +662,22 @@
           "200": {
             "description": "staged video take preview",
             "content": {
-              "video/mp4": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "format": "binary"
+                  "type": "object",
+                  "required": [
+                    "url",
+                    "expires_at"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
                 }
               }
             }
@@ -761,10 +894,48 @@
           }
         }
       },
+      "StorageDelivery": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "revision_id",
+          "url",
+          "expires_at",
+          "filename",
+          "media_type",
+          "size_bytes"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "revision_id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          }
+        }
+      },
       "ConversationFile": {
         "type": "object",
         "required": [
           "path",
+          "asset_id",
+          "revision_id",
           "title",
           "filename",
           "mime_type",
@@ -776,6 +947,12 @@
         ],
         "properties": {
           "path": {
+            "type": "string"
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "revision_id": {
             "type": "string"
           },
           "title": {
@@ -801,8 +978,7 @@
             "type": "boolean"
           },
           "content": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },

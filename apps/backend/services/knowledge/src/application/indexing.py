@@ -21,9 +21,9 @@ from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import chunks as chunk_crud
 
 from application.admin_client import ProviderNotConfiguredError, ProviderSnapshot, get_admin_client
-from application.asset_client import get_asset_client
 from application.contextual import contextualize_chunks
 from application.embed_client import embed_image, embed_texts, is_multimodal_embedding_model
+from application.storage_client import get_storage_client
 
 logger = logging.getLogger("knowledge.indexing")
 
@@ -52,7 +52,7 @@ async def _maybe_append_image_chunk(
     if not (row.asset_id and row.source_revision_id and row.tenant_id and row.workspace_id):
         return "image vector skipped: source Asset revision missing"
     try:
-        image_bytes = await get_asset_client().read(
+        image_bytes = await get_storage_client().read(
             tenant_id=row.tenant_id,
             workspace_id=row.workspace_id,
             asset_id=row.asset_id,

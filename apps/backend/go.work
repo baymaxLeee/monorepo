@@ -1,10 +1,10 @@
-go 1.26
+go 1.26.0
 
 toolchain go1.26.3
 
 use (
-	./services/asset
 	./services/canvas
 	./services/gateway
 	./services/iam
+	./services/storage
 )

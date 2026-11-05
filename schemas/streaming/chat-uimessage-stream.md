@@ -120,7 +120,7 @@ no `data-artifact-progress`.
 | `data-*` type              | Stream | Persistence | Reconciled by id | Direction        | Producer                                                       | Consumer                                                    | Why not an official part                                                                                   |
 | -------------------------- | ------ | ----------- | ---------------- | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `data-conversation-title`  | main   | transient   | no               | server → client  | `agent/runs/run.ts` (`writer.write`, first turn)              | `pages/Chat.tsx` `onData` → header + sidebar               | No official "conversation title" part; title is conversation-level, not message-level, so metadata is wrong too. Transient + `onData` is the documented pattern. |
-| `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/agents/tool-loop.ts` | No official "execute this file" part. The part persists only the stable Plan path; the run projects that reference and forces `read_file` over contiguous line ranges until the selected Plan is fully read before execution tools are enabled. |
+| `data-plan-execution`      | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`executePlan`, added to the user message)  | `agent/context/file-parts.ts` + `agent/agents/tool-loop.ts` | No official "execute this file" part. The part persists only the stable Plan path; the run projects that reference and forces `read_conversation_file` over contiguous line ranges until the selected Plan is fully read before execution tools are enabled. |
 | `data-skill-activation`    | main   | persistent  | no               | **client → server** (+ persisted) | `pages/Chat.tsx` (`submit`, added to the user message when a `/` skill is active) | `agent/context/file-parts.ts` (`activatedSkillNameFromParts` → server injects `<activated_skill>` body for that turn) + `components/ChatMessageView.tsx` (renders a skill badge) | No official "invoke this skill" part. Mirrors `data-plan-execution` (client→server reference): the L2 body never rides the part — only the skill `name`. Persisted so history/continuation show which skill drove the turn; the projector's `convertDataPart` returns `undefined` for it, so older turns are dropped from model context and the body is injected server-side only for the turn its message triggers (docs/ADR/identity-and-configuration.md §4, docs/ADR/agent-runtime.md). |
 
 ### Verdict on redundancy
@@ -135,7 +135,7 @@ no `data-artifact-progress`.
   - Source-document references use an official `file` part whose URL carries
     the document id. Plan execution uses `data-plan-execution` as a command
     reference containing a stable virtual path, not copied Plan content: the
-    tool loop forces `read_file` to read that path completely. There is no separate
+    tool loop forces `read_conversation_file` to read that path completely. There is no separate
     `document_ids` request field.
   - `delegate_tasks` carries BOTH coarse control-flow
     (`task_id` + stable `path`) and per-file progress

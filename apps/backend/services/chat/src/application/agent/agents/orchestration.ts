@@ -134,7 +134,7 @@ function executionPlanReadState(
   let coveredThrough = 0;
   let totalLines = 0;
   for (const event of events) {
-    if (event.toolName !== "read_file") {
+    if (event.toolName !== "read_conversation_file") {
       continue;
     }
     const input = recordValue(event.input);

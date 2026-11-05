@@ -1,7 +1,8 @@
 import {
   batchDeleteKnowledgeDocuments,
   deleteKnowledgeDocument,
-  fetchKnowledgeDocumentSource,
+  createStorageDownloadUrl,
+  downloadAssetUrl,
   ingestKnowledgeDocuments,
   type KnowledgeDocument,
   listKnowledgeDocuments,
@@ -146,15 +147,13 @@ export function KnowledgeBasePage() {
 
   async function download(doc: KnowledgeDocument) {
     try {
-      const blob = await fetchKnowledgeDocumentSource(doc.id);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = doc.source_filename || doc.filename || doc.title;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
+      if (!doc.asset_id || !doc.source_revision_id) throw new Error("文件缺少存储版本信息");
+      const capability = await createStorageDownloadUrl({
+        assetId: doc.asset_id,
+        revisionId: doc.source_revision_id,
+        owner: { kind: "knowledge-document", documentId: doc.id },
+      });
+      downloadAssetUrl(capability.url, capability.filename);
     } catch {}
   }
 

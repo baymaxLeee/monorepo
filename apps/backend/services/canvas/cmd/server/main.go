@@ -43,7 +43,6 @@ import (
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
 	"github.com/example/monorepo/canvas/internal/infrastructure/artifact"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 	"github.com/example/monorepo/canvas/internal/infrastructure/canvasstoryboardredis"
 	coverimagestore "github.com/example/monorepo/canvas/internal/infrastructure/coverimage"
 	executorclient "github.com/example/monorepo/canvas/internal/infrastructure/executor"
@@ -75,6 +74,7 @@ import (
 	"github.com/example/monorepo/canvas/internal/infrastructure/provider"
 	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 	modelcatalog "github.com/example/monorepo/canvas/internal/infrastructure/providercatalog"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 	"github.com/example/monorepo/canvas/internal/infrastructure/usageobserver"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -354,12 +354,12 @@ func run() error {
 	go runQuotaReconciler(ctx, applicationquota.NewReconciler(quotaRepository, utcClock{}))
 	providers := &admin.Directory{URL: cfg.AdminServiceURL, Token: cfg.InternalToken}
 	models := modelcatalog.New(providers)
-	assetClient := assetclient.New(cfg.AssetServiceURL, cfg.InternalToken, nil)
-	uploadIntents := applicationuploadintent.New(assetClient)
+	storageClient := storageclient.New(cfg.StorageServiceURL, cfg.InternalToken, nil)
+	uploadIntents := applicationuploadintent.New(storageClient)
 	claimIntents := assetclaimpersistence.NewRepository(db)
-	go runAssetClaimRelay(ctx, applicationassetclaim.NewRelay(claimIntents, assetClient, utcClock{}))
-	artifacts := artifact.New(assetClient, cfg.PublicGatewayURL)
-	coverImages := coverimagestore.New(assetClient, claimIntents, utcClock{}, cfg.PublicGatewayURL)
+	go runAssetClaimRelay(ctx, applicationassetclaim.NewRelay(claimIntents, storageClient, utcClock{}))
+	artifacts := artifact.New(storageClient, cfg.PublicGatewayURL)
+	coverImages := coverimagestore.New(storageClient, claimIntents, utcClock{}, cfg.PublicGatewayURL)
 	projectUsageExporter := applicationprojectusage.NewExporter(projectUsageRepository, artifacts, uuidGenerator{}, utcClock{})
 	transactions := persistencetransaction.New(db)
 	archiveRepository := canvasarchivepersistence.NewRepository(db)
@@ -376,7 +376,7 @@ func run() error {
 	)
 	archiveWorkflows.Bind(archiveService)
 	archiveRuntime := canvasarchivemedia.NewRuntime(
-		archiveService, archiveRepository, taskRepository, transactions, assetClient, utcClock{}, "",
+		archiveService, archiveRepository, taskRepository, transactions, storageClient, utcClock{}, "",
 	)
 	go archiveWorkflows.Run(ctx)
 	go runArchiveCleaner(ctx, applicationcanvasarchive.NewCleaner(archiveRepository, claimIntents, transactions, quotaService, utcClock{}))
@@ -459,7 +459,7 @@ func run() error {
 		applicationfirstlastframe.WithTerminalCoordinator(frameTerminalCoordinator),
 	)
 	frameRuntime := firstlastframemedia.NewRuntime(
-		frames, taskRepository, transactions, assetClient, utcClock{}, "",
+		frames, taskRepository, transactions, storageClient, utcClock{}, "",
 	)
 	frameWorkflows := executorclient.NewFirstLastFrameWorkflowStore(db, executorClient, frames, taskRepository)
 	go frameWorkflows.Run(ctx)

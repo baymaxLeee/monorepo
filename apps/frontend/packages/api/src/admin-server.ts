@@ -1,6 +1,6 @@
 import { getAdminService } from "../generated/admin-server/index";
-import type { AssetUploadPlan } from "./asset-server";
 import { type ApiRequestConfig, request } from "./http";
+import type { AssetUploadPlan } from "./storage-server";
 
 type RequestOptions = Pick<ApiRequestConfig, "signal" | "skipErrorNotify">;
 

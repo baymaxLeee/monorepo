@@ -24,6 +24,21 @@ services:
   # `getWorld().start()` call (see executor/AGENTS.md "Known operational
   # notes" #3) was caught in the first place — Local World would have hidden
   # it in every local run.
+  sandbox-proxy:
+    image: local/sandbox-proxy:latest
+    build:
+      context: .
+      dockerfile: apps/backend/services/sandbox/proxy/Dockerfile
+    profiles: [sandbox]
+    volumes:
+      - sandbox_egress:/run/egress
+    networks: [sandbox_egress]
+    read_only: true
+    tmpfs: [/tmp, /run]
+    mem_limit: 256m
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: monorepo-postgres
@@ -76,7 +91,12 @@ services:
       - ./infra/single-vps/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
     ports: ["4317:4317", "4318:4318"]
 
+networks:
+  sandbox_egress: {}
+
 volumes:
+  sandbox_egress:
+    name: monorepo-sandbox-egress
   postgres_data:
   clickhouse_data:
   clickhouse_logs:

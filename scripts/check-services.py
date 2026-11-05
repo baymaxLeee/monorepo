@@ -356,18 +356,18 @@ def dotenv_keys(path: Path) -> set[str]:
 
 
 def validate_single_vps_environment(services: dict[str, dict[str, Any]]) -> None:
-    compose_env = load_yaml(SINGLE_VPS_PATH)["services"]["asset"]["environment"]
+    compose_env = load_yaml(SINGLE_VPS_PATH)["services"]["storage"]["environment"]
     if (
-        compose_env.get("ASSET_SIGNING_KEY")
-        != "${ASSET_SIGNING_KEY:?ASSET_SIGNING_KEY is required}"
+        compose_env.get("STORAGE_SIGNING_KEY")
+        != "${STORAGE_SIGNING_KEY:?STORAGE_SIGNING_KEY is required}"
     ):
-        fail("asset: single-vps must inject required ASSET_SIGNING_KEY")
+        fail("storage: single-vps must inject required STORAGE_SIGNING_KEY")
     if (
-        not load_yaml(K8S_BASE / "asset" / "secret.yaml")
+        not load_yaml(K8S_BASE / "storage" / "secret.yaml")
         .get("stringData", {})
-        .get("ASSET_SIGNING_KEY")
+        .get("STORAGE_SIGNING_KEY")
     ):
-        fail("asset: K8s Secret must declare ASSET_SIGNING_KEY")
+        fail("storage: K8s Secret must declare STORAGE_SIGNING_KEY")
     render_env = SINGLE_VPS_RENDER_ENV_PATH.read_text()
     internal_match = re.search(r"(?ms)^INTERNAL_KEYS=\(\n(?P<body>.*?)^\)", render_env)
     if not internal_match:

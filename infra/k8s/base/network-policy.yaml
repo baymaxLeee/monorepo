@@ -32,7 +32,7 @@ spec:
     matchExpressions:
       - key: app
         operator: NotIn
-        values: [gateway, web]
+        values: [gateway, web, sandbox]
   policyTypes:
     - Ingress
   ingress:
@@ -44,11 +44,11 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-asset-consumers
+  name: allow-storage-consumers
 spec:
   podSelector:
     matchLabels:
-      app: asset
+      app: storage
   policyTypes: [Ingress]
   ingress:
     - from:

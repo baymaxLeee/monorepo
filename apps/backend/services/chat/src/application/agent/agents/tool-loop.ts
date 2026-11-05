@@ -243,12 +243,12 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
           instructions: baseInstructions,
         };
       }
-      if (directive.kind === "read-plan" && "read_file" in instrumentedTools) {
+      if (directive.kind === "read-plan" && "read_conversation_file" in instrumentedTools) {
         return {
           ...continuation,
           runtimeContext: nextContext,
-          activeTools: ["read_file"],
-          toolChoice: { type: "tool", toolName: "read_file" },
+          activeTools: ["read_conversation_file"],
+          toolChoice: { type: "tool", toolName: "read_conversation_file" },
           instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
         };
       }

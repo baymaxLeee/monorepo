@@ -1,4 +1,4 @@
-import { executeAssetUploadPlan, prepareCanvasUpload, type AssetRevisionRef } from "@repo/api";
+import { executeStorageUploadPlan, prepareCanvasUpload, type StorageRevisionRef } from "@repo/api";
 import { Spinner, toast, Button } from "@repo/design-system";
 import { randomId } from "@repo/shared";
 import { ImagePlus, X } from "lucide-react";
@@ -36,9 +36,9 @@ export function CoverImageUploader({
   inputId,
   invalid,
 }: {
-  value?: AssetRevisionRef;
+  value?: StorageRevisionRef;
   previewURL?: string;
-  onChange?: (value: AssetRevisionRef) => void;
+  onChange?: (value: StorageRevisionRef) => void;
   onUploadingChange?: (uploading: boolean) => void;
   imageAlt?: string;
   removeAriaLabel?: string;
@@ -52,7 +52,7 @@ export function CoverImageUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<AbortController | undefined>(undefined);
   const objectURLRef = useRef<string | undefined>(undefined);
-  const uploadedRevisionRef = useRef<AssetRevisionRef | undefined>(undefined);
+  const uploadedRevisionRef = useRef<StorageRevisionRef | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const [localPreviewURL, setLocalPreviewURL] = useState<string>();
 
@@ -102,7 +102,7 @@ export function CoverImageUploader({
     const clientRef = randomId();
     void prepareCanvasUpload({ clientRef, purpose: "cover", file })
       .then(async (plan) => {
-        await executeAssetUploadPlan(plan, file, controller.signal);
+        await executeStorageUploadPlan(plan, file, controller.signal);
         const completed = await prepareCanvasUpload({ clientRef, purpose: "cover", file });
         if (!completed.assetId || !completed.revisionId) throw new Error("completed upload is missing its revision");
         return { assetId: completed.assetId, revisionId: completed.revisionId };

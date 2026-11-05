@@ -1,4 +1,4 @@
-import { assetRevisionContentUrl } from "@repo/api";
+import { conversationDocumentContentUrl } from "@repo/api";
 import type { FileUIPart } from "ai";
 
 export function buildUserFilePart(input: {
@@ -13,7 +13,7 @@ export function buildUserFilePart(input: {
     type: "file",
     mediaType: input.mimeType,
     filename: input.filename,
-    url: assetRevisionContentUrl(input.assetId, input.revisionId, input.documentId),
+    url: conversationDocumentContentUrl(input.conversationId, input.documentId),
   };
 }
 

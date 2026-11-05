@@ -1,0 +1,3 @@
+images:
+  - kind: ConfigMap
+    path: data/SANDBOX_IMAGE

@@ -34,7 +34,6 @@ from kernel.errors import ConflictError, NotFoundError, RequestError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from application.asset_client import AssetRevision, ensure_asset_claim, get_asset_client
 from application.auth import AuthContext
 from application.contracts.skill import (
     AttachSkillAssetInput,
@@ -62,6 +61,7 @@ from application.contracts.skill import (
     UpdateSkillFileContentInput,
     UpdateSkillInput,
 )
+from application.storage_client import StorageRevision, ensure_asset_claim, get_storage_client
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -194,7 +194,7 @@ class SkillService:
             raise NotFoundError(f"skill file {node_id} not found")
         url = None
         if node.storage_kind == "asset" and node.asset_id and node.revision_id:
-            url = await get_asset_client().delivery_url(
+            url = await get_storage_client().delivery_url(
                 tenant_id=row.tenant_id,
                 workspace_id=row.workspace_id,
                 asset_id=node.asset_id,
@@ -291,7 +291,7 @@ class SkillService:
         return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
 
     async def import_archive(self, skill_id: str, payload: ImportSkillArchiveInput) -> ImportSkillArchiveResult:
-        asset_client = get_asset_client()
+        storage_client = get_storage_client()
         revision = await self._resolve_user_upload(
             skill_id=skill_id,
             purpose="skill-archive",
@@ -306,7 +306,7 @@ class SkillService:
             archive = root / "source.zip"
             extracted = root / "extracted"
             extracted.mkdir()
-            await asset_client.download_to(
+            await storage_client.download_to(
                 revision=revision,
                 tenant_id=self._current_user.tenant_id,
                 workspace_id=self._current_user.workspace_id,
@@ -369,7 +369,7 @@ class SkillService:
             "application/octet-stream",
         }:
             raise RequestError("skill import upload must be a ZIP archive")
-        session = await get_asset_client().create_upload_session(
+        session = await get_storage_client().create_upload_session(
             tenant_id=self._current_user.tenant_id,
             workspace_id=self._current_user.workspace_id,
             user_id=self._current_user.user_id,
@@ -396,8 +396,8 @@ class SkillService:
         purpose: Literal["skill-archive", "skill-attachment"],
         client_ref: str,
         upload_session_id: str,
-    ) -> AssetRevision:
-        client = get_asset_client()
+    ) -> StorageRevision:
+        client = get_storage_client()
         upload = await client.get_upload_session(
             tenant_id=self._current_user.tenant_id,
             workspace_id=self._current_user.workspace_id,
@@ -577,7 +577,7 @@ class SkillService:
             raise NotFoundError(f"published skill file {path} not found")
         url = None
         if node.storage_kind == "asset" and node.asset_id and node.revision_id:
-            url = await get_asset_client().delivery_url(
+            url = await get_storage_client().delivery_url(
                 tenant_id=tenant_id, workspace_id=workspace_id, asset_id=node.asset_id, revision_id=node.revision_id
             )
         return InternalSkillFile(
@@ -594,8 +594,8 @@ class SkillService:
 
     async def _upload_archive_binaries(
         self, files: Sequence[ArchiveFile], source_revision_id: str
-    ) -> dict[str, AssetRevision]:
-        result: dict[str, AssetRevision] = {}
+    ) -> dict[str, StorageRevision]:
+        result: dict[str, StorageRevision] = {}
         semaphore = asyncio.Semaphore(4)
 
         async def upload(item: ArchiveFile) -> None:
@@ -603,7 +603,7 @@ class SkillService:
                 return
             idempotency_digest = hashlib.sha256(f"{source_revision_id}\0{item.path}".encode()).hexdigest()
             async with semaphore:
-                result[item.path] = await get_asset_client().upload_file(
+                result[item.path] = await get_storage_client().upload_file(
                     path=item.extracted_path,
                     tenant_id=self._current_user.tenant_id,
                     workspace_id=self._current_user.workspace_id,
@@ -617,7 +617,7 @@ class SkillService:
         return result
 
     async def _replace_workspace_from_archive(
-        self, row: SkillRow, files: Sequence[ArchiveFile], binary_revisions: dict[str, AssetRevision]
+        self, row: SkillRow, files: Sequence[ArchiveFile], binary_revisions: dict[str, StorageRevision]
     ) -> builtins.list[SkillNodeRow]:
         now = datetime.now(UTC)
         directory_ids: dict[str, str] = {}

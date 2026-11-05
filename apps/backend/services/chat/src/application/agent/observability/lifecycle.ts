@@ -138,7 +138,7 @@ function sanitizeToolInput(toolName: string, input: unknown): unknown {
     return input;
   }
   const source = input as Record<string, unknown>;
-  if (toolName === "write_file" && typeof source.content === "string") {
+  if ((toolName === "write_file" || toolName === "write_plan") && typeof source.content === "string") {
     return { ...source, content: truncate(source.content) };
   }
   if (toolName === "edit_file" && Array.isArray(source.edits)) {

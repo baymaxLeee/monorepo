@@ -21,30 +21,11 @@ test("runtime tools are base tools available without discovery", async () => {
   try {
     assert.deepEqual(
       runtime.manifests.map((manifest) => manifest.name),
-      ["web_fetch", "bash", "code_mode"],
+      ["web_fetch", "bash", "write_stdin", "load_conversation_files", "save_sandbox_file", "code_mode"],
     );
     assert.ok(runtime.manifests.every((manifest) => manifest.tool?.deferLoading !== true));
   } finally {
     await runtime.dispose();
-  }
-});
-
-test("Bash keeps scratch files within a run and isolates subsequent runs", async () => {
-  const first = await createRuntimeTools();
-  const second = await createRuntimeTools();
-  try {
-    const bash = executable(first, "bash");
-    const isolated = executable(second, "bash");
-    const write = await bash({ command: "printf 'one\\ntwo\\n' > notes.txt" }, options);
-    assert.ok(isToolOutcome(write) && write.ok);
-    const read = await bash({ command: "cat notes.txt" }, options);
-    assert.ok(isToolOutcome(read) && read.status === "completed");
-    assert.deepEqual(read.data, { stdout: "one\ntwo\n", stderr: "", exitCode: 0 });
-    const absent = await isolated({ command: "cat notes.txt" }, options);
-    assert.ok(isToolOutcome(absent) && absent.status === "partial" && !absent.ok);
-  } finally {
-    await first.dispose();
-    await second.dispose();
   }
 });
 

@@ -11,11 +11,11 @@ from sqlalchemy import delete, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from application.asset_client import mark_asset_claims_released
 from application.contracts.conversation_cleanup import (
     CleanupConversationArtifactsInput,
     CleanupConversationArtifactsResult,
 )
+from application.storage_client import mark_asset_claims_released
 
 
 class ConversationDeletedError(ConflictError):
@@ -67,7 +67,13 @@ async def cleanup_conversation_artifacts(
         change_sets = select(FileChangeSetRow.id).where(
             FileChangeSetRow.user_id == payload.user_id, FileChangeSetRow.conversation_id == payload.conversation_id
         )
-        await session.execute(delete(FileChangeSetEntryRow).where(FileChangeSetEntryRow.change_set_id.in_(change_sets)))
+        staged_files = (
+            await session.execute(
+                delete(FileChangeSetEntryRow)
+                .where(FileChangeSetEntryRow.change_set_id.in_(change_sets))
+                .returning(FileChangeSetEntryRow.id)
+            )
+        ).all()
         await session.execute(delete(FileChangeSetRow).where(FileChangeSetRow.id.in_(change_sets)))
         deleted_files = (
             await session.execute(
@@ -118,6 +124,14 @@ async def cleanup_conversation_artifacts(
             owner_type="document",
             owner_ids=[row.id for row in documents],
         )
+        for owner_type, deleted in (("file_entry", deleted_files), ("file_change_set_entry", staged_files)):
+            released_claims += await mark_asset_claims_released(
+                session,
+                tenant_id=payload.tenant_id,
+                workspace_id=payload.workspace_id,
+                owner_type=owner_type,
+                owner_ids=[row.id for row in deleted],
+            )
     return CleanupConversationArtifactsResult(
         conversation_id=payload.conversation_id,
         deleted_documents=len(documents),

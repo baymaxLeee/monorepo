@@ -20,6 +20,7 @@ class Document(BaseModel):
     title: str
     filename: str
     mime_type: str
+    editable_source: bool = False
     content_md: str = ""
     source_size: int = 0
     source_mime_type: str | None = None

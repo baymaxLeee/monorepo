@@ -8,14 +8,16 @@ default:
 # ─── Lifecycle ──────────────────────────────────────────────
 # Start full local infra, including the observability stack.
 up:
-    docker compose --profile observability up -d --remove-orphans
+    @just up-sandbox
+    docker compose --profile observability --profile sandbox up -d --remove-orphans
     @./scripts/wait-for-postgres.sh
     @./scripts/workflow-postgres-bootstrap.sh
     @./scripts/db-bootstrap.sh
     @echo "OK Infra up - Redis :6379, Postgres :5432, ClickHouse :8123, OTLP :4318"
 
 up-core:
-    docker compose up -d --remove-orphans
+    @just up-sandbox
+    docker compose --profile sandbox up -d --remove-orphans
     @./scripts/wait-for-postgres.sh
     @./scripts/workflow-postgres-bootstrap.sh
     @./scripts/db-bootstrap.sh
@@ -24,16 +26,25 @@ up-core:
 up-observability:
     @just up
 
+# Prepare local execution images and the isolated network proxy.
+up-sandbox:
+    @just build-sandbox-runtime
+    docker compose --profile sandbox up -d --build sandbox-proxy
+
 reset-demo-data:
     @./scripts/reset-demo-data.sh
 
 # Apply pending migrations without resetting data. Empty target means latest.
 migrate-up service target="":
-    @bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}"
+    @db="{{ service }}"; if [ "$db" = storage ]; then db=asset; fi; \
+    DATABASE_NAME="${DATABASE_NAME:-$db}" DATABASE_USER="${DATABASE_USER:-$db}" DATABASE_PASSWORD="${DATABASE_PASSWORD:-$db}" \
+    bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}"
 
 # Explicit schema downgrade; refuses missing or unsafe reverse migrations.
 migrate-down service target:
-    @bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}" down
+    @db="{{ service }}"; if [ "$db" = storage ]; then db=asset; fi; \
+    DATABASE_NAME="${DATABASE_NAME:-$db}" DATABASE_USER="${DATABASE_USER:-$db}" DATABASE_PASSWORD="${DATABASE_PASSWORD:-$db}" \
+    bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}" down
 
 # Generate a version manifest explicitly; never updates database history.
 migrate-checksums service version:
@@ -42,12 +53,17 @@ migrate-checksums service version:
 migrate-check:
     @bash scripts/db-checksums.sh check
 
+# Offline owner-run byte migration; stop Knowledge writers first. Use --verify for a read-only audit.
+# Requires KNOWLEDGE_DATABASE_URL, STORAGE_SERVICE_URL and INTERNAL_API_TOKEN.
+backfill-knowledge-storage *args:
+    @cd apps/backend/services/knowledge/tools/storage-backfill && GOWORK=off go run . "$@"
+
 # Integration tests create and remove their own disposable PostgreSQL container.
 test-db-migrations:
     @python3 scripts/tests/test-db-migrate.py
 
 down:
-    docker compose --profile observability down
+    docker compose --profile observability --profile sandbox down
 
 # Install all deps (mise, pnpm, uv, go). Does not start Docker.
 install:
@@ -67,7 +83,8 @@ dev-shell:
     @./scripts/dev-stack.sh
 
 dev-urls:
-    @echo "  asset:    http://localhost:8013/healthz"
+    @echo "  storage:    http://localhost:8013/healthz"
+    @echo "  sandbox:  http://localhost:8014/healthz"
     @echo "  canvas: http://localhost:8012/healthz; mfe-canvas: http://localhost:3006"
     @echo "  platform:  http://localhost:3000"
     @echo "  mfe-admin: http://localhost:3001"
@@ -95,6 +112,10 @@ build-backend:
 
 build-images registry="local" tag="latest":
     cd apps/backend && just build-images {{ registry }} {{ tag }}
+
+# Build the ephemeral sandbox execution image used by Docker and Kubernetes.
+build-sandbox-runtime registry="local" tag="latest":
+    docker build -t {{ registry }}/sandbox-runtime:{{ tag }} -f apps/backend/services/sandbox/runtime/Dockerfile .
 
 # ─── Cross-stack ────────────────────────────────────────────
 sync:
@@ -195,3 +216,11 @@ worktree task subagent:
 
 doctor:
     @./scripts/doctor.sh
+
+# Build the policy-enforcing sandbox egress proxy.
+build-sandbox-proxy registry="local" tag="latest":
+    docker build -t {{registry}}/sandbox-proxy:{{tag}} -f apps/backend/services/sandbox/proxy/Dockerfile .
+
+# Requires Docker and prebuilt runtime/proxy images; executes real isolated commands.
+test-sandbox-integration:
+    pnpm --dir apps/backend --filter sandbox run test:integration

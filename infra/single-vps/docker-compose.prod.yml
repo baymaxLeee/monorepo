@@ -150,7 +150,7 @@ services:
       ADMIN_POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
       CHAT_POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
       CANVAS_POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
-      ASSET_POSTGRES_PASSWORD: ${ASSET_POSTGRES_PASSWORD:?ASSET_POSTGRES_PASSWORD is required}
+      STORAGE_POSTGRES_PASSWORD: ${STORAGE_POSTGRES_PASSWORD:?STORAGE_POSTGRES_PASSWORD is required}
       EXECUTOR_POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
       KNOWLEDGE_POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       TELEMETRY_POSTGRES_PASSWORD: ${TELEMETRY_POSTGRES_PASSWORD:?TELEMETRY_POSTGRES_PASSWORD is required}
@@ -224,7 +224,7 @@ services:
       REDIS_DB: "1"
       ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?ACCESS_TOKEN_SECRET is required}
       ADMIN_SERVICE_URL: http://admin:8001
-      ASSET_SERVICE_URL: http://asset:8013
+      STORAGE_SERVICE_URL: http://storage:8013
       CHAT_SERVICE_URL: http://chat:8009
       CANVAS_SERVICE_URL: http://canvas:8012
       IAM_SERVICE_URL: http://iam:8002
@@ -238,28 +238,30 @@ services:
       MAX_REQUEST_BODY_BYTES: "536870912"
     <<: *restart_policy
 
-  asset:
-    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/asset:${IMAGE_TAG:-main}
-    container_name: monorepo-asset
+  storage:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/storage:${IMAGE_TAG:-main}
+    container_name: monorepo-storage
     depends_on:
       postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8013"
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DELIVERY_URL_TTL: ${STORAGE_DELIVERY_URL_TTL:-6h}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: asset
-      POSTGRES_PASSWORD: ${ASSET_POSTGRES_PASSWORD:?ASSET_POSTGRES_PASSWORD is required}
+      POSTGRES_PASSWORD: ${STORAGE_POSTGRES_PASSWORD:?STORAGE_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: asset
       POSTGRES_SSLMODE: disable
-      ASSET_DATA_DIR: /data/assets
-      ASSET_SIGNING_KEY: ${ASSET_SIGNING_KEY:?ASSET_SIGNING_KEY is required}
-      ASSET_MAX_UPLOAD_BYTES: ${ASSET_MAX_UPLOAD_BYTES:-5368709120}
-      ASSET_MIN_FREE_BYTES: ${ASSET_MIN_FREE_BYTES:-1073741824}
-      ASSET_GC_INTERVAL: ${ASSET_GC_INTERVAL:-1h}
-      ASSET_CANDIDATE_AGE: ${ASSET_CANDIDATE_AGE:-24h}
-      ASSET_RETENTION: ${ASSET_RETENTION:-168h}
+      STORAGE_DATA_DIR: /data/assets
+      STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:?STORAGE_SIGNING_KEY is required}
+      STORAGE_MAX_UPLOAD_BYTES: ${STORAGE_MAX_UPLOAD_BYTES:-5368709120}
+      STORAGE_MIN_FREE_BYTES: ${STORAGE_MIN_FREE_BYTES:-1073741824}
+      STORAGE_GC_INTERVAL: ${STORAGE_GC_INTERVAL:-1h}
+      STORAGE_CANDIDATE_AGE: ${STORAGE_CANDIDATE_AGE:-24h}
+      STORAGE_RETENTION: ${STORAGE_RETENTION:-168h}
       INTERNAL_SERVICE_TOKENS: '{"admin":"${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
     volumes:
       - asset_data:/data/assets
@@ -277,7 +279,7 @@ services:
       OTEL_SERVICE_NAME: admin
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8001"
-      ASSET_SERVICE_URL: http://asset:8013
+      STORAGE_SERVICE_URL: http://storage:8013
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: admin
@@ -306,7 +308,7 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       EXECUTOR_SERVICE_URL: http://executor:8011
       ADMIN_SERVICE_URL: http://admin:8001
-      ASSET_SERVICE_URL: http://asset:8013
+      STORAGE_SERVICE_URL: http://storage:8013
       PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       PORT: "8012"
       POSTGRES_HOST: postgres
@@ -345,12 +347,58 @@ services:
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       EXECUTOR_SERVICE_URL: http://executor:8011
       CANVAS_SERVICE_URL: http://canvas:8012
-      ASSET_SERVICE_URL: http://asset:8013
+      STORAGE_SERVICE_URL: http://storage:8013
+      SANDBOX_SERVICE_URL: http://sandbox:8014
       INTERNAL_API_TOKEN: ${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}
       TOOL_APPROVAL_SECRET: ${TOOL_APPROVAL_SECRET:?TOOL_APPROVAL_SECRET is required}
       EXA_API_KEY: ${EXA_API_KEY:?EXA_API_KEY is required}
       # Optional fallback provider; chat runs on Exa alone if unset.
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+    <<: *restart_policy
+
+  sandbox:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/sandbox:${IMAGE_TAG:-main}
+    container_name: monorepo-sandbox
+    depends_on:
+      sandbox-proxy: { condition: service_started }
+    environment:
+      ENVIRONMENT: single-vps
+      PORT: "8014"
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}"}'
+      SANDBOX_BACKEND: docker
+      SANDBOX_RUNTIME: runsc
+      SANDBOX_IMAGE: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/sandbox-runtime:${IMAGE_TAG:-main}
+      SANDBOX_PROXY_URL: http://127.0.0.1:3128
+      SANDBOX_PROXY_VOLUME: monorepo-sandbox-egress
+      SANDBOX_MAX_SANDBOXES: "8"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 512m
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:8014/readyz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    <<: *restart_policy
+
+  sandbox-proxy:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/sandbox-proxy:${IMAGE_TAG:-main}
+    volumes:
+      - sandbox_egress:/run/egress
+    networks: [sandbox_egress]
+    read_only: true
+    tmpfs: [/tmp, /run]
+    mem_limit: 256m
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
     <<: *restart_policy
 
   executor:
@@ -385,7 +433,7 @@ services:
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
       CANVAS_SERVICE_URL: http://canvas:8012
-      ASSET_SERVICE_URL: http://asset:8013
+      STORAGE_SERVICE_URL: http://storage:8013
     <<: *restart_policy
 
   knowledge:
@@ -405,7 +453,7 @@ services:
       POSTGRES_DATABASE: knowledge
       ADMIN_SERVICE_URL: http://admin:8001
       EXECUTOR_SERVICE_URL: http://executor:8011
-      ASSET_SERVICE_URL: http://asset:8013
+      STORAGE_SERVICE_URL: http://storage:8013
       INTERNAL_API_TOKEN: ${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}
       INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
@@ -447,7 +495,12 @@ services:
       - "${PUBLIC_PORT:-8080}:80"
     <<: *restart_policy
 
+networks:
+  sandbox_egress: {}
+
 volumes:
+  sandbox_egress:
+    name: monorepo-sandbox-egress
   asset_data:
   redis_data:
   postgres_data:

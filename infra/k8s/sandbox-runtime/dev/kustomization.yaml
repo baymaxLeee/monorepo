@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monorepo-sandboxes-dev
+resources:
+  - ../base
+images:
+  - name: ghcr.io/example/sandbox-proxy
+    newName: local/sandbox-proxy
+    newTag: latest
+patches:
+  - target: { kind: Namespace }
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: monorepo-sandboxes-dev
+  - target: { kind: RoleBinding, name: sandbox-manager }
+    patch: |-
+      - op: replace
+        path: /subjects/0/namespace
+        value: monorepo-dev

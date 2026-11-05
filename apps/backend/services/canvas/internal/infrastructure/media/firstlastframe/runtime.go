@@ -9,16 +9,16 @@ import (
 	applicationfirstlastframe "github.com/example/monorepo/canvas/internal/application/firstlastframe"
 	firstlastframecontract "github.com/example/monorepo/canvas/internal/contract/firstlastframe"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 	taskpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/task"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 )
 
 type Runtime struct {
 	service  *applicationfirstlastframe.Service
 	runs     *taskpersistence.Repository
 	tx       *persistencetransaction.Manager
-	assets   *assetclient.Client
+	assets   *storageclient.Client
 	clock    applicationfirstlastframe.Clock
 	tempRoot string
 }
@@ -31,7 +31,7 @@ func NewRuntime(
 	service *applicationfirstlastframe.Service,
 	runs *taskpersistence.Repository,
 	tx *persistencetransaction.Manager,
-	assets *assetclient.Client,
+	assets *storageclient.Client,
 	clock applicationfirstlastframe.Clock,
 	tempRoot string,
 ) *Runtime {
@@ -123,7 +123,7 @@ func applicationResult(result firstlastframecontract.Result) applicationfirstlas
 }
 
 type artifactFiles struct {
-	assets *assetclient.Client
+	assets *storageclient.Client
 }
 
 func (files *artifactFiles) OpenArtifact(
@@ -132,7 +132,7 @@ func (files *artifactFiles) OpenArtifact(
 	sourceAssetID string,
 	sourceRevisionID string,
 ) (io.ReadCloser, error) {
-	return files.assets.Open(ctx, tenantID, "", assetclient.RevisionRef{AssetID: sourceAssetID, RevisionID: sourceRevisionID})
+	return files.assets.Open(ctx, tenantID, "", storageclient.RevisionRef{AssetID: sourceAssetID, RevisionID: sourceRevisionID})
 }
 
 func (files *artifactFiles) SaveArtifact(
@@ -149,7 +149,7 @@ func (files *artifactFiles) SaveArtifact(
 	if workspaceID != nil {
 		workspace = *workspaceID
 	}
-	stored, err := files.assets.Upload(ctx, assetclient.UploadInput{TenantID: tenantID, WorkspaceID: workspace, UserID: userID, Filename: filename, MediaType: "image/jpeg", Category: "generated_frame", IdempotencyKey: idempotencyKey, Body: file})
+	stored, err := files.assets.Upload(ctx, storageclient.UploadInput{TenantID: tenantID, WorkspaceID: workspace, UserID: userID, Filename: filename, MediaType: "image/jpeg", Category: "generated_frame", IdempotencyKey: idempotencyKey, Body: file})
 	if err != nil {
 		return SavedArtifact{}, err
 	}

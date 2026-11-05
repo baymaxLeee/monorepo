@@ -8,9 +8,10 @@ resources:
   - ../../base/gateway
   - ../../base/iam
   - ../../base/admin
-  - ../../base/asset
+  - ../../base/storage
   - ../../base/canvas
   - ../../base/chat
+  - ../../base/sandbox
   - ../../base/executor
   - ../../base/knowledge
   - ../../base/telemetry
@@ -27,6 +28,12 @@ resources:
 # For 火山引擎 CR the production newName looks like:
 #   cr-cn-<region>.volces.com/<namespace>/<repo>
 images:
+  - name: ghcr.io/example/sandbox
+    newName: registry.invalid/monorepo/sandbox
+    newTag: placeholder
+  - name: ghcr.io/example/sandbox-runtime
+    newName: registry.invalid/monorepo/sandbox-runtime
+    newTag: placeholder
   - name: ghcr.io/example/gateway
     newName: registry.invalid/monorepo/gateway
     newTag: placeholder
@@ -36,8 +43,8 @@ images:
   - name: ghcr.io/example/admin
     newName: registry.invalid/monorepo/admin
     newTag: placeholder
-  - name: ghcr.io/example/asset
-    newName: registry.invalid/monorepo/asset
+  - name: ghcr.io/example/storage
+    newName: registry.invalid/monorepo/storage
     newTag: placeholder
   - name: ghcr.io/example/canvas
     newName: registry.invalid/monorepo/canvas
@@ -68,8 +75,8 @@ patches:
     target: { kind: ConfigMap, name: iam-config }
   - path: patches/admin-config.yaml
     target: { kind: ConfigMap, name: admin-config }
-  - path: patches/asset-config.yaml
-    target: { kind: ConfigMap, name: asset-config }
+  - path: patches/storage-config.yaml
+    target: { kind: ConfigMap, name: storage-config }
   - path: patches/canvas-config.yaml
     target: { kind: ConfigMap, name: canvas-config }
   - path: patches/chat-config.yaml

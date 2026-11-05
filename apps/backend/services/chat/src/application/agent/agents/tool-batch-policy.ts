@@ -9,7 +9,7 @@ function exclusivePlanToolKind(mode: AgentMode, toolName: string): ExclusivePlan
   if (toolName === "ask_user") {
     return "ask-user";
   }
-  return mode === "plan" && toolName === "write_file" ? "plan-write" : null;
+  return mode === "plan" && toolName === "write_plan" ? "plan-write" : null;
 }
 
 function createBatchFilter(mode: AgentMode) {

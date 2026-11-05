@@ -96,7 +96,10 @@ class DeploymentSecretsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             shutil.copy(VPS / "render-env.sh", path)
-            (path / ".env.secrets").write_text("EXISTING_KEY=keep-me\n")
+            (path / ".env.secrets").write_text(
+                "EXISTING_KEY=keep-me\nASSET_SIGNING_KEY=" + "ab" * 24
+                + "\nASSET_POSTGRES_PASSWORD=" + "cd" * 24 + "\n"
+            )
             (path / "age.key").touch()
             (path / "secrets.sops.env").touch()
             (path / "sops").write_text("#!/bin/sh\nexit 0\n")
@@ -126,14 +129,23 @@ class DeploymentSecretsTest(unittest.TestCase):
 
             first = render()
             self.assertIn("DB_INIT_IMAGE_TAG=new-schema", (path / ".env").read_text())
-            self.assertIn("ASSET_SIGNING_KEY", first)
-            self.assertGreaterEqual(len(first["ASSET_SIGNING_KEY"]), 32)
+            self.assertIn("STORAGE_SIGNING_KEY", first)
+            self.assertEqual(first["STORAGE_SIGNING_KEY"], "ab" * 24)
+            self.assertEqual(first["STORAGE_POSTGRES_PASSWORD"], "cd" * 24)
+            self.assertNotIn("ASSET_SIGNING_KEY", first)
+            self.assertNotIn("ASSET_POSTGRES_PASSWORD", first)
+            self.assertGreaterEqual(len(first["STORAGE_SIGNING_KEY"]), 32)
             self.assertEqual(render(), first)
             self.assertIn(
-                f"ASSET_SIGNING_KEY={first['ASSET_SIGNING_KEY']}",
+                f"STORAGE_SIGNING_KEY={first['STORAGE_SIGNING_KEY']}",
                 (path / ".env").read_text(),
             )
             self.assertEqual((path / ".env.secrets").stat().st_mode & 0o777, 0o600)
+            conflicting = (path / ".env.secrets").read_text() + "ASSET_SIGNING_KEY=different\n"
+            (path / ".env.secrets").write_text(conflicting)
+            with self.assertRaises(subprocess.CalledProcessError):
+                render()
+            self.assertEqual((path / ".env.secrets").read_text(), conflicting)
 
     def test_compose_injects_credentials(self):
         source = (VPS / "docker-compose.prod.yml").read_text()
@@ -167,10 +179,10 @@ class DeploymentSecretsTest(unittest.TestCase):
                 check=True,
             )
         services = json.loads(result.stdout)["services"]
-        with self.subTest(service="asset"):
+        with self.subTest(service="storage"):
             self.assertEqual(
-                services["asset"]["environment"].get("ASSET_SIGNING_KEY"),
-                values.get("ASSET_SIGNING_KEY", "missing-signing-key"),
+                services["storage"]["environment"].get("STORAGE_SIGNING_KEY"),
+                values.get("STORAGE_SIGNING_KEY", "missing-signing-key"),
             )
         with self.subTest(service="knowledge"):
             actual = json.loads(
@@ -184,12 +196,12 @@ class DeploymentSecretsTest(unittest.TestCase):
 
     def test_k8s_secret_templates(self):
         base = ROOT / "infra/k8s/base"
-        asset = yaml.safe_load((base / "asset/secret.yaml").read_text())["stringData"]
+        storage = yaml.safe_load((base / "storage/secret.yaml").read_text())["stringData"]
         knowledge = yaml.safe_load((base / "knowledge/secret.yaml").read_text())[
             "stringData"
         ]
-        with self.subTest(service="asset"):
-            self.assertIn("ASSET_SIGNING_KEY", asset)
+        with self.subTest(service="storage"):
+            self.assertIn("STORAGE_SIGNING_KEY", storage)
         with self.subTest(service="knowledge"):
             self.assertEqual(
                 json.loads(knowledge["INTERNAL_SERVICE_TOKENS"]),

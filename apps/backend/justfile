@@ -3,11 +3,11 @@ set shell := ["bash", "-cu"]
 
 # Service registry (Python / Node / Go services and their fixed dev ports)
 PY_SERVICES := "admin knowledge telemetry"
-NODE_SERVICES := "chat executor"
-GO_SERVICES := "gateway iam canvas asset"
+NODE_SERVICES := "chat executor sandbox"
+GO_SERVICES := "gateway iam canvas storage"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011,"canvas":8012,"asset":8013}'
+PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011,"canvas":8012,"storage":8013,"sandbox":8014}'
 
 default:
     @just --list
@@ -57,9 +57,9 @@ build-go:
 # Build and typecheck all Node services from the shared backend workspace.
 build-node:
     pnpm install --frozen-lockfile
-    pnpm --filter chat run build
-    pnpm --filter executor run typecheck
-    pnpm --filter executor run build
+    @for s in {{ NODE_SERVICES }}; do \
+        pnpm --filter $s run --if-present typecheck && pnpm --filter $s run build || exit 1; \
+    done
 
 build-go-svc service:
     @echo "→ Building Go service: {{ service }}"
@@ -100,11 +100,13 @@ build-image service registry="local" tag="latest":
     fi
     @echo "✓ {{ registry }}/{{ service }}:{{ tag }}"
 
-# Build images for ALL services (Python + Go).
+# Build images for all services and the sandbox execution runtime.
 build-images registry="local" tag="latest":
     @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} {{ GO_SERVICES }}; do \
         just build-image $s {{ registry }} {{ tag }} || exit 1; \
     done
+    cd ../.. && just build-sandbox-runtime {{ registry }} {{ tag }}
+    cd ../.. && just build-sandbox-proxy {{ registry }} {{ tag }}
     @echo "✓ All backend images built with tag {{ registry }}/<svc>:{{ tag }}"
 
 # ─── quality ────────────────────────────────────────────
@@ -156,7 +158,7 @@ gen-openapi service:
     echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:
-    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} canvas asset; do just gen-openapi $s; done
+    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} canvas storage; do just gen-openapi $s; done
 
 gen-transport-ts:
     cd libs/transport-ts && pnpm install && pnpm run codegen
@@ -168,8 +170,8 @@ gen-proto:
 
 # ─── db ─────────────────────────────────────────────────
 migrate-up service target="":
-    @bash ../../scripts/db-migrate.sh "services/{{ service }}" "{{ target }}"
+    @cd ../.. && just migrate-up "{{ service }}" "{{ target }}"
 
 # Explicit schema downgrade; refuses missing or unsafe reverse migrations.
 migrate-down service target:
-    @bash ../../scripts/db-migrate.sh "services/{{ service }}" "{{ target }}" down
+    @cd ../.. && just migrate-down "{{ service }}" "{{ target }}"

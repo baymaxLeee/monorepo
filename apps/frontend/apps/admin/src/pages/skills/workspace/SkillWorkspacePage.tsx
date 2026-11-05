@@ -2,7 +2,7 @@ import {
   attachSkillAsset,
   createSkillNode,
   deleteSkillNode,
-  executeAssetUploadPlan,
+  executeStorageUploadPlan,
   fetchSkill,
   fetchSkillFile,
   fetchSkillWorkspace,
@@ -223,7 +223,7 @@ export function SkillWorkspacePage() {
           mediaType: file.type || "application/zip",
           sizeBytes: file.size,
         });
-        await executeAssetUploadPlan(plan, file);
+        await executeStorageUploadPlan(plan, file);
         const result = await importSkillArchive(id, clientRef, plan.uploadSessionId, workspaceSeq);
         await load();
         toast.add({ type: "success", title: `已导入 ${result.imported_files} 个文件` });
@@ -250,7 +250,7 @@ export function SkillWorkspacePage() {
           mediaType: file.type || "application/octet-stream",
           sizeBytes: file.size,
         });
-        await executeAssetUploadPlan(plan, file);
+        await executeStorageUploadPlan(plan, file);
         await attachSkillAsset(id, {
           id: nodeId,
           client_ref: nodeId,

@@ -10,7 +10,7 @@ data:
   POSTGRES_SSLMODE: "disable"
   EXECUTOR_SERVICE_URL: "http://executor:8011"
   ADMIN_SERVICE_URL: "http://admin:8001"
-  ASSET_SERVICE_URL: "http://asset:8013"
+  STORAGE_SERVICE_URL: "http://storage:8013"
   PUBLIC_GATEWAY_URL: "http://localhost:8000"
   OTEL_SERVICE_NAME: "canvas"
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"

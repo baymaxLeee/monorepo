@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-config
+data:
+  PORT: "8014"
+  ENVIRONMENT: production
+  SANDBOX_BACKEND: kubernetes
+  SANDBOX_RUNTIME: runsc
+  SANDBOX_NAMESPACE: monorepo-sandboxes-prod
+  SANDBOX_PROXY_URL: http://sandbox-proxy.monorepo-sandboxes-prod.svc.cluster.local:3128
+  SANDBOX_IMAGE: ghcr.io/example/sandbox-runtime:latest
+  SANDBOX_CPUS: "1"
+  SANDBOX_MEMORY_MIB: "512"
+  SANDBOX_DISK_MIB: "512"
+  SANDBOX_PIDS: "128"
+  SANDBOX_TTL_SECONDS: "1800"
+  SANDBOX_MAX_SANDBOXES: "16"
+  SANDBOX_MAX_REQUESTS: "64"

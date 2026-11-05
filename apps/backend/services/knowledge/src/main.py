@@ -12,12 +12,11 @@ from api.http.routes import (
     files_internal,
     health,
     ingest,
-    resources,
     retrieval_internal,
 )
 from application.admin_client import close_admin_client
-from application.asset_client import close_asset_client, run_asset_claim_relay
 from application.executor_client import close_executor_client, run_document_dispatcher
+from application.storage_client import close_storage_client, run_asset_claim_relay
 from bootstrap.config import get_settings
 from fastapi import FastAPI
 from infrastructure.persistence.database import close_db
@@ -38,7 +37,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     stop.set()
     await dispatcher
     await claim_relay
-    await close_asset_client()
+    await close_storage_client()
     await close_executor_client()
     await close_admin_client()
     await close_db()
@@ -68,7 +67,6 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router)
     app.include_router(documents.router)
     app.include_router(documents_internal.router)
-    app.include_router(resources.router)
     app.include_router(files_internal.router)
     app.include_router(conversation_cleanup_internal.router)
     app.include_router(retrieval_internal.router)

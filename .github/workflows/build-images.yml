@@ -76,10 +76,27 @@ jobs:
       # Personal registries throttle many simultaneous layer uploads.
       max-parallel: 3
       matrix:
-        # gateway / iam / knowledge / admin / chat / executor / telemetry → backend service images
+        # gateway / iam / knowledge / admin / chat / executor / telemetry / sandbox → backend service images
+        # sandbox-runtime                          → ephemeral execution environment
         # web                                      → nginx + bundled frontend SPA dist
         # db-init                                  → one-shot Postgres schema bootstrap
-        service: [gateway, iam, asset, canvas, knowledge, admin, chat, executor, telemetry, web, db-init]
+        service:
+          [
+            gateway,
+            iam,
+            storage,
+            canvas,
+            knowledge,
+            admin,
+            chat,
+            executor,
+            telemetry,
+            sandbox,
+            sandbox-runtime,
+            sandbox-proxy,
+            web,
+            db-init,
+          ]
     env:
       # Surfaced into the shell of every step so the "Compute tags" script
       # can branch on whether the TCR mirror is configured.
@@ -145,15 +162,23 @@ jobs:
         id: ctx
         run: |
           case "${{ matrix.service }}" in
-            gateway|iam|asset|canvas)
+            gateway|iam|storage|canvas)
               echo "context=apps/backend/services/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
-            chat|executor)
+            chat|executor|sandbox)
               # Root context gives the image access to the backend workspace;
               # Corepack reads the repository-level pnpm version from here.
               echo "context=." >> "$GITHUB_OUTPUT"
               echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
+              ;;
+            sandbox-proxy)
+              echo "context=." >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/backend/services/sandbox/proxy/Dockerfile" >> "$GITHUB_OUTPUT"
+              ;;
+            sandbox-runtime)
+              echo "context=." >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/backend/services/sandbox/runtime/Dockerfile" >> "$GITHUB_OUTPUT"
               ;;
             admin|knowledge|telemetry)
               echo "context=apps/backend" >> "$GITHUB_OUTPUT"

@@ -17,6 +17,9 @@ from application.contracts.file_store import (
     PromoteChangeSetInput,
     WriteChangeSetFileInput,
 )
+from application.conversation_cleanup import assert_conversation_accepts_artifacts
+from application.file_content import read_text, store_text
+from application.storage_client import ensure_content_claim_active, mark_asset_claims_released
 from fastapi import APIRouter, Depends, Query
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
@@ -48,8 +51,10 @@ def _source_path(row: DocumentRow) -> str:
 def _entry(row: FileEntryRow | FileChangeSetEntryRow) -> FileEntry:
     return FileEntry(
         path=row.path,
+        asset_id=row.asset_id,
+        revision_id=row.revision_id,
         mime_type=row.mime_type,
-        size=len(row.content.encode()),
+        size=row.size_bytes,
         sha256=row.sha256,
         writable=row.writable,
         derived=row.derived,
@@ -106,6 +111,8 @@ async def list_files(
         entries.append(
             FileEntry(
                 path=source_path,
+                asset_id=source.asset_id or "",
+                revision_id=source.source_revision_id or "",
                 mime_type=source.source_mime_type or source.mime_type,
                 size=source.source_size,
                 sha256=source.source_sha256 or sha256(content.encode()).hexdigest(),
@@ -149,6 +156,8 @@ async def read_file(
         content = source.content_md
         entry = FileEntry(
             path=target,
+            asset_id=source.asset_id or "",
+            revision_id=source.source_revision_id or "",
             mime_type=source.source_mime_type or source.mime_type,
             size=source.source_size,
             sha256=source.source_sha256 or sha256(content.encode()).hexdigest(),
@@ -156,7 +165,7 @@ async def read_file(
             derived=False,
         )
     else:
-        content = row.content
+        content = await read_text(row, tenant_id=row.tenant_id, workspace_id=row.workspace_id)
         entry = _entry(row)
     lines = content.split("\n")
     start = offset - 1
@@ -173,6 +182,9 @@ async def read_file(
 @router.post("/change-sets", response_model=ChangeSet, status_code=201)
 async def create_change_set(payload: CreateChangeSetInput, session: DbSession) -> ChangeSet:
     async with write_tx(session):
+        await assert_conversation_accepts_artifacts(
+            session, user_id=payload.user_id, conversation_id=payload.conversation_id
+        )
         root = _change_set_root(payload.metadata)
         metadata = dict(payload.metadata or {})
         if root:
@@ -206,7 +218,7 @@ async def _change_set(session: DbSession, change_set_id: str, user_id: str, *, l
         FileChangeSetRow.id == change_set_id, FileChangeSetRow.user_id == user_id
     )
     if lock:
-        statement = statement.with_for_update()
+        statement = statement.with_for_update().execution_options(populate_existing=True)
     row = await session.scalar(statement)
     if row is None:
         raise NotFoundError(f"file change set {change_set_id} not found")
@@ -225,40 +237,48 @@ async def write_change_set_file(change_set_id: str, payload: WriteChangeSetFileI
         root = _change_set_root(change_set.metadata_json)
         if not _in_root(path, root):
             raise RequestError(f"file {path} is outside change set root {root}")
+        await assert_conversation_accepts_artifacts(
+            session, user_id=change_set.user_id, conversation_id=change_set.conversation_id
+        )
+        tenant_id, workspace_id = change_set.tenant_id, change_set.workspace_id
+    revision = await store_text(
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+        user_id=payload.user_id,
+        filename=path,
+        media_type=payload.mime_type,
+        content=payload.content,
+        operation_id=f"change-set:{change_set_id}:{path}",
+    )
+    async with write_tx(session):
+        await assert_conversation_accepts_artifacts(
+            session, user_id=payload.user_id, conversation_id=change_set.conversation_id
+        )
+        change_set = await _change_set(session, change_set_id, payload.user_id, lock=True)
         now = datetime.now(UTC)
         row = await session.scalar(
             select(FileChangeSetEntryRow).where(
                 FileChangeSetEntryRow.change_set_id == change_set.id, FileChangeSetEntryRow.path == path
             )
         )
-        digest = sha256(payload.content.encode()).hexdigest()
         if row is None:
-            row = FileChangeSetEntryRow(
-                id=_id(),
-                change_set_id=change_set.id,
-                path=path,
-                mime_type=payload.mime_type,
-                content=payload.content,
-                sha256=digest,
-                writable=payload.writable,
-                derived=payload.derived,
-                deleted=False,
-                created_at=now,
-                updated_at=now,
-            )
+            row = FileChangeSetEntryRow(id=_id(), change_set_id=change_set.id, path=path, created_at=now)
             session.add(row)
-        else:
-            row.mime_type, row.content, row.sha256 = (payload.mime_type, payload.content, digest)
-            row.writable, row.derived, row.deleted, row.updated_at = (payload.writable, payload.derived, False, now)
+        row.mime_type = payload.mime_type
+        row.asset_id, row.revision_id, row.size_bytes = revision.asset_id, revision.revision_id, revision.size_bytes
+        row.sha256 = revision.sha256
+        row.writable, row.derived, row.deleted, row.updated_at = payload.writable, payload.derived, False, now
+        await ensure_content_claim_active(
+            session,
+            tenant_id=tenant_id,
+            workspace_id=workspace_id,
+            owner_type="file_change_set_entry",
+            owner_id=row.id,
+            asset_id=row.asset_id,
+            revision_id=row.revision_id,
+        )
         change_set.updated_at = now
-    return FileEntry(
-        path=row.path,
-        mime_type=row.mime_type,
-        size=len(row.content.encode()),
-        sha256=row.sha256,
-        writable=row.writable,
-        derived=row.derived,
-    )
+    return _entry(row)
 
 
 @router.get("/change-sets/{change_set_id}/files", response_model=list[FileEntry])
@@ -292,12 +312,15 @@ async def read_change_set_file(
     )
     if row is None:
         raise NotFoundError(f"staged file {target} not found")
-    lines = row.content.split("\n")
+    content = await read_text(row, tenant_id=change_set.tenant_id, workspace_id=change_set.workspace_id)
+    lines = content.split("\n")
     start = offset - 1
     return FileRead(
         path=row.path,
+        asset_id=row.asset_id,
+        revision_id=row.revision_id,
         mime_type=row.mime_type,
-        size=len(row.content.encode()),
+        size=row.size_bytes,
         sha256=row.sha256,
         writable=row.writable,
         derived=row.derived,
@@ -311,6 +334,10 @@ async def read_change_set_file(
 @router.post("/change-sets/{change_set_id}/promote", response_model=list[FileEntry])
 async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput, session: DbSession) -> list[FileEntry]:
     async with write_tx(session):
+        snapshot = await _change_set(session, change_set_id, payload.user_id)
+        await assert_conversation_accepts_artifacts(
+            session, user_id=payload.user_id, conversation_id=snapshot.conversation_id
+        )
         change_set = await _change_set(session, change_set_id, payload.user_id, lock=True)
         root = _change_set_root(change_set.metadata_json)
         lock_key = f"{change_set.user_id}:{change_set.conversation_id}:{root or '*'}"
@@ -339,40 +366,65 @@ async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput,
         if change_set.metadata_json and change_set.metadata_json.get("replace_root") == "true":
             for obsolete in current_in_root:
                 if obsolete.path not in staged_paths:
+                    await mark_asset_claims_released(
+                        session,
+                        tenant_id=change_set.tenant_id,
+                        workspace_id=change_set.workspace_id,
+                        owner_type="file_entry",
+                        owner_ids=[obsolete.id],
+                    )
                     await session.delete(obsolete)
         for entry in staged:
             if entry.deleted:
                 continue
             current_entry = by_path.get(entry.path)
             if current_entry is None:
-                session.add(
-                    FileEntryRow(
-                        id=_id(),
-                        user_id=change_set.user_id,
-                        workspace_id=change_set.workspace_id,
-                        tenant_id=change_set.tenant_id,
-                        conversation_id=change_set.conversation_id,
-                        path=entry.path,
-                        mime_type=entry.mime_type,
-                        content=entry.content,
-                        sha256=entry.sha256,
-                        writable=entry.writable,
-                        derived=entry.derived,
-                        created_at=now,
-                        updated_at=now,
-                    )
+                current_entry = FileEntryRow(
+                    id=_id(),
+                    user_id=change_set.user_id,
+                    workspace_id=change_set.workspace_id,
+                    tenant_id=change_set.tenant_id,
+                    conversation_id=change_set.conversation_id,
+                    path=entry.path,
+                    mime_type=entry.mime_type,
+                    asset_id=entry.asset_id,
+                    revision_id=entry.revision_id,
+                    size_bytes=entry.size_bytes,
+                    sha256=entry.sha256,
+                    writable=entry.writable,
+                    derived=entry.derived,
+                    created_at=now,
+                    updated_at=now,
                 )
+                session.add(current_entry)
             else:
-                current_entry.mime_type, current_entry.content, current_entry.sha256 = (
-                    entry.mime_type,
-                    entry.content,
-                    entry.sha256,
+                current_entry.mime_type, current_entry.sha256 = entry.mime_type, entry.sha256
+                current_entry.asset_id, current_entry.revision_id, current_entry.size_bytes = (
+                    entry.asset_id,
+                    entry.revision_id,
+                    entry.size_bytes,
                 )
                 current_entry.writable, current_entry.derived, current_entry.updated_at = (
                     entry.writable,
                     entry.derived,
                     now,
                 )
+            await ensure_content_claim_active(
+                session,
+                tenant_id=change_set.tenant_id,
+                workspace_id=change_set.workspace_id,
+                owner_type="file_entry",
+                owner_id=current_entry.id,
+                asset_id=current_entry.asset_id,
+                revision_id=current_entry.revision_id,
+            )
+        await mark_asset_claims_released(
+            session,
+            tenant_id=change_set.tenant_id,
+            workspace_id=change_set.workspace_id,
+            owner_type="file_change_set_entry",
+            owner_ids=[entry.id for entry in staged],
+        )
         change_set.status, change_set.updated_at = ("promoted", now)
     rows = (
         await session.scalars(
@@ -390,6 +442,16 @@ async def promote_change_set(change_set_id: str, payload: PromoteChangeSetInput,
 async def discard_change_set(change_set_id: str, payload: PromoteChangeSetInput, session: DbSession) -> ChangeSet:
     async with write_tx(session):
         row = await _change_set(session, change_set_id, payload.user_id, lock=True)
+        entries = (
+            await session.scalars(select(FileChangeSetEntryRow.id).where(FileChangeSetEntryRow.change_set_id == row.id))
+        ).all()
+        await mark_asset_claims_released(
+            session,
+            tenant_id=row.tenant_id,
+            workspace_id=row.workspace_id,
+            owner_type="file_change_set_entry",
+            owner_ids=list(entries),
+        )
         row.status, row.updated_at = ("discarded", datetime.now(UTC))
     return ChangeSet(id=row.id, status=row.status, conversation_id=row.conversation_id)
 
@@ -419,7 +481,9 @@ async def search_files(payload: FileSearchInput, session: DbSession) -> list[Fil
         )
     ).all()
     matches: list[FileSearchMatch] = []
-    searchable = [(row.path, row.content) for row in rows]
+    searchable = [
+        (row.path, await read_text(row, tenant_id=row.tenant_id, workspace_id=row.workspace_id)) for row in rows
+    ]
     searchable.extend((_source_path(row), row.content_md) for row in sources if row.content_md)
     prefix = f"{_path(payload.path.rstrip('/'))}/" if payload.path else ""
     for path, content in searchable:

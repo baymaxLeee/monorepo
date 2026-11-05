@@ -16,6 +16,7 @@ def document_to_schema(row: DocumentRow, *, include_content: bool = False) -> Do
         title=row.title,
         filename=row.filename,
         mime_type=row.mime_type,
+        editable_source=row.editable_source,
         content_md=row.content_md if include_content else "",
         source_size=row.source_size,
         source_mime_type=row.source_mime_type,

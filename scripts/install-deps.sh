@@ -61,7 +61,7 @@ echo ""
 echo "── 5. Backend Go services ──"
 if command -v go >/dev/null 2>&1; then
   (cd scripts/dbmigrate && GOWORK=off go mod download)
-  for svc in gateway iam canvas asset; do
+  for svc in gateway iam canvas storage; do
     echo "  → $svc"
     (cd "apps/backend/services/$svc" && go mod download && go mod tidy)
   done
@@ -88,9 +88,10 @@ for pair in \
   "apps/backend/services/telemetry/.env.example:apps/backend/services/telemetry/.env" \
   "apps/backend/services/gateway/.env.example:apps/backend/services/gateway/.env" \
   "apps/backend/services/canvas/.env.example:apps/backend/services/canvas/.env" \
-  "apps/backend/services/asset/.env.example:apps/backend/services/asset/.env" \
+  "apps/backend/services/storage/.env.example:apps/backend/services/storage/.env" \
   "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env" \
-  "apps/backend/services/executor/.env.example:apps/backend/services/executor/.env"; do
+  "apps/backend/services/executor/.env.example:apps/backend/services/executor/.env" \
+  "apps/backend/services/sandbox/.env.example:apps/backend/services/sandbox/.env"; do
   src="${pair%%:*}"
   dst="${pair##*:}"
   if [ -f "$src" ] && [ ! -f "$dst" ]; then

@@ -33,7 +33,7 @@ INTERNAL_KEYS=(
   WORKFLOW_POSTGRES_PASSWORD
   IAM_POSTGRES_PASSWORD
   ADMIN_POSTGRES_PASSWORD
-  ASSET_POSTGRES_PASSWORD
+  STORAGE_POSTGRES_PASSWORD
   CANVAS_POSTGRES_PASSWORD
   CHAT_POSTGRES_PASSWORD
   EXECUTOR_POSTGRES_PASSWORD
@@ -41,7 +41,7 @@ INTERNAL_KEYS=(
   TELEMETRY_POSTGRES_PASSWORD
   CLICKHOUSE_PASSWORD
   TOOL_APPROVAL_SECRET
-  ASSET_SIGNING_KEY
+  STORAGE_SIGNING_KEY
   CHAT_INTERNAL_API_TOKEN
   ADMIN_INTERNAL_API_TOKEN
   EXECUTOR_INTERNAL_API_TOKEN
@@ -71,6 +71,30 @@ fi
 
 touch "${SECRETS_FILE}"
 chmod 600 "${SECRETS_FILE}"
+# Rename persisted keys once without rotating the credentials of the retained database.
+# Only STORAGE_* is written to the runtime environment after this conversion.
+renamed_secrets="$(mktemp "${SECRETS_FILE}.XXXXXX")"
+if ! awk '
+  /^ASSET_POSTGRES_PASSWORD=/ { sub(/^ASSET_POSTGRES_PASSWORD=/, "STORAGE_POSTGRES_PASSWORD=") }
+  /^ASSET_SIGNING_KEY=/ { sub(/^ASSET_SIGNING_KEY=/, "STORAGE_SIGNING_KEY=") }
+  /^STORAGE_(POSTGRES_PASSWORD|SIGNING_KEY)=/ {
+    key = substr($0, 1, index($0, "=") - 1)
+    value = substr($0, index($0, "=") + 1)
+    if (key in values) {
+      if (values[key] != value) {
+        print "conflicting stored values for " key > "/dev/stderr"
+        exit 1
+      }
+      next
+    }
+    values[key] = value
+  }
+  { print }
+' "${SECRETS_FILE}" > "${renamed_secrets}"; then
+  rm -f "${renamed_secrets}"
+  exit 1
+fi
+mv "${renamed_secrets}" "${SECRETS_FILE}"
 for key in "${INTERNAL_KEYS[@]}"; do
   if ! grep -qE "^${key}=" "${SECRETS_FILE}"; then
     printf '%s=%s\n' "${key}" "$(openssl rand -hex 24)" >> "${SECRETS_FILE}"

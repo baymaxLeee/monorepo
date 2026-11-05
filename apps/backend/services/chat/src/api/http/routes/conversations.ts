@@ -5,11 +5,12 @@ import { z } from "zod";
 import { getConversationContext } from "../../../application/agent/index.js";
 import { activeAgentStreamRunId } from "../../../application/agent/streams/service.js";
 import {
+  authorizeDocumentDelivery,
+  authorizeFileDelivery,
   createConversation,
   deleteConversation,
   getConversation,
   getConversationDocument,
-  getConversationDocumentSource,
   getConversationFile,
   listConversations,
   updateConversation,
@@ -21,7 +22,7 @@ import {
   getVideoProduction,
   type ProductionDecision,
 } from "../../../infrastructure/clients/executor.js";
-import { getStagedMediaSource } from "../../../infrastructure/clients/knowledge.js";
+import { getStagedMediaDelivery } from "../../../infrastructure/clients/knowledge.js";
 import { getAuth } from "../middleware/auth.js";
 
 export const conversationsRoutes = new Hono();
@@ -206,7 +207,14 @@ conversationsRoutes.get("/:conversationId/context", async (c) => {
 
 conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {
   const auth = getAuth(c);
-  return c.json(await getConversationDocument(auth, c.req.param("conversationId"), c.req.param("documentId")));
+  return c.json(
+    await getConversationDocument(
+      auth,
+      c.req.param("conversationId"),
+      c.req.param("documentId"),
+      c.req.query("include_content") !== "false",
+    ),
+  );
 });
 
 conversationsRoutes.get("/:conversationId/files/detail", async (c) => {
@@ -214,7 +222,15 @@ conversationsRoutes.get("/:conversationId/files/detail", async (c) => {
   if (!path) {
     throw new NotFoundError("file path is required");
   }
-  return c.json(await getConversationFile(getAuth(c), c.req.param("conversationId"), path));
+  return c.json(
+    await getConversationFile(
+      getAuth(c),
+      c.req.param("conversationId"),
+      path,
+      undefined,
+      c.req.query("include_content") !== "false",
+    ),
+  );
 });
 
 conversationsRoutes.get("/:conversationId/video-productions/:productionId", async (c) => {
@@ -273,23 +289,18 @@ conversationsRoutes.post(
   },
 );
 
-conversationsRoutes.get("/:conversationId/video-productions/:productionId/preview", async (c) => {
+conversationsRoutes.get("/:conversationId/video-productions/:productionId/preview-url", async (c) => {
   const auth = getAuth(c);
   const detail = await authorizedProduction(auth, c.req.param("conversationId"), c.req.param("productionId"));
   const stagedMediaId = detail.production.stagedMediaId;
   if (!stagedMediaId) {
     throw new NotFoundError("video production preview is not available");
   }
-  const source = await getStagedMediaSource(detail.production.userId, stagedMediaId);
-  const body = source.bytes.buffer.slice(
-    source.bytes.byteOffset,
-    source.bytes.byteOffset + source.bytes.byteLength,
-  ) as ArrayBuffer;
-  return new Response(body, { headers: { "Content-Type": source.mimeType } });
+  return c.json(await getStagedMediaDelivery(detail.production.userId, stagedMediaId));
 });
 
 conversationsRoutes.get(
-  "/:conversationId/video-productions/:productionId/shots/:shotId/takes/:takeId/preview",
+  "/:conversationId/video-productions/:productionId/shots/:shotId/takes/:takeId/preview-url",
   async (c) => {
     const auth = getAuth(c);
     const detail = await authorizedProduction(auth, c.req.param("conversationId"), c.req.param("productionId"));
@@ -298,34 +309,9 @@ conversationsRoutes.get(
     if (!take?.stagedMediaId) {
       throw new NotFoundError("video take preview is not available");
     }
-    const source = await getStagedMediaSource(detail.production.userId, take.stagedMediaId);
-    const body = source.bytes.buffer.slice(
-      source.bytes.byteOffset,
-      source.bytes.byteOffset + source.bytes.byteLength,
-    ) as ArrayBuffer;
-    return new Response(body, { headers: { "Content-Type": source.mimeType } });
+    return c.json(await getStagedMediaDelivery(detail.production.userId, take.stagedMediaId));
   },
 );
-
-conversationsRoutes.get("/:conversationId/documents/:documentId/source", async (c) => {
-  const auth = getAuth(c);
-  const maxDimRaw = c.req.query("max_dim");
-  const parsedMaxDim = maxDimRaw ? Number.parseInt(maxDimRaw, 10) : Number.NaN;
-  const maxDim = Number.isFinite(parsedMaxDim) && parsedMaxDim > 0 ? parsedMaxDim : undefined;
-  const source = await getConversationDocumentSource(
-    auth,
-    c.req.param("conversationId"),
-    c.req.param("documentId"),
-    maxDim ? { maxDim } : undefined,
-  );
-  const body = source.bytes.buffer.slice(
-    source.bytes.byteOffset,
-    source.bytes.byteOffset + source.bytes.byteLength,
-  ) as ArrayBuffer;
-  return new Response(body, {
-    headers: { "Content-Type": source.mimeType },
-  });
-});
 
 conversationsRoutes.patch("/:conversationId", zValidator("json", updateSchema), async (c) => {
   const auth = getAuth(c);
@@ -349,4 +335,29 @@ conversationsRoutes.delete("/:conversationId", async (c) => {
   const auth = getAuth(c);
   await deleteConversation(auth, c.req.param("conversationId"));
   return c.body(null, 204);
+});
+
+conversationsRoutes.post("/:conversationId/documents/:documentId/delivery", async (c) => {
+  const raw = c.req.query("max_dim");
+  const maxDim = raw === undefined ? undefined : Number(raw);
+  if (maxDim !== undefined && (!Number.isInteger(maxDim) || maxDim < 1 || maxDim > 4096)) {
+    return c.json({ title: "invalid max_dim", status: 400 }, 400);
+  }
+  return c.json(
+    await authorizeDocumentDelivery(getAuth(c), c.req.param("conversationId"), c.req.param("documentId"), maxDim),
+  );
+});
+conversationsRoutes.post("/:conversationId/files/delivery", async (c) => {
+  const path = c.req.query("path");
+  if (!path) return c.json({ title: "path is required", status: 400 }, 400);
+  return c.json(await authorizeFileDelivery(getAuth(c), c.req.param("conversationId"), path));
+});
+conversationsRoutes.get("/:conversationId/documents/:documentId/content", async (c) => {
+  const capability = await authorizeDocumentDelivery(
+    getAuth(c),
+    c.req.param("conversationId"),
+    c.req.param("documentId"),
+  );
+  c.header("Cache-Control", "no-store");
+  return c.redirect(capability.url, 307);
 });

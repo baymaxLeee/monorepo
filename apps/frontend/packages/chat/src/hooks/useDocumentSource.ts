@@ -1,5 +1,5 @@
 import type { ConversationDocumentDetail } from "@repo/api";
-import { createKnowledgeDocumentResourceUrl, fetchConversationDocumentSource } from "@repo/api";
+import { fetchConversationDocumentSource } from "@repo/api";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;
@@ -69,14 +69,8 @@ export async function downloadConversationDocument(
   conversationId: string,
   documentId: string,
   document: ConversationDocumentDetail,
-  content: string = document.content_md,
 ) {
-  const blob =
-    document.asset_id && document.source_revision_id
-      ? await fetchCachedDocumentSource(conversationId, documentId, document.updated_at)
-      : new Blob([content], {
-          type: document.mime_type || "application/octet-stream",
-        });
+  const blob = await fetchCachedDocumentSource(conversationId, documentId, document.updated_at);
   const url = URL.createObjectURL(blob);
   const anchor = window.document.createElement("a");
   anchor.href = url;
@@ -139,46 +133,6 @@ export function useDocumentBlobUrl(
   }, [conversationId, documentId, enabled, maxDim, version]);
 
   return { blobUrl, loading, error };
-}
-
-export function useDocumentResourceUrl(documentId: string | null, enabled: boolean, version: string) {
-  const [resourceUrl, setResourceUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    if (!enabled || !documentId) {
-      setResourceUrl(null);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-    let active = true;
-    setResourceUrl(null);
-    setLoading(true);
-    setError(null);
-    void createKnowledgeDocumentResourceUrl(documentId)
-      .then((resource) => {
-        if (active) {
-          setResourceUrl(resource.url);
-        }
-      })
-      .catch((nextError: unknown) => {
-        if (active) {
-          setError(nextError);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [documentId, enabled, version]);
-
-  return { resourceUrl, loading, error };
 }
 
 export function useDocumentBlobUrls(

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -52,7 +52,7 @@ func TestStorePersistRemote(t *testing.T) {
 		}))
 		defer server.Close()
 
-		store := New(assetclient.New(server.URL, "", nil), "").(*Store)
+		store := New(storageclient.New(server.URL, "", nil), "").(*Store)
 		_, err := store.persistRemote(
 			context.Background(), "tenant-1", "workspace-1", "user-1", "result.png", "generated_image", "task-1", server.URL+"/generated.png",
 		)
@@ -84,7 +84,7 @@ func TestStorePersistRemote(t *testing.T) {
 		})}
 		t.Cleanup(func() { generatedMediaHTTPClient = originalClient })
 
-		store := New(assetclient.New(storageServer.URL, "", nil), "").(*Store)
+		store := New(storageclient.New(storageServer.URL, "", nil), "").(*Store)
 		_, err := store.persistRemote(
 			context.Background(), "tenant-1", "workspace-1", "user-1", "result.mp4", "generated_video", "task-1", "https://media.example.com/generated.mp4",
 		)
@@ -114,7 +114,7 @@ func TestProviderReferenceInlinesImageBytes(t *testing.T) {
 	}))
 	defer server.Close()
 
-	store := New(assetclient.New(server.URL, "internal-token", nil), "http://localhost:8000")
+	store := New(storageclient.New(server.URL, "internal-token", nil), "http://localhost:8000")
 	workspaceID := "workspace-1"
 	reference, err := store.ProviderReference(context.Background(), "tenant-1", "user-1", domainasset.Asset{
 		TenantID: "tenant-1", WorkspaceID: &workspaceID, SourceAssetID: "asset-1", SourceRevisionID: "revision-1",
@@ -135,7 +135,7 @@ func TestProviderReferenceRejectsMismatchedImageSize(t *testing.T) {
 	}))
 	defer server.Close()
 
-	store := New(assetclient.New(server.URL, "", nil), "http://localhost:8000")
+	store := New(storageclient.New(server.URL, "", nil), "http://localhost:8000")
 	workspaceID := "workspace-1"
 	_, err := store.ProviderReference(context.Background(), "tenant-1", "user-1", domainasset.Asset{
 		TenantID: "tenant-1", WorkspaceID: &workspaceID, SourceAssetID: "asset-1", SourceRevisionID: "revision-1",

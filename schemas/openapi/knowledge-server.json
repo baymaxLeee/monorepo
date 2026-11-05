@@ -516,7 +516,7 @@
           "documents"
         ],
         "summary": "Batch Delete My Documents",
-        "description": "Delete several documents in one transaction.\n\nSame policy as single delete: an workspace_admin may delete any of the workspace's\ndocuments; a member may delete only their own uploads. If ANY requested id\nis outside the workspace or not deletable by the caller, the whole batch is\nrejected with 403 — no silent partial success that would mislead the caller.\nObject-store blobs are best-effort purged and RAG `document_chunks` drop via\nthe FK `ON DELETE CASCADE`.",
+        "description": "Delete several documents in one transaction.\n\nSame policy as single delete: an workspace_admin may delete any of the workspace's\ndocuments; a member may delete only their own uploads. If ANY requested id\nis outside the workspace or not deletable by the caller, the whole batch is\nrejected with 403 — no silent partial success that would mislead the caller.\nStorage references are released transactionally and RAG `document_chunks` drop via\nthe FK `ON DELETE CASCADE`.",
         "operationId": "batch_delete_my_documents_documents_batch_delete_post",
         "parameters": [
           {
@@ -1202,13 +1202,13 @@
         }
       }
     },
-    "/documents/{document_id}/source": {
-      "get": {
+    "/documents/{document_id}/delivery": {
+      "post": {
         "tags": [
           "documents"
         ],
-        "summary": "Get My Document Source",
-        "operationId": "get_my_document_source_documents__document_id__source_get",
+        "summary": "Authorize Document Delivery",
+        "operationId": "authorize_document_delivery_documents__document_id__delivery_post",
         "parameters": [
           {
             "name": "document_id",
@@ -1321,7 +1321,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/StorageDelivery"
+                }
               }
             }
           },
@@ -1630,6 +1632,16 @@
             "schema": {
               "type": "string",
               "title": "User Id"
+            }
+          },
+          {
+            "name": "include_content",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Content"
             }
           },
           {
@@ -1964,105 +1976,6 @@
         }
       }
     },
-    "/internal/documents/{document_id}/source": {
-      "get": {
-        "tags": [
-          "internal"
-        ],
-        "summary": "Get Document Source",
-        "operationId": "get_document_source_internal_documents__document_id__source_get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "User Id"
-            }
-          },
-          {
-            "name": "max_dim",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "maximum": 4096,
-                  "minimum": 1
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Max Dim"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/internal/artifacts": {
       "post": {
         "tags": [
@@ -2372,87 +2285,6 @@
         }
       }
     },
-    "/internal/staged-media/{staged_id}/source": {
-      "get": {
-        "tags": [
-          "internal"
-        ],
-        "summary": "Get Staged Media Source",
-        "operationId": "get_staged_media_source_internal_staged_media__staged_id__source_get",
-        "parameters": [
-          {
-            "name": "staged_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Staged Id"
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "User Id"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/internal/staged-media/{staged_id}/publish": {
       "post": {
         "tags": [
@@ -2607,417 +2439,6 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/documents/{document_id}/resource-url": {
-      "post": {
-        "tags": [
-          "document-resources"
-        ],
-        "summary": "Create Resource Url",
-        "operationId": "create_resource_url_documents__document_id__resource_url_post",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Workspace-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Workspace-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Tenant-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Tenant-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Workspace-Role",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Workspace-Role"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentResourceURL"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/files/resource-url": {
-      "post": {
-        "tags": [
-          "document-resources"
-        ],
-        "summary": "Create File Url",
-        "operationId": "create_file_url_files_resource_url_post",
-        "parameters": [
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Workspace-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Workspace-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Tenant-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Tenant-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Workspace-Role",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Workspace-Role"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FileResourceURLInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentResourceURL"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/resources/{document_id}": {
-      "get": {
-        "tags": [
-          "document-resources"
-        ],
-        "summary": "Get Signed Resource",
-        "operationId": "get_signed_resource_resources__document_id__get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "expires",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Expires"
-            }
-          },
-          {
-            "name": "version",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "title": "Version"
-            }
-          },
-          {
-            "name": "signature",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 64,
-              "maxLength": 64,
-              "title": "Signature"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/resources/files/{file_id}": {
-      "get": {
-        "tags": [
-          "document-resources"
-        ],
-        "summary": "Get Signed File Resource",
-        "operationId": "get_signed_file_resource_resources_files__file_id__get",
-        "parameters": [
-          {
-            "name": "file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "File Id"
-            }
-          },
-          {
-            "name": "expires",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "title": "Expires"
-            }
-          },
-          {
-            "name": "version",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 64,
-              "maxLength": 64,
-              "title": "Version"
-            }
-          },
-          {
-            "name": "signature",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 64,
-              "maxLength": 64,
-              "title": "Signature"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -4538,6 +3959,11 @@
             "type": "string",
             "title": "Mime Type"
           },
+          "editable_source": {
+            "type": "boolean",
+            "title": "Editable Source",
+            "default": false
+          },
           "content_md": {
             "type": "string",
             "title": "Content Md",
@@ -4690,35 +4116,6 @@
         ],
         "title": "DocumentProcessResult"
       },
-      "DocumentResourceURL": {
-        "properties": {
-          "url": {
-            "type": "string",
-            "title": "Url"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Expires At"
-          },
-          "mime_type": {
-            "type": "string",
-            "title": "Mime Type"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename"
-          }
-        },
-        "type": "object",
-        "required": [
-          "url",
-          "expires_at",
-          "mime_type",
-          "filename"
-        ],
-        "title": "DocumentResourceURL"
-      },
       "DocumentSlice": {
         "properties": {
           "id": {
@@ -4800,6 +4197,14 @@
             "type": "string",
             "title": "Path"
           },
+          "asset_id": {
+            "type": "string",
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
           "type": {
             "type": "string",
             "const": "file",
@@ -4830,6 +4235,8 @@
         "type": "object",
         "required": [
           "path",
+          "asset_id",
+          "revision_id",
           "mime_type",
           "size",
           "sha256",
@@ -4843,6 +4250,14 @@
           "path": {
             "type": "string",
             "title": "Path"
+          },
+          "asset_id": {
+            "type": "string",
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
           },
           "type": {
             "type": "string",
@@ -4897,6 +4312,8 @@
         "type": "object",
         "required": [
           "path",
+          "asset_id",
+          "revision_id",
           "mime_type",
           "size",
           "sha256",
@@ -4908,28 +4325,6 @@
           "content"
         ],
         "title": "FileRead"
-      },
-      "FileResourceURLInput": {
-        "properties": {
-          "conversation_id": {
-            "type": "string",
-            "maxLength": 32,
-            "minLength": 1,
-            "title": "Conversation Id"
-          },
-          "path": {
-            "type": "string",
-            "maxLength": 512,
-            "minLength": 1,
-            "title": "Path"
-          }
-        },
-        "type": "object",
-        "required": [
-          "conversation_id",
-          "path"
-        ],
-        "title": "FileResourceURLInput"
       },
       "FileSearchInput": {
         "properties": {
@@ -5569,6 +4964,50 @@
           "tenant_id"
         ],
         "title": "StagedMediaActionInput"
+      },
+      "StorageDelivery": {
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "title": "Asset Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_id",
+          "revision_id",
+          "url",
+          "expires_at",
+          "filename",
+          "media_type",
+          "size_bytes"
+        ],
+        "title": "StorageDelivery"
       },
       "UpdateArtifactInput": {
         "properties": {

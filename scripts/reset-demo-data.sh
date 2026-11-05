@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Destroy and recreate every local service database and Asset byte store.
+# Destroy and recreate every local service database and Storage byte store.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ASSET_DATA_DIR="$ROOT/apps/backend/services/asset/data"
+STORAGE_DATA_DIR="$ROOT/apps/backend/services/storage/data"
 
-if [ -e "$ASSET_DATA_DIR" ]; then
-  echo "→ resetting local Asset bytes: $ASSET_DATA_DIR"
-  find "$ASSET_DATA_DIR" -mindepth 1 -delete
+if [ -e "$STORAGE_DATA_DIR" ]; then
+  echo "→ resetting local Storage bytes: $STORAGE_DATA_DIR"
+  find "$STORAGE_DATA_DIR" -mindepth 1 -delete
 fi
 
 RESET_DEMO_DATA=true "$ROOT/scripts/db-bootstrap.sh"

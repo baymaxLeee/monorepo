@@ -15,14 +15,16 @@ set -euo pipefail
 
 export DB_MIGRATE_TRANSPORT=tcp
 
-# service → database naming mirrors scripts/db-migrate.sh (basename of dir).
-SERVICES="iam admin asset canvas chat executor knowledge telemetry"
+# Storage retains its existing database and role; service renaming never recreates data.
+SERVICES="iam admin storage canvas chat executor knowledge telemetry"
 
 for svc in ${SERVICES}; do
   password_var="$(printf '%s_POSTGRES_PASSWORD' "$svc" | tr '[:lower:]' '[:upper:]')"
   password="${!password_var:?$password_var is required}"
   echo "→ migrating ${svc}"
-  DATABASE_USER="$svc" DATABASE_PASSWORD="$password" /db-migrate.sh "/schema/${svc}"
+  database="$svc"
+  if [ "$svc" = storage ]; then database=asset; fi
+  DATABASE_NAME="$database" DATABASE_USER="$database" DATABASE_PASSWORD="$password" /db-migrate.sh "/schema/${svc}"
 done
 
 # Prod seed (idempotent ON CONFLICT), applied AFTER schema. Layout: /seed/<db>/*.sql.

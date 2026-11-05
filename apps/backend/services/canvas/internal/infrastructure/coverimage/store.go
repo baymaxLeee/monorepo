@@ -9,17 +9,17 @@ import (
 
 	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationcoverimage "github.com/example/monorepo/canvas/internal/application/coverimage"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 )
 
 type Store struct {
-	assets           *assetclient.Client
+	assets           *storageclient.Client
 	claims           applicationassetclaim.Store
 	clock            interface{ Now() time.Time }
 	publicGatewayURL string
 }
 
-func New(assets *assetclient.Client, claims applicationassetclaim.Store, clock interface{ Now() time.Time }, publicGatewayURL string) *Store {
+func New(assets *storageclient.Client, claims applicationassetclaim.Store, clock interface{ Now() time.Time }, publicGatewayURL string) *Store {
 	return &Store{assets: assets, claims: claims, clock: clock, publicGatewayURL: strings.TrimRight(publicGatewayURL, "/")}
 }
 
@@ -28,7 +28,7 @@ func (s *Store) Register(ctx context.Context, input applicationcoverimage.Regist
 		return applicationcoverimage.Registration{}, applicationcoverimage.ErrInvalidReference
 	}
 	workspace := workspaceValue(input.WorkspaceID)
-	revision, err := s.assets.Describe(ctx, input.TenantID, workspace, assetclient.RevisionRef{AssetID: input.Revision.AssetID, RevisionID: input.Revision.RevisionID})
+	revision, err := s.assets.Describe(ctx, input.TenantID, workspace, storageclient.RevisionRef{AssetID: input.Revision.AssetID, RevisionID: input.Revision.RevisionID})
 	if err != nil {
 		return applicationcoverimage.Registration{}, fmt.Errorf("describe cover image revision: %w", err)
 	}
@@ -69,10 +69,10 @@ func coverIntent(registration applicationcoverimage.Registration, desiredState s
 }
 
 func (s *Store) Presign(ctx context.Context, registrations []applicationcoverimage.Registration) (map[applicationcoverimage.RevisionRef]string, error) {
-	inputs := make([]assetclient.DeliveryCapabilityInput, 0, len(registrations))
+	inputs := make([]storageclient.DeliveryCapabilityInput, 0, len(registrations))
 	for _, registration := range registrations {
 		if registration.Revision.Valid() {
-			inputs = append(inputs, assetclient.DeliveryCapabilityInput{TenantID: registration.TenantID, WorkspaceID: workspaceValue(registration.WorkspaceID), RevisionRef: assetclient.RevisionRef{AssetID: registration.Revision.AssetID, RevisionID: registration.Revision.RevisionID}})
+			inputs = append(inputs, storageclient.DeliveryCapabilityInput{TenantID: registration.TenantID, WorkspaceID: workspaceValue(registration.WorkspaceID), RevisionRef: storageclient.RevisionRef{AssetID: registration.Revision.AssetID, RevisionID: registration.Revision.RevisionID}})
 		}
 	}
 	if len(inputs) == 0 {

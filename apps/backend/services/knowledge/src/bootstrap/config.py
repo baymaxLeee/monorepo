@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     admin_service_url: str = "http://localhost:8001"
     executor_service_url: str = "http://localhost:8011"
-    asset_service_url: str = "http://localhost:8013"
+    storage_service_url: str = "http://localhost:8013"
     internal_api_token: str = _DEV_CALLER_TOKEN
     internal_service_tokens: dict[str, str] = Field(default_factory=lambda: dict(_DEV_INTERNAL_SERVICE_TOKENS))
 
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     executor_dispatch_interval_seconds: float = 5.0
     executor_dispatch_max_parallel: int = Field(default=16, ge=1, le=100)
     executor_redispatch_after_seconds: float = Field(default=60.0, ge=5.0, le=3600.0)
-    asset_claim_dispatch_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
+    storage_claim_dispatch_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
     llm_timeout_seconds: float = 60.0
 
     embedding_dim: int = 2048

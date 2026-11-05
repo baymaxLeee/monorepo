@@ -3,7 +3,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@repo/
 import { cn, isPublicHttpUrl } from "@repo/shared";
 import type { LucideIcon } from "lucide-react";
 import { XIcon } from "lucide-react";
-import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
+import { type ComponentProps, type HTMLAttributes, type ReactNode, useLayoutEffect, useRef } from "react";
 
 import { MessageResponse } from "./message";
 
@@ -118,6 +118,11 @@ export function ArtifactContent({ className, ...props }: ArtifactContentProps) {
 export type ArtifactPreviewKind = "html" | "markdown" | "text" | "image" | "video" | "audio" | "pdf";
 
 function isAllowedArtifactSrc(src: string): boolean {
+  // Asset mints signed, same-origin resource paths. Reject network-path
+  // references and URL-normalization escapes instead of discarding relative URLs.
+  if (src.startsWith("/")) {
+    return !src.startsWith("//") && !/[\\\u0000-\u0020\u007f]/.test(src);
+  }
   if (src.startsWith("blob:")) {
     return true;
   }
@@ -133,9 +138,11 @@ export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   mimeType?: string;
   actions?: ReactNode;
   showHeader?: boolean;
+  renderText?: (content: string) => ReactNode;
+  onResourceError?: () => void;
 };
 
-function resolveArtifactPreviewKind(
+export function resolveArtifactPreviewKind(
   kind?: ArtifactPreviewKind,
   mimeType?: string,
   filename?: string,
@@ -143,6 +150,8 @@ function resolveArtifactPreviewKind(
   if (kind) {
     return kind;
   }
+  mimeType = mimeType?.split(";")[0].trim().toLowerCase();
+  filename = filename?.toLowerCase();
   if (mimeType?.startsWith("image/")) {
     return "image";
   }
@@ -155,7 +164,7 @@ function resolveArtifactPreviewKind(
   if (mimeType?.includes("pdf") || filename?.endsWith(".pdf")) {
     return "pdf";
   }
-  if (mimeType?.includes("html") || filename?.endsWith(".html")) {
+  if (mimeType?.includes("html") || filename?.endsWith(".html") || filename?.endsWith(".htm")) {
     return "html";
   }
   if (mimeType?.includes("markdown") || filename?.endsWith(".md") || filename?.endsWith(".markdown")) {
@@ -174,6 +183,8 @@ export function ArtifactPreview({
   mimeType,
   actions,
   showHeader = true,
+  renderText,
+  onResourceError,
   ...props
 }: ArtifactPreviewProps) {
   const resolvedKind = resolveArtifactPreviewKind(kind, mimeType, filename);
@@ -196,33 +207,74 @@ export function ArtifactPreview({
       <ArtifactContent className="min-h-0 p-0">
         {resolvedKind === "image" && safeSrc ? (
           <div className="flex h-full min-h-[40svh] items-center justify-center bg-muted/20 p-4">
-            <img src={safeSrc} alt={title} className="max-h-[70svh] max-w-full object-contain" />
+            <img
+              src={safeSrc}
+              onError={onResourceError}
+              referrerPolicy="no-referrer"
+              alt={title}
+              className="max-h-[70svh] max-w-full object-contain"
+            />
           </div>
         ) : resolvedKind === "video" && safeSrc ? (
           // biome-ignore lint/a11y/useMediaCaption: uploaded media has no separate caption track
-          <video src={safeSrc} controls className="h-full min-h-[40svh] w-full bg-black" />
+          <ArtifactMedia kind="video" src={safeSrc} onError={onResourceError} />
         ) : resolvedKind === "audio" && safeSrc ? (
           <div className="flex min-h-[20svh] items-center justify-center p-6">
             {/* biome-ignore lint/a11y/useMediaCaption: uploaded media has no separate caption track */}
-            <audio src={safeSrc} controls className="w-full max-w-xl" />
+            <ArtifactMedia kind="audio" src={safeSrc} onError={onResourceError} />
           </div>
         ) : resolvedKind === "pdf" && safeSrc ? (
-          <iframe title={title} src={safeSrc} className="h-full min-h-[60svh] min-w-0 w-full bg-white" />
-        ) : resolvedKind === "html" && safeSrc ? (
+          <iframe
+            title={title}
+            src={safeSrc}
+            onError={onResourceError}
+            referrerPolicy="no-referrer"
+            className="h-full min-h-[60svh] min-w-0 w-full bg-white"
+          />
+        ) : resolvedKind === "html" ? (
           <iframe
             title={title}
             allowFullScreen
-            src={safeSrc}
+            onError={onResourceError}
+            src={safeSrc ?? undefined}
+            srcDoc={safeSrc ? undefined : content}
+            referrerPolicy="no-referrer"
+            sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
             className="h-full min-h-[60svh] min-w-0 w-full bg-white"
           />
         ) : resolvedKind === "markdown" ? (
           <div className="p-4">
             <MessageResponse>{content}</MessageResponse>
           </div>
+        ) : renderText ? (
+          renderText(content)
         ) : (
           <pre className="h-full min-h-[60svh] overflow-auto whitespace-pre-wrap p-4 text-sm">{content}</pre>
         )}
       </ArtifactContent>
     </Artifact>
+  );
+}
+
+function ArtifactMedia({ kind, src, onError }: { kind: "video" | "audio"; src: string; onError?: () => void }) {
+  const ref = useRef<HTMLVideoElement & HTMLAudioElement>(null);
+  useLayoutEffect(() => {
+    const media = ref.current;
+    if (!media) return;
+    const position = media.currentTime;
+    const playing = !media.paused;
+    const restore = () => {
+      if (position > 0) media.currentTime = position;
+      if (playing) void media.play().catch(() => {});
+    };
+    media.addEventListener("loadedmetadata", restore, { once: true });
+    media.src = src;
+    media.load();
+    return () => media.removeEventListener("loadedmetadata", restore);
+  }, [src]);
+  return kind === "video" ? (
+    <video ref={ref} controls preload="metadata" onError={onError} className="h-full min-h-[40svh] w-full bg-black" />
+  ) : (
+    <audio ref={ref} controls preload="metadata" onError={onError} className="w-full max-w-xl" />
   );
 }

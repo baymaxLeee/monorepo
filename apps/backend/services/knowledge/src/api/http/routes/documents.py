@@ -1,12 +1,12 @@
 """User-facing document management (future knowledge app)."""
 
-from application.asset_client import get_asset_client, mark_document_claim_released
 from application.auth import AuthContext
 from application.contracts.document import Document
+from application.document_edits import apply_document_edit
 from application.documents import document_to_schema
 from application.executor_client import dispatch_document_now
+from application.storage_client import StorageDelivery, get_storage_client, mark_document_claim_released
 from fastapi import APIRouter, Query
-from fastapi.responses import StreamingResponse
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import documents as document_crud
@@ -52,7 +52,7 @@ async def batch_delete_my_documents(
     documents; a member may delete only their own uploads. If ANY requested id
     is outside the workspace or not deletable by the caller, the whole batch is
     rejected with 403 — no silent partial success that would mislead the caller.
-    Object-store blobs are best-effort purged and RAG `document_chunks` drop via
+    Storage references are released transactionally and RAG `document_chunks` drop via
     the FK `ON DELETE CASCADE`.
     """
     unique_ids = list(dict.fromkeys(payload.ids))
@@ -102,13 +102,13 @@ async def update_my_document(
             raise ForbiddenError("you may only update your own documents")
         values = payload.model_dump(exclude_unset=True, exclude_none=True)
         content_changed = "content_md" in values
-        if values:
-            if content_changed:
-                values["index_status"] = "pending"
-                values["ingest_status"] = "ready"
-                values["ingest_error"] = None
-                values["processing_dispatched_at"] = None
-            row = await document_crud.update_document(session, row, values)
+        if content_changed:
+            values["index_status"] = "pending"
+            values["ingest_status"] = "ready"
+            values["ingest_error"] = None
+            values["processing_dispatched_at"] = None
+    if values:
+        row = await apply_document_edit(session, row, values)
     if values and content_changed:
         await dispatch_document_now(
             row.id,
@@ -145,33 +145,6 @@ async def reindex_my_document(document_id: str, current_user: CurrentUser, sessi
     return document_to_schema(row, include_content=True)
 
 
-@router.get("/{document_id}/source")
-async def get_my_document_source(document_id: str, current_user: CurrentUser, session: DbSession) -> StreamingResponse:
-    row = await document_crud.get_workspace_document(
-        session, document_id, current_user.workspace_id, current_user.tenant_id
-    )
-    if row is None:
-        raise NotFoundError(f"document {document_id} not found")
-    if not row.asset_id or not row.source_revision_id:
-        raise NotFoundError("document has no source Asset revision")
-    media = row.source_mime_type or "application/octet-stream"
-    chunks, headers = await get_asset_client().open_stream(
-        tenant_id=current_user.tenant_id,
-        workspace_id=current_user.workspace_id,
-        asset_id=row.asset_id,
-        revision_id=row.source_revision_id,
-    )
-    return StreamingResponse(
-        chunks,
-        media_type=media,
-        headers={
-            "Content-Disposition": f'inline; filename="{row.source_filename or row.filename}"',
-            **({"Content-Length": headers["Content-Length"]} if "Content-Length" in headers else {}),
-            **({"ETag": headers["ETag"]} if "ETag" in headers else {}),
-        },
-    )
-
-
 @router.delete("/{document_id}", status_code=204)
 async def delete_my_document(document_id: str, current_user: CurrentUser, session: DbSession) -> None:
     async with write_tx(session):
@@ -192,3 +165,12 @@ async def delete_my_document(document_id: str, current_user: CurrentUser, sessio
 def _may_manage(current_user: AuthContext, row: DocumentRow) -> bool:
     """An workspace_admin manages any workspace doc; a member manages only their uploads."""
     return current_user.is_workspace_admin or row.user_id == current_user.user_id
+
+
+@router.post("/{document_id}/delivery", response_model=StorageDelivery)
+async def authorize_document_delivery(document_id: str, current_user: CurrentUser, session: DbSession) -> StorageDelivery:
+    row = await document_crud.get_workspace_document(session, document_id, current_user.workspace_id, current_user.tenant_id)
+    if row is None or not row.asset_id or not row.source_revision_id:
+        raise NotFoundError("document has no accessible Storage revision")
+    return await get_storage_client().mint_delivery(tenant_id=current_user.tenant_id,
+        workspace_id=current_user.workspace_id, asset_id=row.asset_id, revision_id=row.source_revision_id)

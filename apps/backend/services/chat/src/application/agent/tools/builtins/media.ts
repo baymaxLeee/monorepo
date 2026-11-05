@@ -3,9 +3,9 @@ import { generateImage, NoImageGeneratedError, tool, type JSONValue } from "ai";
 import { z } from "zod";
 
 import type { ProviderSnapshot } from "../../../../infrastructure/clients/admin.js";
-import { uploadAsset } from "../../../../infrastructure/clients/asset.js";
 import type { Task } from "../../../../infrastructure/clients/executor.js";
 import { createMediaDocument, getDocument } from "../../../../infrastructure/clients/knowledge.js";
+import { uploadAsset } from "../../../../infrastructure/clients/storage.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
 import { startExecutorTask, TaskWaitTimeoutError, watchTaskSnapshots } from "../../tasks/executor-task.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";

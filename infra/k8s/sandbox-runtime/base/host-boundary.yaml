@@ -1,0 +1,30 @@
+# Standard NetworkPolicy does not block traffic to the Pod's own node. Production
+# requires Cilium enforcement as well, closing host/remote-node/direct-world paths.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sandbox-guest-boundary
+spec:
+  endpointSelector:
+    matchLabels:
+      monorepo.sandbox: "true"
+  egressDeny:
+    - toEntities: [host, remote-node, world]
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: sandbox-proxy
+      toPorts:
+        - ports:
+            - { port: "3128", protocol: TCP }
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }
+          rules:
+            dns:
+              - matchPattern: "sandbox-proxy.*.svc.cluster.local"

@@ -62,8 +62,8 @@ import {
   getArkVideoTask,
   type ArkVideoSnapshot,
 } from "../src/infrastructure/clients/ark.js";
-import { uploadAsset } from "../src/infrastructure/clients/asset.js";
 import { createStagedMedia, discardStagedMedia, publishStagedMedia } from "../src/infrastructure/clients/knowledge.js";
+import { uploadAsset } from "../src/infrastructure/clients/storage.js";
 
 export const videoCharacterInputSchema = z.object({
   name: z.string().min(1).max(40),

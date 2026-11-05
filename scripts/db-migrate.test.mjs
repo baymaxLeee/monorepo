@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
@@ -46,4 +46,35 @@ test("repository migration checksum manifests match committed artifacts", () => 
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test("a renamed service migrates its explicitly retained database", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "migration-database-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const service = join(root, "storage");
+  const bin = join(root, "bin");
+  mkdirSync(join(service, "migrations"), { recursive: true });
+  mkdirSync(bin);
+  const marker = join(root, "database");
+  const migration = join(bin, "migration");
+  writeFileSync(
+    migration,
+    '#!/bin/sh\nif [ "$1" = run ]; then printf "%s/%s" "$PGDATABASE" "$PGUSER" > "$DATABASE_MARKER"; fi\n',
+    { mode: 0o755 },
+  );
+  writeFileSync(join(bin, "psql"), "#!/bin/sh\ncat >/dev/null\n", { mode: 0o755 });
+  const result = spawnSync("bash", [resolve("scripts/db-migrate.sh"), service], {
+    env: {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      DB_MIGRATE_BINARY: migration,
+      DB_MIGRATE_TRANSPORT: "tcp",
+      DATABASE_NAME: "asset",
+      DATABASE_USER: "asset",
+      DATABASE_MARKER: marker,
+    },
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(readFileSync(marker, "utf8"), "asset/asset");
 });

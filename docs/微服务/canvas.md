@@ -17,7 +17,7 @@ Redis。K8s 的 readiness probe 必须使用 `/readyz`。
 
 ## 媒体链路
 
-浏览器通过 Gateway 直接流式上传到 `/api/asset-server/assets`，再把 immutable
+浏览器通过 Gateway 直接流式上传到 `/api/storage-server/assets`，再把 immutable
 `asset_id + revision_id` 注册到 Canvas 的项目、画布、节点或素材业务记录。Canvas
 在同一业务事务写 durable Claim intent，异步 relay 以 generation + CAS 保护地投递到
 Asset。封面、归档、生成输入与产物都遵循同一模型，不再经过 Knowledge object API。

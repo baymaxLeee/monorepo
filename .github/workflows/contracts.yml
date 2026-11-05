@@ -4,19 +4,21 @@ on:
   workflow_call:
   pull_request:
     paths:
-      - 'schemas/**'
-      - 'apps/backend/libs/transport-ts/**'
-      - 'apps/backend/services/**'
-      - 'package.json'
-      - 'mise.toml'
-      - 'apps/backend/package.json'
-      - 'apps/backend/pnpm-lock.yaml'
-      - 'apps/frontend/pnpm-lock.yaml'
-      - 'apps/frontend/pnpm-workspace.yaml'
-      - 'apps/frontend/.pnpmfile.mjs'
-      - 'apps/frontend/packages/api/**'
-      - 'justfile'
-      - '.github/workflows/contracts.yml'
+      - "schemas/**"
+      - "apps/backend/libs/transport-ts/**"
+      - "apps/backend/services/**"
+      - "package.json"
+      - "mise.toml"
+      - "apps/backend/package.json"
+      - "apps/backend/justfile"
+      - "apps/backend/pnpm-lock.yaml"
+      - "apps/backend/pnpm-workspace.yaml"
+      - "apps/frontend/pnpm-lock.yaml"
+      - "apps/frontend/pnpm-workspace.yaml"
+      - "apps/frontend/.pnpmfile.mjs"
+      - "apps/frontend/packages/api/**"
+      - "justfile"
+      - ".github/workflows/contracts.yml"
 
 jobs:
   verify-sync:
@@ -58,6 +60,6 @@ jobs:
           lint: true
           format: true
           breaking: true
-          breaking_against: '.git#ref=${{ steps.changes.outputs.base }},subdir=schemas/proto'
+          breaking_against: ".git#ref=${{ steps.changes.outputs.base }},subdir=schemas/proto"
           push: false
           pr_comment: false

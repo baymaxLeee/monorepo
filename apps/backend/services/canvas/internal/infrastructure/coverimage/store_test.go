@@ -10,7 +10,7 @@ import (
 
 	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
 	applicationcoverimage "github.com/example/monorepo/canvas/internal/application/coverimage"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 )
 
 type claimStoreStub struct{ active, released applicationassetclaim.Intent }
@@ -51,7 +51,7 @@ func TestStoreRegisterAndEnqueueStrongClaim(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	claims := &claimStoreStub{}
-	store := New(assetclient.New(server.URL, "token", nil), claims, clockStub{now: time.Now().UTC()}, "")
+	store := New(storageclient.New(server.URL, "token", nil), claims, clockStub{now: time.Now().UTC()}, "")
 	registration, err := store.Register(context.Background(), applicationcoverimage.RegisterInput{TenantID: "tenant", UserID: "user", OwnerType: "canvas_cover", OwnerID: "canvas", Generation: 7, Revision: applicationcoverimage.RevisionRef{AssetID: "platform", RevisionID: "revision"}})
 	if err != nil {
 		t.Fatalf("Register() error = %v", err)
@@ -73,16 +73,16 @@ func TestStoreRegisterAndEnqueueStrongClaim(t *testing.T) {
 func TestStorePresignReturnsGatewayURL(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		_ = json.NewEncoder(response).Encode(map[string]any{"items": []map[string]any{{"asset_id": "platform", "revision_id": "revision", "url": "/api/asset-server/media/platform/revisions/revision/content", "expires_at": time.Now().Add(time.Hour).UTC()}}})
+		_ = json.NewEncoder(response).Encode(map[string]any{"items": []map[string]any{{"asset_id": "platform", "revision_id": "revision", "url": "/api/storage-server/media/platform/revisions/revision/content", "expires_at": time.Now().Add(time.Hour).UTC()}}})
 	}))
 	t.Cleanup(server.Close)
-	store := New(assetclient.New(server.URL, "token", nil), &claimStoreStub{}, clockStub{now: time.Now().UTC()}, "http://gateway")
+	store := New(storageclient.New(server.URL, "token", nil), &claimStoreStub{}, clockStub{now: time.Now().UTC()}, "http://gateway")
 	urls, err := store.Presign(context.Background(), []applicationcoverimage.Registration{{TenantID: "tenant", Revision: applicationcoverimage.RevisionRef{AssetID: "platform", RevisionID: "revision"}}})
 	if err != nil {
 		t.Fatalf("Presign() error = %v", err)
 	}
 	ref := applicationcoverimage.RevisionRef{AssetID: "platform", RevisionID: "revision"}
-	if urls[ref] != "http://gateway/api/asset-server/media/platform/revisions/revision/content" {
+	if urls[ref] != "http://gateway/api/storage-server/media/platform/revisions/revision/content" {
 		t.Fatalf("URL = %q", urls[ref])
 	}
 }

@@ -10,13 +10,13 @@ This path is intentionally **separate** from `infra/k8s/` — the K8s setup is f
 
 ## When to use this
 
-| Use this when… | Use `infra/k8s/` when… |
-|---|---|
-| Demo / MVP / share with friends | Real production / paying users |
-| ¥38–¥99 / year is the budget | ¥900+/month OK |
-| One developer | Team of multiple |
-| No domain, no备案 OK | Have domain + want HTTPS + compliance |
-| 4C4G is the whole server | Multi-node, autoscaling |
+| Use this when…                  | Use `infra/k8s/` when…                |
+| ------------------------------- | ------------------------------------- |
+| Demo / MVP / share with friends | Real production / paying users        |
+| ¥38–¥99 / year is the budget    | ¥900+/month OK                        |
+| One developer                   | Team of multiple                      |
+| No domain, no备案 OK            | Have domain + want HTTPS + compliance |
+| 4C4G is the whole server        | Multi-node, autoscaling               |
 
 ---
 
@@ -57,28 +57,27 @@ All images are pulled from GHCR (or any custom registry); the VPS only stores co
 
 ## Files in this directory
 
-| File | Purpose |
-|---|---|
-| `docker-compose.prod.yml` | Full stack definition, including one-shot DB migration jobs |
-| `nginx.conf` | Web server config (baked into `web` image) |
-| `Dockerfile.web` | Builds the nginx + frontend dist image |
-| `Dockerfile.db-init` | Builds the one-shot schema migrator image |
-| `postgres-init.sh` | Shell script run by `db-init` container (baked into image) |
-| `secrets.sops.env.example` | Template for the operator secrets you hand-manage |
-| `secrets.sops.env` | SOPS-encrypted operator secrets (committed; you create it once) |
-| `render-env.sh` | Runs on the VPS: generates internal secrets + decrypts operator secrets → `.env` |
-| `bootstrap.sh` | Install Docker + sops/age + generate age key on a fresh VPS (run once, on VPS) |
-| `deploy.sh` | Push config + restart containers (run from laptop / CI) |
+| File                       | Purpose                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `docker-compose.prod.yml`  | Full stack definition, including one-shot DB migration jobs                      |
+| `nginx.conf`               | Web server config (baked into `web` image)                                       |
+| `Dockerfile.web`           | Builds the nginx + frontend dist image                                           |
+| `Dockerfile.db-init`       | Builds the one-shot schema migrator image                                        |
+| `postgres-init.sh`         | Shell script run by `db-init` container (baked into image)                       |
+| `secrets.sops.env.example` | Template for the operator secrets you hand-manage                                |
+| `secrets.sops.env`         | SOPS-encrypted operator secrets (committed; you create it once)                  |
+| `render-env.sh`            | Runs on the VPS: generates internal secrets + decrypts operator secrets → `.env` |
+| `bootstrap.sh`             | Install Docker + sops/age + generate age key on a fresh VPS (run once, on VPS)   |
+| `deploy.sh`                | Push config + restart containers (run from laptop / CI)                          |
 
 ### Secrets model (see docs/ADR/0031)
 
-The VPS assembles its own compose `.env` from three disjoint sources — you only
-hand-manage the middle-column "operator" secrets:
+The VPS assembles its own compose `.env` from three disjoint sources — you only hand-manage the middle-column "operator" secrets:
 
 | Bucket | Who sets it | Where it lives |
-|---|---|---|
+| --- | --- | --- |
 | `IMAGE_REGISTRY` / `IMAGE_TAG` / `PUBLIC_PORT` / `PUBLIC_GATEWAY_URL` | CI / `deploy.sh` | passed in the environment |
-| Database passwords + per-service `*_INTERNAL_API_TOKEN` credentials + `TOOL_APPROVAL_SECRET` + `ASSET_SIGNING_KEY` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
+| Database passwords + per-service `*_INTERNAL_API_TOKEN` credentials + `TOOL_APPROVAL_SECRET` + `STORAGE_SIGNING_KEY` | **auto-generated on the VPS** | `.env.secrets` (0600, VPS-only, never in git) |
 | super-admin login, `EXA_API_KEY` / `TAVILY_API_KEY`, `ACCESS_TOKEN_SECRET`, `ADMIN_SECRET_KEY` | **you** | `secrets.sops.env` (SOPS-encrypted, committed) |
 
 ---
@@ -98,9 +97,7 @@ ssh root@<vps-ip>
 curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/infra/single-vps/bootstrap.sh | bash
 ```
 
-This installs Docker + `sops` + `age`, opens the OS firewall for port 8080, and
-generates the VPS's age keypair. It prints the **age public key** at the end —
-copy it, you'll need it in step 3. Idempotent.
+This installs Docker + `sops` + `age`, opens the OS firewall for port 8080, and generates the VPS's age keypair. It prints the **age public key** at the end — copy it, you'll need it in step 3. Idempotent.
 
 ### 2. Open the port in the cloud security group
 
@@ -113,9 +110,7 @@ OS firewall ≠ cloud security group. Go to your cloud console:
 
 ### 3. Configure operator secrets (run on your laptop, ONE time)
 
-You only manage a handful of secrets; database passwords etc. are generated on
-the VPS automatically. Install `sops` + `age` locally (`brew install sops age`),
-then:
+You only manage a handful of secrets; database passwords etc. are generated on the VPS automatically. Install `sops` + `age` locally (`brew install sops age`), then:
 
 ```bash
 cd /path/to/monorepo
@@ -143,8 +138,7 @@ git commit -m "chore(single-vps): operator secrets"
 
 Edit later anytime with: `sops infra/single-vps/secrets.sops.env`.
 
-> `IMAGE_REGISTRY` is not a secret — you pass it to `deploy.sh` (step 5) or CI
-> derives it automatically.
+> `IMAGE_REGISTRY` is not a secret — you pass it to `deploy.sh` (step 5) or CI derives it automatically.
 
 ### 4. Trigger CI to build the images (if not already)
 
@@ -153,7 +147,9 @@ git push origin main
 # wait ~5 minutes — watch GitHub Actions → build-images go green
 ```
 
-You should see 10 images in your registry: `gateway`, `iam`, `canvas`, `admin`, `chat`, `executor`, `knowledge`, `telemetry`, `web`, `db-init`.
+The registry contains one image per backend service declared in
+[services.yaml](../../services.yaml), plus `web`, `db-init`, `sandbox-runtime`
+and `sandbox-proxy`.
 
 ### 5. Deploy (run on your laptop)
 
@@ -163,22 +159,23 @@ IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 
 Output ends with the URL to open in a browser.
 
-Database upgrades preserve existing data: `db-init` verifies applied SQL checksums
-and runs pending versions before services start. Do not set `RESET_DATA=true` for
-a schema upgrade. That option is an explicitly destructive whole-stack reinstall.
+Database upgrades preserve existing data: `db-init` verifies applied SQL checksums and runs pending versions before services start. Do not set `RESET_DATA=true` for a schema upgrade. That option is an explicitly destructive whole-stack reinstall.
 
-For an application rollback verified to accept the current schema, keep the
-migration image pinned to the release that owns that schema:
+Storage runs as `storage` with `STORAGE_*` configuration and retains the physical
+`asset` PostgreSQL database/role and `asset_data` volume mounted at `/data/assets`.
+`render-env.sh` renames the persisted password/signing-key entries once while
+preserving their values. Before starting services, `deploy.sh` stops the old
+`monorepo-asset` container if present so the new Storage writer has exclusive
+access to the volume. Compose removes the obsolete service with `--remove-orphans`.
+
+For an application rollback verified to accept the current schema, keep the migration image pinned to the release that owns that schema:
 
 ```bash
 IMAGE_TAG=<compatible-previous-app-sha> DB_INIT_IMAGE_TAG=<current-schema-sha> \
 IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 ```
 
-`DB_INIT_IMAGE_TAG` defaults to `IMAGE_TAG` on ordinary deployments. It separates
-business schema setup only; Workflow World version requirements remain independent.
-Upgrade verification, backups, recovery and data backfills follow the
-[database migration specification](../../docs/开发规范/database-migrations.md).
+`DB_INIT_IMAGE_TAG` defaults to `IMAGE_TAG` on ordinary deployments. It separates business schema setup only; Workflow World version requirements remain independent. Upgrade verification, backups, recovery and data backfills follow the [database migration specification](../../docs/开发规范/database-migrations.md).
 
 ---
 
@@ -202,9 +199,9 @@ Solution: have the CI also push every image to a **Tencent Container Registry (T
 GitHub repo → Settings → Secrets and variables → Actions:
 
 | Type | Name | Value |
-|---|---|---|
+| --- | --- | --- |
 | Variable | `TCR_NAMESPACE` | `<your-tcr-namespace>` |
-| Variable | `TCR_HOST` *(optional)* | `ccr.ccs.tencentyun.com` *(default is fine; only change if you're in a non-Shanghai TCR region)* |
+| Variable | `TCR_HOST` _(optional)_ | `ccr.ccs.tencentyun.com` _(default is fine; only change if you're in a non-Shanghai TCR region)_ |
 | Secret | `TCR_USERNAME` | Tencent Cloud account ID (digits) |
 | Secret | `TCR_PASSWORD` | TCR access credential from step 1.4 |
 
@@ -242,32 +239,30 @@ Two ways:
 
 Set these GitHub **Secrets** once (Settings → Secrets and variables → Actions):
 
-| Secret | Value |
-|---|---|
-| `VPS_HOST` | `<vps-ip>` |
-| `VPS_USER` | `root` (or whichever user) |
+| Secret        | Value                                                                            |
+| ------------- | -------------------------------------------------------------------------------- |
+| `VPS_HOST`    | `<vps-ip>`                                                                       |
+| `VPS_USER`    | `root` (or whichever user)                                                       |
 | `VPS_SSH_KEY` | Full private key (multi-line, starts with `-----BEGIN OPENSSH PRIVATE KEY-----`) |
 
-> No `VPS_ENV_FILE` and no age key in CI: the encrypted `secrets.sops.env` rides
-> along in the repo and is decrypted **on the VPS** (which owns the age private
-> key). CI only needs SSH access.
+> No `VPS_ENV_FILE` and no age key in CI: the encrypted `secrets.sops.env` rides along in the repo and is decrypted **on the VPS** (which owns the age private key). CI only needs SSH access.
 
 And optionally these **Variables**:
 
-| Variable | Default |
-|---|---|
-| `PUBLIC_PORT` | `8080` |
+| Variable             | Default                           |
+| -------------------- | --------------------------------- |
+| `PUBLIC_PORT`        | `8080`                            |
 | `PUBLIC_GATEWAY_URL` | `http://<VPS_HOST>:<PUBLIC_PORT>` |
-| `DEPLOY_DIR` | `/opt/monorepo` |
-| `IMAGE_REGISTRY` | (auto-derived from repo) |
+| `DEPLOY_DIR`         | `/opt/monorepo`                   |
+| `IMAGE_REGISTRY`     | (auto-derived from repo)          |
 
 Done. Now every `git push origin main`:
+
 1. For release-affecting changes, `build-images.yml` runs affected backend/frontend/tooling tests and contract checks through reusable workflows, then builds & pushes the 11 images only if all checks succeed.
 2. `deploy-single-vps.yml` waits for build-images success, checks out that exact commit, then SSH's to the VPS and runs the deploy
 3. After the health check succeeds, the deploy removes images not referenced by any container
 
-The CI overrides `IMAGE_TAG` to the just-built `sha-<short>` so each deploy is pinned to the commit that triggered it.
-The registry remains the rollback source of truth; the VPS keeps only images used by its current containers.
+The CI overrides `IMAGE_TAG` to the just-built `sha-<short>` so each deploy is pinned to the commit that triggered it. The registry remains the rollback source of truth; the VPS keeps only images used by its current containers.
 
 ### B. Manual deploy from laptop
 
@@ -327,16 +322,9 @@ docker compose -f docker-compose.prod.yml start
 
 ### Workflow Postgres 4.3.7 → 5.0.5: missing `run.attributes`
 
-Version 4.3.7 recorded migration `0015` without `0011`–`0014`. Drizzle's
-timestamp cutoff skips those earlier migrations during the upgrade, so `0021`
-fails. `repair-workflow-4-to-5.sh` is a one-time, data-preserving repair for
-that exact history. It reads the four official SQL files from the failed init
-container's 5.0.5 image, backs up the `workflow` database, and applies the SQL
-and SHA-256 journal records in one transaction. Unexpected histories are rejected;
-repeating the repair before the official upgrade is a no-op.
+Version 4.3.7 recorded migration `0015` without `0011`–`0014`. Drizzle's timestamp cutoff skips those earlier migrations during the upgrade, so `0021` fails. `repair-workflow-4-to-5.sh` is a one-time, data-preserving repair for that exact history. It reads the four official SQL files from the failed init container's 5.0.5 image, backs up the `workflow` database, and applies the SQL and SHA-256 journal records in one transaction. Unexpected histories are rejected; repeating the repair before the official upgrade is a no-op.
 
-Copy the script to the VPS deployment directory. Ensure no deployment job is
-running, then execute on the VPS:
+Copy the script to the VPS deployment directory. Ensure no deployment job is running, then execute on the VPS:
 
 ```bash
 cd /opt/monorepo
@@ -344,25 +332,18 @@ docker stop monorepo-executor monorepo-workflow-db-init
 bash repair-workflow-4-to-5.sh
 ```
 
-Keep the printed `workflow-repair.*/workflow.dump` backup. If repair succeeds,
-rerun the failed `deploy-single-vps` job with the same image tag to finish the
-official migrations and restart services. Do not start the old executor before
-this upgrade. If repair fails, keep services stopped and inspect the error;
-do not delete migration records or reset volumes.
+Keep the printed `workflow-repair.*/workflow.dump` backup. If repair succeeds, rerun the failed `deploy-single-vps` job with the same image tag to finish the official migrations and restart services. Do not start the old executor before this upgrade. If repair fails, keep services stopped and inspect the error; do not delete migration records or reset volumes.
 
-The script only repairs the Workflow World database; it does not alter service
-database baselines. Its regression check uses an isolated disposable PostgreSQL
-container and the official 4.3.7 package:
+The script only repairs the Workflow World database; it does not alter service database baselines. Its regression check uses an isolated disposable PostgreSQL container and the official 4.3.7 package:
 
 ```bash
 python3 infra/single-vps/tests/test-workflow-repair.py
 ```
 
-This check requires Docker (`postgres:16-alpine`), Node.js, installed executor
-dependencies at 5.0.5, and access to the npm registry.
+This check requires Docker (`postgres:16-alpine`), Node.js, installed executor dependencies at 5.0.5, and access to the npm registry.
 
 | Symptom | Likely cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `connection refused` from your laptop | Cloud security group port not open | Open `PUBLIC_PORT` in the cloud console |
 | `502 Bad Gateway` from nginx | Backend pod still booting / crashed | `docker compose logs gateway` |
 | `db-init` stuck | Postgres still initializing | First boot can take 30–60 s; if longer, check `docker compose logs postgres` |
@@ -378,6 +359,7 @@ dependencies at 5.0.5, and access to the npm registry.
 ## Migrating off
 
 The persistent data is in these named Docker volumes:
+
 - `monorepo_postgres_data`
 - `monorepo_redis_data`
 - `monorepo_asset_data`
@@ -386,5 +368,8 @@ The persistent data is in these named Docker volumes:
 
 Backup the volumes, copy to a bigger box / K8s cluster, restore. The 10 images are immutable so you can re-tag and push elsewhere without rebuilding.
 
-When you eventually move to `infra/k8s/`, the manifests there use the same
-images and environment contracts.
+When you eventually move to `infra/k8s/`, the manifests there use the same images and environment contracts.
+
+## Sandbox 执行环境
+
+新增的内部 sandbox 服务需要预配置 gVisor 与隔离出口；K8s 另需独立执行 namespace、Cilium 与节点 PID 上限。部署、配额和验证命令见 [Sandbox 运行规范](../../docs/微服务/sandbox.md)。缺失 runtime/网络策略时不会回退为宿主机执行。

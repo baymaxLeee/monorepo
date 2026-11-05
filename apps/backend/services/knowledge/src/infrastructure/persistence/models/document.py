@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text, Uuid
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.persistence.models.base import Base
@@ -19,6 +19,7 @@ class DocumentRow(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(120), nullable=False, default="text/markdown")
+    editable_source: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     content_md: Mapped[str] = mapped_column(Text, nullable=False)
     source_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source_mime_type: Mapped[str | None] = mapped_column(String(120), nullable=True)

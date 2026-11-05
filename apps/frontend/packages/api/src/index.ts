@@ -1,5 +1,5 @@
 export * from "./admin-server";
-export * from "./asset-server";
+export * from "./storage-server";
 export * from "./auth-fetch";
 export * from "./chat-server";
 export * from "./http";

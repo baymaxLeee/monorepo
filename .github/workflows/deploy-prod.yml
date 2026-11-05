@@ -15,7 +15,7 @@ name: deploy-prod
 #   The cluster MUST already have:
 #     - namespace `monorepo-prod`
 #     - Secrets: gateway-secrets, iam-secrets, admin-secrets, knowledge-secrets,
-#       telemetry-secrets, chat-secrets, executor-secrets, canvas-secrets, and
+#       telemetry-secrets, chat-secrets, executor-secrets, canvas-secrets, storage-secrets, sandbox-secrets, and
 #       postgres-admin-secrets (migration-only managed Postgres credentials)
 #     - TLS Secret: api-tls
 #     - Nginx Ingress Controller installed
@@ -29,7 +29,7 @@ on:
         required: true
         type: string
   push:
-    tags: ['v*.*.*']
+    tags: ["v*.*.*"]
 
 concurrency:
   # Serialize prod deploys; a second deploy waits for the first to finish.
@@ -80,12 +80,20 @@ jobs:
         run: |
           REG="${{ steps.vars.outputs.registry }}"
           TAG="${{ steps.vars.outputs.tag }}"
-          for svc in gateway iam canvas admin chat knowledge telemetry executor web; do
+          for svc in gateway iam canvas admin chat knowledge telemetry executor storage sandbox sandbox-runtime web; do
             kustomize edit set image \
               "ghcr.io/example/${svc}=${REG}/${svc}:${TAG}"
           done
           # Show the result so the deploy log records exactly what is applied.
           grep -A 3 '^images:' kustomization.yaml
+
+      - name: Pin and apply sandbox execution namespace
+        working-directory: infra/k8s/sandbox-runtime/prod
+        run: |
+          kustomize edit set image "ghcr.io/example/sandbox-proxy=${{ steps.vars.outputs.registry }}/sandbox-proxy:${{ steps.vars.outputs.tag }}"
+          kubectl get runtimeclass runsc
+          kubectl get crd ciliumnetworkpolicies.cilium.io
+          kustomize build . | kubectl apply -f -
 
       - name: Render manifest (dry-run sanity check)
         working-directory: infra/k8s/overlays/prod
@@ -209,6 +217,14 @@ jobs:
             exit 1
           fi
 
+      - name: Stop the previous storage writer before the first service rename
+        run: |
+          old_storage_writer="$(kubectl -n monorepo-prod get deployment asset --ignore-not-found -o name)"
+          if [ -n "$old_storage_writer" ]; then
+            # Foreground deletion waits for the old writer's pods; its standalone PVC remains.
+            kubectl -n monorepo-prod delete "$old_storage_writer" --cascade=foreground --wait=true --timeout=5m
+          fi
+
       - name: Apply prod manifest (secrets excluded — managed out-of-band)
         working-directory: infra/k8s/overlays/prod
         run: |
@@ -217,7 +233,7 @@ jobs:
 
       - name: Wait for rollouts
         run: |
-          for svc in gateway iam canvas admin chat knowledge telemetry executor web; do
+          for svc in gateway iam canvas admin chat knowledge telemetry executor storage sandbox web; do
             kubectl -n monorepo-prod rollout status deployment/${svc} --timeout=5m
           done
 

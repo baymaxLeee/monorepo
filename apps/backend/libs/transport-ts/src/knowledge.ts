@@ -1,9 +1,4 @@
-import {
-  createInternalOpenApiClient,
-  TransportError,
-  type BinaryResponse,
-  type InternalOpenApiClient,
-} from "./http.js";
+import { createInternalOpenApiClient, TransportError, type InternalOpenApiClient } from "./http.js";
 import type { components, paths } from "./schema/knowledge.js";
 
 type KnowledgeDocumentSchema = components["schemas"]["Document"];
@@ -45,10 +40,13 @@ export class KnowledgeInternalClient {
     );
   }
 
-  getDocument(input: { userId: string; documentId: string }): Promise<KnowledgeDocument> {
+  getDocument(input: { userId: string; documentId: string; includeContent?: boolean }): Promise<KnowledgeDocument> {
     return this.unwrap(
       this.client.GET("/internal/documents/{document_id}", {
-        params: { path: { document_id: input.documentId }, query: { user_id: input.userId } },
+        params: {
+          path: { document_id: input.documentId },
+          query: { user_id: input.userId, include_content: input.includeContent },
+        },
       }),
       normalizeDocument,
     );
@@ -216,24 +214,6 @@ export class KnowledgeInternalClient {
     );
   }
 
-  async getDocumentSource(input: { userId: string; documentId: string; maxDim?: number }): Promise<BinaryResponse> {
-    const { data, error, response } = await this.client.GET("/internal/documents/{document_id}/source", {
-      params: {
-        path: { document_id: input.documentId },
-        query: { user_id: input.userId, max_dim: input.maxDim },
-      },
-      parseAs: "arrayBuffer",
-    });
-    if (data) {
-      const rawMime = response.headers.get("content-type") ?? "application/octet-stream";
-      return {
-        bytes: new Uint8Array(data),
-        contentType: rawMime.split(";")[0]?.trim() || "application/octet-stream",
-      };
-    }
-    throw toTransportError(response, error);
-  }
-
   createArtifact(input: {
     userId: string;
     tenantId: string;
@@ -322,20 +302,6 @@ export class KnowledgeInternalClient {
         params: { path: { staged_id: input.stagedId }, query: { user_id: input.userId } },
       }),
     );
-  }
-
-  async getStagedMediaSource(input: { userId: string; stagedId: string }): Promise<BinaryResponse> {
-    const { data, error, response } = await this.client.GET("/internal/staged-media/{staged_id}/source", {
-      params: { path: { staged_id: input.stagedId }, query: { user_id: input.userId } },
-      parseAs: "arrayBuffer",
-    });
-    if (data) {
-      return {
-        bytes: new Uint8Array(data),
-        contentType: response.headers.get("content-type") ?? "application/octet-stream",
-      };
-    }
-    throw toTransportError(response, error);
   }
 
   publishStagedMedia(input: {

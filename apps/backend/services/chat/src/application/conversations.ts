@@ -6,13 +6,13 @@ import type { AuthContext } from "../api/http/middleware/auth.js";
 import { canvasClient } from "../infrastructure/clients/canvas.js";
 import {
   getDocument,
-  getDocumentSource,
   listDocuments,
   listVirtualFiles,
   readVirtualFile,
   updateArtifact,
   type KnowledgeDocument,
 } from "../infrastructure/clients/knowledge.js";
+import { storageClient } from "../infrastructure/clients/storage.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
   agentRuns,
@@ -53,6 +53,7 @@ export function mapKnowledgeDocument(doc: KnowledgeDocument, conversationId: str
     id: doc.id,
     conversation_id: doc.conversation_id ?? conversationId,
     kind: doc.kind,
+    editable_source: doc.editable_source,
     title: doc.title,
     filename: doc.filename,
     mime_type: doc.mime_type,
@@ -74,6 +75,7 @@ export interface ConversationDocument {
   id: string;
   conversation_id: string;
   kind: "source" | "artifact";
+  editable_source: boolean;
   title: string;
   filename: string;
   mime_type: string;
@@ -96,6 +98,8 @@ export interface ConversationDocumentDetail extends ConversationDocument {
 
 export interface ConversationFileDetail {
   path: string;
+  asset_id: string;
+  revision_id: string;
   title: string;
   filename: string;
   mime_type: string;
@@ -103,7 +107,7 @@ export interface ConversationFileDetail {
   sha256: string;
   writable: boolean;
   derived: boolean;
-  content: string | null;
+  content: string;
 }
 
 export interface ConversationDetail extends Conversation {
@@ -297,9 +301,13 @@ export async function getConversationDocument(
   auth: AuthContext,
   conversationId: string,
   documentId: string,
+  includeContent = true,
 ): Promise<ConversationDocumentDetail> {
   const conversation = await getConversationRow(auth, conversationId);
-  const doc = assertConversationDocument(await getDocument(conversation.userId, documentId), conversationId);
+  const doc = assertConversationDocument(
+    await getDocument(conversation.userId, documentId, includeContent),
+    conversationId,
+  );
   return {
     ...mapKnowledgeDocument(doc, conversationId),
     content_md: doc.content_md ?? "",
@@ -310,9 +318,15 @@ export async function getConversationFile(
   auth: AuthContext,
   conversationId: string,
   path: string,
+  deps: {
+    getConversationRow: (auth: AuthContext, id: string) => Promise<{ userId: string }>;
+    listVirtualFiles: typeof listVirtualFiles;
+    readVirtualFile: typeof readVirtualFile;
+  } = { getConversationRow, listVirtualFiles, readVirtualFile },
+  includeContent = true,
 ): Promise<ConversationFileDetail> {
-  const conversation = await getConversationRow(auth, conversationId);
-  const entry = (await listVirtualFiles(conversation.userId, conversationId)).find(
+  const conversation = await deps.getConversationRow(auth, conversationId);
+  const entry = (await deps.listVirtualFiles(conversation.userId, conversationId)).find(
     (candidate) => candidate.path === path,
   );
   if (!entry) {
@@ -320,6 +334,8 @@ export async function getConversationFile(
   }
   const detail = {
     path: entry.path,
+    asset_id: entry.asset_id,
+    revision_id: entry.revision_id,
     title: entry.path.split("/").at(-1) ?? entry.path,
     filename: entry.path,
     mime_type: entry.mime_type,
@@ -328,13 +344,11 @@ export async function getConversationFile(
     writable: entry.writable,
     derived: entry.derived,
   };
-  if (entry.mime_type.toLowerCase() === "text/html") {
-    return { ...detail, content: null };
-  }
+  if (!includeContent) return { ...detail, content: "" };
   let offset = 1;
   const chunks: string[] = [];
   while (true) {
-    const slice = await readVirtualFile({
+    const slice = await deps.readVirtualFile({
       userId: conversation.userId,
       conversationId,
       path,
@@ -348,17 +362,6 @@ export async function getConversationFile(
     offset = slice.next_offset;
   }
   return { ...detail, content: chunks.join("\n") };
-}
-
-export async function getConversationDocumentSource(
-  auth: AuthContext,
-  conversationId: string,
-  documentId: string,
-  options?: { maxDim?: number },
-): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const conversation = await getConversationRow(auth, conversationId);
-  const doc = assertConversationDocument(await getDocument(conversation.userId, documentId), conversationId);
-  return getDocumentSource(conversation.userId, doc.id, options);
 }
 
 export async function updateConversationDocument(
@@ -475,4 +478,30 @@ export async function updateConversationProvider(
     .update(conversations)
     .set({ providerId, model, updatedAt: new Date() })
     .where(eq(conversations.id, conversationId));
+}
+
+export async function authorizeDocumentDelivery(
+  auth: AuthContext,
+  conversationId: string,
+  documentId: string,
+  maxDim?: number,
+) {
+  const doc = await getConversationDocument(auth, conversationId, documentId, false);
+  if (!doc.asset_id || !doc.source_revision_id) throw new NotFoundError("document has no Storage revision");
+  return storageClient().mintDelivery({
+    tenantId: auth.tenantId,
+    workspaceId: auth.workspaceId,
+    assetId: doc.asset_id,
+    revisionId: doc.source_revision_id,
+    maxDim,
+  });
+}
+export async function authorizeFileDelivery(auth: AuthContext, conversationId: string, path: string) {
+  const file = await getConversationFile(auth, conversationId, path, undefined, false);
+  return storageClient().mintDelivery({
+    tenantId: auth.tenantId,
+    workspaceId: auth.workspaceId,
+    assetId: file.asset_id,
+    revisionId: file.revision_id,
+  });
 }

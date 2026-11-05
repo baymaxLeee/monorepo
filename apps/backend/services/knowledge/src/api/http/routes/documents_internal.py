@@ -3,17 +3,9 @@
 import asyncio
 import time
 from datetime import datetime
-from functools import partial
 from hashlib import sha256
 
-import anyio
-from application.asset_client import (
-    ensure_document_claim_active,
-    ensure_staged_media_claim_active,
-    get_asset_client,
-    mark_document_claim_released,
-    mark_staged_media_claim_released,
-)
+from application.artifact_preview import decode_artifact_preview, is_text_artifact
 from application.contracts.document import (
     CreateArtifactInput,
     CreateMediaDocumentInput,
@@ -25,13 +17,20 @@ from application.contracts.document import (
     UpdateArtifactInput,
 )
 from application.conversation_cleanup import assert_conversation_accepts_artifacts
+from application.document_edits import apply_document_edit
 from application.documents import document_to_schema
-from application.image_variant import build_vision_variant
+from application.file_content import store_text
 from application.indexer import index_document_by_id
 from application.processor import convert_document
+from application.storage_client import (
+    ensure_document_claim_active,
+    ensure_staged_media_claim_active,
+    get_storage_client,
+    mark_document_claim_released,
+    mark_staged_media_claim_released,
+)
 from bootstrap.config import get_settings
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import Response
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.models.staged_media import StagedMediaRow
@@ -105,11 +104,13 @@ async def list_documents(
 
 
 @router.get("/documents/{document_id}", response_model=Document)
-async def get_document(document_id: str, session: DbSession, user_id: str = Query(...)) -> Document:
+async def get_document(
+    document_id: str, session: DbSession, user_id: str = Query(...), include_content: bool = Query(default=True)
+) -> Document:
     row = await document_crud.get_document(session, document_id, user_id)
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
-    return document_to_schema(row, include_content=True)
+    return document_to_schema(row, include_content=include_content)
 
 
 _SLICE_WAIT_MAX_MS = 120000
@@ -182,35 +183,6 @@ async def get_document_slice(
         await asyncio.sleep(_SLICE_POLL_INTERVAL_S)
 
 
-@router.get("/documents/{document_id}/source")
-async def get_document_source(
-    document_id: str,
-    session: DbSession,
-    user_id: str = Query(...),
-    max_dim: int | None = Query(default=None, ge=1, le=4096),
-) -> Response:
-    row = await document_crud.get_document(session, document_id, user_id)
-    if row is None:
-        raise NotFoundError(f"document {document_id} not found")
-    if not row.asset_id or not row.source_revision_id or not row.tenant_id or not row.workspace_id:
-        raise NotFoundError("document has no source Asset revision")
-    is_image = (row.source_mime_type or "").lower().startswith("image/")
-    if max_dim is not None and (not is_image):
-        raise RequestError("max_dim is only supported for image sources")
-    content = await get_asset_client().read(
-        tenant_id=row.tenant_id,
-        workspace_id=row.workspace_id,
-        asset_id=row.asset_id,
-        revision_id=row.source_revision_id,
-        max_bytes=get_settings().attachment_max_upload_bytes,
-    )
-    if max_dim is not None and is_image:
-        variant = await anyio.to_thread.run_sync(partial(build_vision_variant, content, max_dim=max_dim))
-        return Response(content=variant, media_type="image/jpeg")
-    media = row.source_mime_type or "application/octet-stream"
-    return Response(content=content, media_type=media)
-
-
 @router.post("/artifacts", response_model=Document, status_code=201)
 async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> Document:
     mime = payload.mime_type or (
@@ -221,15 +193,31 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
         document_id = sha256(
             f"{payload.workspace_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
         ).hexdigest()[:16]
+    document_id = document_id or document_crud.new_document_id()
+    async with write_tx(session):
+        await assert_conversation_accepts_artifacts(
+            session, user_id=payload.user_id, conversation_id=payload.conversation_id
+        )
+        existing = await document_crud.get_document(session, document_id, payload.user_id)
+        if existing is not None:
+            return document_to_schema(existing, include_content=True)
+    asset = await store_text(
+        tenant_id=payload.tenant_id,
+        workspace_id=payload.workspace_id,
+        user_id=payload.user_id,
+        filename=payload.filename,
+        media_type=mime,
+        content=payload.content,
+        operation_id=f"artifact:{document_id}",
+    )
     try:
         async with write_tx(session):
             await assert_conversation_accepts_artifacts(
                 session, user_id=payload.user_id, conversation_id=payload.conversation_id
             )
-            if document_id is not None:
-                existing = await document_crud.get_document(session, document_id, payload.user_id)
-                if existing is not None:
-                    return document_to_schema(existing, include_content=True)
+            existing = await document_crud.get_document(session, document_id, payload.user_id)
+            if existing is not None:
+                return document_to_schema(existing, include_content=True)
             row = await document_crud.create_document(
                 session,
                 user_id=payload.user_id,
@@ -241,13 +229,26 @@ async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> D
                 filename=payload.filename,
                 mime_type=mime,
                 content_md=payload.content,
+                editable_source=True,
+                asset_id=asset.asset_id,
+                source_revision_id=asset.revision_id,
+                source_sha256=asset.sha256,
+                source_size=asset.size_bytes,
+                source_mime_type=asset.media_type,
+                source_filename=asset.filename,
                 ingest_status="ready",
                 ingest_progress=100,
                 document_id=document_id,
             )
+            await ensure_document_claim_active(
+                session,
+                tenant_id=payload.tenant_id,
+                workspace_id=payload.workspace_id,
+                document_id=row.id,
+                asset_id=asset.asset_id,
+                revision_id=asset.revision_id,
+            )
     except IntegrityError:
-        if document_id is None:
-            raise
         existing = await document_crud.get_document(session, document_id, payload.user_id)
         if existing is None:
             raise
@@ -270,7 +271,7 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
             existing = await document_crud.get_document(session, document_id, payload.user_id)
         if existing is not None:
             return document_to_schema(existing, include_content=True)
-    asset = await get_asset_client().describe(
+    asset = await get_storage_client().describe(
         tenant_id=payload.tenant_id,
         workspace_id=payload.workspace_id,
         asset_id=payload.asset_id,
@@ -278,6 +279,16 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
     )
     if asset.created_by != payload.user_id:
         raise RequestError("asset was not created for the requested user")
+    preview = ""
+    if is_text_artifact(asset.media_type) and asset.size_bytes <= get_settings().attachment_max_upload_bytes:
+        raw = await get_storage_client().read(
+            tenant_id=payload.tenant_id,
+            workspace_id=payload.workspace_id,
+            asset_id=payload.asset_id,
+            revision_id=payload.revision_id,
+            max_bytes=get_settings().attachment_max_upload_bytes,
+        )
+        preview = decode_artifact_preview(raw, asset.media_type)
     storage_document_id = document_id or document_crud.new_document_id()
     try:
         async with write_tx(session):
@@ -295,10 +306,10 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
                 tenant_id=payload.tenant_id,
                 conversation_id=payload.conversation_id,
                 kind="artifact",
-                title=asset.filename,
+                title=payload.title,
                 filename=asset.filename,
                 mime_type=asset.media_type,
-                content_md="",
+                content_md=preview,
                 source_size=asset.size_bytes,
                 source_mime_type=asset.media_type,
                 asset_id=asset.asset_id,
@@ -336,7 +347,7 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
             existing = await staged_media_crud.get_by_idempotency_key(session, payload.idempotency_key, payload.user_id)
         if existing is not None:
             return staged_media_to_schema(existing)
-    asset = await get_asset_client().describe(
+    asset = await get_storage_client().describe(
         tenant_id=payload.tenant_id,
         workspace_id=payload.workspace_id,
         asset_id=payload.asset_id,
@@ -396,23 +407,6 @@ async def get_staged_media(staged_id: str, session: DbSession, user_id: str = Qu
     if row is None:
         raise NotFoundError(f"staged media {staged_id} not found")
     return staged_media_to_schema(row)
-
-
-@router.get("/staged-media/{staged_id}/source")
-async def get_staged_media_source(staged_id: str, session: DbSession, user_id: str = Query(...)) -> Response:
-    row = await staged_media_crud.get_staged_media(session, staged_id, user_id)
-    if row is None or row.status == "discarded":
-        raise NotFoundError(f"staged media {staged_id} not found")
-    if not row.asset_id or not row.revision_id:
-        raise NotFoundError(f"staged media {staged_id} has no Asset revision")
-    content = await get_asset_client().read(
-        tenant_id=row.tenant_id,
-        workspace_id=row.workspace_id,
-        asset_id=row.asset_id,
-        revision_id=row.revision_id,
-        max_bytes=get_settings().media_max_object_bytes,
-    )
-    return Response(content=content, media_type=row.mime_type)
 
 
 @router.post("/staged-media/{staged_id}/publish", response_model=Document)
@@ -491,23 +485,19 @@ async def update_artifact(document_id: str, payload: UpdateArtifactInput, sessio
             raise NotFoundError(f"artifact {document_id} not found")
         values = payload.model_dump(exclude_unset=True, exclude_none=True)
         values.pop("user_id", None)
-        expected_updated_at_raw = values.pop("expected_updated_at", None)
+        expected_raw = values.pop("expected_updated_at", None)
         if "content" in values:
+            if not row.editable_source:
+                raise ConflictError("immutable artifacts require a new snapshot")
             values["content_md"] = values.pop("content")
-        if values:
-            if expected_updated_at_raw:
-                try:
-                    expected_updated_at = datetime.fromisoformat(expected_updated_at_raw.replace("Z", "+00:00"))
-                except ValueError as exc:
-                    raise ConflictError("invalid artifact base version") from exc
-                updated = await document_crud.update_document_if_unchanged(
-                    session, row, values, expected_updated_at=expected_updated_at
-                )
-                if updated is None:
-                    raise ConflictError("artifact changed while the revision was being generated")
-                row = updated
-            else:
-                row = await document_crud.update_document(session, row, values)
+    expected = None
+    if expected_raw:
+        try:
+            expected = datetime.fromisoformat(expected_raw.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ConflictError("invalid artifact base version") from exc
+    if values:
+        row = await apply_document_edit(session, row, values, expected_updated_at=expected)
     return document_to_schema(row, include_content=True)
 
 

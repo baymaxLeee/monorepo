@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     redis_db: int = 0
 
     admin_secret_key: str = _DEV_ADMIN_SECRET_KEY
-    asset_service_url: str = "http://localhost:8013"
+    storage_service_url: str = "http://localhost:8013"
     internal_api_token: str = _DEV_CALLER_TOKEN
     asset_claim_dispatch_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
     skill_archive_max_bytes: int = Field(default=256 * 1024 * 1024, gt=0)

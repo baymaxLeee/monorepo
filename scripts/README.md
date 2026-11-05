@@ -62,8 +62,13 @@ just test-affected HEAD frontend --list
   and ledger; `just test tooling` includes its Go unit tests.
 - `tests/test-db-migrate.py`: disposable PostgreSQL integration tests for upgrades
   and failure recovery; root `just test-db-migrations`.
+- `just backfill-knowledge-storage [--verify]`: runs Knowledge's
+  [owner-run Storage backfill](../apps/backend/services/knowledge/tools/storage-backfill/main.go).
+  Stop Knowledge writers and apply its schema expansion first; set
+  `KNOWLEDGE_DATABASE_URL`, `STORAGE_SERVICE_URL`, and `INTERNAL_API_TOKEN`.
+  `--verify` audits references and byte checksums without writing.
 - `reset-demo-data.sh`: destroys and recreates every local service database and
-  clears local Asset bytes. No business data or account rows are preserved; the
+  clears local Storage bytes. No business data or account rows are preserved; the
   configured IAM super-admin is seeded again.
 - `dev-preflight.sh`: checks that local infra and frontend dependencies exist
   before starting the dev stack, including caller/receiver service credentials.

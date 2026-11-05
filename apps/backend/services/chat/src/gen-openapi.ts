@@ -131,23 +131,64 @@ const openapi = {
     },
     "/conversations/{conversation_id}/documents/{document_id}": {
       get: {
-        parameters: [pathParam, documentPathParam],
-        responses: { "200": { description: "conversation document detail" } },
+        parameters: [
+          pathParam,
+          documentPathParam,
+          { name: "include_content", in: "query", schema: { type: "boolean", default: true } },
+        ],
+        responses: {
+          "200": {
+            description:
+              "conversation document detail; include_content=false returns metadata with an empty content_md",
+          },
+        },
       },
       patch: {
         parameters: [pathParam, documentPathParam],
         responses: { "200": { description: "update conversation artifact" } },
       },
     },
-    "/conversations/{conversation_id}/documents/{document_id}/source": {
+    "/conversations/{conversation_id}/documents/{document_id}/delivery": {
+      post: {
+        parameters: [
+          pathParam,
+          documentPathParam,
+          { name: "max_dim", in: "query", schema: { type: "integer", minimum: 1, maximum: 4096 } },
+        ],
+        responses: {
+          "200": jsonResponse("authorized Storage capability", ref("StorageDelivery")),
+          "404": { description: "document not accessible" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/files/delivery": {
+      post: {
+        parameters: [pathParam, filePathQuery],
+        responses: {
+          "200": jsonResponse("authorized Storage capability", ref("StorageDelivery")),
+          "404": { description: "file not accessible" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/documents/{document_id}/content": {
       get: {
         parameters: [pathParam, documentPathParam],
-        responses: { "200": { description: "conversation document source bytes" } },
+        responses: {
+          "307": {
+            description: "Authorized redirect to Storage",
+            headers: { Location: { schema: { type: "string" } } },
+          },
+          "404": { description: "document not accessible" },
+        },
       },
     },
     "/conversations/{conversation_id}/files/detail": {
       get: {
-        parameters: [pathParam, filePathQuery],
+        parameters: [
+          pathParam,
+          filePathQuery,
+          { name: "include_content", in: "query", schema: { type: "boolean", default: true } },
+        ],
         responses: {
           "200": jsonResponse("conversation virtual file detail", ref("ConversationFile")),
           "404": { description: "file not found" },
@@ -191,25 +232,41 @@ const openapi = {
         },
       },
     },
-    "/conversations/{conversation_id}/video-productions/{production_id}/preview": {
+    "/conversations/{conversation_id}/video-productions/{production_id}/preview-url": {
       get: {
         parameters: [pathParam, productionPathParam],
         responses: {
           "200": {
             description: "staged video preview",
-            content: { "video/mp4": { schema: { type: "string", format: "binary" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["url", "expires_at"],
+                  properties: { url: { type: "string" }, expires_at: { type: "string", format: "date-time" } },
+                },
+              },
+            },
           },
           "404": { description: "preview not available" },
         },
       },
     },
-    "/conversations/{conversation_id}/video-productions/{production_id}/shots/{shot_id}/takes/{take_id}/preview": {
+    "/conversations/{conversation_id}/video-productions/{production_id}/shots/{shot_id}/takes/{take_id}/preview-url": {
       get: {
         parameters: [pathParam, productionPathParam, shotPathParam, takePathParam],
         responses: {
           "200": {
             description: "staged video take preview",
-            content: { "video/mp4": { schema: { type: "string", format: "binary" } } },
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["url", "expires_at"],
+                  properties: { url: { type: "string" }, expires_at: { type: "string", format: "date-time" } },
+                },
+              },
+            },
           },
           "404": { description: "take preview not available" },
         },
@@ -294,11 +351,38 @@ const openapi = {
           status: { type: "string" },
         },
       },
+      StorageDelivery: {
+        type: "object",
+        required: ["asset_id", "revision_id", "url", "expires_at", "filename", "media_type", "size_bytes"],
+        properties: {
+          asset_id: { type: "string" },
+          revision_id: { type: "string" },
+          url: { type: "string" },
+          expires_at: { type: "string", format: "date-time" },
+          filename: { type: "string" },
+          media_type: { type: "string" },
+          size_bytes: { type: "integer" },
+        },
+      },
       ConversationFile: {
         type: "object",
-        required: ["path", "title", "filename", "mime_type", "size", "sha256", "writable", "derived", "content"],
+        required: [
+          "path",
+          "asset_id",
+          "revision_id",
+          "title",
+          "filename",
+          "mime_type",
+          "size",
+          "sha256",
+          "writable",
+          "derived",
+          "content",
+        ],
         properties: {
           path: { type: "string" },
+          asset_id: { type: "string" },
+          revision_id: { type: "string" },
           title: { type: "string" },
           filename: { type: "string" },
           mime_type: { type: "string" },
@@ -306,7 +390,7 @@ const openapi = {
           sha256: { type: "string" },
           writable: { type: "boolean" },
           derived: { type: "boolean" },
-          content: { type: "string", nullable: true },
+          content: { type: "string" },
         },
       },
       AgentRunTrace: {

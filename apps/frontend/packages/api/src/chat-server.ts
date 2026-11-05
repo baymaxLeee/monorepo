@@ -8,8 +8,8 @@ import {
   type VideoProductionDecision,
   type VideoProductionDetail,
 } from "../generated/chat-server/index";
-import { authFetch } from "./auth-fetch";
 import { API_BASE_URL, type ApiRequestConfig, request } from "./http";
+import { fetchStorageBlob } from "./storage-server";
 
 export type {
   ConversationContextCategory,
@@ -92,6 +92,7 @@ export interface ConversationDocument {
   id: string;
   conversation_id: string;
   kind: ConversationDocumentKind;
+  editable_source: boolean;
   title: string;
   filename: string;
   mime_type: string;
@@ -129,6 +130,8 @@ export interface ConversationDocumentDetail extends ConversationDocument {
 
 export interface ConversationFileDetail {
   path: string;
+  asset_id: string;
+  revision_id: string;
   title: string;
   filename: string;
   mime_type: string;
@@ -211,32 +214,28 @@ export function uploadConversationDocument(conversationId: string, file: File): 
 export function fetchConversationDocument(
   conversationId: string,
   documentId: string,
+  options?: { includeContent?: boolean; signal?: AbortSignal },
 ): Promise<ConversationDocumentDetail> {
   return request<ConversationDocumentDetail>({
     url: `${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}`,
     method: "GET",
+    params: { include_content: options?.includeContent },
+    signal: options?.signal,
   });
 }
 
-export function fetchConversationFile(conversationId: string, path: string): Promise<ConversationFileDetail> {
+export function fetchConversationFile(
+  conversationId: string,
+  path: string,
+  options?: { includeContent?: boolean; signal?: AbortSignal },
+): Promise<ConversationFileDetail> {
   const params = new URLSearchParams({ path });
   return request<ConversationFileDetail>({
     url: `${BASE}/${encodeURIComponent(conversationId)}/files/detail?${params.toString()}`,
     method: "GET",
+    params: { include_content: options?.includeContent },
+    signal: options?.signal,
   });
-}
-
-export function conversationDocumentSourceUrl(
-  conversationId: string,
-  documentId: string,
-  options?: { maxDim?: number },
-): string {
-  const path = `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}/source`;
-  if (!options?.maxDim) {
-    return path;
-  }
-  const params = new URLSearchParams({ max_dim: String(options.maxDim) });
-  return `${path}?${params.toString()}`;
 }
 
 export async function fetchConversationDocumentSource(
@@ -244,11 +243,16 @@ export async function fetchConversationDocumentSource(
   documentId: string,
   options?: { maxDim?: number },
 ): Promise<Blob> {
-  const response = await authFetch(conversationDocumentSourceUrl(conversationId, documentId, options));
-  if (!response.ok) {
-    throw new Error(`document source failed: ${response.status}`);
-  }
-  return response.blob();
+  const doc = await fetchConversationDocument(conversationId, documentId, { includeContent: false });
+  if (!doc.asset_id || !doc.source_revision_id) throw new Error("document has no Storage revision");
+  return fetchStorageBlob(
+    {
+      assetId: doc.asset_id,
+      revisionId: doc.source_revision_id,
+      owner: { kind: "conversation-document", conversationId, documentId },
+    },
+    options?.maxDim,
+  );
 }
 
 export function fetchVideoProduction(conversationId: string, productionId: string): Promise<VideoProductionDetail> {
@@ -271,9 +275,14 @@ export function decideVideoProduction(
 }
 
 export async function fetchVideoProductionPreview(conversationId: string, productionId: string): Promise<Blob> {
-  const response = await authFetch(
-    `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/preview`,
-  );
+  const capability = await request<{ url: string; expires_at: string }>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/preview-url`,
+    method: "GET",
+  });
+  const response = await fetch(new URL(capability.url, API_BASE_URL || window.location.origin), {
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  });
   if (!response.ok) {
     throw new Error(`video preview failed: ${response.status}`);
   }
@@ -286,9 +295,14 @@ export async function fetchVideoTakePreview(
   shotId: string,
   takeId: string,
 ): Promise<Blob> {
-  const response = await authFetch(
-    `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/shots/${encodeURIComponent(shotId)}/takes/${encodeURIComponent(takeId)}/preview`,
-  );
+  const capability = await request<{ url: string; expires_at: string }>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/video-productions/${encodeURIComponent(productionId)}/shots/${encodeURIComponent(shotId)}/takes/${encodeURIComponent(takeId)}/preview-url`,
+    method: "GET",
+  });
+  const response = await fetch(new URL(capability.url, API_BASE_URL || window.location.origin), {
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  });
   if (!response.ok) {
     throw new Error(`video take preview failed: ${response.status}`);
   }
@@ -419,4 +433,8 @@ export function updateMemoryCandidate(
 
 export function deleteMemory(id: string): Promise<{ deleted: boolean }> {
   return memoryClient.deleteMemoriesId(id, memoryClientOptions);
+}
+
+export function conversationDocumentContentUrl(conversationId: string, documentId: string): string {
+  return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}/content?document_id=${encodeURIComponent(documentId)}`;
 }

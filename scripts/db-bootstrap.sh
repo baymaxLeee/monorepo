@@ -29,6 +29,7 @@ if [ "${RESET_DEMO_DATA:-false}" = "true" ]; then
   echo "→ resetting service databases"
   for service_dir in "${SERVICE_DIRS[@]}"; do
     db="$(basename "$service_dir" | tr '-' '_')"
+    if [ "$db" = storage ]; then db=asset; fi
     docker exec -i -e PGPASSWORD="$PG_ADMIN_PASSWORD" "$PG_CONTAINER" \
       psql -v ON_ERROR_STOP=1 -U "$PG_ADMIN_USER" -d postgres \
       -c "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE);"
@@ -38,7 +39,10 @@ fi
 for service_dir in "${SERVICE_DIRS[@]}"; do
   service="$(basename "$service_dir")"
   echo "→ preparing database for service: $service"
-  "$ROOT/scripts/db-migrate.sh" "$service_dir"
+  db="$service"
+  if [ "$db" = storage ]; then db=asset; fi
+  DATABASE_NAME="$db" DATABASE_USER="$db" DATABASE_PASSWORD="$db" \
+    "$ROOT/scripts/db-migrate.sh" "$service_dir"
 done
 
 ADMIN_DIR="$SERVICES_DIR/admin"

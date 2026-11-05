@@ -28,7 +28,7 @@ agent/
 - 内置 function tool 的 Zod Schema 是唯一输入契约：字段说明、strict calling 和 compact `inputExamples` 随 tool definition 发送，不在 instructions 复制 payload。 `repairToolCall` 只记录 Schema 前的拒绝并返回 `null`；主 Agent 在下一 step 自行决定是否修正，runtime 不调用隐藏 repair model。
 - `tools/` 只放模型调用边界；artifact、memory、plan 的业务实现属于各自 subsystem。
 - `ToolCatalog` 是可实例化对象。默认 catalog 只作为应用 composition root，禁止模块级数组泄漏租户状态。
-- 新 run 的 context projection 将历史 `write_file`/`edit_file`/`delegate_tasks` 压缩为路径、SHA、task id 和失败事实；不把大正文、旧 edit 参数或无效 Schema 调用重新示范给模型。持久化 UIMessage 不变。
+- 新 run 的 context projection 将历史 `write_file`/`edit_file` 以及 `write_plan`/`save_sandbox_file`/`delegate_tasks` 压缩为路径、SHA、task id 和失败事实；不把大正文、旧 edit 参数或无效 Schema 调用重新示范给模型。持久化 UIMessage 不变。
 - Skills 可以贡献 instructions 和 tools；MCP 必须显式筛选工具/schema，不能直接暴露远端全集。
 - Skill 采用渐进披露：初始 prompt 只含 name/description，命中后由 `load_skill` 从 Admin 读取已发布快照的 `SKILL.md`。纯工作流、证据规则和输出模板属于 Skill，不为此新增垂直业务 tool。
 - Subagent 通过 tool delegation 运行独立 context，并将压缩后的 `toModelOutput` 返回主模型。

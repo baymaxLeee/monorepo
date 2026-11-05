@@ -24,4 +24,6 @@ fi
 
 # --load-restrictor=LoadRestrictionsNone lets overlays reference raw files
 # (e.g. ../../base/ingress.yaml) one level up; kustomize is strict by default.
-exec kubectl kustomize --load-restrictor=LoadRestrictionsNone "$OVERLAY"
+kubectl kustomize --load-restrictor=LoadRestrictionsNone "$ROOT/infra/k8s/sandbox-runtime/$ENV"
+printf '\n---\n'
+kubectl kustomize --load-restrictor=LoadRestrictionsNone "$OVERLAY"

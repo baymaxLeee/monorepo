@@ -10,10 +10,10 @@ import (
 
 	applicationcanvasarchive "github.com/example/monorepo/canvas/internal/application/canvasarchive"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
 	canvasarchivepersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasarchive"
 	taskpersistence "github.com/example/monorepo/canvas/internal/infrastructure/persistence/task"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 )
 
 type Runtime struct {
@@ -21,12 +21,12 @@ type Runtime struct {
 	repo     *canvasarchivepersistence.Repository
 	runs     *taskpersistence.Repository
 	tx       *persistencetransaction.Manager
-	assets   *assetclient.Client
+	assets   *storageclient.Client
 	clock    applicationcanvasarchive.Clock
 	tempRoot string
 }
 
-func NewRuntime(service *applicationcanvasarchive.Service, repo *canvasarchivepersistence.Repository, runs *taskpersistence.Repository, tx *persistencetransaction.Manager, assets *assetclient.Client, clock applicationcanvasarchive.Clock, tempRoot string) *Runtime {
+func NewRuntime(service *applicationcanvasarchive.Service, repo *canvasarchivepersistence.Repository, runs *taskpersistence.Repository, tx *persistencetransaction.Manager, assets *storageclient.Client, clock applicationcanvasarchive.Clock, tempRoot string) *Runtime {
 	return &Runtime{service: service, repo: repo, runs: runs, tx: tx, assets: assets, clock: clock, tempRoot: tempRoot}
 }
 
@@ -83,7 +83,7 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 	for index := range execution.Inputs {
 		input := execution.Inputs[index]
 		inputs = append(inputs, Input{EntryName: input.EntryName, SourceAssetID: input.SourceAssetID, ExpectedSize: input.MediaSize, Open: func(openCtx context.Context) (io.ReadCloser, error) {
-			return runtime.assets.Open(openCtx, execution.Export.TenantID, workspaceValue(execution.Export.WorkspaceID), assetclient.RevisionRef{AssetID: input.SourceAssetID, RevisionID: input.SourceRevisionID})
+			return runtime.assets.Open(openCtx, execution.Export.TenantID, workspaceValue(execution.Export.WorkspaceID), storageclient.RevisionRef{AssetID: input.SourceAssetID, RevisionID: input.SourceRevisionID})
 		}})
 	}
 	archive, err := NewBuilder(NewFFprobeProber(nil)).Build(ctx, filepath.Join(directory, "archive.zip"), execution.Export.CreatedAt, strings.TrimSuffix(execution.Export.OutputFilename, ".zip")+".fcpxml", inputs)
@@ -95,7 +95,7 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
 	defer file.Close() //nolint:errcheck
-	revision, err := runtime.assets.Upload(ctx, assetclient.UploadInput{TenantID: execution.Export.TenantID, WorkspaceID: workspaceValue(execution.Export.WorkspaceID), UserID: execution.Export.CreatedBy, Filename: execution.Export.OutputFilename, MediaType: "application/zip", Category: "canvas_archive", IdempotencyKey: "canvas-archive:" + execution.Export.TaskRunID, Body: file})
+	revision, err := runtime.assets.Upload(ctx, storageclient.UploadInput{TenantID: execution.Export.TenantID, WorkspaceID: workspaceValue(execution.Export.WorkspaceID), UserID: execution.Export.CreatedBy, Filename: execution.Export.OutputFilename, MediaType: "application/zip", Category: "canvas_archive", IdempotencyKey: "canvas-archive:" + execution.Export.TaskRunID, Body: file})
 	if err != nil {
 		return applicationcanvasarchive.SuccessResult{}, err
 	}
@@ -107,7 +107,7 @@ func (runtime *Runtime) build(ctx context.Context, execution applicationcanvasar
 }
 
 func (runtime *Runtime) Open(ctx context.Context, item applicationcanvasarchive.Export) (io.ReadCloser, error) {
-	return runtime.assets.Open(ctx, item.TenantID, workspaceValue(item.WorkspaceID), assetclient.RevisionRef{AssetID: item.OutputAssetID, RevisionID: item.OutputRevisionID})
+	return runtime.assets.Open(ctx, item.TenantID, workspaceValue(item.WorkspaceID), storageclient.RevisionRef{AssetID: item.OutputAssetID, RevisionID: item.OutputRevisionID})
 }
 
 func workspaceValue(value *string) string {

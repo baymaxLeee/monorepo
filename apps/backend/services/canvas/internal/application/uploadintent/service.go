@@ -10,7 +10,7 @@ import (
 
 	applicationcoverimage "github.com/example/monorepo/canvas/internal/application/coverimage"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 
@@ -48,7 +48,7 @@ type Plan struct {
 }
 
 type SessionCreator interface {
-	CreateUploadSession(context.Context, assetclient.CreateUploadSessionInput) (assetclient.UploadSession, error)
+	CreateUploadSession(context.Context, storageclient.CreateUploadSessionInput) (storageclient.UploadSession, error)
 }
 
 type Service struct{ sessions SessionCreator }
@@ -72,7 +72,7 @@ func (s *Service) Prepare(ctx context.Context, input PrepareInput) (Plan, error)
 	}
 	digest := sha256.Sum256([]byte(input.TenantID + "\x00" + input.WorkspaceID + "\x00" + input.UserID + "\x00" + string(input.Purpose) + "\x00" + input.ClientRef))
 	intentID := "canvas-" + string(input.Purpose) + ":" + hex.EncodeToString(digest[:])
-	session, err := s.sessions.CreateUploadSession(ctx, assetclient.CreateUploadSessionInput{
+	session, err := s.sessions.CreateUploadSession(ctx, storageclient.CreateUploadSessionInput{
 		TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
 		Filename: input.Filename, MediaType: input.MediaType, Category: category,
 		IdempotencyKey: intentID, SizeBytes: input.SizeBytes,

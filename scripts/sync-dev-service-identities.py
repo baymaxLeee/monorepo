@@ -29,7 +29,8 @@ RECEIVER_CALLERS = {
     "canvas": ("chat", "executor"),
     "executor": ("canvas", "chat", "knowledge"),
     "knowledge": ("canvas", "chat", "executor"),
-    "asset": ("admin", "canvas", "chat", "executor", "knowledge"),
+    "storage": ("admin", "canvas", "chat", "executor", "knowledge"),
+    "sandbox": ("chat",),
 }
 ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 

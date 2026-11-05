@@ -10,7 +10,6 @@ from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.repositories import documents as document_crud
 from kernel.errors import BaseError, RequestError
 
-from application.asset_client import ensure_document_claim_active, get_asset_client
 from application.auth import AuthContext
 from application.contracts.document import (
     IngestFailure,
@@ -23,6 +22,7 @@ from application.contracts.document import (
 )
 from application.documents import document_to_schema
 from application.executor_client import dispatch_document_now
+from application.storage_client import ensure_document_claim_active, get_storage_client
 
 
 def _document_id(current_user: AuthContext, conversation_id: str | None, client_ref: str) -> str:
@@ -47,7 +47,7 @@ async def prepare_source_uploads(
     if sum(item.size_bytes for item in files) > settings.ingest_max_batch_bytes:
         raise RequestError("ingest batch exceeds the Knowledge upload limit")
 
-    client = get_asset_client()
+    client = get_storage_client()
     semaphore = asyncio.Semaphore(settings.ingest_max_parallel)
 
     async def prepare(item: SourceUploadIntentInput) -> SourceUploadPlan:
@@ -84,7 +84,7 @@ async def ingest_assets(
     items: list[SourceUploadCompletion],
 ) -> IngestResult:
     settings = get_settings()
-    client = get_asset_client()
+    client = get_storage_client()
     factory = get_session_factory()
     semaphore = asyncio.Semaphore(settings.ingest_max_parallel)
 

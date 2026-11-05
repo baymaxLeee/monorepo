@@ -129,7 +129,7 @@ export interface paths {
          *     documents; a member may delete only their own uploads. If ANY requested id
          *     is outside the workspace or not deletable by the caller, the whole batch is
          *     rejected with 403 — no silent partial success that would mislead the caller.
-         *     Object-store blobs are best-effort purged and RAG `document_chunks` drop via
+         *     Storage references are released transactionally and RAG `document_chunks` drop via
          *     the FK `ON DELETE CASCADE`.
          */
         post: operations["batch_delete_my_documents_documents_batch_delete_post"];
@@ -179,17 +179,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/documents/{document_id}/source": {
+    "/documents/{document_id}/delivery": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get My Document Source */
-        get: operations["get_my_document_source_documents__document_id__source_get"];
+        get?: never;
         put?: never;
-        post?: never;
+        /** Authorize Document Delivery */
+        post: operations["authorize_document_delivery_documents__document_id__delivery_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -290,23 +290,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/documents/{document_id}/source": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document Source */
-        get: operations["get_document_source_internal_documents__document_id__source_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/artifacts": {
         parameters: {
             query?: never;
@@ -378,23 +361,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/staged-media/{staged_id}/source": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Staged Media Source */
-        get: operations["get_staged_media_source_internal_staged_media__staged_id__source_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/staged-media/{staged_id}/publish": {
         parameters: {
             query?: never;
@@ -423,74 +389,6 @@ export interface paths {
         put?: never;
         /** Discard Staged Media */
         post: operations["discard_staged_media_internal_staged_media__staged_id__discard_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/documents/{document_id}/resource-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Resource Url */
-        post: operations["create_resource_url_documents__document_id__resource_url_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/files/resource-url": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create File Url */
-        post: operations["create_file_url_files_resource_url_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/resources/{document_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Signed Resource */
-        get: operations["get_signed_resource_resources__document_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/resources/files/{file_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Signed File Resource */
-        get: operations["get_signed_file_resource_resources_files__file_id__get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -829,6 +727,11 @@ export interface components {
             /** Mime Type */
             mime_type: string;
             /**
+             * Editable Source
+             * @default false
+             */
+            editable_source: boolean;
+            /**
              * Content Md
              * @default
              */
@@ -879,20 +782,6 @@ export interface components {
             /** State */
             state: string;
         };
-        /** DocumentResourceURL */
-        DocumentResourceURL: {
-            /** Url */
-            url: string;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /** Mime Type */
-            mime_type: string;
-            /** Filename */
-            filename: string;
-        };
         /** DocumentSlice */
         DocumentSlice: {
             /** Id */
@@ -927,6 +816,10 @@ export interface components {
         FileEntry: {
             /** Path */
             path: string;
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
             /**
              * Type
              * @default file
@@ -948,6 +841,10 @@ export interface components {
         FileRead: {
             /** Path */
             path: string;
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
             /**
              * Type
              * @default file
@@ -972,13 +869,6 @@ export interface components {
             next_offset: number | null;
             /** Content */
             content: string;
-        };
-        /** FileResourceURLInput */
-        FileResourceURLInput: {
-            /** Conversation Id */
-            conversation_id: string;
-            /** Path */
-            path: string;
         };
         /** FileSearchInput */
         FileSearchInput: {
@@ -1182,6 +1072,26 @@ export interface components {
             workspace_id: string;
             /** Tenant Id */
             tenant_id: string;
+        };
+        /** StorageDelivery */
+        StorageDelivery: {
+            /** Asset Id */
+            asset_id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Url */
+            url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Filename */
+            filename: string;
+            /** Media Type */
+            media_type: string;
+            /** Size Bytes */
+            size_bytes: number;
         };
         /** UpdateArtifactInput */
         UpdateArtifactInput: {
@@ -1626,7 +1536,7 @@ export interface operations {
             };
         };
     };
-    get_my_document_source_documents__document_id__source_get: {
+    authorize_document_delivery_documents__document_id__delivery_post: {
         parameters: {
             query?: never;
             header?: {
@@ -1650,7 +1560,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["StorageDelivery"];
                 };
             };
             /** @description Validation Error */
@@ -1776,6 +1686,7 @@ export interface operations {
         parameters: {
             query: {
                 user_id: string;
+                include_content?: boolean;
             };
             header?: {
                 "X-Internal-Token"?: string | null;
@@ -1906,43 +1817,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentSlice"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_document_source_internal_documents__document_id__source_get: {
-        parameters: {
-            query: {
-                user_id: string;
-                max_dim?: number | null;
-            };
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2100,42 +1974,6 @@ export interface operations {
             };
         };
     };
-    get_staged_media_source_internal_staged_media__staged_id__source_get: {
-        parameters: {
-            query: {
-                user_id: string;
-            };
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                staged_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     publish_staged_media_internal_staged_media__staged_id__publish_post: {
         parameters: {
             query?: never;
@@ -2200,150 +2038,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StagedMedia"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_resource_url_documents__document_id__resource_url_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Workspace-ID"?: string | null;
-                "X-Auth-Tenant-ID"?: string | null;
-                "X-Auth-Workspace-Role"?: string | null;
-            };
-            path: {
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentResourceURL"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_file_url_files_resource_url_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Auth-Name"?: string | null;
-                "X-Auth-Email"?: string | null;
-                "X-Auth-User-ID"?: string | null;
-                "X-Auth-Workspace-ID"?: string | null;
-                "X-Auth-Tenant-ID"?: string | null;
-                "X-Auth-Workspace-Role"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FileResourceURLInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentResourceURL"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_signed_resource_resources__document_id__get: {
-        parameters: {
-            query: {
-                expires: number;
-                version: string;
-                signature: string;
-            };
-            header?: never;
-            path: {
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_signed_file_resource_resources_files__file_id__get: {
-        parameters: {
-            query: {
-                expires: number;
-                version: string;
-                signature: string;
-            };
-            header?: never;
-            path: {
-                file_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {

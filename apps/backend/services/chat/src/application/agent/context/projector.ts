@@ -21,7 +21,13 @@ const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 // The original stays in Knowledge; only model-bound bytes are normalized.
 const VISION_MAX_DIM = 1536;
 
-const HISTORICAL_FILE_MUTATIONS = new Set(["tool-write_file", "tool-edit_file", "tool-delegate_tasks"]);
+const HISTORICAL_FILE_MUTATIONS = new Set([
+  "tool-write_file",
+  "tool-edit_file",
+  "tool-delegate_tasks",
+  "tool-write_plan",
+  "tool-save_sandbox_file",
+]);
 
 function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
   return messages.map((message) => ({
@@ -50,6 +56,9 @@ function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
           paths: value.paths,
           sha256: value.sha256,
           task_id: value.task_id,
+          document_id: value.document_id,
+          filename: value.filename,
+          media_type: value.media_type,
           replacements: value.replacements,
           error: outcome?.ok === false ? outcome.error : undefined,
         };
@@ -362,7 +371,7 @@ export async function projectModelContext(input: {
         }
         return {
           type: "text",
-          text: `<plan_execution_request path="${escapeXmlText(path)}">Read this exact plan completely with read_file before using update_todos or any generation tool.</plan_execution_request>`,
+          text: `<plan_execution_request path="${escapeXmlText(path)}">Read this exact plan completely with read_conversation_file before using update_todos or any generation tool.</plan_execution_request>`,
         };
       }
       return undefined;

@@ -18,7 +18,7 @@ from api.http.routes import (
     skills,
     skills_internal,
 )
-from application.asset_client import close_asset_client, run_asset_claim_relay
+from application.storage_client import close_storage_client, run_asset_claim_relay
 from bootstrap.config import get_settings
 from fastapi import FastAPI
 from infrastructure.cache.redis import close_redis, init_redis
@@ -39,7 +39,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
     stop.set()
     await claim_relay
-    await close_asset_client()
+    await close_storage_client()
     await close_redis()
     await close_db()
 

@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 class FileEntry(BaseModel):
     path: str
+    asset_id: str
+    revision_id: str
     type: Literal["file"] = "file"
     mime_type: str
     size: int

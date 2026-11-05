@@ -17,7 +17,7 @@ import (
 	applicationprojectusage "github.com/example/monorepo/canvas/internal/application/projectusage"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	"github.com/example/monorepo/canvas/internal/infrastructure/assetclient"
+	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 )
 
 const (
@@ -49,14 +49,14 @@ type Service interface {
 }
 
 type Store struct {
-	client           *assetclient.Client
+	client           *storageclient.Client
 	publicGatewayURL string
 }
 
 func (store *Store) UploadPlatformRevision(
 	ctx context.Context, tenantID string, workspaceID *string, userID, filename, mediaType, idempotencyKey string, body io.Reader,
 ) (applicationasset.ResolvedRevision, error) {
-	revision, err := store.client.Upload(ctx, assetclient.UploadInput{
+	revision, err := store.client.Upload(ctx, storageclient.UploadInput{
 		TenantID: tenantID, WorkspaceID: workspaceValue(workspaceID), UserID: userID, Filename: filename,
 		MediaType: mediaType, Category: "official_asset", IdempotencyKey: idempotencyKey, Body: body,
 	})
@@ -73,14 +73,14 @@ func (store *Store) UploadPlatformRevision(
 	}, nil
 }
 
-func New(client *assetclient.Client, publicGatewayURL string) Service {
+func New(client *storageclient.Client, publicGatewayURL string) Service {
 	return &Store{client: client, publicGatewayURL: strings.TrimRight(publicGatewayURL, "/")}
 }
 
 func (store *Store) Resolve(
 	ctx context.Context, tenantID, workspaceID string, ref applicationasset.RevisionRef,
 ) (applicationasset.ResolvedRevision, error) {
-	revision, err := store.client.Describe(ctx, tenantID, workspaceID, assetclient.RevisionRef{
+	revision, err := store.client.Describe(ctx, tenantID, workspaceID, storageclient.RevisionRef{
 		AssetID: ref.SourceAssetID, RevisionID: ref.SourceRevisionID,
 	})
 	if err != nil {
@@ -103,11 +103,11 @@ func (store *Store) BatchDeliveryURLs(
 	if len(refs) == 0 {
 		return map[string]applicationasset.PresignedArtifact{}, nil
 	}
-	inputs := make([]assetclient.DeliveryCapabilityInput, len(refs))
+	inputs := make([]storageclient.DeliveryCapabilityInput, len(refs))
 	for index, ref := range refs {
-		inputs[index] = assetclient.DeliveryCapabilityInput{
+		inputs[index] = storageclient.DeliveryCapabilityInput{
 			TenantID: tenantID, WorkspaceID: workspaceID,
-			RevisionRef: assetclient.RevisionRef{AssetID: ref.SourceAssetID, RevisionID: ref.SourceRevisionID},
+			RevisionRef: storageclient.RevisionRef{AssetID: ref.SourceAssetID, RevisionID: ref.SourceRevisionID},
 		}
 	}
 	capabilities, err := store.client.MintDeliveryCapabilities(ctx, inputs)
@@ -188,7 +188,7 @@ func (store *Store) PersistImage(ctx context.Context, input applicationimagegene
 }
 
 func (store *Store) UploadTemporary(ctx context.Context, input applicationprojectusage.TemporaryFileUpload) (applicationprojectusage.TemporaryFile, error) {
-	revision, err := store.client.Upload(ctx, assetclient.UploadInput{
+	revision, err := store.client.Upload(ctx, storageclient.UploadInput{
 		TenantID: input.TenantID, WorkspaceID: workspaceValue(input.WorkspaceID), UserID: input.CallerID,
 		Filename: input.InternalFileName, MediaType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		Category: "project_usage_export", IdempotencyKey: "project-usage-export:" + input.ExportID, Body: input.Reader,
@@ -199,7 +199,7 @@ func (store *Store) UploadTemporary(ctx context.Context, input applicationprojec
 	if revision.SizeBytes != input.Size || !strings.EqualFold(revision.SHA256, input.SHA256) {
 		return applicationprojectusage.TemporaryFile{}, errors.New("uploaded project usage workbook integrity mismatch")
 	}
-	capabilities, err := store.client.MintDeliveryCapabilities(ctx, []assetclient.DeliveryCapabilityInput{{
+	capabilities, err := store.client.MintDeliveryCapabilities(ctx, []storageclient.DeliveryCapabilityInput{{
 		TenantID: input.TenantID, WorkspaceID: workspaceValue(input.WorkspaceID), RevisionRef: revision.RevisionRef,
 	}})
 	if err != nil || len(capabilities) != 1 {
@@ -210,42 +210,42 @@ func (store *Store) UploadTemporary(ctx context.Context, input applicationprojec
 	}, nil
 }
 
-func (store *Store) persistRemote(ctx context.Context, tenantID, workspaceID, userID, filename, category, idempotencyKey, sourceURL string) (assetclient.Revision, error) {
+func (store *Store) persistRemote(ctx context.Context, tenantID, workspaceID, userID, filename, category, idempotencyKey, sourceURL string) (storageclient.Revision, error) {
 	parsed, err := url.Parse(strings.TrimSpace(sourceURL))
 	if err != nil || validatePublicRemoteURL(parsed) != nil {
-		return assetclient.Revision{}, errors.New("generated media URL must be an absolute HTTP(S) URL")
+		return storageclient.Revision{}, errors.New("generated media URL must be an absolute HTTP(S) URL")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
-		return assetclient.Revision{}, err
+		return storageclient.Revision{}, err
 	}
 	response, err := generatedMediaHTTPClient.Do(request)
 	if err != nil {
-		return assetclient.Revision{}, fmt.Errorf("download generated media: %w", err)
+		return storageclient.Revision{}, fmt.Errorf("download generated media: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return assetclient.Revision{}, fmt.Errorf("download generated media returned status %d", response.StatusCode)
+		return storageclient.Revision{}, fmt.Errorf("download generated media returned status %d", response.StatusCode)
 	}
 	if response.ContentLength > maxGeneratedMediaBytes {
-		return assetclient.Revision{}, errors.New("generated media exceeds the 512 MiB limit")
+		return storageclient.Revision{}, errors.New("generated media exceeds the 512 MiB limit")
 	}
 	limited := &io.LimitedReader{R: response.Body, N: maxGeneratedMediaBytes + 1}
-	revision, err := store.client.Upload(ctx, assetclient.UploadInput{
+	revision, err := store.client.Upload(ctx, storageclient.UploadInput{
 		TenantID: tenantID, WorkspaceID: workspaceID, UserID: userID, Filename: filename,
 		MediaType: response.Header.Get("Content-Type"), Category: category, IdempotencyKey: idempotencyKey, Body: limited,
 	})
 	if err != nil {
-		return assetclient.Revision{}, fmt.Errorf("persist generated media: %w", err)
+		return storageclient.Revision{}, fmt.Errorf("persist generated media: %w", err)
 	}
 	if revision.SizeBytes > maxGeneratedMediaBytes || limited.N <= 0 {
-		return assetclient.Revision{}, errors.New("generated media exceeds the 512 MiB limit")
+		return storageclient.Revision{}, errors.New("generated media exceeds the 512 MiB limit")
 	}
 	return revision, nil
 }
 
-func platformRef(asset domainasset.Asset) assetclient.RevisionRef {
-	return assetclient.RevisionRef{AssetID: asset.SourceAssetID, RevisionID: asset.SourceRevisionID}
+func platformRef(asset domainasset.Asset) storageclient.RevisionRef {
+	return storageclient.RevisionRef{AssetID: asset.SourceAssetID, RevisionID: asset.SourceRevisionID}
 }
 
 func revisionRefKey(assetID, revisionID string) string { return assetID + "\x00" + revisionID }

@@ -11,7 +11,7 @@ func TestIdentityPropagationAllowsAssetDeliveryCapabilitiesOnly(t *testing.T) {
 
 	handler := IdentityPropagation(
 		"secret",
-		[]string{"/api/asset-server/media"},
+		[]string{"/api/storage-server/media"},
 		nil,
 		nil,
 	)(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
@@ -25,12 +25,12 @@ func TestIdentityPropagationAllowsAssetDeliveryCapabilitiesOnly(t *testing.T) {
 	}{
 		{
 			name:       "signed media route reaches asset without bearer token",
-			path:       "/api/asset-server/media/asset/revisions/revision/content?expires=1&signature=value",
+			path:       "/api/storage-server/media/asset/revisions/revision/content?expires=1&signature=value",
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "asset control plane remains protected",
-			path:       "/api/asset-server/assets",
+			path:       "/api/storage-server/assets",
 			wantStatus: http.StatusUnauthorized,
 		},
 	}

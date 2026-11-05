@@ -1,0 +1,7 @@
+# Operator-owned allowlist; generated commands cannot change it.
+.example.com
+.pypi.org
+.pythonhosted.org
+.npmjs.org
+.github.com
+.githubusercontent.com

@@ -1,0 +1,27 @@
+{
+  "name": "sandbox",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/backend/services/sandbox && pnpm --dir ../../../.. exec oxfmt --check 'apps/backend/services/sandbox/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}' && node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test",
+    "gen-openapi": "tsx src/gen-openapi.ts",
+    "test:integration": "node --import tsx integration/docker.ts"
+  },
+  "dependencies": {
+    "@backend/kernel-ts": "workspace:*",
+    "@hono/node-server": "catalog:",
+    "hono": "catalog:",
+    "tsx": "^4.19.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@backend/transport-ts": "workspace:*",
+    "@types/node": "^24.0.0",
+    "@typescript/native": "catalog:"
+  }
+}

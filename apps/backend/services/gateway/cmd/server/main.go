@@ -82,7 +82,7 @@ func main() {
 		"admin-server",
 		"/api/admin-server",
 	))
-	r.Mount("/api/asset-server", handlers.NewServiceProxy(cfg.AssetServiceURL, "asset-server", "/api/asset-server"))
+	r.Mount("/api/storage-server", handlers.NewServiceProxy(cfg.AssetServiceURL, "storage-server", "/api/storage-server"))
 	r.Mount("/api/canvas-server", handlers.NewServiceProxy(cfg.CanvasServiceURL, "canvas-server", "/api/canvas-server"))
 	r.Mount("/api/chat-server", handlers.NewServiceProxy(
 		cfg.ChatServiceURL,

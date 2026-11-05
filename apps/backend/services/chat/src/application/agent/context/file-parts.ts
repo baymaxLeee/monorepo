@@ -5,9 +5,6 @@ type ChatPart = UIMessage<unknown, any, any>["parts"][number];
 export function documentIdFromFilePart(part: FileUIPart): string | null {
   try {
     const url = new URL(part.url, "http://internal");
-    if (!/^\/api\/asset-server\/assets\/[^/]+\/revisions\/[^/]+\/content$/.test(url.pathname)) {
-      return null;
-    }
     return url.searchParams.get("document_id");
   } catch {
     return null;

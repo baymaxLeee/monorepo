@@ -14,9 +14,10 @@ export interface Settings {
   redisPort: number;
   redisDb: number;
   adminServiceUrl: string;
-  assetServiceUrl: string;
+  storageServiceUrl: string;
   knowledgeServiceUrl: string;
   executorServiceUrl: string;
+  sandboxServiceUrl: string;
   canvasServiceUrl: string;
   internalApiToken: string;
   toolApprovalSecret: string;
@@ -75,10 +76,11 @@ export function getSettings(): Settings {
     redisPort: envInt("REDIS_PORT", 6379),
     redisDb: envInt("REDIS_DB", 2),
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
-    assetServiceUrl: envOr("ASSET_SERVICE_URL", "http://localhost:8013"),
+    storageServiceUrl: envOr("STORAGE_SERVICE_URL", "http://localhost:8013"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     canvasServiceUrl: envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
     executorServiceUrl: envOr("EXECUTOR_SERVICE_URL", "http://localhost:8011"),
+    sandboxServiceUrl: envOr("SANDBOX_SERVICE_URL", "http://localhost:8014"),
     internalApiToken,
     toolApprovalSecret: toolApprovalSecret || DEV_INTERNAL_TOKEN,
     exaApiKey: envOr("EXA_API_KEY", ""),

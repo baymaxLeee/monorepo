@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, String, Text, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from infrastructure.persistence.models.base import Base
@@ -19,7 +19,9 @@ class FileEntryRow(Base):
     conversation_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     path: Mapped[str] = mapped_column(String(512), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(120), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+    asset_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), nullable=False)
+    revision_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     writable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     derived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -48,7 +50,9 @@ class FileChangeSetEntryRow(Base):
     change_set_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     path: Mapped[str] = mapped_column(String(512), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(120), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+    asset_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), nullable=False)
+    revision_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     writable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     derived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
