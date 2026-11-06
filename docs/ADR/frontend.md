@@ -48,9 +48,26 @@ Chat 使用当前 shadcn/ui Chat 的 `MessageScroller` 组合，正文、展开�
 普通工具的原始输入输出、Bash 完整命令与日志默认折叠，摘要保留执行状态；
 授权、待回答问题和错误反馈保持可见，手动展开选择不被流式更新覆盖。
 展开内容以及消息代码块、表格随会话纵向增长，宽内容仍可横向滚动。
-Chat 面板宽度由布局 hook 按帧更新 DOM，拖拽结束后同步 React state 与持久化值；
-业务 JSX 不重复绑定这些宽度样式，避免其他状态更新覆盖拖拽中的宽度。
-分隔线保留键盘操作、实际宽度的无障碍属性与取消/卸载清理，面板不做列宽动画。
+Chat 以“左侧会话记录—中间会话流—右侧 Artifact 检查器”组织工作区，采用
+[桌面 sidebar/detail/inspector 模式](https://learn.chatgpt.com/use-cases/macos-sidebar-detail-inspector)，
+不声称复制 Codex 的内部像素规范。外壳只订阅面板可见性，不持有会话列表、消息或预览内容。
+左栏自行管理 CRUD、标题事件与分批展示；右栏自行订阅当前产物，按需加载文档/代码编辑器
+和视频工作区。辅助的记忆、轨迹是按需挂载的 Sheet，不进入主工作区的高频更新路径。
+布局使用已有 shadcn Base `Sidebar`、`Resizable`，收起后的左栏不可获得焦点；窄屏通过
+Base UI Sheet 展示侧栏和预览，正文保持挂载。列宽、键盘缩放与尺寸保存交给官方组件，
+不保留旧的像素宽度键、自制 pointer/RAF 拖拽状态机或列宽动画。侧栏切换提供 Ctrl/⌘ B
+和可见按钮。全局 Toaster 仍由 platform 唯一挂载。
+
+`useConversationChat` 拥有 AI SDK `Chat` 实例与加载、恢复、停止和结束持久化流程，
+不订阅消息；`ChatStream` 是唯一高频 `useChat` 订阅者，保留 SDK 消息更新节流。
+生成状态变化才通知输入区，文本增量不触发会话容器或编辑器重渲染。
+正文通过 [React `useDeferredValue`](https://react.dev/reference/react/useDeferredValue) 消费
+消息与状态的一致快照；停止、授权和客户端工具续跑直接读取实时 SDK 状态，Canvas
+完成通知在实时订阅内处理。历史消息按 SDK 引用、操作回调与小型任务/计划上下文复用，
+不深比较正文和工具载荷；真实文档、任务或回调变化仍更新消息。历史分批展示并以消息 id
+固定阅读起点，追加轮次不移除正在阅读的行；存储及模型上下文中的完整历史不被裁剪。
+消息直接组合 AI Elements Message/Content/Response、Reasoning 和 Tool，去掉多余的
+逐消息包装；工具卡实现按需加载。错误、授权和待回答问题仍可见，手动展开状态继续保留。
 
 ## 取舍与验证
 

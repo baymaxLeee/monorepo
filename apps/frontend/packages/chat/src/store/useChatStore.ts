@@ -29,8 +29,6 @@ export type VideoProductionWorkspaceState = {
 };
 
 export type ChatUIState = {
-  sendingConversationId: string | null;
-  setSendingConversationId: (id: string | null) => void;
   agents: Bot[] | null;
   agentsError: string | null;
   isLoadingAgents: boolean;
@@ -89,9 +87,6 @@ const CLOSED_VIDEO_PRODUCTION_WORKSPACE: VideoProductionWorkspaceState = {
 export const useChatStore = create<ChatUIState>()(
   persist(
     (set, get) => ({
-      sendingConversationId: null,
-      setSendingConversationId: (sendingConversationId) => set({ sendingConversationId }),
-
       agents: null,
       agentsError: null,
       isLoadingAgents: false,

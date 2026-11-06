@@ -31,9 +31,9 @@ const running: DynamicToolUIPart = {
   input: { query: "raw-input" },
 };
 
-test("generic tool details stay collapsed while running and after completion", () => {
+test("generic tool details stay collapsed while running and after completion", async () => {
   const view = render(message(running));
-  expect(screen.getByRole("button", { name: /fetch\s*Running/ }).getAttribute("aria-expanded")).toBe("false");
+  expect((await screen.findByRole("button", { name: /fetch\s*Running/ })).getAttribute("aria-expanded")).toBe("false");
   expect(screen.queryByText(/raw-input/)).toBeNull();
 
   view.rerender(message({ ...running, state: "output-available", output: { result: "raw-output" } }));
@@ -45,22 +45,22 @@ test("generic tool details stay collapsed while running and after completion", (
   expect(screen.getByText(/raw-output/)).toBeTruthy();
 });
 
-test("stream updates preserve a user's expanded tool details", () => {
+test("stream updates preserve a user's expanded tool details", async () => {
   const view = render(message(running));
-  fireEvent.click(screen.getByRole("button", { name: /fetch\s*Running/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /fetch\s*Running/ }));
   view.rerender(message({ ...running, state: "output-available", output: "raw-output" }));
   expect(screen.getByRole("button", { name: /fetch\s*Completed/ }).getAttribute("aria-expanded")).toBe("true");
   expect(screen.getByText("raw-output")).toBeTruthy();
 });
 
-test("required approval stays visible and actionable", () => {
+test("required approval stays visible and actionable", async () => {
   render(message({ ...running, state: "approval-requested", approval: { id: "approval" } }));
-  fireEvent.click(screen.getByRole("button", { name: "允许" }));
+  fireEvent.click(await screen.findByRole("button", { name: "允许" }));
   expect(props.onToolApproval).toHaveBeenCalledWith("approval", true);
 });
 
-test("tool failure surfaces its reason without an extra click", () => {
+test("tool failure surfaces its reason without an extra click", async () => {
   render(message({ ...running, state: "output-error", errorText: "连接超时" }));
-  expect(screen.getByText("连接超时")).toBeTruthy();
+  expect(await screen.findByText("连接超时")).toBeTruthy();
   expect(screen.getByRole("button", { name: /fetch\s*Error/ }).getAttribute("aria-expanded")).toBe("true");
 });

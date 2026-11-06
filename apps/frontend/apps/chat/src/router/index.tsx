@@ -1,11 +1,10 @@
-import { Toaster, TooltipProvider } from "@repo/design-system";
+import { TooltipProvider } from "@repo/design-system";
 import { Navigate, Outlet, type RouteObject } from "react-router-dom";
 
 function ChatRoot() {
   return (
     <TooltipProvider>
       <Outlet />
-      <Toaster />
     </TooltipProvider>
   );
 }

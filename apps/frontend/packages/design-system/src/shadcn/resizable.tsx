@@ -39,3 +39,4 @@ function ResizableHandle({
 }
 
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup };
+export { useDefaultLayout, usePanelRef } from "react-resizable-panels";

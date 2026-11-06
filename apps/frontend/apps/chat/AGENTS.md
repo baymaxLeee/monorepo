@@ -17,7 +17,12 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 - `src/router/index.tsx` — relative route tree exposed as `./routes`
 - `src/pages/chat/Chat.tsx` — route wrapper for `@repo/chat` ChatSession
-- `src/pages/layout/ChatLayout.tsx` — conversation shell and artifact panel
+- `src/pages/layout/ChatLayout.tsx` — three-region composition only; no message, list or preview-content subscriptions
+- `src/components/ChatPanels.tsx` — shadcn Sidebar/Resizable layout; only visibility changes may cross region boundaries
+- `src/components/ChatConversationSidebar.tsx` / `hooks/useConversationHistory.ts` — conversation CRUD and title updates, owned by the left sidebar
+- `src/components/ChatInspector.tsx` — lazy Artifact/video preview, owned by the right sidebar
+- `src/components/ChatAuxiliaryPanels.tsx` — lazy memory/trace sheets; closed panels do not subscribe to content updates
+- `packages/chat/src/components/ChatStream.tsx` — the only high-frequency SDK subscriber; do not lift messages into the shell, composer or app store
 - Route entry modules export the named `Component` expected by `route.lazy`
 - `packages/chat/src/components/ChatMessageView.tsx` — native message-part rendering
 - `packages/chat/src/components/ChatArtifactCard.tsx` — persisted plan / artifact card UI

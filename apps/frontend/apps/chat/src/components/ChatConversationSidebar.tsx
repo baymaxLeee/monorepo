@@ -1,217 +1,124 @@
-import type { Conversation } from "@repo/api";
+import { useChatStore } from "@repo/chat/store/useChatStore";
 import {
-  Aside,
   Button,
-  buttonVariants,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Section,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
   Skeleton,
+  buttonVariants,
+  useSidebar,
 } from "@repo/design-system";
 import { cn } from "@repo/shared";
-import {
-  BoxesIcon,
-  DownloadIcon,
-  MessageSquareIcon,
-  MoreHorizontalIcon,
-  PanelLeftIcon,
-  PlusIcon,
-  RouteIcon,
-  Trash2Icon,
-} from "lucide-react";
-import type { Ref } from "react";
+import { BoxesIcon, MessageSquareIcon, PanelLeftCloseIcon, PlusIcon } from "lucide-react";
+import { memo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ChatPanelResizeHandle } from "./ChatPanelResizeHandle";
+import { useConversationHistory } from "../hooks/useConversationHistory";
+import { ChatConversationActions } from "./ChatConversationActions";
 import { ChatUserMenu } from "./ChatUserMenu";
 
-export type ChatConversationSidebarProps = {
-  panelRef: Ref<HTMLElement>;
-  conversations: Conversation[] | null;
-  activePath: string;
-  creating: boolean;
-  open: boolean;
-  width: number;
-  compact: boolean;
-  showToggle: boolean;
-  onCreate: () => void;
-  onDelete: (id: string) => void;
-  onExport: (id: string) => void;
-  onOpenTrace: (id: string) => void;
-  onToggle: () => void;
-  onResize: (deltaX: number) => number | undefined;
-  onResizeStart: () => void;
-  onResizeEnd: () => void;
-  resizeMin?: number;
-  resizeMax?: number;
-};
+const HISTORY_PAGE_SIZE = 40;
 
-export function ChatConversationSidebar({
-  panelRef,
-  conversations,
-  activePath,
-  creating,
-  open,
-  width,
-  compact,
-  showToggle,
-  onCreate,
-  onDelete,
-  onExport,
-  onOpenTrace,
-  onToggle,
-  onResize,
-  onResizeStart,
-  onResizeEnd,
-  resizeMin,
-  resizeMax,
-}: ChatConversationSidebarProps) {
+export const ChatConversationSidebar = memo(function ChatConversationSidebar() {
+  const { isMobile, open, setOpen, setOpenMobile } = useSidebar();
+  const history = useConversationHistory();
+  const [visible, setVisible] = useState(HISTORY_PAGE_SIZE);
+  const openTrace = useChatStore((s) => s.openTracePanel);
+  const closeMobile = () => setOpenMobile(false);
   return (
-    <>
-      <Aside
-        ref={panelRef}
-        className={cn(
-          "relative z-10 w-full min-w-0 gap-2 overflow-visible !border-r-0 bg-background p-1.5",
-          compact && "absolute inset-y-0 left-0 z-30 shadow-xl",
-          open ? "opacity-100" : "pointer-events-none opacity-0",
-        )}
-        aria-hidden={!open}
-      >
-        <div className="relative flex h-full min-w-0 flex-col gap-2 overflow-hidden">
-          <div className="flex items-center justify-between gap-1 px-1 pt-0.5">
-            <Link
-              to="/platform/chat"
-              aria-label="Monorepo"
-              className="inline-flex min-w-0 items-center gap-1.5 font-semibold"
-            >
-              <BoxesIcon aria-hidden="true" className="size-4 shrink-0" />
-              <span className="truncate text-sm">Monorepo</span>
-            </Link>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label="收起侧栏"
-              className="size-7 shrink-0"
-              onClick={onToggle}
-            >
-              <PanelLeftIcon aria-hidden="true" className="size-3.5" />
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between gap-1 px-0.5">
-            <span className="truncate text-[11px] font-medium text-muted-foreground">会话</span>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={onCreate}
-              disabled={creating}
-              aria-label="新建会话"
-              className="size-7 shrink-0"
-            >
-              <PlusIcon aria-hidden="true" className="size-3.5" />
-            </Button>
-          </div>
-
-          <Section className="min-h-0 flex-1 gap-0.5 overflow-y-auto">
-            {conversations === null ? (
-              <div className="space-y-2 px-1">
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-3/4" />
-              </div>
-            ) : conversations.length === 0 ? (
-              <p className="px-2 text-xs text-muted-foreground">暂无会话，点击右上「新建」开始对话。</p>
-            ) : (
-              <nav className="grid gap-0.5" aria-label="会话列表">
-                {conversations.map((conversation) => {
-                  const active = activePath.endsWith(`/${conversation.id}`);
-                  return (
-                    <div
-                      key={conversation.id}
-                      className="group flex min-w-0 items-center gap-0.5 rounded-lg hover:bg-muted/50"
-                    >
-                      <Link
-                        to={`/platform/chat/conversations/${conversation.id}`}
-                        className={cn(
-                          buttonVariants({ variant: active ? "secondary" : "ghost" }),
-                          "h-auto min-w-0 flex-1 justify-start gap-1.5 rounded-md px-1.5 py-1.5 text-left shadow-none",
-                        )}
-                      >
-                        <MessageSquareIcon aria-hidden="true" className="size-3.5 shrink-0 opacity-60" />
-                        <span className="truncate text-xs font-normal">{conversation.title}</span>
-                      </Link>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              aria-label={`${conversation.title} 更多操作`}
-                              className="size-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-popup-open:opacity-100"
-                            />
-                          }
-                        >
-                          <MoreHorizontalIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem onClick={() => onOpenTrace(conversation.id)}>
-                            <RouteIcon aria-hidden="true" className="mr-2 size-4" />
-                            执行轨迹
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onExport(conversation.id)}>
-                            <DownloadIcon aria-hidden="true" className="mr-2 size-4" />
-                            导出 Markdown
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => onDelete(conversation.id)}
-                          >
-                            <Trash2Icon aria-hidden="true" className="mr-2 size-4" />
-                            删除
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  );
-                })}
-              </nav>
-            )}
-          </Section>
-
-          <div className="mt-auto border-t pt-1.5">
-            <ChatUserMenu />
-          </div>
-        </div>
-        <ChatPanelResizeHandle
-          edge="left-panel"
-          value={width}
-          minValue={resizeMin}
-          maxValue={resizeMax}
-          disabled={!open}
-          onDrag={onResize}
-          onDragStart={onResizeStart}
-          onDragEnd={onResizeEnd}
-        />
-      </Aside>
-      {!open && showToggle ? (
+    <Sidebar
+      collapsible={isMobile ? "offcanvas" : "none"}
+      className="w-full border-0"
+      aria-label="会话记录"
+      inert={!isMobile && !open}
+    >
+      <SidebarHeader className="flex-row items-center justify-between">
+        <Link to="/platform/chat" className="flex items-center gap-2 text-sm font-semibold" onClick={closeMobile}>
+          <BoxesIcon className="size-4" aria-hidden="true" />
+          Monorepo
+        </Link>
         <Button
-          type="button"
           variant="ghost"
-          size="icon"
-          aria-label="展开会话列表"
-          className="absolute top-2 left-2 z-30 size-8 bg-background/80 shadow-sm backdrop-blur-sm"
-          onClick={onToggle}
+          size="icon-sm"
+          aria-label="收起会话记录"
+          onClick={() => (isMobile ? closeMobile() : setOpen(false))}
         >
-          <PanelLeftIcon aria-hidden="true" className="size-4" />
+          <PanelLeftCloseIcon />
         </Button>
-      ) : null}
-    </>
+      </SidebarHeader>
+      <Button
+        variant="ghost"
+        className="mx-2 justify-start"
+        disabled={history.creating}
+        onClick={() =>
+          void history
+            .create()
+            .then(closeMobile)
+            .catch(() => {})
+        }
+      >
+        <PlusIcon />
+        新建会话
+      </Button>
+      <SidebarContent className="px-2 py-3">
+        {history.error ? (
+          <div role="alert" className="p-2 text-sm text-muted-foreground">
+            {history.error}
+            <Button variant="link" onClick={() => void history.load()}>
+              重试
+            </Button>
+          </div>
+        ) : history.conversations === null ? (
+          <Skeleton className="h-24" />
+        ) : history.conversations.length === 0 ? (
+          <p className="p-2 text-xs text-muted-foreground">暂无会话</p>
+        ) : (
+          <SidebarMenu aria-label="会话列表">
+            {history.conversations.slice(0, visible).map((item) => {
+              const active = history.pathname.endsWith(`/${item.id}`);
+              return (
+                <SidebarMenuItem key={item.id}>
+                  <Link
+                    to={`/platform/chat/conversations/${item.id}`}
+                    aria-current={active ? "page" : undefined}
+                    onClick={closeMobile}
+                    className={cn(
+                      buttonVariants({ variant: active ? "secondary" : "ghost" }),
+                      "h-9 w-full min-w-0 justify-start gap-2 pr-9 text-sm font-normal",
+                    )}
+                  >
+                    <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <span className="truncate">{item.title}</span>
+                  </Link>
+                  <ChatConversationActions
+                    conversation={item}
+                    onDelete={history.remove}
+                    onExport={history.download}
+                    onOpenTrace={openTrace}
+                  />
+                </SidebarMenuItem>
+              );
+            })}
+            {history.conversations.length > visible ? (
+              <SidebarMenuItem>
+                <Button
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => setVisible((count) => count + HISTORY_PAGE_SIZE)}
+                >
+                  显示更早的会话
+                </Button>
+              </SidebarMenuItem>
+            ) : null}
+          </SidebarMenu>
+        )}
+      </SidebarContent>
+      <SidebarFooter>
+        <ChatUserMenu />
+      </SidebarFooter>
+    </Sidebar>
   );
-}
+});
