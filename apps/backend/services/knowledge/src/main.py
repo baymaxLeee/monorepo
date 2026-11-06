@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from api.http.routes import (
     conversation_cleanup_internal,
+    conversation_fork_internal,
     documents,
     documents_internal,
     files_internal,
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
     app.include_router(documents_internal.router)
     app.include_router(files_internal.router)
     app.include_router(conversation_cleanup_internal.router)
+    app.include_router(conversation_fork_internal.router)
     app.include_router(retrieval_internal.router)
     return app
 

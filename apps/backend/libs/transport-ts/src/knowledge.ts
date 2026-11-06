@@ -31,6 +31,26 @@ export class KnowledgeInternalClient {
     this.client = createInternalOpenApiClient<paths>({ ...options, service: "knowledge" });
   }
 
+  forkConversationFiles(input: {
+    sourceConversationId: string;
+    conversationId: string;
+    userId: string;
+    tenantId: string;
+    workspaceId: string;
+  }): Promise<components["schemas"]["ForkConversationFilesResult"]> {
+    return this.unwrap(
+      this.client.POST("/internal/conversation-forks", {
+        body: {
+          source_conversation_id: input.sourceConversationId,
+          conversation_id: input.conversationId,
+          user_id: input.userId,
+          tenant_id: input.tenantId,
+          workspace_id: input.workspaceId,
+        },
+      }),
+    );
+  }
+
   listDocuments(input: { userId: string; conversationId?: string }): Promise<KnowledgeDocument[]> {
     return this.unwrap(
       this.client.GET("/internal/documents", {

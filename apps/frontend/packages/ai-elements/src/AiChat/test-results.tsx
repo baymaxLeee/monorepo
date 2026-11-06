@@ -73,7 +73,7 @@ export function TestSuite({ suite }: { suite: TestSuiteResult }) {
 }
 export function Test({ result }: { result: TestResult }) {
   return (
-    <div className="space-y-2">
+    <div className="flex-col items-stretch gap-2">
       <TraceLine status={result.status === "failed" ? "error" : result.status === "running" ? "running" : undefined}>
         <TraceIcon>
           {result.status === "passed" ? (
@@ -84,7 +84,9 @@ export function Test({ result }: { result: TestResult }) {
             <CircleIcon />
           )}
         </TraceIcon>
-        <TraceTitle>{result.name}</TraceTitle>
+        <TraceTitle className="whitespace-normal break-words" title={result.name}>
+          {result.name}
+        </TraceTitle>
         <span className="sr-only">{result.status}</span>
         {result.durationMs !== undefined ? <TraceDescription>{result.durationMs} ms</TraceDescription> : null}
       </TraceLine>

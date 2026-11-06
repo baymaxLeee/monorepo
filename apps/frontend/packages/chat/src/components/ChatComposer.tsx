@@ -75,6 +75,7 @@ export const ChatComposer = memo(function ChatComposer({
             .then((result) => {
               for (const { client_ref: clientRef, document } of result.documents) {
                 promptRef.current?.updateToken(clientRef, {
+                  status: document.ingest_status === "failed" ? "failed" : "ready",
                   meta: {
                     artifactId: document.id,
                     assetId: document.asset_id,
@@ -85,6 +86,8 @@ export const ChatComposer = memo(function ChatComposer({
               }
               for (const failure of result.failed) {
                 promptRef.current?.updateToken(failure.client_ref, {
+                  status: "failed",
+                  error: failure.error,
                   meta: {
                     artifactId: failure.artifact_id ?? undefined,
                     ingestStatus: "failed",
@@ -98,6 +101,8 @@ export const ChatComposer = memo(function ChatComposer({
               const message = getErrorMessage(error);
               for (const { token } of items) {
                 promptRef.current?.updateToken(token.id, {
+                  status: "failed",
+                  error: message,
                   meta: {
                     ingestStatus: "failed",
                     ingestError: message,
@@ -111,7 +116,7 @@ export const ChatComposer = memo(function ChatComposer({
         mentionSource={(query) => {
           const q = query.trim().toLowerCase();
           return documents
-            .filter((document) => document.kind === "source")
+            .filter((document) => document.ingest_status !== "failed")
             .filter((document) => !q || (document.filename || document.title).toLowerCase().includes(q))
             .slice(0, 8)
             .map((document) => ({

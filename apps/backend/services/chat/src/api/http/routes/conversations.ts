@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { getConversationContext } from "../../../application/agent/index.js";
 import { activeAgentStreamRunId } from "../../../application/agent/streams/service.js";
+import { forkConversation } from "../../../application/conversation-fork.js";
 import {
   authorizeDocumentDelivery,
   authorizeFileDelivery,
@@ -361,3 +362,14 @@ conversationsRoutes.get("/:conversationId/documents/:documentId/content", async 
   c.header("Cache-Control", "no-store");
   return c.redirect(capability.url, 307);
 });
+
+conversationsRoutes.post(
+  "/:conversationId/forks",
+  zValidator("json", z.object({ message_id: z.string().min(1).max(32) })),
+  async (c) => {
+    return c.json(
+      await forkConversation(getAuth(c), c.req.param("conversationId"), c.req.valid("json").message_id),
+      201,
+    );
+  },
+);

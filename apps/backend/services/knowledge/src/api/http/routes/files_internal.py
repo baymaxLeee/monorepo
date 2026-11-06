@@ -19,6 +19,7 @@ from application.contracts.file_store import (
 )
 from application.conversation_cleanup import assert_conversation_accepts_artifacts
 from application.file_content import read_text, store_text
+from application.file_paths import source_path as _source_path
 from application.storage_client import ensure_content_claim_active, mark_asset_claims_released
 from fastapi import APIRouter, Depends, Query
 from infrastructure.persistence.database import write_tx
@@ -41,11 +42,6 @@ def _path(value: str) -> str:
     if not path or path.startswith("/") or ".." in path.split("/") or any(not part for part in path.split("/")):
         raise RequestError("invalid virtual file path")
     return path
-
-
-def _source_path(row: DocumentRow) -> str:
-    filename = re.sub("[^a-zA-Z0-9._\\-\\u4e00-\\u9fff]+", "-", row.source_filename or row.filename).strip("-.")
-    return f"sources/{row.id[:8]}-{filename or 'file'}"
 
 
 def _entry(row: FileEntryRow | FileChangeSetEntryRow) -> FileEntry:

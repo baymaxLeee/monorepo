@@ -1,20 +1,22 @@
 import {
   Message as AiMessage,
   MessageContent,
-  MessageResponse,
+  type SourceItem,
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
 } from "@repo/ai-elements";
 import type { ConversationDocument } from "@repo/api";
 import { Badge, Spinner } from "@repo/design-system";
-import { cn, isPublicHttpUrl } from "@repo/shared";
+import { cn } from "@repo/shared";
 import { isFileUIPart, isToolUIPart, type UIMessage } from "ai";
 import { SparklesIcon } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo } from "react";
 
 import { documentIdFromFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
+import { ChatCheckpoint } from "./ChatCheckpoint";
+import { ChatCitedResponse, Sources } from "./ChatCitedResponse";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
 import type { DeliverableCompletion } from "./ChatTodoListCard";
 
@@ -22,6 +24,7 @@ const ToolPartView = lazy(() => import("./ChatToolPart").then((m) => ({ default:
 
 export interface ChatMessageViewProps {
   message: UIMessage;
+  onFork?: (messageId: string) => Promise<void>;
   conversationId: string;
   streaming: boolean;
   documents: Map<string, ConversationDocument>;
@@ -38,6 +41,7 @@ export interface ChatMessageViewProps {
 
 export function ChatMessageView({
   message,
+  onFork,
   conversationId,
   streaming,
   documents,
@@ -54,6 +58,10 @@ export function ChatMessageView({
   const isUser = message.role === "user";
   const variant = isUser ? "user" : "assistant";
 
+  const sources = useMemo(
+    () => message.parts.filter((part) => part.type === "source-url" || part.type === "source-document"),
+    [message.parts],
+  );
   const openImagePreview = useChatStore((s) => s.openImagePreview);
   const imageRefs = useMemo(
     () =>
@@ -83,6 +91,7 @@ export function ChatMessageView({
           <MessagePartView
             key={partKey(message.id, part, index)}
             part={part}
+            sources={sources}
             partIndex={index}
             conversationId={conversationId}
             streaming={streaming}
@@ -100,7 +109,9 @@ export function ChatMessageView({
             planBusy={planBusy}
           />
         ))}
+        {!isUser && <Sources sources={sources} />}
       </MessageContent>
+      {!isUser && !streaming && onFork && <ChatCheckpoint messageId={message.id} disabled={planBusy} onFork={onFork} />}
     </AiMessage>
   );
 }
@@ -117,6 +128,7 @@ function partKey(messageId: string, part: UIMessage["parts"][number], index: num
 
 function MessagePartView({
   part,
+  sources,
   partIndex,
   conversationId,
   streaming,
@@ -134,6 +146,7 @@ function MessagePartView({
   planBusy,
 }: {
   part: UIMessage["parts"][number];
+  sources: SourceItem[];
   partIndex: number;
   conversationId: string;
   streaming: boolean;
@@ -167,7 +180,7 @@ function MessagePartView({
     if (variant === "user") {
       return <span className="whitespace-pre-wrap break-words">{part.text}</span>;
     }
-    return <MessageResponse isAnimating={streaming}>{part.text}</MessageResponse>;
+    return <ChatCitedResponse text={part.text} streaming={streaming} sources={sources} />;
   }
 
   if (part.type === "data-skill-activation") {
@@ -180,27 +193,6 @@ function MessagePartView({
         <SparklesIcon className="size-3" />
         {name}
       </Badge>
-    );
-  }
-
-  if (part.type === "source-url") {
-    const href = isPublicHttpUrl(part.url) ? part.url : undefined;
-    if (!href) {
-      return (
-        <div className="block rounded-md border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-          {part.title ?? "链接不可用"}
-        </div>
-      );
-    }
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="block rounded-md border bg-background/70 px-3 py-2 text-xs text-primary hover:underline"
-      >
-        {part.title ?? href}
-      </a>
     );
   }
 

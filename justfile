@@ -124,6 +124,14 @@ sync:
     cd apps/backend && just gen-transport-ts
     @echo "OK Schema synced"
 
+# Add official AI Elements sources, e.g. ai-add @ai-elements/message --dry-run.
+ai-add *args:
+    @pnpm --dir apps/frontend/packages/ai-elements ui:add "$@"
+
+# Add shadcn Base components, e.g. ui-add button --dry-run.
+ui-add *args:
+    @pnpm --dir apps/frontend/packages/design-system ui:add "$@"
+
 fmt:
     pnpm format:ts
     cd apps/backend && just fmt

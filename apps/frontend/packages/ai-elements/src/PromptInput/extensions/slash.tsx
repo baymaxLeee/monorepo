@@ -1,6 +1,7 @@
 import { PluginKey } from "@tiptap/pm/state";
 import { Sparkles } from "lucide-react";
 
+import type { PromptSuggestionController } from "../components/usePromptSuggestions";
 import type { PromptInputApi, PromptSkillsLoad, PromptSlashCommand, PromptSlashSource } from "../interface";
 import { createSuggestionExtension } from "./Suggestion";
 
@@ -58,12 +59,14 @@ function filterCommands(list: PromptSlashCommand[], query: string) {
  * persisted token like a mention.
  */
 export function buildSlashExtension(options: {
+  controller: PromptSuggestionController;
   getSource: () => PromptSlashSource | undefined;
   getOnSkillsLoad: () => PromptSkillsLoad | undefined;
   getApi: () => PromptInputApi | null;
   onCommand: (command: PromptSlashCommand, api: PromptInputApi) => void;
 }) {
   return createSuggestionExtension<PromptSlashCommand>({
+    controller: options.controller,
     name: "promptSlash",
     char: "/",
     pluginKey: slashPluginKey,

@@ -128,6 +128,11 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
       }
       return parsed?.status === "completed" && (parsed.productionId || parsed.documentId) ? "completed" : "running";
     }
+    case "subagent": {
+      const outcome = parseToolOutcome(output);
+      if (outcome?.ok === false) return "error";
+      return outcome?.status === "completed" ? "completed" : "running";
+    }
     case "artifact": {
       const artifact = parseArtifactOutput(output);
       if (artifact?.documentId || artifact?.path) {
@@ -154,6 +159,7 @@ const DELIVERABLE_BY_UI_KIND: Record<string, DeliverableKind> = {
   "image-gallery": "image",
   video: "video",
   artifact: "artifact",
+  subagent: "artifact",
 };
 
 // The todo snapshot is rewritten only between agent steps. Read later official

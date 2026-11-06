@@ -19,20 +19,6 @@ declare module "@tiptap/core" {
   }
 }
 
-type IngestMeta = {
-  clientRef?: string;
-  artifactId?: string;
-  ingestStatus?: string;
-  ingestError?: string;
-};
-
-const parseMeta = (value: unknown): IngestMeta => {
-  if (!value || typeof value !== "object") {
-    return {};
-  }
-  return value;
-};
-
 const getTokenIcon = (kind: string) => {
   if (kind === "image") {
     return <ImageIcon className="size-3.5" />;
@@ -43,7 +29,6 @@ const getTokenIcon = (kind: string) => {
 const PromptTokenView = (props: NodeViewProps) => {
   const { editor, extension, node, selected, getPos } = props;
   const token = node.attrs as PromptInputToken;
-  const meta = parseMeta(token.meta);
   const options = extension.options as PromptTokenOptions;
 
   const deleteToken = () => {
@@ -63,9 +48,8 @@ const PromptTokenView = (props: NodeViewProps) => {
     deleteToken,
   });
 
-  const ingestStatus = meta.ingestStatus;
-  const failed = ingestStatus === "failed";
-  const isReady = Boolean(meta.artifactId) || ingestStatus === "ready";
+  const failed = token.status === "failed";
+  const isReady = token.status === "ready";
 
   return (
     <NodeViewWrapper as="span" className="prompt-input-token-wrap">
@@ -79,9 +63,10 @@ const PromptTokenView = (props: NodeViewProps) => {
             isReady && "prompt-input-token-ready",
           )}
           data-kind={token.kind}
+          title={token.error || token.label}
         >
           {isReady ? (
-            <Check className="size-3.5 text-emerald-600" />
+            <Check className="size-3.5 text-foreground" />
           ) : failed ? (
             <AlertCircle className="size-3.5 text-destructive" />
           ) : token.kind === "image" && token.url ? (
@@ -95,12 +80,17 @@ const PromptTokenView = (props: NodeViewProps) => {
               type="button"
               className="prompt-input-token-remove"
               onClick={() => options.retryToken?.(token)}
-              aria-label="Retry upload"
+              aria-label={`重试上传 ${token.label}`}
             >
               <RotateCcw className="size-3" />
             </button>
           ) : null}
-          <button type="button" className="prompt-input-token-remove" onClick={deleteToken} aria-label="Remove token">
+          <button
+            type="button"
+            className="prompt-input-token-remove"
+            onClick={deleteToken}
+            aria-label={`移除 ${token.label}`}
+          >
             <X className="size-3" />
           </button>
         </span>
@@ -129,6 +119,8 @@ export const createPromptTokenExtension = (options: PromptTokenOptions = {}) =>
         mime: { default: null },
         size: { default: null },
         url: { default: null },
+        status: { default: "ready" },
+        error: { default: null },
         meta: {
           default: {},
           parseHTML: (element) => {

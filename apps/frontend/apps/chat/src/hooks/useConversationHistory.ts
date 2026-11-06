@@ -14,7 +14,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 export function useConversationHistory() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, state: navigationState } = useLocation();
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -50,6 +50,9 @@ export function useConversationHistory() {
       mounted.current = false;
     };
   }, [load]);
+  useEffect(() => {
+    if (navigationState?.refreshConversationHistory) void load();
+  }, [load, navigationState]);
   useEffect(() => {
     if (!titleUpdate) return;
     setConversations(

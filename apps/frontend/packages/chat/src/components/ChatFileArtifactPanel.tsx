@@ -1,7 +1,7 @@
-import { ArtifactAction, resolveArtifactPreviewKind } from "@repo/ai-elements";
+import { resolveArtifactPreviewKind } from "@repo/ai-elements";
 import type { ConversationFileDetail } from "@repo/api";
 import { createStorageDownloadUrl, downloadAssetUrl, fetchConversationFile } from "@repo/api";
-import { Button, toast } from "@repo/design-system";
+import { Toolbar, ToolbarButton, Tooltip, TooltipTrigger, TooltipContent, toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { DownloadIcon, Loader2Icon, Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -111,38 +111,46 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
             </p>
           ) : null}
         </div>
-        {previewFile ? (
-          <ArtifactAction
-            tooltip={downloading ? "下载中…" : "下载"}
-            label="下载产物"
-            disabled={downloading}
-            onClick={() => void downloadFile()}
-          >
-            {downloading ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
-          </ArtifactAction>
-        ) : null}
-        {isHtmlFile ? (
-          <Button
+        <Toolbar aria-label="文件预览操作">
+          {previewFile ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <ToolbarButton aria-label="下载产物" disabled={downloading} onClick={() => void downloadFile()} />
+                }
+              >
+                {downloading ? (
+                  <Loader2Icon className="size-4 motion-safe:animate-spin" />
+                ) : (
+                  <DownloadIcon className="size-4" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>{downloading ? "下载中…" : "下载"}</TooltipContent>
+            </Tooltip>
+          ) : null}
+          {isHtmlFile ? (
+            <ToolbarButton
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0"
+              aria-label={isFullscreen ? "退出全屏" : "全屏"}
+              onClick={() => void toggleFullscreen()}
+            >
+              {isFullscreen ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
+            </ToolbarButton>
+          ) : null}
+          <ToolbarButton
             type="button"
             variant="ghost"
             size="icon"
             className="size-8 shrink-0"
-            aria-label={isFullscreen ? "退出全屏" : "全屏"}
-            onClick={() => void toggleFullscreen()}
+            aria-label="关闭预览"
+            onClick={handleClose}
           >
-            {isFullscreen ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8 shrink-0"
-          aria-label="关闭预览"
-          onClick={handleClose}
-        >
-          <XIcon className="size-4" />
-        </Button>
+            <XIcon className="size-4" />
+          </ToolbarButton>
+        </Toolbar>
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {loading || isChangingFile ? (

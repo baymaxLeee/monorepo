@@ -549,6 +549,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/conversation-forks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fork Files */
+        post: operations["fork_files_internal_conversation_forks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/retrieve": {
         parameters: {
             query?: never;
@@ -893,6 +910,30 @@ export interface components {
             column: number;
             /** Text */
             text: string;
+        };
+        /** ForkConversationFilesInput */
+        ForkConversationFilesInput: {
+            /** Source Conversation Id */
+            source_conversation_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /** User Id */
+            user_id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Workspace Id */
+            workspace_id: string;
+        };
+        /** ForkConversationFilesResult */
+        ForkConversationFilesResult: {
+            /** Document Ids */
+            document_ids: {
+                [key: string]: string;
+            };
+            /** Paths */
+            paths: {
+                [key: string]: string;
+            };
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2408,6 +2449,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CleanupConversationArtifactsResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fork_files_internal_conversation_forks_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForkConversationFilesInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForkConversationFilesResult"];
                 };
             };
             /** @description Validation Error */

@@ -8,6 +8,7 @@ import { ChatComposer } from "../../components/ChatComposer";
 import { ChatImagePreview } from "../../components/ChatImagePreview";
 import { ChatStream } from "../../components/ChatStream";
 import { useConversationChat } from "../../hooks/useConversationChat";
+import { useForkConversation } from "../../hooks/useForkConversation";
 import type { ChatUIMessage } from "../../lib/chat-message";
 import { buildUserFilePart } from "../../lib/file-parts";
 import { useChatStore } from "../../store/useChatStore";
@@ -23,6 +24,7 @@ export function ChatSession({
   onCanvasChange?: () => void;
   externalRequest?: { id: string; text: string } | null;
 }) {
+  const forkConversation = useForkConversation(id);
   const [mode, setMode] = useState<"normal" | "plan">("normal");
   const [activatedSkillName, setActivatedSkillName] = useState<string | null>(null);
   const promptRef = useRef<PromptInputRef>(null);
@@ -318,6 +320,7 @@ export function ChatSession({
       </header>
 
       <ChatStream
+        onFork={forkConversation}
         chat={chat}
         conversationId={id}
         loading={loading}

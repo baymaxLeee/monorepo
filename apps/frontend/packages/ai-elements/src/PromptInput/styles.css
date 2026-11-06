@@ -44,7 +44,7 @@
   margin: 0;
 }
 
-.prompt-input-prosemirror:has(> p:only-child:empty)::before {
+.prompt-input-prosemirror[data-empty="true"]::before {
   position: absolute;
   top: 0;
   left: 0;
@@ -119,8 +119,8 @@
 
 .prompt-input-token-remove {
   display: inline-flex;
-  width: 1rem;
-  height: 1rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -154,15 +154,9 @@
   color: var(--foreground);
 }
 
-/* Suggestion popup. Mounted to `document.body` by the plugin, so these are
-   global classes styled off the shared theme tokens. */
-.prompt-input-suggestion-renderer {
-  z-index: 80;
-}
-
+/* Base UI owns popup positioning, modal ancestry and portal behavior. */
 .prompt-input-suggestion {
   position: relative;
-  z-index: 60;
   min-width: 14rem;
   max-width: 22rem;
   max-height: 16rem;
@@ -243,3 +237,10 @@
   font-size: 0.8125rem;
   color: var(--muted-foreground);
 }
+
+@media (pointer: coarse) {
+  .prompt-input-prosemirror { font-size: 1rem; }
+  .prompt-input button { min-width: 2.75rem; min-height: 2.75rem; }
+  .prompt-input-suggestion-item { min-height: 2.75rem; }
+}
+.prompt-input-token-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

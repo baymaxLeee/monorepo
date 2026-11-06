@@ -1,6 +1,6 @@
 import { Button } from "@repo/design-system/shadcn/button";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/design-system/shadcn/hover-card";
-import { Progress } from "@repo/design-system/shadcn/progress";
+import { Meter } from "@repo/design-system/shadcn/meter";
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/design-system/shadcn/popover";
 import { cn } from "@repo/shared";
 import type { ComponentProps } from "react";
 
@@ -15,13 +15,13 @@ export interface ContextUsageCategory {
 }
 
 const CATEGORY_META: Record<ContextUsageCategoryId, { label: string; color: string }> = {
-  system: { label: "System prompt", color: "bg-zinc-400" },
-  tools: { label: "Tool definitions", color: "bg-purple-400" },
-  rules: { label: "Rules", color: "bg-green-400" },
-  skills: { label: "Skills", color: "bg-yellow-500" },
-  mcp: { label: "MCP & dynamic tools", color: "bg-fuchsia-500" },
-  memory: { label: "Memory", color: "bg-blue-500" },
-  conversation: { label: "Conversation", color: "bg-orange-500" },
+  system: { label: "系统提示", color: "bg-zinc-400" },
+  tools: { label: "工具定义", color: "bg-purple-400" },
+  rules: { label: "规则", color: "bg-green-400" },
+  skills: { label: "技能", color: "bg-yellow-500" },
+  mcp: { label: "MCP 与动态工具", color: "bg-fuchsia-500" },
+  memory: { label: "记忆", color: "bg-blue-500" },
+  conversation: { label: "对话", color: "bg-orange-500" },
 };
 
 const TOKENS_PER_K = 1024;
@@ -45,7 +45,7 @@ export interface ContextUsageValue {
   categories: ContextUsageCategory[];
 }
 
-export type ContextUsageProps = ComponentProps<typeof HoverCard> & {
+export type ContextUsageProps = ComponentProps<typeof Popover> & {
   value?: ContextUsageValue | null;
   loading?: boolean;
 };
@@ -63,8 +63,8 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
   const ringClass = fraction >= 0.9 ? "text-destructive" : fraction >= 0.7 ? "text-amber-500" : "text-muted-foreground";
 
   return (
-    <HoverCard {...props}>
-      <HoverCardTrigger
+    <Popover {...props}>
+      <PopoverTrigger
         render={
           <Button
             type="button"
@@ -77,7 +77,7 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
       >
         <svg
           aria-hidden="true"
-          className={cn("size-5 -rotate-90", ringClass, loading && "animate-pulse")}
+          className={cn("size-5 -rotate-90", ringClass, loading && "motion-safe:animate-pulse")}
           viewBox="0 0 24 24"
         >
           <circle cx="12" cy="12" r={RADIUS} fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25" />
@@ -94,19 +94,19 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
             strokeDashoffset={hasUsage && utilization == null ? 0 : CIRCUMFERENCE * (1 - fraction)}
           />
         </svg>
-      </HoverCardTrigger>
-      <HoverCardContent align="center" side="top" className="w-72 space-y-2.5 p-3">
-        <h3 className="text-sm font-medium">Context Usage</h3>
+      </PopoverTrigger>
+      <PopoverContent align="center" side="top" className="w-72 space-y-2.5 p-3">
+        <h3 className="text-sm font-medium">上下文用量</h3>
 
         {hasUsage ? (
           <>
             <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-              <span>{percent != null ? `${percent}% Full` : "上限未知"}</span>
+              <span>{percent != null ? `已使用 ${percent}%` : "上限未知"}</span>
               <span className="shrink-0 tabular-nums">
-                ~{formatTokens(usedTokens)} / {formatTokens(contextWindow)} Tokens
+                ~{formatTokens(usedTokens)} / {formatTokens(contextWindow)} tokens
               </span>
             </div>
-            <Progress value={percent} aria-label="上下文用量" />
+            {percent != null ? <Meter value={Math.min(100, percent)} aria-label="上下文用量" /> : null}
             <div className="flex h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
               {visibleCategories.map((category) => (
                 <span
@@ -129,10 +129,10 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
             </div>
           </>
         ) : (
-          <p className="text-xs text-muted-foreground">{percent != null ? `${percent}% Full` : "暂无数据"}</p>
+          <p className="text-xs text-muted-foreground">{percent != null ? `已使用 ${percent}%` : "暂无数据"}</p>
         )}
-      </HoverCardContent>
-    </HoverCard>
+      </PopoverContent>
+    </Popover>
   );
 }
 

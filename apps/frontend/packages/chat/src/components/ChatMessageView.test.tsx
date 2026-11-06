@@ -33,11 +33,11 @@ const running: DynamicToolUIPart = {
 
 test("generic tool details stay collapsed while running and after completion", async () => {
   const view = render(message(running));
-  expect((await screen.findByRole("button", { name: /fetch\s*Running/ })).getAttribute("aria-expanded")).toBe("false");
+  expect((await screen.findByRole("button", { name: /fetch\s*执行中/ })).getAttribute("aria-expanded")).toBe("false");
   expect(screen.queryByText(/raw-input/)).toBeNull();
 
   view.rerender(message({ ...running, state: "output-available", output: { result: "raw-output" } }));
-  const trigger = screen.getByRole("button", { name: /fetch\s*Completed/ });
+  const trigger = screen.getByRole("button", { name: /fetch\s*已完成/ });
   expect(trigger.getAttribute("aria-expanded")).toBe("false");
   expect(screen.queryByText(/raw-output/)).toBeNull();
   fireEvent.click(trigger);
@@ -47,9 +47,9 @@ test("generic tool details stay collapsed while running and after completion", a
 
 test("stream updates preserve a user's expanded tool details", async () => {
   const view = render(message(running));
-  fireEvent.click(await screen.findByRole("button", { name: /fetch\s*Running/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /fetch\s*执行中/ }));
   view.rerender(message({ ...running, state: "output-available", output: "raw-output" }));
-  expect(screen.getByRole("button", { name: /fetch\s*Completed/ }).getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getByRole("button", { name: /fetch\s*已完成/ }).getAttribute("aria-expanded")).toBe("true");
   expect(screen.getByText("raw-output")).toBeTruthy();
 });
 
@@ -62,5 +62,5 @@ test("required approval stays visible and actionable", async () => {
 test("tool failure surfaces its reason without an extra click", async () => {
   render(message({ ...running, state: "output-error", errorText: "连接超时" }));
   expect(await screen.findByText("连接超时")).toBeTruthy();
-  expect(screen.getByRole("button", { name: /fetch\s*Error/ }).getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
 });

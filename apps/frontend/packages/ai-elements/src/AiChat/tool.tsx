@@ -27,27 +27,27 @@ export type ToolState =
 export type ToolPart = ToolUIPart | DynamicToolUIPart;
 
 const STATUS_LABELS: Record<string, string> = {
-  "approval-requested": "Awaiting Approval",
-  "approval-responded": "Responded",
-  "input-available": "Running",
-  "input-streaming": "Pending",
-  "output-available": "Completed",
-  "output-denied": "Denied",
-  "output-error": "Error",
+  "approval-requested": "等待授权",
+  "approval-responded": "已回应",
+  "input-available": "执行中",
+  "input-streaming": "准备中",
+  "output-available": "已完成",
+  "output-denied": "已拒绝",
+  "output-error": "失败",
 };
 
 function statusIcon(status: ToolState): ReactNode {
   switch (status) {
     case "approval-requested":
-      return <ClockIcon className="size-4 text-yellow-600" />;
+      return <ClockIcon className="size-4 text-muted-foreground" />;
     case "approval-responded":
-      return <CheckCircleIcon className="size-4 text-blue-600" />;
+      return <CheckCircleIcon className="size-4 text-muted-foreground" />;
     case "input-available":
-      return <ClockIcon className="size-4 animate-pulse" />;
+      return <ClockIcon className="size-4 motion-safe:animate-pulse" />;
     case "input-streaming":
       return <CircleIcon className="size-4" />;
     case "output-available":
-      return <CheckCircleIcon className="size-4 text-green-600" />;
+      return <CheckCircleIcon className="size-4 text-foreground" />;
     case "output-denied":
       return <XCircleIcon className="size-4 text-orange-600" />;
     case "output-error":
@@ -137,7 +137,7 @@ export type ToolInputProps = ComponentProps<"div"> & { input: ToolPart["input"] 
 export function ToolInput({ className, input, ...props }: ToolInputProps) {
   return (
     <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
-      <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Parameters</h4>
+      <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">输入参数</h4>
       <ToolJsonBlock value={input} />
     </div>
   );
@@ -156,7 +156,7 @@ export function ToolOutput({ className, output, errorText, ...props }: ToolOutpu
   return (
     <div className={cn("space-y-2", className)} {...props}>
       <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {errorText ? "Error" : "Result"}
+        {errorText ? "失败" : "执行结果"}
       </h4>
       <div
         className={cn(

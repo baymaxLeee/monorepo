@@ -521,7 +521,7 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: Language
         contextSchema: fileToolContextSchema,
         execute: listFiles,
       }),
-      fileReadPolicy,
+      { ...fileReadPolicy, uiKind: "file-tree" },
       { summary: "List source files and generated artifacts attached to the conversation." },
     ),
     defineAgentTool(
@@ -593,7 +593,7 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: Language
         trust: "closed",
         execution: "durable",
         modes: ["normal"],
-        uiKind: "artifact",
+        uiKind: "subagent",
       },
       {
         summary: "Materialize independent file tasks with durable bounded fan-out.",

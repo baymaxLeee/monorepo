@@ -10,6 +10,8 @@ export interface PromptInputToken {
   mime?: string;
   size?: number;
   url?: string;
+  status?: "uploading" | "ready" | "failed";
+  error?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -64,6 +66,7 @@ export type PromptSkillsLoad = (signal: AbortSignal) => PromptSlashCommand[] | P
 export interface PromptInputProps {
   defaultValue?: string;
   placeholder?: string;
+  label?: string;
   disabled?: boolean;
   loading?: boolean;
   className?: string;

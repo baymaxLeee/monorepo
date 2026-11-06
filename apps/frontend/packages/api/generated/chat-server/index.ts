@@ -379,6 +379,20 @@ export interface DeletedMemory {
   deleted: boolean;
 }
 
+export type ForkConversationBody = {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  message_id: string;
+};
+
+export type ForkConversation201 = {
+  id: string;
+  source_conversation_id: string;
+  source_message_id: string;
+};
+
 export type GetConversationsConversationIdDocumentsDocumentIdParams = {
 include_content?: boolean;
 };
@@ -475,6 +489,18 @@ const deleteConversationsConversationId = (
  options?: SecondParameter<typeof apiMutator<void>>,) => {
       return apiMutator<void>(
       {url: `/conversations/${conversationId}`, method: 'DELETE'
+    },
+      options);
+    }
+
+const forkConversation = (
+    conversationId: string,
+    forkConversationBody: ForkConversationBody,
+ options?: SecondParameter<typeof apiMutator<ForkConversation201>>,) => {
+      return apiMutator<ForkConversation201>(
+      {url: `/conversations/${conversationId}/forks`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: forkConversationBody
     },
       options);
     }
@@ -694,7 +720,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {createCanvasConversation,getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,postConversationsConversationIdDocumentsDocumentIdDelivery,postConversationsConversationIdFilesDelivery,getConversationsConversationIdDocumentsDocumentIdContent,getConversationsConversationIdFilesDetail,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreviewUrl,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreviewUrl,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {createCanvasConversation,getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,forkConversation,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,postConversationsConversationIdDocumentsDocumentIdDelivery,postConversationsConversationIdFilesDelivery,getConversationsConversationIdDocumentsDocumentIdContent,getConversationsConversationIdFilesDetail,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreviewUrl,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreviewUrl,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 export type CreateCanvasConversationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['createCanvasConversation']>>>
 export type GetHealthzResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getHealthz']>>>
 export type GetConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversations']>>>
@@ -702,6 +728,7 @@ export type PostConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<
 export type GetConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationId']>>>
 export type PatchConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['patchConversationsConversationId']>>>
 export type DeleteConversationsConversationIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['deleteConversationsConversationId']>>>
+export type ForkConversationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['forkConversation']>>>
 export type GetConversationsConversationIdContextResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdContext']>>>
 export type GetConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdAgentsRunStream']>>>
 export type PostConversationsConversationIdAgentsRunStreamResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdAgentsRunStream']>>>

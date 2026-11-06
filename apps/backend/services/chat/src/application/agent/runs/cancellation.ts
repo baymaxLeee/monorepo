@@ -60,7 +60,7 @@ export function finalizeCancelledParts(parts: AnyUIMessage["parts"]): AnyUIMessa
   });
 }
 
-function hasNonTerminalOutput(output: unknown): boolean {
+export function hasNonTerminalOutput(output: unknown): boolean {
   if (isToolOutcome(output)) {
     return output.status === "running";
   }

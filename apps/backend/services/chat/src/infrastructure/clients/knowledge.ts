@@ -244,3 +244,7 @@ export async function updateArtifact(input: {
     throw err;
   }
 }
+
+export function forkConversationFiles(input: Parameters<KnowledgeInternalClient["forkConversationFiles"]>[0]) {
+  return knowledgeClient().forkConversationFiles(input);
+}

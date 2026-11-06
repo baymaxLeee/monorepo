@@ -18,6 +18,7 @@ import { createContext, memo, useCallback, useContext, useEffect, useMemo, useSt
 import { Streamdown } from "streamdown";
 
 import "streamdown/styles.css";
+import { markdownRehypePlugins, markdownTranslations } from "./markdown-policy";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -182,7 +183,7 @@ export function MessageBranchPrevious({ children, ...props }: MessageBranchPrevi
   const { goToPrevious, totalBranches } = useMessageBranch();
   return (
     <Button
-      aria-label="Previous branch"
+      aria-label="上一个分支"
       disabled={totalBranches <= 1}
       onClick={goToPrevious}
       size="icon-sm"
@@ -201,7 +202,7 @@ export function MessageBranchNext({ children, ...props }: MessageBranchNextProps
   const { goToNext, totalBranches } = useMessageBranch();
   return (
     <Button
-      aria-label="Next branch"
+      aria-label="下一个分支"
       disabled={totalBranches <= 1}
       onClick={goToNext}
       size="icon-sm"
@@ -220,28 +221,29 @@ export function MessageBranchPage({ className, ...props }: MessageBranchPageProp
   const { currentBranch, totalBranches } = useMessageBranch();
   return (
     <span className={cn("px-1 text-xs text-muted-foreground", className)} {...props}>
-      {currentBranch + 1} of {totalBranches}
+      {currentBranch + 1} / {totalBranches}
     </span>
   );
 }
 
-export type MessageResponseProps = ComponentProps<typeof Streamdown>;
+export type MessageResponseProps = Omit<ComponentProps<typeof Streamdown>, "rehypePlugins">;
 
 const streamdownPlugins = { cjk, code, math, mermaid };
 
-export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn("size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
-      plugins={streamdownPlugins}
-      codeBlockMaxHeight={0}
-      tableMaxHeight={0}
-      {...props}
-    />
-  ),
-  (prevProps, nextProps) =>
-    prevProps.children === nextProps.children && prevProps.isAnimating === nextProps.isAnimating,
-);
+export const MessageResponse = memo(({ className, translations, ...props }: MessageResponseProps) => (
+  <Streamdown
+    className={cn(
+      "size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0",
+      className,
+    )}
+    plugins={streamdownPlugins}
+    codeBlockMaxHeight={0}
+    tableMaxHeight={0}
+    {...props}
+    translations={{ ...markdownTranslations, ...translations }}
+    rehypePlugins={markdownRehypePlugins}
+  />
+));
 
 MessageResponse.displayName = "MessageResponse";
 

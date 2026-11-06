@@ -37,8 +37,18 @@ selector serves configured bots; `ModelPicker` provides the official radio-menu
 pattern for small model or reasoning-option lists. TipTap retains attachments,
 mentions and slash commands while Input Group owns the composer frame.
 `artifact.tsx` and `attachments.tsx` retain the existing source-owned APIs.
-Subagent, checkpoint and test results are presentation capabilities; they do not
-create an agent runtime, restore operation or test runner.
+Subagent, checkpoint and test results remain presentation capabilities. The Chat
+consumer binds them to actual delegated file progress, a server-owned conversation
+fork, and complete TAP 13 terminal reports; no parallel runtime or test runner is
+introduced. Context uses Base UI Meter and a click/keyboard-accessible Popover.
+
+MessageResponse keeps Streamdown sanitize/harden and blocks ambient external/data
+image requests. Authenticated file/artifact media remains separate. The host scans
+Streamdown/plugin distribution files for Tailwind classes and supplies Chinese
+control labels. PromptInput suggestions use Base UI Popover in the owner React
+tree; generic token status is independent of Knowledge ingest metadata.
+Regression fixtures use the official [`@shadcn/helpers/ai-sdk`](https://ui.shadcn.com/docs/helpers/ai-sdk)
+transport with real SDK hooks, including approval denial and history hydration.
 
 Conversation follows the current [shadcn Chat composition and migration guide](https://ui.shadcn.com/docs/ai-elements/base/chat),
 using Message Scroller from `@shadcn/react`. Every transcript row, including

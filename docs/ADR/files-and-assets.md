@@ -34,6 +34,11 @@ ChatArtifactPreview 统一处理 URL 获取、文本下载、请求取消、失�
 
 删除会话通过 Chat 事务 outbox 请求 Knowledge 幂等清理生成文件；用户独立上传的 source 保留。conversation tombstone 拒绝迟到写入。Knowledge 的转换/索引意图持久化，由 Executor `knowledge-document-process` 驱动服务本地幂等操作。检索使用 PostgreSQL/pgvector 与文本检索，模型配置从 Admin 获取。
 
+会话分支通过 Knowledge 的内部快照接口创建独立 owner；共享 Asset/revision，不复制字节。
+源文档副本作为只读 artifact 保留解析投影，避免重复 source 索引；原 source 生命周期不变。
+Chat 的预留 cleanup intent 在失败/进程中断后回收未发布引用，成功发布时以租约校验和
+新会话写入同一事务完成。删除任一会话只释放该分支自己的 Claim。
+
 ## 事实源与验证
 
 入口：[Storage lifecycle](../../apps/backend/services/storage/internal/application/lifecycle.go)、 [Knowledge application](../../apps/backend/services/knowledge/src/application)、 [Canvas application](../../apps/backend/services/canvas/internal/application)。业务流程细节见 [Storage](../微服务/storage.md)、[Knowledge](../微服务/knowledge.md) 和 [Canvas](../微服务/canvas.md)。迁移的代价是 intent/relay 和回收状态机，收益是业务方不再各自实现字节存储、签名和垃圾回收。

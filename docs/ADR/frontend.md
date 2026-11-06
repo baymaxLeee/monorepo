@@ -69,6 +69,22 @@ Base UI Sheet 展示侧栏和预览，正文保持挂载。列宽、键盘缩放
 消息直接组合 AI Elements Message/Content/Response、Reasoning 和 Tool，去掉多余的
 逐消息包装；工具卡实现按需加载。错误、授权和待回答问题仍可见，手动展开状态继续保留。
 
+输入区的 mention/slash 菜单使用所属 React 树的 Base UI Popover，避免独立 React root
+丢失 modal 层级和焦点边界。附件状态由 UI 的 generic token 表达，文件服务字段由
+`@repo/chat` 映射。草稿恢复不改变 token 的 inline 位置和空行。Base UI 的 Meter、
+NumberField、Toolbar 补齐容量、数值配置和检查器键盘操作；Toast 继续使用已有
+Base UI 命令式入口，不引入第二套 Sonner 通知。
+
+Streamdown 使用 sanitize + harden，禁止模型 Markdown 图片自动发起网络请求；
+真正媒体走已有受权文件预览。原生 sources 只在明确 URL 匹配时生成行内引用。
+宿主 Tailwind 同时扫描 Streamdown/plugin 分发文件，保持上游控件样式。
+`@shadcn/helpers/ai-sdk` 仅用于确定性测试传输，测试真实 `useChat` 的授权拒绝和
+历史加载；生产传输仍由 feature 层持有。
+
+Checkpoint 是跨 Chat/Knowledge 的新会话分支，行为见 [Chat](../微服务/chat.md)。
+UI 组合不创建运行时：Subagent 依赖实际工具 outcome，FileTree 打开受权资源，
+TestResults 只识别完整 TAP 13 标准输出。
+
 ## 取舍与验证
 
 独立 remote 构建/部署带来 host 单例和路由契约的协调成本；统一准入、依赖标签、

@@ -351,6 +351,43 @@ export interface FileSearchMatch {
   text: string;
 }
 
+export interface ForkConversationFilesInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  source_conversation_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  conversation_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  user_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  tenant_id: string;
+  /**
+     * @minLength 1
+     * @maxLength 26
+     */
+  workspace_id: string;
+}
+
+export type ForkConversationFilesResultDocumentIds = {[key: string]: string};
+
+export type ForkConversationFilesResultPaths = {[key: string]: string};
+
+export interface ForkConversationFilesResult {
+  document_ids: ForkConversationFilesResultDocumentIds;
+  paths: ForkConversationFilesResultPaths;
+}
+
 export type ValidationErrorCtx = { [key: string]: unknown };
 
 export interface ValidationError {
@@ -1172,6 +1209,20 @@ const cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost 
     }
 
 /**
+ * @summary Fork Files
+ */
+const forkFilesInternalConversationForksPost = (
+    forkConversationFilesInput: ForkConversationFilesInput,
+ options?: SecondParameter<typeof apiMutator<ForkConversationFilesResult>>,) => {
+      return apiMutator<ForkConversationFilesResult>(
+      {url: `/internal/conversation-forks`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: forkConversationFilesInput
+    },
+      options);
+    }
+
+/**
  * @summary Retrieve Chunks
  */
 const retrieveChunksInternalRetrievePost = (
@@ -1185,7 +1236,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,prepareIngestPreparePost,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,authorizeDocumentDeliveryDocumentsDocumentIdDeliveryPost,processDocumentInternalDocumentsDocumentIdProcessPost,indexDocumentInternalDocumentsDocumentIdIndexPost,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,prepareIngestPreparePost,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,authorizeDocumentDeliveryDocumentsDocumentIdDeliveryPost,processDocumentInternalDocumentsDocumentIdProcessPost,indexDocumentInternalDocumentsDocumentIdIndexPost,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,forkFilesInternalConversationForksPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -1221,4 +1272,5 @@ export type PromoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePostResult 
 export type DiscardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost']>>>
 export type SearchFilesInternalFilesSearchPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['searchFilesInternalFilesSearchPost']>>>
 export type CleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost']>>>
+export type ForkFilesInternalConversationForksPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['forkFilesInternalConversationForksPost']>>>
 export type RetrieveChunksInternalRetrievePostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['retrieveChunksInternalRetrievePost']>>>

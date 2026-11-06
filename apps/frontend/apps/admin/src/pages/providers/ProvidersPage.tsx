@@ -34,6 +34,7 @@ import {
   FieldGroup,
   FieldLabel,
   Input,
+  NumberInput,
   Muted,
   Page,
   PageActions,
@@ -792,13 +793,13 @@ function ProviderFormDialog({
                         <FieldLabel htmlFor={field.name}>
                           {providerKind === "image" ? "每张图片单价（微单位）" : "每生成秒单价（微单位）"}
                         </FieldLabel>
-                        <Input
+                        <NumberInput
                           id={field.name}
-                          aria-invalid={fieldState.invalid}
-                          {...field}
-                          type="number"
+                          name={field.name}
+                          value={Number.isFinite(field.value) ? field.value : null}
+                          onValueChange={(value) => field.onChange(value ?? Number.NaN)}
+                          inputProps={{ ref: field.ref, onBlur: field.onBlur, "aria-invalid": fieldState.invalid }}
                           min={1}
-                          onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                         />
                         <Muted className="text-xs">1,000,000 微单位 = 1.00 币种单位</Muted>
                         <FieldError errors={[form.formState.errors.unit_price_micros]} />
@@ -814,15 +815,15 @@ function ProviderFormDialog({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor={field.name}>Context window (K tokens)</FieldLabel>
-                      <Input
+                      <NumberInput
                         id={field.name}
-                        aria-invalid={fieldState.invalid}
-                        {...field}
-                        type="number"
+                        name={field.name}
+                        value={Number.isFinite(field.value) ? field.value : null}
+                        onValueChange={(value) => field.onChange(value ?? Number.NaN)}
+                        inputProps={{ ref: field.ref, onBlur: field.onBlur, "aria-invalid": fieldState.invalid }}
                         min={1}
                         max={2048}
                         step={0.25}
-                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                       />
                       <FieldError errors={[form.formState.errors.context_window_k]} />
                     </Field>
@@ -834,15 +835,15 @@ function ProviderFormDialog({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor={field.name}>Max output (K tokens)</FieldLabel>
-                      <Input
+                      <NumberInput
                         id={field.name}
-                        aria-invalid={fieldState.invalid}
-                        {...field}
-                        type="number"
+                        name={field.name}
+                        value={Number.isFinite(field.value) ? field.value : null}
+                        onValueChange={(value) => field.onChange(value ?? Number.NaN)}
+                        inputProps={{ ref: field.ref, onBlur: field.onBlur, "aria-invalid": fieldState.invalid }}
                         min={0.25}
                         max={1024}
                         step={0.25}
-                        onChange={(event) => field.onChange(event.currentTarget.valueAsNumber)}
                       />
                       <FieldError errors={[form.formState.errors.max_output_tokens_k]} />
                     </Field>

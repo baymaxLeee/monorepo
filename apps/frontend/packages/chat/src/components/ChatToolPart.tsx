@@ -15,7 +15,7 @@ import type { ConversationDocument } from "@repo/api";
 import { getToolName, type UIMessage } from "ai";
 
 import { parseAskUserInput } from "../lib/ask-user";
-import { parseToolOutcome } from "../lib/tool-outcome";
+import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
 import {
@@ -24,7 +24,9 @@ import {
   parseArtifactOutput,
   parseArtifactTaskOutput,
 } from "./ChatArtifactCard";
+import { ChatDelegatedTasks } from "./ChatDelegatedTasks";
 import { ArtifactFileCard } from "./ChatFileArtifactCard";
+import { ChatFileTree, parseChatFiles } from "./ChatFileTree";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatTerminalTool } from "./ChatTerminalTool";
 import {
@@ -131,6 +133,28 @@ export function ChatToolPart({
     return <ChatImageCard conversationId={conversationId} output={output} state={part.state} errorText={errorText} />;
   }
 
+  if (
+    kind === "video" &&
+    part.toolMetadata?.agent &&
+    typeof part.toolMetadata.agent === "object" &&
+    "historical" in part.toolMetadata.agent &&
+    part.toolMetadata.agent.historical
+  ) {
+    return (
+      <Tool>
+        <ToolHeader
+          type={part.type}
+          toolName={part.type === "dynamic-tool" ? toolName : undefined}
+          state={part.state}
+          title="原会话的视频任务"
+        />
+        <ToolContent>
+          <p className="text-sm text-muted-foreground">这是历史任务记录。审批和发布请返回原会话操作。</p>
+          <ToolJsonBlock value={output} />
+        </ToolContent>
+      </Tool>
+    );
+  }
   if (kind === "video") {
     return (
       <ChatVideoCard
@@ -151,6 +175,34 @@ export function ChatToolPart({
         errorText={errorText}
         running={part.state === "input-streaming" || part.state === "input-available"}
       />
+    );
+  }
+
+  if (kind === "subagent") {
+    return (
+      <ChatDelegatedTasks
+        output={output}
+        errorText={errorText}
+        onOpenFile={onOpenFile}
+        onOpenArtifact={onOpenArtifact}
+      />
+    );
+  }
+  const outcome = parseToolOutcome(output);
+  const files = kind === "file-tree" && outcome?.ok ? parseChatFiles(toolOutcomePayload(outcome)) : null;
+  if (files) {
+    return (
+      <Tool>
+        <ToolHeader
+          type={part.type}
+          toolName={part.type === "dynamic-tool" ? toolName : undefined}
+          state={part.state}
+          title={`会话文件 · ${files.length}`}
+        />
+        <ToolContent>
+          <ChatFileTree files={files} onOpenFile={onOpenFile} onOpenArtifact={onOpenArtifact} />
+        </ToolContent>
+      </Tool>
     );
   }
 
@@ -224,7 +276,7 @@ export function ChatToolPart({
           <AskUserAnsweredCard input={askUserInput} output={output} />
         ) : null}
         {hasError ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-relaxed text-destructive">
             {errorText?.trim() || outputErrorReason || "工具调用失败，未返回错误详情。"}
           </div>
         ) : null}

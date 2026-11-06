@@ -10,11 +10,20 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 - `POST /conversations/{id}/agents/run/stream`：启动一次 ToolLoopAgent UI stream
 - `GET /conversations/{id}/agents/run/stream`：恢复当前活动 UI stream；无活动流返回 204
 - `GET /conversations/{id}/agents/runs/{runId}/trace`：读取步骤与 tool trace
+- `POST /conversations/{id}/forks`：按 `message_id` 创建新会话分支。仅接受本用户、tenant/workspace 内已结束的 assistant 回复；原会话有活动 run 时返回 409。
+  分支复制到指定回复为止的历史，以及创建时的当前文件不可变快照。它不是历史文件回滚；不复制 run、provider response chain、画布绑定或自动执行请求。
+  未终态/preliminary 工具在副本中关闭，未完成 todo 取消；已失败消息保持 failed。原有外部视频任务只展示历史，审批仍在原会话。
+  Chat 先持久化已占用的 cleanup outbox intent，Knowledge 在本地事务内复制引用与独立 Claim intent，最后 Chat 在同一事务中验证该清理租约仍属于本请求、写入分支及消息并删除补偿 intent。
+  进程中断或复制失败时复用现有清理 relay；租约已被接管则拒绝发布，避免出现已清理文件的分支。源记录不参与修改。
+  源会话的 `run_revision` 在每次成功插入 run lease 时由数据库触发器递增。分支发布事务以 `FOR NO KEY UPDATE` 锁住源会话并核对复制前的修订号；复制期间启动过 run（即使已结束）则返回 409，副本交由 outbox 清理。先取得发布锁时，run 启动等待该短事务完成；外部文件复制仍在事务外。
 - 会话 CRUD 与文档 facade 路由保持不变
 - 删除会话时，本地事务同时写入 artifact cleanup outbox；HTTP 204 不等待 knowledge
   或对象存储。后台 relay 至少一次投递幂等清理命令，失败在重启后继续重试。
 
 ## Agent runtime
+
+Chat 升级需先应用追加迁移 `v1.0.0.1`（`just migrate-up chat`），增加默认值为 0 的 `run_revision` 和 lease INSERT 触发器，不改写旧消息或 run。旧实例的 lease 写入也经过触发器，支持滚动升级；应用回退保留扩展 schema，本步骤不提供自动 DOWN。
+并发集成测试使用隔离且已迁移的数据库：`CHAT_FORK_TEST_URL=<isolated-postgres-url> just test backend/chat src/application/conversation-fork.postgres.ts`。缺少该配置时失败，不作为跳过或通过；默认单元测试不依赖数据库。
 
 - 主链使用 `ToolLoopAgent`。服务端 run controller 的 AbortSignal 贯穿模型、web
   search、图片分析和 artifact 内部模型调用；只有显式 Stop/cancel 才终止生成。

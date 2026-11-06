@@ -238,6 +238,10 @@ AI 界面不是普通聊天气泡加一个 loading spinner。优先使用 Vercel
 | 来源与行内引用                   | `Sources`, `Source`, `InlineCitation`    |
 | 工具调用、参数、结果与状态       | `Tool*`                                  |
 | 计划、任务、队列与进度           | `Plan*`, `Task*`, `Queue*`               |
+| 上下文容量与数值配置             | `Meter*`、`NumberField*` / `NumberInput` |
+| 检查器与编辑器操作组             | `Toolbar*`（方向键移动焦点）             |
+| 文件、委派任务与测试报告         | `FileTree*`、`Subagent*`、`TestResults`   |
+| 从历史回复继续探索               | `Checkpoint*`（创建新会话分支）          |
 | 文件和媒体输入                   | `Attachments*`                           |
 | 高影响工具授权                   | `Confirmation*`                          |
 | 模型选择                         | `ModelPicker`；需搜索时 `ModelSelector*` |
@@ -258,6 +262,13 @@ AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-
 - 推理区域默认可折叠，并以帮助用户理解决策的摘要为目标；不得伪装或暴露不应展示的内部 chain-of-thought。
 - 长生命周期输出使用 Artifact，不把完整文档、代码或媒体编辑器塞进消息气泡。Artifact 的保存、版本、关闭和未保存状态必须清楚。
 - composer 在生成期间仍应允许用户查看和编辑下一条输入；是否允许排队由产品语义明确决定。附件显示上传、处理、失败和删除状态。
+- PromptInput 的公开附件状态为 `uploading` / `ready` / `failed`，业务方负责将文件服务状态映射为可发送状态；业务标识保留在 opaque `meta`，UI 不解析 `artifactId` / `ingestStatus`。失败重试进入 uploading，移除和卸载释放本地文件/预览资源，草稿恢复保持 inline token 与空行。
+- 输入区提供可访问名称；多行输入和候选导航兼容中文 IME。候选列表由 React 树内的 Base UI Popover 承载，复用 modal layer，并通过 controls/active-descendant 关联编辑器。触控输入至少 16px，主要操作命中区至少 44px；减少动态效果设置覆盖等待动画。
+- Markdown 保留 Streamdown sanitize/harden；模型生成的远程图片及 data 图片不自动加载，上传/生成媒体走受权文件入口。宿主 CSS 扫描 Streamdown 与插件分发文件。Streamdown 配置与 renderer 更新必须能触发响应，不用只比较正文的 memo comparator。
+- 行内引用只将正文中明确出现的 URL 与原生 `source-url` 对应；没有可验证映射时显示来源列表，不猜测数字引用。`source-document` 仍保留来源名称。
+- 流式正文保持 Markdown renderer 身份稳定；来源通过 Context 更新引用，不因新的 parts 数组重新解析已完成块。终端以 stdout 和完成状态缓存 TAP 解析，普通日志先检查格式标识；已完成终端以标量 props 隔离后续文字更新。
+- Subagent 展示后端实际委派批次进度，FileTree 打开真实文件/文档。TestResults 消费完整 TAP 13 报告；部分、格式不支持或中断的输出保留为终端原文，不从退出码推导测试通过。
+- Checkpoint 使用“从此处创建分支”：保留到选定回复为止的消息和当前文件不可变快照，保留原会话，不回滚文件、不重放工具、不接续授权或 provider response chain。未完成调用在副本中终止，视频等外部任务仍在原会话审批。
 - 自动滚动只在用户处于底部附近时跟随输出。用户向上阅读后不得抢回滚动位置，应提供“回到底部”。
 - Chat 正文、展开的推理和工具详情共用 `Conversation` 的滚动视口和触底状态，不另设限高滚动区或返回底部按钮。`Conversation` 组合当前 shadcn/ui `MessageScroller`，所有消息与占位行使用 `MessageScrollerItem`，用户消息作为轮次锚点。滚动位置和跟随状态由官方组件管理；触底后的继续向下操作通过其公开命令恢复跟随，不维护第二套状态机。消息内代码块和表格取消默认纵向限高，保留必要的横向滚动。
 - 统一滚动采用渐进披露：普通工具默认只展示名称与状态，原始输入输出按需展开；Bash 默认展示命令首行与执行状态，完整命令和日志按需展开。推理随生成状态自动展开或收起，用户手动选择优先；授权、待回答问题和错误反馈保持直接可见。
@@ -291,13 +302,13 @@ AI Elements 采用 [shadcn/ui 官方组合模式](https://ui.shadcn.com/docs/ai-
 | 嵌套 modal         |     父 modal + 100 |   `1100` |
 | 全局 toast         | design-system 顶层 | `2147483647` |
 
-这些数字是 design-system 私有实现，不是业务 token。modal 原语通过 `useModalLayer()` 建立作用域，portalled popup 通过 `usePortalLayerStyle()` 消费层级。显式 modal `style.zIndex` 会成为整个 modal scope 的基准，同步驱动 overlay、content 与子 popup；显式 popup `style.zIndex` 仅作为第三方集成逃生口。
+这些数字是 design-system 私有实现，不是业务 token。modal 原语通过 `useModalLayer()` 建立作用域，portalled popup 通过 `usePortalLayerStyle()` 消费层级。显式 modal `style.zIndex` 会成为整个 modal scope 的基准，同步驱动 overlay、content 与子 popup；显式 popup `positionerStyle.zIndex` 仅作为第三方集成逃生口；层级必须作用于 Positioner，而非其内部 Popup。
 
 `container` / `getPopupContainer` 仅用于滚动裁剪、iframe、shadow root 或真实 DOM 边界，不用于修复普通层级。Base UI Toaster 是 platform 唯一挂载的全局通知层，固定高于 modal scope，不参与业务 modal 深度计算。
 
 ### 允许的覆盖与禁止项
 
-只有无法迁移的第三方 overlay 或已有跨 MFE 宿主契约，才可给 popup 设置数字型 `style.zIndex`，并在相邻注释或 ADR 中说明被跨越的层。modal content 不暴露数值层级 API；嵌套关系一律自动计算。
+只有无法迁移的第三方 overlay 或已有跨 MFE 宿主契约，才可给 popup 设置数字型 `positionerStyle.zIndex`，并在相邻注释或 ADR 中说明被跨越的层。modal content 不暴露数值层级 API；嵌套关系一律自动计算。
 
 - 禁止在业务目录建立 `*_Z_INDEX` 常量表。
 - 禁止逐层透传 `popupZIndex` 或用 `9999` 等大数竞争。

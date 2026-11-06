@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { UIMessage } from "ai";
 import { Suspense, type ReactNode } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import type * as ConversationModule from "../../hooks/useConversationChat";
@@ -172,7 +173,11 @@ beforeEach(() => {
 });
 
 async function mount() {
-  const view = render(<ChatSession conversationId="conversation" />);
+  const view = render(
+    <MemoryRouter>
+      <ChatSession conversationId="conversation" />
+    </MemoryRouter>,
+  );
   await waitFor(() => expect(screen.getByText("Test")).toBeTruthy());
   state.composerRenders = 0;
   state.messageRenders = [];
@@ -242,9 +247,11 @@ test("plan execution context still updates an unchanged historical row", async (
 
 test("a suspended transcript update does not block edits or cancellation", async () => {
   render(
-    <Suspense fallback={<div>正文加载中</div>}>
-      <ChatSession conversationId="conversation" />
-    </Suspense>,
+    <MemoryRouter>
+      <Suspense fallback={<div>正文加载中</div>}>
+        <ChatSession conversationId="conversation" />
+      </Suspense>
+    </MemoryRouter>,
   );
   await waitFor(() => expect(screen.getByText("Test")).toBeTruthy());
   state.suspendedText = "尚未渲染的增量";

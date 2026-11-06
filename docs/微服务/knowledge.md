@@ -35,9 +35,16 @@ durable Claim intent 将引用激活或释放；不得把物理 locator 重新�
 | `GET/PATCH/DELETE /documents/*` | Gateway 用户 JWT | 用户文档管理 |
 | `/internal/documents/*` | per-caller service identity | Chat/Executor 读写语义文档 |
 | `/internal/files/*` | per-caller service identity | agent 虚拟文件树与 change set |
+| `POST /internal/conversation-forks` | per-caller service identity | 按用户/tenant/workspace 复制当前不可变文档和文件引用，返回文档/路径映射 |
 | `POST /internal/retrieve` | per-caller service identity | 用户作用域混合检索 |
 
 字节上传和内容读取使用 Storage API，不经过 Knowledge 的 public media route。
+
+会话分支在与写入/清理相同的会话锁内检查源和目标 tombstone、目标为空以及资源 scope。
+复制文档为不再索引的只读 artifact 快照；原 source 文档继续独立保留。副本沿用精确的
+Asset/revision，生成新的文档/文件 owner 与 durable Claim intent。虚拟文件保留路径，
+源文档路径映射为新 `documents/{id}`，读取仍使用 Markdown 语义投影，下载使用原字节。
+正在转换的文档和未迁移的原件引用拒绝复制。Chat 负责消息分支与失败补偿。
 
 ## 数据模型
 

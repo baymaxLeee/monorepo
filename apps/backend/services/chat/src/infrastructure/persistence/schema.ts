@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { bigint, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 export interface PersistedMessageContent {
   version: number;
@@ -19,6 +19,7 @@ export const conversations = pgTable(
     projectId: varchar("project_id", { length: 36 }),
     canvasId: varchar("canvas_id", { length: 36 }),
     activePlanPath: varchar("active_plan_path", { length: 512 }),
+    runRevision: bigint("run_revision", { mode: "bigint" }).notNull().default(0n),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },

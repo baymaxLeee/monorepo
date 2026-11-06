@@ -1,6 +1,7 @@
 import { PluginKey } from "@tiptap/pm/state";
 import { FileText, ImageIcon } from "lucide-react";
 
+import type { PromptSuggestionController } from "../components/usePromptSuggestions";
 import type { PromptInputToken, PromptMentionItem, PromptMentionSource } from "../interface";
 import { createSuggestionExtension } from "./Suggestion";
 
@@ -8,12 +9,12 @@ export const mentionPluginKey = new PluginKey("promptMention");
 
 /**
  * `@` mention. Reuses the existing `promptToken` inline node, so a picked entity
- * becomes the same chip as an attachment. The host carries `artifactId` in
- * `meta`, which lets submit map it straight to an official `FileUIPart`. The
+ * becomes the same chip as an attachment. The host owns reference metadata. The
  * token is pre-marked `ready` because a mentioned file is already uploaded.
  */
-export function buildMentionExtension(source: PromptMentionSource) {
+export function buildMentionExtension(source: PromptMentionSource, controller: PromptSuggestionController) {
   return createSuggestionExtension<PromptMentionItem>({
+    controller,
     name: "promptMention",
     char: "@",
     pluginKey: mentionPluginKey,
@@ -39,9 +40,9 @@ export function buildMentionExtension(source: PromptMentionSource) {
         label: item.label,
         mime: item.mime,
         url: item.url,
+        status: "ready",
         meta: {
           origin: "mention",
-          ingestStatus: "ready",
           ...item.meta,
         },
       };

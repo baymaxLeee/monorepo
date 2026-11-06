@@ -31,7 +31,13 @@ const TranscriptMessage = memo(ChatMessageView, (previous, next) =>
 
 type ChatTranscriptProps = Pick<
   ChatMessageViewProps,
-  "conversationId" | "onOpenArtifact" | "onOpenFile" | "onAnswerClientTool" | "onToolApproval" | "onExecutePlan"
+  | "conversationId"
+  | "onOpenArtifact"
+  | "onOpenFile"
+  | "onAnswerClientTool"
+  | "onToolApproval"
+  | "onExecutePlan"
+  | "onFork"
 > & {
   messages: ChatUIMessage[];
   status: "submitted" | "streaming" | "ready" | "error";
@@ -78,6 +84,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   onAnswerClientTool,
   onToolApproval,
   onExecutePlan,
+  onFork,
 }: ChatTranscriptProps) {
   const [firstVisibleId, setFirstVisibleId] = useState<string | null>(null);
   const anchorIndex = firstVisibleId === null ? -1 : messages.findIndex((message) => message.id === firstVisibleId);
@@ -140,6 +147,7 @@ export const ChatTranscript = memo(function ChatTranscript({
               onAnswerClientTool={onAnswerClientTool}
               onToolApproval={onToolApproval}
               onExecutePlan={onExecutePlan}
+              onFork={onFork}
               planExecutedIds={executedPlanPaths}
               planBusy={busy}
             />

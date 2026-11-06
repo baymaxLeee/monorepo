@@ -90,6 +90,37 @@ const openapi = {
         responses: { "204": { description: "delete conversation" } },
       },
     },
+    "/conversations/{conversation_id}/forks": {
+      post: {
+        operationId: "forkConversation",
+        parameters: [pathParam],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["message_id"],
+                properties: { message_id: { type: "string", minLength: 1, maxLength: 32 } },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": jsonResponse("History branch with current immutable file snapshots; no tool replay", {
+            type: "object",
+            required: ["id", "source_conversation_id", "source_message_id"],
+            properties: {
+              id: { type: "string" },
+              source_conversation_id: { type: "string" },
+              source_message_id: { type: "string" },
+            },
+          }),
+          "404": { description: "Source or checkpoint not found in the caller scope" },
+          "409": { description: "Active run, processing files, or expired snapshot reservation" },
+        },
+      },
+    },
     "/conversations/{conversation_id}/context": {
       get: {
         parameters: [pathParam],

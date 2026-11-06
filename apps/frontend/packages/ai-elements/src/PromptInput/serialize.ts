@@ -56,3 +56,21 @@ export const serializePromptInput = (doc: JSONContent, files: Record<string, Fil
     files,
   };
 };
+
+export function deserializePromptInput(
+  value: PromptInputValue,
+  mapToken: (token: PromptInputToken) => PromptInputToken = (token) => token,
+): JSONContent {
+  const paragraphs: JSONContent[] = [{ type: "paragraph", content: [] }];
+  for (const segment of value.segments) {
+    if (segment.type === "token") {
+      paragraphs.at(-1)!.content!.push({ type: "promptToken", attrs: mapToken(segment.token) });
+      continue;
+    }
+    segment.text.split("\n").forEach((text, index) => {
+      if (index > 0) paragraphs.push({ type: "paragraph", content: [] });
+      if (text) paragraphs.at(-1)!.content!.push({ type: "text", text });
+    });
+  }
+  return { type: "doc", content: paragraphs };
+}

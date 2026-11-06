@@ -103,10 +103,11 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - **完整 registry 基线**: design-system 保持官方 Base Nova registry 的完整组件集合；`message-scroller` 与 `questionnaire` 是 shadcn 官方复合组件，行为来自 `@shadcn/react`，不是 Base UI 原语。`@shadcn/react` 要求 React 19，因此不得回退 React 主版本或移除这两个组件。
 - **仓库级集成**: registry 生成文件只保留少量集中扩展：modal/popup 接入 `portal-layer.tsx`，`*Content` 把 `container` 传给 Base UI `Portal`，定位 props 传给 `Positioner`；`form.tsx` 保持 React Hook Form 组合。升级后统一重放这些集成并用全仓 typecheck 验证，不恢复旧 Radix fork。
 - **shadcn CLI / MCP（已接入）**: 根 `.cursor/mcp.json` 注册 `shadcn` server（cwd=`apps/frontend/packages/design-system`，`components.json#style=base-nova`、`ui` 别名=`@repo/design-system/shadcn`→`src/shadcn`）。CLI 在 monorepo 里要求 `packages/shared` 也有有效 `components.json` + `tsconfig.json`，勿删。新增多个标准原语时在一条 `pnpm ui:add <component...> --overwrite -y` 中批量生成，避免逐文件手写。
+  - **CLI 入口**: 两个包的 `ui:add` 都直接执行官方 `shadcn add`，版本统一来自 catalog。根目录 `just ui-add button` / `just ai-add @ai-elements/message` 通过 `pnpm --dir` 进入对应包，原样传参；预览直接追加官方 `--dry-run` / `--diff` / `--view`。AI Elements 配置和生成位置见该包 [README](packages/ai-elements/README.md)。
   - **registry 取舍**: 优先官方 shadcn/Base Nova registry；不要引入另一套 Radix、Arco、Ant Design 或 MUI primitive。第三方 registry 必须适配现有 Base UI、主题和公共 API，不能带入第二套底座。
 - **组件升级/新增流程**（在 `apps/frontend/packages/design-system`）:
   1. **必须 Node 24.18.0 + pnpm 12.5.1 环境**（用 `mise exec -- <cmd>` 或已 `mise activate` 的 shell，避免 CLI 内部 `pnpm add` 落到错误版本或 store）。
-  2. 全量升级使用 `pnpm exec shadcn add --all --overwrite -y`；新增一批组件使用 `pnpm ui:add <component...> --overwrite -y`（或经 shadcn MCP `add`）。两者都集中生成到 `src/shadcn/`，不要逐文件手抄。
+  2. 全量升级使用根目录 `just ui-add --all --overwrite -y`；新增一批组件使用 `just ui-add <component...> --overwrite -y`（包内对应 `pnpm ui:add`，或经 shadcn MCP `add`）。两者都集中生成到 `src/shadcn/`，不要逐文件手抄。
   3. 在 `src/shadcn/index.ts` 子 barrel 补一行 `export * from "./<name>";`（主 barrel 自动透传）。Base UI Toast 的命令式 `toast` 与 `Toaster` 也从该公共入口导出。
   4. `mise exec -- pnpm -F @repo/design-system typecheck` + 受影响 app `typecheck` + `pnpm -F platform build`。
   5. 新 MFE 通过 admin 应用注册中心登记 `base_path`、`remote_name`、`./routes` 与 manifest `entry`；platform 无需静态改源码。

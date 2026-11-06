@@ -3356,6 +3356,81 @@
         }
       }
     },
+    "/internal/conversation-forks": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Fork Files",
+        "operationId": "fork_files_internal_conversation_forks_post",
+        "parameters": [
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForkConversationFilesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForkConversationFilesResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/retrieve": {
       "post": {
         "tags": [
@@ -4406,6 +4481,73 @@
           "text"
         ],
         "title": "FileSearchMatch"
+      },
+      "ForkConversationFilesInput": {
+        "properties": {
+          "source_conversation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Source Conversation Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Conversation Id"
+          },
+          "user_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "User Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Tenant Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "maxLength": 26,
+            "minLength": 1,
+            "title": "Workspace Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_conversation_id",
+          "conversation_id",
+          "user_id",
+          "tenant_id",
+          "workspace_id"
+        ],
+        "title": "ForkConversationFilesInput"
+      },
+      "ForkConversationFilesResult": {
+        "properties": {
+          "document_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Document Ids"
+          },
+          "paths": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Paths"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_ids",
+          "paths"
+        ],
+        "title": "ForkConversationFilesResult"
       },
       "HTTPValidationError": {
         "properties": {

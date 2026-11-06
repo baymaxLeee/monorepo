@@ -1,0 +1,26 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "base-nova",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "../design-system/src/styles.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@repo/ai-elements/components",
+    "utils": "@repo/shared",
+    "ui": "@repo/design-system/shadcn",
+    "lib": "@repo/shared",
+    "hooks": "@repo/design-system"
+  },
+  "registries": {
+    "@ai-elements": "https://elements.ai-sdk.dev/api/registry/{name}.json"
+  },
+  "iconLibrary": "lucide",
+  "rtl": false,
+  "menuColor": "default",
+  "menuAccent": "subtle"
+}

@@ -1,6 +1,6 @@
 import type { Conversation } from "@repo/api";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { useConversationHistory } from "./useConversationHistory";
@@ -22,6 +22,20 @@ const wrapper = ({ children }: { children: React.ReactNode }) => <MemoryRouter>{
 beforeEach(() => {
   api.list.mockResolvedValue([]);
   api.remove.mockResolvedValue(undefined);
+});
+
+test("a newly published branch refreshes history on navigation", async () => {
+  api.list.mockResolvedValueOnce([item("source")]).mockResolvedValueOnce([item("branch"), item("source")]);
+  const view = renderHook(() => ({ history: useConversationHistory(), navigate: useNavigate() }), { wrapper });
+  await waitFor(() => expect(view.result.current.history.conversations?.[0]?.id).toBe("source"));
+  act(() =>
+    view.result.current.navigate("/platform/chat/conversations/branch", {
+      state: { refreshConversationHistory: true },
+    }),
+  );
+  await waitFor(() =>
+    expect(view.result.current.history.conversations?.map((row) => row.id)).toEqual(["branch", "source"]),
+  );
 });
 
 test("a stale initial list cannot erase a conversation created while loading", async () => {

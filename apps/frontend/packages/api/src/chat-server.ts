@@ -186,6 +186,14 @@ export function createConversation(input: CreateConversationInput = {}): Promise
   });
 }
 
+export function forkConversation(id: string, messageId: string, options?: Pick<ApiRequestConfig, "skipErrorNotify">) {
+  return getChatService().forkConversation(
+    id,
+    { message_id: messageId },
+    { baseURL: `${API_BASE_URL}/api/chat-server`, ...options },
+  );
+}
+
 export function updateConversation(id: string, input: UpdateConversationInput): Promise<Conversation> {
   return request<Conversation>({
     url: `${BASE}/${encodeURIComponent(id)}`,

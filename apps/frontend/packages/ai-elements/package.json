@@ -10,13 +10,15 @@
     ".": "./src/AiChat/index.tsx",
     "./prompt-input": "./src/PromptInput/index.tsx",
     "./terminal": "./src/AiChat/terminal.tsx",
-    "./code-block": "./src/AiChat/code-block.ts"
+    "./code-block": "./src/AiChat/code-block.ts",
+    "./components/*": "./src/components/*.tsx"
   },
   "scripts": {
     "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/ai-elements/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
     "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/ai-elements/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
-    "test": "pnpm --dir ../.. test --project @repo/ai-elements"
+    "test": "pnpm --dir ../.. test --project @repo/ai-elements",
+    "ui:add": "shadcn add"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
@@ -33,14 +35,18 @@
     "@tiptap/suggestion": "catalog:",
     "ai": "catalog:",
     "lucide-react": "catalog:",
+    "rehype-harden": "catalog:",
     "streamdown": "catalog:"
   },
   "devDependencies": {
+    "@ai-sdk/react": "catalog:",
     "@repo/typescript-config": "workspace:*",
+    "@shadcn/helpers": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@typescript/native": "catalog:",
+    "shadcn": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {

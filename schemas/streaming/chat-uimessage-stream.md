@@ -54,6 +54,7 @@ The assistant message metadata contract is:
 | `status` | `streaming`, `completed`, `failed`, or `cancelled`. |
 | `finishReason` | AI SDK unified finish reason when available. |
 | `usage` | Input/output/cache/reasoning/total token counters. |
+| `fork` | Persisted branch-history provenance `{conversationId, messageId}`. Copied history replaces old execution metadata with this field; it is not streamed as a new run and never resumes the source provider chain. |
 
 Metadata streams through the official `messageMetadata` callback and is stored
 beside `parts` in the local message journal. It is observability and continuation
@@ -173,7 +174,12 @@ no `data-artifact-progress`.
   - Tool definitions carry `toolMetadata.agent` with capability, effect,
     execution, source, trust, and `uiKind`. AI SDK propagates this metadata onto
     official tool parts; the frontend selects artifact/media/todo/approval UI by
-    `uiKind`, not by hard-coded public tool names. This is metadata on the
+    `uiKind`, not by hard-coded public tool names. `subagent` denotes actual
+    delegated file batches and `file-tree` denotes file inventory. Persisted fork
+    tool parts add `agent.historical: true`; external task approvals remain in
+    the original conversation. Unfinished/preliminary results become native
+    `output-error`, never a replay request. Consumers preserve artifact-todo
+    completion mapping for both `artifact` and `subagent`. This is metadata on the
     official tool part, not a custom `data-*` channel.
   - `update_todos` output items carry an optional `deliverable` tag
     (`"artifact" | "image" | "video"`). It is **not** a new part: it rides the

@@ -13,7 +13,7 @@ export function Checkpoint({ children, ...props }: ComponentProps<typeof Marker>
 export const CheckpointIcon = MarkerIcon;
 export function CheckpointTrigger({
   tooltip,
-  children = "恢复到此处",
+  children = "从此处创建分支",
   ...props
 }: ComponentProps<typeof Button> & { tooltip?: string }) {
   const button = (

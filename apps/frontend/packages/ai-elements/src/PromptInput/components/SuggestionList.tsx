@@ -11,6 +11,8 @@ export interface SuggestionOption {
 }
 
 export interface SuggestionListProps {
+  id?: string;
+  onActiveChange?: (id: string | null) => void;
   options: SuggestionOption[];
   loading?: boolean;
   emptyLabel?: string;
@@ -24,7 +26,7 @@ export interface SuggestionListProps {
  * plugin to forward arrow/enter handling into.
  */
 export const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListProps>(function SuggestionList(
-  { options, loading, emptyLabel, onPick },
+  { options, loading, emptyLabel, onPick, id, onActiveChange },
   ref,
 ) {
   const [active, setActive] = useState(0);
@@ -59,23 +61,33 @@ export const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListPro
 
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
-  }, [active]);
+    onActiveChange?.(options[active] && id ? `${id}-${active}` : null);
+  }, [active, id, options, onActiveChange]);
 
   if (options.length === 0) {
     return (
-      <div className="prompt-input-suggestion">
+      <div id={id} className="prompt-input-suggestion" role="status" aria-live="polite">
         <div className="prompt-input-suggestion-empty">{loading ? "搜索中…" : (emptyLabel ?? "无匹配项")}</div>
       </div>
     );
   }
 
   return (
-    <div ref={listRef} className="prompt-input-suggestion" role="listbox">
+    <div
+      ref={listRef}
+      id={id}
+      className="prompt-input-suggestion"
+      role="listbox"
+      aria-label="输入建议"
+      aria-busy={loading}
+    >
       {options.map((option, index) => {
         const isActive = index === active;
         return (
           <button
             key={option.key}
+            id={id ? `${id}-${index}` : undefined}
+            tabIndex={-1}
             type="button"
             role="option"
             aria-selected={isActive}
@@ -84,8 +96,8 @@ export const SuggestionList = forwardRef<SuggestionListHandle, SuggestionListPro
             onMouseEnter={() => setActive(index)}
             onMouseDown={(event) => {
               event.preventDefault();
-              onPick(index);
             }}
+            onClick={() => onPick(index)}
           >
             {option.content}
           </button>
