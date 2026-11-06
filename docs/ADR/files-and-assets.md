@@ -24,6 +24,10 @@ Claim 的 strong/snapshot/lease/weak 语义分别表达当前所有权、固定�
 
 委派文件批次写入 Knowledge change set，按 deliverable root 对 baseline SHA 校验并原子发布；同一 root 的过期写入不能覆盖当前树。HTML 内容与脚本归产物本身；预览宿主不按页数裁剪或改写模型文档。iframe 使用存储服务临时 URL 加载 HTML 并允许脚本执行，通过不授予 allow-same-origin 隔离宿主页面权限。
 
+HTML 的浏览器依赖由产物作者负责交付。Bash 中安装包或访问 CDN 成功不代表预览浏览器能够访问；保存单个 HTML 也不会发布工作目录里的相邻文件。除平台明确提供的 runtime 外，优先将固定版本依赖打包并把必要 JS/CSS/资源内联到 HTML，同时处理传递 import、CSS url()、字体、worker 与 WASM；无法自包含的外部依赖须明确保留其联网要求。可选字体/样式提供本地退化，不臆造平台 runtime 地址。宿主不自动改写 HTML、代理任意 CDN 或放宽 iframe 隔离。此交付边界参考 OpenAI 的[嵌入式 UI 打包方式](https://developers.openai.com/plugins/build/chatgpt-ui#bundle-for-the-iframe)；执行环境联网权限与浏览器资源可达性是两个独立条件。
+
+平台通过 `apps/frontend/apps/platform/artifact-runtime.config.mjs` 的显式公共资源清单统一构建复制与本地交付，目前只内置 ECharts 6.1.0。生产 Nginx 与本地开发服务器匿名提供相同字节。本地只在 Host 检查之后、跨站请求检查之前提供清单内精确路径的 GET/HEAD，其他路径与方法保持原有检查。图表 HTML 优先加载平台资源，失败后顺序尝试固定 CDN；平台成功时不依赖外网。所有候选 script（包括平台资源）在设置 src 前统一设置 anonymous CORS、固定 SRI 和 no-referrer。主题/地图注册、graphic 构造与图表初始化都等待加载成功，所有候选失败时显示错误。依赖验证应从没有库全局变量的文档开始，覆盖冷启动、延迟加载、平台单独成功、CDN 接替与全部失败；真实浏览器验证资源策略与渲染，下载/语法检查/预注入库的 DOM 模拟不能代替它，缺少浏览器验证须如实说明。
+
 会话消息保存文档/文件标识与元数据，不持久化临时 URL。点击后先请求文档详情
 `include_content=false`，业务 owner 按资源权限授权，再调用 Storage 内部统一签发接口。
 Storage 不提供仅依赖工作区身份的公开签发或原件读取接口。默认签发 6 小时 scoped capability，
