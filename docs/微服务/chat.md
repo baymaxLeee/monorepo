@@ -5,6 +5,13 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 直接运行 TypeScript 源码（`@backend/transport-ts` 是源码包，tsc 产物会留下无法
 解析的裸 import），`tsc --noEmit` 仅做类型检查。
 
+## 配置
+
+本地启动从服务目录加载 `.env`；修改后需重启 Chat 进程（Overmind 使用 `overmind restart svc-chat`）。
+`just up` 负责基础设施和数据库迁移，不重启本地 Chat 进程。
+网页搜索至少需要 `EXA_API_KEY` / `TAVILY_API_KEY` 之一，Exa 主用、Tavily 回退。
+Single-VPS 从部署环境注入，K8s 从 `chat-secrets` 注入，不读取本机服务目录的 `.env`。
+
 ## API
 
 - `POST /conversations/{id}/agents/run/stream`：启动一次 ToolLoopAgent UI stream
