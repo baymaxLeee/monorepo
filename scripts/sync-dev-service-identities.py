@@ -28,7 +28,7 @@ RECEIVER_CALLERS = {
     "admin": ("canvas", "chat", "executor", "knowledge"),
     "canvas": ("chat", "executor"),
     "executor": ("canvas", "chat", "knowledge"),
-    "knowledge": ("canvas", "chat", "executor"),
+    "knowledge": ("chat", "executor"),
     "storage": ("admin", "canvas", "chat", "executor", "knowledge"),
     "sandbox": ("chat",),
 }
