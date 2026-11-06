@@ -1,14 +1,14 @@
 """Run the production migration entry point against disposable PostgreSQL."""
 
-from concurrent.futures import ThreadPoolExecutor
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import time
 import unittest
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,11 +40,27 @@ class MigrationTest(unittest.TestCase):
         cls.linux = cls.fixtures / "db-migrate-linux"
         module = ROOT / "scripts/dbmigrate"
         for output, extra in [(cls.native, {}), (cls.linux, {"GOOS": "linux", "CGO_ENABLED": "0"})]:
-            result = run("go", "build", "-o", str(output), "./cmd/db-migrate", cwd=module, env={**os.environ, "GOWORK": "off", **extra})
+            result = run(
+                "go",
+                "build",
+                "-o",
+                str(output),
+                "./cmd/db-migrate",
+                cwd=module,
+                env={**os.environ, "GOWORK": "off", **extra},
+            )
             if result.returncode:
                 raise RuntimeError(result.stderr)
         for suffix, extra in [("native", {}), ("linux", {"GOOS": "linux", "CGO_ENABLED": "0"})]:
-            result = run("go", "build", "-o", str(cls.fixtures / f"go-fixture-{suffix}"), "./internal/testfixture/cmd", cwd=module, env={**os.environ, "GOWORK": "off", **extra})
+            result = run(
+                "go",
+                "build",
+                "-o",
+                str(cls.fixtures / f"go-fixture-{suffix}"),
+                "./internal/testfixture/cmd",
+                cwd=module,
+                env={**os.environ, "GOWORK": "off", **extra},
+            )
             if result.returncode:
                 raise RuntimeError(result.stderr)
         cls.container = f"migration-test-{uuid.uuid4().hex[:10]}"
@@ -208,9 +224,7 @@ class MigrationTest(unittest.TestCase):
             self.sql("canvas", "SELECT version FROM public.migration WHERE id=1;"),
             "v1.0.1.0",
         )
-        self.assertEqual(
-            self.sql("canvas", "SELECT count(*) FROM public.migration_history;"), "2"
-        )
+        self.assertEqual(self.sql("canvas", "SELECT count(*) FROM public.migration_history;"), "2")
         self.assertEqual(
             self.sql("canvas", "SELECT name FROM public.canvases WHERE id='canvas';"),
             "historical canvas",
@@ -256,24 +270,16 @@ class MigrationTest(unittest.TestCase):
         changed = self.migrate(service)
         self.assertNotEqual(changed.returncode, 0)
         self.assertIn("checksum", changed.stderr)
-        self.assertEqual(
-            self.sql("ordered", "SELECT value FROM public.keep_data;"), "keep"
-        )
+        self.assertEqual(self.sql("ordered", "SELECT value FROM public.keep_data;"), "keep")
 
     def test_failure_rolls_back_schema_and_history_then_retries(self):
         service = self.service("rollback")
         self.success(self.migrate(service))
         upgrade = VersionFiles(service / "migrations") / "v1.0.1.sql"
-        upgrade.write_text(
-            "ALTER TABLE public.keep_data ADD COLUMN extra text; SELECT 1 / 0;"
-        )
+        upgrade.write_text("ALTER TABLE public.keep_data ADD COLUMN extra text; SELECT 1 / 0;")
         self.assertNotEqual(self.migrate(service).returncode, 0)
-        self.assertEqual(
-            self.sql("rollback", "SELECT version FROM public.migration;"), "v1.0.0.0"
-        )
-        self.assertEqual(
-            self.sql("rollback", "SELECT count(*) FROM public.migration_history;"), "1"
-        )
+        self.assertEqual(self.sql("rollback", "SELECT version FROM public.migration;"), "v1.0.0.0")
+        self.assertEqual(self.sql("rollback", "SELECT count(*) FROM public.migration_history;"), "1")
         self.assertEqual(
             self.sql(
                 "rollback",
@@ -283,30 +289,22 @@ class MigrationTest(unittest.TestCase):
         )
         upgrade.write_text("ALTER TABLE public.keep_data ADD COLUMN extra text;")
         self.success(self.migrate(service))
-        self.assertEqual(
-            self.sql("rollback", "SELECT value FROM public.keep_data;"), "keep"
-        )
+        self.assertEqual(self.sql("rollback", "SELECT value FROM public.keep_data;"), "keep")
 
     def test_missing_history_and_inserted_older_version_are_rejected(self):
         service = self.service("gaps")
         versions = VersionFiles(service / "migrations")
-        (versions / "v1.2.0.sql").write_text(
-            "INSERT INTO public.keep_data VALUES ('new');"
-        )
+        (versions / "v1.2.0.sql").write_text("INSERT INTO public.keep_data VALUES ('new');")
         self.success(self.migrate(service))
         (versions / "v1.1.0.sql").write_text("DELETE FROM public.keep_data;")
         self.assertNotEqual(self.migrate(service).returncode, 0)
-        self.assertEqual(
-            self.sql("gaps", "SELECT count(*) FROM public.keep_data;"), "2"
-        )
+        self.assertEqual(self.sql("gaps", "SELECT count(*) FROM public.keep_data;"), "2")
         (versions / "v1.1.0.sql").unlink()
         shutil.rmtree(service / "migrations/v1.1.0")
         (versions / "v1.2.0.sql").unlink()
         shutil.rmtree(service / "migrations/v1.2.0")
         self.assertNotEqual(self.migrate(service).returncode, 0)
-        self.assertEqual(
-            self.sql("gaps", "SELECT version FROM public.migration;"), "v1.2.0.0"
-        )
+        self.assertEqual(self.sql("gaps", "SELECT version FROM public.migration;"), "v1.2.0.0")
 
     def test_legacy_checksum_mismatch_does_not_rewrite_history(self):
         service = self.service("legacy_mismatch")
@@ -322,9 +320,7 @@ class MigrationTest(unittest.TestCase):
             ),
             "t",
         )
-        self.assertEqual(
-            self.sql("legacy_mismatch", "SELECT value FROM public.keep_data;"), "keep"
-        )
+        self.assertEqual(self.sql("legacy_mismatch", "SELECT value FROM public.keep_data;"), "keep")
 
     def test_data_roundtrip_and_failed_down_are_atomic(self):
         service = self.service("roundtrip")
@@ -333,9 +329,14 @@ class MigrationTest(unittest.TestCase):
         down.mkdir()
         (versions / "v1.0.1.sql").write_text("UPDATE keep_data SET value=value || '-converted';")
         reverse = down / "v1.0.1.sql"
-        reverse.write_text("UPDATE keep_data SET value=left(value, length(value)-10); SELECT 1 / (CASE WHEN (SELECT blocked FROM down_guard) THEN 0 ELSE 1 END);")
+        reverse.write_text(
+            "UPDATE keep_data SET value=left(value, length(value)-10); SELECT 1 / (CASE WHEN (SELECT blocked FROM down_guard) THEN 0 ELSE 1 END);"
+        )
         self.success(self.migrate(service))
-        self.sql("roundtrip", "CREATE TABLE down_guard(blocked bool); ALTER TABLE down_guard OWNER TO roundtrip; INSERT INTO down_guard VALUES (true);")
+        self.sql(
+            "roundtrip",
+            "CREATE TABLE down_guard(blocked bool); ALTER TABLE down_guard OWNER TO roundtrip; INSERT INTO down_guard VALUES (true);",
+        )
         self.assertNotEqual(self.migrate(service, "v1.0.0", direction="down").returncode, 0)
         self.assertEqual(self.sql("roundtrip", "SELECT value FROM keep_data"), "keep-converted")
         self.assertEqual(self.sql("roundtrip", "SELECT version FROM migration"), "v1.0.1.0")
@@ -379,7 +380,9 @@ class MigrationTest(unittest.TestCase):
         versions = VersionFiles(service / "migrations")
         down = VersionFiles(service / "migrations", "down")
         down.mkdir()
-        (versions / "v1.2.0.sql").write_text("ALTER TABLE keep_data ADD COLUMN extra text; UPDATE keep_data SET extra=value;")
+        (versions / "v1.2.0.sql").write_text(
+            "ALTER TABLE keep_data ADD COLUMN extra text; UPDATE keep_data SET extra=value;"
+        )
         (versions / "v1.10.0.sql").write_text("ALTER TABLE keep_data RENAME COLUMN extra TO renamed;")
         (down / "v1.2.0.sql").write_text("ALTER TABLE keep_data DROP COLUMN extra;")
         (down / "v1.10.0.sql").write_text("ALTER TABLE keep_data RENAME COLUMN renamed TO extra;")
@@ -389,13 +392,24 @@ class MigrationTest(unittest.TestCase):
         for result in results:
             self.success(result)
         self.assertEqual(self.sql("reverse_order", "SELECT value FROM keep_data"), "keep")
-        self.assertEqual(self.sql("reverse_order", "SELECT string_agg(version, ',' ORDER BY id) FROM migration_audit WHERE direction='down'"), "v1.10.0.0,v1.2.0.0")
+        self.assertEqual(
+            self.sql(
+                "reverse_order",
+                "SELECT string_agg(version, ',' ORDER BY id) FROM migration_audit WHERE direction='down'",
+            ),
+            "v1.10.0.0,v1.2.0.0",
+        )
         (versions / "v1.2.0.sql").write_text("SELECT 1;")
         self.assertNotEqual(self.migrate(service).returncode, 0)
 
     def test_compiled_go_data_conversion_and_source_integrity(self):
-        service = self.service("go_conversion", "CREATE TABLE keep_data(value text); INSERT INTO keep_data VALUES ('{\"name\":\"历史正文\"}');")
-        shutil.copytree(ROOT / "scripts/dbmigrate/internal/testfixture/migrations/v1.0.1", service / "migrations/v1.0.1")
+        service = self.service(
+            "go_conversion",
+            'CREATE TABLE keep_data(value text); INSERT INTO keep_data VALUES (\'{"name":"历史正文"}\');',
+        )
+        shutil.copytree(
+            ROOT / "scripts/dbmigrate/internal/testfixture/migrations/v1.0.1", service / "migrations/v1.0.1"
+        )
         self.assertNotEqual(self.migrate(service).returncode, 0)
         self.success(self.migrate(service, go=True))
         self.assertEqual(self.sql("go_conversion", "SELECT value::jsonb->>'displayName' FROM keep_data"), "历史正文")
@@ -438,7 +452,10 @@ class MigrationTest(unittest.TestCase):
     def test_release_steps_adopt_legacy_history_without_replay(self):
         service = self.service("release_steps")
         self.success(self.migrate(service))
-        self.sql("release_steps", "UPDATE migration SET version='v1.0.0'; UPDATE migration_history SET version='v1.0.0'; UPDATE migration_audit SET version='v1.0.0'; UPDATE migration_sources SET version='v1.0.0';")
+        self.sql(
+            "release_steps",
+            "UPDATE migration SET version='v1.0.0'; UPDATE migration_history SET version='v1.0.0'; UPDATE migration_audit SET version='v1.0.0'; UPDATE migration_sources SET version='v1.0.0';",
+        )
         step = service / "migrations/v1.0.0"
         (step / "v1.0.0.1.up.sql").write_text("INSERT INTO keep_data VALUES ('step1');")
         (step / "v1.0.0.1.down.sql").write_text("DELETE FROM keep_data WHERE value='step1';")
@@ -446,7 +463,9 @@ class MigrationTest(unittest.TestCase):
         self.success(self.migrate(service))
         self.assertEqual(self.sql("release_steps", "SELECT version FROM migration"), "v1.0.0.1")
         self.assertEqual(self.sql("release_steps", "SELECT count(*) FROM keep_data"), "2")
-        self.assertEqual(self.sql("release_steps", "SELECT count(*) FROM migration_history WHERE version='v1.0.0'"), "1")
+        self.assertEqual(
+            self.sql("release_steps", "SELECT count(*) FROM migration_history WHERE version='v1.0.0'"), "1"
+        )
         self.success(self.migrate(service, "v1.0.0.0", direction="down"))
         self.assertEqual(self.sql("release_steps", "SELECT value FROM keep_data"), "keep")
         self.success(self.migrate(service, "v1.0.0.1"))
@@ -455,10 +474,15 @@ class MigrationTest(unittest.TestCase):
     def test_multiple_pending_steps_rollback_and_precise_target(self):
         service = self.service("step_failure")
         self.success(self.migrate(service))
-        for n, sql in [(1, "INSERT INTO keep_data VALUES ('one');"), (2, "INSERT INTO keep_data VALUES ('two'); SELECT 1/0;")]:
+        for n, sql in [
+            (1, "INSERT INTO keep_data VALUES ('one');"),
+            (2, "INSERT INTO keep_data VALUES ('two'); SELECT 1/0;"),
+        ]:
             step = service / "migrations/v1.0.0"
             (step / f"v1.0.0.{n}.up.sql").write_text(sql)
-            (step / f"v1.0.0.{n}.down.sql").write_text(f"DELETE FROM keep_data WHERE value='{'one' if n==1 else 'two'}';")
+            (step / f"v1.0.0.{n}.down.sql").write_text(
+                f"DELETE FROM keep_data WHERE value='{'one' if n == 1 else 'two'}';"
+            )
         self.assertNotEqual(self.migrate(service).returncode, 0)
         self.assertEqual(self.sql("step_failure", "SELECT value FROM keep_data"), "keep")
         self.assertEqual(self.sql("step_failure", "SELECT version FROM migration"), "v1.0.0.0")
@@ -481,9 +505,7 @@ class MigrationTest(unittest.TestCase):
         for result in results:
             self.success(result)
         self.assertEqual(
-            self.sql(
-                "parallel", "SELECT count(*) FROM public.keep_data WHERE value='once';"
-            ),
+            self.sql("parallel", "SELECT count(*) FROM public.keep_data WHERE value='once';"),
             "1",
         )
 

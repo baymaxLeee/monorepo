@@ -6,12 +6,12 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import yaml
@@ -22,9 +22,7 @@ VPS = ROOT / "infra/single-vps"
 
 class DeploymentSecretsTest(unittest.TestCase):
     def test_service_check_rejects_receiver_drift(self):
-        spec = importlib.util.spec_from_file_location(
-            "check_services", ROOT / "scripts/check-services.py"
-        )
+        spec = importlib.util.spec_from_file_location("check_services", ROOT / "scripts/check-services.py")
         checker = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(checker)
         services = checker.load_services()
@@ -37,18 +35,16 @@ class DeploymentSecretsTest(unittest.TestCase):
             },
         ):
             compose = yaml.safe_load((VPS / "docker-compose.prod.yml").read_text())
-            compose["services"]["knowledge"]["environment"][
-                "INTERNAL_SERVICE_TOKENS"
-            ] = json.dumps(tokens)
+            compose["services"]["knowledge"]["environment"]["INTERNAL_SERVICE_TOKENS"] = json.dumps(tokens)
             with tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "compose.yml"
                 path.write_text(yaml.safe_dump(compose))
                 with (
                     patch.object(checker, "SINGLE_VPS_PATH", path),
                     contextlib.redirect_stderr(io.StringIO()),
+                    self.assertRaises(SystemExit),
                 ):
-                    with self.assertRaises(SystemExit):
-                        checker.validate_service_identities(services)
+                    checker.validate_service_identities(services)
 
     def test_rollback_can_pin_migration_image_independently(self):
         compose = VPS / "docker-compose.prod.yml"
@@ -84,9 +80,7 @@ class DeploymentSecretsTest(unittest.TestCase):
                     check=True,
                 )
                 services = json.loads(result.stdout)["services"]
-                self.assertEqual(
-                    services["canvas"]["image"], "example.invalid/test/canvas:old-app"
-                )
+                self.assertEqual(services["canvas"]["image"], "example.invalid/test/canvas:old-app")
                 self.assertEqual(
                     services["db-init"]["image"],
                     f"example.invalid/test/db-init:{migration_tag or 'old-app'}",
@@ -97,8 +91,7 @@ class DeploymentSecretsTest(unittest.TestCase):
             path = Path(directory)
             shutil.copy(VPS / "render-env.sh", path)
             (path / ".env.secrets").write_text(
-                "EXISTING_KEY=keep-me\nASSET_SIGNING_KEY=" + "ab" * 24
-                + "\nASSET_POSTGRES_PASSWORD=" + "cd" * 24 + "\n"
+                "EXISTING_KEY=keep-me\nASSET_SIGNING_KEY=" + "ab" * 24 + "\nASSET_POSTGRES_PASSWORD=" + "cd" * 24 + "\n"
             )
             (path / "age.key").touch()
             (path / "secrets.sops.env").touch()
@@ -122,10 +115,7 @@ class DeploymentSecretsTest(unittest.TestCase):
                     capture_output=True,
                     check=True,
                 )
-                return dict(
-                    line.split("=", 1)
-                    for line in (path / ".env.secrets").read_text().splitlines()
-                )
+                return dict(line.split("=", 1) for line in (path / ".env.secrets").read_text().splitlines())
 
             first = render()
             self.assertIn("DB_INIT_IMAGE_TAG=new-schema", (path / ".env").read_text())
@@ -157,9 +147,7 @@ class DeploymentSecretsTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / "test.env"
-            env_file.write_text(
-                "\n".join(f"{key}={value}" for key, value in values.items())
-            )
+            env_file.write_text("\n".join(f"{key}={value}" for key, value in values.items()))
             result = subprocess.run(
                 [
                     "docker",
@@ -185,30 +173,20 @@ class DeploymentSecretsTest(unittest.TestCase):
                 values.get("STORAGE_SIGNING_KEY", "missing-signing-key"),
             )
         with self.subTest(service="knowledge"):
-            actual = json.loads(
-                services["knowledge"]["environment"]["INTERNAL_SERVICE_TOKENS"]
-            )
-            expected = {
-                caller: values[f"{caller.upper()}_INTERNAL_API_TOKEN"]
-                for caller in ("chat", "executor")
-            }
+            actual = json.loads(services["knowledge"]["environment"]["INTERNAL_SERVICE_TOKENS"])
+            expected = {caller: values[f"{caller.upper()}_INTERNAL_API_TOKEN"] for caller in ("chat", "executor")}
             self.assertEqual(actual, expected)
 
     def test_k8s_secret_templates(self):
         base = ROOT / "infra/k8s/base"
         storage = yaml.safe_load((base / "storage/secret.yaml").read_text())["stringData"]
-        knowledge = yaml.safe_load((base / "knowledge/secret.yaml").read_text())[
-            "stringData"
-        ]
+        knowledge = yaml.safe_load((base / "knowledge/secret.yaml").read_text())["stringData"]
         with self.subTest(service="storage"):
             self.assertIn("STORAGE_SIGNING_KEY", storage)
         with self.subTest(service="knowledge"):
             self.assertEqual(
                 json.loads(knowledge["INTERNAL_SERVICE_TOKENS"]),
-                {
-                    caller: f"REPLACE_{caller.upper()}_TOKEN"
-                    for caller in ("chat", "executor")
-                },
+                {caller: f"REPLACE_{caller.upper()}_TOKEN" for caller in ("chat", "executor")},
             )
 
 

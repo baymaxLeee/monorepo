@@ -26,6 +26,36 @@ Node workspace dependency/dev/peer/optional 构成源码依赖图，应用保持
 空套件与 runner 政策由[测试规范](../开发规范/testing.md)维护；缺环境/跳过不得
 算通过。测试工具变更执行全量入口；仅文档变更不需要应用构建。
 
+## 端到端代码规范与提交前自检
+
+JS/TS 的 frontend、Node backend、构建配置和仓库脚本共用根 Oxlint/Oxfmt
+配置与锁定版本。公共入口 `just lint-ts` 同时检查 lint 与格式，`just typecheck-ts`
+执行两侧 TS7。浏览器/React 与 Node 环境使用官方 override；不维护两套风格。
+CI 按安装的 workspace 分工检查，根 `just lint` 每个范围只检查一次。
+
+运行环境也参与门禁：浏览器源码通过官方 `import/no-nodejs-modules` 禁用 Node
+内置模块，通过 `no-restricted-globals` 禁用环境中的 Node 全局变量；不维护模块
+黑名单或引入 Node polyfill。构建配置保持 Node，前端测试目录与 test/spec 文件
+显式允许 Node + jsdom。浏览器类型基线声明 DOM 与空 ambient `types`，Node 项目
+声明仅 ES 的 `lib` 与 Node `types`，保留 Node 原生的 fetch/Response/stream。
+使用真实 Oxlint 和 TS7 编译错误 fixture 验证拒绝路径和合法例外。
+
+Python 使用 Ruff 同时承担 lint、import 排序与格式化，复用现有 strict mypy
+检查类型；根 `ruff.toml` 覆盖服务、库、脚本与基础设施测试。服务的顶层包名重复，
+mypy 保持逐项目执行。工具由 backend uv workspace 锁定，不另加 Black/isort，
+也不引入尚未验证的类型检查器迁移。
+
+根 `just pre-commit` 调用标准 pre-commit 的暂存快照机制，复用锁定的本地工具，
+默认只检查不改写，避免自行实现 stash 或解析 Git diff。自动安装 hook 是开发者
+环境选择，不能覆盖已有托管 hook。全量 CI 与暂存检查使用同一规则；类型、测试和
+生成产物一致性仍有独立门禁。命令见[质量 CLI](../../scripts/README.md#code-quality-and-staged-checks)。
+
+依据：[Ruff 集成](https://docs.astral.sh/ruff/integrations/)、
+[Oxlint 配置](https://oxc.rs/docs/guide/usage/linter/config.html)、
+[Node 模块边界规则](https://oxc.rs/docs/guide/usage/linter/rules/import/no-nodejs-modules.html)、
+[Oxfmt 配置](https://oxc.rs/docs/guide/usage/formatter/config.html)、
+[pre-commit](https://pre-commit.com/)。
+
 ## 文档只维护当前一套
 
 本目录压缩合并原时间序列 ADR，按主题更新正文，删除失效说明。每个文件说明

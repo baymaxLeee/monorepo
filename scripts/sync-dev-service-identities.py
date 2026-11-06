@@ -58,10 +58,7 @@ def set_value(lines: list[str], key: str, value: str) -> list[str]:
 
 
 def local_envs() -> dict[str, Path]:
-    return {
-        service: SERVICE_ROOT / service / ".env"
-        for service in set(DEFAULT_CALLER_TOKENS) | set(RECEIVER_CALLERS)
-    }
+    return {service: SERVICE_ROOT / service / ".env" for service in set(DEFAULT_CALLER_TOKENS) | set(RECEIVER_CALLERS)}
 
 
 def migrate_legacy_tokens(paths: dict[str, Path]) -> None:
@@ -76,9 +73,7 @@ def migrate_legacy_tokens(paths: dict[str, Path]) -> None:
             continue
         set_value(lines, "INTERNAL_API_TOKEN", expected)
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        print(
-            f"  migrated {path.relative_to(ROOT)} from the retired shared development token"
-        )
+        print(f"  migrated {path.relative_to(ROOT)} from the retired shared development token")
 
 
 def current_caller_tokens(paths: dict[str, Path]) -> tuple[dict[str, str], list[str]]:
@@ -97,16 +92,12 @@ def current_caller_tokens(paths: dict[str, Path]) -> tuple[dict[str, str], list[
             errors.append(f"{path.relative_to(ROOT)} has an empty INTERNAL_API_TOKEN")
             continue
         if token == LEGACY_SHARED_TOKEN:
-            errors.append(
-                f"{path.relative_to(ROOT)} still uses the retired shared development token"
-            )
+            errors.append(f"{path.relative_to(ROOT)} still uses the retired shared development token")
         tokens[service] = token
     return tokens, errors
 
 
-def sync_receiver_maps(
-    paths: dict[str, Path], caller_tokens: dict[str, str], fix: bool
-) -> list[str]:
+def sync_receiver_maps(paths: dict[str, Path], caller_tokens: dict[str, str], fix: bool) -> list[str]:
     errors: list[str] = []
     for receiver, callers in RECEIVER_CALLERS.items():
         path = paths[receiver]
@@ -127,21 +118,15 @@ def sync_receiver_maps(
             print(f"  added caller map to {path.relative_to(ROOT)}")
             continue
         if raw is None:
-            errors.append(
-                f"{path.relative_to(ROOT)} is missing INTERNAL_SERVICE_TOKENS"
-            )
+            errors.append(f"{path.relative_to(ROOT)} is missing INTERNAL_SERVICE_TOKENS")
             continue
         try:
             actual = json.loads(raw)
         except json.JSONDecodeError:
-            errors.append(
-                f"{path.relative_to(ROOT)} has invalid INTERNAL_SERVICE_TOKENS JSON"
-            )
+            errors.append(f"{path.relative_to(ROOT)} has invalid INTERNAL_SERVICE_TOKENS JSON")
             continue
         if actual != expected:
-            errors.append(
-                f"{path.relative_to(ROOT)} INTERNAL_SERVICE_TOKENS does not match current caller credentials"
-            )
+            errors.append(f"{path.relative_to(ROOT)} INTERNAL_SERVICE_TOKENS does not match current caller credentials")
     return errors
 
 

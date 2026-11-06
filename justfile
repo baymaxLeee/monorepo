@@ -132,19 +132,51 @@ ai-add *args:
 ui-add *args:
     @pnpm --dir apps/frontend/packages/design-system ui:add "$@"
 
-fmt:
+# One JS/TS policy for frontend, Node services and repository scripts.
+lint-ts:
+    pnpm lint:ts oxlint.config.ts oxfmt.config.ts scripts apps/frontend apps/backend
+    pnpm format:ts:check
+
+fmt-ts:
     pnpm format:ts
-    cd apps/backend && just fmt
-    cd apps/frontend && just fmt
+
+typecheck-ts:
+    cd apps/backend && just typecheck-node
+    pnpm --dir apps/frontend typecheck
+
+# Native Ruff arguments, including paths, --fix, --check and --diff.
+lint-py *args:
+    @uv run --locked --project apps/backend ruff check "$@"
+
+fmt-py *args:
+    @uv run --locked --project apps/backend ruff format "$@"
+
+check-py:
+    @just lint-py
+    @just fmt-py --check
+    cd apps/backend && just typecheck-python
+
+# Checks the staged snapshot; --all-files is available for a full audit.
+pre-commit *args:
+    @uv run --locked --project apps/backend pre-commit run "$@"
+
+fmt:
+    @just fmt-ts
+    @just lint-py --fix
+    @just fmt-py
+    cd apps/backend && just fmt-go
 
 lint:
     @just check-repo
     @just migrate-check
     cd scripts/dbmigrate && GOWORK=off go vet ./...
     @uv run --project apps/backend python scripts/check-services.py
-    pnpm lint:ts
-    cd apps/backend && just lint
-    cd apps/frontend && just lint
+    @just lint-ts
+    @just check-py
+    @just typecheck-ts
+    cd apps/backend && just lint-go
+    pnpm lint:ui-contracts
+    cd apps/frontend && just boundaries
 
 # Run all tests, or one target from test-list; trailing arguments go to that runner.
 test *args:

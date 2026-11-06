@@ -7,9 +7,10 @@
     "dev": "tsx src/index.ts",
     "build": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
     "start": "tsx src/index.ts",
-    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/backend/services/chat && pnpm --dir ../../../.. exec oxfmt --check 'apps/backend/services/chat/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}' && node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm --dir ../../../.. lint:ts apps/backend/services/chat && pnpm --dir ../../../.. exec oxfmt --check 'apps/backend/services/chat/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' && node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
     "gen-openapi": "tsx src/gen-openapi.ts",
-    "test": "node --import tsx --test"
+    "test": "node --import tsx --test",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@ai-sdk/code-mode": "catalog:",

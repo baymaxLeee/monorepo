@@ -1,0 +1,18 @@
+line-length = 120
+target-version = "py314"
+extend-exclude = ["**/migrations/**", "**/__pycache__/**"]
+force-exclude = true
+output-format = "concise"
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "PT", "RUF"]
+# Chinese punctuation is intentional; the formatter owns line wrapping.
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[lint.per-file-ignores]
+# Infrastructure tests use stdlib unittest and run without pytest installed.
+"scripts/tests/*.py" = ["PT009", "PT027"]
+"infra/**/tests/*.py" = ["PT009", "PT027"]
+
+[format]
+quote-style = "double"

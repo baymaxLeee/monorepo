@@ -2,7 +2,6 @@
   "extends": "@repo/typescript-config",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["vitest/globals"],
     "paths": {
       "@repo/ai-elements/components": ["./src/components"],
       "@repo/ai-elements/components/*": ["./src/components/*"]

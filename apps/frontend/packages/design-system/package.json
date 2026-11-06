@@ -25,8 +25,8 @@
     "./use-highlighted-code": "./src/use-highlighted-code.ts"
   },
   "scripts": {
-    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/design-system/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/design-system/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
-    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/design-system/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "lint": "pnpm --dir ../../../.. lint:ts apps/frontend/packages/design-system/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/design-system/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/design-system/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
     "ui:add": "shadcn add",
     "test": "pnpm --dir ../.. test --project @repo/design-system"

@@ -67,6 +67,10 @@ authorization, concurrency and retry changes need failure/cleanup coverage.
 | `just test-affected [base] [scope] [--list]` | Dependency-aware tests; HEAD includes local edits |
 | `just check-repo` | Project graph and documentation navigation |
 | `just lint` / `just check` | Static checks / lint + tests + generated-contract checks |
+| `just lint-ts` / `just typecheck-ts` | Shared frontend, Node and scripts Oxc checks / TS7 types |
+| `just lint-py [args...]` / `just fmt-py [args...]` | Native Ruff lint / format; checks do not rewrite unless requested |
+| `just check-py` | Repository-wide Ruff lint + format check and backend mypy |
+| `just pre-commit [--all-files]` | Read-only staged checks / all tracked files |
 | `just status` / `just doctor` | Repository/environment health |
 
 After code changes, run affected-target tests and builds. Test infrastructure
@@ -82,6 +86,12 @@ tests and absent suites are unverified, never passes. Distinguish tests, lint,
 typechecks, builds and integration checks. Report results/gaps briefly, without
 a separate validation report. Documentation-only work needs link, command and
 consistency checks, not application builds.
+
+Before committing, run `just pre-commit` on the staged snapshot in addition to
+the affected checks above. Use `just pre-commit --all-files` after changing shared
+quality configuration. Hooks use the workspace-locked Ruff/Oxc versions; never
+override a managed `core.hooksPath` to install them. Fix explicitly with native
+`--fix` or format commands, review the diff and stage it again.
 
 ## Editing and context discipline
 

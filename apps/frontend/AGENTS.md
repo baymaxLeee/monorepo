@@ -4,6 +4,17 @@ For UI, design-system, component primitive, or overlay work, read the repository
 
 React 19 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
 
+JS/TS style is shared with Node backend services and repository scripts through
+root `oxlint.config.ts` and `oxfmt.config.ts`. Root `just lint-ts` checks lint and
+format (including `.mts`/`.cts`); `just typecheck-ts` checks both workspaces.
+Browser/React source uses an override; build configuration and scripts use Node.
+Browser source rejects Node builtins and ambient Node globals. Test files
+(`*.test.*` / `*.spec.*`) and `test` / `tests` / `__tests__` directories explicitly
+allow both Node and jsdom APIs. Locally declared bundler constants remain valid.
+Package `lint`/`format` commands call the same root tools. Do not add a parallel
+ESLint/Prettier policy. Before committing, run root `just pre-commit` on staged
+files; hook installation is optional and must preserve managed Git hooks.
+
 ## Architecture
 
 ```
@@ -127,6 +138,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - 普通 TS package 不得直接声明旧 `typescript`；每个含 TS 源码的 workspace package 必须提供独立 TS7 `typecheck`。只有承载明确旧 API / peer 消费者的 package 可保留 TS5。
 - 共享编译选项只维护在 `packages/typescript-config/base.json`。所有 app/package 必须声明 `"@repo/typescript-config": "workspace:*"` 并从包名继承；禁止用跨目录相对路径继承根 `tsconfig.base.json`，否则从 pnpm `node_modules` 符号链接进入时会解析到错误目录。
 - TS7 不支持 `baseUrl`；`paths` replacement 必须以 `./` 开头，并相对声明它的项目 `tsconfig.json`。浏览器代码不要依赖默认注入的 Node 全局类型，计时器使用 `ReturnType<typeof setTimeout>`。
+- 浏览器基线显式使用 DOM libraries 与 `types: []`；Node 构建配置显式使用仅 ES 的 `lib` 与 `types: ["node"]`。Vitest API 在测试文件显式导入，不向业务配置注入 `vitest/globals`；不通过增加 Node polyfill 来绕过检查。
 - VS Code / Cursor 使用微软 `TypeScriptTeam.native-preview` 扩展，并在编辑器设置中启用 `js/ts.experimental.useTsgo`。
 
 ### Code style

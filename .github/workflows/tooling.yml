@@ -17,7 +17,13 @@ on:
       - 'DESIGN.md'
       - 'package.json'
       - 'apps/**/package.json'
+      - 'apps/**/tsconfig*.json'
+      - 'apps/frontend/packages/typescript-config/**'
       - 'justfile'
+      - 'oxlint.config.ts'
+      - 'oxfmt.config.ts'
+      - 'ruff.toml'
+      - '.pre-commit-config.yaml'
       - 'mise.toml'
       - 'services.yaml'
       - '.github/workflows/tooling.yml'
@@ -30,6 +36,14 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
+      - name: Install shared Oxc tools
+        run: pnpm install --frozen-lockfile
+      - name: Install TS7 for environment configuration tests
+        run: pnpm --dir apps/frontend --filter frontend-workspace install --frozen-lockfile
+      - name: Check repository JavaScript and TypeScript
+        run: |
+          pnpm lint:ts oxlint.config.ts oxfmt.config.ts scripts
+          pnpm exec oxfmt --check oxlint.config.ts oxfmt.config.ts package.json 'scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'
       - name: Check repository graph and documentation navigation
         run: just check-repo
       - name: Test affected CLI behavior

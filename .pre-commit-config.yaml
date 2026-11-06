@@ -1,0 +1,27 @@
+minimum_pre_commit_version: '4.7.0'
+# Native tool configs also exclude these paths when files are passed explicitly.
+exclude: '(^|/)(generated|__generated__|migrations|patches|dist|build|\.output|coverage)/|\.(gen|generated)\.|^apps/backend/libs/transport-ts/src/schema/'
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint
+        entry: uv run --locked --project apps/backend ruff check
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: Ruff format check
+        entry: uv run --locked --project apps/backend ruff format --check
+        language: system
+        types_or: [python, pyi]
+      - id: oxlint
+        name: Oxlint (frontend, Node and scripts)
+        entry: pnpm lint:ts
+        language: system
+        types_or: [javascript, jsx, ts, tsx]
+      - id: oxfmt
+        name: Oxfmt check
+        entry: pnpm exec oxfmt --check
+        language: system
+        types: [text]
+        files: '^((apps/(frontend|backend)|scripts)/.*\.(?:[cm]?[jt]s|[jt]sx|jsonc?)|ox(lint|fmt)\.config\.ts|package\.json)$'

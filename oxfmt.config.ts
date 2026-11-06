@@ -24,12 +24,6 @@ export default defineConfig({
     "**/patches",
     "apps/backend/libs/transport-ts/src/schema",
   ],
-  overrides: [
-    {
-      files: ["apps/backend/services/chat/src/application/agent/tools/builtins/files.ts"],
-      options: { printWidth: 160 },
-    },
-  ],
   jsxSingleQuote: false,
   printWidth: 120,
   proseWrap: "never",

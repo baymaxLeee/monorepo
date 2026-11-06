@@ -10,6 +10,11 @@ on:
       - 'pnpm-lock.yaml'
       - 'mise.toml'
       - 'justfile'
+      - 'ruff.toml'
+      - 'oxlint.config.ts'
+      - 'oxfmt.config.ts'
+      - '.pre-commit-config.yaml'
+      - 'infra/single-vps/tests/**'
       - 'scripts/**'
       - 'services.yaml'
       - '.github/workflows/backend.yml'
@@ -30,11 +35,15 @@ jobs:
         env:
           TEST_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'all' }}
         run: just test-affected "$TEST_BASE" backend
-      - name: Static checks and formatting
+      - name: Python lint, formatting and types (including repository scripts)
+        env:
+          RUFF_OUTPUT_FORMAT: github
+        run: just check-py
+      - name: Node and Go static checks
         working-directory: apps/backend
         run: |
-          just lint
-          uv run ruff format --check .
+          just lint-node
+          just lint-go
       - name: Build backend services
         working-directory: apps/backend
         run: |

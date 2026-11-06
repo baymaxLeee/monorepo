@@ -19,12 +19,8 @@ ROOT_JUSTFILE_PATH = ROOT / "justfile"
 DEV_PREFLIGHT_PATH = ROOT / "scripts" / "dev-preflight.sh"
 SINGLE_VPS_PATH = ROOT / "infra" / "single-vps" / "docker-compose.prod.yml"
 SINGLE_VPS_RENDER_ENV_PATH = ROOT / "infra" / "single-vps" / "render-env.sh"
-SINGLE_VPS_OPERATOR_ENV_EXAMPLE_PATH = (
-    ROOT / "infra" / "single-vps" / "secrets.sops.env.example"
-)
-GATEWAY_MAIN_PATH = (
-    ROOT / "apps" / "backend" / "services" / "gateway" / "cmd" / "server" / "main.go"
-)
+SINGLE_VPS_OPERATOR_ENV_EXAMPLE_PATH = ROOT / "infra" / "single-vps" / "secrets.sops.env.example"
+GATEWAY_MAIN_PATH = ROOT / "apps" / "backend" / "services" / "gateway" / "cmd" / "server" / "main.go"
 K8S_BASE = ROOT / "infra" / "k8s" / "base"
 REQUIRED = ("root", "runtime", "port", "publicRoutes", "bindings", "databases")
 RUNTIMES = {"go", "python", "node"}
@@ -51,11 +47,7 @@ def load_services() -> dict[str, dict[str, Any]]:
 
 def validate_schema(services: dict[str, dict[str, Any]]) -> None:
     service_root = ROOT / "apps" / "backend" / "services"
-    directories = {
-        path.name
-        for path in service_root.iterdir()
-        if path.is_dir() and not path.name.startswith(".")
-    }
+    directories = {path.name for path in service_root.iterdir() if path.is_dir() and not path.name.startswith(".")}
     if directories != set(services):
         fail(
             "services.yaml service ids drift from apps/backend/services: "
@@ -97,10 +89,7 @@ def validate_schema(services: dict[str, dict[str, Any]]) -> None:
             if not isinstance(database, str) or not database:
                 fail(f"{service_id}: database names must be non-empty strings")
             if database in database_owners:
-                fail(
-                    f"database ownership conflict: {database} owned by "
-                    f"{database_owners[database]} and {service_id}"
-                )
+                fail(f"database ownership conflict: {database} owned by {database_owners[database]} and {service_id}")
             database_owners[database] = service_id
 
         for dependency in config["bindings"]:
@@ -113,9 +102,7 @@ def validate_schema(services: dict[str, dict[str, Any]]) -> None:
             if not isinstance(route, str) or not route.startswith("/"):
                 fail(f"{service_id}: invalid public route {route!r}")
             if route != "/*" and route in public_routes:
-                fail(
-                    f"public route {route} used by {public_routes[route]} and {service_id}"
-                )
+                fail(f"public route {route} used by {public_routes[route]} and {service_id}")
             public_routes[route] = service_id
 
         openapi = config.get("openapi")
@@ -143,20 +130,12 @@ def validate_backend_justfile(services: dict[str, dict[str, Any]]) -> None:
         "go": set(parse_just_assignment(text, "GO_SERVICES").split()),
     }
     for runtime, actual in groups.items():
-        expected = {
-            service_id
-            for service_id, config in services.items()
-            if config["runtime"] == runtime
-        }
+        expected = {service_id for service_id, config in services.items() if config["runtime"] == runtime}
         if actual != expected:
-            fail(
-                f"backend justfile {runtime} services drift: expected={sorted(expected)} actual={sorted(actual)}"
-            )
+            fail(f"backend justfile {runtime} services drift: expected={sorted(expected)} actual={sorted(actual)}")
 
     ports = json.loads(parse_just_assignment(text, "PORTS"))
-    expected_ports = {
-        service_id: config["port"] for service_id, config in services.items()
-    }
+    expected_ports = {service_id: config["port"] for service_id, config in services.items()}
     if ports != expected_ports:
         fail(f"backend justfile PORTS drift: expected={expected_ports} actual={ports}")
 
@@ -189,11 +168,7 @@ def validate_dev_entrypoints(services: dict[str, dict[str, Any]]) -> None:
     if missing:
         fail(f"scripts/dev-preflight.sh missing backend ports: {sorted(missing)}")
 
-    dev_urls = (
-        ROOT_JUSTFILE_PATH.read_text()
-        .split("dev-urls:", 1)[-1]
-        .split("# ─── Build", 1)[0]
-    )
+    dev_urls = ROOT_JUSTFILE_PATH.read_text().split("dev-urls:", 1)[-1].split("# ─── Build", 1)[0]
     for service_id, config in services.items():
         if f":{config['port']}" not in dev_urls:
             fail(f"root justfile dev-urls missing {service_id}:{config['port']}")
@@ -224,9 +199,7 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
         local_env = env_from_example(service_id)
         local = {key for key in local_env if key.endswith("_SERVICE_URL")}
         if local != expected:
-            fail(
-                f"{service_id}: .env.example bindings drift: expected={sorted(expected)} actual={sorted(local)}"
-            )
+            fail(f"{service_id}: .env.example bindings drift: expected={sorted(expected)} actual={sorted(local)}")
 
         configmap = load_yaml(K8S_BASE / service_id / "configmap.yaml")
         k8s_data = configmap.get("data") if isinstance(configmap, dict) else None
@@ -234,39 +207,25 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
             fail(f"{service_id}: invalid K8s ConfigMap")
         k8s_keys = {key for key in k8s_data if key.endswith("_SERVICE_URL")}
         if k8s_keys != expected:
-            fail(
-                f"{service_id}: K8s bindings drift: expected={sorted(expected)} actual={sorted(k8s_keys)}"
-            )
+            fail(f"{service_id}: K8s bindings drift: expected={sorted(expected)} actual={sorted(k8s_keys)}")
 
         compose_entry = compose_services.get(service_id)
-        compose_env = (
-            compose_entry.get("environment")
-            if isinstance(compose_entry, dict)
-            else None
-        )
+        compose_env = compose_entry.get("environment") if isinstance(compose_entry, dict) else None
         if not isinstance(compose_env, dict):
             fail(f"{service_id}: single-vps compose environment missing")
         compose_keys = {key for key in compose_env if key.endswith("_SERVICE_URL")}
         if compose_keys != expected:
-            fail(
-                f"{service_id}: single-vps bindings drift: expected={sorted(expected)} actual={sorted(compose_keys)}"
-            )
+            fail(f"{service_id}: single-vps bindings drift: expected={sorted(expected)} actual={sorted(compose_keys)}")
 
         for dependency in config["bindings"]:
             key = f"{dependency.upper()}_SERVICE_URL"
             target = services[dependency]
             expected_fragment = f"{dependency}:{target['port']}"
-            if expected_fragment not in str(
-                k8s_data[key]
-            ) or expected_fragment not in str(compose_env[key]):
-                fail(
-                    f"{service_id}: {key} must target {expected_fragment} in K8s and single-vps"
-                )
+            if expected_fragment not in str(k8s_data[key]) or expected_fragment not in str(compose_env[key]):
+                fail(f"{service_id}: {key} must target {expected_fragment} in K8s and single-vps")
 
         if config["databases"]:
-            database_key = (
-                "IAM_POSTGRES_DATABASE" if service_id == "iam" else "POSTGRES_DATABASE"
-            )
+            database_key = "IAM_POSTGRES_DATABASE" if service_id == "iam" else "POSTGRES_DATABASE"
             primary_database = config["databases"][0]
             actual_databases = {
                 ".env.example": local_env.get(database_key),
@@ -288,9 +247,7 @@ def validate_service_identities(services: dict[str, dict[str, Any]]) -> None:
             continue
         token = env_from_example(service_id).get("INTERNAL_API_TOKEN", "")
         if not token or token == "dev-internal-token":
-            fail(
-                f"{service_id}: .env.example must declare a caller-specific INTERNAL_API_TOKEN"
-            )
+            fail(f"{service_id}: .env.example must declare a caller-specific INTERNAL_API_TOKEN")
         caller_tokens[service_id] = token
 
     if len(set(caller_tokens.values())) != len(caller_tokens):
@@ -315,66 +272,44 @@ def validate_service_identities(services: dict[str, dict[str, Any]]) -> None:
             fail(f"{receiver}: .env.example INTERNAL_SERVICE_TOKENS must be valid JSON")
         expected = {caller: caller_tokens[caller] for caller in sorted(callers)}
         if actual != expected:
-            fail(
-                f"{receiver}: .env.example INTERNAL_SERVICE_TOKENS drift: "
-                f"expected={expected} actual={actual}"
-            )
+            fail(f"{receiver}: .env.example INTERNAL_SERVICE_TOKENS drift: expected={expected} actual={actual}")
 
         compose_env = load_yaml(SINGLE_VPS_PATH)["services"][receiver]["environment"]
         secret = load_yaml(K8S_BASE / receiver / "secret.yaml").get("stringData", {})
         for surface, source in (("single-vps", compose_env), ("K8s Secret", secret)):
             try:
                 deployed = json.loads(source.get("INTERNAL_SERVICE_TOKENS", "{}"))
-            except (TypeError, json.JSONDecodeError):
-                fail(
-                    f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must be a JSON object"
-                )
+            except TypeError, json.JSONDecodeError:
+                fail(f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must be a JSON object")
             if not isinstance(deployed, dict) or set(deployed) != callers:
-                fail(
-                    f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must contain callers {sorted(callers)}"
-                )
+                fail(f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must contain callers {sorted(callers)}")
             for caller, token in deployed.items():
                 variable = f"{caller.upper().replace('-', '_')}_INTERNAL_API_TOKEN"
                 if surface == "single-vps":
-                    valid = isinstance(token, str) and re.fullmatch(
-                        rf"\$\{{{variable}:\?[^}}]+\}}", token
-                    )
+                    valid = isinstance(token, str) and re.fullmatch(rf"\$\{{{variable}:\?[^}}]+\}}", token)
                 else:
                     valid = token == f"REPLACE_{caller.upper().replace('-', '_')}_TOKEN"
                 if not valid:
-                    fail(
-                        f"{receiver}: {surface} must bind {caller} to its own caller credential"
-                    )
+                    fail(f"{receiver}: {surface} must bind {caller} to its own caller credential")
 
 
 def dotenv_keys(path: Path) -> set[str]:
     return {
-        match.group(1)
-        for line in path.read_text().splitlines()
-        if (match := re.match(r"^([A-Z][A-Z0-9_]*)=", line))
+        match.group(1) for line in path.read_text().splitlines() if (match := re.match(r"^([A-Z][A-Z0-9_]*)=", line))
     }
 
 
 def validate_single_vps_environment(services: dict[str, dict[str, Any]]) -> None:
     compose_env = load_yaml(SINGLE_VPS_PATH)["services"]["storage"]["environment"]
-    if (
-        compose_env.get("STORAGE_SIGNING_KEY")
-        != "${STORAGE_SIGNING_KEY:?STORAGE_SIGNING_KEY is required}"
-    ):
+    if compose_env.get("STORAGE_SIGNING_KEY") != "${STORAGE_SIGNING_KEY:?STORAGE_SIGNING_KEY is required}":
         fail("storage: single-vps must inject required STORAGE_SIGNING_KEY")
-    if (
-        not load_yaml(K8S_BASE / "storage" / "secret.yaml")
-        .get("stringData", {})
-        .get("STORAGE_SIGNING_KEY")
-    ):
+    if not load_yaml(K8S_BASE / "storage" / "secret.yaml").get("stringData", {}).get("STORAGE_SIGNING_KEY"):
         fail("storage: K8s Secret must declare STORAGE_SIGNING_KEY")
     render_env = SINGLE_VPS_RENDER_ENV_PATH.read_text()
     internal_match = re.search(r"(?ms)^INTERNAL_KEYS=\(\n(?P<body>.*?)^\)", render_env)
     if not internal_match:
         fail("single-vps render-env.sh missing INTERNAL_KEYS")
-    internal_keys = set(
-        re.findall(r"(?m)^\s+([A-Z][A-Z0-9_]*)\s*$", internal_match.group("body"))
-    )
+    internal_keys = set(re.findall(r"(?m)^\s+([A-Z][A-Z0-9_]*)\s*$", internal_match.group("body")))
 
     expected_database_keys = {"WORKFLOW_POSTGRES_PASSWORD"}
     expected_database_keys.update(
@@ -384,24 +319,14 @@ def validate_single_vps_environment(services: dict[str, dict[str, Any]]) -> None
     )
     missing_database_keys = expected_database_keys - internal_keys
     if missing_database_keys:
-        fail(
-            "single-vps render-env.sh does not generate database passwords: "
-            f"{sorted(missing_database_keys)}"
-        )
+        fail(f"single-vps render-env.sh does not generate database passwords: {sorted(missing_database_keys)}")
 
     runtime_keys = {"IMAGE_REGISTRY", "IMAGE_TAG", "PUBLIC_PORT", "PUBLIC_GATEWAY_URL"}
     operator_keys = dotenv_keys(SINGLE_VPS_OPERATOR_ENV_EXAMPLE_PATH)
-    required_compose_keys = set(
-        re.findall(r"\$\{([A-Z][A-Z0-9_]*):\?", SINGLE_VPS_PATH.read_text())
-    )
-    missing_sources = (
-        required_compose_keys - runtime_keys - internal_keys - operator_keys
-    )
+    required_compose_keys = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*):\?", SINGLE_VPS_PATH.read_text()))
+    missing_sources = required_compose_keys - runtime_keys - internal_keys - operator_keys
     if missing_sources:
-        fail(
-            "single-vps compose requires variables with no render-env source: "
-            f"{sorted(missing_sources)}"
-        )
+        fail(f"single-vps compose requires variables with no render-env source: {sorted(missing_sources)}")
 
 
 def validate_k8s_ports(services: dict[str, dict[str, Any]]) -> None:
@@ -412,18 +337,9 @@ def validate_k8s_ports(services: dict[str, dict[str, Any]]) -> None:
             fail(f"{service_id}: K8s ConfigMap PORT drift")
 
         deployment = load_yaml(K8S_BASE / service_id / "deployment.yaml")
-        containers = (
-            deployment.get("spec", {})
-            .get("template", {})
-            .get("spec", {})
-            .get("containers", [])
-        )
-        container = next(
-            (item for item in containers if item.get("name") == service_id), None
-        )
-        container_ports = (
-            container.get("ports", []) if isinstance(container, dict) else []
-        )
+        containers = deployment.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [])
+        container = next((item for item in containers if item.get("name") == service_id), None)
+        container_ports = container.get("ports", []) if isinstance(container, dict) else []
         if not any(item.get("containerPort") == port for item in container_ports):
             fail(f"{service_id}: K8s Deployment containerPort drift")
 
@@ -437,9 +353,7 @@ def validate_gateway_routes(services: dict[str, dict[str, Any]]) -> None:
     source = GATEWAY_MAIN_PATH.read_text()
     gateway_bindings = set(services["gateway"]["bindings"])
     expected_public = {
-        service_id
-        for service_id, config in services.items()
-        if service_id != "gateway" and config["publicRoutes"]
+        service_id for service_id, config in services.items() if service_id != "gateway" and config["publicRoutes"]
     }
     if gateway_bindings != expected_public:
         fail(

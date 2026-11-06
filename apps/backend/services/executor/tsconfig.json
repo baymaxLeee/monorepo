@@ -8,7 +8,8 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "lib": ["ES2022"]
   },
-  "include": ["src/**/*.ts", "workflows/**/*.ts", "scripts/**/*.ts", "nitro.config.ts"]
+  "include": ["src/**/*", "workflows/**/*", "scripts/**/*", "nitro.config.ts"]
 }

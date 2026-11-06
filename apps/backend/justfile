@@ -72,6 +72,7 @@ build-go-svc service:
 build-py-svc service:
     @echo "→ Pre-flighting Python service: {{ service }}"
     cd services/{{ service }} && uv run ruff check .
+    cd services/{{ service }} && uv run ruff format --check .
     just gen-openapi {{ service }}
     @echo "✓ {{ service }} ready (run as image via: just build-image {{ service }})"
 
@@ -114,29 +115,40 @@ test target="" *args:
     @node ../../scripts/test.mjs "backend/$1" "${@:2}"
 
 fmt:
-    pnpm --dir ../.. format:ts:backend
+    pnpm --dir ../.. exec oxfmt --write 'apps/backend/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'
     uv run ruff check --fix .
     uv run ruff format .
+    @just fmt-go
+
+fmt-go:
     @for s in {{ GO_SERVICES }}; do cd services/$s && gofmt -w .; cd ../..; done
 
 lint scope="":
     @if [ -z "{{ scope }}" ]; then \
         uv run ruff check . && \
-        uv run mypy libs && \
-        for s in {{ PY_SERVICES }}; do (cd services/$s && uv run mypy .) || exit 1; done && \
+        uv run ruff format --check . && \
+        just typecheck-python && \
         just lint-node && just lint-go; \
     elif [ -f "services/{{ scope }}/go.mod" ]; then \
         cd services/{{ scope }} && go vet ./...; \
     elif [ -f "services/{{ scope }}/package.json" ]; then \
         cd services/{{ scope }} && pnpm run lint; \
     else \
-        cd services/{{ scope }} && uv run ruff check . && uv run mypy .; \
+        cd services/{{ scope }} && uv run ruff check . && uv run ruff format --check . && uv run mypy .; \
     fi
 
 lint-node:
-    @pnpm --dir ../.. lint:ts:backend
+    pnpm --dir ../.. lint:ts apps/backend
+    pnpm --dir ../.. exec oxfmt --check 'apps/backend/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'
+    @just typecheck-node
+
+typecheck-node:
     @for p in libs/kernel-ts libs/transport-ts; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
-    @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run lint) || exit 1; done
+    @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run typecheck) || exit 1; done
+
+typecheck-python:
+    uv run mypy libs
+    @for s in {{ PY_SERVICES }}; do (cd services/$s && uv run mypy .) || exit 1; done
 
 lint-go:
     @for s in {{ GO_SERVICES }}; do echo "=== $s ===" && (cd services/$s && go vet ./...) || exit 1; done

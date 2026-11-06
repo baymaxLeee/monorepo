@@ -52,8 +52,8 @@ cat > "$MFE_DIR/package.json" <<EOF
     "dev": "rspack serve",
     "test": "pnpm --dir ../.. test --project $NAME",
     "build": "rspack build",
-    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/apps/$NAME/src",
-    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/apps/$NAME/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "lint": "pnpm --dir ../../../.. lint:ts apps/frontend/apps/$NAME/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/apps/$NAME/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/apps/$NAME/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {

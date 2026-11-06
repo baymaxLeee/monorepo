@@ -8,8 +8,8 @@
     "./xmind-previewer": "./src/XmindPreviewer/index.tsx"
   },
   "scripts": {
-    "lint": "pnpm --dir ../../../.. exec oxlint -f agent --quiet apps/frontend/packages/viewers/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/viewers/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
-    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/viewers/src/**/*.{js,mjs,cjs,jsx,ts,tsx,json,jsonc}'",
+    "lint": "pnpm --dir ../../../.. lint:ts apps/frontend/packages/viewers/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/viewers/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
+    "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/viewers/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
     "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
   },
   "dependencies": {

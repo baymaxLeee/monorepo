@@ -9,6 +9,7 @@
 | UI | [DESIGN.md](../../DESIGN.md) |
 | 数据库升级、回退与数据迁移 | [数据库迁移规范](database-migrations.md) |
 | 测试与增量验证 | [测试政策](testing.md) |
+| 代码格式、lint 与提交前自检 | [质量 CLI](../../scripts/README.md#code-quality-and-staged-checks)，规则归根 Ruff/Oxc 配置 |
 | 架构/业务文档 | [文档规则](../AGENTS.md)，当前规范原地更新 |
 | 提交 | Conventional Commits with scope，例如 `feat(chat): ...` |
 

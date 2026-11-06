@@ -1,7 +1,4 @@
 {
   "extends": "@repo/typescript-config",
-  "compilerOptions": {
-    "types": ["vitest/globals"]
-  },
   "include": ["src/**/*"]
 }

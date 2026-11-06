@@ -43,6 +43,49 @@ just test-affected HEAD frontend --list
   unavailable dependencies remain unverified. Selection fallbacks and runner
   policy are specified in the [test policy](../docs/开发规范/testing.md).
 
+## Code quality and staged checks
+
+Run from the repository root. Commands call the official tools directly;
+frontend, backend, local development, agents and CI use the same root configs.
+
+| Command | Scope and behavior |
+|---|---|
+| `just lint-ts` | Oxlint + Oxfmt check for all JS/JSX/TS/TSX/MTS/CTS, including Node backend, build config and scripts |
+| `just typecheck-ts` | TS7 checks in both Node and frontend workspaces |
+| `just fmt-ts` | Oxfmt writes for the same source scope |
+| `just lint-py [paths/flags...]` | Ruff lint, including scripts and infrastructure; accepts native `--fix` / `--output-format json` |
+| `just fmt-py --check [paths...]` | Ruff format check; omit `--check` to write, or use `--diff` to preview |
+| `just check-py` | Ruff lint + format check and per-project strict mypy |
+| `just pre-commit` | Check the staged snapshot, including partially staged files, without modifying it |
+| `just pre-commit --all-files` | Audit all tracked source files, useful after changing quality configuration |
+| `just lint` | All language checks, typechecks, boundaries and repository checks |
+
+Scoped examples: `just lint-py apps/backend/services/knowledge`,
+`just fmt-py --diff scripts/check-services.py`, and
+`pnpm lint:ts apps/backend/services/chat`. For a single JS/TS file, use
+`pnpm exec oxfmt --check <path>` or `--write` with the same root config.
+Python tools are locked by `apps/backend/uv.lock`; Oxc by root `pnpm-lock.yaml`.
+Generated code and migrations stay excluded, including staged explicit paths.
+
+The root lint config defaults to Node. Browser app/package sources reject Node builtin imports
+(including literal dynamic imports, `require`, re-exports and type imports) and
+ambient Node globals; locally declared bundler constants remain valid. Frontend
+test/spec files and `test`/`tests`/`__tests__` directories allow Node plus jsdom.
+JavaScript checks undefined globals with Oxlint; TypeScript uses TS7. Node
+tsconfigs exclude DOM while retaining native web APIs through Node types.
+Tooling regression tests need both root lint tools and the frontend workspace's
+TS7 checker (`just install` installs both); CI installs that workspace selectively.
+
+`.pre-commit-config.yaml` uses local hooks to reuse those installed tools;
+`just install` installs the dependencies. Checks are read-only. After an explicit
+fix, review and re-stage changes before rerunning. Typechecks and behavior tests
+remain required separately; staged checks do not replace CI.
+
+To enable automatic checks on machines without managed hooks, run the official
+`uv run --locked --project apps/backend pre-commit install`. Do not unset or
+replace an existing managed `core.hooksPath`; use `just pre-commit` explicitly
+there, or have the hook owner integrate the command.
+
 ## Lifecycle
 
 - `install-deps.sh`: installs tool-managed dependencies, frontend packages,

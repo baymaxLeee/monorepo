@@ -130,7 +130,7 @@ export class StorageInternalClient {
       const request: RequestInit & { duplex?: "half" } = {
         method: "POST",
         headers,
-        body: input.body as BodyInit,
+        body: input.body,
         signal: AbortSignal.any([controller.signal, ...(input.signal ? [input.signal] : [])]),
       };
       if (input.body instanceof ReadableStream) {

@@ -14,21 +14,6 @@ members = [
 [tool.uv.sources]
 kernel = { workspace = true }
 
-[tool.ruff]
-line-length = 120
-target-version = "py314"
-extend-exclude = ["**/migrations/**", "**/__pycache__/**"]
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "PT", "RUF"]
-# RUF001/002/003 flag full-width CJK punctuation as "ambiguous" homoglyphs; this
-# is a Chinese-facing product whose prompts/personas/UI copy are legitimately
-# Chinese, so these rules are 100% false positives here.
-ignore = ["E501", "RUF001", "RUF002", "RUF003"]
-
-[tool.ruff.format]
-quote-style = "double"
-
 [tool.mypy]
 python_version = "3.14"
 strict = true
@@ -38,6 +23,7 @@ exclude = ["migrations/", "build/", "dist/"]
 dev = [
     "httpx>=0.27",
     "mypy>=2.1.0",
+    "pre-commit>=4.7.0",
     "pytest>=9.0.0",
     "pytest-asyncio>=1.0.0",
     "ruff>=0.15.14",

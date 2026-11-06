@@ -5,12 +5,11 @@ STORAGE_TEST_IMAGE=local/storage-volume-test python3 infra/single-vps/tests/test
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 import uuid
-
+from pathlib import Path
 
 PROBE = r"""
 package main
@@ -68,18 +67,12 @@ class StorageVolumeTest(unittest.TestCase):
                 self.assertEqual(created.returncode, 0, created.stderr)
                 container = created.stdout.strip()
                 try:
-                    copied = docker(
-                        "cp", str(path / "probe"), f"{container}:/volume-probe"
-                    )
+                    copied = docker("cp", str(path / "probe"), f"{container}:/volume-probe")
                     self.assertEqual(copied.returncode, 0, copied.stderr)
                     result = docker("start", "-a", container)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    state = docker(
-                        "inspect", "--format", "{{.State.ExitCode}}", container
-                    )
-                    self.assertEqual(
-                        state.stdout.strip(), "0", result.stdout + result.stderr
-                    )
+                    state = docker("inspect", "--format", "{{.State.ExitCode}}", container)
+                    self.assertEqual(state.stdout.strip(), "0", result.stdout + result.stderr)
                     self.assertIn(expected, result.stdout)
                 finally:
                     docker("rm", "-f", container)

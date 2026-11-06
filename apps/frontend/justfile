@@ -35,7 +35,8 @@ test pkg="" *args:
 
 # ─── quality ────────────────────────────────────────────
 lint:
-    pnpm --dir ../.. lint:ts:frontend
+    pnpm lint
+    pnpm --dir ../.. lint:ui-contracts
     pnpm typecheck
     pnpm exec turbo boundaries
 
@@ -44,7 +45,7 @@ boundaries:
     pnpm exec turbo boundaries
 
 fmt:
-    pnpm --dir ../.. format:ts:frontend
+    pnpm format
 
 # ─── schema ─────────────────────────────────────────────
 # Regenerate unified api package from schemas/openapi/*.json

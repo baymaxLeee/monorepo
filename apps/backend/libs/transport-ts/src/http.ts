@@ -27,7 +27,7 @@ export interface RequestOptions {
   path: string;
   query?: Record<string, string | number | boolean | null | undefined>;
   body?: unknown;
-  headers?: HeadersInit;
+  headers?: RequestInit["headers"];
   signal?: AbortSignal;
   expectBinary?: boolean;
 }

@@ -4,8 +4,8 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "lint": "pnpm --dir ../.. lint:ts:frontend",
-    "format": "pnpm --dir ../.. format:ts:frontend",
+    "lint": "pnpm --dir ../.. lint:ts apps/frontend && pnpm --dir ../.. exec oxfmt --check 'apps/frontend/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
+    "format": "pnpm --dir ../.. exec oxfmt --write 'apps/frontend/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
     "typecheck": "turbo run typecheck && node node_modules/@typescript/native/bin/tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest"

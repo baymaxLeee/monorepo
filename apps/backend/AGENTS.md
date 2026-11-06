@@ -112,7 +112,26 @@ capability.
 - TypeScript 5 remains only for tools that consume its legacy API; ordinary
   packages must not declare it without such a consumer.
 - Node tsconfig files explicitly declare `"types": ["node"]`.
+- Set Node `lib` to the project's ES standard library only, without DOM;
+  Node's own types provide supported fetch, Response, Blob and stream APIs.
+  Import extra stream types from `node:stream/web` and derive fetch option
+  types from `RequestInit` instead of adding DOM to make a typecheck pass.
 - Root Oxlint and Oxfmt are the only JS/TS style configuration.
+- Frontend, Node services, libraries, build configuration and repository scripts
+  share the root policy. `just lint-ts` checks lint and format; `just typecheck-ts`
+  runs both stacks' TS7 checks. Scoped package commands use the same root tools.
+
+### Python quality
+
+- Root `ruff.toml` is the single Python lint/format configuration, including
+  repository and infrastructure scripts. Do not add Black, isort or another
+  Ruff configuration. Migrations remain excluded even for explicit file paths.
+- Use root `just lint-py [paths/flags...]`, `just fmt-py --check [paths...]` and
+  `just check-py`. Native `--fix` and format without `--check` are explicit writes.
+- Keep strict mypy per Python project: services reuse top-level package names
+  and must be checked in separate processes. Ruff does not replace typechecking.
+- CI and staged hooks use tools locked in `uv.lock`; root `just pre-commit`
+  checks the staged snapshot without rewriting files or installing Git hooks.
 
 ## Forbidden zones for unprompted edits
 

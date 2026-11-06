@@ -1,3 +1,5 @@
+import type { ReadableStreamReadResult } from "node:stream/web";
+
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";

@@ -1,8 +1,10 @@
 import { defineConfig } from "oxlint";
 
+const commonPlugins = ["eslint", "typescript", "unicorn", "oxc", "import", "node", "promise"] as const;
+
 export default defineConfig({
   env: {
-    browser: true,
+    browser: false,
     node: true,
   },
   ignorePatterns: [
@@ -27,7 +29,7 @@ export default defineConfig({
   options: {
     typeAware: true,
   },
-  plugins: ["eslint", "typescript", "unicorn", "oxc", "import", "node", "promise", "react", "react-perf", "jsx-a11y"],
+  plugins: [...commonPlugins],
   rules: {
     eqeqeq: "warn",
     "constructor-super": "error",
@@ -62,32 +64,57 @@ export default defineConfig({
     "typescript/no-unnecessary-type-assertion": "warn",
     "typescript/no-explicit-any": "warn",
     "typescript/no-non-null-assertion": "off",
-    "react/exhaustive-deps": "warn",
-    "react/jsx-key": "error",
-    "react/no-direct-mutation-state": "error",
-    "react/react-compiler": "warn",
-    "react/rules-of-hooks": "warn",
-    "react/self-closing-comp": "error",
-    "jsx-a11y/alt-text": "error",
-    "jsx-a11y/aria-props": "error",
-    "jsx-a11y/aria-role": "error",
-    "jsx-a11y/click-events-have-key-events": "warn",
-    "jsx-a11y/no-static-element-interactions": "warn",
   },
   overrides: [
     {
-      files: ["apps/backend/**/*.ts", "apps/backend/**/*.mts"],
-      env: {
-        browser: false,
-        node: true,
+      files: ["apps/frontend/apps/**", "apps/frontend/packages/**"],
+      excludeFiles: [
+        "apps/frontend/packages/build-config/**",
+        "apps/frontend/**/*.config.*",
+        "apps/frontend/**/scripts/**",
+      ],
+      env: { browser: true, node: false },
+      plugins: [...commonPlugins, "react", "react-perf", "jsx-a11y"],
+      rules: {
+        "import/no-nodejs-modules": "error",
+        "no-restricted-globals": [
+          "error",
+          "process",
+          "Buffer",
+          "require",
+          "module",
+          "exports",
+          "__dirname",
+          "__filename",
+          "global",
+          "setImmediate",
+          "clearImmediate",
+        ],
+        "react/exhaustive-deps": "warn",
+        "react/jsx-key": "error",
+        "react/no-direct-mutation-state": "error",
+        "react/react-compiler": "warn",
+        "react/rules-of-hooks": "warn",
+        "react/self-closing-comp": "error",
+        "jsx-a11y/alt-text": "error",
+        "jsx-a11y/aria-props": "error",
+        "jsx-a11y/aria-role": "error",
+        "jsx-a11y/click-events-have-key-events": "warn",
+        "jsx-a11y/no-static-element-interactions": "warn",
       },
     },
     {
-      files: ["apps/frontend/packages/components/src/shadcn/**"],
+      files: ["apps/frontend/**/*.{test,spec}.*", "apps/frontend/**/{test,tests,__tests__}/**"],
+      env: { browser: true, node: true },
       rules: {
-        "jsx-a11y/click-events-have-key-events": "off",
-        "jsx-a11y/no-static-element-interactions": "off",
+        "import/no-nodejs-modules": "off",
+        "no-restricted-globals": "off",
       },
+    },
+    {
+      // TypeScript checks undefined names itself; JavaScript needs the lint gate.
+      files: ["**/*.{js,jsx,mjs,cjs}"],
+      rules: { "no-undef": "error" },
     },
   ],
 });

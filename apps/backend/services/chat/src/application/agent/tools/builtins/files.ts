@@ -16,7 +16,12 @@ import {
 import { setActivePlanPath } from "../../../conversations.js";
 import type { AgentMode } from "../../agents/types.js";
 import { startExecutorTask, watchTaskSnapshots } from "../../tasks/executor-task.js";
-import { artifactToolContextSchema, fileToolContextSchema, type ArtifactToolContext, type FileToolContext } from "../context.js";
+import {
+  artifactToolContextSchema,
+  fileToolContextSchema,
+  type ArtifactToolContext,
+  type FileToolContext,
+} from "../context.js";
 import { defineAgentTool } from "../manifest.js";
 import { toolCompleted, toolFailed, toolRunning, ToolBlockedError, type ToolEmission } from "../outcome.js";
 import type { AgentToolPolicy } from "../types.js";
@@ -78,14 +83,26 @@ const delegatedTask = z.object({
     .max(80)
     .regex(/^[a-z][a-z0-9-]*$/)
     .describe("Unique lowercase task id using letters, digits, and hyphens."),
-  instruction: z.string().min(1).max(12_000).describe("Self-contained instructions for generating exactly one complete file."),
+  instruction: z
+    .string()
+    .min(1)
+    .max(12_000)
+    .describe("Self-contained instructions for generating exactly one complete file."),
   output_path: textPath.describe("Unique output path inside root, including the root prefix."),
 });
 const delegateInput = z
   .object({
     root: textPath.describe("Relative directory that contains every task output_path."),
-    shared_context: z.string().min(1).max(40_000).describe("Immutable facts and conventions shared by every independent task."),
-    tasks: z.array(delegatedTask).min(2).max(100).describe("Independent complete-file tasks. Outputs must not depend on one another."),
+    shared_context: z
+      .string()
+      .min(1)
+      .max(40_000)
+      .describe("Immutable facts and conventions shared by every independent task."),
+    tasks: z
+      .array(delegatedTask)
+      .min(2)
+      .max(100)
+      .describe("Independent complete-file tasks. Outputs must not depend on one another."),
   })
   .superRefine((input, context) => {
     const root = input.root.replace(/\/+$/, "");
@@ -284,7 +301,12 @@ async function optionalCurrent(context: ArtifactToolContext, target: string) {
   }
 }
 
-async function createTextChangeSet(input: { target: string; content: string; expectedSha?: string; context: ArtifactToolContext }) {
+async function createTextChangeSet(input: {
+  target: string;
+  content: string;
+  expectedSha?: string;
+  context: ArtifactToolContext;
+}) {
   const existing = await optionalCurrent(input.context, input.target);
   if (existing && !existing.writable) {
     throw new ToolBlockedError({
@@ -355,7 +377,9 @@ async function writeFileUnlocked(input: z.infer<typeof writeInput>, { context }:
 }
 
 function writeFile(input: z.infer<typeof writeInput>, options: { context: ArtifactToolContext }) {
-  return withMutation(`${options.context.userId}:${options.context.conversationId}:${input.path}`, () => writeFileUnlocked(input, options));
+  return withMutation(`${options.context.userId}:${options.context.conversationId}:${input.path}`, () =>
+    writeFileUnlocked(input, options),
+  );
 }
 
 async function* delegateTasks(
@@ -515,7 +539,11 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: Language
         description:
           "List persisted conversation files and Plans. Temporary sandbox files are listed with bash; use load_conversation_files to import newly saved files.",
         inputSchema: z.object({
-          path: z.string().max(512).optional().describe("Optional relative directory prefix. Omit or use an empty string to list all files."),
+          path: z
+            .string()
+            .max(512)
+            .optional()
+            .describe("Optional relative directory prefix. Omit or use an empty string to list all files."),
         }),
         outputSchema: listFilesOutputSchema,
         contextSchema: fileToolContextSchema,
@@ -530,8 +558,17 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: Language
         description:
           "Read a bounded text preview of a persisted conversation file or Plan. Use bash to read raw files in the sandbox. Continue from next_offset when present.",
         inputSchema: z.object({
-          path: z.string().min(1).max(512).describe("Saved conversation path returned by list_conversation_files. Sandbox paths belong to bash."),
-          offset: z.number().int().min(1).default(1).describe("One-based starting line. Use next_offset from the previous result to continue."),
+          path: z
+            .string()
+            .min(1)
+            .max(512)
+            .describe("Saved conversation path returned by list_conversation_files. Sandbox paths belong to bash."),
+          offset: z
+            .number()
+            .int()
+            .min(1)
+            .default(1)
+            .describe("One-based starting line. Use next_offset from the previous result to continue."),
           limit: z.number().int().min(1).max(2_000).default(2_000).describe("Maximum number of lines to return."),
         }),
         outputSchema: readFileOutputSchema,
@@ -585,7 +622,8 @@ export function createFileToolManifests(_mode: AgentMode, textProvider: Language
         ],
         outputSchema: delegateOutput,
         contextSchema: artifactToolContextSchema,
-        execute: ((input: z.infer<typeof delegateInput>, options: Parameters<typeof delegateTasks>[1]) => delegateTasks(input, options, textProvider)) as never,
+        execute: ((input: z.infer<typeof delegateInput>, options: Parameters<typeof delegateTasks>[1]) =>
+          delegateTasks(input, options, textProvider)) as never,
       }),
       {
         capability: "files",
