@@ -168,9 +168,17 @@ def _may_manage(current_user: AuthContext, row: DocumentRow) -> bool:
 
 
 @router.post("/{document_id}/delivery", response_model=StorageDelivery)
-async def authorize_document_delivery(document_id: str, current_user: CurrentUser, session: DbSession) -> StorageDelivery:
-    row = await document_crud.get_workspace_document(session, document_id, current_user.workspace_id, current_user.tenant_id)
+async def authorize_document_delivery(
+    document_id: str, current_user: CurrentUser, session: DbSession
+) -> StorageDelivery:
+    row = await document_crud.get_workspace_document(
+        session, document_id, current_user.workspace_id, current_user.tenant_id
+    )
     if row is None or not row.asset_id or not row.source_revision_id:
         raise NotFoundError("document has no accessible Storage revision")
-    return await get_storage_client().mint_delivery(tenant_id=current_user.tenant_id,
-        workspace_id=current_user.workspace_id, asset_id=row.asset_id, revision_id=row.source_revision_id)
+    return await get_storage_client().mint_delivery(
+        tenant_id=current_user.tenant_id,
+        workspace_id=current_user.workspace_id,
+        asset_id=row.asset_id,
+        revision_id=row.source_revision_id,
+    )

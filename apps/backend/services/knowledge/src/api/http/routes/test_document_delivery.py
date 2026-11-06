@@ -19,4 +19,6 @@ async def test_owner_authorization_precedes_storage_signing(monkeypatch):
     client.mint_delivery.assert_not_awaited()
     lookup.return_value = SimpleNamespace(asset_id="asset", source_revision_id="revision")
     assert await documents.authorize_document_delivery("document", user, AsyncMock()) == {"url": "signed-by-storage"}
-    client.mint_delivery.assert_awaited_once_with(tenant_id="tenant", workspace_id="workspace", asset_id="asset", revision_id="revision")
+    client.mint_delivery.assert_awaited_once_with(
+        tenant_id="tenant", workspace_id="workspace", asset_id="asset", revision_id="revision"
+    )
