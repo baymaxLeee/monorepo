@@ -69,6 +69,7 @@ import {
   getRunTrace,
   type AgentRunTrace,
 } from "./repository.js";
+import { terminalStreamError } from "./stream-outcome.js";
 
 export interface RunAgentInput {
   imageProvider?: ProviderSnapshot | null;
@@ -396,7 +397,6 @@ export async function createAgentRunResponse(
       { conversationId: conversation.id, runId, setupMs: Math.round(performance.now() - startedAt) },
       "run accepted",
     );
-    let streamFailure: unknown = null;
     const agentUiStream = toUIMessageStream({
       stream: result.stream,
       tools: agent.tools,
@@ -426,14 +426,14 @@ export async function createAgentRunResponse(
         return undefined;
       },
       onError: (error) => {
-        streamFailure = error;
         logger.error({ err: error }, "stream failed");
         return describeStreamError(error);
       },
-      onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason }) => {
+      onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason, outcome }) => {
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const aborted = isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
-        const failed = streamFailure != null || finishReason === "error";
+        const streamError = terminalStreamError(outcome, finishReason);
+        const failed = streamError != null;
         try {
           const sanitizedParts = sanitizePersistedParts(responseMessage.parts);
           const parts = aborted ? finalizeCancelledParts(sanitizedParts) : sanitizedParts;
@@ -480,7 +480,7 @@ export async function createAgentRunResponse(
           await finishAgentRun({
             runId,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",
-            error: failed ? (streamFailure ?? "model stream ended with an error") : undefined,
+            error: streamError ?? undefined,
             outputMessageId,
             inputTokens: tokens.inputTokens,
             outputTokens: tokens.outputTokens,

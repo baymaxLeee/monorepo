@@ -39,7 +39,7 @@ function createBatchFilter(mode: AgentMode) {
   };
 }
 
-function filterToolBatch(mode: AgentMode, content: LanguageModelV4Content[]): LanguageModelV4Content[] {
+export function filterToolBatch(mode: AgentMode, content: LanguageModelV4Content[]): LanguageModelV4Content[] {
   const keep = createBatchFilter(mode);
   return content.filter((part) => part.type !== "tool-call" || keep(part.toolName));
 }

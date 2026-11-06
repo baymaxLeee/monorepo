@@ -6,6 +6,8 @@
 
 Chat 使用 AI SDK 7 的 `Agent` interface 和一个 `ToolLoopAgent`；normal/plan 是行为配置，不是互相交接的独立角色。SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、显式 Plan 读取、取消、上下文与持久化。
 
+ToolLoopAgent 使用 50 个 model step 的安全上限，并保留最后一步做禁止工具调用的真实结果总结；这高于 SDK 的 20 步保守默认值，适配长任务，同时仍有明确成本边界。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 只隔离 `load_skill` 和 Plan/client-tool 语义屏障，独立读取可在同一步并行，生成和有依赖的副作用继续串行。
+
 PostgreSQL UIMessage 是语义会话记录；Redis 保存原生 UIMessage SSE，负责浏览器断网后的 transport resume；Executor Workflow 负责跨进程的 execution resume。三者不可混同。断开浏览器只释放 subscriber；显式 Stop 才传播 AbortSignal，收口未完成工具为官方 error 状态、取消未完成 todo，并等待 run finalizer。
 
 Executor 状态经内部 SSE 汇入原生 preliminary tool results，浏览器仍消费同一条 Chat UIMessage 流。trace 持久化失败不阻断生成。自定义 part 必须遵守 [stream 契约](../../schemas/streaming/chat-uimessage-stream.md)。
@@ -23,6 +25,7 @@ UIMessage 到 ModelMessage 的投影保留近期原生语义，预算不足才�
 - `ask_user` 是无 server execute 的 client tool，批量询问已知独立问题，客户端 `addToolOutput` 后 continuation；依赖答案的后续问题再提出。
 - 应用工具使用 ToolOutcome；业务失败可在 UI/persistence 保留结构化结果，同时向模型投影为 error-json。Abort、审批拒绝、输入/协议错误保留原生控制流。 `toolSearch()` 保留原生结果以激活延迟工具。
 - Bash 使用独立 sandbox 服务的真实 Linux 环境，按 run 懒创建并销毁。Chat 管理附件导入、明确发布和 finalizer；Executor 仍只管理 durable 业务任务。 `bash` / `write_stdin` 提供命令、PTY、增量输出及硬超时；权限由 OS/runtime 与出口代理执行，不能靠模型自律。Code Mode 仍只暴露 Web Fetch。详见 [Sandbox](../微服务/sandbox.md)。
+- 单个、公开数据驱动的 HTML 交付优先走最短路径：先观察一次公开来源，再在确有缺失时换取同一来源的原始表示；尽量用一次 Bash 完成文件生成与交付物特定的轻量检查，随后显式发布。固定浏览器/ECharts loader 契约不在用户 run 内通过下载运行时、安装测试依赖或另建 harness 重复验证。
 - 生成交付物按主 agent 计划串行；`delegate_tasks` 仅并发独立完整文件，冻结共享上下文，不创建另一套对话意图。todo 是官方工具结果中的替换快照。
 - 文本模型使用 Admin 显式配置的 Responses dialect；不凭 URL 猜协议。支持存储续接的 provider 使用 response lineage，其他 provider 从本地 journal 重放。provider cursor 不是唯一会话记录；媒体/embedding/rerank 使用各自 API。
 

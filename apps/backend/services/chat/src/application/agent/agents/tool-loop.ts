@@ -29,7 +29,12 @@ import { ToolCatalog } from "../tools/catalog.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { exactTextResponseModel } from "./exact-text-response-model.js";
-import { deriveOrchestrationState, resolveOrchestrationDirective, type OrchestrationSeed } from "./orchestration.js";
+import {
+  deriveOrchestrationState,
+  MAX_AGENT_STEPS,
+  resolveOrchestrationDirective,
+  type OrchestrationSeed,
+} from "./orchestration.js";
 import { newMessagesForStoredResponse } from "./response-continuation.js";
 import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
@@ -189,6 +194,8 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
+  // The provider may emit multiple calls per model response, and the AI SDK executes retained calls concurrently by
+  // default because toolCallConcurrency is intentionally unset. The batch middleware only preserves semantic barriers.
   const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
     id: "chat-agent",
     model: defaultModel,
@@ -199,7 +206,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
-    stopWhen: isStepCount(20),
+    stopWhen: isStepCount(MAX_AGENT_STEPS),
     repairToolCall: async ({ toolCall, error }) => {
       await observe(
         "record rejected tool call",
@@ -241,6 +248,15 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
           activeTools: [],
           toolChoice: "none",
           instructions: baseInstructions,
+        };
+      }
+      if (directive.kind === "final-summary") {
+        return {
+          ...continuation,
+          runtimeContext: nextContext,
+          activeTools: [],
+          toolChoice: "none",
+          instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
         };
       }
       if (directive.kind === "read-plan" && "read_conversation_file" in instrumentedTools) {

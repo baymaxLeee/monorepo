@@ -1,6 +1,7 @@
 import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
-const FINAL_RESPONSE_STEP_INDEX = 19;
+export const MAX_AGENT_STEPS = 50;
+const FINAL_RESPONSE_STEP_INDEX = MAX_AGENT_STEPS - 1;
 
 type AgentStepPart = {
   type?: unknown;
@@ -35,6 +36,7 @@ export type OrchestrationState = {
 
 export type OrchestrationDirective =
   | { kind: "final"; instruction: string }
+  | { kind: "final-summary"; instruction: string }
   | { kind: "read-plan"; instruction: string }
   | { kind: "default" };
 
@@ -189,12 +191,16 @@ export function resolveOrchestrationDirective(
 ): OrchestrationDirective {
   if (completedStepCount >= FINAL_RESPONSE_STEP_INDEX) {
     const hasIncompleteWork = state.executionPlan.status === "pending" || state.executionPlan.status === "failed";
-    return {
-      kind: "final",
-      instruction: hasIncompleteWork
-        ? "本轮已保留已生成的产物，但选定的 Plan 尚未完整读取。请根据上方工具卡片中的结果继续处理。"
-        : "本轮处理已完成。",
-    };
+    return hasIncompleteWork
+      ? {
+          kind: "final",
+          instruction: "本轮已保留已生成的产物，但选定的 Plan 尚未完整读取。请根据上方工具卡片中的结果继续处理。",
+        }
+      : {
+          kind: "final-summary",
+          instruction:
+            "This is the final response step. Do not call tools. Report only outcomes proven by observed terminal tool results. A requested file or artifact is complete only when its publication tool completed; if it was only created in Bash or publication did not complete, state that it remains incomplete and name the remaining action. Never use a generic completion claim.",
+        };
   }
   if (state.executionPlan.status === "failed") {
     return {

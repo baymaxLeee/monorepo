@@ -80,6 +80,52 @@ test("uses the official Responses model while preserving safe body extensions", 
   }
 });
 
+test("passes parallel tool calling through every Responses dialect", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: Record<string, unknown>[] = [];
+  globalThis.fetch = async (_input, init) => {
+    requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return Response.json({
+      id: "resp_parallel",
+      object: "response",
+      created_at: 1_700_000_000,
+      model: "gpt-test",
+      status: "completed",
+      incomplete_details: null,
+      output: [
+        {
+          type: "message",
+          id: "msg_parallel",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: "ok" }],
+        },
+      ],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        total_tokens: 2,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens_details: { reasoning_tokens: 0 },
+      },
+    });
+  };
+
+  try {
+    for (const responsesDialect of ["openai_responses", "ark_responses", "deepseek_responses"] as const) {
+      const model = createProviderModel({ ...provider, responsesDialect }, { parallelToolCalls: true });
+      await model.doGenerate({ prompt });
+    }
+
+    assert.equal(requestBodies.length, 3);
+    for (const body of requestBodies) {
+      assert.equal(body.parallel_tool_calls, true);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("normalizes reasoning_text SSE while preserving official text annotations", async () => {
   const originalFetch = globalThis.fetch;
   const events = [
