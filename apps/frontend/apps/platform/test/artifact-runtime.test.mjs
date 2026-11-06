@@ -76,7 +76,9 @@ test("opaque-origin HTML can load the pinned runtime anonymously with either scr
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
-    expect(Buffer.from(await response.arrayBuffer())).toEqual(readFileSync(ECHARTS_RUNTIME_FILE));
+    const received = Buffer.from(await response.arrayBuffer());
+    // Compare bytes natively; deep equality enumerates a megabyte of Buffer indices.
+    expect(received.equals(readFileSync(ECHARTS_RUNTIME_FILE))).toBe(true);
   }
 });
 
