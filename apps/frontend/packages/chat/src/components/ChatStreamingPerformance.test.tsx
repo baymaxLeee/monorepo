@@ -1,9 +1,9 @@
 import type * as AiElements from "@repo/ai-elements";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { UIMessage } from "ai";
 import type { ComponentProps } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 
+import type { ChatUIMessage } from "../lib/chat-message";
 import type * as TapParser from "../lib/tap-results";
 import { ChatMessageView, type ChatMessageViewProps } from "./ChatMessageView";
 import { ChatTerminalTool } from "./ChatTerminalTool";
@@ -54,13 +54,13 @@ const props: Omit<ChatMessageViewProps, "message"> = {
   planBusy: false,
 };
 const paragraphs = Array.from({ length: 30 }, (_, index) => `已完成的第 ${index} 段。`).join("\n\n");
-function message(text: string, parts: UIMessage["parts"] = []): UIMessage {
+function message(text: string, parts: ChatUIMessage["parts"] = []): ChatUIMessage {
   return { id: "reply", role: "assistant", parts: [...parts, { type: "text", text, state: "streaming" }] };
 }
 beforeEach(() => vi.clearAllMocks());
 
 test.each([false, true])("streaming only reparses the unfinished block (sources: %s)", (cited) => {
-  const sources: UIMessage["parts"] = cited
+  const sources: ChatUIMessage["parts"] = cited
     ? [{ type: "source-url", sourceId: "doc", url: "https://example.com/doc", title: "文档" }]
     : [];
   const head = cited ? paragraphs.replace("第 0 段", "[文档](https://example.com/doc)") : paragraphs;
@@ -88,7 +88,7 @@ test("late sources update an existing link without reparsing completed Markdown"
 });
 
 test("completed terminal work is isolated from subsequent text chunks", async () => {
-  const tool: UIMessage["parts"][number] = {
+  const tool: ChatUIMessage["parts"][number] = {
     type: "tool-bash",
     toolCallId: "bash",
     state: "output-available",
@@ -128,4 +128,70 @@ test("terminal parsing follows stdout and completion, while stderr and command s
   );
   expect(work.parseTap).toHaveBeenCalledTimes(parsed + 1);
   fireEvent.click(screen.getByRole("button", { name: /1 项失败/ }));
+});
+
+test("native range citations do not reparse completed blocks on later text deltas", () => {
+  const cited = (suffix: string): ChatUIMessage => ({
+    id: "reply",
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: `${paragraphs}\n\n${suffix}`,
+        state: "streaming",
+        citations: [
+          {
+            source: {
+              type: "source",
+              sourceType: "url",
+              id: "source",
+              url: "https://example.com/source",
+              title: "证据",
+            },
+            startIndex: 0,
+            endIndex: 7,
+          },
+        ],
+      },
+    ],
+  });
+  const view = render(<ChatMessageView {...props} message={cited("输出")} />);
+  work.parseBlock.mockClear();
+  for (let i = 0; i < 10; i++) view.rerender(<ChatMessageView {...props} message={cited(`输出 ${i}`)} />);
+  expect(work.parseBlock).toHaveBeenCalledTimes(10);
+  expect(screen.getAllByRole("link", { name: "引用：证据" })).toHaveLength(1);
+});
+
+test("late native citations update their existing block without remounting the Markdown tree", () => {
+  const text = "第一段。\n\n证据结论。";
+  const initial = message(text);
+  const view = render(<ChatMessageView {...props} message={initial} />);
+  const firstParagraph = screen.getByText("第一段。");
+  work.parseBlock.mockClear();
+  const late: ChatUIMessage = {
+    ...initial,
+    parts: [
+      {
+        type: "text",
+        text,
+        citations: [
+          {
+            source: {
+              type: "source",
+              sourceType: "url",
+              id: "source",
+              url: "https://example.com/source",
+              title: "证据",
+            },
+            startIndex: 7,
+            endIndex: 11,
+          },
+        ],
+      },
+    ],
+  };
+  view.rerender(<ChatMessageView {...props} message={late} />);
+  expect(screen.getByText("第一段。")).toBe(firstParagraph);
+  expect(screen.getByRole("link", { name: "引用：证据" })).toBeTruthy();
+  expect(work.parseBlock).toHaveBeenCalledTimes(1);
 });

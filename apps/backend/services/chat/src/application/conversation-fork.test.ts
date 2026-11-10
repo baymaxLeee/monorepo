@@ -20,6 +20,8 @@ const history: Message[] = ["user", "assistant", "user"].map((role, index) => ({
   role: role as Message["role"],
   content: { version: 1, parts: [{ type: "text", text: String(index) }] },
   status: "ok",
+  parent_message_id: index === 0 ? null : String(index - 1),
+  branch_index: 0,
   created_at: new Date().toISOString(),
 }));
 function setup() {
@@ -41,6 +43,8 @@ function setup() {
         canvasId: null,
         activePlanPath: null,
         runRevision: 0n,
+        historyRevision: 0n,
+        selectedMessageId: "2",
         createdAt: new Date(),
         updatedAt: new Date(),
       };

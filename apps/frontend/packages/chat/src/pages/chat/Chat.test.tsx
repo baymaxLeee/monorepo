@@ -71,7 +71,7 @@ vi.mock("@repo/api", () => ({
     })),
   }),
 }));
-vi.mock("../../lib/transport", () => ({ createConversationTransport: vi.fn() }));
+vi.mock("../../lib/transport", () => ({ createConversationTransport: vi.fn(() => ({})) }));
 vi.mock("../../store/useChatStore", () => {
   const store = {
     agents: [],
@@ -198,7 +198,7 @@ test("text deltas do not rerender the composer, and typing/stop remain available
   expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("正在编辑的下一条消息");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "停止" })));
   expect(state.stop).toHaveBeenCalledOnce();
-  expect(state.cancel).toHaveBeenCalledWith("conversation", "run");
+  expect(state.cancel).toHaveBeenCalledWith("conversation", "run", { skipErrorNotify: true });
 });
 
 test("a live text delta does not render unchanged historical messages", async () => {
@@ -262,7 +262,7 @@ test("a suspended transcript update does not block edits or cancellation", async
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "仍然可以编辑" } });
   expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("仍然可以编辑");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "停止" })));
-  expect(state.cancel).toHaveBeenCalledWith("conversation", "run");
+  expect(state.cancel).toHaveBeenCalledWith("conversation", "run", { skipErrorNotify: true });
 });
 
 async function publish() {

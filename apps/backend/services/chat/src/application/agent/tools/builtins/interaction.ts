@@ -59,7 +59,7 @@ const askUserQuestionSchema = z
     }
   });
 
-const askUserInputSchema = z
+export const askUserInputSchema = z
   .object({
     questions: z
       .array(askUserQuestionSchema)

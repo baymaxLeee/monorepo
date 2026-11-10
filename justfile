@@ -119,6 +119,7 @@ build-sandbox-runtime registry="local" tag="latest":
 
 # ─── Cross-stack ────────────────────────────────────────────
 sync:
+    node schemas/codegen/generate-chat-ui.mjs
     cd apps/backend && just gen-openapi-all
     cd apps/frontend && just gen-client
     cd apps/backend && just gen-transport-ts
@@ -209,6 +210,7 @@ check:
     @just sync-check
 
 sync-check:
+    node schemas/codegen/generate-chat-ui.mjs --check
     cd apps/backend && just gen-openapi-all
     cd apps/backend && just gen-transport-ts
     cd apps/frontend && just gen-client

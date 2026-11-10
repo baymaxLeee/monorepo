@@ -43,7 +43,7 @@ Conversation + agent runtime service. It owns conversation/message/run observabi
 - Redis clients are created only through `infrastructure/redis`: ordinary commands share `getRedisClient()`, blocking stream reads use `duplicate()`, and readiness probes use an isolated client from `createRedisClient()`.
 - Service URLs, internal auth, DTOs and timeouts live in transport-ts clients; chat-local clients only add cache/error mapping.
 - User identity belongs to iam, provider configuration to admin, and document / artifact storage to knowledge.
-- DB transactions (docs/ADR/architecture.md): multi-step / multi-table writes use `getDb().transaction(async (tx) => ...)` (auto commit/rollback), threading `tx` through every read/write; single-statement writes stay bare. Cross-table finalization and external side effects stay OUTSIDE the tx — e.g. `acquireRunLease` reaps + claims the lease in one tx, then runs `finishAgentRun` after it.
+- DB transactions (docs/ADR/architecture.md): multi-step / multi-table writes use `getDb().transaction(async (tx) => ...)` (auto commit/rollback), threading `tx` through every read/write; single-statement writes stay bare. Run journal finalization commits tool outcomes, message/metadata, run status, selected leaf and lease together. Claim and finalization lock conversation before run; terminal run states cannot be overwritten by late cleanup. External effects, including Redis stream-pointer cleanup, stay outside the transaction and compare run identity.
 
 ## Entry points
 

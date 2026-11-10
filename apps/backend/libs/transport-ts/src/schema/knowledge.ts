@@ -266,6 +266,29 @@ export interface paths {
         patch: operations["update_artifact_internal_documents__document_id__patch"];
         trace?: never;
     };
+    "/internal/workspaces/{workspace_id}/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workspace Document
+         * @description Resolve a retrieval source under the authoritative workspace ACL.
+         *
+         *     Chat separately proves that the source id occurs in the selected journal;
+         *     this endpoint only answers the owning service's tenant/workspace question.
+         */
+        get: operations["get_workspace_document_internal_workspaces__workspace_id__documents__document_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/documents/{document_id}/slice": {
         parameters: {
             query?: never;
@@ -1026,6 +1049,8 @@ export interface components {
             title: string;
             /** Filename */
             filename: string;
+            /** Media Type */
+            media_type: string;
         };
         /** SourceUploadCompletion */
         SourceUploadCompletion: {
@@ -1811,6 +1836,44 @@ export interface operations {
                 "application/json": components["schemas"]["UpdateArtifactInput"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_workspace_document_internal_workspaces__workspace_id__documents__document_id__get: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                include_content?: boolean;
+            };
+            header?: {
+                "X-Internal-Token"?: string | null;
+                "X-Caller-Service"?: string | null;
+            };
+            path: {
+                workspace_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

@@ -146,7 +146,9 @@ export {
 export {
   Reasoning,
   ReasoningContent,
+  ReasoningAttachmentContent,
   type ReasoningContentProps,
+  type ReasoningAttachmentContentProps,
   type ReasoningProps,
   ReasoningTrigger,
   type ReasoningTriggerProps,

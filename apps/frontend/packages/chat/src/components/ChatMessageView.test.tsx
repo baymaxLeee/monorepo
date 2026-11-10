@@ -1,8 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { DynamicToolUIPart } from "ai";
 import { expect, test, vi } from "vitest";
 
 import { ChatMessageView, type ChatMessageViewProps } from "./ChatMessageView";
+
+vi.stubGlobal(
+  "IntersectionObserver",
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
 
 const props: Omit<ChatMessageViewProps, "message"> = {
   conversationId: "conversation",
@@ -63,4 +72,81 @@ test("tool failure surfaces its reason without an extra click", async () => {
   render(message({ ...running, state: "output-error", errorText: "连接超时" }));
   expect(await screen.findByText("连接超时")).toBeTruthy();
   expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
+});
+
+test("reasoning files stay in a separate disclosure instead of becoming final attachments", () => {
+  render(
+    <ChatMessageView
+      {...props}
+      streaming={false}
+      message={{
+        id: "message",
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning-file",
+            mediaType: "application/pdf",
+            url: "/api/chat-server/conversations/conversation/documents/reasoning/content?document_id=reasoning",
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "推理附件" })).toBeTruthy();
+  expect(screen.queryByText("思考过程")).toBeNull();
+});
+
+test("message actions use explicit edit, regenerate, and server branch operations", async () => {
+  const onEditMessage = vi.fn(async () => {});
+  const onRegenerate = vi.fn(async () => {});
+  const onSelectBranch = vi.fn(async () => {});
+  const view = render(
+    <ChatMessageView
+      {...props}
+      streaming={false}
+      message={{ id: "user", role: "user", parts: [{ type: "text", text: "旧问题" }] }}
+      onEditMessage={onEditMessage}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "编辑消息" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "编辑消息" }), { target: { value: "新问题" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存并重新生成" }));
+  await waitFor(() => expect(onEditMessage).toHaveBeenCalledWith("user", [{ type: "text", text: "新问题" }]));
+
+  view.rerender(
+    <ChatMessageView
+      {...props}
+      streaming={false}
+      message={{ id: "assistant-b", role: "assistant", parts: [{ type: "text", text: "候选 B" }] }}
+      branch={{
+        parent_message_id: "user",
+        selected_message_id: "assistant-b",
+        candidates: [
+          { message_id: "assistant-a", leaf_message_id: "leaf-a", role: "assistant", created_at: "2026-01-01" },
+          { message_id: "assistant-b", leaf_message_id: "leaf-b", role: "assistant", created_at: "2026-01-02" },
+        ],
+      }}
+      onRegenerate={onRegenerate}
+      onSelectBranch={onSelectBranch}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "重新生成" }));
+  await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith("assistant-b"));
+  fireEvent.click(screen.getByRole("button", { name: "上一个分支" }));
+  await waitFor(() => expect(onSelectBranch).toHaveBeenCalledWith("leaf-a"));
+});
+
+test("native tool title and preliminary output remain visibly in progress", async () => {
+  const part: DynamicToolUIPart = {
+    ...running,
+    title: "读取证据",
+    state: "output-available",
+    output: { progress: 1 },
+    preliminary: true,
+  };
+  const view = render(message(part));
+  expect(await screen.findByRole("button", { name: /读取证据\s*执行中/ })).toBeTruthy();
+  expect(screen.queryByText("已完成")).toBeNull();
+  view.rerender(message({ ...part, preliminary: false }));
+  expect(screen.getByRole("button", { name: /读取证据\s*已完成/ })).toBeTruthy();
 });

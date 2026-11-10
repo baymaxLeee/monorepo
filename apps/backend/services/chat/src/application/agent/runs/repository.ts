@@ -1,20 +1,36 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import type { UIMessage } from "ai";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import {
   agentRuns,
   agentSteps,
   agentToolCalls,
+  conversations,
   conversationRunLeases,
+  messages,
 } from "../../../infrastructure/persistence/schema.js";
+import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
+import { ConflictError, RequestError } from "../../errors.js";
 import { parseConversationContextSnapshot, type ConversationContextSnapshot } from "../context/context-snapshot.js";
 import { isToolOutcome } from "../tools/outcome.js";
-import { cancelTodoOutput } from "./cancellation.js";
+import { cancelTodoOutput, finalizeCancelledParts } from "./cancellation.js";
+import { mergeClientContinuation } from "./continuation.js";
 
 export type AgentRunStatus = "running" | "cancel_requested" | "completed" | "failed" | "cancelled" | "interrupted";
 export type AgentStepStatus = "running" | "completed" | "failed";
+export const RUN_LEASE_MS = 10 * 60_000;
+export type AgentRunOperation = "submit-message" | "edit-message" | "regenerate-message" | "tool-continuation";
+
+export interface ClaimedAgentRun {
+  runId: string;
+  duplicate: boolean;
+  historyRevision: number;
+  historyMessageId: string;
+  inputMessageId: string | null;
+}
 
 function id(bytes = 8): string {
   return randomBytes(bytes).toString("hex");
@@ -70,12 +86,230 @@ export async function createAgentRun(input: {
   return runId;
 }
 
+export async function claimAgentRunOperation(input: {
+  conversationId: string;
+  userId: string;
+  providerId: string;
+  model: string;
+  requestId: string;
+  expectedRevision: number;
+  operation: AgentRunOperation;
+  targetMessageId?: string | null;
+  continuationMessage?: UIMessage<unknown, any, any>;
+  requestContext?: { agentId?: string | null; mode: "normal" | "plan" };
+  inputMessage?: {
+    id: string;
+    role: "user";
+    content: PersistedMessageContent;
+  };
+}): Promise<ClaimedAgentRun> {
+  const db = getDb();
+  const canonical = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(canonical)
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value)
+              .filter(([, child]) => child !== undefined)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([key, child]) => [key, canonical(child)]),
+          )
+        : value;
+  const requestFingerprint = createHash("sha256")
+    .update(JSON.stringify(canonical(input)))
+    .digest("hex");
+  return db.transaction(async (tx) => {
+    const findExisting = async () => {
+      const [existing] = await tx
+        .select()
+        .from(agentRuns)
+        .where(and(eq(agentRuns.conversationId, input.conversationId), eq(agentRuns.requestId, input.requestId)))
+        .limit(1);
+      if (!existing) return null;
+      if (
+        existing.userId !== input.userId ||
+        existing.requestFingerprint !== requestFingerprint ||
+        existing.operation !== input.operation ||
+        (existing.targetMessageId ?? null) !== (input.targetMessageId ?? null)
+      ) {
+        throw new ConflictError("request_id is already bound to a different chat operation", "request_id_conflict");
+      }
+      if (!existing.historyMessageId || existing.historyRevision == null) {
+        throw new Error(`agent run ${existing.id} is missing its history binding`);
+      }
+      return {
+        runId: existing.id,
+        duplicate: true,
+        historyRevision: Number(existing.historyRevision),
+        historyMessageId: existing.historyMessageId,
+        inputMessageId: existing.inputMessageId,
+      } satisfies ClaimedAgentRun;
+    };
+
+    const beforeLock = await findExisting();
+    if (beforeLock) return beforeLock;
+
+    const [conversation] = await tx
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, input.conversationId))
+      .for("update");
+    if (!conversation || conversation.userId !== input.userId) {
+      throw new RequestError("conversation does not belong to this user");
+    }
+
+    const afterLock = await findExisting();
+    if (afterLock) return afterLock;
+    if (conversation.historyRevision !== BigInt(input.expectedRevision)) {
+      throw new ConflictError("conversation history revision is stale", "history_revision_conflict", {
+        expected_revision: input.expectedRevision,
+        current_revision: Number(conversation.historyRevision),
+      });
+    }
+
+    const rows = await tx
+      .select({
+        id: messages.id,
+        parentMessageId: messages.parentMessageId,
+        role: messages.role,
+        branchIndex: messages.branchIndex,
+        content: messages.content,
+        status: messages.status,
+      })
+      .from(messages)
+      .where(eq(messages.conversationId, input.conversationId));
+    const now = new Date();
+    const [activeLease] = await tx
+      .select()
+      .from(conversationRunLeases)
+      .where(eq(conversationRunLeases.conversationId, input.conversationId));
+    if (activeLease && activeLease.expiresAt > now) {
+      throw new ConflictError("this conversation already has an active run", "active_run_exists", {
+        run_id: activeLease.runId,
+      });
+    }
+    if (activeLease) {
+      await tx.delete(conversationRunLeases).where(eq(conversationRunLeases.runId, activeLease.runId));
+      await tx
+        .update(agentRuns)
+        .set({ status: "interrupted", finishedAt: now, error: "run lease expired" })
+        .where(and(eq(agentRuns.id, activeLease.runId), inArray(agentRuns.status, ["running", "cancel_requested"])));
+    }
+    const byId = new Map(rows.map((row) => [row.id, row] as const));
+    const selectedIds = new Set<string>();
+    let selected = conversation.selectedMessageId ? byId.get(conversation.selectedMessageId) : undefined;
+    while (selected) {
+      if (selectedIds.has(selected.id)) throw new Error("selected message history contains a cycle");
+      selectedIds.add(selected.id);
+      selected = selected.parentMessageId ? byId.get(selected.parentMessageId) : undefined;
+    }
+
+    const target = input.targetMessageId ? byId.get(input.targetMessageId) : undefined;
+    if (input.targetMessageId && (!target || !selectedIds.has(target.id))) {
+      throw new ConflictError("target message is not on the selected history", "history_target_conflict");
+    }
+
+    let historyMessageId: string;
+    let inputMessageId: string | null = null;
+    let selectedMessageId = conversation.selectedMessageId;
+    if (input.operation === "submit-message" || input.operation === "edit-message") {
+      if (!input.inputMessage) throw new RequestError("user message is required for this operation");
+      if (byId.has(input.inputMessage.id)) {
+        throw new ConflictError("user message id already exists", "message_id_conflict");
+      }
+      if (input.operation === "edit-message" && (!target || target.role !== "user")) {
+        throw new RequestError("edited message must target a selected user message");
+      }
+      const parentMessageId =
+        input.operation === "edit-message" ? (target?.parentMessageId ?? null) : conversation.selectedMessageId;
+      const branchIndex = rows
+        .filter((row) => row.parentMessageId === parentMessageId)
+        .reduce((maximum, row) => Math.max(maximum, row.branchIndex + 1), 0);
+      await tx.insert(messages).values({
+        id: input.inputMessage.id,
+        conversationId: input.conversationId,
+        role: "user",
+        content: input.inputMessage.content,
+        status: "ok",
+        parentMessageId,
+        branchIndex,
+        createdAt: new Date(),
+      });
+      historyMessageId = input.inputMessage.id;
+      inputMessageId = input.inputMessage.id;
+      selectedMessageId = input.inputMessage.id;
+    } else if (input.operation === "regenerate-message") {
+      if (!target || target.role !== "assistant" || !target.parentMessageId) {
+        throw new RequestError("regeneration must target a selected assistant message with parent history");
+      }
+      historyMessageId = target.parentMessageId;
+    } else {
+      if (!target || target.role !== "assistant" || conversation.selectedMessageId !== target.id) {
+        throw new RequestError("tool continuation must target the selected assistant message");
+      }
+      if (!input.continuationMessage || target.status !== "ok") {
+        throw new RequestError("tool continuation requires a completed assistant message and client response");
+      }
+      const merged = mergeClientContinuation(
+        {
+          id: target.id,
+          role: "assistant",
+          parts: target.content.parts as UIMessage<unknown, any, any>["parts"],
+          ...(target.content.metadata ? { metadata: target.content.metadata } : {}),
+        },
+        input.continuationMessage,
+      );
+      await tx
+        .update(messages)
+        .set({ content: { ...target.content, parts: merged.parts } })
+        .where(eq(messages.id, target.id));
+      historyMessageId = target.id;
+    }
+
+    const historyRevision = input.expectedRevision + 1;
+    const runId = id(16);
+    await tx.insert(agentRuns).values({
+      id: runId,
+      conversationId: input.conversationId,
+      userId: input.userId,
+      providerId: input.providerId,
+      model: input.model,
+      status: "running",
+      requestId: input.requestId,
+      requestFingerprint,
+      operation: input.operation,
+      targetMessageId: input.targetMessageId ?? null,
+      historyMessageId,
+      historyRevision: BigInt(historyRevision),
+      inputMessageId,
+      createdAt: now,
+      startedAt: now,
+    });
+    await tx.insert(conversationRunLeases).values({
+      conversationId: input.conversationId,
+      runId,
+      heartbeatAt: now,
+      expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
+    });
+    await tx
+      .update(conversations)
+      .set({ historyRevision: BigInt(historyRevision), selectedMessageId, updatedAt: now })
+      .where(eq(conversations.id, input.conversationId));
+    return { runId, duplicate: false, historyRevision, historyMessageId, inputMessageId };
+  });
+}
+
 export async function getAgentRunById(runId: string): Promise<{
   id: string;
   conversationId: string;
   userId: string;
   providerId: string;
   status: AgentRunStatus;
+  requestId: string | null;
+  operation: AgentRunOperation | null;
+  targetMessageId: string | null;
+  historyMessageId: string | null;
+  historyRevision: number | null;
 } | null> {
   const [row] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, runId));
   if (!row) {
@@ -87,6 +321,11 @@ export async function getAgentRunById(runId: string): Promise<{
     userId: row.userId,
     providerId: row.providerId,
     status: row.status as AgentRunStatus,
+    requestId: row.requestId,
+    operation: row.operation as AgentRunOperation | null,
+    targetMessageId: row.targetMessageId,
+    historyMessageId: row.historyMessageId,
+    historyRevision: row.historyRevision == null ? null : Number(row.historyRevision),
   };
 }
 
@@ -102,26 +341,24 @@ export async function finishAgentRun(input: {
   totalTokens?: number | null;
 }): Promise<void> {
   await getDb().transaction(async (tx) => {
-    const [unfinishedStep] = await tx
-      .select({ id: agentSteps.id })
-      .from(agentSteps)
-      .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")))
-      .limit(1);
-    const incompleteCompletion = input.status === "completed" && unfinishedStep != null;
-    const status = incompleteCompletion ? "failed" : input.status;
-    const error = incompleteCompletion ? (input.error ?? "run ended before its model step completed") : input.error;
+    const [run] = await tx.select().from(agentRuns).where(eq(agentRuns.id, input.runId)).for("update");
+    if (!run || !["running", "cancel_requested"].includes(run.status)) return;
+    const { status, error } = input;
     const now = new Date();
 
-    if (status !== "completed") {
-      await tx
-        .update(agentSteps)
-        .set({
-          status: "failed",
-          summary: error == null ? `run ${status}` : errorText(error).slice(0, 4000),
-          finishedAt: now,
-        })
-        .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")));
-    }
+    await tx
+      .update(agentSteps)
+      .set({
+        status: "failed",
+        summary:
+          status === "completed"
+            ? "run completed without a recorded trace step completion"
+            : error == null
+              ? `run ${status}`
+              : errorText(error).slice(0, 4000),
+        finishedAt: now,
+      })
+      .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")));
 
     await tx
       .update(agentRuns)
@@ -137,6 +374,188 @@ export async function finishAgentRun(input: {
         finishedAt: now,
       })
       .where(eq(agentRuns.id, input.runId));
+  });
+}
+
+export async function finalizeAgentRunJournal(input: {
+  runId: string;
+  parts: unknown[];
+  aborted: boolean;
+  message: {
+    id: string;
+    content: PersistedMessageContent;
+    status: "ok" | "failed";
+  } | null;
+  status: AgentRunStatus;
+  error?: unknown;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  cachedInputTokens?: number | null;
+  reasoningTokens?: number | null;
+  totalTokens?: number | null;
+}): Promise<{ outputMessageId: string | null; historyRevision: number; status: AgentRunStatus }> {
+  return getDb().transaction(async (tx) => {
+    const [binding] = await tx
+      .select({ conversationId: agentRuns.conversationId })
+      .from(agentRuns)
+      .where(eq(agentRuns.id, input.runId));
+    if (!binding) throw new Error(`agent run ${input.runId} has no journal binding`);
+    // Claim and finalization must acquire shared rows in the same order.
+    // Otherwise an expired lease claim can deadlock with its old finalizer.
+    const [conversation] = await tx
+      .select({ historyRevision: conversations.historyRevision })
+      .from(conversations)
+      .where(eq(conversations.id, binding.conversationId))
+      .for("update");
+    const [run] = await tx.select().from(agentRuns).where(eq(agentRuns.id, input.runId)).for("update");
+    if (!run || !run.operation || !run.historyMessageId || run.historyRevision == null) {
+      throw new Error(`agent run ${input.runId} has no journal binding`);
+    }
+    const historyRevision = Number(run.historyRevision);
+    if (["completed", "failed", "cancelled", "interrupted"].includes(run.status)) {
+      return { outputMessageId: run.outputMessageId, historyRevision, status: run.status as AgentRunStatus };
+    }
+
+    if (!conversation || conversation.historyRevision !== run.historyRevision) {
+      throw new ConflictError("run history binding is no longer current", "run_history_conflict");
+    }
+
+    const now = new Date();
+    const aborted = input.aborted || run.status === "cancel_requested" || input.status === "cancelled";
+    const status = aborted ? "cancelled" : input.status;
+    const error = input.error;
+    const message = input.message
+      ? {
+          ...input.message,
+          status: status === "completed" ? "ok" : "failed",
+          content: {
+            ...input.message.content,
+            parts: aborted
+              ? finalizeCancelledParts(input.message.content.parts as UIMessage<unknown, any, any>["parts"])
+              : input.message.content.parts,
+            ...(input.message.content.metadata
+              ? {
+                  metadata: {
+                    ...input.message.content.metadata,
+                    status: status === "completed" ? "completed" : status === "cancelled" ? "cancelled" : "failed",
+                  },
+                }
+              : {}),
+          },
+        }
+      : null;
+    const toolCalls = await tx.select().from(agentToolCalls).where(eq(agentToolCalls.runId, input.runId));
+    if (aborted) {
+      for (const toolCall of toolCalls) {
+        if (toolCall.status === "running") {
+          await tx
+            .update(agentToolCalls)
+            .set({
+              status: "failed",
+              error: "已取消。",
+              durationMs: Math.max(0, now.getTime() - toolCall.createdAt.getTime()),
+              finishedAt: now,
+            })
+            .where(eq(agentToolCalls.id, toolCall.id));
+        } else if (toolCall.toolName === "update_todos" && toolCall.status === "completed") {
+          await tx
+            .update(agentToolCalls)
+            .set({ outputJson: cancelTodoOutput(toolCall.outputJson) })
+            .where(eq(agentToolCalls.id, toolCall.id));
+        }
+      }
+    } else {
+      const terminalById = new Map<string, NonNullable<ReturnType<typeof terminalToolPart>>>();
+      for (const part of input.parts) {
+        const terminal = terminalToolPart(part);
+        if (terminal) terminalById.set(terminal.toolCallId, terminal);
+      }
+      for (const toolCall of toolCalls) {
+        if (toolCall.status !== "running") continue;
+        const terminal = terminalById.get(toolCall.id);
+        if (!terminal) continue;
+        await tx
+          .update(agentToolCalls)
+          .set({
+            status: terminal.status,
+            outputJson: terminal.output === undefined ? undefined : asJsonValue(terminal.output),
+            error: terminal.status === "failed" ? errorText(terminal.error).slice(0, 4000) : null,
+            durationMs: Math.max(0, now.getTime() - toolCall.createdAt.getTime()),
+            finishedAt: now,
+          })
+          .where(eq(agentToolCalls.id, toolCall.id));
+      }
+    }
+
+    let outputMessageId: string | null = null;
+    if (message) {
+      if (run.operation === "tool-continuation") {
+        if (message.id !== run.targetMessageId) {
+          throw new Error("continuation output message id does not match its target");
+        }
+        const updated = await tx
+          .update(messages)
+          .set({ content: message.content, status: message.status })
+          .where(and(eq(messages.id, message.id), eq(messages.conversationId, run.conversationId)))
+          .returning({ id: messages.id });
+        if (!updated[0]) throw new Error(`continuation message ${message.id} is missing`);
+        outputMessageId = message.id;
+      } else {
+        const siblings = await tx
+          .select({ branchIndex: messages.branchIndex })
+          .from(messages)
+          .where(
+            and(eq(messages.conversationId, run.conversationId), eq(messages.parentMessageId, run.historyMessageId)),
+          );
+        const branchIndex = siblings.reduce((maximum, row) => Math.max(maximum, row.branchIndex + 1), 0);
+        await tx.insert(messages).values({
+          id: message.id,
+          conversationId: run.conversationId,
+          role: "assistant",
+          content: message.content,
+          status: message.status,
+          parentMessageId: run.historyMessageId,
+          branchIndex,
+          createdAt: new Date(),
+        });
+        outputMessageId = message.id;
+      }
+    }
+
+    // Trace gaps must not rewrite the authoritative SDK outcome.
+    await tx
+      .update(agentSteps)
+      .set({
+        status: "failed",
+        summary:
+          status === "completed"
+            ? "run completed without a recorded trace step completion"
+            : error == null
+              ? `run ${status}`
+              : errorText(error).slice(0, 4000),
+        finishedAt: now,
+      })
+      .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")));
+    await tx
+      .update(agentRuns)
+      .set({
+        status,
+        error: error == null ? null : errorText(error).slice(0, 4000),
+        outputMessageId,
+        inputTokens: input.inputTokens ?? undefined,
+        outputTokens: input.outputTokens ?? undefined,
+        cachedInputTokens: input.cachedInputTokens ?? undefined,
+        reasoningTokens: input.reasoningTokens ?? undefined,
+        totalTokens: input.totalTokens ?? undefined,
+        finishedAt: now,
+      })
+      .where(eq(agentRuns.id, input.runId));
+    await tx
+      .update(conversations)
+      .set({ ...(outputMessageId ? { selectedMessageId: outputMessageId } : {}), updatedAt: now })
+      .where(eq(conversations.id, run.conversationId));
+    await tx.delete(conversationRunLeases).where(eq(conversationRunLeases.runId, input.runId));
+    return { outputMessageId, historyRevision, status };
   });
 }
 
@@ -165,14 +584,28 @@ export async function listOrphanedRuns(now = new Date()): Promise<Array<{ id: st
     );
 }
 
-export async function interruptRuns(runIds: string[]): Promise<void> {
+export async function interruptRuns(runIds: string[]): Promise<Array<{ id: string; conversationId: string }>> {
   if (runIds.length === 0) {
-    return;
+    return [];
   }
-  await getDb()
+  const db = getDb();
+  const now = new Date();
+  return db
     .update(agentRuns)
-    .set({ status: "interrupted", finishedAt: new Date() })
-    .where(inArray(agentRuns.id, runIds));
+    .set({ status: "interrupted", finishedAt: now })
+    .where(
+      and(
+        inArray(agentRuns.id, runIds),
+        inArray(agentRuns.status, ["running", "cancel_requested"]),
+        notExists(
+          db
+            .select({ runId: conversationRunLeases.runId })
+            .from(conversationRunLeases)
+            .where(and(eq(conversationRunLeases.runId, agentRuns.id), gt(conversationRunLeases.expiresAt, now))),
+        ),
+      ),
+    )
+    .returning({ id: agentRuns.id, conversationId: agentRuns.conversationId });
 }
 
 export interface AgentTraceStep {
@@ -534,65 +967,4 @@ function terminalToolPart(part: unknown): {
     };
   }
   return null;
-}
-
-export async function finalizeRunToolCallsFromParts(runId: string, parts: unknown[]): Promise<void> {
-  const terminalById = new Map<string, ReturnType<typeof terminalToolPart>>();
-  for (const part of parts) {
-    const terminal = terminalToolPart(part);
-    if (terminal) {
-      terminalById.set(terminal.toolCallId, terminal);
-    }
-  }
-  if (terminalById.size === 0) {
-    return;
-  }
-
-  const db = getDb();
-  const rows = await db
-    .select({ id: agentToolCalls.id, createdAt: agentToolCalls.createdAt })
-    .from(agentToolCalls)
-    .where(and(eq(agentToolCalls.runId, runId), eq(agentToolCalls.status, "running")));
-  const now = new Date();
-  await Promise.all(
-    rows.map((row) => {
-      const terminal = terminalById.get(row.id);
-      if (!terminal) {
-        return Promise.resolve();
-      }
-      return db
-        .update(agentToolCalls)
-        .set({
-          status: terminal.status,
-          outputJson: terminal.output === undefined ? undefined : asJsonValue(terminal.output),
-          error: terminal.status === "failed" ? errorText(terminal.error).slice(0, 4000) : null,
-          durationMs: Math.max(0, now.getTime() - row.createdAt.getTime()),
-          finishedAt: now,
-        })
-        .where(eq(agentToolCalls.id, row.id));
-    }),
-  );
-}
-
-export async function finalizeCancelledRunToolCalls(runId: string): Promise<void> {
-  const db = getDb();
-  const rows = await db.select().from(agentToolCalls).where(eq(agentToolCalls.runId, runId));
-  const now = new Date();
-  await Promise.all(
-    rows.map((row) => {
-      if (row.status === "running") {
-        return db
-          .update(agentToolCalls)
-          .set({ status: "failed", error: "已取消。", finishedAt: now })
-          .where(eq(agentToolCalls.id, row.id));
-      }
-      if (row.toolName === "update_todos" && row.status === "completed") {
-        return db
-          .update(agentToolCalls)
-          .set({ outputJson: cancelTodoOutput(row.outputJson) })
-          .where(eq(agentToolCalls.id, row.id));
-      }
-      return Promise.resolve();
-    }),
-  );
 }

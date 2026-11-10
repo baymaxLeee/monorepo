@@ -97,3 +97,9 @@ export function ReasoningContent({ className, children, ...props }: ReasoningCon
     </TraceCollapsibleContent>
   );
 }
+
+export type ReasoningAttachmentContentProps = ComponentProps<typeof TraceCollapsibleContent>;
+
+export function ReasoningAttachmentContent({ className, ...props }: ReasoningAttachmentContentProps) {
+  return <TraceCollapsibleContent keepMounted className={cn("pt-2", className)} {...props} />;
+}

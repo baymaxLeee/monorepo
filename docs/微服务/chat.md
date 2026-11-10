@@ -14,9 +14,16 @@ Single-VPS 从部署环境注入，K8s 从 `chat-secrets` 注入，不读取本�
 
 ## API
 
-- `POST /conversations/{id}/agents/run/stream`：启动一次 ToolLoopAgent UI stream
+- `POST /conversations/{id}/agents/run/stream`：启动一次 ToolLoopAgent UI stream。
+  请求保留 SDK message，并显式携带 `trigger`、可选 `messageId`、`expected_revision`
+  和稳定 `request_id`；编辑、重新生成和工具续跑分别绑定其目标，不能由最后一条消息猜测。
 - `GET /conversations/{id}/agents/run/stream`：恢复当前活动 UI stream；无活动流返回 204
 - `GET /conversations/{id}/agents/runs/{runId}/trace`：读取步骤与 tool trace
+- `POST /conversations/{id}/history/select`：以 `expected_revision` CAS 选择已存在候选的
+  leaf，只改变权威历史，不创建 run 或执行工具。
+- `POST /conversations/{id}/sources/{sourceId}/delivery`：仅当来源出现在当前会话 journal、
+  带受支持 resolver 且仍属于当前 tenant/workspace 时，返回短期受权访问能力；前端只在
+  明确点击中申请，避免把 capability 放进持久消息或预取链路。
 - `POST /conversations/{id}/forks`：按 `message_id` 创建新会话分支。仅接受本用户、tenant/workspace 内已结束的 assistant 回复；原会话有活动 run 时返回 409。
   分支复制到指定回复为止的历史，以及创建时的当前文件不可变快照。它不是历史文件回滚；不复制 run、provider response chain、画布绑定或自动执行请求。
   未终态/preliminary 工具在副本中关闭，未完成 todo 取消；已失败消息保持 failed。原有外部视频任务只展示历史，审批仍在原会话。
@@ -29,8 +36,18 @@ Single-VPS 从部署环境注入，K8s 从 `chat-secrets` 注入，不读取本�
 
 ## Agent runtime
 
-Chat 升级需先应用追加迁移 `v1.0.0.1`（`just migrate-up chat`），增加默认值为 0 的 `run_revision` 和 lease INSERT 触发器，不改写旧消息或 run。旧实例的 lease 写入也经过触发器，支持滚动升级；应用回退保留扩展 schema，本步骤不提供自动 DOWN。
+Chat 升级依次应用追加迁移 `v1.0.0.1`、`v1.0.0.2` 和 `v1.0.0.3`
+（`just migrate-up chat`）。
+前者增加 `run_revision` 和 lease INSERT 触发器；后者增加 history revision、selected leaf、
+消息 parent/branch 以及 run 的 request/operation/history binding，并将既有线性消息回填为
+单一路径；`v1.0.0.3` 增加完整逻辑请求指纹，确保相同 `request_id` 只有完全一致的重试
+能够复用 run。迁移不重置消息或 run；应用回退保留扩展 schema，不提供自动 DOWN。
 并发集成测试使用隔离且已迁移的数据库：`CHAT_FORK_TEST_URL=<isolated-postgres-url> just test backend/chat src/application/conversation-fork.postgres.ts`。缺少该配置时失败，不作为跳过或通过；默认单元测试不依赖数据库。
+Chat journal 与 Redis transport 的基础设施测试需要显式启用：
+`CHAT_POSTGRES_INTEGRATION=1 just test backend/chat src/application/agent/runs/repository.integration.test.ts`
+和 `CHAT_REDIS_INTEGRATION=1 just test backend/chat src/application/agent/streams/service.integration.test.ts`。
+它们使用已迁移的本地 Chat 数据库/Redis、只创建唯一前缀记录并清理；默认套件中的 skip
+不构成通过证据，发布验证必须单独执行启用后的命令。
 
 - 主链使用 `ToolLoopAgent`。服务端 run controller 的 AbortSignal 贯穿模型、web
   search、图片分析和 artifact 内部模型调用；只有显式 Stop/cancel 才终止生成。
@@ -47,8 +64,9 @@ Chat 升级需先应用追加迁移 `v1.0.0.1`（`just migrate-up chat`），增
   用户回答后的 continuation 落库；搜索、读取等独立只读工具仍可同 step 并发。正常模式
   的 Markdown、HTML、图片和视频生成调用按计划顺序串行，只有 `delegate_tasks`
   会在一次调用内部并发生成多个独立完整文件。
-- assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；run trace 写入
-  失败不能影响用户流。
+- assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；工具终态、消息、
+  run 状态、selected leaf 和 lease 删除在同一个幂等数据库事务收口。关键持久化失败
+  使响应失败且事务整体回滚；独立 trace 写入失败不影响用户流。
 - 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方
   `output-error`，并把未完成 todo 改为 `cancelled`；取消接口等待本地 run finalizer，
   因而重新进入会话不会把已取消卡片恢复成 loading。

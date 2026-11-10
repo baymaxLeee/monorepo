@@ -20,6 +20,8 @@
 - 同一数据库的升级由 PostgreSQL advisory lock 串行化。一次调用的待执行 SQL、
   当前版本和历史记录在一个事务中提交；失败全部回滚，重跑不会重复执行已提交 SQL。
   创建 database/role 属于事务外的初始化，不属于业务数据回滚范围。
+- 每个 UP/DOWN 步骤结束后恢复调用开始时的 `search_path`，避免 dump 基线里的
+  `SET search_path` 泄漏到后续步骤；一次安装与分次升级的名称解析保持一致。
 - SQL 必须能在事务内执行，不能自行 `BEGIN`/`COMMIT`，不能把网络调用或大规模
   后台回填放进该事务。`CREATE INDEX CONCURRENTLY` 等非事务步骤不受此执行器支持，
   需要单独设计、验证和明确执行步骤，不能绕过版本记录。

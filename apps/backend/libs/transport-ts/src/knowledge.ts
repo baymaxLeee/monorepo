@@ -72,6 +72,23 @@ export class KnowledgeInternalClient {
     );
   }
 
+  getWorkspaceDocument(input: {
+    tenantId: string;
+    workspaceId: string;
+    documentId: string;
+    includeContent?: boolean;
+  }): Promise<KnowledgeDocument> {
+    return this.unwrap(
+      this.client.GET("/internal/workspaces/{workspace_id}/documents/{document_id}", {
+        params: {
+          path: { workspace_id: input.workspaceId, document_id: input.documentId },
+          query: { tenant_id: input.tenantId, include_content: input.includeContent },
+        },
+      }),
+      normalizeDocument,
+    );
+  }
+
   listVirtualFiles(input: { userId: string; conversationId: string; path?: string }): Promise<VirtualFileEntry[]> {
     return this.unwrap(
       this.client.GET("/internal/files", {

@@ -1,6 +1,5 @@
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { zValidator } from "@hono/zod-validator";
-import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -10,10 +9,11 @@ import {
   getAgentRunTrace,
   cancelRun,
   activeAgentStreamRunId,
+  createAgentReplayResponse,
   isRunActive,
-  replayAgentSseStream,
 } from "../../../application/agent/index.js";
 import { getConversationRow } from "../../../application/conversations.js";
+import { RequestError } from "../../../application/errors.js";
 import {
   type AgentSkillRef,
   getAgent,
@@ -28,6 +28,14 @@ export const agentsRoutes = new Hono();
 const runSchema = z.object({
   id: z.string().optional(),
   message: z.unknown(),
+  trigger: z.enum(["submit-message", "regenerate-message"]),
+  messageId: z.string().min(1).max(32).optional(),
+  expected_revision: z.number().int().nonnegative(),
+  request_id: z
+    .string()
+    .min(8)
+    .max(64)
+    .regex(/^[a-zA-Z0-9_-]+$/),
   agent_id: z.string().max(32).optional().nullable(),
   // Ephemeral per-run behavior selector (ADR-0035); not persisted.
   mode: z.enum(["normal", "plan"]).optional(),
@@ -44,6 +52,9 @@ agentsRoutes.post(
     const auth = getAuth(c);
     const conversationId = c.req.param("conversationId");
     const payload = c.req.valid("json");
+    if (payload.id && payload.id !== conversationId) {
+      throw new RequestError("chat request id does not match the route conversation");
+    }
 
     let textProvider: ProviderSnapshot & LanguageProviderSnapshot;
     let imageProvider: ProviderSnapshot | null = null;
@@ -67,6 +78,11 @@ agentsRoutes.post(
       botProfile,
       botSkills,
       mode: payload.mode,
+      agentId: payload.agent_id,
+      trigger: payload.trigger,
+      messageId: payload.messageId,
+      expectedRevision: payload.expected_revision,
+      requestId: payload.request_id,
     });
   },
 );
@@ -80,44 +96,9 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
     return new Response(null, { status: 204 });
   }
 
-  const encoder = new TextEncoder();
-  let cancelled = false;
-  const subscriberController = new AbortController();
-  c.req.raw.signal.addEventListener("abort", () => subscriberController.abort(), {
-    once: true,
-  });
-  const body = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      try {
-        for await (const chunk of replayAgentSseStream(conversationId, runId, {
-          isRunLive: isRunActive,
-          signal: subscriberController.signal,
-        })) {
-          if (cancelled) {
-            return;
-          }
-          controller.enqueue(encoder.encode(chunk));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          controller.error(error);
-        }
-        return;
-      }
-      if (!cancelled) {
-        controller.close();
-      }
-    },
-    cancel() {
-      cancelled = true;
-      subscriberController.abort();
-    },
-  });
-  return new Response(body, {
-    headers: {
-      ...UI_MESSAGE_STREAM_HEADERS,
-      "x-agent-run-id": runId,
-    },
+  return createAgentReplayResponse(conversationId, runId, {
+    isRunLive: isRunActive,
+    signal: c.req.raw.signal,
   });
 });
 

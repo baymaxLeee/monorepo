@@ -132,6 +132,21 @@ export async function getDocument(
   }
 }
 
+export async function getWorkspaceDocument(
+  tenantId: string,
+  workspaceId: string,
+  documentId: string,
+): Promise<KnowledgeDocument> {
+  try {
+    return await knowledgeClient().getWorkspaceDocument({ tenantId, workspaceId, documentId, includeContent: false });
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new NotFoundError(`document ${documentId} not found`);
+    }
+    throw err;
+  }
+}
+
 export async function getDocumentSlice(
   userId: string,
   documentId: string,
@@ -155,9 +170,13 @@ export async function getDocumentSlice(
 export async function getDocumentSource(
   userId: string,
   documentId: string,
-  options?: { maxDim?: number },
+  options?: { maxDim?: number; conversationId?: string; signal?: AbortSignal },
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  options?.signal?.throwIfAborted();
   const doc = await knowledgeClient().getDocument({ userId, documentId });
+  if (options?.conversationId && doc.conversation_id !== options.conversationId) {
+    throw new NotFoundError(`document ${documentId} does not belong to the conversation`);
+  }
   if (!doc.asset_id || !doc.source_revision_id || !doc.tenant_id || !doc.workspace_id) {
     throw new NotFoundError(`document ${documentId} has no Storage revision`);
   }
@@ -167,6 +186,7 @@ export async function getDocumentSource(
     assetId: doc.asset_id,
     revisionId: doc.source_revision_id,
     maxDim: options?.maxDim,
+    signal: options?.signal,
   });
   return {
     bytes: new Uint8Array(await new Response(stream).arrayBuffer()),

@@ -1,4 +1,4 @@
-import type { UIMessage } from "ai";
+import { getToolName, isToolUIPart, type UIMessage } from "ai";
 
 import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
@@ -35,12 +35,12 @@ export function cancelTodoOutput(output: unknown): unknown {
 
 export function finalizeCancelledParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
   return parts.map((part) => {
-    if (!part || typeof part !== "object" || !("toolCallId" in part)) {
+    if (!isToolUIPart(part)) {
       return part;
     }
 
     let next = part as unknown as Record<string, unknown>;
-    if (part.type === "tool-update_todos" && "output" in part) {
+    if (getToolName(part) === "update_todos" && "output" in part) {
       next = { ...next, output: cancelTodoOutput(part.output) };
     }
 
@@ -51,9 +51,16 @@ export function finalizeCancelledParts(parts: AnyUIMessage["parts"]): AnyUIMessa
       return next as AnyUIMessage["parts"][number];
     }
 
-    const { output: _output, preliminary: _preliminary, ...terminal } = next;
+    const { output: _output, preliminary: _preliminary, approval, ...terminal } = next;
+    // output-error accepts only a granted approval in the native SDK schema.
+    // A pending or denied request is not a granted execution after cancellation.
+    const granted =
+      approval && typeof approval === "object" && "approved" in approval && approval.approved === true
+        ? approval
+        : undefined;
     return {
       ...terminal,
+      ...(granted ? { approval: granted } : {}),
       state: "output-error",
       errorText: "已取消。",
     } as AnyUIMessage["parts"][number];

@@ -11,13 +11,13 @@ import {
   interruptRuns,
   listOrphanedRuns,
   requestAgentRunCancellation,
+  RUN_LEASE_MS,
 } from "./repository.js";
 
 const controllers = new Map<string, AbortController>();
 const completions = new Map<string, { promise: Promise<void>; resolve: () => void }>();
 const heartbeats = new Map<string, ReturnType<typeof setInterval>>();
 const cancellationPolls = new Map<string, ReturnType<typeof setInterval>>();
-const LEASE_MS = 10 * 60_000;
 const CANCELLATION_POLL_MS = 1_000;
 const CANCELLATION_WAIT_MS = 30_000;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
@@ -50,7 +50,7 @@ export async function acquireRunLease(conversationId: string, runId: string): Pr
         conversationId,
         runId,
         heartbeatAt: now,
-        expiresAt: new Date(now.getTime() + LEASE_MS),
+        expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
       });
     } catch {
       throw new ConflictError("this conversation already has an active run", "active_run_exists");
@@ -80,7 +80,7 @@ export function registerRunController(runId: string): AbortSignal {
         .update(conversationRunLeases)
         .set({
           heartbeatAt: now,
-          expiresAt: new Date(now.getTime() + LEASE_MS),
+          expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
         })
         .where(eq(conversationRunLeases.runId, runId))
         .catch((error) => logger.error({ err: error }, "run lease heartbeat failed"));
@@ -151,17 +151,18 @@ export async function reconcileOrphanedRuns(): Promise<void> {
   if (orphaned.length === 0) {
     return;
   }
-  const runIds = orphaned.map((run) => run.id);
-  await interruptRuns(runIds);
+  const interrupted = await interruptRuns(orphaned.map((run) => run.id));
+  if (interrupted.length === 0) return;
+  const runIds = interrupted.map((run) => run.id);
   await Promise.all(
-    orphaned.map((run) =>
+    interrupted.map((run) =>
       deactivateAgentStream(run.conversationId, run.id).catch((error) =>
         logger.error({ runId: run.id, err: error }, "failed to clear stream flag for orphaned run"),
       ),
     ),
   );
   await getDb().delete(conversationRunLeases).where(inArray(conversationRunLeases.runId, runIds));
-  logger.info({ count: orphaned.length }, "reconciled orphaned runs");
+  logger.info({ count: interrupted.length }, "reconciled orphaned runs");
 }
 
 const ORPHAN_RECONCILE_MS = 5 * 60_000;

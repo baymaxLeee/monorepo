@@ -6,6 +6,7 @@ import type { AuthContext } from "../api/http/middleware/auth.js";
 import { canvasClient } from "../infrastructure/clients/canvas.js";
 import {
   getDocument,
+  getWorkspaceDocument,
   listDocuments,
   listVirtualFiles,
   readVirtualFile,
@@ -37,6 +38,8 @@ export interface Conversation {
   canvas_id: string | null;
   created_at: string;
   updated_at: string;
+  revision: number;
+  selected_message_id: string | null;
 }
 
 export interface Message {
@@ -45,7 +48,22 @@ export interface Message {
   role: "user" | "assistant" | "system";
   content: PersistedMessageContent;
   status: "ok" | "streaming" | "failed";
+  parent_message_id: string | null;
+  branch_index: number;
   created_at: string;
+}
+
+export interface MessageBranchCandidate {
+  message_id: string;
+  leaf_message_id: string;
+  role: Message["role"];
+  created_at: string;
+}
+
+export interface MessageBranchGroup {
+  parent_message_id: string | null;
+  selected_message_id: string;
+  candidates: MessageBranchCandidate[];
 }
 
 export function mapKnowledgeDocument(doc: KnowledgeDocument, conversationId: string) {
@@ -112,6 +130,7 @@ export interface ConversationFileDetail {
 
 export interface ConversationDetail extends Conversation {
   messages: Message[];
+  branches: MessageBranchGroup[];
   documents: ConversationDocument[];
   active_run_id: string | null;
   latest_run_id: string | null;
@@ -135,6 +154,8 @@ function toConversation(row: typeof conversations.$inferSelect): Conversation {
     canvas_id: row.canvasId,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
+    revision: Number(row.historyRevision),
+    selected_message_id: row.selectedMessageId,
   };
 }
 
@@ -145,8 +166,82 @@ function toMessage(row: typeof messages.$inferSelect): Message {
     role: row.role as Message["role"],
     content: row.content,
     status: row.status as Message["status"],
+    parent_message_id: row.parentMessageId,
+    branch_index: row.branchIndex,
     created_at: iso(row.createdAt),
   };
+}
+
+export function selectMessagePath(allMessages: Message[], leafMessageId: string | null): Message[] {
+  if (!leafMessageId) {
+    return [];
+  }
+  const byId = new Map(allMessages.map((message) => [message.id, message] as const));
+  const reversed: Message[] = [];
+  const seen = new Set<string>();
+  let current = byId.get(leafMessageId);
+  if (!current) {
+    throw new Error(`selected message ${leafMessageId} does not belong to the conversation`);
+  }
+  while (current) {
+    if (seen.has(current.id)) {
+      throw new Error(`message history contains a cycle at ${current.id}`);
+    }
+    seen.add(current.id);
+    reversed.push(current);
+    current = current.parent_message_id ? byId.get(current.parent_message_id) : undefined;
+    if (reversed.at(-1)?.parent_message_id && !current) {
+      throw new Error(`message history parent ${reversed.at(-1)!.parent_message_id} is missing`);
+    }
+  }
+  return reversed.reverse();
+}
+
+export function buildMessageBranches(allMessages: Message[], selectedPath: Message[]): MessageBranchGroup[] {
+  const children = new Map<string | null, Message[]>();
+  for (const message of allMessages) {
+    const siblings = children.get(message.parent_message_id) ?? [];
+    siblings.push(message);
+    children.set(message.parent_message_id, siblings);
+  }
+  for (const siblings of children.values()) {
+    siblings.sort(
+      (left, right) => left.branch_index - right.branch_index || left.created_at.localeCompare(right.created_at),
+    );
+  }
+
+  const latestLeaf = (root: Message): Message => {
+    let latest = root;
+    const pending = [root];
+    while (pending.length) {
+      const current = pending.pop()!;
+      const descendants = children.get(current.id) ?? [];
+      if (descendants.length === 0 && (current.created_at > latest.created_at || latest === root)) {
+        latest = current;
+      }
+      pending.push(...descendants);
+    }
+    return latest;
+  };
+
+  return selectedPath.flatMap((selected) => {
+    const siblings = children.get(selected.parent_message_id) ?? [];
+    if (siblings.length < 2) {
+      return [];
+    }
+    return [
+      {
+        parent_message_id: selected.parent_message_id,
+        selected_message_id: selected.id,
+        candidates: siblings.map((candidate) => ({
+          message_id: candidate.id,
+          leaf_message_id: latestLeaf(candidate).id,
+          role: candidate.role,
+          created_at: candidate.created_at,
+        })),
+      },
+    ];
+  });
 }
 
 export async function listConversations(auth: AuthContext): Promise<Conversation[]> {
@@ -185,9 +280,12 @@ export async function getConversation(auth: AuthContext, conversationId: string)
   } catch {
     documentRows = [];
   }
+  const allMessages = messageRows.map(toMessage);
+  const selectedMessages = selectMessagePath(allMessages, row.selectedMessageId);
   return {
     ...toConversation(row),
-    messages: messageRows.map(toMessage),
+    messages: selectedMessages,
+    branches: buildMessageBranches(allMessages, selectedMessages),
     documents: documentRows.map((d) => mapKnowledgeDocument(d, conversationId)),
     active_run_id: null,
     latest_run_id: latestRun?.id ?? null,
@@ -251,6 +349,58 @@ export async function updateConversation(
   await db.update(conversations).set(values).where(eq(conversations.id, row.id));
   const [updated] = await db.select().from(conversations).where(eq(conversations.id, row.id));
   return toConversation(updated);
+}
+
+export async function selectConversationHistory(
+  auth: AuthContext,
+  conversationId: string,
+  input: { leaf_message_id: string; expected_revision: number },
+): Promise<ConversationDetail> {
+  const db = getDb();
+  await db.transaction(async (tx) => {
+    const [conversation] = await tx
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, auth.userId),
+          eq(conversations.tenantId, auth.tenantId),
+          eq(conversations.workspaceId, auth.workspaceId),
+        ),
+      )
+      .for("update");
+    if (!conversation) throw new NotFoundError(`conversation ${conversationId} not found`);
+    if (conversation.historyRevision !== BigInt(input.expected_revision)) {
+      throw new ConflictError("conversation history revision is stale", "history_revision_conflict", {
+        expected_revision: input.expected_revision,
+        current_revision: Number(conversation.historyRevision),
+      });
+    }
+    const [activeLease] = await tx
+      .select({ runId: conversationRunLeases.runId })
+      .from(conversationRunLeases)
+      .where(eq(conversationRunLeases.conversationId, conversationId));
+    if (activeLease) {
+      throw new ConflictError("cannot switch history while an agent run is active", "active_run_exists", {
+        run_id: activeLease.runId,
+      });
+    }
+    const [leaf] = await tx
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.id, input.leaf_message_id), eq(messages.conversationId, conversationId)));
+    if (!leaf) throw new NotFoundError(`message ${input.leaf_message_id} not found in conversation ${conversationId}`);
+    await tx
+      .update(conversations)
+      .set({
+        selectedMessageId: leaf.id,
+        historyRevision: conversation.historyRevision + 1n,
+        updatedAt: new Date(),
+      })
+      .where(eq(conversations.id, conversationId));
+  });
+  return getConversation(auth, conversationId);
 }
 
 export async function setActivePlanPath(conversationId: string, path: string): Promise<void> {
@@ -418,14 +568,21 @@ export async function getConversationRow(
   return row;
 }
 
-export async function listMessages(conversationId: string): Promise<Message[]> {
+export async function listMessages(conversationId: string, leafMessageId?: string | null): Promise<Message[]> {
   const db = getDb();
-  const rows = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, conversationId))
-    .orderBy(asc(messages.createdAt), asc(messages.id));
-  return rows.map(toMessage);
+  const [conversation, rows] = await Promise.all([
+    db
+      .select({ selectedMessageId: conversations.selectedMessageId })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId)),
+    db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(asc(messages.createdAt), asc(messages.id)),
+  ]);
+  const selectedLeaf = leafMessageId === undefined ? (conversation[0]?.selectedMessageId ?? null) : leafMessageId;
+  return selectMessagePath(rows.map(toMessage), selectedLeaf);
 }
 
 export async function createMessage(input: {
@@ -434,6 +591,9 @@ export async function createMessage(input: {
   role: string;
   content: PersistedMessageContent;
   status?: string;
+  parentMessageId?: string | null;
+  branchIndex?: number;
+  select?: boolean;
 }): Promise<Message> {
   const db = getDb();
   const id = input.id ?? randomBytes(8).toString("hex");
@@ -446,12 +606,20 @@ export async function createMessage(input: {
       role: input.role,
       content: input.content,
       status: input.status ?? "ok",
+      parentMessageId: input.parentMessageId ?? null,
+      branchIndex: input.branchIndex ?? 0,
       createdAt: now,
     })
     .onConflictDoNothing();
   const [row] = await db.select().from(messages).where(eq(messages.id, id));
   if (!row || row.conversationId !== input.conversationId || row.role !== input.role) {
     throw new Error(`message id ${id} already belongs to a different message`);
+  }
+  if (input.select) {
+    await db
+      .update(conversations)
+      .set({ selectedMessageId: row.id, updatedAt: now })
+      .where(eq(conversations.id, input.conversationId));
   }
   return toMessage(row);
 }
@@ -494,6 +662,36 @@ export async function authorizeDocumentDelivery(
     assetId: doc.asset_id,
     revisionId: doc.source_revision_id,
     maxDim,
+  });
+}
+
+function isKnowledgeSourcePart(part: unknown, sourceId: string): boolean {
+  if (!part || typeof part !== "object") return false;
+  const value = part as Record<string, unknown>;
+  if (value.type !== "source-document" || value.sourceId !== sourceId) return false;
+  const providerMetadata = value.providerMetadata;
+  if (!providerMetadata || typeof providerMetadata !== "object") return false;
+  const chat = (providerMetadata as Record<string, unknown>).chat;
+  return Boolean(
+    chat && typeof chat === "object" && (chat as Record<string, unknown>).resolver === "knowledge-document",
+  );
+}
+
+export function hasKnowledgeSourceReference(history: Message[], sourceId: string): boolean {
+  return history.some((message) => message.content.parts.some((part) => isKnowledgeSourcePart(part, sourceId)));
+}
+
+export async function authorizeConversationSourceDelivery(auth: AuthContext, conversationId: string, sourceId: string) {
+  const conversation = await getConversationRow(auth, conversationId);
+  const history = await listMessages(conversation.id);
+  if (!hasKnowledgeSourceReference(history, sourceId)) throw new NotFoundError("conversation source not found");
+  const document = await getWorkspaceDocument(auth.tenantId, auth.workspaceId, sourceId);
+  if (!document.asset_id || !document.source_revision_id) throw new NotFoundError("source has no Storage revision");
+  return storageClient().mintDelivery({
+    tenantId: auth.tenantId,
+    workspaceId: auth.workspaceId,
+    assetId: document.asset_id,
+    revisionId: document.source_revision_id,
   });
 }
 export async function authorizeFileDelivery(auth: AuthContext, conversationId: string, path: string) {

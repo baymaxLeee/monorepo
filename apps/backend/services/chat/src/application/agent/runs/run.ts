@@ -1,10 +1,10 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import {
+  consumeStream,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  toUIMessageStream,
   type UIMessage,
   validateUIMessages,
 } from "ai";
@@ -17,17 +17,15 @@ import { getDocument } from "../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
 import {
-  createMessage,
   getConversationRow,
   listMessages,
   setConversationTitle,
-  touchConversation,
-  updateMessageContent,
   updateConversationProvider,
   type Message,
 } from "../../conversations.js";
 import { NotFoundError, RequestError } from "../../errors.js";
 import { createAgent } from "../agents/factory.js";
+import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
 import type { ContextCategoryId } from "../context/context-snapshot.js";
 import {
   activatedSkillNameFromParts,
@@ -47,26 +45,30 @@ import {
   failAgentRun,
   type UsageTokens,
 } from "../observability/lifecycle.js";
-import { activateAgentStream, consumeAgentSseStream, deactivateAgentStream } from "../streams/service.js";
+import { createPublishedAgentPartStream } from "../streams/native-parts.js";
+import {
+  activateAgentStream,
+  consumeAgentSseStream,
+  createAgentReplayResponse,
+  deactivateAgentStream,
+} from "../streams/service.js";
 import { generateConversationTitle } from "../title/generator.js";
-import { isToolOutcome } from "../tools/outcome.js";
 import { finalizeCancelledParts } from "./cancellation.js";
 import {
   compactHistoricalSkillOutputs,
   continuedSkillReference,
-  mergeClientContinuation,
   type ContinuedSkillReference,
 } from "./continuation.js";
-import { acquireRunLease, registerRunController, releaseRun } from "./lease.js";
+import { registerRunController, releaseRun } from "./lease.js";
 import {
-  createAgentRun,
-  finishAgentRun,
-  finalizeCancelledRunToolCalls,
-  finalizeRunToolCallsFromParts,
+  claimAgentRunOperation,
+  finalizeAgentRunJournal,
   getAgentRunById,
   getLatestResponseLineage,
   getLatestConversationContextRecord,
   getRunTrace,
+  isRunActive,
+  type AgentRunOperation,
   type AgentRunTrace,
 } from "./repository.js";
 import { terminalStreamError } from "./stream-outcome.js";
@@ -80,6 +82,11 @@ export interface RunAgentInput {
   /** Per-run behavior selector carried in the run request body (ADR-0035);
    *  ephemeral, never persisted. Defaults to normal. */
   mode?: "normal" | "plan";
+  agentId?: string | null;
+  trigger: "submit-message" | "regenerate-message";
+  messageId?: string;
+  expectedRevision: number;
+  requestId: string;
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -93,6 +100,7 @@ interface ChatMessageMetadata extends Record<string, unknown> {
   status: "streaming" | "completed" | "failed" | "cancelled";
   finishReason?: string;
   usage?: UsageTokens;
+  historyRevision: number;
 }
 
 const DEFAULT_CONVERSATION_TITLE = "新对话";
@@ -100,10 +108,6 @@ const DEFAULT_CONVERSATION_TITLE = "新对话";
 function isAutoNamableTitle(title: string): boolean {
   const trimmed = title.trim();
   return trimmed === "" || trimmed === DEFAULT_CONVERSATION_TITLE;
-}
-
-function persistedMessageId(id: string): string {
-  return id.length <= 32 ? id : createHash("sha256").update(id).digest("hex").slice(0, 32);
 }
 
 function describeStreamError(error: unknown): string {
@@ -142,6 +146,36 @@ function textFromUiMessage(message: AnyUIMessage): string {
 
 function referencedDocumentIds(message: AnyUIMessage): string[] {
   return referencedDocumentIdsFromParts(message.parts);
+}
+
+function requestedOperation(input: RunAgentInput, latestMessage: AnyUIMessage): AgentRunOperation {
+  if (input.trigger === "regenerate-message") {
+    if (!input.messageId) throw new RequestError("regeneration requires a target message id");
+    return "regenerate-message";
+  }
+  if (latestMessage.role === "assistant") {
+    if (!input.messageId || input.messageId !== latestMessage.id) {
+      throw new RequestError("tool continuation must identify its assistant message");
+    }
+    return "tool-continuation";
+  }
+  return input.messageId ? "edit-message" : "submit-message";
+}
+
+function assertUserSubmissionParts(message: AnyUIMessage): void {
+  if (message.metadata !== undefined) {
+    throw new RequestError("user messages cannot submit authoritative metadata");
+  }
+  for (const part of message.parts) {
+    if (
+      part.type !== "text" &&
+      part.type !== "file" &&
+      part.type !== "data-plan-execution" &&
+      part.type !== "data-skill-activation"
+    ) {
+      throw new RequestError(`user messages cannot submit ${part.type} parts`);
+    }
+  }
 }
 
 function serializeMessageContent(message: AnyUIMessage): PersistedMessageContent {
@@ -204,7 +238,11 @@ export async function createAgentRunResponse(
   if (conversation.canvasId && conversation.projectId) {
     await canvasClient().graph(auth, conversation.projectId, conversation.canvasId);
   }
-  const uiMessages = await validateUIMessages<AnyUIMessage>({ messages: uiMessagesInput });
+  const uiMessages = await validateUIMessages<AnyUIMessage>({
+    messages: uiMessagesInput,
+    metadataSchema: chatMessageMetadataSchema.optional(),
+    dataSchemas: chatDataSchemas,
+  });
   const latestMessage = uiMessages.at(-1);
   if (!latestMessage) {
     throw new RequestError("agent prompt is required");
@@ -212,13 +250,21 @@ export async function createAgentRunResponse(
   if (latestMessage.role !== "user" && latestMessage.role !== "assistant") {
     throw new RequestError("the last chat message must be a user message or completed client tool call");
   }
-  const latestUser = [...uiMessages].reverse().find((message) => message.role === "user");
-  if (latestUser && hasUntrustedFilePart(latestUser.parts)) {
+  const operation = requestedOperation(input, latestMessage);
+  if ((operation === "submit-message" || operation === "edit-message") && latestMessage.role !== "user") {
+    throw new RequestError("this operation requires a user message");
+  }
+  if (operation === "tool-continuation" && latestMessage.role !== "assistant") {
+    throw new RequestError("tool continuation requires an assistant message");
+  }
+  const submittedUser = operation === "submit-message" || operation === "edit-message" ? latestMessage : null;
+  if (submittedUser) assertUserSubmissionParts(submittedUser);
+  if (submittedUser && hasUntrustedFilePart(submittedUser.parts)) {
     throw new RequestError("file attachments must reference a conversation document");
   }
-  const requestedDocumentIds = latestUser ? [...new Set(referencedDocumentIds(latestUser))] : [];
-  if (latestMessage.role === "user") {
-    const prompt = latestUser ? textFromUiMessage(latestUser) : "";
+  const requestedDocumentIds = submittedUser ? [...new Set(referencedDocumentIds(submittedUser))] : [];
+  if (submittedUser) {
+    const prompt = textFromUiMessage(submittedUser);
     if (!prompt.trim() && !requestedDocumentIds.length) {
       throw new RequestError("agent prompt is required");
     }
@@ -233,21 +279,35 @@ export async function createAgentRunResponse(
     }),
   );
 
-  const inputMessageId = latestMessage.role === "user" ? persistedMessageId(latestMessage.id) : null;
-  const runId = await createAgentRun({
+  if (submittedUser && (!submittedUser.id || submittedUser.id.length > 32)) {
+    throw new RequestError("user message id must contain 1 to 32 characters");
+  }
+  const claimedUserMessage = submittedUser;
+  const claim = await claimAgentRunOperation({
     conversationId: conversation.id,
     userId: conversation.userId,
     providerId: provider.id,
     model: provider.model,
-    inputMessageId,
+    requestId: input.requestId,
+    expectedRevision: input.expectedRevision,
+    operation,
+    targetMessageId: input.messageId ?? null,
+    requestContext: { agentId: input.agentId ?? null, mode: input.mode ?? "normal" },
+    ...(operation === "tool-continuation" ? { continuationMessage: latestMessage } : {}),
+    ...(claimedUserMessage
+      ? {
+          inputMessage: {
+            id: claimedUserMessage.id,
+            role: "user" as const,
+            content: serializeMessageContent(claimedUserMessage),
+          },
+        }
+      : {}),
   });
-  try {
-    await acquireRunLease(conversation.id, runId);
-  } catch (error) {
-    await finishAgentRun({ runId, status: "interrupted", error });
-    throw error;
+  if (claim.duplicate) {
+    return createAgentReplayResponse(conversation.id, claim.runId, { isRunLive: isRunActive });
   }
-
+  const runId = claim.runId;
   let resumable = false;
   try {
     await activateAgentStream(conversation.id, runId);
@@ -261,7 +321,7 @@ export async function createAgentRunResponse(
   try {
     const mode = input.mode === "plan" ? "plan" : "normal";
     const [persistedMessages, instructionInput] = await Promise.all([
-      listMessages(conversation.id),
+      listMessages(conversation.id, claim.historyMessageId),
       loadInstructionContext({
         userId: conversation.userId,
         mode,
@@ -273,47 +333,26 @@ export async function createAgentRunResponse(
     const firstPersistedUser = persistedMessages.find((message) => message.role === "user");
     const titleSourceText = firstPersistedUser
       ? textFromUiMessage(persistedMessageToUiMessage(firstPersistedUser))
-      : latestUser
-        ? textFromUiMessage(latestUser)
-        : "";
+      : "";
     const shouldGenerateTitle =
-      latestMessage.role === "user" && isAutoNamableTitle(conversation.title) && titleSourceText.length > 0;
+      (operation === "submit-message" || operation === "edit-message") &&
+      isAutoNamableTitle(conversation.title) &&
+      titleSourceText.length > 0;
 
-    let modelUiMessages: AnyUIMessage[];
+    const modelUiMessages = persistedMessagesToModelUiMessages(persistedMessages);
     let continuedSkill: ContinuedSkillReference | null = null;
-    if (latestMessage.role === "user") {
-      const storedMessageId = persistedMessageId(latestMessage.id);
-      const alreadyPersisted = persistedMessages.some((message) => message.id === storedMessageId);
-      await createMessage({
-        id: storedMessageId,
-        conversationId: conversation.id,
-        role: "user",
-        content: serializeMessageContent(latestMessage),
-        status: "ok",
-      });
-      const modelHistory = persistedMessagesToModelUiMessages(persistedMessages);
-      modelUiMessages = alreadyPersisted ? modelHistory : [...modelHistory, { ...latestMessage, id: storedMessageId }];
-    } else {
-      const historyMessages = persistedMessages.map(persistedMessageToUiMessage);
-      const continuationIndex = historyMessages.findIndex(
+    if (operation === "tool-continuation") {
+      const continuationIndex = modelUiMessages.findIndex(
         (message) => message.id === latestMessage.id && message.role === "assistant",
       );
       if (continuationIndex < 0) {
         throw new RequestError("client tool continuation message was not found");
       }
-      const persistedContinuation = historyMessages[continuationIndex];
+      const persistedContinuation = modelUiMessages[continuationIndex];
       continuedSkill = continuedSkillReference(persistedContinuation);
-      const mergedMessage = mergeClientContinuation(persistedContinuation, latestMessage);
-      await updateMessageContent({
-        id: mergedMessage.id,
-        conversationId: conversation.id,
-        content: serializeMessageContent(mergedMessage),
-        status: "ok",
-      });
-      modelUiMessages = [...historyMessages];
-      modelUiMessages[continuationIndex] = mergedMessage;
     }
 
+    const latestUser = [...modelUiMessages].reverse().find((message) => message.role === "user");
     const memorySourceUser = latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
@@ -339,7 +378,11 @@ export async function createAgentRunResponse(
       userId: conversation.userId,
       provider,
       abortSignal: runSignal,
-      messages: await validateUIMessages<AnyUIMessage>({ messages: projectionUiMessages }),
+      messages: await validateUIMessages<AnyUIMessage>({
+        messages: projectionUiMessages,
+        metadataSchema: chatMessageMetadataSchema.optional(),
+        dataSchemas: chatDataSchemas,
+      }),
     });
     const modelMessages = projected.messages;
     contextUsage = projected.compactionUsage;
@@ -363,7 +406,8 @@ export async function createAgentRunResponse(
         body: files.length ? `${body}\n\nAvailable skill files:\n${files.join("\n")}` : body,
       };
     }
-    const assistantMessageId = randomBytes(8).toString("hex");
+    const assistantMessageId =
+      operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex");
     const agentInstance = await createAgent({
       projectId: conversation.projectId,
       canvasId: conversation.canvasId,
@@ -397,46 +441,91 @@ export async function createAgentRunResponse(
       { conversationId: conversation.id, runId, setupMs: Math.round(performance.now() - startedAt) },
       "run accepted",
     );
-    const agentUiStream = toUIMessageStream({
-      stream: result.stream,
+    const agentParts = createPublishedAgentPartStream({
+      modelStream: result.stream,
       tools: agent.tools,
       originalMessages: modelUiMessages,
-      generateMessageId: () => assistantMessageId,
-      sendSources: true,
-      messageMetadata: ({ part }): ChatMessageMetadata | undefined => {
-        const lineage = agentInstance.responseLineage();
-        const base = {
-          runId,
-          providerId: provider.id,
-          model: provider.model,
-          responseId: lineage.responseId,
-          parentResponseId: lineage.parentResponseId,
-        };
-        if (part.type === "start") {
-          return { ...base, status: "streaming" };
-        }
-        if (part.type === "finish") {
-          return {
-            ...base,
-            status: part.finishReason === "error" ? "failed" : "completed",
-            finishReason: part.finishReason,
-            usage: extractUsageTokens(part.totalUsage),
-          };
-        }
-        return undefined;
+      assistantMessageId,
+      publicationContext: {
+        runId,
+        conversationId: conversation.id,
+        userId: conversation.userId,
+        tenantId: auth.tenantId,
+        workspaceId: auth.workspaceId,
+        signal: runSignal,
       },
       onError: (error) => {
         logger.error({ err: error }, "stream failed");
         return describeStreamError(error);
       },
+    });
+
+    const uiStream = createUIMessageStream<AnyUIMessage>({
+      originalMessages: modelUiMessages,
+      generateId: () => assistantMessageId,
+      execute: async ({ writer }) => {
+        const initialLineage = agentInstance.responseLineage();
+        writer.write({
+          type: "start",
+          messageId: assistantMessageId,
+          messageMetadata: {
+            runId,
+            providerId: provider.id,
+            model: provider.model,
+            responseId: initialLineage.responseId,
+            parentResponseId: initialLineage.parentResponseId,
+            status: "streaming",
+            historyRevision: claim.historyRevision,
+          } satisfies ChatMessageMetadata,
+        });
+        const titlePromise = shouldGenerateTitle
+          ? (async () => {
+              const title = await generateConversationTitle({ provider, userText: titleSourceText });
+              if (!title) return;
+              await setConversationTitle(conversation.id, title);
+              writer.write({ type: "data-conversation-title", data: { title }, transient: true });
+            })().catch((error) => logger.error({ err: error }, "conversation title update failed (non-fatal)"))
+          : Promise.resolve();
+        writer.merge(agentParts.stream);
+        const end = await agentParts.end;
+        await titlePromise;
+        const currentRun = await getAgentRunById(runId).catch(() => null);
+        const aborted = end.isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
+        const streamError = terminalStreamError(end.outcome, end.finishReason);
+        const failed = streamError != null;
+        const usage = await Promise.resolve(result.totalUsage).catch(() => null);
+        const tokens = addUsage(extractUsageTokens(usage), contextUsage);
+        const lineage = agentInstance.responseLineage();
+        const metadata: ChatMessageMetadata = {
+          runId,
+          providerId: provider.id,
+          model: provider.model,
+          responseId: lineage.responseId,
+          parentResponseId: lineage.parentResponseId,
+          status: aborted ? "cancelled" : failed ? "failed" : "completed",
+          finishReason: end.finishReason,
+          usage: tokens,
+          historyRevision: claim.historyRevision,
+        };
+        if (aborted) {
+          writer.setOutcome({ status: "aborted" });
+          writer.write({ type: "message-metadata", messageMetadata: metadata });
+          return;
+        }
+        writer.setOutcome(failed ? { status: "failed", error: streamError } : { status: "completed" });
+        writer.write({ type: "finish", finishReason: end.finishReason, messageMetadata: metadata });
+      },
+      onError: describeStreamError,
       onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason, outcome }) => {
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const aborted = isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
         const streamError = terminalStreamError(outcome, finishReason);
         const failed = streamError != null;
         try {
-          const sanitizedParts = sanitizePersistedParts(responseMessage.parts);
-          const parts = aborted ? finalizeCancelledParts(sanitizedParts) : sanitizedParts;
+          if (isContinuation !== (operation === "tool-continuation")) {
+            throw new Error("SDK continuation identity does not match the claimed operation");
+          }
+          const parts = aborted ? finalizeCancelledParts(responseMessage.parts) : responseMessage.parts;
           const lineage = agentInstance.responseLineage();
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
           const tokens = addUsage(extractUsageTokens(usage), contextUsage);
@@ -449,48 +538,30 @@ export async function createAgentRunResponse(
             status: aborted ? "cancelled" : failed ? "failed" : "completed",
             finishReason,
             usage: tokens,
+            historyRevision: claim.historyRevision,
           };
-          let outputMessageId: string | null = null;
-          if (parts.length > 0) {
-            const content = serializeMessageContent({ ...responseMessage, parts, metadata } as AnyUIMessage);
-            if (isContinuation) {
-              await updateMessageContent({
-                id: responseMessage.id,
-                conversationId: conversation.id,
-                content,
-                status: aborted || failed ? "failed" : "ok",
-              });
-              outputMessageId = responseMessage.id;
-            } else {
-              const assistant = await createMessage({
-                id: responseMessage.id,
-                conversationId: conversation.id,
-                role: "assistant",
-                content,
-                status: aborted || failed ? "failed" : "ok",
-              });
-              outputMessageId = assistant.id;
-            }
-          }
-          if (aborted) {
-            await finalizeCancelledRunToolCalls(runId);
-          } else {
-            await finalizeRunToolCallsFromParts(runId, parts);
-          }
-          await finishAgentRun({
+          const finalized = await finalizeAgentRunJournal({
             runId,
+            parts,
+            aborted,
+            message:
+              parts.length > 0
+                ? {
+                    id: responseMessage.id,
+                    content: serializeMessageContent({ ...responseMessage, parts, metadata } as AnyUIMessage),
+                    status: aborted || failed ? "failed" : "ok",
+                  }
+                : null,
             status: aborted ? "cancelled" : failed ? "failed" : "completed",
             error: streamError ?? undefined,
-            outputMessageId,
             inputTokens: tokens.inputTokens,
             outputTokens: tokens.outputTokens,
             cachedInputTokens: tokens.cachedInputTokens,
             reasoningTokens: tokens.reasoningTokens,
             totalTokens: tokens.totalTokens,
           });
-          await touchConversation(conversation.id);
           await releaseRun(runId);
-          if (!aborted && !failed) {
+          if (finalized.status === "completed") {
             void extractMemoryCandidates({
               userId: conversation.userId,
               runId,
@@ -504,47 +575,23 @@ export async function createAgentRunResponse(
             logger.error({ err: finishError }, "failed to mark run failed"),
           );
           await releaseRun(runId).catch(() => undefined);
+          throw error;
         } finally {
           await agentInstance.dispose();
           disposeAgentResources = null;
         }
       },
     });
-    const uiStream = shouldGenerateTitle
-      ? createUIMessageStream<AnyUIMessage>({
-          execute: async ({ writer }) => {
-            const titlePromise = (async () => {
-              const title = await generateConversationTitle({
-                provider,
-                userText: titleSourceText,
-              });
-              if (!title) {
-                return;
-              }
-              await setConversationTitle(conversation.id, title);
-              writer.write({
-                type: "data-conversation-title",
-                data: { title },
-                transient: true,
-              });
-            })().catch((error) => logger.error({ err: error }, "conversation title update failed (non-fatal)"));
-            writer.merge(agentUiStream);
-            await titlePromise;
-          },
-          onError: describeStreamError,
-        })
-      : agentUiStream;
 
     return createUIMessageStreamResponse({
       stream: uiStream,
       headers: { "x-agent-run-id": runId },
-      consumeSseStream: resumable
-        ? ({ stream }) => {
-            void consumeAgentSseStream(conversation.id, runId, stream).catch((error) =>
-              logger.error({ err: error }, "resumable stream consumption failed"),
-            );
-          }
-        : undefined,
+      consumeSseStream: ({ stream }) => {
+        const consumption = resumable
+          ? consumeAgentSseStream(conversation.id, runId, stream)
+          : consumeStream({ stream });
+        void consumption.catch((error) => logger.error({ err: error }, "agent stream consumption failed"));
+      },
     });
   } catch (error) {
     await disposeAgentResources?.();
@@ -606,58 +653,4 @@ export async function getConversationContext(
       categories: snapshot.categories,
     },
   };
-}
-
-function sanitizePersistedParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
-  return parts.map(sanitizePersistedPart);
-}
-
-function sanitizePersistedPart(part: AnyUIMessage["parts"][number]): AnyUIMessage["parts"][number] {
-  if (part.type === "tool-web_search" && "output" in part && part.output) {
-    return {
-      ...part,
-      output: compactWebSearchOutput(part.output),
-    } as AnyUIMessage["parts"][number];
-  }
-
-  if (part.type === "tool-knowledge_search" && "output" in part && part.output) {
-    return {
-      ...part,
-      output: compactWebSearchOutput(part.output),
-    } as AnyUIMessage["parts"][number];
-  }
-
-  return part;
-}
-
-function compactWebSearchOutput(output: unknown): unknown {
-  if (!isToolOutcome(output) || (output.status !== "completed" && output.status !== "partial")) {
-    return output;
-  }
-  if (!output.data || typeof output.data !== "object") {
-    return output;
-  }
-  const row = output.data as Record<string, unknown>;
-  const results = Array.isArray(row.results)
-    ? row.results.map((item) => {
-        if (!item || typeof item !== "object") {
-          return item;
-        }
-        const result = item as Record<string, unknown>;
-        return {
-          ...result,
-          snippet: truncateString(result.snippet, 700),
-          content: truncateString(result.content, 700),
-          raw_content: truncateString(result.raw_content, 700),
-        };
-      })
-    : row.results;
-  return { ...output, data: { ...row, results } };
-}
-
-function truncateString(value: unknown, maxLength: number): unknown {
-  if (typeof value !== "string" || value.length <= maxLength) {
-    return value;
-  }
-  return `${value.slice(0, maxLength).trimEnd()}...[truncated ${value.length} chars]`;
 }

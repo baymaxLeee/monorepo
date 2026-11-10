@@ -39,6 +39,7 @@ export type ReasoningEffort = "low" | "medium" | "high";
 export interface PersistedMessageContent {
   version: number;
   parts: unknown[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface Message {
@@ -47,7 +48,22 @@ export interface Message {
   role: MessageRole;
   content: PersistedMessageContent;
   status: MessageStatus;
+  parent_message_id: string | null;
+  branch_index: number;
   created_at: string;
+}
+
+export interface MessageBranchCandidate {
+  message_id: string;
+  leaf_message_id: string;
+  role: MessageRole;
+  created_at: string;
+}
+
+export interface MessageBranchGroup {
+  parent_message_id: string | null;
+  selected_message_id: string;
+  candidates: MessageBranchCandidate[];
 }
 
 export interface Conversation {
@@ -62,10 +78,13 @@ export interface Conversation {
   canvas_id: string | null;
   created_at: string;
   updated_at: string;
+  revision: number;
+  selected_message_id: string | null;
 }
 
 export interface ConversationDetail extends Conversation {
   messages: Message[];
+  branches: MessageBranchGroup[];
   documents: ConversationDocument[];
   /**
    * Best-effort id of a currently-resumable agent run, or null when nothing is
@@ -157,10 +176,22 @@ export function fetchConversations(): Promise<Conversation[]> {
   return request<Conversation[]>({ url: BASE, method: "GET" });
 }
 
-export function fetchConversation(id: string): Promise<ConversationDetail> {
+export function fetchConversation(id: string, options?: ApiRequestConfig): Promise<ConversationDetail> {
   return request<ConversationDetail>({
     url: `${BASE}/${encodeURIComponent(id)}`,
     method: "GET",
+    ...options,
+  });
+}
+
+export function selectConversationHistory(
+  id: string,
+  input: { leaf_message_id: string; expected_revision: number },
+): Promise<ConversationDetail> {
+  return request<ConversationDetail>({
+    url: `${BASE}/${encodeURIComponent(id)}/history/select`,
+    method: "POST",
+    data: input,
   });
 }
 
@@ -392,10 +423,12 @@ export async function fetchConversationAgentTrace(
 export function cancelConversationAgentRun(
   conversationId: string,
   runId: string,
+  options?: ApiRequestConfig,
 ): Promise<{ cancelled: boolean; status?: string }> {
   return request({
     url: `${BASE}/${encodeURIComponent(conversationId)}/agents/runs/${encodeURIComponent(runId)}/cancel`,
     method: "POST",
+    ...options,
   });
 }
 
@@ -445,4 +478,12 @@ export function deleteMemory(id: string): Promise<{ deleted: boolean }> {
 
 export function conversationDocumentContentUrl(conversationId: string, documentId: string): string {
   return `${API_BASE_URL}${BASE}/${encodeURIComponent(conversationId)}/documents/${encodeURIComponent(documentId)}/content?document_id=${encodeURIComponent(documentId)}`;
+}
+
+export function fetchConversationSourceDelivery(conversationId: string, sourceId: string): Promise<{ url: string }> {
+  return request({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/sources/${encodeURIComponent(sourceId)}/delivery`,
+    method: "POST",
+    skipErrorNotify: true,
+  });
 }

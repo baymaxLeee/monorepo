@@ -39,6 +39,9 @@ Overlay 层级按 React 所有权和 portal-layer 管理，不维护业务 z-ind
 AI UI 消费原生消息/工具/审批/来源/文件部分，依据 metadata 选择展示，不靠
 工具名称硬编码另一套协议。AI Elements 保持源码组合和重型子路径边界。
 
+原生 part 全量处理、消息操作与恢复遵守当前
+[Chat UI 协议](chat-ui-protocol.md)。
+
 Chat 使用当前 shadcn/ui Chat 的 `MessageScroller` 组合，正文、展开的推理
 和工具详情共享一个滚动视口；Reasoning 与工具沿用 shadcn Trace 折叠结构。
 消息与占位行使用 `MessageScrollerItem`，用户消息作为新轮次锚点。

@@ -12,6 +12,9 @@ PostgreSQL UIMessage 是语义会话记录；Redis 保存原生 UIMessage SSE，
 
 Executor 状态经内部 SSE 汇入原生 preliminary tool results，浏览器仍消费同一条 Chat UIMessage 流。trace 持久化失败不阻断生成。自定义 part 必须遵守 [stream 契约](../../schemas/streaming/chat-uimessage-stream.md)。
 
+消息协议、客户端续跑、引用、文件和恢复遵守当前
+[Chat UI 协议](chat-ui-protocol.md)。
+
 ## 上下文与权限
 
 Instructions 使用代码拥有的固定层次：稳定策略、模式/执行契约、能力投影、Skill、结构化 Bot profile、已批准记忆与服务端环境。Tool schema 是输入契约；历史会话、todo、Plan 内容不伪装成系统指令。配置字符串的转义不等于权限控制，可用工具、scope 和审批仍由代码验证。

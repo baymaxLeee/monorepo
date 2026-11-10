@@ -9,13 +9,15 @@ import {
   TraceLine,
   TraceTitle,
 } from "@repo/design-system/shadcn/trace";
-import { cn, isPublicHttpUrl } from "@repo/shared";
-import type { SourceUrlUIPart } from "ai";
+import { cn, getErrorMessage, isPublicHttpUrl } from "@repo/shared";
+import type { Citation, SourceDocumentUIPart, SourceUrlUIPart } from "ai";
 import { ExternalLinkIcon, LinkIcon } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 
 export type SourceItem =
   | SourceUrlUIPart
+  | SourceDocumentUIPart
+  | Citation["source"]
   | {
       type?: "source-url" | "source-document";
       id?: string;
@@ -28,9 +30,18 @@ export type SourceItem =
 
 export type SourcesProps = ComponentProps<typeof TraceCollapsible> & {
   sources?: SourceItem[];
+  resolveSourceHref?: (source: SourceItem) => string | undefined;
+  resolveSourceAction?: (source: SourceItem) => (() => Promise<void>) | undefined;
 };
 
-export function Sources({ className, sources, children, ...props }: SourcesProps) {
+export function Sources({
+  className,
+  sources,
+  resolveSourceHref,
+  resolveSourceAction,
+  children,
+  ...props
+}: SourcesProps) {
   if (sources && !sources.length) {
     return null;
   }
@@ -42,7 +53,12 @@ export function Sources({ className, sources, children, ...props }: SourcesProps
             <SourcesTrigger count={sources?.length ?? 0} />
             <SourcesContent>
               {sources?.map((source, index) => (
-                <Source key={sourceKey(source, index)} source={source} />
+                <Source
+                  key={sourceKey(source, index)}
+                  source={source}
+                  resolvedHref={resolveSourceHref?.(source)}
+                  onOpen={resolveSourceAction?.(source)}
+                />
               ))}
             </SourcesContent>
           </>
@@ -84,13 +100,28 @@ function sourceKey(source: SourceItem, index: number) {
 
 export type SourceProps = ComponentProps<"a"> & {
   source?: SourceItem;
+  resolvedHref?: string;
+  onOpen?: () => Promise<void>;
 };
 
-export function Source({ className, source, href: propsHref, title: propsTitle, children, ...props }: SourceProps) {
+function isSafeResolvedHref(href: string): boolean {
+  return isPublicHttpUrl(href) || (href.startsWith("/") && !href.startsWith("//"));
+}
+
+export function Source({
+  className,
+  source,
+  resolvedHref,
+  onOpen,
+  href: propsHref,
+  title: propsTitle,
+  children,
+  ...props
+}: SourceProps) {
   const value = (source ?? {}) as Record<string, unknown>;
   const title = String(propsTitle ?? value.title ?? value.filename ?? value.url ?? propsHref ?? "Source");
-  const rawHref = propsHref ?? (typeof value.url === "string" ? value.url : undefined);
-  const href = rawHref && isPublicHttpUrl(rawHref) ? rawHref : undefined;
+  const rawHref = resolvedHref ?? propsHref ?? (typeof value.url === "string" ? value.url : undefined);
+  const href = rawHref && isSafeResolvedHref(rawHref) ? rawHref : undefined;
   const content = children ?? (
     <>
       <TraceIcon>
@@ -105,6 +136,19 @@ export function Source({ className, source, href: propsHref, title: propsTitle, 
       {href ? <ExternalLinkIcon className="size-3 shrink-0 text-muted-foreground" /> : null}
     </>
   );
+  if (!href && onOpen)
+    return (
+      <SourceAction
+        onOpen={onOpen}
+        className={cn(
+          "flex min-w-0 items-center gap-2 rounded-md border bg-background px-3 py-2 text-left text-xs hover:bg-accent",
+          className,
+        )}
+        aria-label={props["aria-label"]}
+      >
+        {content}
+      </SourceAction>
+    );
   if (!href) {
     return (
       <div
@@ -135,16 +179,34 @@ export function Source({ className, source, href: propsHref, title: propsTitle, 
 export type InlineCitationProps = ComponentProps<"a"> & {
   index?: number;
   source?: SourceItem;
+  resolvedHref?: string;
+  onOpen?: () => Promise<void>;
   children?: ReactNode;
 };
 
-export function InlineCitation({ className, index, source, children, href: propsHref, ...props }: InlineCitationProps) {
-  const rawHref = propsHref ?? source?.url;
-  const href = typeof rawHref === "string" && isPublicHttpUrl(rawHref) ? rawHref : undefined;
+export function InlineCitation({
+  className,
+  index,
+  source,
+  resolvedHref,
+  onOpen,
+  children,
+  href: propsHref,
+  ...props
+}: InlineCitationProps) {
+  const value = (source ?? {}) as Record<string, unknown>;
+  const rawHref = resolvedHref ?? propsHref ?? (typeof value.url === "string" ? value.url : undefined);
+  const href = typeof rawHref === "string" && isSafeResolvedHref(rawHref) ? rawHref : undefined;
   const classNameMerged = cn(
     "inline-flex h-5 min-w-5 items-center justify-center rounded-full border bg-muted px-1.5 align-baseline text-[10px] font-medium text-muted-foreground hover:text-foreground",
     className,
   );
+  if (!href && onOpen)
+    return (
+      <SourceAction onOpen={onOpen} className={classNameMerged} aria-label={props["aria-label"]}>
+        {children ?? index ?? "src"}
+      </SourceAction>
+    );
   if (!href) {
     return (
       <span className={classNameMerged} {...props}>
@@ -164,5 +226,34 @@ export function InlineCitation({ className, index, source, children, href: props
         <Source source={source} href={href} />
       </HoverCardContent>
     </HoverCard>
+  );
+}
+
+function SourceAction({ onOpen, children, ...props }: ComponentProps<"button"> & { onOpen: () => Promise<void> }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <span>
+      <button
+        {...props}
+        type="button"
+        disabled={pending}
+        aria-busy={pending}
+        onClick={() => {
+          setPending(true);
+          setError(null);
+          void onOpen()
+            .catch((cause: unknown) => setError(getErrorMessage(cause)))
+            .finally(() => setPending(false));
+        }}
+      >
+        {children}
+      </button>
+      {error && (
+        <span role="alert" className="ml-2 text-xs text-destructive">
+          {error}
+        </span>
+      )}
+    </span>
   );
 }

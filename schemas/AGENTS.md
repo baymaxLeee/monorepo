@@ -9,6 +9,7 @@ backend and frontend.
 - `proto/<service>/v<n>/*.proto`— gRPC contracts, hand-written, Buf-managed
 - `events/*.cloudevents.json`  — async event schemas (CloudEvents 1.0)
 - `streaming/*.md`             — streamed wire contracts (SSE / UIMessage stream)
+- `streaming/chat-ui.ts`        — runtime schemas for Chat application metadata/data extensions
 - `codegen/`                   — generators (TS, Python, Go)
 
 ## Streaming (AI SDK UIMessage stream) contract
@@ -21,7 +22,9 @@ Golden rule: **reuse official AI SDK parts first** (`text`, `reasoning`,
 `tool-*`, `file`, `source-*`, message `metadata`). Only invent a `data-*` part
 for app-specific data the protocol has no part for — a custom part that
 duplicates an official one is a bug (see the file-token precedent in that doc).
-Register every custom `data-*` part in that file's table.
+Register every custom `data-*` part in that file's table and `streaming/chat-ui.ts`.
+`just sync` generates both consumers; `just sync-check` checks schema drift.
+Never hand-edit those generated modules or copy native AI SDK types.
 
 ## Workflow
 

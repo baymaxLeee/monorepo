@@ -6,9 +6,11 @@ import { useShallow } from "zustand/react/shallow";
 
 import { ChatComposer } from "../../components/ChatComposer";
 import { ChatImagePreview } from "../../components/ChatImagePreview";
+import { ChatSessionIssue } from "../../components/ChatSessionIssue";
 import { ChatStream } from "../../components/ChatStream";
 import { useConversationChat } from "../../hooks/useConversationChat";
 import { useForkConversation } from "../../hooks/useForkConversation";
+import { useSourceAction } from "../../hooks/useSourceAction";
 import type { ChatUIMessage } from "../../lib/chat-message";
 import { buildUserFilePart } from "../../lib/file-parts";
 import { useChatStore } from "../../store/useChatStore";
@@ -132,10 +134,21 @@ export function ChatSession({
     [selectedAgentId],
   );
 
-  const { chat, detail, loading, stopRun, pendingClientContinuationRef } = useConversationChat(id);
-  const { sendMessage, addToolOutput, addToolApprovalResponse } = chat;
+  const {
+    chat,
+    detail,
+    loading,
+    issue,
+    canRetry,
+    recover,
+    retryRequest,
+    stopRun,
+    selectHistory,
+    pendingClientContinuationRef,
+  } = useConversationChat(id);
+  const { sendMessage, regenerate, addToolOutput, addToolApprovalResponse } = chat;
   const [status, setStatus] = useState<typeof chat.status>(chat.status);
-  const busy = status === "streaming" || status === "submitted";
+  const busy = status === "streaming" || status === "submitted" || (issue !== null && Boolean(detail?.active_run_id));
   useEffect(() => {
     void useChatStore.getState().loadAgents();
   }, []);
@@ -307,10 +320,30 @@ export function ChatSession({
 
   const approveTool = useCallback(
     (approvalId: string, approved: boolean) => {
+      pendingClientContinuationRef.current = true;
       void addToolApprovalResponse({ id: approvalId, approved, options: { body: requestBody } });
     },
     [addToolApprovalResponse, requestBody],
   );
+  const editMessage = useCallback(
+    async (messageId: string, parts: ChatUIMessage["parts"]) => {
+      if (chat.status === "streaming" || chat.status === "submitted") return;
+      pendingClientContinuationRef.current = false;
+      conversationScrollRef.current?.scrollToEnd();
+      await sendMessage({ id: crypto.randomUUID().replaceAll("-", ""), messageId, parts }, { body: requestBody });
+    },
+    [chat, pendingClientContinuationRef, requestBody, sendMessage],
+  );
+  const regenerateMessage = useCallback(
+    async (messageId: string) => {
+      if (chat.status === "streaming" || chat.status === "submitted") return;
+      pendingClientContinuationRef.current = false;
+      conversationScrollRef.current?.scrollToEnd();
+      await regenerate({ messageId, body: requestBody });
+    },
+    [chat, pendingClientContinuationRef, regenerate, requestBody],
+  );
+  const resolveSourceAction = useSourceAction(id);
   const handleExecutePlan = useCallback((path: string) => void executePlan(path).catch(() => {}), [executePlan]);
 
   return (
@@ -322,19 +355,33 @@ export function ChatSession({
       <ChatStream
         onFork={forkConversation}
         chat={chat}
+        resume={!loading && detail?.id === id}
         conversationId={id}
         loading={loading}
         conversationDocuments={detail?.documents ?? EMPTY_DOCUMENTS}
+        branches={detail?.branches ?? []}
         scrollRef={conversationScrollRef}
         onStatusChange={setStatus}
         onCanvasChange={onCanvasChange}
         onOpenArtifact={openArtifact}
         onOpenFile={openFile}
+        resolveSourceAction={resolveSourceAction}
+        onSelectBranch={selectHistory}
+        onEditMessage={editMessage}
+        onRegenerate={regenerateMessage}
         onAnswerClientTool={answerClientTool}
         onToolApproval={approveTool}
         onExecutePlan={handleExecutePlan}
       />
 
+      {issue && (
+        <ChatSessionIssue
+          issue={issue}
+          onRecover={recover}
+          onRetry={canRetry ? retryRequest : undefined}
+          onStop={stopRun}
+        />
+      )}
       <ChatComposer
         id={id}
         promptRef={promptRef}

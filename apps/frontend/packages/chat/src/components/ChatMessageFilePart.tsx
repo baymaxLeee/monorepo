@@ -1,6 +1,6 @@
 import { Attachment, AttachmentInfo, getMediaCategory } from "@repo/ai-elements";
 import { cn } from "@repo/shared";
-import type { FileUIPart } from "ai";
+import type { FileUIPart, ReasoningFileUIPart } from "ai";
 import { FileIcon, ImageIcon, Loader2Icon, type LucideIcon, MusicIcon, PlaySquareIcon } from "lucide-react";
 import { useRef } from "react";
 
@@ -24,7 +24,7 @@ export function ChatMessageFilePart({
   onOpenImage,
   variant = "assistant",
 }: {
-  part: FileUIPart;
+  part: FileUIPart | ReasoningFileUIPart;
   conversationId: string;
   partIndex: number;
   onOpen: (documentId: string) => void;
@@ -46,7 +46,14 @@ export function ChatMessageFilePart({
     return <span className="rounded-full border border-dashed px-2 py-0.5 text-[11px] opacity-70">附件无效</span>;
   }
 
-  const item = { ...part, id: documentId };
+  const item: FileUIPart & { id: string } = {
+    type: "file",
+    mediaType: part.mediaType,
+    url: part.url,
+    filename: "filename" in part ? part.filename : undefined,
+    providerMetadata: part.providerMetadata,
+    id: documentId,
+  };
   const Icon = CATEGORY_ICON[getMediaCategory(item)] ?? FileIcon;
 
   return (
@@ -55,7 +62,7 @@ export function ChatMessageFilePart({
       render={
         <button
           type="button"
-          title={`预览 ${part.filename || part.mediaType}`}
+          title={`预览 ${"filename" in part ? part.filename || part.mediaType : part.mediaType}`}
           className={cn(
             "max-w-[min(100%,20rem)] transition-colors hover:bg-muted/60",
             variant === "user" && "bg-background/90 shadow-sm",
@@ -72,7 +79,11 @@ export function ChatMessageFilePart({
         )}
       >
         {isImage && blobUrl ? (
-          <img src={blobUrl} alt={part.filename || part.mediaType} className="size-full object-cover" />
+          <img
+            src={blobUrl}
+            alt={("filename" in part && part.filename) || part.mediaType}
+            className="size-full object-cover"
+          />
         ) : isImage && loading ? (
           <Loader2Icon className="size-4 animate-spin" />
         ) : (

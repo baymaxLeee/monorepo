@@ -15,6 +15,7 @@ import type { ConversationDocument } from "@repo/api";
 import { getToolName, type UIMessage } from "ai";
 
 import { parseAskUserInput } from "../lib/ask-user";
+import { isClientTool } from "../lib/conversation-messages";
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
@@ -82,6 +83,7 @@ export function ChatToolPart({
       <Tool defaultOpen>
         <ToolHeader
           type={part.type}
+          title={part.title}
           toolName={part.type === "dynamic-tool" ? toolName : undefined}
           state={part.state}
         />
@@ -93,6 +95,9 @@ export function ChatToolPart({
             <Confirmation approval={part.approval} state={part.state}>
               <ConfirmationRequest>
                 <ConfirmationTitle>此工具需要你的授权后才能继续执行。</ConfirmationTitle>
+                {part.approval.requestReason && (
+                  <p className="text-sm text-muted-foreground">{part.approval.requestReason}</p>
+                )}
                 <ConfirmationActions>
                   <ConfirmationAction variant="outline" onClick={() => onToolApproval(part.approval.id, false)}>
                     拒绝
@@ -112,6 +117,7 @@ export function ChatToolPart({
       <Tool defaultOpen={part.state === "output-denied"}>
         <ToolHeader
           type={part.type}
+          title={part.title}
           toolName={part.type === "dynamic-tool" ? toolName : undefined}
           state={part.state}
         />
@@ -146,6 +152,7 @@ export function ChatToolPart({
           type={part.type}
           toolName={part.type === "dynamic-tool" ? toolName : undefined}
           state={part.state}
+          preliminary={part.state === "output-available" && part.preliminary}
           title="原会话的视频任务"
         />
         <ToolContent>
@@ -197,6 +204,7 @@ export function ChatToolPart({
           type={part.type}
           toolName={part.type === "dynamic-tool" ? toolName : undefined}
           state={part.state}
+          preliminary={part.state === "output-available" && part.preliminary}
           title={`会话文件 · ${files.length}`}
         />
         <ToolContent>
@@ -209,7 +217,10 @@ export function ChatToolPart({
   const outputErrorReason = parseToolOutputError(output);
   const artifact = kind === "artifact" ? parseArtifactOutput(output) : null;
   const artifactTask = kind === "artifact" ? parseArtifactTaskOutput(output) : null;
-  const askUserInput = kind === "ask-user" ? parseAskUserInput(input) : null;
+  const askUserInput =
+    kind === "ask-user" && toolName === "ask_user" && !part.providerExecuted && isClientTool(part)
+      ? parseAskUserInput(input)
+      : null;
   const todoList = kind === "todo-list" ? parseTodoListOutput(output) : null;
 
   if (artifact?.documentId) {
@@ -248,22 +259,17 @@ export function ChatToolPart({
 
   const hasError = part.state === "output-error" || outputErrorReason != null;
   const todoSettled = todoList != null && isTodoListSettled(todoList.todos, deliverableCompletion);
-  const displayState = hasError
-    ? "output-error"
-    : todoList != null
-      ? todoSettled
-        ? "output-available"
-        : "input-available"
-      : part.state;
   const isOpenByDefault =
     todoList != null ? !todoSettled : (askUserInput != null && part.state === "input-available") || hasError;
 
   return (
     <Tool defaultOpen={isOpenByDefault}>
       <ToolHeader
+        title={part.title}
+        preliminary={part.state === "output-available" && part.preliminary}
         type={part.type}
         toolName={part.type === "dynamic-tool" ? toolName : undefined}
-        state={displayState}
+        state={part.state}
       />
       <ToolContent>
         {part.state === "input-available" && askUserInput ? (

@@ -10,6 +10,7 @@ import { conversationArtifactCleanupOutbox, conversations, messages } from "../i
 import { acquireRunLease, releaseRun } from "./agent/runs/lease.js";
 import { createAgentRun, finishAgentRun } from "./agent/runs/repository.js";
 import { conversationForkDependencies, forkConversation } from "./conversation-fork.js";
+import { listMessages } from "./conversations.js";
 
 // Explicit integration entry, not part of the database-free unit suite.
 // Run against an isolated, migrated Chat database with CHAT_FORK_TEST_URL.
@@ -51,6 +52,7 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
   async function seed() {
     const sourceId = id(),
       replyId = id(),
+      userMessageId = id(),
       now = new Date();
     await getDb().insert(conversations).values({
       id: sourceId,
@@ -58,19 +60,31 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       tenantId: auth.tenantId,
       workspaceId: auth.workspaceId,
       title: "原会话",
+      selectedMessageId: replyId,
       createdAt: now,
       updatedAt: now,
     });
     await getDb()
       .insert(messages)
-      .values({
-        id: replyId,
-        conversationId: sourceId,
-        role: "assistant",
-        content: { version: 1, parts: [{ type: "text", text: "已有回复" }] },
-        status: "ok",
-        createdAt: now,
-      });
+      .values([
+        {
+          id: userMessageId,
+          conversationId: sourceId,
+          role: "user",
+          content: { version: 2, parts: [{ type: "text", text: "问题" }] },
+          status: "ok",
+          createdAt: now,
+        },
+        {
+          id: replyId,
+          parentMessageId: userMessageId,
+          conversationId: sourceId,
+          role: "assistant",
+          content: { version: 1, parts: [{ type: "text", text: "已有回复" }] },
+          status: "ok",
+          createdAt: now,
+        },
+      ]);
     return { sourceId, replyId };
   }
   for (const finished of [false, true])
@@ -157,6 +171,14 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       await blocker;
       const branch = await pending;
       assert.notEqual(branch.id, sourceId);
+      const copied = await listMessages(branch.id);
+      assert.equal(copied.length, 2);
+      assert.equal(copied[0]!.parent_message_id, null);
+      assert.equal(copied[1]!.parent_message_id, copied[0]!.id);
+      assert.deepEqual(
+        copied.map((row) => row.branch_index),
+        [0, 0],
+      );
       await acquiring;
       if (runId) await releaseRun(runId);
       await observer.end();

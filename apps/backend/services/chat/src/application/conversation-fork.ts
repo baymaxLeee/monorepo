@@ -49,11 +49,15 @@ export const conversationForkDependencies = {
       // The lease INSERT trigger advances this revision under the same row lock.
       // A run that starts AND ends during the external copy still invalidates it.
       const [current] = await tx
-        .select({ runRevision: conversations.runRevision })
+        .select({ runRevision: conversations.runRevision, historyRevision: conversations.historyRevision })
         .from(conversations)
         .where(eq(conversations.id, source.id))
         .for("no key update");
-      if (!current || current.runRevision !== source.runRevision) {
+      if (
+        !current ||
+        current.runRevision !== source.runRevision ||
+        current.historyRevision !== source.historyRevision
+      ) {
         throw new ConflictError("原会话已开始新的生成，请重试创建分支");
       }
       const reserved = await tx
@@ -67,6 +71,7 @@ export const conversationForkDependencies = {
         )
         .returning();
       if (!reserved.length) throw new ConflictError("分支文件准备超时，请重试");
+      const copiedIds = history.map(() => randomBytes(16).toString("hex"));
       await tx.insert(conversations).values({
         id,
         userId: source.userId,
@@ -75,12 +80,15 @@ export const conversationForkDependencies = {
         title: `${source.title.slice(0, 190)} · 分支`,
         model: source.model,
         providerId: source.providerId,
+        selectedMessageId: copiedIds.at(-1) ?? null,
         createdAt: now,
         updatedAt: now,
       });
       await tx.insert(messages).values(
         history.map((message, index) => ({
-          id: randomBytes(16).toString("hex"),
+          id: copiedIds[index],
+          parentMessageId: copiedIds[index - 1] ?? null,
+          branchIndex: 0,
           conversationId: id,
           role: message.role,
           content: message.content,

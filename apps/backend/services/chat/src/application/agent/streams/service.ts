@@ -1,3 +1,5 @@
+import { UI_MESSAGE_STREAM_HEADERS } from "ai";
+
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getRedisClient } from "../../../infrastructure/redis/index.js";
 
@@ -148,6 +150,9 @@ export async function* replayAgentSseStream(
 
       const activeRunId = await activeAgentStreamRunId(conversationId);
       let stillActive = activeRunId === runId;
+      if (!stillActive && options?.isRunLive) {
+        stillActive = await options.isRunLive(runId).catch(() => false);
+      }
       if (stillActive && options?.isRunLive) {
         idleRounds += 1;
         if (idleRounds % STALE_CHECK_EVERY_IDLE_ROUNDS === 0 && !(await options.isRunLive(runId).catch(() => true))) {
@@ -185,6 +190,40 @@ export async function* replayAgentSseStream(
     options?.signal?.removeEventListener("abort", abortRead);
     await reader.quit().catch(() => reader.disconnect());
   }
+}
+
+export function createAgentReplayResponse(
+  conversationId: string,
+  runId: string,
+  options: { isRunLive: (runId: string) => Promise<boolean>; signal?: AbortSignal },
+): Response {
+  const encoder = new TextEncoder();
+  const subscriberController = new AbortController();
+  options.signal?.addEventListener("abort", () => subscriberController.abort(), { once: true });
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const chunk of replayAgentSseStream(conversationId, runId, {
+          isRunLive: options.isRunLive,
+          signal: subscriberController.signal,
+        })) {
+          if (cancelled) return;
+          controller.enqueue(encoder.encode(chunk));
+        }
+        if (!cancelled) controller.close();
+      } catch (error) {
+        if (!cancelled) controller.error(error);
+      }
+    },
+    cancel() {
+      cancelled = true;
+      subscriberController.abort();
+    },
+  });
+  return new Response(body, {
+    headers: { ...UI_MESSAGE_STREAM_HEADERS, "x-agent-run-id": runId },
+  });
 }
 
 function fieldValue(fields: string[], name: string): string | null {

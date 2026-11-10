@@ -137,13 +137,15 @@ async def list_workspace_documents_by_ids(
     return list(result.all())
 
 
-async def get_documents_meta(session: AsyncSession, document_ids: list[str]) -> dict[str, tuple[str, str]]:
-    """Map document_id -> (title, filename) for citation rendering."""
+async def get_documents_meta(session: AsyncSession, document_ids: list[str]) -> dict[str, tuple[str, str, str]]:
+    """Map document_id -> (title, filename, MIME type) for citation rendering."""
     if not document_ids:
         return {}
-    stmt = select(DocumentRow.id, DocumentRow.title, DocumentRow.filename).where(DocumentRow.id.in_(document_ids))
+    stmt = select(DocumentRow.id, DocumentRow.title, DocumentRow.filename, DocumentRow.mime_type).where(
+        DocumentRow.id.in_(document_ids)
+    )
     result = await session.execute(stmt)
-    return {row.id: (row.title, row.filename) for row in result.all()}
+    return {row.id: (row.title, row.filename, row.mime_type) for row in result.all()}
 
 
 async def update_document(session: AsyncSession, row: DocumentRow, values: dict[str, Any]) -> DocumentRow:

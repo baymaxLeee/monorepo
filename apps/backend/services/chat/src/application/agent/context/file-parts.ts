@@ -1,8 +1,8 @@
-import { isFileUIPart, type FileUIPart, type UIMessage } from "ai";
+import { isFileUIPart, type FileUIPart, type ReasoningFileUIPart, type UIMessage } from "ai";
 
 type ChatPart = UIMessage<unknown, any, any>["parts"][number];
 
-export function documentIdFromFilePart(part: FileUIPart): string | null {
+export function documentIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): string | null {
   try {
     const url = new URL(part.url, "http://internal");
     return url.searchParams.get("document_id");

@@ -18,6 +18,7 @@ class RetrievedChunk(BaseModel):
     score: float
     title: str
     filename: str
+    media_type: str
 
 
 class RetrieveResult(BaseModel):

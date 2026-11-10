@@ -1,8 +1,14 @@
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
-import { convertToModelMessages, pruneMessages, type ModelMessage, type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  getToolName,
+  isToolUIPart,
+  pruneMessages,
+  type ModelMessage,
+  type UIMessage,
+} from "ai";
 import { and, eq } from "drizzle-orm";
 
-import { getDocumentSource } from "../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { conversationContexts } from "../../../infrastructure/persistence/schema.js";
@@ -11,29 +17,27 @@ import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 import { effectiveModelInputWindow } from "./budget.js";
 import { parseCompactionState, type CompactionState } from "./compaction-state.js";
 import { compactConversationPrefix } from "./compactor.js";
-import { documentIdFromFilePart, isImageMediaType } from "./file-parts.js";
 import { escapeXmlText } from "./instructions/xml.js";
+import { transformFilePartsForModel } from "./model-files.js";
 import { estimateTextTokens } from "./token-estimate.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
 const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
-// The original stays in Knowledge; only model-bound bytes are normalized.
-const VISION_MAX_DIM = 1536;
 
 const HISTORICAL_FILE_MUTATIONS = new Set([
-  "tool-write_file",
-  "tool-edit_file",
-  "tool-delegate_tasks",
-  "tool-write_plan",
-  "tool-save_sandbox_file",
+  "write_file",
+  "edit_file",
+  "delegate_tasks",
+  "write_plan",
+  "save_sandbox_file",
 ]);
 
 function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
   return messages.map((message) => ({
     ...message,
     parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
-      if (part.type.startsWith("tool-") && "state" in part && part.state === "output-error") {
+      if (isToolUIPart(part) && part.state === "output-error") {
         const errorText = "errorText" in part ? part.errorText : undefined;
         if (
           typeof errorText === "string" &&
@@ -42,10 +46,10 @@ function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
           return [];
         }
       }
-      if (!HISTORICAL_FILE_MUTATIONS.has(part.type) || !("state" in part)) {
+      if (!isToolUIPart(part) || !HISTORICAL_FILE_MUTATIONS.has(getToolName(part))) {
         return [part];
       }
-      const name = part.type.slice(5);
+      const name = getToolName(part);
       if (part.state === "output-available" && "output" in part) {
         const outcome = isToolOutcome(part.output) ? part.output : null;
         const data = toolOutcomeData(part.output);
@@ -93,11 +97,11 @@ function textParts(message: AnyUIMessage): string {
       if (part.type === "source-url") {
         return [`source: ${part.title ?? part.url} ${part.url}`];
       }
-      if (part.type.startsWith("tool-") && "state" in part && part.state === "output-available") {
+      if (isToolUIPart(part) && part.state === "output-available") {
         const data = "output" in part ? toolOutcomeData(part.output) : undefined;
         const output = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
         const reference = output && (output.document_id ?? output.file_id ?? output.url ?? output.status);
-        return [`tool ${part.type.slice(5)}${reference ? `: ${String(reference)}` : " completed"}`];
+        return [`tool ${getToolName(part)}${reference ? `: ${String(reference)}` : " completed"}`];
       }
       return [];
     })
@@ -156,89 +160,6 @@ async function saveSnapshot(input: {
     estimatedTokens,
     createdAt: input.currentCreatedAt ?? now,
     updatedAt: now,
-  });
-}
-
-async function transformUserFilePartsForModel(
-  messages: AnyUIMessage[],
-  userId: string,
-  supportsImageInput: boolean,
-): Promise<AnyUIMessage[]> {
-  const imageFiles = new Map<string, { data: Uint8Array; filename: string; mediaType: string }>();
-  if (supportsImageInput) {
-    const imageDocIds = new Set<string>();
-    for (const message of messages) {
-      if (message.role !== "user") {
-        continue;
-      }
-      for (const part of message.parts) {
-        if (part.type !== "file") {
-          continue;
-        }
-        const docId = documentIdFromFilePart(part);
-        if (docId && isImageMediaType(String(part.mediaType ?? ""))) {
-          imageDocIds.add(docId);
-        }
-      }
-    }
-    await Promise.all(
-      [...imageDocIds].map(async (documentId) => {
-        try {
-          const source = await getDocumentSource(userId, documentId, { maxDim: VISION_MAX_DIM });
-          const part = messages
-            .flatMap((message) => (message.role === "user" ? message.parts : []))
-            .find((candidate) => candidate.type === "file" && documentIdFromFilePart(candidate) === documentId);
-          imageFiles.set(documentId, {
-            data: source.bytes,
-            filename: (part?.type === "file" ? part.filename : undefined) || "image",
-            mediaType: source.mimeType || "application/octet-stream",
-          });
-        } catch (error) {
-          logger.error({ err: error }, "failed to load image attachment");
-        }
-      }),
-    );
-  }
-
-  return messages.map((message) => {
-    if (message.role !== "user") {
-      return message;
-    }
-    return {
-      ...message,
-      parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
-        if (part.type !== "file") {
-          return [part];
-        }
-        const docId = documentIdFromFilePart(part);
-        if (!docId) {
-          return [];
-        }
-        const mediaType = String(part.mediaType ?? "application/octet-stream");
-        if (isImageMediaType(mediaType)) {
-          const image = imageFiles.get(docId);
-          if (image) {
-            const base64 = Buffer.from(image.data).toString("base64");
-            return [
-              {
-                type: "file" as const,
-                mediaType: image.mediaType,
-                filename: image.filename,
-                url: `data:${image.mediaType};base64,${base64}`,
-              },
-            ];
-          }
-        }
-        const reference = JSON.stringify({
-          documentId: docId,
-          filename: String(part.filename ?? ""),
-          mediaType,
-        })
-          .replaceAll("<", "\\u003c")
-          .replaceAll(">", "\\u003e");
-        return [{ type: "text" as const, text: `<document_reference>${reference}</document_reference>` }];
-      }),
-    } as AnyUIMessage;
   });
 }
 
@@ -357,11 +278,12 @@ export async function projectModelContext(input: {
     }
   }
 
-  const modelReadyRecent = await transformUserFilePartsForModel(
-    recent,
-    input.userId,
-    input.provider.supportsImageInput,
-  );
+  const modelReadyRecent = await transformFilePartsForModel(recent, {
+    userId: input.userId,
+    conversationId: input.conversationId,
+    supportsImageInput: input.provider.supportsImageInput,
+    signal: input.abortSignal,
+  });
   const converted = await convertToModelMessages(modelReadyRecent, {
     convertDataPart: (part) => {
       if (part.type === "data-plan-execution") {

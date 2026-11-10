@@ -113,6 +113,25 @@ async def get_document(
     return document_to_schema(row, include_content=include_content)
 
 
+@router.get("/workspaces/{workspace_id}/documents/{document_id}", response_model=Document)
+async def get_workspace_document(
+    workspace_id: str,
+    document_id: str,
+    session: DbSession,
+    tenant_id: str = Query(..., min_length=1, max_length=26),
+    include_content: bool = Query(default=False),
+) -> Document:
+    """Resolve a retrieval source under the authoritative workspace ACL.
+
+    Chat separately proves that the source id occurs in the selected journal;
+    this endpoint only answers the owning service's tenant/workspace question.
+    """
+    row = await document_crud.get_workspace_document(session, document_id, workspace_id, tenant_id)
+    if row is None:
+        raise NotFoundError(f"document {document_id} not found")
+    return document_to_schema(row, include_content=include_content)
+
+
 _SLICE_WAIT_MAX_MS = 120000
 _SLICE_POLL_INTERVAL_S = 0.5
 

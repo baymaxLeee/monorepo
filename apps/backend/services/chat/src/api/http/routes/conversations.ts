@@ -7,6 +7,7 @@ import { activeAgentStreamRunId } from "../../../application/agent/streams/servi
 import { forkConversation } from "../../../application/conversation-fork.js";
 import {
   authorizeDocumentDelivery,
+  authorizeConversationSourceDelivery,
   authorizeFileDelivery,
   createConversation,
   deleteConversation,
@@ -14,6 +15,7 @@ import {
   getConversationDocument,
   getConversationFile,
   listConversations,
+  selectConversationHistory,
   updateConversation,
   updateConversationDocument,
 } from "../../../application/conversations.js";
@@ -54,6 +56,11 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   title: z.string().min(1).max(200).optional(),
+});
+
+const selectHistorySchema = z.object({
+  leaf_message_id: z.string().min(1).max(32),
+  expected_revision: z.number().int().nonnegative(),
 });
 
 const updateDocumentSchema = z.object({
@@ -200,6 +207,10 @@ conversationsRoutes.get("/:conversationId", async (c) => {
   const detail = await getConversation(auth, conversationId);
   const activeRunId = await activeAgentStreamRunId(conversationId);
   return c.json({ ...detail, active_run_id: activeRunId });
+});
+
+conversationsRoutes.post("/:conversationId/history/select", zValidator("json", selectHistorySchema), async (c) => {
+  return c.json(await selectConversationHistory(getAuth(c), c.req.param("conversationId"), c.req.valid("json")));
 });
 
 conversationsRoutes.get("/:conversationId/context", async (c) => {
@@ -361,6 +372,15 @@ conversationsRoutes.get("/:conversationId/documents/:documentId/content", async 
   );
   c.header("Cache-Control", "no-store");
   return c.redirect(capability.url, 307);
+});
+conversationsRoutes.post("/:conversationId/sources/:sourceId/delivery", async (c) => {
+  const capability = await authorizeConversationSourceDelivery(
+    getAuth(c),
+    c.req.param("conversationId"),
+    c.req.param("sourceId"),
+  );
+  c.header("Cache-Control", "no-store");
+  return c.json(capability);
 });
 
 conversationsRoutes.post(

@@ -242,6 +242,10 @@ CREATE TABLE IF NOT EXISTS public.migration_audit(id bigint GENERATED ALWAYS AS 
 `
 
 func execute(ctx context.Context, tx *sql.Tx, ms []migration, to int, direction string) error {
+	var searchPath string
+	if err := tx.QueryRowContext(ctx, "SHOW search_path").Scan(&searchPath); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, metadataSQL); err != nil {
 		return err
 	}
@@ -406,6 +410,11 @@ func execute(ctx context.Context, tx *sql.Tx, ms []migration, to int, direction 
 		}
 		if err != nil {
 			return fmt.Errorf("%s %s: %w", direction, m.version, err)
+		}
+		// Dump baselines may change search_path. Each step must resolve names
+		// as it would when applied in a separate invocation, including DOWN.
+		if _, err = tx.ExecContext(ctx, "SELECT pg_catalog.set_config('search_path', $1, false)", searchPath); err != nil {
+			return err
 		}
 		if direction == "up" {
 			if _, err = tx.ExecContext(ctx, "INSERT INTO public.migration_sources SELECT $1,$2,$3 WHERE NOT EXISTS(SELECT 1 FROM public.migration_sources WHERE version=$1 OR version=$4)", m.version, m.checksum, m.downChecksum, m.legacyVersion()); err != nil {

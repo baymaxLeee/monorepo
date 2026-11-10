@@ -2,7 +2,7 @@
 
 The chat SSE stream is a **cross-stack wire contract**, exactly like `openapi/`
 and `proto/` — so it lives here. It is the Vercel AI SDK **UI Message Stream**
-carried over SSE between `services/chat` (producer) and `apps/frontend/apps/chat`
+carried over SSE between `services/chat` (producer) and `apps/frontend/packages/chat`
 (consumer, via `useChat`).
 
 The golden rule for this contract: **reuse official AI SDK parts first. Only
@@ -32,6 +32,7 @@ alongside the reply" needs are already covered by one of them.
 | `tool-<name>`        | a typed tool call + its input/output (static tools)    |
 | `dynamic-tool`       | a tool whose name isn't known at compile time          |
 | `file`               | a file/document reference or attachment (URL-based)    |
+| `reasoning-file`     | a provider reasoning attachment, disclosed separately  |
 | `source-url`         | a cited web source (RAG) — emit via `sendSources:true` |
 | `source-document`    | a cited document source (RAG)                          |
 | `step-start`         | multi-step boundary marker                             |
@@ -54,6 +55,7 @@ The assistant message metadata contract is:
 | `status` | `streaming`, `completed`, `failed`, or `cancelled`. |
 | `finishReason` | AI SDK unified finish reason when available. |
 | `usage` | Input/output/cache/reasoning/total token counters. |
+| `historyRevision` | Conversation journal revision claimed by this logical operation. |
 | `fork` | Persisted branch-history provenance `{conversationId, messageId}`. Copied history replaces old execution metadata with this field; it is not streamed as a new run and never resumes the source provider chain. |
 
 Metadata streams through the official `messageMetadata` callback and is stored
@@ -105,8 +107,8 @@ part already expresses is redundant — delete it.
 There is **one** stream — the main chat stream:
 
 - **Main chat stream** — `POST .../agents/run/stream`, typed as
-  `ChatUIMessage = UIMessage<unknown, ChatUIDataTypes>`
-  (`apps/frontend/apps/chat/src/lib/chat-message.ts`).
+  `ChatUIMessage = UIMessage<ChatMessageMetadata, ChatUIDataTypes>`
+  (`apps/frontend/packages/chat/src/lib/chat-message.ts`).
 
 There is no separate task-progress SSE stream. Delegated file and video progress
 now ride the main stream as **preliminary `tool-*` results** (see docs/ADR/agent-runtime.md): the
@@ -202,7 +204,48 @@ no `data-artifact-progress`.
 
 ---
 
-## 4. Checklist when adding a streamed field (paste into your PR reasoning)
+Runtime schemas for application metadata and registered `data-*` parts live in
+[chat-ui.ts](chat-ui.ts). `just sync` generates backend and frontend modules;
+`just sync-check` rejects drift. Native parts remain owned by AI SDK. Hydration
+validates native parts and these extensions; an absent metadata field is valid
+for ordinary user messages, while present run/fork metadata must match its schema.
+
+## 4. Request, replay, and journal invariants
+
+`POST /conversations/{conversationId}/agents/run/stream` carries one logical
+operation. In addition to the SDK message it requires:
+
+| Field | Contract |
+| --- | --- |
+| `trigger` | `submit-message` or `regenerate-message`; tool continuation is derived from the submitted awaited assistant message. |
+| `messageId` | Explicit edit/regenerate/continuation target when the SDK operation supplies one. It is not inferred from the last array element. |
+| `expected_revision` | Last hydrated conversation history revision. A stale value is a conflict, never an implicit merge. |
+| `request_id` | Stable logical-operation id. `(conversation_id, request_id)` binds to a canonical fingerprint of the full operation, target, message and run context; exact retries replay the same run, any changed reuse is rejected. |
+
+The response is the official UIMessage SSE protocol. The outer composition owns
+the only public message `start`/`finish`. Nested model conversion retains its SDK
+finish internally to capture `finishReason`; the composition suppresses that inner
+finish before merging content. Files are published per new chunk in order, never
+by scanning the assembled continuation for already published files.
+Search evidence is projected to native `source-*` while the original tool output
+remains intact. Model `file` and `reasoning-file` parts must be published to an
+authorized conversation resource before the finish can be committed. A
+`save_sandbox_file` result remains a tool result and is rendered as an Artifact;
+it is not duplicated as a native file part.
+
+`GET /conversations/{conversationId}/agents/run/stream` replays the active run's
+stored native SSE from the beginning with replay semantics enabled in
+`DefaultChatTransport`; no active stream returns `204`. Disconnecting a reader
+only cancels that Redis blocking read. Explicit Stop uses the cancel endpoint and
+the run AbortSignal. Clearing the Redis active pointer compares run id so an old
+subscriber or producer cannot clear a newer run.
+
+PostgreSQL is the semantic source of truth. The finalizer atomically commits tool
+terminal state, assistant UIMessage, run status/token usage, selected history leaf
+and lease removal. Redis is deliberately not part of that transaction; recovery
+checks the authoritative run journal before retiring a stale pointer.
+
+## 5. Checklist when adding a streamed field (paste into your PR reasoning)
 
 - [ ] Walked the §2 ladder; confirmed no official part/metadata already covers it.
 - [ ] Chose transient vs persistent deliberately (reload + model-visibility test).

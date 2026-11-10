@@ -519,6 +519,7 @@ export interface RetrievedChunk {
   score: number;
   title: string;
   filename: string;
+  media_type: string;
 }
 
 export interface RetrieveResult {
@@ -645,6 +646,15 @@ include_content?: boolean;
 
 export type DeleteDocumentInternalDocumentsDocumentIdDeleteParams = {
 user_id: string;
+};
+
+export type GetWorkspaceDocumentInternalWorkspacesWorkspaceIdDocumentsDocumentIdGetParams = {
+/**
+ * @minLength 1
+ * @maxLength 26
+ */
+tenant_id: string;
+include_content?: boolean;
 };
 
 export type GetDocumentSliceInternalDocumentsDocumentIdSliceGetParams = {
@@ -962,6 +972,25 @@ const deleteDocumentInternalDocumentsDocumentIdDelete = (
     }
 
 /**
+ * Resolve a retrieval source under the authoritative workspace ACL.
+ *
+ * Chat separately proves that the source id occurs in the selected journal;
+ * this endpoint only answers the owning service's tenant/workspace question.
+ * @summary Get Workspace Document
+ */
+const getWorkspaceDocumentInternalWorkspacesWorkspaceIdDocumentsDocumentIdGet = (
+    workspaceId: string,
+    documentId: string,
+    params: GetWorkspaceDocumentInternalWorkspacesWorkspaceIdDocumentsDocumentIdGetParams,
+ options?: SecondParameter<typeof apiMutator<Document>>,) => {
+      return apiMutator<Document>(
+      {url: `/internal/workspaces/${workspaceId}/documents/${documentId}`, method: 'GET',
+        params
+    },
+      options);
+    }
+
+/**
  * Read a bounded slice of the converted markdown. When the document is still
  * converting in the background, ``wait_ms`` long-polls until it is ``ready`` (or
  * ``failed``/timeout) so a caller that just uploaded can read as soon as convert
@@ -1236,7 +1265,7 @@ const retrieveChunksInternalRetrievePost = (
       options);
     }
 
-return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,prepareIngestPreparePost,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,authorizeDocumentDeliveryDocumentsDocumentIdDeliveryPost,processDocumentInternalDocumentsDocumentIdProcessPost,indexDocumentInternalDocumentsDocumentIdIndexPost,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getDocumentSliceInternalDocumentsDocumentIdSliceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,forkFilesInternalConversationForksPost,retrieveChunksInternalRetrievePost}};
+return {livezLivezGet,readyzReadyzGet,healthzHealthzGet,prepareIngestPreparePost,ingestIngestPost,listMyDocumentsDocumentsGet,batchDeleteMyDocumentsDocumentsBatchDeletePost,getMyDocumentDocumentsDocumentIdGet,updateMyDocumentDocumentsDocumentIdPatch,deleteMyDocumentDocumentsDocumentIdDelete,reindexMyDocumentDocumentsDocumentIdReindexPost,authorizeDocumentDeliveryDocumentsDocumentIdDeliveryPost,processDocumentInternalDocumentsDocumentIdProcessPost,indexDocumentInternalDocumentsDocumentIdIndexPost,listDocumentsInternalDocumentsGet,getDocumentInternalDocumentsDocumentIdGet,updateArtifactInternalDocumentsDocumentIdPatch,deleteDocumentInternalDocumentsDocumentIdDelete,getWorkspaceDocumentInternalWorkspacesWorkspaceIdDocumentsDocumentIdGet,getDocumentSliceInternalDocumentsDocumentIdSliceGet,createArtifactInternalArtifactsPost,createMediaDocumentInternalMediaDocumentsPost,createStagedMediaInternalStagedMediaPost,getStagedMediaInternalStagedMediaStagedIdGet,publishStagedMediaInternalStagedMediaStagedIdPublishPost,discardStagedMediaInternalStagedMediaStagedIdDiscardPost,listFilesInternalFilesGet,readFileInternalFilesReadGet,createChangeSetInternalFilesChangeSetsPost,writeChangeSetFileInternalFilesChangeSetsChangeSetIdFilesPut,listChangeSetFilesInternalFilesChangeSetsChangeSetIdFilesGet,readChangeSetFileInternalFilesChangeSetsChangeSetIdReadGet,promoteChangeSetInternalFilesChangeSetsChangeSetIdPromotePost,discardChangeSetInternalFilesChangeSetsChangeSetIdDiscardPost,searchFilesInternalFilesSearchPost,cleanupConversationArtifactsRouteInternalConversationArtifactCleanupsPost,forkFilesInternalConversationForksPost,retrieveChunksInternalRetrievePost}};
 export type LivezLivezGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['livezLivezGet']>>>
 export type ReadyzReadyzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['readyzReadyzGet']>>>
 export type HealthzHealthzGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['healthzHealthzGet']>>>
@@ -1255,6 +1284,7 @@ export type ListDocumentsInternalDocumentsGetResult = NonNullable<Awaited<Return
 export type GetDocumentInternalDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentInternalDocumentsDocumentIdGet']>>>
 export type UpdateArtifactInternalDocumentsDocumentIdPatchResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['updateArtifactInternalDocumentsDocumentIdPatch']>>>
 export type DeleteDocumentInternalDocumentsDocumentIdDeleteResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['deleteDocumentInternalDocumentsDocumentIdDelete']>>>
+export type GetWorkspaceDocumentInternalWorkspacesWorkspaceIdDocumentsDocumentIdGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getWorkspaceDocumentInternalWorkspacesWorkspaceIdDocumentsDocumentIdGet']>>>
 export type GetDocumentSliceInternalDocumentsDocumentIdSliceGetResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['getDocumentSliceInternalDocumentsDocumentIdSliceGet']>>>
 export type CreateArtifactInternalArtifactsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createArtifactInternalArtifactsPost']>>>
 export type CreateMediaDocumentInternalMediaDocumentsPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getKnowledgeService>['createMediaDocumentInternalMediaDocumentsPost']>>>

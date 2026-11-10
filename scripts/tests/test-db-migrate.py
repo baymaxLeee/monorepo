@@ -250,6 +250,18 @@ class MigrationTest(unittest.TestCase):
         schema = "SELECT table_name,column_name,data_type FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('canvas_events','canvas_event_heads') ORDER BY table_name,ordinal_position;"
         self.assertEqual(self.sql("canvas", schema), self.sql("fresh_canvas", schema))
 
+    def test_search_path_does_not_leak_between_pending_steps(self):
+        service = self.service(
+            "search_path_isolation",
+            "CREATE TABLE public.keep_data (value text); INSERT INTO public.keep_data VALUES ('keep'); SET search_path = '';",
+        )
+        (VersionFiles(service / "migrations") / "v1.0.1.sql").write_text(
+            "ALTER TABLE keep_data ADD COLUMN added text DEFAULT 'ok';"
+        )
+        self.success(self.migrate(service))
+        self.success(self.migrate(service))
+        self.assertEqual(self.sql(service.name, "SELECT value,added FROM public.keep_data"), "keep|ok")
+
     def test_numeric_order_idempotency_history_and_downgrade(self):
         service = self.service("ordered")
         versions = VersionFiles(service / "migrations")

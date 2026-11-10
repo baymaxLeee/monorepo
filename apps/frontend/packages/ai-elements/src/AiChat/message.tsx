@@ -11,11 +11,13 @@ import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
-import type { UIMessage } from "ai";
+import type { Citation, UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Streamdown } from "streamdown";
+
+import { CitedMarkdownBlock, CitationBlocks } from "./citation-markers";
 
 import "streamdown/styles.css";
 import { markdownRehypePlugins, markdownTranslations } from "./markdown-policy";
@@ -116,18 +118,26 @@ function useMessageBranch() {
 
 export type MessageBranchProps = HTMLAttributes<HTMLDivElement> & {
   defaultBranch?: number;
+  currentBranch?: number;
   onBranchChange?: (branchIndex: number) => void;
 };
 
-export function MessageBranch({ defaultBranch = 0, onBranchChange, className, ...props }: MessageBranchProps) {
-  const [currentBranch, setCurrentBranch] = useState(defaultBranch);
+export function MessageBranch({
+  defaultBranch = 0,
+  currentBranch: controlledBranch,
+  onBranchChange,
+  className,
+  ...props
+}: MessageBranchProps) {
+  const [uncontrolledBranch, setUncontrolledBranch] = useState(defaultBranch);
+  const currentBranch = controlledBranch ?? uncontrolledBranch;
   const [branches, setBranches] = useState<ReactElement[]>([]);
   const changeBranch = useCallback(
     (next: number) => {
-      setCurrentBranch(next);
+      if (controlledBranch === undefined) setUncontrolledBranch(next);
       onBranchChange?.(next);
     },
-    [onBranchChange],
+    [controlledBranch, onBranchChange],
   );
   const goToPrevious = useCallback(
     () => changeBranch(currentBranch > 0 ? currentBranch - 1 : branches.length - 1),
@@ -228,25 +238,34 @@ export function MessageBranchPage({ className, ...props }: MessageBranchPageProp
   );
 }
 
-export type MessageResponseProps = Omit<ComponentProps<typeof Streamdown>, "rehypePlugins">;
+export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
+  citations?: Citation[];
+};
 
 const streamdownPlugins = { cjk, code, math, mermaid };
 
-export const MessageResponse = memo(({ className, translations, ...props }: MessageResponseProps) => (
-  <Streamdown
-    className={cn(
-      styles.response,
-      "size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0",
-      className,
-    )}
-    plugins={streamdownPlugins}
-    codeBlockMaxHeight={0}
-    tableMaxHeight={0}
-    {...props}
-    translations={{ ...markdownTranslations, ...translations }}
-    rehypePlugins={markdownRehypePlugins}
-  />
-));
+export const MessageResponse = memo(
+  ({ className, translations, citations, rehypePlugins, ...props }: MessageResponseProps) => {
+    return (
+      <CitationBlocks text={typeof props.children === "string" ? props.children : ""} citations={citations}>
+        <Streamdown
+          className={cn(
+            styles.response,
+            "size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0",
+            className,
+          )}
+          plugins={streamdownPlugins}
+          codeBlockMaxHeight={0}
+          tableMaxHeight={0}
+          {...props}
+          translations={{ ...markdownTranslations, ...translations }}
+          BlockComponent={CitedMarkdownBlock}
+          rehypePlugins={rehypePlugins ?? markdownRehypePlugins}
+        />
+      </CitationBlocks>
+    );
+  },
+);
 
 MessageResponse.displayName = "MessageResponse";
 

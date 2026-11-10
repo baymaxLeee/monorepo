@@ -34,6 +34,11 @@ type ChatTranscriptProps = Pick<
   | "conversationId"
   | "onOpenArtifact"
   | "onOpenFile"
+  | "resolveSourceHref"
+  | "resolveSourceAction"
+  | "onSelectBranch"
+  | "onEditMessage"
+  | "onRegenerate"
   | "onAnswerClientTool"
   | "onToolApproval"
   | "onExecutePlan"
@@ -43,6 +48,7 @@ type ChatTranscriptProps = Pick<
   status: "submitted" | "streaming" | "ready" | "error";
   loading: boolean;
   conversationDocuments: ConversationDocument[];
+  branches: NonNullable<ChatMessageViewProps["branch"]>[];
 };
 
 function collectExecutedPlanPaths(messages: ChatUIMessage[]): Set<string> {
@@ -79,8 +85,14 @@ export const ChatTranscript = memo(function ChatTranscript({
   status,
   loading,
   conversationDocuments,
+  branches,
   onOpenArtifact,
   onOpenFile,
+  resolveSourceHref,
+  resolveSourceAction,
+  onSelectBranch,
+  onEditMessage,
+  onRegenerate,
   onAnswerClientTool,
   onToolApproval,
   onExecutePlan,
@@ -110,6 +122,10 @@ export const ChatTranscript = memo(function ChatTranscript({
     [messages, latestTodoCallId],
   );
   const executedPlanPaths = useMemo(() => collectExecutedPlanPaths(messages), [messages]);
+  const branchBySelectedMessage = useMemo(
+    () => new Map(branches.map((branch) => [branch.selected_message_id, branch] as const)),
+    [branches],
+  );
 
   return (
     <>
@@ -144,6 +160,12 @@ export const ChatTranscript = memo(function ChatTranscript({
               deliverableCompletion={deliverableCompletion}
               onOpenArtifact={onOpenArtifact}
               onOpenFile={onOpenFile}
+              resolveSourceHref={resolveSourceHref}
+              resolveSourceAction={resolveSourceAction}
+              branch={branchBySelectedMessage.get(message.id)}
+              onSelectBranch={onSelectBranch}
+              onEditMessage={onEditMessage}
+              onRegenerate={onRegenerate}
               onAnswerClientTool={onAnswerClientTool}
               onToolApproval={onToolApproval}
               onExecutePlan={onExecutePlan}

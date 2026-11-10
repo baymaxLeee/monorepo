@@ -7,6 +7,7 @@
 |---|---|
 | 服务组成、分层、共享与事务边界 | [architecture](architecture.md) |
 | 主 Agent、上下文、工具与流 | [agent-runtime](agent-runtime.md) |
+| Chat UIMessage 协议、消息操作与呈现 | [chat-ui-protocol](chat-ui-protocol.md) |
 | Workflow、耐久任务、取消与审批 | [durable-execution](durable-execution.md) |
 | Asset、Knowledge、Canvas 与文件生命周期 | [files-and-assets](files-and-assets.md) |
 | IAM、scope、caller identity 与 Admin 配置 | [identity-and-configuration](identity-and-configuration.md) |
@@ -19,7 +20,7 @@
 
 这是本仓库的快照约定，区别于传统不可变 ADR。追溯使用
 `git log -- docs/ADR` 和 `git show <commit>:docs/ADR/<old-file>`。
-修改当前决策时同时更新代码、所属业务规范和验证入口；新提案尚未实现时明确标记，
+修改当前决策时同时更新代码、所属业务规范和验证入口；尚未实现的提案必须明确标记，
 不能以“已接受”掩盖实现缺口。
 
 本轮重写期间另一项任务新增的

@@ -12,6 +12,13 @@ const documentPathParam = {
   schema: { type: "string" },
 };
 
+const sourcePathParam = {
+  name: "source_id",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+};
+
 const runPathParam = {
   name: "run_id",
   in: "path",
@@ -79,7 +86,7 @@ const openapi = {
     "/conversations/{conversation_id}": {
       get: {
         parameters: [pathParam],
-        responses: { "200": { description: "conversation detail" } },
+        responses: { "200": jsonResponse("selected conversation history", ref("ConversationDetail")) },
       },
       patch: {
         parameters: [pathParam],
@@ -88,6 +95,18 @@ const openapi = {
       delete: {
         parameters: [pathParam],
         responses: { "204": { description: "delete conversation" } },
+      },
+    },
+    "/conversations/{conversation_id}/history/select": {
+      post: {
+        operationId: "selectConversationHistory",
+        parameters: [pathParam],
+        requestBody: { required: true, content: { "application/json": { schema: ref("SelectHistoryInput") } } },
+        responses: {
+          "200": jsonResponse("selected root-to-leaf history", ref("ConversationDetail")),
+          "404": { description: "leaf is not part of this conversation" },
+          "409": { description: "stale revision or active run" },
+        },
       },
     },
     "/conversations/{conversation_id}/forks": {
@@ -147,9 +166,11 @@ const openapi = {
       },
       post: {
         parameters: [pathParam],
+        requestBody: { required: true, content: { "application/json": { schema: ref("AgentRunRequest") } } },
         responses: {
           "200": {
             description: "start ToolLoopAgent UI message stream",
+            content: { "text/event-stream": { schema: { type: "string" } } },
             headers: {
               "x-agent-run-id": {
                 description: "Agent run id used for observability",
@@ -210,6 +231,18 @@ const openapi = {
             headers: { Location: { schema: { type: "string" } } },
           },
           "404": { description: "document not accessible" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/sources/{source_id}/delivery": {
+      post: {
+        parameters: [pathParam, sourcePathParam],
+        responses: {
+          "200": jsonResponse(
+            "Journal-authorized Storage capability for a workspace Knowledge source",
+            ref("StorageDelivery"),
+          ),
+          "404": { description: "source is not referenced by the selected history or is outside the workspace" },
         },
       },
     },
@@ -372,6 +405,133 @@ const openapi = {
           id: { type: "string" },
           project_id: { type: "string" },
           canvas_id: { type: "string" },
+        },
+      },
+      AgentRunRequest: {
+        type: "object",
+        required: ["message", "trigger", "expected_revision", "request_id"],
+        properties: {
+          id: { type: "string" },
+          message: { type: "object", additionalProperties: true },
+          trigger: { type: "string", enum: ["submit-message", "regenerate-message"] },
+          messageId: { type: "string", minLength: 1, maxLength: 32 },
+          expected_revision: { type: "integer", minimum: 0 },
+          request_id: { type: "string", minLength: 8, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" },
+          agent_id: { type: "string", maxLength: 32, nullable: true },
+          mode: { type: "string", enum: ["normal", "plan"] },
+        },
+      },
+      SelectHistoryInput: {
+        type: "object",
+        required: ["leaf_message_id", "expected_revision"],
+        properties: {
+          leaf_message_id: { type: "string", minLength: 1, maxLength: 32 },
+          expected_revision: { type: "integer", minimum: 0 },
+        },
+      },
+      PersistedMessageContent: {
+        type: "object",
+        required: ["version", "parts"],
+        properties: {
+          version: { type: "integer" },
+          parts: { type: "array", items: { type: "object", additionalProperties: true } },
+          metadata: { type: "object", additionalProperties: true },
+        },
+      },
+      ConversationMessage: {
+        type: "object",
+        required: [
+          "id",
+          "conversation_id",
+          "role",
+          "content",
+          "status",
+          "parent_message_id",
+          "branch_index",
+          "created_at",
+        ],
+        properties: {
+          id: { type: "string" },
+          conversation_id: { type: "string" },
+          role: { type: "string", enum: ["user", "assistant", "system"] },
+          content: ref("PersistedMessageContent"),
+          status: { type: "string", enum: ["ok", "streaming", "failed"] },
+          parent_message_id: { type: "string", nullable: true },
+          branch_index: { type: "integer", minimum: 0 },
+          created_at: { type: "string", format: "date-time" },
+        },
+      },
+      MessageBranchCandidate: {
+        type: "object",
+        required: ["message_id", "leaf_message_id", "role", "created_at"],
+        properties: {
+          message_id: { type: "string" },
+          leaf_message_id: { type: "string" },
+          role: { type: "string", enum: ["user", "assistant", "system"] },
+          created_at: { type: "string", format: "date-time" },
+        },
+      },
+      MessageBranchGroup: {
+        type: "object",
+        required: ["parent_message_id", "selected_message_id", "candidates"],
+        properties: {
+          parent_message_id: { type: "string", nullable: true },
+          selected_message_id: { type: "string" },
+          candidates: { type: "array", items: ref("MessageBranchCandidate") },
+        },
+      },
+      ConversationDocumentSummary: {
+        type: "object",
+        additionalProperties: true,
+        required: ["id", "conversation_id", "title", "filename", "mime_type"],
+        properties: {
+          id: { type: "string" },
+          conversation_id: { type: "string" },
+          title: { type: "string" },
+          filename: { type: "string" },
+          mime_type: { type: "string" },
+        },
+      },
+      ConversationDetail: {
+        type: "object",
+        required: [
+          "id",
+          "user_id",
+          "tenant_id",
+          "workspace_id",
+          "title",
+          "model",
+          "provider_id",
+          "created_at",
+          "updated_at",
+          "revision",
+          "selected_message_id",
+          "messages",
+          "branches",
+          "documents",
+          "active_run_id",
+          "latest_run_id",
+        ],
+        properties: {
+          id: { type: "string" },
+          user_id: { type: "string" },
+          tenant_id: { type: "string" },
+          workspace_id: { type: "string" },
+          title: { type: "string" },
+          model: { type: "string" },
+          provider_id: { type: "string" },
+          active_plan_path: { type: "string", nullable: true },
+          project_id: { type: "string", nullable: true },
+          canvas_id: { type: "string", nullable: true },
+          created_at: { type: "string", format: "date-time" },
+          updated_at: { type: "string", format: "date-time" },
+          revision: { type: "integer", minimum: 0 },
+          selected_message_id: { type: "string", nullable: true },
+          messages: { type: "array", items: ref("ConversationMessage") },
+          branches: { type: "array", items: ref("MessageBranchGroup") },
+          documents: { type: "array", items: ref("ConversationDocumentSummary") },
+          active_run_id: { type: "string", nullable: true },
+          latest_run_id: { type: "string", nullable: true },
         },
       },
       RunCancellation: {

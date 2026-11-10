@@ -12,6 +12,7 @@ import { ChatTranscript } from "./ChatTranscript";
 
 type ChatStreamProps = Omit<ComponentProps<typeof ChatTranscript>, "messages" | "status"> & {
   chat: Chat<ChatUIMessage>;
+  resume?: boolean;
   scrollRef: Ref<ConversationScrollHandle>;
   onStatusChange: (status: Chat<ChatUIMessage>["status"]) => void;
   onCanvasChange?: () => void;
@@ -21,12 +22,13 @@ type ChatStreamProps = Omit<ComponentProps<typeof ChatTranscript>, "messages" | 
 // shell, history, inspector, or composer. Only status transitions leave here.
 export const ChatStream = memo(function ChatStream({
   chat,
+  resume = false,
   scrollRef,
   onStatusChange,
   onCanvasChange,
   ...props
 }: ChatStreamProps) {
-  const { messages, status } = useChat({ chat, resume: false, throttle: 50 });
+  const { messages, status } = useChat({ chat, resume, throttle: 50 });
   const snapshot = useDeferredValue(useMemo(() => ({ messages, status }), [messages, status]));
   const canvasCallback = useRef(onCanvasChange);
   useEffect(() => {

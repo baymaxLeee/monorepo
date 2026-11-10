@@ -1,5 +1,5 @@
 import { conversationDocumentContentUrl } from "@repo/api";
-import type { FileUIPart } from "ai";
+import type { FileUIPart, ReasoningFileUIPart } from "ai";
 
 export function buildUserFilePart(input: {
   conversationId: string;
@@ -17,7 +17,7 @@ export function buildUserFilePart(input: {
   };
 }
 
-export function documentIdFromFilePart(part: FileUIPart): string | null {
+export function documentIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): string | null {
   try {
     return new URL(part.url, window.location.origin).searchParams.get("document_id");
   } catch {

@@ -11,6 +11,8 @@ function message(id: string, role: Message["role"], status: Message["status"]): 
     role,
     status,
     content: { version: 2, parts: [{ type: "text", text: id }] },
+    parent_message_id: null,
+    branch_index: 0,
     created_at: "2026-10-28T00:00:00Z",
   };
 }

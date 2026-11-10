@@ -20,6 +20,8 @@ export const conversations = pgTable(
     canvasId: varchar("canvas_id", { length: 36 }),
     activePlanPath: varchar("active_plan_path", { length: 512 }),
     runRevision: bigint("run_revision", { mode: "bigint" }).notNull().default(0n),
+    historyRevision: bigint("history_revision", { mode: "bigint" }).notNull().default(0n),
+    selectedMessageId: varchar("selected_message_id", { length: 32 }),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
@@ -76,9 +78,15 @@ export const messages = pgTable(
     role: varchar("role", { length: 20 }).notNull(),
     content: jsonb("content").$type<PersistedMessageContent>().notNull(),
     status: varchar("status", { length: 20 }).notNull().default("ok"),
+    parentMessageId: varchar("parent_message_id", { length: 32 }),
+    branchIndex: integer("branch_index").notNull().default(0),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
   },
-  (t) => [index("ix_messages_conversation_id").on(t.conversationId)],
+  (t) => [
+    index("ix_messages_conversation_id").on(t.conversationId),
+    index("ix_messages_parent_message_id").on(t.parentMessageId),
+    uniqueIndex("ux_messages_sibling_branch").on(t.conversationId, t.parentMessageId, t.branchIndex),
+  ],
 );
 
 export const agentRuns = pgTable(
@@ -93,6 +101,12 @@ export const agentRuns = pgTable(
     error: text("error"),
     inputMessageId: varchar("input_message_id", { length: 32 }),
     outputMessageId: varchar("output_message_id", { length: 32 }),
+    requestId: varchar("request_id", { length: 64 }),
+    requestFingerprint: varchar("request_fingerprint", { length: 64 }),
+    operation: varchar("operation", { length: 32 }),
+    targetMessageId: varchar("target_message_id", { length: 32 }),
+    historyMessageId: varchar("history_message_id", { length: 32 }),
+    historyRevision: bigint("history_revision", { mode: "bigint" }),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     cachedInputTokens: integer("cached_input_tokens"),
@@ -102,7 +116,12 @@ export const agentRuns = pgTable(
     startedAt: timestamp("started_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
     finishedAt: timestamp("finished_at", { mode: "date", withTimezone: true, precision: 6 }),
   },
-  (t) => [index("ix_agent_runs_conversation_id").on(t.conversationId), index("ix_agent_runs_user_id").on(t.userId)],
+  (t) => [
+    index("ix_agent_runs_conversation_id").on(t.conversationId),
+    index("ix_agent_runs_user_id").on(t.userId),
+    index("ix_agent_runs_history_message_id").on(t.historyMessageId),
+    uniqueIndex("ux_agent_runs_conversation_request").on(t.conversationId, t.requestId),
+  ],
 );
 
 export const agentSteps = pgTable(

@@ -1857,6 +1857,111 @@
         }
       }
     },
+    "/internal/workspaces/{workspace_id}/documents/{document_id}": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Get Workspace Document",
+        "description": "Resolve a retrieval source under the authoritative workspace ACL.\n\nChat separately proves that the source id occurs in the selected journal;\nthis endpoint only answers the owning service's tenant/workspace question.",
+        "operationId": "get_workspace_document_internal_workspaces__workspace_id__documents__document_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 26,
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "include_content",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Content"
+            }
+          },
+          {
+            "name": "X-Internal-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Token"
+            }
+          },
+          {
+            "name": "X-Caller-Service",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Caller-Service"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/internal/documents/{document_id}/slice": {
       "get": {
         "tags": [
@@ -4836,6 +4941,10 @@
           "filename": {
             "type": "string",
             "title": "Filename"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
           }
         },
         "type": "object",
@@ -4845,7 +4954,8 @@
           "content",
           "score",
           "title",
-          "filename"
+          "filename",
+          "media_type"
         ],
         "title": "RetrievedChunk"
       },

@@ -90,12 +90,23 @@ export type ToolHeaderProps = Omit<ComponentProps<typeof TraceCollapsibleTrigger
   title?: string;
   type: ToolPart["type"];
   state: ToolState;
+  preliminary?: boolean;
   toolName?: string;
 };
 
-export function ToolHeader({ className, title, type, state, toolName, children, ...props }: ToolHeaderProps) {
+export function ToolHeader({
+  className,
+  title,
+  type,
+  state,
+  preliminary,
+  toolName,
+  children,
+  ...props
+}: ToolHeaderProps) {
   const derivedName = type === "dynamic-tool" ? toolName : type.split("-").slice(1).join("-");
-  const running = state === "input-streaming" || state === "input-available" || state === "approval-responded";
+  const running =
+    preliminary || state === "input-streaming" || state === "input-available" || state === "approval-responded";
   const failed = state === "output-error";
   return (
     <TraceCollapsibleTrigger className={className} {...props}>
@@ -105,7 +116,7 @@ export function ToolHeader({ className, title, type, state, toolName, children, 
             <WrenchIcon />
           </TraceIcon>
           <TraceTitle>{title ?? derivedName}</TraceTitle>
-          <TraceDescription>{STATUS_LABELS[state] ?? state}</TraceDescription>
+          <TraceDescription>{preliminary ? "执行中" : (STATUS_LABELS[state] ?? state)}</TraceDescription>
         </TraceLine>
       )}
     </TraceCollapsibleTrigger>

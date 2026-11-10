@@ -116,8 +116,9 @@ async def retrieve(
             chunk_index=c.chunk_index,
             content=c.content,
             score=round(c.score, 6),
-            title=meta.get(c.document_id, ("", ""))[0],
-            filename=meta.get(c.document_id, ("", ""))[1],
+            title=meta.get(c.document_id, ("", "", "application/octet-stream"))[0],
+            filename=meta.get(c.document_id, ("", "", "application/octet-stream"))[1],
+            media_type=meta.get(c.document_id, ("", "", "application/octet-stream"))[2],
         )
         for c in top
     ]
