@@ -39,10 +39,7 @@ const EditorContext = createContext<Props>({
   },
 });
 
-export const useEditorContext = <T,>(selector: (context: Props) => T): T => {
-  const context = useContext(EditorContext);
-  return useMemo(() => selector(context), [context, selector]);
-};
+export const useEditorContext = () => useContext(EditorContext);
 
 export const EditorProvider: FC<PropsWithChildren<Props>> = (props) => {
   const {

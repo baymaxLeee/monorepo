@@ -11,7 +11,8 @@
   "scripts": {
     "lint": "pnpm --dir ../../../.. lint:ts apps/frontend/packages/editors/src && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/packages/editors/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
     "format": "pnpm --dir ../../../.. exec oxfmt --write 'apps/frontend/packages/editors/src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
-    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit"
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
+    "test": "pnpm --dir ../.. test --project @repo/editors"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.0.0",
@@ -38,8 +39,6 @@
     "@tiptap/extension-highlight": "catalog:",
     "@tiptap/extension-image": "catalog:",
     "@tiptap/extension-table": "catalog:",
-    "@tiptap/extension-table-header": "catalog:",
-    "@tiptap/extension-table-row": "catalog:",
     "@tiptap/extension-task-item": "catalog:",
     "@tiptap/extension-task-list": "catalog:",
     "@tiptap/extension-text-align": "catalog:",
@@ -57,9 +56,11 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@typescript/native": "catalog:"
+    "@typescript/native": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.0.0",

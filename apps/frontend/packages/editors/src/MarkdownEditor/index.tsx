@@ -26,10 +26,16 @@ const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(functi
 
 export { MarkdownEditor };
 export default MarkdownEditor;
+export { RewriteActionType } from "./interface";
 
 export type {
+  AiPolishCallback,
+  AiPolishRequest,
+  AiPolishTextBlock,
+  ContentType,
   MarkdownEditorFeatures,
   MarkdownEditorPopupConfig,
   MarkdownEditorProps,
   MarkdownEditorRef,
+  ToolbarMode,
 } from "./interface";

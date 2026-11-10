@@ -5,8 +5,6 @@ import { Toolbar } from "../Toolbar";
 
 interface IProps {
   editor: Editor;
-  aiEnable?: boolean;
-  commentEnable?: boolean;
 }
 
 export const FixedToolbar: React.FC<IProps> = (props) => {

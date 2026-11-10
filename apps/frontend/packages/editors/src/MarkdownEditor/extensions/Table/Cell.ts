@@ -1,70 +1,15 @@
 import { cn } from "@repo/shared";
-import { mergeAttributes, Node } from "@tiptap/core";
+import { TableCell } from "@tiptap/extension-table/cell";
 import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import { findTable, getCellsInColumn, isRowSelected, selectRow } from "./utils";
 
-export interface TableCellOptions {
-  HTMLAttributes: Record<string, any>;
-}
-
 export const createTableCellExtension = () => {
   const rowGripKey = new PluginKey<DecorationSet>("tableRowGrip");
 
-  return Node.create<TableCellOptions>({
-    name: "tableCell",
-
-    content: "block+",
-
-    tableRole: "cell",
-
-    isolating: true,
-
-    addOptions() {
-      return {
-        HTMLAttributes: {},
-      };
-    },
-
-    parseHTML() {
-      return [{ tag: "td" }];
-    },
-
-    renderHTML({ HTMLAttributes }) {
-      return ["td", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
-    },
-
-    addAttributes() {
-      return {
-        colspan: {
-          default: 1,
-          parseHTML: (element) => {
-            const colspan = element.getAttribute("colspan");
-            return colspan ? parseInt(colspan, 10) : 1;
-          },
-        },
-        rowspan: {
-          default: 1,
-          parseHTML: (element) => {
-            const rowspan = element.getAttribute("rowspan");
-            return rowspan ? parseInt(rowspan, 10) : 1;
-          },
-        },
-        colwidth: {
-          default: null,
-          parseHTML: (element) => {
-            const colwidth = element.getAttribute("colwidth");
-            return colwidth ? [parseInt(colwidth, 10)] : null;
-          },
-        },
-        style: {
-          default: null,
-        },
-      };
-    },
-
+  return TableCell.extend({
     addProseMirrorPlugins() {
       const { editor } = this;
 
@@ -94,7 +39,11 @@ export const createTableCellExtension = () => {
             Decoration.widget(pos + 1, () => {
               const rowSelected = isRowSelected(rowIndex)(selection);
 
-              const grip = document.createElement("span");
+              const grip = document.createElement("button");
+              grip.type = "button";
+              grip.contentEditable = "false";
+              grip.dataset.markdownEditorTableControl = "true";
+              grip.setAttribute("aria-label", `选择第 ${rowIndex + 1} 行`);
               grip.className = cn(
                 "markdown-editor-table-grip-row",
                 rowSelected && "markdown-editor-table-grip-row-selected",
@@ -105,6 +54,18 @@ export const createTableCellExtension = () => {
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 editor.view.dispatch(selectRow(rowIndex)(editor.state.tr));
+              });
+              grip.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" && event.key !== " ") {
+                  return;
+                }
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                editor.view.dispatch(selectRow(rowIndex)(editor.state.tr));
+              });
+              grip.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
               });
 
               return grip;

@@ -1,36 +1,19 @@
 import { cn } from "@repo/shared";
-import TiptapTableHeader from "@tiptap/extension-table-header";
+import { TableHeader } from "@tiptap/extension-table/header";
 import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
-import { findTable, getCellsInRow, isColumnSelected, selectColumn } from "./utils";
+import { findTable, getCellsInRow, isColumnSelected, isEntireTableSelected, selectColumn, selectTable } from "./utils";
 
-export const createTableHeaderExtension = () => {
+interface TableHeaderExtensionOptions {
+  showTableGrip?: boolean;
+}
+
+export const createTableHeaderExtension = ({ showTableGrip = true }: TableHeaderExtensionOptions = {}) => {
   const columnGripKey = new PluginKey<DecorationSet>("tableColumnGrip");
 
-  return TiptapTableHeader.extend({
-    addAttributes() {
-      return {
-        colspan: {
-          default: 1,
-        },
-        rowspan: {
-          default: 1,
-        },
-        colwidth: {
-          default: null,
-          parseHTML: (element) => {
-            const colwidth = element.getAttribute("colwidth");
-            return colwidth ? colwidth.split(",").map((item) => parseInt(item, 10)) : null;
-          },
-        },
-        style: {
-          default: null,
-        },
-      };
-    },
-
+  return TableHeader.extend({
     addProseMirrorPlugins() {
       const { editor } = this;
 
@@ -56,11 +39,52 @@ export const createTableHeaderExtension = () => {
           const rect = map.findCell(pos - table.start);
           const colIndex = rect.left;
 
+          if (showTableGrip && index === 0) {
+            decorations.push(
+              Decoration.widget(pos + 1, () => {
+                const grip = document.createElement("button");
+                grip.type = "button";
+                grip.contentEditable = "false";
+                grip.dataset.markdownEditorTableControl = "true";
+                grip.setAttribute("aria-label", "选择整张表格");
+                grip.className = cn(
+                  "markdown-editor-table-grip-table",
+                  isEntireTableSelected(selection) && "markdown-editor-table-grip-table-selected",
+                );
+                const icon = document.createElement("span");
+                icon.className = "markdown-editor-table-grip-table-icon";
+                grip.append(icon);
+                grip.addEventListener("mousedown", (event) => {
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                  editor.view.dispatch(selectTable(editor.state.tr));
+                });
+                grip.addEventListener("keydown", (event) => {
+                  if (event.key !== "Enter" && event.key !== " ") {
+                    return;
+                  }
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                  editor.view.dispatch(selectTable(editor.state.tr));
+                });
+                grip.addEventListener("click", (event) => {
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                });
+                return grip;
+              }),
+            );
+          }
+
           decorations.push(
             Decoration.widget(pos + 1, () => {
               const colSelected = isColumnSelected(colIndex)(selection);
 
-              const grip = document.createElement("span");
+              const grip = document.createElement("button");
+              grip.type = "button";
+              grip.contentEditable = "false";
+              grip.dataset.markdownEditorTableControl = "true";
+              grip.setAttribute("aria-label", `选择第 ${colIndex + 1} 列`);
               grip.className = cn(
                 "markdown-editor-table-grip-column",
                 colSelected && "markdown-editor-table-grip-column-selected",
@@ -71,6 +95,18 @@ export const createTableHeaderExtension = () => {
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 editor.view.dispatch(selectColumn(colIndex)(editor.state.tr));
+              });
+              grip.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" && event.key !== " ") {
+                  return;
+                }
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                editor.view.dispatch(selectColumn(colIndex)(editor.state.tr));
+              });
+              grip.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
               });
 
               return grip;

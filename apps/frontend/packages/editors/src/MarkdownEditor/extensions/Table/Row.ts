@@ -1,7 +1,7 @@
-import TiptapTableRow from "@tiptap/extension-table-row";
+import { TableRow } from "@tiptap/extension-table/row";
 
 export const createTableRowExtension = () =>
-  TiptapTableRow.extend({
+  TableRow.extend({
     allowGapCursor: false,
     content: "(tableCell | tableHeader)*",
   });

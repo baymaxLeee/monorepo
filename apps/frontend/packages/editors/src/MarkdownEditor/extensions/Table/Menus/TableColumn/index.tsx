@@ -1,5 +1,5 @@
 import { Menu } from "@repo/design-system/shadcn/menu";
-import { Selection } from "@tiptap/pm/state";
+import { Selection, type Transaction } from "@tiptap/pm/state";
 import { findTable, TableMap } from "@tiptap/pm/tables";
 import { type Editor, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -16,6 +16,7 @@ import {
 import type React from "react";
 
 import { useEditorContext } from "../../../../context";
+import { getMountedEditorDom } from "../../../../utils";
 import { isCellSelection, isEntireTableSelected } from "../../utils";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
@@ -23,17 +24,15 @@ interface TableColumnMenuProps {
   editor: Editor;
 }
 
-const clearSelection = ({ tr }: { tr: any }) => {
+const clearSelection = ({ tr }: { tr: Transaction }) => {
   const pos = Math.min(tr.selection.from, tr.doc.content.size);
   tr.setSelection(Selection.near(tr.doc.resolve(pos)));
   return true;
 };
 
 export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
-  const { isMarkdown, popupConfig } = useEditorContext((ctx) => ({
-    isMarkdown: ctx.contentType === "markdown",
-    popupConfig: ctx.popupConfig,
-  }));
+  const { contentType, popupConfig } = useEditorContext();
+  const isMarkdown = contentType === "markdown";
   const { canDeleteColumn, isTableSelected } = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => {
@@ -63,7 +62,7 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
     <BubbleMenu
       editor={editor}
       pluginKey="tableColumnMenu"
-      appendTo={() => popupConfig.getContainer(editor.view.dom)}
+      appendTo={() => popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
       style={{ zIndex: popupConfig.zIndex }}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}

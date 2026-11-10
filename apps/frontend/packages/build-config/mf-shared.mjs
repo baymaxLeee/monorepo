@@ -156,12 +156,6 @@ const TIER4 = {
   "@tiptap/extension-table": {
     ...EDITOR_SINGLETON_SPEC,
   },
-  "@tiptap/extension-table-header": {
-    ...EDITOR_SINGLETON_SPEC,
-  },
-  "@tiptap/extension-table-row": {
-    ...EDITOR_SINGLETON_SPEC,
-  },
   "@tiptap/extension-task-item": {
     ...EDITOR_SINGLETON_SPEC,
   },

@@ -5,6 +5,7 @@ import { ArrowDownToLine, ArrowUpToLine, Merge, Split, Trash2 } from "lucide-rea
 import type React from "react";
 
 import { useEditorContext } from "../../../../context";
+import { getMountedEditorDom } from "../../../../utils";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
 interface TableRowMenuProps {
@@ -12,16 +13,14 @@ interface TableRowMenuProps {
 }
 
 export const TableRowMenu: React.FC<TableRowMenuProps> = ({ editor }) => {
-  const { isMarkdown, popupConfig } = useEditorContext((ctx) => ({
-    isMarkdown: ctx.contentType === "markdown",
-    popupConfig: ctx.popupConfig,
-  }));
+  const { contentType, popupConfig } = useEditorContext();
+  const isMarkdown = contentType === "markdown";
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey="tableRowMenu"
-      appendTo={() => popupConfig.getContainer(editor.view.dom)}
+      appendTo={() => popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
       style={{ zIndex: popupConfig.zIndex }}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}

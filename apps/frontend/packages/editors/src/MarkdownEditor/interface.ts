@@ -40,19 +40,23 @@ export enum RewriteActionType {
   ChatInDoc = "chat_in_doc",
 }
 
+export interface AiPolishTextBlock {
+  content: string;
+  type: string;
+}
+
+export interface AiPolishRequest {
+  action: RewriteActionType;
+  command: string;
+  selectedContent: AiPolishTextBlock[];
+}
+
 /**
  * @zh AI 润色回调
- * @description 入参包含当前动作、用户指令和选中文本块；由业务侧发起 SSE 请求并返回 ReadableStream，编辑器内部负责流式读取、渲染和中断
+ * @description 入参包含当前动作、用户指令和选中文本块；由业务侧发起 SSE 请求并返回 ReadableStream，编辑器内部负责流式读取、渲染和中断。每个 SSE event 的 `content` 会被顺序拼接，最终结果必须是与 `selectedContent` 等长的 `[{ content, type }]` JSON 数组
  */
 export type AiPolishCallback = (
-  config: {
-    /** @zh 改写动作类型 */
-    action: RewriteActionType;
-    /** @zh 用户补充指令 */
-    command: string;
-    /** @zh 当前选中的内容块 */
-    selected_content: { content: string; type: string }[];
-  },
+  request: AiPolishRequest,
   /** @zh 中断信号，业务侧应透传给 fetch 的 signal 参数 */
   signal: AbortSignal,
 ) => Promise<ReadableStream<Uint8Array> | null>;
@@ -86,12 +90,6 @@ export interface MarkdownEditorProps {
    */
   contentType?: ContentType;
   /**
-   * @zh Markdown 模式下是否解析 HTML
-   * @default true
-   * @description 仅在 `contentType="markdown"` 时生效。为 `true` 时，Markdown 中内嵌 HTML 会按当前默认行为解析为节点；为 `false` 时，HTML 会转义后按字面文本显示
-   */
-  parseHtml?: boolean;
-  /**
    * @zh 工具栏模式
    * @default "bubble"
    * @description `fixed` 显示顶部固定工具栏；`bubble` 在选中文本时显示气泡工具栏
@@ -123,27 +121,15 @@ export interface MarkdownEditorProps {
   /**
    * @zh 追加 TipTap 扩展
    * @default []
-   * @description 在组件内置扩展之后合并，可用于追加自定义 node、mark、plugin 或覆写默认行为
+   * @description 在组件内置扩展之后合并，用于追加不同名的自定义 node、mark 或 plugin。内置能力通过 `features` 配置，不支持同名扩展覆盖
    */
   extensions?: AnyExtension[];
   /** Disable document-only tools for compact prompt editing. */
   features?: MarkdownEditorFeatures;
   /**
-   * @zh 是否开启 AI 能力
-   * @default false
-   * @description 开启后展示 AI 相关入口（如润色、扩写、缩写等）
-   */
-  aiEnable?: boolean;
-  /**
-   * @zh 是否开启评论能力
-   * @default false
-   * @description 开启后展示评论相关入口，并允许对选区进行评论标注
-   */
-  commentEnable?: boolean;
-  /**
    * @zh AI 润色回调
    * @default undefined
-   * @description 当用户触发 AI 改写动作时调用；若未传则仅展示入口但不会真正执行外部改写
+   * @description 传入后在气泡工具栏展示 AI 改写入口，并在用户触发操作时调用
    */
   onAiPolish?: AiPolishCallback;
   /**

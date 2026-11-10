@@ -283,7 +283,7 @@ export const createAssetMentionExtension = (source: AssetMentionSource) => {
     /**
      * 编辑器以 markdown 收发内容，默认序列化会把 mention 降级成 `@标题` 纯文本，
      * 资产 id 随之丢失，资产条的已引用标记和重新打开时的 chip 都会失效。
-     * 这里保留 mention 的内联 HTML 形式，编辑器的 parseHtml 会在回读时还原成节点。
+     * 这里保留 mention 的内联 HTML 形式，Markdown 解析器会在回读时还原成节点。
      */
     renderMarkdown(node) {
       const id = escapeAttribute(String(node.attrs?.id ?? ""));

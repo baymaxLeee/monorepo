@@ -6,6 +6,7 @@ import { Input } from "@repo/design-system/shadcn/input";
 import { Popover, PopoverContent } from "@repo/design-system/shadcn/popover";
 import { Tooltip, TooltipTrigger } from "@repo/design-system/shadcn/tooltip";
 import { type Editor, getMarkRange } from "@tiptap/core";
+import type { Mark } from "@tiptap/pm/model";
 import { Copy, Pencil, Unlink } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,8 +32,39 @@ type LinkFormValues = z.infer<typeof linkSchema>;
 const ICON_BTN_CLS =
   "inline-flex size-7 cursor-pointer select-none items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
 
+export const resolveLinkFromElement = (editor: Editor, linkEl: HTMLElement) => {
+  const pos = editor.view.posAtDOM(linkEl, 0);
+  if (pos < 0) {
+    return null;
+  }
+
+  const $pos = editor.state.doc.resolve(pos);
+  const mark = $pos.nodeAfter?.marks.find((candidate) => candidate.type === editor.schema.marks.link);
+  if (!mark) {
+    return null;
+  }
+
+  const range = getMarkRange($pos, mark.type, mark.attrs);
+  return range ? { mark, range } : null;
+};
+
+export const replaceLinkText = (
+  editor: Editor,
+  range: { from: number; to: number },
+  currentMark: Mark,
+  text: string,
+  href: string,
+) => {
+  const firstNode = editor.state.doc.nodeAt(range.from);
+  const marks = [
+    ...currentMark.type.removeFromSet(firstNode?.marks ?? []),
+    currentMark.type.create({ ...currentMark.attrs, href }),
+  ];
+  editor.view.dispatch(editor.state.tr.replaceWith(range.from, range.to, editor.schema.text(text, marks)));
+};
+
 export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
-  const popupConfig = useEditorContext((ctx) => ctx.popupConfig);
+  const { popupConfig } = useEditorContext();
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const form = useForm<LinkFormValues>({
     resolver: zodResolver(linkSchema as never),
@@ -55,30 +87,16 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
 
   const updateLinkData = useCallback(
     (linkEl: HTMLElement) => {
-      const pos = editor.view.posAtDOM(linkEl, 0);
-      if (pos < 0) {
+      const link = resolveLinkFromElement(editor, linkEl);
+      if (!link) {
         return;
       }
 
-      const $pos = editor.state.doc.resolve(pos);
-      const linkMark = $pos.nodeAfter?.marks.find((m) => m.type.name === "link");
-
-      if (linkMark) {
-        const href = linkMark.attrs.href || "";
-        const $insidePos = editor.state.doc.resolve(pos + 1);
-        const range = getMarkRange($insidePos, editor.schema.marks.link);
-
-        let text = "";
-        if (range) {
-          text = editor.state.doc.textBetween(range.from, range.to, " ");
-        } else if (linkEl.textContent) {
-          text = linkEl.textContent;
-        }
-
-        setCurrentLink({ href, text });
-        setAnchorEl(linkEl);
-        setVisible(true);
-      }
+      const href = link.mark.attrs.href || "";
+      const text = editor.state.doc.textBetween(link.range.from, link.range.to, " ");
+      setCurrentLink({ href, text });
+      setAnchorEl(linkEl);
+      setVisible(true);
     },
     [editor],
   );
@@ -179,19 +197,11 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
 
   const handleUnlink = () => {
     if (anchorEl) {
-      const pos = editor.view.posAtDOM(anchorEl, 0);
-      if (pos >= 0) {
-        const $insidePos = editor.state.doc.resolve(pos + 1);
-        const range = getMarkRange($insidePos, editor.schema.marks.link);
-        if (range) {
-          editor.chain().setTextSelection(range).unsetLink().run();
-          setVisible(false);
-          return;
-        }
+      const link = resolveLinkFromElement(editor, anchorEl);
+      if (link) {
+        editor.view.dispatch(editor.state.tr.removeMark(link.range.from, link.range.to, link.mark.type));
       }
     }
-
-    editor.chain().focus().unsetLink().run();
     setVisible(false);
   };
 
@@ -201,22 +211,10 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     url = getFullUrl(url);
 
     if (anchorEl) {
-      const pos = editor.view.posAtDOM(anchorEl, 0);
-      if (pos >= 0) {
-        const $pos = editor.state.doc.resolve(pos);
-        const range = getMarkRange($pos, editor.schema.marks.link);
-        if (range) {
-          editor
-            .chain()
-            .setTextSelection(range)
-            .extendMarkRange("link")
-            .setLink({ href: url })
-            .insertContent(text)
-            .run();
-        }
+      const link = resolveLinkFromElement(editor, anchorEl);
+      if (link) {
+        replaceLinkText(editor, link.range, link.mark, text, url);
       }
-    } else {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).insertContent(text).run();
     }
 
     setVisible(false);
@@ -237,7 +235,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     >
       <PopoverContent
         anchor={anchorEl}
-        container={popupConfig.getContainer(editor.view.dom)}
+        container={popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
         positionerStyle={{ zIndex: popupConfig.zIndex }}
         ref={menuRef}
         side={mode === "preview" ? "top" : "bottom"}

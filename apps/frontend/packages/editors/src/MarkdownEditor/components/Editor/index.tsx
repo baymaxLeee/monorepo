@@ -1,5 +1,5 @@
 import { cn } from "@repo/shared";
-import type { AnyExtension } from "@tiptap/core";
+import { type AnyExtension, flattenExtensions, type JSONContent } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
 import { Color } from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
@@ -16,7 +16,6 @@ import {
   createBlockDragExtension,
   createCodeBlockFallbackExtension,
   createCodeBlockExtension,
-  createCommentExtension,
   createImageExtension,
   createIndentExtension,
   createPasteFlattenExtension,
@@ -49,17 +48,11 @@ import { FixedToolbar } from "../TopToolbar";
 const EMPTY_EXTENSIONS: AnyExtension[] = [];
 const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
 
-const normalizeMarkdownContent = (content: string | undefined, contentType: ContentType, parseHtml: boolean) => {
-  if (!content || contentType !== "markdown" || parseHtml) {
+const parseEditorContent = (content: string, contentType: ContentType): string | JSONContent => {
+  if (contentType !== "json" || content === "") {
     return content;
   }
-
-  const escapeMap: Record<string, string> = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-  };
-  return content.replace(/[&<>]/g, (ch) => escapeMap[ch]);
+  return JSON.parse(content) as JSONContent;
 };
 
 const serializeEditorContent = (editor: Editor, contentType: ContentType) => {
@@ -85,17 +78,29 @@ const useShallowStableExtensions = (extensions: AnyExtension[]) => {
   return stableRef.current;
 };
 
+const ensureUniqueExtensions = (extensions: AnyExtension[]) => {
+  const names = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const extension of flattenExtensions(extensions)) {
+    if (names.has(extension.name)) {
+      duplicates.add(extension.name);
+    }
+    names.add(extension.name);
+  }
+  if (duplicates.size > 0) {
+    throw new Error(`MarkdownEditor received duplicate TipTap extensions: ${[...duplicates].join(", ")}`);
+  }
+  return extensions;
+};
+
 const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((props, ref) => {
   const {
     contentType = "html",
-    parseHtml = true,
     toolbarMode = "bubble",
     extensions = EMPTY_EXTENSIONS,
     features,
     popupConfig,
     editable = false,
-    aiEnable = false,
-    commentEnable = false,
     value,
     defaultValue,
     placeholder,
@@ -110,11 +115,11 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
   } = props;
   const [maskVisible, setMaskVisible] = useState(false);
   const [menuType, setMenuType] = useState<MenuType>(MenuType.Toolbar);
-  const [viewReady, setViewReady] = useState(false);
   const isNearBottomRef = useRef(true);
   const isAutoScrollingRef = useRef(false);
-  const externalSyncFrameRef = useRef<number | null>(null);
-  const lastSyncValueRef = useRef<string | undefined>(undefined);
+  const lastSyncValueRef = useRef<string | undefined>(value);
+  const runtimeOptionsRef = useRef({ imageLoader, onUpload, placeholder });
+  runtimeOptionsRef.current = { imageLoader, onUpload, placeholder };
   const stableExtensions = useShallowStableExtensions(extensions);
   const codeBlockEnabled = features?.codeBlock !== false;
   const blockMenuEnabled = features?.blockMenu !== false;
@@ -143,11 +148,17 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     [getEditorPopupContainer, popupConfig?.zIndex],
   );
   const initialContent = useMemo(() => {
-    return normalizeMarkdownContent(value ?? defaultValue, contentType, parseHtml);
-  }, [contentType, defaultValue, parseHtml, value]);
+    const content = value ?? defaultValue;
+    return content === undefined ? undefined : parseEditorContent(content, contentType);
+  }, [contentType, defaultValue, value]);
 
-  const editorExtensions = useMemo(
-    () => [
+  const editorExtensions = useMemo(() => {
+    const resolvedExtensions: AnyExtension[] = [];
+    const tableExtension = createTableExtension({
+      getCellExtensions: () => resolvedExtensions,
+    });
+
+    resolvedExtensions.push(
       StarterKit.configure({
         code: false,
         codeBlock: false,
@@ -160,7 +171,10 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
           },
         },
       }),
-      createImageExtension({ onUpload, imageLoader }),
+      createImageExtension({
+        getImageLoader: () => runtimeOptionsRef.current.imageLoader,
+        getOnUpload: () => runtimeOptionsRef.current.onUpload,
+      }),
       TextStyle,
       Code.extend({
         excludes: contentType === "markdown" ? "_" : "",
@@ -175,24 +189,24 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
         },
       }),
       createTextAlignExtension(),
-      createTableExtension(),
+      tableExtension,
       createTableRowExtension(),
-      createTableHeaderExtension(),
+      createTableHeaderExtension({ showTableGrip: !blockDragEnabled }),
       createTableCellExtension(),
       TaskList,
       Markdown,
       createTaskItemExtension(),
-      ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
-      createCommentExtension(),
+      Placeholder.configure({ placeholder: () => runtimeOptionsRef.current.placeholder ?? "" }),
       createIndentExtension().configure({ contentType }),
       ...(codeBlockEnabled ? [createCodeBlockExtension()] : [createCodeBlockFallbackExtension()]),
-      ...(editable && blockDragEnabled ? [createBlockDragExtension()] : []),
-      ...(editable ? [createSelectionPersistenceExtension()] : []),
+      ...(blockDragEnabled ? [createBlockDragExtension()] : []),
+      createSelectionPersistenceExtension(),
       createPasteFlattenExtension({ codeBlock: codeBlockEnabled }),
       ...stableExtensions,
-    ],
-    [blockDragEnabled, codeBlockEnabled, contentType, editable, placeholder, stableExtensions],
-  );
+    );
+
+    return ensureUniqueExtensions(resolvedExtensions);
+  }, [blockDragEnabled, codeBlockEnabled, contentType, stableExtensions]);
 
   const handleEditorUpdate = useCallback(
     ({ editor }: { editor: Editor }) => {
@@ -243,8 +257,13 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
   );
 
   useEffect(() => {
-    setViewReady(!!editor);
-  }, [editor]);
+    if (editor && !editor.isDestroyed && editor.isEditable !== editable) {
+      if (!editable && blockDragEnabled) {
+        editor.commands.clearBlockDrag();
+      }
+      editor.setEditable(editable, false);
+    }
+  }, [blockDragEnabled, editable, editor]);
 
   useEffect(() => {
     if (!autoScrollToBottom) {
@@ -295,46 +314,19 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     if (!editor || editor.isDestroyed) {
       return;
     }
-    const normalizedValue = normalizeMarkdownContent(value, contentType, parseHtml);
-    if (typeof normalizedValue !== "string" || normalizedValue === lastSyncValueRef.current) {
+    if (value === undefined || value === lastSyncValueRef.current) {
       return;
     }
-    if (externalSyncFrameRef.current !== null) {
-      cancelAnimationFrame(externalSyncFrameRef.current);
-      externalSyncFrameRef.current = null;
-    }
-
-    externalSyncFrameRef.current = requestAnimationFrame(() => {
-      externalSyncFrameRef.current = null;
-      if (editor.isDestroyed) {
-        return;
-      }
-      lastSyncValueRef.current = normalizedValue;
-      editor
-        .chain()
-        .command(({ tr }) => {
-          tr.setMeta("addToHistory", false);
-          return true;
-        })
-        .setContent(normalizedValue, { contentType, emitUpdate: false })
-        .run();
-    });
-
-    return () => {
-      if (externalSyncFrameRef.current !== null) {
-        cancelAnimationFrame(externalSyncFrameRef.current);
-        externalSyncFrameRef.current = null;
-      }
-    };
-  }, [value, editor, contentType, parseHtml]);
-
-  useEffect(() => {
-    return () => {
-      if (externalSyncFrameRef.current !== null) {
-        cancelAnimationFrame(externalSyncFrameRef.current);
-      }
-    };
-  }, []);
+    lastSyncValueRef.current = value;
+    editor
+      .chain()
+      .command(({ tr }) => {
+        tr.setMeta("addToHistory", false);
+        return true;
+      })
+      .setContent(parseEditorContent(value, contentType), { contentType, emitUpdate: false })
+      .run();
+  }, [value, editor, contentType]);
 
   const renderToolbar = () => {
     if (menuType === MenuType.TableCell) {
@@ -348,14 +340,13 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
       return <TableRowMenu editor={editor} />;
     }
 
-    if (toolbarMode === "bubble") {
+    if (toolbarMode === "bubble" || onAiPolish) {
       return (
         <BubbleToolbar
-          appendTo={() => resolvedPopupConfig.getContainer(editor.view.dom)}
+          appendTo={() => resolvedPopupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
           editor={editor}
+          aiOnly={toolbarMode === "fixed"}
           zIndex={resolvedPopupConfig.zIndex}
-          aiEnable={aiEnable}
-          commentEnable={commentEnable}
         />
       );
     }
@@ -386,11 +377,9 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
         toolbarRender={toolbarRender}
         editable={editable}
       >
-        {editable && viewReady && (
+        {editable && editor && (
           <>
-            {toolbarMode === "fixed" && (
-              <FixedToolbar editor={editor} aiEnable={aiEnable} commentEnable={commentEnable} />
-            )}
+            {toolbarMode === "fixed" && <FixedToolbar editor={editor} />}
             {blockMenuEnabled && <BlockMenu editor={editor} />}
             {blockDragEnabled && <DragHandler editor={editor} />}
             <LinkMenu editor={editor} />

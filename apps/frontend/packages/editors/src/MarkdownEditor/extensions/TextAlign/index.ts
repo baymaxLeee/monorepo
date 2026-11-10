@@ -1,6 +1,6 @@
 import TiptapTextAlign from "@tiptap/extension-text-align";
 
-const textAlignTypes = ["heading", "paragraph", "listItem", "taskItem"];
+const textAlignTypes = ["heading", "paragraph"];
 
 export const createTextAlignExtension = () =>
   TiptapTextAlign.configure({

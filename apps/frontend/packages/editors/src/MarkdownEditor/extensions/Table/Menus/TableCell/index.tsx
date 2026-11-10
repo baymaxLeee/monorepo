@@ -5,6 +5,7 @@ import { AlignCenter, AlignLeft, AlignRight, Merge, Split } from "lucide-react";
 import type React from "react";
 
 import { useEditorContext } from "../../../../context";
+import { getMountedEditorDom } from "../../../../utils";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
 interface TableCellMenuProps {
@@ -12,12 +13,12 @@ interface TableCellMenuProps {
 }
 
 export const TableCellMenu: React.FC<TableCellMenuProps> = ({ editor }) => {
-  const popupConfig = useEditorContext((ctx) => ctx.popupConfig);
+  const { popupConfig } = useEditorContext();
   return (
     <BubbleMenu
       editor={editor}
       pluginKey="tableCellMenu"
-      appendTo={() => popupConfig.getContainer(editor.view.dom)}
+      appendTo={() => popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
       style={{ zIndex: popupConfig.zIndex }}
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}

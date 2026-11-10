@@ -12,6 +12,8 @@ import { isSelectionInsideTableCell } from "../../utils";
 export interface CreateImageExtensionOptions {
   onUpload?: (file: File) => Promise<string>;
   imageLoader?: (key: string) => Promise<string>;
+  getOnUpload?: () => ((file: File) => Promise<string>) | undefined;
+  getImageLoader?: () => ((key: string) => Promise<string>) | undefined;
 }
 
 interface ImageStorage {
@@ -26,7 +28,7 @@ declare module "@tiptap/core" {
   }
 
   interface Storage {
-    imageFile: ImageStorage;
+    image: ImageStorage;
   }
 }
 
@@ -38,7 +40,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
     title?: string;
     uploadId: string | null;
   };
-  const { onUpload, imageLoader } = (extension?.options ?? {}) as Partial<CreateImageExtensionOptions>;
+  const options = (extension?.options ?? {}) as Partial<CreateImageExtensionOptions>;
   const storage = extension?.storage as ImageStorage | undefined;
   const hasPendingFile = !!uploadId && !!storage?.pendingFiles.has(uploadId);
 
@@ -61,6 +63,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
 
     const load = async () => {
       try {
+        const imageLoader = options.getImageLoader?.() ?? options.imageLoader;
         const finalUrl = imageLoader ? await imageLoader(src) : src;
         if (cancelled) {
           return;
@@ -83,7 +86,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
     return () => {
       cancelled = true;
     };
-  }, [src]);
+  }, [options, src]);
 
   useEffect(() => {
     if (!hasPendingFile) {
@@ -107,6 +110,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
       }
 
       try {
+        const onUpload = options.getOnUpload?.() ?? options.onUpload;
         if (!onUpload) {
           throw new Error("onUpload is not configured");
         }
@@ -122,7 +126,7 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
         storage?.pendingFiles.delete(uploadId);
         if (typeof pos === "number" && !editor.isDestroyed) {
           const fresh = editor.state.doc.nodeAt(pos);
-          if (fresh && fresh.type.name === "image") {
+          if (fresh?.type.name === "image" && fresh.attrs.uploadId === uploadId) {
             const tr = editor.state.tr
               .setNodeMarkup(pos, undefined, {
                 ...fresh.attrs,
@@ -149,11 +153,12 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
 
     return () => {
       cancelled = true;
+      storage?.pendingFiles.delete(uploadId);
       if (blobUrl) {
         URL.revokeObjectURL(blobUrl);
       }
     };
-  }, []);
+  }, [editor, getPos, hasPendingFile, options, storage, uploadId]);
 
   return (
     <NodeViewWrapper
@@ -177,13 +182,20 @@ export const ImageNodeView: React.FC<NodeViewProps> = (props) => {
   );
 };
 
-export const createImageExtension = ({ onUpload, imageLoader }: CreateImageExtensionOptions = {}) =>
+export const createImageExtension = ({
+  onUpload,
+  imageLoader,
+  getOnUpload,
+  getImageLoader,
+}: CreateImageExtensionOptions = {}) =>
   TiptapImage.extend<CreateImageExtensionOptions, ImageStorage>({
     addOptions() {
       return {
         ...this.parent?.(),
         onUpload,
         imageLoader,
+        getOnUpload,
+        getImageLoader,
       };
     },
 
@@ -212,7 +224,8 @@ export const createImageExtension = ({ onUpload, imageLoader }: CreateImageExten
         insertImages:
           (files: File[]) =>
           ({ commands, state, tr }) => {
-            if (files.length === 0 || !this.options.onUpload) {
+            const upload = this.options.getOnUpload?.() ?? this.options.onUpload;
+            if (files.length === 0 || !upload) {
               return false;
             }
 

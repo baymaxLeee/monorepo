@@ -11,9 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@repo/design-system/shadcn/dropdown-menu";
 import { Input } from "@repo/design-system/shadcn/input";
-import { Menu, MenuItem, MenuItemGroup } from "@repo/design-system/shadcn/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/design-system/shadcn/popover";
-import { Textarea } from "@repo/design-system/shadcn/textarea";
 import { Tooltip, TooltipTrigger } from "@repo/design-system/shadcn/tooltip";
 import { cn } from "@repo/shared";
 import { type Editor, useEditorState } from "@tiptap/react";
@@ -23,12 +21,8 @@ import {
   AlignRight,
   Bold,
   ChevronDown,
-  ChevronsDownUp,
-  ChevronsUpDown,
   Code,
   Code2,
-  Copy,
-  CornerDownLeft,
   Heading,
   Heading1,
   Heading2,
@@ -43,50 +37,28 @@ import {
   List,
   ListChecks,
   ListOrdered,
-  MessageSquare,
   Outdent,
   Pilcrow,
   Quote,
   Redo2,
-  RefreshCw,
-  RotateCcw,
-  Send,
-  Sparkles,
-  Square,
   Strikethrough,
   Table as TableIcon,
   Underline,
   Undo2,
-  Wand2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useMemo, useRef, useState } from "react";
 
-import {
-  AiPolishStatus,
-  ALLOWED_IMAGE_ACCEPT,
-  BG_COLORS,
-  FONT_COLORS,
-  isAllowedImageFile,
-  URL_REGEX,
-} from "../../constants";
+import { ALLOWED_IMAGE_ACCEPT, BG_COLORS, FONT_COLORS, isAllowedImageFile, URL_REGEX } from "../../constants";
 import { useEditorContext } from "../../context";
-import { type ContentType, RewriteActionType, type ToolbarMode } from "../../interface";
-import {
-  applyBlocksToSelection,
-  extractSelectionToBlocks,
-  extractTextFromPartialJson,
-  getFullUrl,
-  parseSSEStream,
-  type SelectionSnapshot,
-} from "../../utils";
+import { type ContentType, type ToolbarMode } from "../../interface";
+import { getFullUrl, getMountedEditorDom } from "../../utils";
+import { AIPolishTrigger } from "../AIPolishPanel/AIPolishTrigger";
 import { EditorTooltipContent } from "../EditorTooltipContent";
 import { TableSelector } from "../TableSelector";
 
 interface IProps {
   editor: Editor;
-  aiEnable?: boolean;
-  commentEnable?: boolean;
+  aiOnly?: boolean;
   onOpenPolish?: () => void;
 }
 
@@ -374,6 +346,16 @@ export const ColorPickerContent = ({ editor, onClose }: { editor: Editor; onClos
 };
 
 const AlignDropdownItems = ({ editor, textAlign }: { editor: Editor; textAlign: string }) => {
+  const runListIndent = (direction: "indent" | "outdent") => {
+    if (editor.isActive("taskItem")) {
+      return editor.chain().focus()[direction === "indent" ? "sinkListItem" : "liftListItem"]("taskItem").run();
+    }
+    if (editor.isActive("listItem")) {
+      return editor.chain().focus()[direction === "indent" ? "sinkListItem" : "liftListItem"]("listItem").run();
+    }
+    return editor.chain().focus()[direction]().run();
+  };
+
   const handle = (key: "left" | "center" | "right" | "outdent" | "indent") => {
     switch (key) {
       case "left":
@@ -382,10 +364,14 @@ const AlignDropdownItems = ({ editor, textAlign }: { editor: Editor; textAlign: 
         editor.chain().focus().setTextAlign(key).run();
         break;
       case "outdent":
-        editor.chain().focus().outdent().run();
+        if (!runListIndent("outdent")) {
+          toast.add({ type: "warning", title: "已达到最小缩进层级" });
+        }
         break;
       case "indent":
-        editor.chain().focus().indent().run();
+        if (!runListIndent("indent")) {
+          toast.add({ type: "warning", title: "已达到最大缩进层级" });
+        }
         break;
     }
   };
@@ -429,7 +415,8 @@ const NodeTypeDropdownItems = ({
   activeNodeType: string;
   toolbarMode: ToolbarMode;
 }) => {
-  const codeBlockEnabled = useEditorContext((ctx) => ctx.features.codeBlock);
+  const { features } = useEditorContext();
+  const codeBlockEnabled = features.codeBlock;
   const handle = (key: string) => {
     let chain = editor.chain().focus();
 
@@ -576,366 +563,19 @@ const NodeTypeDropdownItems = ({
   );
 };
 
-export const AIPolishContent = ({
-  editor,
-  onClose,
-  statusRef,
-}: {
-  editor: Editor;
-  onClose: () => void;
-  statusRef?: React.MutableRefObject<AiPolishStatus>;
-}) => {
-  const inputRef = useRef<HTMLDivElement>(null);
-  const [triggerVisible, setTriggerVisible] = useState(false);
-  const [newTexts, setNewTexts] = useState<string[]>([]);
-  const [status, _setStatus] = useState<AiPolishStatus>(AiPolishStatus.Pending);
-  const setStatus = (s: AiPolishStatus) => {
-    _setStatus(s);
-    if (statusRef) {
-      statusRef.current = s;
-    }
-  };
-  const snapshotRef = useRef<SelectionSnapshot | undefined>(undefined);
-  const promptRef = useRef<string>("");
-  const actionTypeRef = useRef<RewriteActionType | undefined>(undefined);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const { setMaskVisible, onAiPolish, popupConfig } = useEditorContext(
-    ({ onAiPolish, setMaskVisible, popupConfig }) => ({
-      onAiPolish,
-      setMaskVisible,
-      popupConfig,
-    }),
-  );
-  const overlayContainer = popupConfig.getContainer(editor.view.dom);
-
-  const getInputValue = () => {
-    return inputRef.current?.innerText || "";
-  };
-
-  const setInputValue = (val: string) => {
-    if (inputRef.current) {
-      inputRef.current.innerText = val;
-      inputRef.current.dataset.empty = val ? "false" : "true";
-    }
-  };
-
-  useEffect(() => {
-    setMaskVisible?.(true);
-    return () => {
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = null;
-      setTriggerVisible(false);
-      setMaskVisible?.(false);
-    };
-  }, []);
-
-  const handlePolish = async () => {
-    if (actionTypeRef.current === RewriteActionType.ChatInDoc && !promptRef.current) {
-      toast.add({ type: "warning", title: "请输入指令" });
-      return;
-    }
-    try {
-      const snapshot = extractSelectionToBlocks(editor);
-      snapshotRef.current = snapshot;
-      if (snapshot.blocks.length === 0) {
-        toast.add({ type: "warning", title: "未选中文本" });
-        return;
-      }
-
-      abortControllerRef.current?.abort();
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-      setStatus(AiPolishStatus.Loading);
-
-      const content = snapshot.blocks.map((item) => ({
-        content: item.text,
-        type: item.type,
-      }));
-
-      const stream = await onAiPolish?.(
-        {
-          action: actionTypeRef.current!,
-          command: promptRef.current,
-          selected_content: content,
-        },
-        controller.signal,
-      );
-
-      if (!stream) {
-        throw new TypeError("AI 润色未返回有效流");
-      }
-
-      let accumulated = "";
-      for await (const token of parseSSEStream(stream)) {
-        if (controller.signal.aborted) {
-          break;
-        }
-        accumulated += token;
-        setInputValue(extractTextFromPartialJson(accumulated));
-      }
-
-      if (controller.signal.aborted) {
-        return;
-      }
-
-      let texts: string[];
-      try {
-        const parsed: { content: string; type: string }[] = JSON.parse(accumulated);
-        texts = parsed.map((item) => item.content);
-      } catch {
-        texts = [accumulated];
-      }
-
-      setInputValue(texts.join("\n"));
-      setNewTexts(texts);
-      setStatus(AiPolishStatus.Ready);
-    } catch (e) {
-      const error = e as { name?: string; message?: string };
-      if (error.name === "AbortError") {
-        return;
-      }
-      toast.add({ type: "warning", title: error.message || "AI 润色失败，请稍后重试" });
-      handleReset();
-    }
-  };
-
-  const handleReplace = () => {
-    if (!snapshotRef.current) {
-      return;
-    }
-    applyBlocksToSelection(editor, snapshotRef.current, newTexts);
-    toast.add({ type: "success", title: "AI 润色成功" });
-    handleReset();
-  };
-
-  const handleInsert = () => {
-    if (!snapshotRef.current) {
-      return;
-    }
-    const text = getInputValue();
-    if (!text) {
-      return;
-    }
-
-    editor.chain().insertContentAt(snapshotRef.current.range.to, text).run();
-    toast.add({ type: "success", title: "AI 插入成功" });
-    handleReset();
-  };
-
-  const handleMenuClick = (key: RewriteActionType) => {
-    actionTypeRef.current = key;
-    handlePolish();
-    setTriggerVisible(false);
-  };
-
-  const onInputFocus = () => {
-    const value = getInputValue();
-    if (!value) {
-      setTriggerVisible(true);
-    }
-  };
-
-  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLDivElement;
-    const isEmpty =
-      !target.textContent?.trim() &&
-      (!target.children.length || (target.children.length === 1 && target.children[0].nodeName === "BR"));
-
-    if (isEmpty) {
-      target.dataset.empty = "true";
-      if (target.innerHTML === "<br>") {
-        target.innerHTML = "";
-      }
-      setTriggerVisible(true);
-    } else {
-      target.dataset.empty = "false";
-      setTriggerVisible(false);
-    }
-  };
-
-  const handleStop = () => {
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    toast.add({ type: "warning", title: "已终止" });
-    handleReset(false);
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(getInputValue()).then(() => {
-      toast.add({ type: "success", title: "复制成功" });
-    });
-  };
-
-  const handleRetry = () => {
-    handlePolish();
-  };
-
-  const handleReset = (shouldClose: boolean = true) => {
-    setInputValue("");
-    setNewTexts([]);
-    setStatus(AiPolishStatus.Pending);
-    setTriggerVisible(true);
-    if (shouldClose) {
-      editor.chain().focus().setTextSelection(editor.state.selection.to).run();
-      onClose();
-    }
-  };
-
-  const handleSend = () => {
-    actionTypeRef.current = RewriteActionType.ChatInDoc;
-    promptRef.current = getInputValue();
-    handlePolish();
-  };
-
-  const render = () => {
-    if (status === AiPolishStatus.Pending) {
-      return (
-        <Tooltip>
-          <TooltipTrigger
-            render={<Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleSend} />}
-          >
-            <Send className="size-3.5" />
-          </TooltipTrigger>
-          <EditorTooltipContent>发送</EditorTooltipContent>
-        </Tooltip>
-      );
-    } else if (status === AiPolishStatus.Loading) {
-      return (
-        <Tooltip>
-          <TooltipTrigger
-            render={<Button size="icon" variant="default" className="size-7 rounded-full" onClick={handleStop} />}
-          >
-            <Square className="size-3 fill-current" />
-          </TooltipTrigger>
-          <EditorTooltipContent>终止</EditorTooltipContent>
-        </Tooltip>
-      );
-    }
-
-    return (
-      <>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={handleReplace}
-            className="h-7 gap-1 border border-[#3384ff] bg-gradient-to-r from-[#3b91ff] via-[#0d5eff] to-[#c069ff] text-white shadow-[0_1px_1px_0_rgba(0,0,0,0.15)] hover:from-[#3b91ff] hover:via-[#0d5eff] hover:to-[#c069ff] hover:opacity-90"
-          >
-            <RefreshCw className="size-3.5" />
-            替换
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleInsert} className="h-7 gap-1">
-            <CornerDownLeft className="size-3.5" />
-            插入
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger render={<Button size="icon" variant="outline" className="size-7" onClick={handleCopy} />}>
-              <Copy className="size-3.5" />
-            </TooltipTrigger>
-            <EditorTooltipContent>复制</EditorTooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger render={<Button size="icon" variant="outline" className="size-7" onClick={handleRetry} />}>
-              <RefreshCw className="size-3.5" />
-            </TooltipTrigger>
-            <EditorTooltipContent>重试</EditorTooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={<Button size="icon" variant="outline" className="size-7" onClick={() => handleReset(false)} />}
-            >
-              <RotateCcw className="size-3.5" />
-            </TooltipTrigger>
-            <EditorTooltipContent>重置</EditorTooltipContent>
-          </Tooltip>
-        </div>
-      </>
-    );
-  };
-
-  return (
-    <Popover open={triggerVisible} onOpenChange={setTriggerVisible}>
-      <div className="flex w-[600px] flex-wrap items-center gap-2 px-3 py-2">
-        <div
-          ref={inputRef}
-          className={cn(
-            "max-h-60 min-h-[1em] flex-grow-[9999] overflow-y-auto break-words leading-normal outline-none",
-            "[&>p]:m-0",
-            "before:hidden data-[empty=true]:before:block data-[empty=true]:before:cursor-text data-[empty=true]:before:text-muted-foreground data-[empty=true]:before:content-[attr(data-placeholder)]",
-          )}
-          data-empty="true"
-          spellCheck
-          suppressContentEditableWarning
-          contentEditable={status === AiPolishStatus.Pending}
-          data-placeholder="输入优化文本指令"
-          tabIndex={0}
-          role="textbox"
-          aria-label="开始输入以编辑文本"
-          inputMode="text"
-          onFocus={onInputFocus}
-          onInput={handleInput}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-        />
-        <div className="flex max-w-full flex-grow justify-between gap-2">{render()}</div>
-      </div>
-      <PopoverContent
-        anchor={inputRef}
-        side="bottom"
-        align="start"
-        sideOffset={4}
-        className="w-auto rounded-lg border bg-popover p-1 shadow-md"
-        container={overlayContainer}
-        positionerStyle={{ zIndex: popupConfig.zIndex }}
-        initialFocus={false}
-      >
-        <Menu inline>
-          <MenuItemGroup label="快捷指令">
-            <MenuItem icon={<Wand2 />} onClick={() => handleMenuClick(RewriteActionType.Polish)}>
-              润色
-            </MenuItem>
-            <MenuItem icon={<ChevronsUpDown />} onClick={() => handleMenuClick(RewriteActionType.Expansion)}>
-              扩写
-            </MenuItem>
-            <MenuItem icon={<ChevronsDownUp />} onClick={() => handleMenuClick(RewriteActionType.Abbreviation)}>
-              缩写
-            </MenuItem>
-          </MenuItemGroup>
-        </Menu>
-      </PopoverContent>
-    </Popover>
-  );
-};
 interface ToolbarContentProps {
   editor: Editor;
-  aiEnable?: boolean;
-  commentEnable?: boolean;
   onOpenPolish?: () => void;
 }
 
-const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: ToolbarContentProps) => {
-  const { codeBlockEnabled, contentType, toolbarMode, toolbarRender, onUpload, popupConfig } = useEditorContext(
-    (ctx) => ({
-      codeBlockEnabled: ctx.features.codeBlock,
-      contentType: ctx.contentType,
-      toolbarMode: ctx.toolbarMode,
-      toolbarRender: ctx.toolbarRender,
-      onUpload: ctx.onUpload,
-      popupConfig: ctx.popupConfig,
-    }),
-  );
+const ToolbarContent = ({ editor, onOpenPolish }: ToolbarContentProps) => {
+  const { features, contentType, toolbarMode, toolbarRender, onUpload, popupConfig } = useEditorContext();
+  const codeBlockEnabled = features.codeBlock;
   const [linkUrl, setLinkUrl] = useState("");
   const [linkVisible, setLinkVisible] = useState(false);
-  const [comment, setComment] = useState("");
-  const [commentVisible, setCommentVisible] = useState(false);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const overlayContainer = popupConfig.getContainer(editor.view.dom);
+  const overlayContainer = popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body);
 
   const handleImageClick = () => {
     if (editorState.isImage) {
@@ -984,10 +624,6 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
         canUndo: can.undo(),
         canRedo: can.redo(),
         canColor: !!(can.setColor?.("#000") && can.setHighlight?.({ color: "#000" })),
-        canAddComment: !e.state.selection.empty,
-        selectionTextLength: e.state.selection.empty
-          ? 0
-          : e.state.doc.textBetween(e.state.selection.from, e.state.selection.to, " ").length,
         currentColor: (e.getAttributes("textStyle").color as string | undefined) ?? null,
         currentBg: (e.getAttributes("highlight").color as string | undefined) ?? null,
         canChangeType: computeCanChangeType(e, contentType),
@@ -1023,8 +659,6 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
         prev.canUndo === next.canUndo &&
         prev.canRedo === next.canRedo &&
         prev.canColor === next.canColor &&
-        prev.canAddComment === next.canAddComment &&
-        prev.selectionTextLength === next.selectionTextLength &&
         prev.currentColor === next.currentColor &&
         prev.currentBg === next.currentBg &&
         prev.canChangeType === next.canChangeType
@@ -1044,19 +678,6 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
   };
 
   const linkInvalid = useMemo(() => !URL_REGEX.test(linkUrl), [linkUrl]);
-
-  const handleAddComment = () => {
-    if (!editorState.canAddComment) {
-      return;
-    }
-    if (!comment.trim()) {
-      toast.add({ type: "warning", title: "请输入评论内容" });
-      return;
-    }
-    editor.chain().focus().addComment(uuidv4()).run();
-    setCommentVisible(false);
-    setComment("");
-  };
 
   /** 包装 IconButton + Tooltip 的统一封装 */
   const IconBtn = ({
@@ -1101,30 +722,7 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
       className="flex h-9 select-none items-center px-1 text-sm leading-tight text-foreground"
       onMouseDownCapture={preventToolbarMouseDown}
     >
-      {aiEnable &&
-        editorState.canColor &&
-        editorState.selectionTextLength > 0 &&
-        editorState.selectionTextLength <= 500 && (
-          <>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="AI 润色"
-                    className={cn(triggerCls(), "text-blue-600 [&>svg]:size-4")}
-                    onClick={() => onOpenPolish?.()}
-                  />
-                }
-              >
-                <Sparkles />
-                <span className="text-xs">AI 润色</span>
-              </TooltipTrigger>
-              <EditorTooltipContent>AI 润色</EditorTooltipContent>
-            </Tooltip>
-            <span className={dividerCls} />
-          </>
-        )}
+      {onOpenPolish && <AIPolishTrigger editor={editor} onOpen={onOpenPolish} showDivider />}
       {toolbarMode === "fixed" && (
         <>
           <IconBtn
@@ -1422,59 +1020,6 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
           />
         </>
       )}
-      {commentEnable && (
-        <>
-          <span className={dividerCls} />
-          <Popover
-            open={commentVisible}
-            onOpenChange={(v) => {
-              if (!editorState.canAddComment && v) {
-                return;
-              }
-              setCommentVisible(v);
-            }}
-          >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <PopoverTrigger
-                    type="button"
-                    disabled={!editorState.canAddComment}
-                    aria-label="评论"
-                    className={btnCls({
-                      isDisabled: !editorState.canAddComment,
-                    })}
-                  />
-                }
-              >
-                <MessageSquare />
-              </TooltipTrigger>
-              <EditorTooltipContent>评论</EditorTooltipContent>
-            </Tooltip>
-            <PopoverContent
-              align="end"
-              className="w-64 p-3"
-              container={overlayContainer}
-              positionerStyle={{ zIndex: popupConfig.zIndex }}
-            >
-              <Textarea
-                placeholder="输入评论"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                className="mb-2 min-h-20"
-              />
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCommentVisible(false)}>
-                  取消
-                </Button>
-                <Button size="sm" onClick={handleAddComment}>
-                  确认
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </>
-      )}
       {toolbarRender && (
         <>
           <span className={dividerCls} />
@@ -1494,9 +1039,15 @@ const ToolbarContent = ({ editor, aiEnable, commentEnable, onOpenPolish }: Toolb
 };
 
 export const Toolbar: React.FC<IProps> = (props) => {
-  const { editor, aiEnable, commentEnable, onOpenPolish } = props;
+  const { aiOnly = false, editor, onOpenPolish } = props;
 
-  return (
-    <ToolbarContent editor={editor} aiEnable={aiEnable} commentEnable={commentEnable} onOpenPolish={onOpenPolish} />
-  );
+  if (aiOnly) {
+    return (
+      <div className="flex h-9 select-none items-center px-1 text-sm leading-tight text-foreground">
+        {onOpenPolish && <AIPolishTrigger editor={editor} onOpen={onOpenPolish} />}
+      </div>
+    );
+  }
+
+  return <ToolbarContent editor={editor} onOpenPolish={onOpenPolish} />;
 };

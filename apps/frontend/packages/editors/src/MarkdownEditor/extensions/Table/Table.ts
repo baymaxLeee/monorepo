@@ -1,90 +1,94 @@
-import { type JSONContent, mergeAttributes } from "@tiptap/core";
+import {
+  type AnyExtension,
+  type JSONContent,
+  type MarkdownParseHelpers,
+  type MarkdownToken,
+  mergeAttributes,
+} from "@tiptap/core";
 import { Table as TiptapTable } from "@tiptap/extension-table";
-import TaskItem from "@tiptap/extension-task-item";
-import TaskList from "@tiptap/extension-task-list";
 import { MarkdownManager } from "@tiptap/markdown";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
-import StarterKit from "@tiptap/starter-kit";
-
-import { createCodeBlockExtension } from "../CodeBlock";
 
 const tableClassName = "markdown-editor-table-table";
 const tableWrapperClassName = "markdown-editor-table-wrapper";
-const TABLE_CELL_NEWLINE_TOKEN = "\\n";
-let cellMarkdownManager: MarkdownManager | null = null;
-
-export const resetCellMarkdownManagerForTest = () => {
-  cellMarkdownManager = null;
-};
-
-export const getCellMarkdownManager = () => {
-  if (cellMarkdownManager) {
-    return cellMarkdownManager;
-  }
-
-  cellMarkdownManager = new MarkdownManager({
-    extensions: [
-      StarterKit.configure({
-        codeBlock: false,
-      }),
-      createCodeBlockExtension(),
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-    ],
-  });
-
-  return cellMarkdownManager;
-};
 
 export const createParagraphNode = (content: JSONContent[] = []): JSONContent => ({
   type: "paragraph",
   content,
 });
 
-export const parseTableCellContent = (
-  cell: { text?: string; tokens?: any[] },
-  helpers: {
-    createNode: (type: string, attrs?: any, content?: JSONContent[]) => JSONContent;
-    parseInline: (tokens: any[]) => JSONContent[];
-  },
-): JSONContent[] => {
-  const rawText = (cell.text ?? "").replace(/\\n/g, "\n");
+interface TableCellToken {
+  text?: string;
+  tokens?: MarkdownToken[];
+}
 
-  if (!rawText.trim()) {
-    return [createParagraphNode(helpers.parseInline(cell.tokens ?? []))];
+interface TableExtensionOptions {
+  getCellExtensions: () => AnyExtension[];
+}
+
+const decodeTableCellMarkdown = (value: string): string => {
+  let decoded = "";
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character !== "\\") {
+      decoded += character;
+      continue;
+    }
+
+    const nextCharacter = value[index + 1];
+    if (nextCharacter === "\\") {
+      decoded += "\\";
+      index += 1;
+    } else if (nextCharacter === "n") {
+      decoded += "\n";
+      index += 1;
+    } else {
+      decoded += character;
+    }
   }
 
-  const parsed = getCellMarkdownManager().parse(rawText);
-  const content = parsed.content?.filter(Boolean);
-
-  if (!content?.length) {
-    return [createParagraphNode(helpers.parseInline(cell.tokens ?? []))];
-  }
-
-  return content;
+  return decoded;
 };
 
-export const serializeTableCellContent = (cell: JSONContent | undefined): string => {
+const escapeTablePipes = (value: string) =>
+  value.replace(/\\*\|/g, (match) => {
+    const slashCount = match.length - 1;
+    return slashCount % 2 === 1 ? match : `${"\\".repeat(slashCount)}\\|`;
+  });
+
+const encodeTableCellMarkdown = (value: string): string =>
+  escapeTablePipes(value.replace(/\\/g, "\\\\").replace(/\r\n?|\n/g, "\\n"));
+
+export const parseTableCellContent = (
+  cell: TableCellToken,
+  helpers: MarkdownParseHelpers,
+  manager: MarkdownManager,
+): JSONContent[] => {
+  const rawMarkdown = decodeTableCellMarkdown(cell.text ?? "");
+  if (!rawMarkdown.trim()) {
+    return [createParagraphNode(helpers.parseInline(cell.tokens ?? []))];
+  }
+
+  const content = manager.parse(rawMarkdown).content?.filter(Boolean);
+  return content?.length ? content : [createParagraphNode(helpers.parseInline(cell.tokens ?? []))];
+};
+
+export const serializeTableCellContent = (cell: JSONContent | undefined, manager: MarkdownManager): string => {
   const content = cell?.content?.filter(Boolean);
 
   if (!content?.length) {
     return "";
   }
 
-  return getCellMarkdownManager()
-    .serialize({
-      type: "doc",
-      content,
-    })
-    .replace(/\n+$/g, "")
-    .replace(/\n/g, TABLE_CELL_NEWLINE_TOKEN);
+  const rendered = manager.serialize({ type: "doc", content }).replace(/\n+$/g, "");
+
+  return encodeTableCellMarkdown(rendered);
 };
 
-export const renderTableToMarkdown = (node: JSONContent, _helpers: unknown): string => {
+export const renderTableToMarkdown = (node: JSONContent, manager: MarkdownManager): string => {
   const rows: Array<Array<{ isHeader: boolean; text: string }>> = [];
 
   node.content?.forEach((row) => {
@@ -92,7 +96,7 @@ export const renderTableToMarkdown = (node: JSONContent, _helpers: unknown): str
 
     row.content?.forEach((cell) => {
       cells.push({
-        text: serializeTableCellContent(cell),
+        text: serializeTableCellContent(cell, manager),
         isHeader: cell.type === "tableHeader",
       });
     });
@@ -144,8 +148,13 @@ export const renderTableToMarkdown = (node: JSONContent, _helpers: unknown): str
   return output;
 };
 
-export const createTableExtension = () => {
+export const createTableExtension = ({ getCellExtensions }: TableExtensionOptions) => {
   const tableQuickInsertKey = new PluginKey("tableQuickInsert");
+  let cellMarkdownManager: MarkdownManager | null = null;
+  const getCellMarkdownManager = () => {
+    cellMarkdownManager ??= new MarkdownManager({ extensions: getCellExtensions() });
+    return cellMarkdownManager;
+  };
 
   return TiptapTable.extend({
     renderHTML({ HTMLAttributes }) {
@@ -160,19 +169,23 @@ export const createTableExtension = () => {
 
     parseMarkdown(token, helpers) {
       const rows: JSONContent[] = [];
+      const tableToken = token as MarkdownToken & {
+        header?: TableCellToken[];
+        rows?: TableCellToken[][];
+      };
 
-      if (token.header) {
-        const headerCells = token.header.map((cell: { text?: string; tokens?: any[] }) =>
-          helpers.createNode("tableHeader", {}, parseTableCellContent(cell, helpers)),
+      if (tableToken.header) {
+        const headerCells = tableToken.header.map((cell) =>
+          helpers.createNode("tableHeader", {}, parseTableCellContent(cell, helpers, getCellMarkdownManager())),
         );
 
         rows.push(helpers.createNode("tableRow", {}, headerCells));
       }
 
-      if (token.rows) {
-        token.rows.forEach((row: Array<{ text?: string; tokens?: any[] }>) => {
+      if (tableToken.rows) {
+        tableToken.rows.forEach((row) => {
           const bodyCells = row.map((cell) =>
-            helpers.createNode("tableCell", {}, parseTableCellContent(cell, helpers)),
+            helpers.createNode("tableCell", {}, parseTableCellContent(cell, helpers, getCellMarkdownManager())),
           );
 
           rows.push(helpers.createNode("tableRow", {}, bodyCells));
@@ -183,7 +196,7 @@ export const createTableExtension = () => {
     },
 
     renderMarkdown(node) {
-      return renderTableToMarkdown(node, undefined);
+      return renderTableToMarkdown(node, getCellMarkdownManager());
     },
 
     addProseMirrorPlugins() {
@@ -277,6 +290,9 @@ export const createTableExtension = () => {
               }
 
               const target = event.target as HTMLElement;
+              if (target.closest("[data-markdown-editor-table-control]")) {
+                return;
+              }
               const tableEl = target.closest("table");
               if (!tableEl || !editorView.dom.contains(tableEl)) {
                 return;
@@ -341,5 +357,5 @@ export const createTableExtension = () => {
         }),
       ];
     },
-  }).configure({ resizable: true, lastColumnResizable: false });
+  }).configure({ resizable: true });
 };

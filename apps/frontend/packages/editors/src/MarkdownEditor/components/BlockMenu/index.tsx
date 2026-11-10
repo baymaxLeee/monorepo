@@ -24,6 +24,7 @@ import { useRef, useState } from "react";
 
 import { ALLOWED_IMAGE_ACCEPT, isAllowedImageFile } from "../../constants";
 import { useEditorContext } from "../../context";
+import { getMountedEditorDom } from "../../utils";
 import { TableSelector } from "../TableSelector";
 
 interface BlockMenuProps {
@@ -44,12 +45,9 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
   const [visible, setVisible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { codeBlockEnabled, onUpload, popupConfig } = useEditorContext((ctx) => ({
-    codeBlockEnabled: ctx.features.codeBlock,
-    onUpload: ctx.onUpload,
-    popupConfig: ctx.popupConfig,
-  }));
-  const popupContainer = popupConfig.getContainer(editor.view.dom);
+  const { features, onUpload, popupConfig } = useEditorContext();
+  const codeBlockEnabled = features.codeBlock;
+  const popupContainer = popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body);
   const positionerStyle = { zIndex: popupConfig.zIndex };
 
   const handleInsert = (command: () => void) => {

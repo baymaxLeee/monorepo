@@ -1,39 +1,30 @@
+import { cn } from "@repo/shared";
 import { isNodeSelection } from "@tiptap/core";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
-import { AiPolishStatus } from "../../constants";
 import { isCellSelection } from "../../extensions/Table/utils";
-import { getMountedEditorDom, getPortalPosition } from "../../utils";
-import { AIPolishContent, Toolbar } from "../Toolbar";
+import { getMountedEditorDom } from "../../utils";
+import { AIPolishPanel } from "../AIPolishPanel";
+import { Toolbar } from "../Toolbar";
 
 interface IProps {
   editor: Editor;
   appendTo?: HTMLElement | (() => HTMLElement);
   zIndex?: number;
-  aiEnable?: boolean;
-  commentEnable?: boolean;
+  aiOnly?: boolean;
 }
-
-interface PolishPosition {
-  top: number;
-  left: number;
-}
-
-const POSITION_EPSILON = 0.5;
 
 /** BubbleMenu 容器的稳定 hook class（无样式职责，用于 polish panel 定位查询） */
 const BUBBLE_TOOLBAR_HOOK_CLASS = "markdown-editor-bubble-toolbar";
 /** 浮起气泡工具栏容器（高保真还原自原 BubbleToolbar/index.less） */
-const FLOATING_PANEL_CLS = `${BUBBLE_TOOLBAR_HOOK_CLASS} relative z-[101] rounded-md border bg-background text-sm text-foreground shadow-lg`;
-/** AI 润色面板（独立 portal，定位模式跟随挂载容器） */
-const POLISH_PANEL_CLS = "rounded-md border bg-background text-sm text-foreground shadow-lg";
+const FLOATING_PANEL_CLS = `${BUBBLE_TOOLBAR_HOOK_CLASS} relative rounded-md border bg-background text-sm text-foreground shadow-lg`;
 /** 用于 closest 查找编辑器根容器的稳定 hook */
 const EDITOR_ROOT_CLASS = "markdown-editor";
 const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
+const BUBBLE_MENU_PLUGIN_KEY = "markdownEditorBubbleToolbar";
 
 const isValidSelection = (editor: Editor) => {
   const { selection } = editor.state;
@@ -53,25 +44,13 @@ const isValidSelection = (editor: Editor) => {
 };
 
 export const BubbleToolbar: React.FC<IProps> = (props) => {
-  const { editor, appendTo, zIndex, aiEnable } = props;
+  const { editor, appendTo, zIndex, aiOnly = false } = props;
 
   const [polishVisible, setPolishVisible] = useState(false);
-  const [polishPos, setPolishPos] = useState<PolishPosition | null>(null);
   const [showCentered, setShowCentered] = useState(false);
-  const polishRef = useRef<HTMLDivElement>(null);
   const bubbleToolbarRef = useRef<HTMLDivElement>(null);
-  const polishStatusRef = useRef<AiPolishStatus>(AiPolishStatus.Pending);
   const isRightClickRef = useRef(false);
-  const showCenteredRef = useRef(false);
   const dragRef = useRef({ selecting: false, scrolled: false });
-  const anchorRef = useRef<{
-    top: number;
-    bottom: number;
-    centerX: number;
-  } | null>(null);
-  const polishCenteredRef = useRef(false);
-  const lastPolishPosRef = useRef<PolishPosition | null>(null);
-  const skipNextResizeAdjustRef = useRef(false);
 
   const getPortalContainer = useCallback(() => {
     if (typeof appendTo === "function") return appendTo();
@@ -91,7 +70,6 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
       isRightClickRef.current = e.button === 2;
       if (e.button === 0) {
         dragRef.current = { selecting: true, scrolled: false };
-        showCenteredRef.current = false;
         setShowCentered(false);
       }
     };
@@ -99,7 +77,6 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     const onMouseUp = () => {
       const { selecting, scrolled } = dragRef.current;
       if (selecting && scrolled && isValidSelection(editor)) {
-        showCenteredRef.current = true;
         setShowCentered(true);
       }
       dragRef.current.selecting = false;
@@ -123,8 +100,7 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
 
   useEffect(() => {
     const handler = () => {
-      if (editor.state.selection.empty && showCenteredRef.current) {
-        showCenteredRef.current = false;
+      if (editor.state.selection.empty) {
         setShowCentered(false);
       }
     };
@@ -134,79 +110,47 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     };
   }, [editor]);
 
-  const shouldShow = useCallback(({ editor }: { editor: Editor }) => {
-    if (showCenteredRef.current) {
-      return false;
-    }
-    if (isRightClickRef.current) {
-      return false;
-    }
-    return isValidSelection(editor);
-  }, []);
+  const shouldShow = useCallback(
+    ({ editor }: { editor: Editor }) => {
+      if (isRightClickRef.current) {
+        return false;
+      }
+      if (polishVisible) {
+        return !editor.state.selection.empty;
+      }
+      if (aiOnly) {
+        const { from, to, empty } = editor.state.selection;
+        return !empty && editor.state.doc.textBetween(from, to, " ").trim().length > 0;
+      }
+      return isValidSelection(editor);
+    },
+    [aiOnly, polishVisible],
+  );
 
-  const getEditorCenterPos = (): PolishPosition | null => {
+  const getReferencedVirtualElement = useCallback(() => {
+    if (!showCentered) {
+      return null;
+    }
     const wrapper = getMountedEditorDom(editor)?.closest(`.${EDITOR_ROOT_CLASS}`) as HTMLElement | null;
     if (!wrapper) {
       return null;
     }
     const rect = wrapper.getBoundingClientRect();
+    const centerRect = new DOMRect(rect.left + rect.width / 2, rect.top + rect.height / 2, 0, 0);
     return {
-      top: rect.top + rect.height / 2,
-      left: rect.left + rect.width / 2,
+      getBoundingClientRect: () => centerRect,
     };
-  };
-
-  const getCurrentToolbarPos = (): PolishPosition | null => {
-    const toolbar = bubbleToolbarRef.current;
-    if (!toolbar) {
-      return null;
-    }
-    const rect = toolbar.getBoundingClientRect();
-    return {
-      top: rect.top,
-      left: rect.left,
-    };
-  };
+  }, [editor, showCentered]);
 
   const handleOpenPolish = useCallback(() => {
-    const { selection } = editor.state;
-    if (selection.empty) {
+    if (editor.state.selection.empty) {
       return;
-    }
-
-    polishCenteredRef.current = showCenteredRef.current;
-    skipNextResizeAdjustRef.current = true;
-    if (showCenteredRef.current) {
-      const nextPos = getEditorCenterPos();
-      lastPolishPosRef.current = nextPos;
-      setPolishPos(nextPos);
-    } else {
-      const toolbarPos = getCurrentToolbarPos();
-      const fromCoords = editor.view.coordsAtPos(selection.from);
-      const toCoords = editor.view.coordsAtPos(selection.to);
-      anchorRef.current = {
-        top: Math.min(fromCoords.top, toCoords.top),
-        bottom: Math.max(fromCoords.bottom, toCoords.bottom),
-        centerX: (fromCoords.left + toCoords.left) / 2,
-      };
-      const nextPos = toolbarPos ?? {
-        top: toCoords.bottom + 8,
-        left: anchorRef.current.centerX,
-      };
-      lastPolishPosRef.current = nextPos;
-      setPolishPos(nextPos);
     }
     setPolishVisible(true);
   }, [editor]);
 
   const handleClosePolish = useCallback(() => {
-    if (polishStatusRef.current !== AiPolishStatus.Pending) {
-      return;
-    }
     setPolishVisible(false);
-    setPolishPos(null);
-    lastPolishPosRef.current = null;
-    skipNextResizeAdjustRef.current = false;
     editor.chain().focus().setTextSelection(editor.state.selection.to).run();
   }, [editor]);
 
@@ -238,134 +182,56 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [polishVisible, handleClosePolish]);
 
-  const adjustPolishPosition = useCallback(() => {
-    if (!polishRef.current || polishCenteredRef.current) {
-      return;
-    }
-    const el = polishRef.current;
-    const { width, height } = el.getBoundingClientRect();
-    const anchor = anchorRef.current;
-
-    const wrapper = getMountedEditorDom(editor)?.closest(`.${EDITOR_ROOT_CLASS}`) as HTMLElement | null;
-    const bounds = wrapper?.getBoundingClientRect() ?? {
-      top: 0,
-      bottom: window.innerHeight,
-      left: 0,
-      right: window.innerWidth,
-    };
-    const pad = 8;
-
-    const baseLeft = anchor ? anchor.centerX : (lastPolishPosRef.current?.left ?? 0);
-    let left = baseLeft - width / 2;
-    left = Math.max(bounds.left + pad, Math.min(left, bounds.right - width - pad));
-
-    const baseTop = anchor ? anchor.bottom + 8 : (lastPolishPosRef.current?.top ?? 0);
-    let top = baseTop;
-    if (top + height > bounds.bottom - pad && anchor) {
-      top = anchor.top - height - 8;
-    }
-    top = Math.max(bounds.top + pad, Math.min(top, bounds.bottom - height - pad));
-
-    const prevPos = lastPolishPosRef.current;
-    const positionChanged =
-      !prevPos || Math.abs(top - prevPos.top) > POSITION_EPSILON || Math.abs(left - prevPos.left) > POSITION_EPSILON;
-
-    if (positionChanged) {
-      const nextPos = { top, left };
-      lastPolishPosRef.current = nextPos;
-      setPolishPos(nextPos);
+  const updateBubbleMenuPosition = useCallback(() => {
+    if (!editor.isDestroyed) {
+      editor.view.dispatch(editor.state.tr.setMeta(BUBBLE_MENU_PLUGIN_KEY, "updatePosition"));
     }
   }, [editor]);
 
   useEffect(() => {
-    if (!polishVisible || !polishRef.current || polishCenteredRef.current) {
+    const element = bubbleToolbarRef.current;
+    if (!element) {
       return;
     }
-    const el = polishRef.current;
-    const ro = new ResizeObserver(() => {
-      if (skipNextResizeAdjustRef.current) {
-        skipNextResizeAdjustRef.current = false;
-        return;
-      }
-      adjustPolishPosition();
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [polishVisible, adjustPolishPosition]);
 
-  const centeredPos = showCentered ? getEditorCenterPos() : null;
+    const frame = requestAnimationFrame(updateBubbleMenuPosition);
+    if (!polishVisible) {
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const observer = new ResizeObserver(updateBubbleMenuPosition);
+    observer.observe(element);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [polishVisible, showCentered, updateBubbleMenuPosition]);
+
   const portalContainer = getPortalContainer();
-  const nestedPanelZIndex = zIndex === undefined ? undefined : zIndex + 1;
-  const centerStyle = {
-    transform: "translate(-50%, -50%)",
-    whiteSpace: "nowrap" as const,
-  };
 
   return (
-    <>
-      {!polishVisible && !showCentered && (
-        <BubbleMenu
-          ref={bubbleToolbarRef}
-          className={FLOATING_PANEL_CLS}
-          editor={editor}
-          shouldShow={shouldShow}
-          appendTo={appendTo ?? portalContainer}
-          style={zIndex === undefined ? undefined : { zIndex }}
-          options={{
-            placement: "top",
-            offset: 8,
-            flip: false,
-            shift: true,
-            hide: false,
-          }}
-        >
-          <Toolbar
-            editor={editor}
-            aiEnable={aiEnable}
-            commentEnable={props.commentEnable}
-            onOpenPolish={handleOpenPolish}
-          />
-        </BubbleMenu>
+    <BubbleMenu
+      ref={bubbleToolbarRef}
+      pluginKey={BUBBLE_MENU_PLUGIN_KEY}
+      className={cn(FLOATING_PANEL_CLS, showCentered && "translate-y-1/2")}
+      editor={editor}
+      shouldShow={shouldShow}
+      appendTo={appendTo ?? portalContainer}
+      getReferencedVirtualElement={getReferencedVirtualElement}
+      style={zIndex === undefined ? undefined : { zIndex }}
+      options={{
+        placement: "top",
+        offset: showCentered ? false : 8,
+        flip: showCentered ? false : { padding: 8 },
+        shift: showCentered ? false : { padding: 8 },
+        hide: false,
+      }}
+    >
+      {polishVisible ? (
+        <AIPolishPanel editor={editor} onClose={handleClosePolish} />
+      ) : (
+        <Toolbar editor={editor} aiOnly={aiOnly} onOpenPolish={handleOpenPolish} />
       )}
-
-      {!polishVisible &&
-        showCentered &&
-        centeredPos &&
-        createPortal(
-          <div
-            className={POLISH_PANEL_CLS}
-            style={{
-              ...getPortalPosition(centeredPos, portalContainer),
-              zIndex: nestedPanelZIndex,
-              ...centerStyle,
-            }}
-          >
-            <Toolbar
-              editor={editor}
-              aiEnable={aiEnable}
-              commentEnable={props.commentEnable}
-              onOpenPolish={handleOpenPolish}
-            />
-          </div>,
-          portalContainer,
-        )}
-
-      {polishVisible &&
-        polishPos &&
-        createPortal(
-          <div
-            ref={polishRef}
-            className={POLISH_PANEL_CLS}
-            style={{
-              ...getPortalPosition(polishPos, portalContainer),
-              zIndex: nestedPanelZIndex,
-              ...(polishCenteredRef.current ? centerStyle : undefined),
-            }}
-          >
-            <AIPolishContent editor={editor} onClose={handleClosePolish} statusRef={polishStatusRef} />
-          </div>,
-          portalContainer,
-        )}
-    </>
+    </BubbleMenu>
   );
 };

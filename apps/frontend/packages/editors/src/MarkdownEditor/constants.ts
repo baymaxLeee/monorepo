@@ -14,12 +14,6 @@ export const isAllowedImageFile = (file: File): boolean => ALLOWED_IMAGE_MIME_TY
 export const URL_REGEX =
   /^\s*(https?:\/\/)?(localhost|\d{1,3}(\.\d{1,3}){3}|([a-zA-Z\d]([a-zA-Z\d-]{0,61}[a-zA-Z\d])?\.)+[a-zA-Z]{2,})(:\d{1,5})?(\/[a-zA-Z\d\-._~:/?#[\]@!$&'()*+,;=%]*)?\s*$/;
 
-export enum AiPolishStatus {
-  Pending = "pending",
-  Loading = "loading",
-  Ready = "ready",
-}
-
 export const FONT_COLORS = [
   { label: "默认", color: "inherit" },
   { label: "灰色", color: "#86909C" },

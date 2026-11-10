@@ -1,4 +1,3 @@
-import { toast } from "@repo/design-system";
 import { Extension } from "@tiptap/core";
 
 import type { ContentType } from "../../interface";
@@ -15,12 +14,10 @@ declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     indent: {
       indent: () => ReturnType;
-      outdent: (options?: { silent?: boolean }) => ReturnType;
+      outdent: () => ReturnType;
     };
   }
 }
-
-const WRAPPER_BLOCK_TYPES = new Set(["listItem", "taskItem"]);
 
 export const createIndentExtension = () =>
   Extension.create<IndentOptions>({
@@ -28,7 +25,7 @@ export const createIndentExtension = () =>
 
     addOptions() {
       return {
-        types: ["paragraph", "heading", ...WRAPPER_BLOCK_TYPES],
+        types: ["paragraph", "heading"],
         minIndent: 0,
         maxIndent: 2,
         defaultIndent: 0,
@@ -78,7 +75,6 @@ export const createIndentExtension = () =>
           ({ tr, state }) => {
             const { selection } = state;
             let changed = false;
-            tr.setSelection(selection);
             tr.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
               if (this.options.types.includes(node.type.name)) {
                 const currentIndent = node.attrs.indent || 0;
@@ -89,23 +85,16 @@ export const createIndentExtension = () =>
                   });
                   changed = true;
                 }
-                if (WRAPPER_BLOCK_TYPES.has(node.type.name)) {
-                  return false;
-                }
               }
               return true;
             });
-            if (!changed) {
-              toast.add({ type: "warning", title: "已达到最大缩进层级" });
-            }
-            return true;
+            return changed;
           },
         outdent:
-          (options) =>
+          () =>
           ({ tr, state }) => {
             const { selection } = state;
             let changed = false;
-            tr.setSelection(selection);
             tr.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
               if (this.options.types.includes(node.type.name)) {
                 const currentIndent = node.attrs.indent || 0;
@@ -116,15 +105,9 @@ export const createIndentExtension = () =>
                   });
                   changed = true;
                 }
-                if (WRAPPER_BLOCK_TYPES.has(node.type.name)) {
-                  return false;
-                }
               }
               return true;
             });
-            if (!changed && !options?.silent) {
-              toast.add({ type: "warning", title: "已达到最小缩进层级" });
-            }
             return changed;
           },
       };
@@ -153,7 +136,7 @@ export const createIndentExtension = () =>
           }
           const { selection } = this.editor.state;
           if (selection.empty && selection.$from.parentOffset === 0) {
-            return this.editor.commands.outdent({ silent: true });
+            return this.editor.commands.outdent();
           }
           return false;
         },

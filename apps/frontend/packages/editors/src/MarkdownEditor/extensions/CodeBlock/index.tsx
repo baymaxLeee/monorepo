@@ -13,6 +13,7 @@ import { useState } from "react";
 
 import { EditorTooltipContent } from "../../components/EditorTooltipContent";
 import { useEditorContext } from "../../context";
+import { getMountedEditorDom } from "../../utils";
 
 const lowlight = createLowlight(common);
 lowlight.registerAlias("xml", ["html"]);
@@ -28,12 +29,8 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({ editor, node, upda
   const { language, title } = node.attrs;
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isAutoWrap, setIsAutoWrap] = useState(false);
-  const { contentType, editable, popupConfig } = useEditorContext((ctx) => ({
-    contentType: ctx.contentType,
-    editable: ctx.editable,
-    popupConfig: ctx.popupConfig,
-  }));
-  const popupContainer = popupConfig.getContainer(editor.view.dom);
+  const { contentType, editable, popupConfig } = useEditorContext();
+  const popupContainer = popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body);
   const isMarkdown = contentType === "markdown";
 
   const handleCopy = () => {

@@ -10,9 +10,10 @@ export const isRectSelected = (rect: Rect) => (selection: CellSelection) => {
   const selectedCells = map.cellsInRect(
     map.rectBetween(selection.$anchorCell.pos - start, selection.$headCell.pos - start),
   );
+  const selectedCellSet = new Set(selectedCells);
 
   for (let i = 0, count = cells.length; i < count; i += 1) {
-    if (selectedCells.indexOf(cells[i]) === -1) {
+    if (!selectedCellSet.has(cells[i])) {
       return false;
     }
   }
@@ -227,3 +228,27 @@ const select = (type: "row" | "column") => (index: number) => (tr: Transaction) 
 export const selectColumn = select("column");
 
 export const selectRow = select("row");
+
+export const selectTableAt = (tablePos: number) => (tr: Transaction) => {
+  const table = tr.doc.nodeAt(tablePos);
+  if (table?.type.spec.tableRole !== "table") {
+    return tr;
+  }
+
+  const map = TableMap.get(table);
+  const cells = map.cellsInRect({ left: 0, top: 0, right: map.width, bottom: map.height });
+  const firstCell = cells[0];
+  const lastCell = cells.at(-1);
+  if (firstCell === undefined || lastCell === undefined) {
+    return tr;
+  }
+
+  return tr.setSelection(
+    new CellSelection(tr.doc.resolve(tablePos + 1 + lastCell), tr.doc.resolve(tablePos + 1 + firstCell)),
+  );
+};
+
+export const selectTable = (tr: Transaction) => {
+  const table = findTable(tr.selection);
+  return table ? selectTableAt(table.pos)(tr) : tr;
+};
