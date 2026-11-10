@@ -5,7 +5,7 @@ import { Markdown } from "@/components/common";
 import { GenerationEditorDialog } from "@/components/ImageGeneration/GenerationEditorDialog";
 import t from "@/utils/i18n";
 
-import styles from "./CanvasTextGenerationPreview.module.less";
+import styles from "./CanvasTextGenerationPreview.module.css";
 
 export function CanvasTextGenerationPreview({
   content,

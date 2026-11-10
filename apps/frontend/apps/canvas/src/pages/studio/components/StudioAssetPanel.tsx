@@ -44,7 +44,7 @@ import { ResourceDialog } from "../../resources/dialogs/ResourceDialog";
 import { listResourceFiles, listResources } from "../../resources/domain/actions";
 import { getResourceFileConfig } from "../../resources/domain/resourceTypes";
 
-import styles from "./StudioAssetPanel.module.less";
+import styles from "./StudioAssetPanel.module.css";
 
 const RESOURCE_TYPES = [
   {

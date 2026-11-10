@@ -3,7 +3,7 @@ import { X as IconClose, ShieldCheck as IconComplianceLine, Trash2 as IconDelete
 
 import t from "@/utils/i18n";
 
-import styles from "./BatchActionBar.module.less";
+import styles from "./BatchActionBar.module.css";
 
 export interface BatchActionBarProps {
   busy?: boolean;

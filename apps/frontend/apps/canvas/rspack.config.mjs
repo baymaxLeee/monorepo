@@ -35,18 +35,6 @@ export default defineConfig({
     rules: [
       createSwcRule({ reactCompiler: { target: "19" } }),
       createRemoteCssRule(),
-      {
-        ...createRemoteCssRule(),
-        test: /\.less$/,
-        use: [
-          createRemoteCssRule().use[0],
-          {
-            ...createRemoteCssRule().use[1],
-            options: { importLoaders: 1, modules: { auto: true, namedExport: false } },
-          },
-          "less-loader",
-        ],
-      },
       { test: /\.(png|jpe?g|webp|svg|pdf)$/, type: "asset/resource" },
     ],
   },

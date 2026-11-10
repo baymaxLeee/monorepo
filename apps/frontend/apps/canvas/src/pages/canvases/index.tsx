@@ -35,7 +35,7 @@ import { type CanvasDialogState, deleteCanvas } from "./actions";
 import { CanvasDialog } from "./CanvasDialog";
 import { formatDurationMillis } from "./model";
 
-import styles from "./index.module.less";
+import styles from "./index.module.css";
 
 const VIDEO_PAGE_SIZE = 20;
 const KEYWORD_DEBOUNCE_MILLIS = 300;

@@ -36,7 +36,7 @@ import {
   POINTER_SHORTCUT_TOKENS,
 } from "./shortcuts";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 const CANVAS_MINIMAP_SIZE = { width: 178, height: 100 };
 const ZOOM_PRESETS = [0.5, 1, 2, 3, 4] as const;
 

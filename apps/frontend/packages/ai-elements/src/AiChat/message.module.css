@@ -1,0 +1,16 @@
+@layer components {
+  .response :where([data-streamdown="ordered-list"], [data-streamdown="unordered-list"]) {
+    padding-inline-start: 1.5em;
+    list-style-position: outside;
+  }
+
+  .response :where([data-streamdown="list-item"]) {
+    padding-inline-start: 0.25em;
+  }
+
+  .response :where([data-streamdown="list-item"]):has(> input[type="checkbox"]),
+  .response :where([data-streamdown="list-item"].task-list-item) {
+    padding-inline-start: 0;
+    list-style: none;
+  }
+}

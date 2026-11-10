@@ -38,7 +38,7 @@ import {
   useMediaNodePreviewSize,
 } from "./useMediaNodePreviewSize";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 export function DeletedReferenceNotice({ item }: { item: canvasnode.CanvasNode }) {
   if (item.ReferenceStatus !== canvasnode.CanvasNodeReferenceStatus.DELETED) {
     return null;

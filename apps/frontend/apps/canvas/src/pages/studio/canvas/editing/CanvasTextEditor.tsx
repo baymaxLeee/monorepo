@@ -8,7 +8,7 @@ import t from "@/utils/i18n";
 
 import { ScriptEditor } from "../../components/ScriptEditor";
 
-import styles from "./CanvasTextEditor.module.less";
+import styles from "./CanvasTextEditor.module.css";
 
 export interface CanvasTextEditorProps {
   expanded: boolean;

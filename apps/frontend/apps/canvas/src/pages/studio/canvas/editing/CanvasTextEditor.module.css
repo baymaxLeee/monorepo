@@ -1,0 +1,15 @@
+.editor {
+  cursor: text;
+}
+.editor :global(.markdown-editor-content .ProseMirror) {
+  box-sizing: border-box;
+  min-height: 100%;
+}
+.collapseButton {
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+}
+.collapseButton:hover {
+  background: rgba(26, 27, 30, 0.05) !important;
+  color: var(--foreground) !important;
+}

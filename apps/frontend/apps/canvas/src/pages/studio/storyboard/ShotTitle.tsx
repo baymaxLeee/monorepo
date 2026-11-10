@@ -6,7 +6,7 @@ import t from "@/utils/i18n";
 import { validateCanvasNodeName } from "../domain/canvasNodeNames";
 import { shotLabel } from "../domain/model";
 
-import styles from "./ShotTitle.module.less";
+import styles from "./ShotTitle.module.css";
 
 export function ShotTitle({
   disabled = false,

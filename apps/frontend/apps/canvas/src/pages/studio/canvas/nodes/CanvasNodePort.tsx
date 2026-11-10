@@ -9,7 +9,7 @@ import { CanvasQuickCreateContext } from "../CanvasNodeContexts";
 import { isDeletedReferenceNode } from "../graph/canvasNodeHelpers";
 import { type CanvasNodePortSide, canvasNodeInputPorts, canvasNodeProtocol } from "../graph/nodeProtocol";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 export function CanvasNodePort({ item, side }: { item: canvasnode.CanvasNode; side: CanvasNodePortSide }) {
   const quickCreate = useContext(CanvasQuickCreateContext);
   const protocol = canvasNodeProtocol(item.Type);

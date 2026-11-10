@@ -33,7 +33,7 @@ import t from "@/utils/i18n";
 import { ProjectCoverUploader } from "./ProjectCover";
 import type { ProjectDialogState } from "./types";
 
-import styles from "./ProjectDialog.module.less";
+import styles from "./ProjectDialog.module.css";
 
 interface ProjectDialogProps {
   state?: ProjectDialogState;

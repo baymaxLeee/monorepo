@@ -1,0 +1,32 @@
+.edge {
+  --canvas-edge-highlight: var(--primary);
+  --xy-edge-stroke: var(--muted-foreground);
+  --xy-edge-stroke-selected: var(--xy-edge-stroke);
+}
+.selected {
+  --xy-edge-stroke: var(--canvas-edge-highlight);
+  --xy-edge-stroke-width: 1.5;
+}
+.flow {
+  fill: none;
+  stroke: var(--canvas-edge-highlight);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 8 100;
+  pointer-events: none;
+  animation: flow 2.4s linear infinite;
+}
+@keyframes flow {
+  from {
+    stroke-dashoffset: 8;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow {
+    display: none;
+    animation: none;
+  }
+}

@@ -1,6 +1,6 @@
 import { toast } from "@repo/design-system";
 
-import styles from "./showGenerationError.module.less";
+import styles from "./showGenerationError.module.css";
 
 export function showGenerationError(message: string) {
   toast.add({

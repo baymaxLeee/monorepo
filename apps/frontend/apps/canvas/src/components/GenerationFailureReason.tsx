@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { EllipsisText } from "@/components/common";
 import t from "@/utils/i18n";
 
-import styles from "./GenerationFailureReason.module.less";
+import styles from "./GenerationFailureReason.module.css";
 
 export function GenerationFailureReason({ reason }: { reason: string }) {
   const containerRef = useRef<HTMLDivElement>(null);

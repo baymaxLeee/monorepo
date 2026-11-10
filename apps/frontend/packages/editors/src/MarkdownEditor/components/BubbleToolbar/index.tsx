@@ -18,7 +18,7 @@ interface IProps {
 
 /** BubbleMenu 容器的稳定 hook class（无样式职责，用于 polish panel 定位查询） */
 const BUBBLE_TOOLBAR_HOOK_CLASS = "markdown-editor-bubble-toolbar";
-/** 浮起气泡工具栏容器（高保真还原自原 BubbleToolbar/index.less） */
+/** 浮起气泡工具栏容器（保留原组件的布局和交互契约）。 */
 const FLOATING_PANEL_CLS = `${BUBBLE_TOOLBAR_HOOK_CLASS} relative rounded-md border bg-background text-sm text-foreground shadow-lg`;
 /** 用于 closest 查找编辑器根容器的稳定 hook */
 const EDITOR_ROOT_CLASS = "markdown-editor";

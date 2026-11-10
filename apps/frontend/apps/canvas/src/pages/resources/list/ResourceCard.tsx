@@ -16,7 +16,7 @@ import t from "@/utils/i18n";
 
 import { ResourceTypeIcon } from "../components/ResourceTypeIcon";
 
-import styles from "../index.module.less";
+import styles from "../index.module.css";
 
 function getResourceAssetTypeLabel(type: resource.ResourceType) {
   switch (type) {

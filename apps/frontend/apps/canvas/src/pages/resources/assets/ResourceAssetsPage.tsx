@@ -47,7 +47,7 @@ import { useResourceAssetList } from "./useResourceAssetList";
 import { useResourceAssetStatus } from "./useResourceAssetStatus";
 import { useResourceUpload } from "./useResourceUpload";
 
-import styles from "./ResourceAssetsPage.module.less";
+import styles from "./ResourceAssetsPage.module.css";
 
 const FILE_EXTENSION_PATTERN = /\.[a-z\d]{1,10}$/i;
 const INVALID_FILE_NAME_CHARACTERS = /[\\/:*?"<>|]/g;

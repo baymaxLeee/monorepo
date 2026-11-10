@@ -2,7 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-sy
 
 import t from "@/utils/i18n";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 
 export function CanvasGeneratingBadge({
   disabled,

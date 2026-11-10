@@ -62,8 +62,6 @@ catalog:
   "@tiptap/extensions": 3.33.0
   "@tiptap/markdown": 3.33.0
   "@testing-library/react": 16.3.0
-  less: ^4.9.1
-  less-loader: ^13.0.0
   "@dagrejs/dagre": 3.1.1
   ahooks: 3.8.5
   copy-to-clipboard: 3.3.3

@@ -27,7 +27,7 @@ import t from "@/utils/i18n";
 import type { StudioView } from "../domain/types";
 import { assetsPanelOpenAtom, studioViewAtom, studioViewChangingAtom } from "../store/index";
 
-import styles from "./StudioHeader.module.less";
+import styles from "./StudioHeader.module.css";
 
 export function StudioHeader({
   composable,

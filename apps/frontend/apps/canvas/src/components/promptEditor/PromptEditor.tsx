@@ -2,7 +2,7 @@ import { MarkdownEditor, type MarkdownEditorRef } from "@repo/editors/markdown-e
 import type { AnyExtension } from "@tiptap/core";
 import { forwardRef, useEffect, useRef } from "react";
 
-import styles from "./PromptEditor.module.less";
+import styles from "./PromptEditor.module.css";
 
 const TOP_FADE = 48;
 const BOTTOM_FADE = 72;

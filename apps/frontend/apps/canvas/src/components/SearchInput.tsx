@@ -2,7 +2,7 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "
 import { Search as IconSearch, X } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import styles from "./SearchInput.module.less";
+import styles from "./SearchInput.module.css";
 
 type SearchInputProps = Omit<ComponentProps<typeof InputGroupInput>, "onChange" | "type"> & {
   onChange?: (value: string) => void;

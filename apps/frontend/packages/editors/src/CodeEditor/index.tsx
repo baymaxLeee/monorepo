@@ -3,6 +3,8 @@ import { cn } from "@repo/shared";
 
 import type { CodeEditorProps } from "./interface";
 
+import styles from "./styles.module.css";
+
 const loadEditor = () => import("./component");
 
 export function CodeEditor(props: CodeEditorProps) {
@@ -12,7 +14,7 @@ export function CodeEditor(props: CodeEditorProps) {
       {...props}
       loader={loadEditor}
       fallback={
-        <div style={style} className={cn("code-editor", className)}>
+        <div style={style} className={cn(styles.root, className)}>
           <div className="flex h-full min-h-30 items-center justify-center p-6 text-center text-sm leading-6 text-muted-foreground">
             {loadingText}
           </div>

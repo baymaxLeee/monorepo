@@ -1,6 +1,6 @@
 import { type AudioHTMLAttributes, type CSSProperties, type ReactNode, forwardRef } from "react";
 
-import styles from "./index.module.less";
+import styles from "./index.module.css";
 
 type AudioPlayerProps = {
   audioClassName?: string;
@@ -17,7 +17,7 @@ type AudioPlayerProps = {
 
 /**
  * 音频资产播放器：沿用浏览器原生控件，播放、进度、时间、音量都由浏览器提供，
- * 和 VideoPlayer 保持一致，外观按设计稿做有限调整（见同名 less）。
+ * 和 VideoPlayer 保持一致，外观按设计稿做有限调整（见同名 CSS Module）。
  */
 export const AudioPlayer = forwardRef<HTMLAudioElement, AudioPlayerProps>(function AudioPlayer(
   { audioClassName, className, controls = true, crossOrigin, empty, src, style, onEnded, onPause, onPlay },

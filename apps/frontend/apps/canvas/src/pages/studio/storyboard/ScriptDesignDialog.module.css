@@ -1,0 +1,164 @@
+.modal:global(.canvas-modal-content) {
+  padding: 0 28px 24px;
+  overflow: hidden;
+}
+.title {
+  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 26px;
+  letter-spacing: 0.054px;
+}
+.body {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  gap: 24px;
+}
+.scriptColumn {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+.instruction {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 22px;
+  letter-spacing: 0.039px;
+}
+.divider {
+  width: 1px;
+  flex-shrink: 0;
+  align-self: stretch;
+  background: var(--border);
+}
+.settingsColumn {
+  display: flex;
+  width: 280px;
+  height: 100%;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.settingsColumn::-webkit-scrollbar {
+  display: none;
+}
+.labeledField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fieldLabel {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: 0.042px;
+}
+.durationHint,
+.counter {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 20px;
+}
+.counter {
+  flex-shrink: 0;
+}
+.counterWarning {
+  color: var(--destructive);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+.actionButtons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.modelComboboxTrigger {
+  width: 100%;
+  justify-content: space-between;
+  font-weight: 400;
+}
+.modelComboboxValue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modelComboboxContent {
+  width: var(--anchor-width);
+  padding: 0;
+}
+.durationRange {
+  width: 280px;
+  box-shadow: none;
+}
+.durationInput {
+  width: 0;
+  min-width: 0;
+  padding: 0 8px;
+  appearance: textfield;
+  text-align: center;
+}
+.durationInput::-webkit-inner-spin-button,
+.durationInput::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+.durationSep {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.durationUnit {
+  flex-shrink: 0;
+  padding-right: 12px;
+}
+.plotInput {
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--muted);
+  transition: background-color 160ms ease;
+}
+.plotInput:focus-within {
+  background: var(--muted);
+}
+.plotInput :global(textarea) {
+  height: 100%;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  resize: none;
+  caret-color: var(--foreground);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 22px;
+  padding: 0;
+}
+.plotInput :global(textarea:hover) {
+  background: transparent;
+  box-shadow: none;
+}
+.plotInput :global(textarea:focus) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.plotInput :global(textarea::placeholder) {
+  color: var(--muted-foreground);
+  opacity: 1;
+}

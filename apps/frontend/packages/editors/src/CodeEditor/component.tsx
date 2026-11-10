@@ -8,6 +8,8 @@ import { basicSetup } from "./constants";
 import type { CodeEditorProps } from "./interface";
 import { getLanguageExtension } from "./utils";
 
+import styles from "./styles.module.css";
+
 interface CachedEditorState {
   state: EditorState;
   scrollTop: number;
@@ -195,7 +197,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     });
   }, [cacheKey, readOnly]);
 
-  return <div ref={containerRef} style={style} className={cn("code-editor", className)} />;
+  return <div ref={containerRef} style={style} className={cn(styles.root, className)} />;
 };
 
 CodeEditor.displayName = "CodeEditor";

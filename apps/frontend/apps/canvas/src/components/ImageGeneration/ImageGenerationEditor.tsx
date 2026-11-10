@@ -12,7 +12,7 @@ import t from "@/utils/i18n";
 import { AssetStrip } from "../../pages/studio/components/AssetStrip";
 import type { StoryboardAsset } from "../../pages/studio/domain/types";
 
-import styles from "./ImageGenerationEditor.module.less";
+import styles from "./ImageGenerationEditor.module.css";
 
 const REFERENCE_CATEGORIES = ["image"] as const;
 

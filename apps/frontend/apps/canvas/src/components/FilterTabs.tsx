@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode } from "react";
 
-import styles from "./FilterTabs.module.less";
+import styles from "./FilterTabs.module.css";
 
 type FilterTabValue = string | number | boolean;
 

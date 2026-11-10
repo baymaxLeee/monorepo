@@ -1,6 +1,6 @@
 import { STATIC_AUDIO_SPECTRUM_HEIGHTS } from "./audioSpectrum";
 
-import styles from "./index.module.less";
+import styles from "./index.module.css";
 
 type AudioSpectrumProps = {
   className?: string;

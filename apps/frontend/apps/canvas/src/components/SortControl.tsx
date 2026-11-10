@@ -3,7 +3,7 @@ import { ArrowDownWideNarrow as IconDescendingSorting } from "lucide-react";
 
 import t from "@/utils/i18n";
 
-import styles from "./SortControl.module.less";
+import styles from "./SortControl.module.css";
 
 export type SortOption = {
   label: string;

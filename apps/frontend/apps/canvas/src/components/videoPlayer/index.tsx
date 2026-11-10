@@ -9,7 +9,7 @@ import {
   useRef,
 } from "react";
 
-import styles from "./index.module.less";
+import styles from "./index.module.css";
 
 type VideoPlayerProps = {
   className?: string;

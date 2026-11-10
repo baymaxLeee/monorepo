@@ -1,0 +1,233 @@
+.root {
+  --editor-body-height: 120px;
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  width: 612px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--background);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform-origin: top center;
+  animation: editor-enter 180ms ease-out;
+}
+@keyframes editor-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.body {
+  position: relative;
+  display: flex;
+  height: var(--editor-body-height);
+  min-height: var(--editor-body-height);
+  max-height: var(--editor-body-height);
+  flex: 0 0 var(--editor-body-height);
+  flex-direction: column;
+  overflow: hidden;
+  transition: height 180ms ease, min-height 180ms ease, max-height 180ms ease, flex-basis 180ms ease;
+}
+.image .body,
+.video .body {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 0 0 auto;
+}
+.image .editor,
+.video .editor {
+  height: 5.5lh;
+  min-height: 5.5lh;
+  flex: 0 0 5.5lh;
+}
+.video {
+  width: 760px;
+  max-width: calc(100vw - 32px);
+}
+.expanded {
+  --editor-body-height: auto;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  animation: none;
+  box-shadow: none;
+}
+.expanded .body {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 0;
+}
+.expanded .footer,
+.expanded .matchToolbar {
+  flex-shrink: 0;
+}
+.expanded .footer {
+  height: auto;
+  flex-wrap: wrap;
+}
+.expanded .settings {
+  flex-wrap: wrap;
+}
+.expanded .editor {
+  height: 0;
+  min-height: 0;
+  flex: 1 1 0;
+}
+.expandedHeader {
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+}
+.expandedTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.referenceRow {
+  display: flex;
+  min-height: 54px;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: 12px;
+}
+.referenceAssets {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.expandButton {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 16px;
+}
+.referenceRow .expandButton {
+  margin-left: auto;
+}
+.expandButton:hover {
+  background: rgba(26, 27, 30, 0.05);
+  color: var(--muted-foreground);
+}
+.expandButtonFloating {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+}
+.editor {
+  width: 100%;
+  height: 0;
+  min-height: 0;
+  flex: 1 1 0;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 22px;
+}
+.editor:global(.markdown-editor.markdown-editor-editable) :global(.markdown-editor-content) {
+  padding-right: 0;
+}
+.editor :global(.markdown-editor-content) {
+  min-height: 0;
+  line-height: inherit;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.editor :global(.markdown-editor-content::-webkit-scrollbar) {
+  display: none;
+}
+.editor :global(.markdown-editor-content .ProseMirror) {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 0 28px 0 0;
+  outline: none;
+  line-height: inherit;
+}
+.editor :global(.markdown-editor-content .ProseMirror):first-child {
+  margin-top: 0;
+}
+.editor :global(.markdown-editor-content .ProseMirror p) {
+  margin: 0;
+  line-height: inherit;
+}
+.editor :global(.markdown-editor-content .ProseMirror p + p) {
+  margin-top: 8px;
+}
+.footer {
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+}
+.generateButton {
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--muted-foreground);
+  color: white;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.generateButtonTooltip {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.generateButton:disabled {
+  background: var(--border);
+  cursor: not-allowed;
+}
+.matchToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.body[data-matching] {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.body[data-matching] .editor {
+  opacity: 0.3;
+}
+.settings[inert] {
+  pointer-events: none;
+}
+.root[data-dragging] {
+  display: none;
+}

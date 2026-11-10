@@ -20,7 +20,7 @@ import type { StoryboardAsset } from "../../domain/types";
 import { useStudioAssetStore } from "../../store/assets";
 import { useCanvasDragging } from "../useCanvasDragging";
 
-import styles from "./CanvasPromptEditor.module.less";
+import styles from "./CanvasPromptEditor.module.css";
 
 export type CanvasPromptEditorVariant = "text" | "image" | "video";
 

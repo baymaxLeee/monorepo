@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 
 import { VideoPlayer } from "@/components/videoPlayer/index";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 
 type CanvasNodeVideoPlayerProps = Pick<ComponentProps<typeof VideoPlayer>, "onLoadedMetadata" | "poster" | "src"> & {
   dragging: boolean;

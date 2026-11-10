@@ -30,7 +30,10 @@ Host 提供 React、Router 与需要跨 MFE 身份一致的运行时单例；rem
 
 [DESIGN.md](../../DESIGN.md) 是唯一完整 UI 规范。Base UI/shadcn 原语、theme 和
 Tailwind 全局 CSS 由 design-system/host 负责；不混入第二套 primitive。remote
-可在 lazy 入口加载组件自己的第三方 CSS，但不另建 Tailwind 全局构建。
+可在 owner 或 lazy 入口加载组件自己的 CSS Modules、生成 DOM 样式与第三方 CSS，
+但不另建 Tailwind 全局构建。所有层级 Tailwind-first；原生 CSS 保留为复杂组件的
+正式表达能力，样式必须跟随 owner。design-system 全局入口不持有 Editor、Viewer、
+AI Elements、Chat 或 app 选择器。仓库不保留 Less 语言、依赖或 app 私有 loader。
 
 Overlay 层级按 React 所有权和 portal-layer 管理，不维护业务 z-index 表。
 AI UI 消费原生消息/工具/审批/来源/文件部分，依据 metadata 选择展示，不靠

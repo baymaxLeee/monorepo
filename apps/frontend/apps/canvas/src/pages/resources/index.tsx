@@ -52,7 +52,7 @@ import { writeResourceListRouteState } from "./domain/routeState";
 import { ResourceCard } from "./list/ResourceCard";
 import { useResourceList } from "./list/useResourceList";
 
-import styles from "./index.module.less";
+import styles from "./index.module.css";
 
 type DialogState = { mode: "create"; type: resource.ResourceType } | { mode: "edit"; item: resource.Resource };
 

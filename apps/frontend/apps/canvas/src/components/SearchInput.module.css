@@ -1,0 +1,14 @@
+.searchInput {
+  width: 240px;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+.searchInput[data-slot="input-group"] {
+  border-color: transparent;
+  background-color: var(--muted);
+}
+.searchInput[data-slot="input-group"]:hover,
+.searchInput[data-slot="input-group"]:focus-within {
+  border-color: transparent;
+  background-color: var(--muted);
+}

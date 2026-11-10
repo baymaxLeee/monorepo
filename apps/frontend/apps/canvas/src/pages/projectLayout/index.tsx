@@ -6,7 +6,7 @@ import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 
 import t from "@/utils/i18n";
 
-import styles from "./index.module.less";
+import styles from "./index.module.css";
 
 interface ProjectLayoutContextValue {
   setSummary: (summary: string) => void;

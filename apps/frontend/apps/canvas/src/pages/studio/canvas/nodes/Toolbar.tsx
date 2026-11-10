@@ -14,7 +14,7 @@ import t from "@/utils/i18n";
 
 import { useCanvasDragging } from "../useCanvasDragging";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 
 type ToolbarIcon = ComponentType<SVGProps<SVGSVGElement>>;
 

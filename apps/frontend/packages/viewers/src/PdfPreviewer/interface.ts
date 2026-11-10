@@ -21,9 +21,8 @@ interface PdfHighlightCommon {
   id?: string;
   /**
    * @zh 高亮填充色
-   * @default "var(--pdf-previewer-highlight-color)"
-   * @description 不传则走容器 CSS 变量 `--pdf-previewer-highlight-color`（默认偏黄半透明），
-   *   业务可通过 less / 全局样式覆盖该变量统一改色；若需精确指定单条颜色，传入任意合法 CSS color 字符串即可
+   * @default "rgb(250 204 21 / 35%)"
+   * @description 不传则使用组件内置的偏黄半透明底色；需要覆盖时传入任意合法 CSS color 字符串
    */
   color?: string;
   /**

@@ -19,7 +19,7 @@ import { LoadingIndicator } from "@/components/LoadingIndicator";
 import type { asset, benefit_package } from "@/domain";
 import t from "@/utils/i18n";
 
-import dialogSizing from "@/components/DialogSizing.module.less";
+import dialogSizing from "@/components/DialogSizing.module.css";
 
 export interface AssetReviewItem {
   assetId?: string;

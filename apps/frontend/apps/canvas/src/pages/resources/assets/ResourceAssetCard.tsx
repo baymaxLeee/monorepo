@@ -26,7 +26,7 @@ import { ResourceTypeIcon } from "../components/ResourceTypeIcon";
 import { ResourceGenerationFailureStatus } from "../generation/ResourceGenerationFailureStatus";
 import { ResourceGenerationStatus } from "../generation/ResourceGenerationStatus";
 
-import styles from "./ResourceAssetsPage.module.less";
+import styles from "./ResourceAssetsPage.module.css";
 
 type ResourceAssetCardProps = {
   file: resource.ResourceAsset;

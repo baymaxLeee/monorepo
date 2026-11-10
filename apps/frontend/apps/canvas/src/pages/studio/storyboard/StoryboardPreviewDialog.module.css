@@ -1,0 +1,34 @@
+.modal {
+  width: 72.22222222vw;
+  max-width: 92vw;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.modal :global(.canvas-modal-header) {
+  padding: 20px 28px;
+}
+.modal:global(.canvas-modal-content) {
+  padding: 0 28px 24px;
+  overflow: hidden;
+}
+@media (max-width: 1024px) {
+  .modal {
+    width: 92vw;
+  }
+}
+.body {
+  gap: 12px;
+}
+.navigation {
+  width: 132px;
+  gap: 4px;
+}
+.navigationItem {
+  width: 132px;
+}
+.content {
+  padding: 0 16px;
+}
+.actions {
+  margin-top: 20px;
+}

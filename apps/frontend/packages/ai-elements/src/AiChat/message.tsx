@@ -20,6 +20,8 @@ import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
 import { markdownRehypePlugins, markdownTranslations } from "./markdown-policy";
 
+import styles from "./message.module.css";
+
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
 };
@@ -233,6 +235,7 @@ const streamdownPlugins = { cjk, code, math, mermaid };
 export const MessageResponse = memo(({ className, translations, ...props }: MessageResponseProps) => (
   <Streamdown
     className={cn(
+      styles.response,
       "size-full break-words leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0",
       className,
     )}

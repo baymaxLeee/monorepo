@@ -32,7 +32,7 @@ import { videoModelLabel } from "../domain/videoModels";
 import { imageModelsAtom, textModelsAtom, videoModelsAtom } from "../store/index";
 import { VideoGenerationFailure } from "./VideoGenerationFailure";
 
-import styles from "./GenerationHistoryDialog.module.less";
+import styles from "./GenerationHistoryDialog.module.css";
 
 function MetaDivider() {
   return <span className="h-3 w-[1px] shrink-0 bg-border" />;

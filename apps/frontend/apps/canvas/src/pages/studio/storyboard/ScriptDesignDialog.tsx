@@ -43,8 +43,8 @@ import {
 } from "./scriptDuration";
 import { splitScriptInstruction } from "./scriptInstruction";
 
-import styles from "./ScriptDesignDialog.module.less";
-import dialogSizing from "@/components/DialogSizing.module.less";
+import styles from "./ScriptDesignDialog.module.css";
+import dialogSizing from "@/components/DialogSizing.module.css";
 
 const { formatReference: SCRIPT_FORMAT_REFERENCE, instruction: SCRIPT_INSTRUCTION } = splitScriptInstruction(
   t("输入本集的剧本，将根据内容自动拆解分镜。剧本格式参考："),

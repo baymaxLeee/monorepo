@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/design-system";
 import type { ReactNode } from "react";
 
-import styles from "./ImageGenerationEditorDialog.module.less";
+import styles from "./ImageGenerationEditorDialog.module.css";
 
 export function GenerationEditorDialog({
   children,

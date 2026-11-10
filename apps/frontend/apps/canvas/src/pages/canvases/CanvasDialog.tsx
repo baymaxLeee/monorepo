@@ -22,7 +22,7 @@ import t from "@/utils/i18n";
 
 import { type CanvasDialogState, saveCanvas } from "./actions";
 
-import styles from "./CanvasDialog.module.less";
+import styles from "./CanvasDialog.module.css";
 
 interface CanvasDialogProps {
   state?: CanvasDialogState;

@@ -12,7 +12,7 @@ import { CanvasNodeIcon } from "../components/CanvasNodeIcon";
 import { isDeletedReferenceNode } from "../graph/canvasNodeHelpers";
 import type { CanvasNodeData } from "../graph/canvasNodeTypes";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 export function CanvasNodeName({
   item,
   onPatch,

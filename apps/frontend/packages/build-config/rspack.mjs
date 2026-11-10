@@ -59,7 +59,7 @@ export function createHostCssRule({ loader = "style-loader" } = {}) {
 }
 
 /**
- * Remote-only plain CSS support for lazy component chunks.
+ * Remote-owned CSS support for lazy component chunks and colocated CSS Modules.
  * Do not run Tailwind here; remotes consume the host theme entry.
  */
 export function createRemoteCssRule({ loader = "style-loader" } = {}) {
@@ -69,7 +69,7 @@ export function createRemoteCssRule({ loader = "style-loader" } = {}) {
       loader === "style-loader" ? styleLoader : loader,
       {
         loader: cssLoader,
-        options: { importLoaders: 0 },
+        options: { importLoaders: 0, modules: { auto: true, namedExport: false } },
       },
     ],
     type: "javascript/auto",

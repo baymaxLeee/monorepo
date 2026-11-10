@@ -27,7 +27,7 @@ import type { Shot } from "../domain/types";
 import { ScriptDraftCard } from "./ScriptDraftCard";
 import { ShotCard } from "./ShotCard";
 
-import styles from "./ShotTimeline.module.less";
+import styles from "./ShotTimeline.module.css";
 
 export type AddShotMode = "single" | "batch";
 

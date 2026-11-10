@@ -108,6 +108,15 @@ Vercel 的 Title Case、英文文案使用 `&` 等品牌规则不直接套用到
 - 使用 `cn()` 合并条件 class；可复用 variant 使用 `class-variance-authority`，不要拼接互相冲突的字符串。
 - 优先使用 Tailwind scale。任意值只允许表达无法 token 化的内容固有尺寸、第三方协议值或精确几何计算，并在必要时说明原因。
 
+### 样式所有权与编写方式
+
+- 所有层级默认使用 Tailwind utility；可复用视觉状态使用 CVA，Base UI 状态使用其公开的 `data-*` attributes，不动态拼接 utility 名称。
+- 原生 CSS 是正式的组件级补充方案，不是遗留兼容层。编辑器、画布、第三方生成 DOM、复杂选择器、伪元素、打印和关键帧等使用 CSS 更清晰时，应在所属组件目录维护 `.module.css`；必须保留固定 DOM hook 的生成内容可以使用带组件根命名空间的私有 `.css`。
+- 仓库不使用 Less，不得新增 `.less` 文件、Less 依赖或 app 私有 Less loader。原生 CSS variables、nesting、CSS Modules、Tailwind 和组件组合覆盖对应能力。
+- 样式跟随 owner：design-system 只持有 theme、token、base、跨包公共 utility 和全局交互策略；`ai-elements`、`editors`、`viewers`、`chat` 与 app 分别持有自己的组件和页面样式。下层样式不得出现上层 capability 或业务选择器。
+- package CSS 由该 package 的公开或 lazy 组件入口导入；业务方通过公开 variant、slot、subcomponent 或 `className` 定制，不深度覆盖另一个 package 的私有 DOM。
+- 运行时坐标、尺寸和第三方数值通过组件私有 CSS variable 下发；跨组件 light/dark 语义才进入 design-system 的全局 token。
+
 ### 圆角、边框与阴影
 
 - 基础圆角由 `--radius: 0.5rem` 派生；使用 `rounded-sm` 至 `rounded-4xl`，同一组合中的内层圆角应不大于外层。

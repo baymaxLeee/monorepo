@@ -53,8 +53,6 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@typescript/native": "catalog:",
-    "less": "catalog:",
-    "less-loader": "catalog:",
     "vitest": "catalog:"
   }
 }

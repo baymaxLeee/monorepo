@@ -33,7 +33,7 @@ interface BlockMenuProps {
 /**
  * BlockMenu —— 编辑器空段落左侧 "+" 浮起的块插入菜单。
  *
- * 高保真对照 paas-cloud-material/EAMarkdownEditor/components/BlockMenu/index.less：
+ * 保留原 BlockMenu 的布局和交互契约：
  * - "+" trigger 24×24 方块 / 1px border / 圆角 4 / hover 浅蓝放大 / active 缩小
  * - popup 圆角 8 / max-height 600 / 内部滚动 / 隐藏滚动条
  * - MenuItem 32px 高 / icon 16px / 与文字 8px 间距

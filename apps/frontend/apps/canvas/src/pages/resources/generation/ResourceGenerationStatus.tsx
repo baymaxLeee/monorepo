@@ -3,7 +3,7 @@ import { ImagePlus as IconGenerationImage } from "lucide-react";
 
 import t from "@/utils/i18n";
 
-import styles from "./ResourceGenerationStatus.module.less";
+import styles from "./ResourceGenerationStatus.module.css";
 
 export function ResourceGenerationStatus({
   fileName,

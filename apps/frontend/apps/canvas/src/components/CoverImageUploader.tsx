@@ -6,7 +6,7 @@ import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useRef, us
 
 import t from "@/utils/i18n";
 
-import styles from "./CoverImageUploader.module.less";
+import styles from "./CoverImageUploader.module.css";
 
 export function CoverImage({
   path,

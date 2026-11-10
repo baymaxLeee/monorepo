@@ -24,8 +24,8 @@ import { RESOURCE_TYPE_OPTIONS } from "../../../resources/domain/resourceTypes";
 import { contentAssetID } from "../graph/canvasNodeHelpers";
 import { canvasNodeProtocol } from "../graph/nodeProtocol";
 
-import styles from "../CanvasBoard.module.less";
-import dialogSizing from "@/components/DialogSizing.module.less";
+import styles from "../CanvasBoard.module.css";
+import dialogSizing from "@/components/DialogSizing.module.css";
 export function CanvasAddToLibraryDialog({
   canvasId,
   item,

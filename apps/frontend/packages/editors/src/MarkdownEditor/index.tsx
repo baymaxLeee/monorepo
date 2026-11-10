@@ -4,6 +4,8 @@ import { forwardRef } from "react";
 
 import type { MarkdownEditorProps, MarkdownEditorRef } from "./interface";
 
+import "./styles.css";
+
 const loadEditor = () => import("./components/Editor");
 
 const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(function MarkdownEditor(props, ref) {

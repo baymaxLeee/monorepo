@@ -1,6 +1,6 @@
 import { BaseEdge, type EdgeProps, type EdgeTypes, getBezierPath, useStore } from "@xyflow/react";
 
-import styles from "./CanvasEdge.module.less";
+import styles from "./CanvasEdge.module.css";
 
 function CanvasEdge(props: EdgeProps) {
   const connectedNodeSelected = useStore((state) =>

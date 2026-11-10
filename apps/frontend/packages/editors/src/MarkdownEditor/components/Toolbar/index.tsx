@@ -66,7 +66,7 @@ const colorNormalizer = typeof document !== "undefined" ? document.createElement
 
 /**
  * 普通图标按钮（B/I/U/S/Code/Link 等）。
- * active 仅改文字色（高保真还原原 less `color: rgb(var(--primary-6))`），
+ * active 仅改文字色，
  * 蓝色文字 + hover 浅灰底，跟原 Arco 工具栏视觉一致。
  */
 function btnCls(opts?: { isActive?: boolean; isDisabled?: boolean }) {

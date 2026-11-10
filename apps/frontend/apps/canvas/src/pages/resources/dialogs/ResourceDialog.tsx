@@ -53,8 +53,8 @@ import {
   validateResourceFile,
 } from "../domain/resourceTypes";
 
-import styles from "./ResourceDialog.module.less";
-import dialogSizing from "@/components/DialogSizing.module.less";
+import styles from "./ResourceDialog.module.css";
+import dialogSizing from "@/components/DialogSizing.module.css";
 
 interface PendingResourceFile {
   sourceAssetId?: string;

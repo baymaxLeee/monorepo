@@ -24,7 +24,7 @@ import t from "@/utils/i18n";
 import { ResourceTypeIcon } from "../components/ResourceTypeIcon";
 import { ResourceGenerationStatus } from "../generation/ResourceGenerationStatus";
 
-import styles from "./ResourceAssetDetailDialog.module.less";
+import styles from "./ResourceAssetDetailDialog.module.css";
 
 export function ResourceAssetDetailDialog({
   asset,

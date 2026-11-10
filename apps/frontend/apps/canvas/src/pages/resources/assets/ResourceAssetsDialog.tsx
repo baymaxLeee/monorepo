@@ -4,7 +4,7 @@ import type { resource } from "@/domain";
 
 import { type ResourceAssetsInitialAction, ResourceAssetsPageContent } from "./ResourceAssetsPage";
 
-import styles from "./ResourceAssetsDialog.module.less";
+import styles from "./ResourceAssetsDialog.module.css";
 
 export function ResourceAssetsDialog({
   initialAction,

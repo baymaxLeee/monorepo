@@ -35,7 +35,7 @@ import { ProjectCoverImage } from "../administration/ProjectCover";
 import { ProjectDialog } from "../administration/ProjectDialog";
 import type { ProjectDialogState } from "../administration/types";
 
-import styles from "./index.module.less";
+import styles from "./index.module.css";
 
 interface Project {
   id: string;

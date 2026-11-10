@@ -3,7 +3,7 @@ import { LoaderCircle as IconLoading, WandSparkles as IconMaterialMatch } from "
 
 import { AsyncButton } from "@/components/AsyncButton";
 
-import styles from "./MaterialMatchButton.module.less";
+import styles from "./MaterialMatchButton.module.css";
 
 export function MaterialMatchButton({
   empty,

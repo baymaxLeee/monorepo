@@ -9,7 +9,7 @@ import type { CanvasFlowNode, CanvasNodeData, ContentPatch } from "./canvasNodeT
 import { CANVAS_NODE_LAYER_GAP } from "./layout";
 import { type CanvasNodePortSide } from "./nodeProtocol";
 
-import styles from "../CanvasBoard.module.less";
+import styles from "../CanvasBoard.module.css";
 export const MATERIALIZED_NODE_HORIZONTAL_GAP = 80;
 
 export function contentAssetID(item: canvasnode.CanvasNode) {
@@ -137,7 +137,7 @@ export type AddMenu = {
   types?: readonly canvasnode.CanvasNodeType[];
 };
 
-// React Flow 持久化节点左上角坐标；尺寸与 CanvasBoard.module.less 保持一致。
+// React Flow 持久化节点左上角坐标；尺寸与 CanvasBoard.module.css 保持一致。
 export const CANVAS_NODE_WIDTH = 300;
 export const CANVAS_NODE_DEFAULT_HEIGHT = 201;
 export const CANVAS_NODE_LARGE_HEIGHT = 332;

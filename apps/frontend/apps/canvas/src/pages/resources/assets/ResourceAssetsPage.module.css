@@ -1,0 +1,158 @@
+.cardGrid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  column-gap: 14px;
+  row-gap: 16px;
+}
+@media (max-width: 899px) {
+  .cardGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.cardTopMeta {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 20;
+  display: flex;
+  width: calc(100% - 8px);
+  height: 24px;
+  align-items: center;
+}
+.primaryTag {
+  flex: none;
+  margin-right: 8px;
+}
+.setPrimaryButton {
+  display: inline-flex;
+  width: auto;
+  max-width: 0;
+  height: 24px;
+  flex: none;
+  cursor: pointer;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  border: 0 dashed var(--border);
+  border-radius: 8px;
+  margin-right: 0;
+  background: rgba(241, 243, 245, 0.9);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+  opacity: 0;
+  white-space: nowrap;
+  transition: max-width 200ms ease, padding 200ms ease, border-width 200ms ease, margin-right 200ms ease, opacity 160ms ease;
+}
+.materialCard:hover .setPrimaryButton,
+.materialCard:focus-within .setPrimaryButton {
+  max-width: 96px;
+  padding: 0 8px;
+  border-width: 1px;
+  margin-right: 8px;
+  opacity: 1;
+}
+.materialPreview:hover .materialPreviewImage {
+  transform: scale(1.05);
+}
+.reviewStatus {
+  flex: none;
+}
+.setPrimaryButton[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+.cardSelector {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 40;
+  display: flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+}
+.cardSelectorCheckbox {
+  padding: 0;
+  line-height: 0;
+  border-color: var(--foreground);
+  background-color: var(--foreground);
+  color: var(--primary-foreground);
+}
+.materialActionButton {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  color: white;
+  font-size: 16px;
+  line-height: 1;
+  transition: background-color 0.2s;
+}
+.materialActionButton:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.6);
+}
+.materialActionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.materialActionButton :global(.hiagent-icon) {
+  display: block;
+}
+.audioPreviewControl {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.audioSpectrum {
+  position: absolute;
+  mask-image: linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  transition: opacity 200ms;
+}
+.audioPlayButton {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 22px;
+  opacity: 0;
+  pointer-events: auto;
+  transition: transform 160ms ease,
+    opacity 160ms ease;
+}
+.audioPlayButton:hover:not(:disabled) {
+  transform: scale(1.06);
+}
+.audioPlayButton:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.audioPlayButton:disabled {
+  cursor: not-allowed;
+}
+.materialPreview:hover .audioPlayButton,
+.audioPlayButton:focus-visible {
+  opacity: 1;
+}

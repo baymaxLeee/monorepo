@@ -21,8 +21,8 @@ import { shotLabel } from "../domain/model";
 import type { Shot } from "../domain/types";
 import { DraftScriptPreview } from "./DraftScriptPreview";
 
-import styles from "./StoryboardPreviewDialog.module.less";
-import dialogSizing from "@/components/DialogSizing.module.less";
+import styles from "./StoryboardPreviewDialog.module.css";
+import dialogSizing from "@/components/DialogSizing.module.css";
 
 function ShotNavItem({ active, label, onClick }: { active: boolean; label: string; onClick?: () => void }) {
   return (

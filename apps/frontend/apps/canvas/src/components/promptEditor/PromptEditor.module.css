@@ -1,0 +1,10 @@
+.editor:global(.markdown-editor.markdown-editor-editable) :global(.markdown-editor-content) {
+  padding-right: 0;
+}
+.editor :global(.markdown-editor-content .ProseMirror p) {
+  margin: 0;
+  line-height: 28px;
+}
+.editor :global(.markdown-editor-content .ProseMirror p + p) {
+  margin-top: 12px;
+}

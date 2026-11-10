@@ -1,0 +1,352 @@
+.modal {
+  width: 80vw;
+  max-width: 92vw;
+  max-height: 90vh;
+  max-height: 90dvh;
+}
+@media (max-width: 1024px) {
+  .modal {
+    width: 92vw;
+  }
+}
+.modal:global(.canvas-modal-content) {
+  max-height: calc(90vh - 160px);
+  max-height: calc(90dvh - 160px);
+  overflow: auto;
+}
+.modal:global(.canvas-modal-content) {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+.createLayout {
+  display: flex;
+  height: 55vh;
+  height: 55dvh;
+  max-height: calc(90vh - 192px);
+  max-height: calc(90dvh - 192px);
+  overflow-y: auto;
+  gap: 1.5rem;
+}
+.formColumn {
+  display: flex;
+  min-width: 15rem;
+  flex: 0 1 18rem;
+  flex-direction: column;
+  gap: 24px;
+}
+.typeSelect {
+  width: 100%;
+}
+.typeSelect:global([data-slot="select-trigger"]) {
+  width: 100%;
+}
+.fieldCount {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+.materialHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.descriptionField {
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+.descriptionInput {
+  min-height: 0;
+  height: 100%;
+  flex: 1;
+  resize: vertical;
+}
+.descriptionInput:global([data-ui-input-control]) {
+  height: 100%;
+  min-height: 192px;
+  padding: 10px 12px;
+  line-height: 22px;
+}
+.error {
+  margin: 0;
+  color: var(--destructive);
+  font-size: 13px;
+}
+.materialColumn {
+  display: flex;
+  min-width: 24rem;
+  min-height: 0;
+  flex: 1 1 34rem;
+  flex-direction: column;
+  gap: 1rem;
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--border);
+}
+.materialHeader {
+  min-height: 2rem;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+}
+.dropzone {
+  display: flex;
+  min-height: 20rem;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--muted);
+  color: var(--foreground);
+  cursor: pointer;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: var(--muted-foreground);
+  background: var(--muted);
+  outline: none;
+}
+.dropzone strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.dropzone span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.dropzoneIcon {
+  margin-bottom: 0.25rem;
+  font-size: 32px;
+}
+.materialGrid {
+  display: grid;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-content: start;
+  flex: 1;
+  grid-auto-rows: max-content;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 14px;
+  row-gap: 14px;
+}
+.materialCard {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  box-sizing: border-box;
+  flex-direction: column;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  gap: 0;
+  transition: border-color 200ms;
+}
+.materialCard:hover,
+.materialCard:focus-within {
+  border-color: var(--muted-foreground);
+}
+.materialPreview {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 32px;
+}
+.materialPreview img {
+  width: 100%;
+  height: 100%;
+}
+.materialPreviewImage {
+  transition: transform 300ms ease-out;
+}
+.materialPreview:hover .materialPreviewImage {
+  transform: scale(1.05);
+}
+.audioPreviewControl {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.audioSpectrum {
+  position: absolute;
+  mask-image: linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  transition: opacity 200ms;
+}
+.audioPlayButton {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 22px;
+  opacity: 0;
+  pointer-events: auto;
+  transition: transform 160ms ease,
+    opacity 160ms ease;
+}
+.audioPlayButton:hover {
+  transform: scale(1.06);
+}
+.audioPlayButton:active {
+  transform: scale(0.96);
+}
+.materialPreview:hover .audioPlayButton,
+.audioPlayButton:focus-visible {
+  opacity: 1;
+}
+.primaryTag {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+}
+.setPrimaryButton {
+  position: absolute;
+  z-index: 1;
+  top: 0.25rem;
+  left: 0.25rem;
+  display: inline-flex;
+  height: 1.5rem;
+  align-items: center;
+  padding: 0 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: rgba(241, 243, 245, 0.9);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.materialPreview:hover .setPrimaryButton,
+.setPrimaryButton:focus-visible {
+  opacity: 1;
+}
+.removeButton {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  visibility: hidden;
+}
+.materialStatus {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  display: inline-flex;
+  height: 1.5rem;
+  align-items: center;
+  padding: 0 0.375rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+}
+.materialCard:hover .removeButton {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+.materialName {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.materialNameContainer {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  flex: none;
+  align-items: center;
+}
+.materialNameButton {
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.25rem;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: text;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+.materialNameDuplicate {
+  color: var(--destructive);
+}
+.materialNameInput {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 52rem) {
+  .createLayout {
+    height: auto;
+    min-height: auto;
+    flex-direction: column;
+  }
+  .formColumn,
+  .materialColumn {
+    width: 100%;
+    min-width: 0;
+    flex-basis: auto;
+  }
+  .materialColumn {
+    min-height: 22rem;
+    padding-top: 1.5rem;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}

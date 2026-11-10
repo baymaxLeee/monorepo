@@ -8,7 +8,7 @@ import {
 
 import t from "@/utils/i18n";
 
-import styles from "./ScriptDraftCard.module.less";
+import styles from "./ScriptDraftCard.module.css";
 
 /**
  * 批量分镜脚本生成任务的时间轴占位：关闭预览弹窗后 SSE 继续跑，

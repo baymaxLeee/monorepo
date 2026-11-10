@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const frontendRoot = resolve(repoRoot, "apps/frontend");
 const sourceExtensions = new Set([".js", ".jsx", ".ts", ".tsx"]);
+const lessExtensions = new Set([".less"]);
 const ignoredDirectories = new Set([
   ".git",
   ".rspack-build",
@@ -19,17 +20,17 @@ const ignoredDirectories = new Set([
 ]);
 const failures = [];
 
-async function collectSourceFiles(directory) {
+async function collectFiles(directory, extensions) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (!ignoredDirectories.has(entry.name))
-        files.push(...(await collectSourceFiles(resolve(directory, entry.name))));
+        files.push(...(await collectFiles(resolve(directory, entry.name), extensions)));
       continue;
     }
     const extension = entry.name.slice(entry.name.lastIndexOf("."));
-    if (sourceExtensions.has(extension)) files.push(resolve(directory, entry.name));
+    if (extensions.has(extension)) files.push(resolve(directory, entry.name));
   }
   return files;
 }
@@ -155,8 +156,25 @@ function checkSource(file, source) {
   checkMenuGroups(file, source);
 }
 
-for (const file of await collectSourceFiles(frontendRoot)) {
+for (const file of await collectFiles(frontendRoot, sourceExtensions)) {
   checkSource(file, await readFile(file, "utf8"));
+}
+
+for (const file of await collectFiles(frontendRoot, lessExtensions)) {
+  failures.push(`${relative(repoRoot, file)}:1 Less is forbidden; use Tailwind or component-owned CSS.`);
+}
+
+const globalStylesFile = resolve(frontendRoot, "packages/design-system/src/styles.css");
+const globalStyles = await readFile(globalStylesFile, "utf8");
+const capabilityStylePattern =
+  /\.code-editor|\.markdown-editor|\.pdf-previewer|\.x-mind-previewer|\.prompt-input|\.chat-|\.canvas-|\[data-streamdown=/g;
+for (const match of globalStyles.matchAll(capabilityStylePattern)) {
+  report(
+    globalStylesFile,
+    globalStyles,
+    match.index,
+    "Capability styles must live beside their owning package, not in the design-system global entry.",
+  );
 }
 
 if (failures.length > 0) {

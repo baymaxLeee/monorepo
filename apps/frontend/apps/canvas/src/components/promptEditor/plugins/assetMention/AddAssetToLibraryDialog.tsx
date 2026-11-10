@@ -25,7 +25,7 @@ import t from "@/utils/i18n";
 
 import type { AssetMentionItem, AssetMentionSource } from "./types";
 
-import dialogSizing from "@/components/DialogSizing.module.less";
+import dialogSizing from "@/components/DialogSizing.module.css";
 
 export const ASSET_LIBRARY_DIALOG_CLASS = "asset-library-dialog";
 
