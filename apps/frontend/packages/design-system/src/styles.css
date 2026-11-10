@@ -521,15 +521,18 @@
 
   /* MarkdownEditor table */
   .markdown-editor-content .markdown-editor-table-wrapper {
+    --markdown-editor-table-control-gutter: 0.625rem;
+
     box-sizing: border-box;
     width: 100%;
     margin: 1em 0 1.5em;
-    padding: 1.5rem 0.25rem 0.25rem 1.75rem;
+    padding: var(--markdown-editor-table-control-gutter) 0.25rem 0.25rem
+      var(--markdown-editor-table-control-gutter);
     overflow-x: auto;
   }
   .markdown-editor-with-block-gutter .markdown-editor-content .markdown-editor-table-wrapper {
-    width: calc(100% + 1.75rem);
-    margin-left: -1.75rem;
+    width: calc(100% + var(--markdown-editor-table-control-gutter));
+    margin-left: calc(0rem - var(--markdown-editor-table-control-gutter));
   }
   .markdown-editor-content table {
     border-collapse: collapse;
@@ -596,13 +599,13 @@
   }
   .markdown-editor-content .markdown-editor-table-grip-row,
   .markdown-editor-content .markdown-editor-table-grip-column {
-    background-color: color-mix(in oklab, var(--muted) 62%, transparent);
+    background-color: color-mix(in oklab, var(--muted) 38%, transparent);
   }
   .markdown-editor-content .markdown-editor-table-grip-row:hover,
   .markdown-editor-content .markdown-editor-table-grip-column:hover,
   .markdown-editor-content .markdown-editor-table-grip-table:hover {
     color: var(--foreground);
-    background-color: var(--muted);
+    background-color: color-mix(in oklab, var(--muted) 72%, transparent);
   }
   .markdown-editor-content .markdown-editor-table-grip-row-selected,
   .markdown-editor-content .markdown-editor-table-grip-column-selected,
@@ -613,8 +616,8 @@
   .markdown-editor-content .markdown-editor-table-grip-row {
     top: -1px;
     bottom: -1px;
-    left: -1.75rem;
-    width: 1.75rem;
+    left: calc(0rem - var(--markdown-editor-table-control-gutter));
+    width: var(--markdown-editor-table-control-gutter);
   }
   .markdown-editor-content .markdown-editor-table-grip-row-first {
     border-top-left-radius: 0.375rem;
@@ -623,10 +626,10 @@
     border-bottom-left-radius: 0.375rem;
   }
   .markdown-editor-content .markdown-editor-table-grip-column {
-    top: -1.5rem;
+    top: calc(0rem - var(--markdown-editor-table-control-gutter));
     right: -1px;
     left: -1px;
-    height: 1.5rem;
+    height: var(--markdown-editor-table-control-gutter);
   }
   .markdown-editor-content .markdown-editor-table-grip-column-first {
     border-top-left-radius: 0.375rem;
@@ -635,20 +638,20 @@
     border-top-right-radius: 0.375rem;
   }
   .markdown-editor-content .markdown-editor-table-grip-table {
-    top: -1.5rem;
-    left: -1.75rem;
-    width: 1.75rem;
-    height: 1.5rem;
+    top: calc(0rem - var(--markdown-editor-table-control-gutter));
+    left: calc(0rem - var(--markdown-editor-table-control-gutter));
+    width: var(--markdown-editor-table-control-gutter);
+    height: var(--markdown-editor-table-control-gutter);
     border: 1px solid var(--border);
-    border-radius: 0.5rem 0 0 0.5rem;
+    border-radius: 0.25rem 0 0 0.25rem;
     background-color: var(--background);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+    box-shadow: none;
   }
   .markdown-editor-content .markdown-editor-table-grip-table-icon {
-    width: 12px;
-    height: 12px;
-    border: 1.5px solid currentcolor;
-    border-radius: 2px;
+    width: 6px;
+    height: 6px;
+    border: 1px solid currentcolor;
+    border-radius: 1px;
     background:
       linear-gradient(currentcolor, currentcolor) 50% 0 / 1px 100% no-repeat,
       linear-gradient(currentcolor, currentcolor) 0 50% / 100% 1px no-repeat;
