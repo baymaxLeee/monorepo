@@ -59,7 +59,7 @@ async function deliverCleanup(claim: CleanupClaim): Promise<void> {
     );
   } catch (error) {
     const backoffSeconds = Math.min(300, 2 ** Math.min(claim.attempts, 8));
-    const nextAttempt = new Date(Date.now() + backoffSeconds * 1000);
+    const nextAttempt = new Date(Date.now() + backoffSeconds * 1000).toISOString();
     await getSql()`
       UPDATE conversation_artifact_cleanup_outbox
       SET claimed_at = NULL,

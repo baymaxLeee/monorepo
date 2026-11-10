@@ -1,3 +1,5 @@
+import type { ReadableStreamDefaultReader } from "node:stream/web";
+
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
@@ -7,16 +9,30 @@ type XReadRedis = ReturnType<typeof getRedisClient> & {
   xread(...args: Array<string | number>): Promise<[string, [string, string[]][]][] | null>;
 };
 
+type StreamReadResult<T> = Awaited<ReturnType<ReadableStreamDefaultReader<T>["read"]>>;
+
 const STREAM_TTL_SECONDS = 5 * 60;
 const STREAM_HEARTBEAT_MS = 60_000;
 const STREAM_READ_BLOCK_MS = 5_000;
+const STREAM_BATCH_MAX_DELAY_MS = 25;
+const STREAM_BATCH_TARGET_BYTES = 32 * 1_024;
 const STREAM_FRAGMENT_MAX_BYTES = 64 * 1_024;
 export const AGENT_STREAM_MAX_BYTES = 8 * 1_024 * 1_024;
 export const AGENT_STREAM_MAX_ENTRIES = 10_000;
 
+export type AgentStreamCapacityReason = "bytes" | "entries";
+
 export class AgentStreamCapacityError extends Error {
-  constructor(readonly runId: string) {
-    super(`agent stream ${runId} exceeded its Redis replay capacity`);
+  constructor(
+    readonly runId: string,
+    readonly reason: AgentStreamCapacityReason,
+    readonly bytes: number,
+    readonly entries: number,
+  ) {
+    super(
+      `agent stream ${runId} exceeded its Redis replay ${reason} capacity ` +
+        `(bytes=${bytes}/${AGENT_STREAM_MAX_BYTES}, entries=${entries}/${AGENT_STREAM_MAX_ENTRIES})`,
+    );
     this.name = "AgentStreamCapacityError";
   }
 }
@@ -52,6 +68,7 @@ export async function consumeAgentSseStream(
   options?: { onCapacityExceeded?: (error: AgentStreamCapacityError) => void | Promise<void> },
 ): Promise<void> {
   const reader = stream.getReader();
+  let pendingRead: Promise<StreamReadResult<string>> | undefined;
   let redisErrorLogged = false;
   const heartbeat = setInterval(() => {
     void refreshAgentStreamLease(conversationId, runId).catch((error) => {
@@ -63,16 +80,37 @@ export async function consumeAgentSseStream(
   }, STREAM_HEARTBEAT_MS);
   heartbeat.unref();
   try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) {
-        break;
+    let sourceDone = false;
+    while (!sourceDone) {
+      const first = await (pendingRead ?? reader.read());
+      pendingRead = undefined;
+      if (first.done) break;
+      if (!first.value) continue;
+
+      const chunks = [first.value];
+      let batchBytes = Buffer.byteLength(first.value, "utf8");
+      const deadline = Date.now() + STREAM_BATCH_MAX_DELAY_MS;
+      while (batchBytes < STREAM_BATCH_TARGET_BYTES) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) break;
+        const read = reader.read();
+        const next = await readStreamBeforeTimeout(read, remainingMs);
+        if (next === null) {
+          pendingRead = read;
+          break;
+        }
+        if (next.done) {
+          sourceDone = true;
+          break;
+        }
+        if (next.value) {
+          chunks.push(next.value);
+          batchBytes += Buffer.byteLength(next.value, "utf8");
+        }
       }
-      if (!value) {
-        continue;
-      }
+
       try {
-        await appendSseChunk(conversationId, runId, value);
+        await appendSseChunk(conversationId, runId, chunks.join(""));
       } catch (error) {
         if (error instanceof AgentStreamCapacityError) {
           await options?.onCapacityExceeded?.(error);
@@ -94,24 +132,46 @@ export async function consumeAgentSseStream(
   }
 }
 
+function readStreamBeforeTimeout<T>(
+  read: Promise<StreamReadResult<T>>,
+  timeoutMs: number,
+): Promise<StreamReadResult<T> | null> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => resolve(null), timeoutMs);
+    void read.then(
+      (result) => {
+        clearTimeout(timeout);
+        resolve(result);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function appendSseChunk(conversationId: string, runId: string, chunk: string): Promise<void> {
   const byteCount = Buffer.byteLength(chunk, "utf8");
-  if (byteCount > AGENT_STREAM_MAX_BYTES) throw new AgentStreamCapacityError(runId);
   const fragments = splitSseChunk(chunk);
+  if (byteCount > AGENT_STREAM_MAX_BYTES) {
+    throw new AgentStreamCapacityError(runId, "bytes", byteCount, fragments.length);
+  }
   const client = getRedisClient();
   const result = await client.eval(
     [
-      "if redis.call('HGET', KEYS[1], 'run_id') ~= ARGV[1] then return -2 end",
+      "if redis.call('HGET', KEYS[1], 'run_id') ~= ARGV[1] then return {-2, 0, 0} end",
       "local next_bytes = tonumber(redis.call('HGET', KEYS[1], 'bytes') or '0') + tonumber(ARGV[5])",
       "local next_entries = tonumber(redis.call('HGET', KEYS[1], 'entries') or '0') + tonumber(ARGV[6])",
-      "if next_bytes > tonumber(ARGV[3]) or next_entries > tonumber(ARGV[4]) then return -1 end",
+      "if next_bytes > tonumber(ARGV[3]) then return {-1, next_bytes, next_entries} end",
+      "if next_entries > tonumber(ARGV[4]) then return {-3, next_bytes, next_entries} end",
       "for index = 7, #ARGV do",
       "  redis.call('XADD', KEYS[2], 'MAXLEN', '~', ARGV[4], '*', 'sse', ARGV[index])",
       "end",
       "redis.call('HSET', KEYS[1], 'bytes', next_bytes, 'entries', next_entries)",
       "redis.call('EXPIRE', KEYS[1], ARGV[2])",
       "redis.call('EXPIRE', KEYS[2], ARGV[2])",
-      "return 1",
+      "return {1, next_bytes, next_entries}",
     ].join("\n"),
     2,
     activeKey(conversationId),
@@ -124,10 +184,11 @@ async function appendSseChunk(conversationId: string, runId: string, chunk: stri
     fragments.length,
     ...fragments,
   );
-  if (result === -1) {
-    throw new AgentStreamCapacityError(runId);
+  const [status, totalBytes, totalEntries] = result as [number, number, number];
+  if (status === -1 || status === -3) {
+    throw new AgentStreamCapacityError(runId, status === -1 ? "bytes" : "entries", totalBytes, totalEntries);
   }
-  if (result !== 1) {
+  if (status !== 1) {
     throw new Error(`agent stream ${runId} is no longer active`);
   }
 }

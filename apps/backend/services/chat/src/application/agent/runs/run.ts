@@ -625,7 +625,16 @@ export async function createAgentRunResponse(
         const consumption = resumable
           ? consumeAgentSseStream(conversation.id, runId, stream, {
               onCapacityExceeded: (error) => {
-                logger.error({ err: error, runId }, "agent replay stream capacity exceeded");
+                logger.error(
+                  {
+                    err: error,
+                    runId,
+                    capacityReason: error.reason,
+                    replayBytes: error.bytes,
+                    replayEntries: error.entries,
+                  },
+                  "agent replay stream capacity exceeded",
+                );
                 abortRun(runId, error);
               },
             })

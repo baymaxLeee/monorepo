@@ -2,7 +2,7 @@ import { storageClient } from "../infrastructure/clients/storage.js";
 import { logger } from "../infrastructure/observability/logger.js";
 import { getSql } from "../infrastructure/persistence/index.js";
 
-interface ClaimIntent {
+interface ClaimIntentRow {
   tenant_id: string;
   workspace_id: string;
   owner_type: string;
@@ -11,10 +11,14 @@ interface ClaimIntent {
   asset_id: string;
   revision_id: string | null;
   kind: "strong" | "snapshot" | "lease" | "weak";
-  generation: number;
+  generation: string;
   desired_state: "active" | "released";
   attempt_count: number;
-  state_version: number;
+  state_version: string;
+}
+
+interface ClaimIntent extends Omit<ClaimIntentRow, "generation"> {
+  generation: number;
 }
 
 function errorMessage(error: unknown): string {
@@ -27,7 +31,7 @@ function errorMessage(error: unknown): string {
 }
 
 async function claimNext(): Promise<ClaimIntent | undefined> {
-  const [row] = await getSql()<ClaimIntent[]>`
+  const [row] = await getSql()<ClaimIntentRow[]>`
     WITH candidate AS (
       SELECT tenant_id, workspace_id, owner_type, owner_id, slot
       FROM asset_claim_intents
@@ -50,7 +54,12 @@ async function claimNext(): Promise<ClaimIntent | undefined> {
       intent.asset_id, intent.revision_id, intent.kind, intent.generation, intent.desired_state,
       intent.attempt_count, intent.state_version
   `;
-  return row;
+  if (!row) return undefined;
+  const generation = Number(row.generation);
+  if (!Number.isSafeInteger(generation) || generation <= 0) {
+    throw new Error(`invalid asset claim generation ${JSON.stringify(row.generation)}`);
+  }
+  return { ...row, generation };
 }
 
 async function deliver(intent: ClaimIntent): Promise<void> {
@@ -89,7 +98,7 @@ async function deliver(intent: ClaimIntent): Promise<void> {
     `;
   } catch (error) {
     const attempt = intent.attempt_count + 1;
-    const nextAttempt = new Date(Date.now() + Math.min(300, 2 ** Math.min(attempt, 8)) * 1000);
+    const nextAttempt = new Date(Date.now() + Math.min(300, 2 ** Math.min(attempt, 8)) * 1000).toISOString();
     await getSql()`
       UPDATE asset_claim_intents
       SET attempt_count = ${attempt}, next_attempt_at = ${nextAttempt}, lease_until = NULL,

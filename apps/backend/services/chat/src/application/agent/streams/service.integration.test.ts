@@ -87,7 +87,10 @@ test(
         }),
       );
       for (let attempt = 0; attempt < 50; attempt++) {
-        if ((await getRedisClient().xlen(`chat:agent-streams:${replayRunId}:sse`)) === chunks.length) break;
+        const persistedBytes = Number(
+          (await getRedisClient().hget(`chat:agent-streams:${conversationId}:active`, "bytes")) ?? 0,
+        );
+        if (persistedBytes === Buffer.byteLength(chunks.join(""), "utf8")) break;
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 10);
         });
@@ -170,12 +173,16 @@ test(
   async () => {
     const conversationId = identifier("cv");
     const runId = identifier("run");
-    const chunks = Array.from({ length: AGENT_STREAM_MAX_ENTRIES + 2_000 }, (_, index) => `data: ${index}\n\n`);
+    const chunks = [
+      ...Array.from({ length: AGENT_STREAM_MAX_ENTRIES + 2_000 }, (_, index) => `data: ${index}\n\n`),
+      "data: [DONE]\n\n",
+    ];
     const expected = chunks.join("");
     let closeStream: (() => void) | undefined;
+    let consumption: Promise<void> | undefined;
     try {
       await activateAgentStream(conversationId, runId);
-      const consumption = consumeAgentSseStream(
+      consumption = consumeAgentSseStream(
         conversationId,
         runId,
         new ReadableStream<string>({
@@ -202,9 +209,12 @@ test(
 
       assert.ok(closeStream);
       closeStream();
+      closeStream = undefined;
       await consumption;
       assert.equal(await getRedisClient().exists(`chat:agent-streams:${runId}:sse`), 0);
     } finally {
+      closeStream?.();
+      await consumption?.catch(() => undefined);
       await getRedisClient().del(`chat:agent-streams:${conversationId}:active`, `chat:agent-streams:${runId}:sse`);
     }
   },
@@ -234,6 +244,8 @@ test("replay capacity overflow stops persistence and removes the active cache", 
       AgentStreamCapacityError,
     );
     assert.equal(exceeded?.runId, runId);
+    assert.equal(exceeded?.reason, "bytes");
+    assert.ok((exceeded?.bytes ?? 0) > AGENT_STREAM_MAX_BYTES);
     assert.equal(await activeAgentStreamRunId(conversationId), null);
     assert.equal(await getRedisClient().exists(`chat:agent-streams:${runId}:sse`), 0);
   } finally {

@@ -14,6 +14,11 @@ import (
 
 type Repository struct{ pool *pgxpool.Pool }
 
+const selectAssetBlobsForUpdateSQL = `SELECT b.id,b.storage_key,b.state,COALESCE(b.deletion_owner_asset_id::text,'')
+	FROM blobs b WHERE EXISTS (
+	  SELECT 1 FROM asset_revisions r WHERE r.blob_id=b.id AND r.asset_id=$1
+	) ORDER BY b.id FOR UPDATE OF b`
+
 func Connect(ctx context.Context, databaseURL string) (*Repository, error) {
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
@@ -632,8 +637,7 @@ func (r *Repository) ClaimDeletions(ctx context.Context, now, leaseUntil time.Ti
 		}
 		candidate.StateVersion++
 
-		blobRows, blobErr := tx.Query(ctx, `SELECT DISTINCT b.id,b.storage_key,b.state,COALESCE(b.deletion_owner_asset_id::text,'')
-        FROM asset_revisions r JOIN blobs b ON b.id=r.blob_id WHERE r.asset_id=$1 ORDER BY b.id FOR UPDATE`, candidate.AssetID)
+		blobRows, blobErr := tx.Query(ctx, selectAssetBlobsForUpdateSQL, candidate.AssetID)
 		if blobErr != nil {
 			return nil, blobErr
 		}

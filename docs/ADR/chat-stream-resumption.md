@@ -13,10 +13,11 @@ Redis 不是消息历史，也不是任务队列；它只保存 active run 的�
 每个 active buffer 当前使用以下边界：
 
 - active pointer 与 stream 使用五分钟滑动租约；独立 heartbeat 每 60 秒续租，不能依赖模型持续输出；
+- public SSE 仍直接流向浏览器；独立 Redis persistence consumer 将连续原始 chunks 最多聚合 25 ms 或 32 KiB 后再写入，不增加用户侧输出延迟超过该窗口；
 - 单个 Redis fragment 不超过 64 KiB；单 run 最多 8 MiB、10,000 entries；
 - append 在一个 Redis Lua 操作中校验 run 身份和累计 bytes/entries，再写 stream、更新计数并续租；
-- entry 数使用 `XADD MAXLEN ~` 作为最后保险，应用字节预算才是主要容量控制；
-- 超过预算会以 `AgentStreamCapacityError` 中止生成并按 failed run 收口，不能裁掉头部后继续声称支持完整 replay；
+- entry 统计的是聚合后为 Redis 存储切出的 fragments，不是 provider delta、UIMessage chunk 或 Agent model step；`XADD MAXLEN ~` 只作为最后保险，应用字节预算才是主要容量控制；
+- 超过预算会以带 `reason`、累计 bytes/entries 和上限的 `AgentStreamCapacityError` 中止生成并按 failed run 收口，不能裁掉头部后继续声称支持完整 replay；
 - PostgreSQL finalizer 提交且 SSE consumer 排空后，立即 compare-delete active pointer，并删除该 run 的 stream；
 - failed、cancelled、启动异常和 orphan/interrupted 使用相同清理路径；TTL 只回收清理进程本身消失后留下的 key。
 
@@ -33,7 +34,9 @@ Redis key 仍为：
 一小时 TTL 曾让三个异常 stream 在本地累计约 1.1、1.5 和 2.6 GiB。缩短 TTL 只能减少进程
 崩溃后的尸体时间；持续写入的 runaway stream 会不断续租，仍能在完成前耗尽 Redis。
 
-`MAXLEN` 只限制 entry 数，不限制单 entry 字节数。更重要的是，当前 AI SDK resume 使用完整重放：
+`MAXLEN` 只限制 entry 数，不限制单 entry 字节数。直接把每个 provider/UIMessage delta 写成一个 entry
+还会让正常的长 ReAct run 在实际数据很小时先撞 entry 上限；因此写 Redis 前必须做有界低延迟聚合。
+更重要的是，当前 AI SDK resume 使用完整重放：
 静默裁掉 `start`、text/tool 起始 chunks 会生成协议上不完整的 response。因此容量保护必须在写入前
 按 bytes 和 entries 拒绝，并把 run 明确收口，而不是返回损坏 replay。
 
@@ -57,7 +60,7 @@ child 的完整 UIMessage 仅在进程内累计，preliminary result 只携带�
 ```text
 claim run
   -> activate Redis pointer with zero counters
-  -> generate and append bounded native SSE
+  -> stream native SSE to the browser while coalescing bounded Redis writes
   -> PostgreSQL finalizer commits terminal journal
   -> SSE consumer drains finish / [DONE]
   -> compare-delete pointer + delete run stream
@@ -74,7 +77,8 @@ PostgreSQL 读取，不依赖完成后的 Redis replay。
 
 ## 取舍与剩余运维边界
 
-该设计选择简单的完整重放，不引入 checkpoint snapshot + rolling delta 合成协议。代价是每个 active
+该设计选择简单的完整字节重放；25 ms / 32 KiB 聚合只改变 Redis entry 边界，不解析、重写或合成
+UIMessage 事件，也不引入 checkpoint snapshot + rolling delta 协议。代价是每个 active
 run 需要保存完整 wire log，因此必须有硬上限；超过上限的极端输出会失败，而不是无限恢复。
 
 单 run 上限不能替代 Redis 实例的总容量规划。最坏 replay 内存近似为“active run 并发数 × 8 MiB”再加
