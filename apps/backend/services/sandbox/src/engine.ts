@@ -326,7 +326,9 @@ export class Engine {
   async upload(id: string, scope: Scope, path: string, body: ReadableStream<Uint8Array>, signal: AbortSignal) {
     await this.assertOwner(id, scope);
     filePath(path);
-    if (!path.startsWith("sources/")) throw new Error("imports must be under sources/");
+    if (!path.startsWith("sources/") && !path.startsWith("work/") && !path.startsWith("outputs/")) {
+      throw new Error("file writes must be under sources/, work/ or outputs/");
+    }
     const child = spawn(
       this.executable,
       [...this.prefix, ...this.execArgs(id, ["write", path, String(this.config.maxTransferBytes)], true)],

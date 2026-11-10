@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
   controller: null as ReadableStreamDefaultController<UIMessageChunk> | null,
   action: vi.fn(),
+  send: vi.fn(),
+  traceRunId: "run" as string | null,
   pending: null as { body: Record<string, unknown>; messages: ChatUIMessage[] } | null,
   retry: vi.fn(),
 }));
@@ -31,29 +33,35 @@ vi.mock("../lib/transport", () => ({
     clearPendingRequest: () => {
       mocks.pending = null;
     },
-    sendMessages: async () =>
-      new ReadableStream<UIMessageChunk>({
-        start(controller) {
-          mocks.controller = controller;
-        },
-      }),
+    sendMessages: (...args: unknown[]) => mocks.send(...args) as Promise<ReadableStream<UIMessageChunk>>,
   }),
 }));
 vi.mock("../store/useChatStore", () => {
   const store = {
-    traceRunId: "run",
     setTraceRun: mocks.action,
     clearTraceRun: mocks.action,
     bumpTraceRefresh: mocks.action,
     applyConversationTitle: mocks.action,
   };
   return {
-    useChatStore: Object.assign((select: (s: typeof store) => unknown) => select(store), { getState: () => store }),
+    useChatStore: Object.assign((select: (s: typeof store) => unknown) => select(store), {
+      getState: () => ({ ...store, traceRunId: mocks.traceRunId }),
+    }),
   };
 });
 beforeEach(() => {
   mocks.controller = null;
   mocks.pending = null;
+  mocks.traceRunId = "run";
+  mocks.send.mockReset();
+  mocks.send.mockImplementation(
+    async () =>
+      new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          mocks.controller = controller;
+        },
+      }),
+  );
   mocks.retry.mockReset();
   mocks.fetch.mockReset();
   mocks.reconnect.mockReset();
@@ -134,10 +142,13 @@ test("client-tool pauses keep the live tool part instead of reloading stored mes
 });
 
 test("loading resumes a persisted run once; unmount disconnects without server cancellation", async () => {
-  mocks.fetch.mockResolvedValue({ id: "one", messages: [], documents: [], active_run_id: "run" });
+  mocks.fetch.mockResolvedValue({ id: "one", revision: 1, messages: [], documents: [], active_run_id: "run" });
   const view = renderHook(() => {
     const owner = useConversationChat("one");
-    useChat({ chat: owner.chat, resume: !owner.loading && owner.detail?.id === "one" });
+    useChat({
+      chat: owner.chat,
+      resume: !owner.loading && owner.detail?.id === "one" && Boolean(owner.detail.active_run_id),
+    });
     return owner;
   });
   await waitFor(() => expect(mocks.reconnect).toHaveBeenCalledOnce());
@@ -147,6 +158,51 @@ test("loading resumes a persisted run once; unmount disconnects without server c
   view.unmount();
   expect(stop).toHaveBeenCalledOnce();
   expect(mocks.cancel).not.toHaveBeenCalled();
+});
+
+test("an idle hydrated conversation does not probe stream recovery", async () => {
+  const view = renderHook(() => {
+    const owner = useConversationChat("one");
+    useChat({
+      chat: owner.chat,
+      resume: !owner.loading && owner.detail?.id === "one" && Boolean(owner.detail.active_run_id),
+    });
+    return owner;
+  });
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  expect(mocks.reconnect).not.toHaveBeenCalled();
+});
+
+test("history mutations stay gated until the authoritative history validates", async () => {
+  let resolveHistory!: (value: unknown) => void;
+  mocks.fetch.mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolveHistory = resolve;
+    }),
+  );
+  const view = renderHook(() => useConversationChat("one"));
+  expect(view.result.current.historyReady).toBe(false);
+  expect(view.result.current.canStartHistoryMutation()).toBe(false);
+  await act(async () => {
+    resolveHistory({ id: "one", revision: 0, messages: [], documents: [], active_run_id: null });
+  });
+  await waitFor(() => expect(view.result.current.historyReady).toBe(true));
+  expect(view.result.current.canStartHistoryMutation()).toBe(true);
+});
+
+test("invalid initial history keeps all history mutations gated", async () => {
+  mocks.fetch.mockResolvedValue({
+    id: "one",
+    revision: 0,
+    messages: [{ id: "bad", role: "user", content: { parts: [{ type: "text", text: 42 }] } }],
+    documents: [],
+    active_run_id: null,
+  });
+  const view = renderHook(() => useConversationChat("one"));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  expect(view.result.current.historyReady).toBe(false);
+  expect(view.result.current.canStartHistoryMutation()).toBe(false);
+  expect(view.result.current.issue?.kind).toBe("history");
 });
 
 test("history hydration preserves message metadata", async () => {
@@ -191,7 +247,19 @@ test("explicit stop cancels the server run and refreshes persisted messages", as
   });
   expect(stop).toHaveBeenCalledOnce();
   expect(mocks.cancel).toHaveBeenCalledWith("one", "run", { skipErrorNotify: true });
-  expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  expect(mocks.fetch).toHaveBeenCalledTimes(3);
+});
+
+test("stop discovers and cancels a run claimed before response headers arrived", async () => {
+  mocks.traceRunId = null;
+  const view = await mount();
+  mocks.fetch
+    .mockResolvedValueOnce({ id: "one", revision: 1, messages: [], documents: [], active_run_id: "server-run" })
+    .mockResolvedValueOnce({ id: "one", revision: 1, messages: [], documents: [], active_run_id: null });
+  await act(async () => {
+    await view.result.current.stopRun();
+  });
+  expect(mocks.cancel).toHaveBeenCalledWith("one", "server-run", { skipErrorNotify: true });
 });
 
 test("server cancellation failure still disconnects the local stream", async () => {
@@ -202,7 +270,7 @@ test("server cancellation failure still disconnects the local stream", async () 
     await view.result.current.stopRun();
   });
   expect(stop).toHaveBeenCalledOnce();
-  expect(mocks.fetch).toHaveBeenCalledOnce();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
 });
 
 test("network disconnect preserves the partial reply and authoritative active run", async () => {
@@ -381,12 +449,51 @@ test("a delayed history selection cannot overwrite a newer local run", async () 
   ).toBe(true);
 });
 
+test("a pending history selection gates mutations and cannot replace a changed local snapshot", async () => {
+  mocks.fetch.mockResolvedValue({
+    id: "one",
+    title: "Conversation",
+    revision: 3,
+    messages: [],
+    branches: [],
+    documents: [],
+    active_run_id: null,
+  });
+  let resolveSelection!: (value: unknown) => void;
+  mocks.select.mockReturnValue(
+    new Promise((resolve) => {
+      resolveSelection = resolve;
+    }),
+  );
+  const view = await mount();
+  let selection!: Promise<void>;
+  await act(async () => {
+    selection = view.result.current.selectHistory("old-leaf");
+  });
+  expect(view.result.current.historyMutationPending).toBe(true);
+  expect(view.result.current.canStartHistoryMutation()).toBe(false);
+  view.result.current.chat.messages = [{ id: "local", role: "user", parts: [{ type: "text", text: "new" }] }];
+  await act(async () => {
+    resolveSelection({
+      id: "one",
+      revision: 4,
+      messages: [],
+      branches: [],
+      documents: [],
+      active_run_id: null,
+    });
+    await selection;
+  });
+  expect(view.result.current.chat.messages[0]?.id).toBe("local");
+  expect(view.result.current.historyMutationPending).toBe(false);
+});
+
 test("cancellation remains unconfirmed until the server reports a terminal run", async () => {
   const view = await mount();
   mocks.cancel.mockResolvedValueOnce({ cancelled: false, status: "cancel_requested" });
   await act(async () => view.result.current.stopRun());
   expect(view.result.current.issue?.kind).toBe("cancel");
-  expect(mocks.fetch).toHaveBeenCalledOnce();
+  expect(mocks.fetch).toHaveBeenCalledTimes(2);
   mocks.cancel.mockResolvedValueOnce({ cancelled: true, status: "cancelled" });
   await act(async () => view.result.current.stopRun());
   expect(view.result.current.issue).toBeNull();
@@ -421,6 +528,30 @@ test("retry recovers an already claimed operation without sending another POST",
   expect(mocks.retry).not.toHaveBeenCalled();
   expect(mocks.controller).toBeNull();
   expect(view.result.current.chat.messages[0]?.id).toBe("saved");
+});
+
+test("concurrent retry clicks consume one authoritative replay path", async () => {
+  const view = await mount();
+  mocks.pending = { body: { expected_revision: 0, request_id: "original" }, messages: [] };
+  let resolveProbe!: (value: unknown) => void;
+  mocks.fetch.mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolveProbe = resolve;
+    }),
+  );
+  let first!: Promise<void>;
+  let second!: Promise<void>;
+  await act(async () => {
+    first = view.result.current.retryRequest();
+    second = view.result.current.retryRequest();
+  });
+  expect(view.result.current.canRetry).toBe(false);
+  await act(async () => {
+    resolveProbe({ id: "one", revision: 1, active_run_id: "run", messages: [], documents: [] });
+    await Promise.all([first, second]);
+  });
+  expect(mocks.reconnect).toHaveBeenCalledOnce();
+  expect(mocks.fetch).toHaveBeenCalledTimes(3);
 });
 
 test("a client answer entered before the stream ends still triggers exactly one SDK continuation", async () => {

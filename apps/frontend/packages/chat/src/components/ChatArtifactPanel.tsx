@@ -9,7 +9,7 @@ const DocumentPanel = lazy(() =>
 const FilePanel = lazy(() => import("./ChatFileArtifactPanel").then((m) => ({ default: m.ChatFileArtifactPanel })));
 
 export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
-  const path = useChatStore((state) => state.artifactPreview.path);
+  const fileId = useChatStore((state) => state.artifactPreview.fileId);
   return (
     <Suspense
       fallback={
@@ -18,7 +18,7 @@ export function ChatArtifactPanel({ onClose }: { onClose?: () => void }) {
         </div>
       }
     >
-      {path ? <FilePanel onClose={onClose} /> : <DocumentPanel onClose={onClose} />}
+      {fileId ? <FilePanel onClose={onClose} /> : <DocumentPanel onClose={onClose} />}
     </Suspense>
   );
 }

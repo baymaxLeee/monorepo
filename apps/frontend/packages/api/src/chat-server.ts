@@ -73,7 +73,7 @@ export interface Conversation {
   title: string;
   model: string;
   provider_id: string;
-  active_plan_path: string | null;
+  active_plan_file_id: string | null;
   project_id: string | null;
   canvas_id: string | null;
   created_at: string;
@@ -148,17 +148,18 @@ export interface ConversationDocumentDetail extends ConversationDocument {
 }
 
 export interface ConversationFileDetail {
-  path: string;
+  id: string;
+  conversation_id: string;
   asset_id: string;
   revision_id: string;
   title: string;
   filename: string;
   mime_type: string;
-  size: number | null;
+  size: number;
   sha256: string;
-  writable: boolean;
-  derived: boolean;
-  content: string | null;
+  kind: "artifact" | "plan";
+  created_at: string;
+  updated_at: string;
 }
 
 export interface UpdateConversationDocumentInput {
@@ -265,14 +266,12 @@ export function fetchConversationDocument(
 
 export function fetchConversationFile(
   conversationId: string,
-  path: string,
-  options?: { includeContent?: boolean; signal?: AbortSignal },
+  fileId: string,
+  options?: { signal?: AbortSignal },
 ): Promise<ConversationFileDetail> {
-  const params = new URLSearchParams({ path });
   return request<ConversationFileDetail>({
-    url: `${BASE}/${encodeURIComponent(conversationId)}/files/detail?${params.toString()}`,
+    url: `${BASE}/${encodeURIComponent(conversationId)}/files/${encodeURIComponent(fileId)}`,
     method: "GET",
-    params: { include_content: options?.includeContent },
     signal: options?.signal,
   });
 }

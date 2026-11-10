@@ -5,3 +5,7 @@ steps:
       checksum: ce95d64c86e643efc546856452682792e9980a9ecb8e8a85daa409d4982eb979
       files:
         v1.0.1.0.up.sql: df47457e2455381f779595031e857f4217b2cec913a5a917a00214a77e3620e3
+    - version: v1.0.1.1
+      checksum: d676f2825b1afa944d66b1bb2497939afbb2d8222ba8a4e071eafb6b546fe2ab
+      files:
+        v1.0.1.1.up.sql: cd4fcc026f5a984bcb91d950f13a06944c22cef6cf5948d6cc6d97137764082a

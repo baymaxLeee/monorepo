@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
-import { forkConversationFiles } from "../infrastructure/clients/knowledge.js";
+import { forkConversationDocuments } from "../infrastructure/clients/knowledge.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
   conversationArtifactCleanupOutbox,
@@ -11,6 +11,7 @@ import {
   conversations,
   messages,
 } from "../infrastructure/persistence/schema.js";
+import { forkConversationFileRows } from "./conversation-files.js";
 import { forkMessageContent } from "./conversation-fork-content.js";
 import { getConversationRow, listMessages, type Message } from "./conversations.js";
 import { ConflictError, NotFoundError } from "./errors.js";
@@ -26,7 +27,7 @@ export function selectForkMessages(history: Message[], messageId: string): Messa
 export const conversationForkDependencies = {
   getConversationRow,
   listMessages,
-  forkConversationFiles,
+  forkConversationDocuments,
   async hasActiveRun(id: string) {
     const rows = await getDb().select().from(conversationRunLeases).where(eq(conversationRunLeases.conversationId, id));
     return rows.length > 0;
@@ -44,7 +45,13 @@ export const conversationForkDependencies = {
       claimedAt: now,
     });
   },
-  async publish(source: Awaited<ReturnType<typeof getConversationRow>>, id: string, now: Date, history: Message[]) {
+  async publish(
+    source: Awaited<ReturnType<typeof getConversationRow>>,
+    id: string,
+    now: Date,
+    history: Message[],
+    documentIds: Record<string, string>,
+  ) {
     await getDb().transaction(async (tx) => {
       // The lease INSERT trigger advances this revision under the same row lock.
       // A run that starts AND ends during the external copy still invalidates it.
@@ -84,6 +91,15 @@ export const conversationForkDependencies = {
         createdAt: now,
         updatedAt: now,
       });
+      const fileIds = await forkConversationFileRows(tx, {
+        sourceConversationId: source.id,
+        sourceActivePlanFileId: source.activePlanFileId,
+        conversationId: id,
+        userId: source.userId,
+        tenantId: source.tenantId,
+        workspaceId: source.workspaceId,
+        now,
+      });
       await tx.insert(messages).values(
         history.map((message, index) => ({
           id: copiedIds[index],
@@ -91,7 +107,13 @@ export const conversationForkDependencies = {
           branchIndex: 0,
           conversationId: id,
           role: message.role,
-          content: message.content,
+          content: forkMessageContent(message.content, {
+            sourceId: source.id,
+            conversationId: id,
+            messageId: message.id,
+            documentIds,
+            fileIds,
+          }),
           status: message.status === "streaming" ? "failed" : message.status,
           // Preserve exact transcript order even when original timestamps tie.
           createdAt: new Date(now.getTime() - history.length + index),
@@ -125,24 +147,14 @@ export async function forkConversation(
   const now = new Date();
   await deps.reserve(auth, id, now);
   try {
-    const snapshot = await deps.forkConversationFiles({
+    const snapshot = await deps.forkConversationDocuments({
       sourceConversationId: sourceId,
       conversationId: id,
       userId: auth.userId,
       tenantId: auth.tenantId,
       workspaceId: auth.workspaceId,
     });
-    const copies = history.map((message) => ({
-      ...message,
-      content: forkMessageContent(message.content, {
-        sourceId,
-        conversationId: id,
-        messageId: message.id,
-        documentIds: snapshot.document_ids,
-        paths: snapshot.paths,
-      }),
-    }));
-    await deps.publish(source, id, now, copies);
+    await deps.publish(source, id, now, history, snapshot.document_ids);
     return { id, source_conversation_id: sourceId, source_message_id: messageId };
   } catch (error) {
     // Failure leaves the durable intent for the relay; source data is untouched.

@@ -19,6 +19,11 @@ export const memoryToolContextSchema = z.object({
 });
 export type MemoryToolContext = z.infer<typeof memoryToolContextSchema>;
 
+export const subagentToolContextSchema = z.object({
+  runId: z.string(),
+});
+export type SubagentToolContext = z.infer<typeof subagentToolContextSchema>;
+
 export const artifactToolContextSchema = z.object({
   runId: z.string(),
   userId: z.string(),

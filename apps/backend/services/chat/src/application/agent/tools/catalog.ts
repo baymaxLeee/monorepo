@@ -7,11 +7,11 @@ import type { InstructionContributions } from "../context/instructions/index.js"
 import { type AdminSkillSource, resolveSkills } from "../integrations/skills/provider.js";
 import type { AgentExtension, AgentExtensionContext } from "../integrations/types.js";
 import { createCanvasToolManifests } from "./builtins/canvas.js";
-import { createFileToolManifests } from "./builtins/files.js";
 import { createInteractionToolManifests } from "./builtins/interaction.js";
 import { createMediaToolManifests } from "./builtins/media.js";
 import { createMemoryToolManifests } from "./builtins/memory.js";
 import { createPlanningToolManifests } from "./builtins/planning.js";
+import { createResearchSubagentManifest } from "./builtins/research.js";
 import { createRuntimeTools } from "./builtins/runtime.js";
 import { createSearchToolManifests } from "./builtins/search.js";
 import { createToolSearchManifest } from "./discovery.js";
@@ -27,7 +27,6 @@ export interface AgentToolProviders {
 function builtinManifests(mode: AgentMode, providers: AgentToolProviders): AgentToolManifest[] {
   return [
     ...createSearchToolManifests(),
-    ...createFileToolManifests(mode, providers.textProvider),
     ...createPlanningToolManifests(),
     ...createInteractionToolManifests(mode),
     ...createMediaToolManifests({
@@ -105,6 +104,20 @@ export class ToolCatalog {
           : []),
         ...resolvedSkills.manifests,
       ];
+      const researchTools = manifestsToTools(
+        manifests.filter((manifest) => manifest.name === "web_search" || manifest.name === "web_fetch"),
+      );
+      if (researchTools.web_search && researchTools.web_fetch) {
+        manifests.push(
+          createResearchSubagentManifest({
+            provider: providers.textProvider,
+            tools: {
+              web_search: researchTools.web_search,
+              web_fetch: researchTools.web_fetch,
+            },
+          }),
+        );
+      }
       const skills = [...resolvedSkills.skills];
 
       for (const extension of [...this.#extensions]) {

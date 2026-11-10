@@ -94,18 +94,6 @@ class CreateSourceDocumentsInput(BaseModel):
     provider_id: str | None = Field(default=None, max_length=32)
 
 
-class CreateArtifactInput(BaseModel):
-    user_id: str = Field(min_length=1, max_length=26)
-    workspace_id: str = Field(min_length=1, max_length=26)
-    tenant_id: str = Field(min_length=1, max_length=26)
-    conversation_id: str | None = Field(default=None, max_length=32)
-    title: str = Field(min_length=1, max_length=120)
-    filename: str = Field(min_length=1, max_length=160)
-    content: str = Field(min_length=1)
-    mime_type: str | None = Field(default=None, max_length=120)
-    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
-
-
 class UpdateArtifactInput(BaseModel):
     user_id: str = Field(min_length=1, max_length=26)
     title: str | None = Field(default=None, min_length=1, max_length=120)

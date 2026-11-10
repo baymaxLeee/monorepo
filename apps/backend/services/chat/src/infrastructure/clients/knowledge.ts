@@ -5,25 +5,13 @@ import {
   type DocumentSlice,
   type KnowledgeDocument,
   type RetrieveResult,
-  type VirtualFileEntry,
-  type VirtualFileRead,
-  type FileChangeSet,
-  type FileSearchMatch,
 } from "@backend/transport-ts";
 
 import { NotFoundError } from "../../application/errors.js";
 import { getSettings } from "../../bootstrap/config.js";
 import { storageClient } from "./storage.js";
 
-export type {
-  DocumentSlice,
-  KnowledgeDocument,
-  RetrieveResult,
-  VirtualFileEntry,
-  VirtualFileRead,
-  FileChangeSet,
-  FileSearchMatch,
-} from "@backend/transport-ts";
+export type { DocumentSlice, KnowledgeDocument, RetrieveResult } from "@backend/transport-ts";
 
 function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
   const s = getSettings();
@@ -38,74 +26,6 @@ function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
 
 export async function listDocuments(userId: string, conversationId?: string): Promise<KnowledgeDocument[]> {
   return knowledgeClient().listDocuments({ userId, conversationId });
-}
-
-export function listVirtualFiles(userId: string, conversationId: string, path?: string): Promise<VirtualFileEntry[]> {
-  return knowledgeClient().listVirtualFiles({ userId, conversationId, path });
-}
-
-export function readVirtualFile(input: {
-  userId: string;
-  conversationId: string;
-  path: string;
-  offset?: number;
-  limit?: number;
-}): Promise<VirtualFileRead> {
-  return knowledgeClient().readVirtualFile(input);
-}
-
-export function createFileChangeSet(input: {
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
-  conversationId: string;
-  metadata?: Record<string, string>;
-}): Promise<FileChangeSet> {
-  return knowledgeClient().createFileChangeSet(input);
-}
-
-export function writeChangeSetFile(input: {
-  userId: string;
-  changeSetId: string;
-  path: string;
-  content: string;
-  mimeType: string;
-  writable?: boolean;
-  derived?: boolean;
-}): Promise<VirtualFileEntry> {
-  return knowledgeClient().writeChangeSetFile(input);
-}
-
-export function listChangeSetFiles(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
-  return knowledgeClient().listChangeSetFiles(input);
-}
-
-export function readChangeSetFile(input: {
-  userId: string;
-  changeSetId: string;
-  path: string;
-  offset?: number;
-  limit?: number;
-}): Promise<VirtualFileRead> {
-  return knowledgeClient().readChangeSetFile(input);
-}
-
-export function promoteFileChangeSet(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
-  return knowledgeClient().promoteFileChangeSet(input);
-}
-
-export function discardFileChangeSet(input: { userId: string; changeSetId: string }): Promise<FileChangeSet> {
-  return knowledgeClient().discardFileChangeSet(input);
-}
-
-export function searchVirtualFiles(input: {
-  userId: string;
-  conversationId: string;
-  pattern: string;
-  path?: string;
-  glob?: string;
-}): Promise<FileSearchMatch[]> {
-  return knowledgeClient().searchVirtualFiles(input);
 }
 
 export async function cleanupConversationArtifacts(input: {
@@ -219,20 +139,6 @@ export async function retrieveKnowledge(
   return knowledgeClient().retrieve({ userId, tenantId, workspaceId, query, topK, signal });
 }
 
-export async function createArtifact(input: {
-  userId: string;
-  tenantId: string;
-  workspaceId: string;
-  conversationId: string;
-  title: string;
-  filename: string;
-  content: string;
-  mimeType?: string;
-  idempotencyKey?: string;
-}): Promise<KnowledgeDocument> {
-  return knowledgeClient().createArtifact(input);
-}
-
 export async function createMediaDocument(input: {
   userId: string;
   tenantId: string;
@@ -265,6 +171,6 @@ export async function updateArtifact(input: {
   }
 }
 
-export function forkConversationFiles(input: Parameters<KnowledgeInternalClient["forkConversationFiles"]>[0]) {
-  return knowledgeClient().forkConversationFiles(input);
+export function forkConversationDocuments(input: Parameters<KnowledgeInternalClient["forkConversationDocuments"]>[0]) {
+  return knowledgeClient().forkConversationDocuments(input);
 }

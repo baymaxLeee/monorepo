@@ -7,6 +7,7 @@ import {
   createUIMessageStreamResponse,
   createUIMessageStream,
   DefaultGeneratedFile,
+  readUIMessageStream,
   type TextStreamPart,
   type UIMessage,
   type UIMessageChunk,
@@ -74,16 +75,37 @@ function dependencies(overrides: Partial<NativePartDependencies> = {}): NativePa
       mediaType: input.mediaType,
       sizeBytes: 3,
       sha256: "sha",
-      url: "storage://asset/revision",
     }),
-    createMediaDocument: async (input) =>
+    publishConversationFile: async (input) =>
       ({
-        id: `${input.idempotencyKey?.split(":").at(-1) ?? "document"}`,
+        id: `file-${input.idempotencyKey.split(":").at(-1) ?? "saved"}`,
         conversation_id: input.conversationId,
         title: input.title,
-        filename: input.title,
+        filename: input.filename,
+        mime_type: input.mediaType,
+        size: input.sizeBytes,
+        asset_id: input.assetId,
+        revision_id: input.revisionId,
+        sha256: input.sha256,
+        kind: "artifact",
+        created_at: new Date(0).toISOString(),
+        updated_at: new Date(0).toISOString(),
+      }) as Awaited<ReturnType<NativePartDependencies["publishConversationFile"]>>,
+    getConversationFile: async (_auth, conversationId, fileId) =>
+      ({
+        id: fileId,
+        conversation_id: conversationId,
+        title: "Saved",
+        filename: "saved.bin",
         mime_type: "application/octet-stream",
-      }) as Awaited<ReturnType<NativePartDependencies["createMediaDocument"]>>,
+        size: 3,
+        asset_id: "asset",
+        revision_id: "revision",
+        sha256: "sha",
+        kind: "artifact",
+        created_at: new Date(0).toISOString(),
+        updated_at: new Date(0).toISOString(),
+      }) as Awaited<ReturnType<NativePartDependencies["getConversationFile"]>>,
     getDocument: async (_userId, documentId) =>
       ({
         id: documentId,
@@ -151,17 +173,23 @@ test("real SDK file and reasoning-file parts are published before persistence", 
         mediaType: input.mediaType,
         sizeBytes: 3,
         sha256: "sha",
-        url: `storage://asset-${uploads.length}/revision-${uploads.length}`,
       };
     },
-    createMediaDocument: async (input) =>
+    publishConversationFile: async (input) =>
       ({
-        id: `document-${input.assetId}`,
+        id: `file-${input.assetId}`,
         conversation_id: input.conversationId,
         title: input.title,
-        filename: input.title,
-        mime_type: "application/octet-stream",
-      }) as Awaited<ReturnType<NativePartDependencies["createMediaDocument"]>>,
+        filename: input.filename,
+        mime_type: input.mediaType,
+        size: input.sizeBytes,
+        asset_id: input.assetId,
+        revision_id: input.revisionId,
+        sha256: input.sha256,
+        kind: "artifact",
+        created_at: new Date(0).toISOString(),
+        updated_at: new Date(0).toISOString(),
+      }) as Awaited<ReturnType<NativePartDependencies["publishConversationFile"]>>,
   });
   const parts = createPublishedAgentPartStream({
     modelStream: modelStream([
@@ -193,12 +221,12 @@ test("real SDK file and reasoning-file parts are published before persistence", 
       {
         type: "file",
         mediaType: "image/png",
-        url: "/api/chat-server/conversations/conversation/documents/document-asset-1/content?document_id=document-asset-1",
+        url: "/api/chat-server/conversations/conversation/files/file-asset-1/content?file_id=file-asset-1",
       },
       {
         type: "reasoning-file",
         mediaType: "application/pdf",
-        url: "/api/chat-server/conversations/conversation/documents/document-asset-2/content?document_id=document-asset-2",
+        url: "/api/chat-server/conversations/conversation/files/file-asset-2/content?file_id=file-asset-2",
       },
     ],
   );
@@ -280,6 +308,98 @@ test("the composed HTTP owner emits one start and one finish", async () => {
   assert.equal(chunks.find((chunk) => chunk.type === "finish")?.finishReason, "stop");
 });
 
+test("the official producer and consumer preserve Unicode reasoning and multi-step boundaries", async () => {
+  const stream = createUIMessageStream({
+    generateId: () => "assistant",
+    execute: ({ writer }) => {
+      writer.write({ type: "start", messageId: "assistant" });
+      writer.write({ type: "start-step" });
+      writer.write({ type: "reasoning-start", id: "reasoning" });
+      writer.write({ type: "reasoning-delta", id: "reasoning", delta: "推理😀" });
+      writer.write({ type: "reasoning-end", id: "reasoning" });
+      writer.write({ type: "finish-step" });
+      writer.write({ type: "start-step" });
+      writer.write({ type: "text-start", id: "answer" });
+      writer.write({ type: "text-delta", id: "answer", delta: "结论 café 🚀" });
+      writer.write({ type: "text-end", id: "answer" });
+      writer.write({ type: "finish-step" });
+      writer.write({ type: "finish", finishReason: "stop" });
+    },
+  });
+
+  let finalMessage: UIMessage | undefined;
+  for await (const snapshot of readUIMessageStream({ stream })) finalMessage = snapshot;
+  assert.equal(finalMessage?.id, "assistant");
+  assert.deepEqual(finalMessage?.parts, [
+    { type: "step-start" },
+    { type: "reasoning", id: "reasoning", text: "推理😀", providerMetadata: undefined, state: "done" },
+    { type: "step-start" },
+    { type: "text", text: "结论 café 🚀", providerMetadata: undefined, state: "done" },
+  ]);
+});
+
+test("the official consumer merges metadata, reconciles stable data ids, and excludes transient data", async () => {
+  type ProtocolMessage = UIMessage<
+    { phase?: string; usage?: { totalTokens: number } },
+    { evidence: { value: string }; notice: { text: string } }
+  >;
+  const wireChunks: UIMessageChunk[] = [];
+  let persisted: ProtocolMessage | undefined;
+  const stream = createUIMessageStream<ProtocolMessage>({
+    generateId: () => "assistant",
+    execute: ({ writer }) => {
+      writer.write({ type: "start", messageId: "assistant", messageMetadata: { phase: "started" } });
+      writer.write({ type: "data-evidence", id: "evidence", data: { value: "first" } });
+      writer.write({ type: "data-notice", data: { text: "ephemeral" }, transient: true });
+      writer.write({ type: "data-evidence", id: "evidence", data: { value: "final" } });
+      writer.write({ type: "message-metadata", messageMetadata: { usage: { totalTokens: 12 } } });
+      writer.write({ type: "finish", finishReason: "stop", messageMetadata: { phase: "completed" } });
+    },
+    onEnd: ({ responseMessage }) => {
+      persisted = responseMessage;
+    },
+  });
+  const [consumerStream, auditStream] = stream.tee();
+  for await (const chunk of auditStream) wireChunks.push(chunk);
+  let consumed: ProtocolMessage | undefined;
+  for await (const snapshot of readUIMessageStream<ProtocolMessage>({ stream: consumerStream })) consumed = snapshot;
+
+  assert.ok(wireChunks.some((chunk) => chunk.type === "data-notice" && chunk.transient));
+  for (const message of [consumed, persisted]) {
+    assert.deepEqual(message?.metadata, { phase: "completed", usage: { totalTokens: 12 } });
+    assert.deepEqual(message?.parts, [{ type: "data-evidence", id: "evidence", data: { value: "final" } }]);
+  }
+});
+
+test("official error chunks fail consumers while abort remains an explicit finalizer outcome", async () => {
+  const failed = createUIMessageStream({
+    execute: ({ writer }) => {
+      writer.write({ type: "start", messageId: "failed" });
+      writer.write({ type: "error", errorText: "provider stream failed" });
+    },
+  });
+  await assert.rejects(async () => {
+    for await (const _snapshot of readUIMessageStream({ stream: failed, terminateOnError: true })) {
+      // Error delivery is owned by the SDK consumer.
+    }
+  }, /provider stream failed/);
+
+  let aborted: { isAborted: boolean; status: string } | undefined;
+  const abortStream = createUIMessageStream({
+    execute: ({ writer }) => {
+      writer.write({ type: "start", messageId: "aborted" });
+      writer.write({ type: "text-start", id: "partial" });
+      writer.write({ type: "text-delta", id: "partial", delta: "partial" });
+      writer.write({ type: "abort", reason: "cancelled" });
+    },
+    onEnd: ({ isAborted, outcome }) => {
+      aborted = { isAborted, status: outcome.status };
+    },
+  });
+  await collect(abortStream);
+  assert.deepEqual(aborted, { isAborted: true, status: "aborted" });
+});
+
 test("continuation preserves existing files exactly once and publishes new files in order", async () => {
   const oldFile = {
     type: "file" as const,
@@ -350,6 +470,9 @@ test("the official response consumer completes persistence after the HTTP subscr
       consumed = consumeStream({ stream });
     },
   });
+  assert.equal(response.headers.get("content-type"), "text/event-stream");
+  assert.equal(response.headers.get("x-vercel-ai-ui-message-stream"), "v1");
+  assert.equal(response.headers.get("x-accel-buffering"), "no");
   const reader = response.body!.getReader();
   await reader.read();
   const detached = reader.cancel();

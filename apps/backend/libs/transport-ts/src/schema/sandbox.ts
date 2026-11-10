@@ -144,7 +144,32 @@ export interface paths {
                 };
             };
         };
-        delete?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description JSON-encoded SandboxScope */
+                    "X-Sandbox-Scope": string;
+                };
+                path: {
+                    id: string;
+                    processId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SandboxProcess"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -289,6 +314,9 @@ export interface components {
             command: string;
             /** @default /workspace/work */
             workdir: string;
+            env?: {
+                [key: string]: string;
+            };
             /** @default false */
             tty: boolean;
             /** @default 1000 */

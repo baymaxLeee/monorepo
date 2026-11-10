@@ -74,14 +74,6 @@ export interface paths {
                         payload: components["schemas"]["CanvasVideoFramesPayload"];
                     } | {
                         /** @constant */
-                        type: "file-task-batch";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: components["schemas"]["FileTaskBatchPayload"];
-                    } | {
-                        /** @constant */
                         type: "knowledge-document-process";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
@@ -586,14 +578,6 @@ export interface components {
             payload: components["schemas"]["CanvasVideoFramesPayload"];
         } | {
             /** @constant */
-            type: "file-task-batch";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: components["schemas"]["FileTaskBatchPayload"];
-        } | {
-            /** @constant */
             type: "knowledge-document-process";
             /** @description calling service, e.g. chat */
             owner_service: string;
@@ -614,19 +598,6 @@ export interface components {
         };
         CanvasVideoFramesPayload: {
             taskRunId: string;
-        };
-        FileTaskBatchPayload: {
-            tenantId: string;
-            workspaceId: string;
-            userId: string;
-            providerId: string;
-            stagingId: string;
-            sharedContext: string;
-            tasks: {
-                id: string;
-                instruction: string;
-                outputPath: string;
-            }[];
         };
         KnowledgeDocumentProcessPayload: {
             documentId: string;

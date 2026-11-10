@@ -49,6 +49,10 @@ process.stdout.write(
             requestBody: body("SandboxContinue"),
             responses: { "200": json(ref("SandboxProcess")) },
           },
+          delete: {
+            parameters: [id, { ...id, name: "processId" }, scope],
+            responses: { "200": json(ref("SandboxProcess")) },
+          },
         },
         "/sessions/{id}": {
           delete: {

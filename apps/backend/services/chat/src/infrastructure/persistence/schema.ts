@@ -1,4 +1,16 @@
-import { bigint, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 export interface PersistedMessageContent {
   version: number;
@@ -18,7 +30,7 @@ export const conversations = pgTable(
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
     projectId: varchar("project_id", { length: 36 }),
     canvasId: varchar("canvas_id", { length: 36 }),
-    activePlanPath: varchar("active_plan_path", { length: 512 }),
+    activePlanFileId: varchar("active_plan_file_id", { length: 32 }),
     runRevision: bigint("run_revision", { mode: "bigint" }).notNull().default(0n),
     historyRevision: bigint("history_revision", { mode: "bigint" }).notNull().default(0n),
     selectedMessageId: varchar("selected_message_id", { length: 32 }),
@@ -29,6 +41,68 @@ export const conversations = pgTable(
     index("ix_conversations_user_id").on(t.userId),
     index("ix_conversations_user_workspace").on(t.userId, t.tenantId, t.workspaceId),
     uniqueIndex("ux_conversations_canvas_owner").on(t.tenantId, t.workspaceId, t.userId, t.projectId, t.canvasId),
+  ],
+);
+
+export const conversationFiles = pgTable(
+  "conversation_files",
+  {
+    id: varchar("id", { length: 32 }).primaryKey(),
+    conversationId: varchar("conversation_id", { length: 32 })
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 26 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
+    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
+    assetId: uuid("asset_id").notNull(),
+    revisionId: uuid("revision_id").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    filename: varchar("filename", { length: 255 }).notNull(),
+    mediaType: varchar("media_type", { length: 255 }).notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull().default("artifact"),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [
+    index("ix_conversation_files_conversation").on(t.conversationId, t.createdAt),
+    index("ix_conversation_files_asset_revision").on(t.assetId, t.revisionId),
+    uniqueIndex("ux_conversation_files_idempotency").on(
+      t.tenantId,
+      t.workspaceId,
+      t.userId,
+      t.conversationId,
+      t.idempotencyKey,
+    ),
+  ],
+);
+
+export const assetClaimIntents = pgTable(
+  "asset_claim_intents",
+  {
+    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
+    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
+    ownerType: varchar("owner_type", { length: 64 }).notNull(),
+    ownerId: varchar("owner_id", { length: 128 }).notNull(),
+    slot: varchar("slot", { length: 128 }).notNull(),
+    assetId: uuid("asset_id").notNull(),
+    revisionId: uuid("revision_id"),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    generation: bigint("generation", { mode: "bigint" }).notNull(),
+    desiredState: varchar("desired_state", { length: 20 }).notNull(),
+    deliveredAt: timestamp("delivered_at", { mode: "date", withTimezone: true, precision: 6 }),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    leaseUntil: timestamp("lease_until", { mode: "date", withTimezone: true, precision: 6 }),
+    stateVersion: bigint("state_version", { mode: "bigint" }).notNull().default(1n),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.workspaceId, t.ownerType, t.ownerId, t.slot] }),
+    index("ix_asset_claim_intents_due").on(t.deliveredAt, t.nextAttemptAt, t.leaseUntil),
   ],
 );
 

@@ -26,27 +26,13 @@ function executorClient(): ExecutorInternalClient {
   });
 }
 
-type StartTaskInput =
-  | {
-      type: "file-task-batch";
-      ownerRef: string;
-      payload: Extract<CreateTaskInput, { type: "file-task-batch" }>["payload"];
-    }
-  | {
-      type: "video-generation";
-      ownerRef: string;
-      payload: Extract<CreateTaskInput, { type: "video-generation" }>["payload"];
-    };
+type StartTaskInput = {
+  type: "video-generation";
+  ownerRef: string;
+  payload: Extract<CreateTaskInput, { type: "video-generation" }>["payload"];
+};
 
 export async function startTask(input: StartTaskInput): Promise<Task> {
-  if (input.type === "file-task-batch") {
-    return executorClient().startTask({
-      type: input.type,
-      owner_service: "chat",
-      owner_ref: input.ownerRef,
-      payload: input.payload,
-    });
-  }
   return executorClient().startTask({
     type: input.type,
     owner_service: "chat",

@@ -15,8 +15,8 @@ Platform 是唯一用户入口，Gateway 是唯一公共 API 边缘；Executor �
 
 ## 所有权
 
-IAM 拥有身份与 tenant/workspace；Admin 拥有运营配置；Chat 拥有会话与交互
-Agent；Canvas 拥有画布业务；Knowledge 拥有文档语义/虚拟文件；Asset 拥有
+IAM 拥有身份与 tenant/workspace；Admin 拥有运营配置；Chat 拥有会话、交互
+Agent 与会话文件/Plan 引用；Canvas 拥有画布业务；Knowledge 拥有文档语义与检索；Asset 拥有
 durable bytes、revision、Claim 和交付；Executor 拥有耐久执行；Telemetry
 接收和查询观测数据。详细[业务词表](../领域模型/index.md)原地维护。
 

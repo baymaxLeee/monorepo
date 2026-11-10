@@ -14,32 +14,40 @@ export function forkMessageContent(
     conversationId: string;
     messageId: string;
     documentIds: Record<string, string>;
-    paths: Record<string, string>;
+    fileIds: Record<string, string>;
   },
 ): PersistedMessageContent {
-  const { sourceId, conversationId, documentIds, paths } = input;
+  const { sourceId, conversationId, documentIds, fileIds } = input;
   function remap(value: unknown, key = ""): unknown {
     if (Array.isArray(value)) return value.map((entry) => remap(entry, key));
     if (record(value))
       return Object.fromEntries(Object.entries(value).map(([name, entry]) => [name, remap(entry, name)]));
     if (typeof value !== "string") return value;
     if (key === "document_id" || key === "documentId") return documentIds[value] ?? value;
-    if (["path", "paths", "output_path", "filename"].includes(key)) {
-      if (paths[value]) return paths[value];
-      if (value.startsWith("documents/") && documentIds[value.slice(10)])
-        return `documents/${documentIds[value.slice(10)]}`;
-    }
+    if (key === "file_id" || key === "fileId") return fileIds[value] ?? value;
     if (key === "url") {
-      const prefix = `/conversations/${sourceId}/documents/`;
-      if (!value.includes(prefix)) return value;
       const url = new URL(value, "http://fork.internal");
+      const documentPrefix = `/conversations/${sourceId}/documents/`;
+      const filePrefix = `/conversations/${sourceId}/files/`;
       const documentId = url.searchParams.get("document_id");
-      if (!documentId || !documentIds[documentId]) throw new ConflictError("历史附件已不可用，无法创建完整分支");
-      url.pathname = url.pathname.replace(
-        `${prefix}${documentId}`,
-        `/conversations/${conversationId}/documents/${documentIds[documentId]}`,
-      );
-      url.searchParams.set("document_id", documentIds[documentId]);
+      const fileId = url.searchParams.get("file_id");
+      if (value.includes(documentPrefix)) {
+        if (!documentId || !documentIds[documentId]) throw new ConflictError("历史附件已不可用，无法创建完整分支");
+        url.pathname = url.pathname.replace(
+          `${documentPrefix}${documentId}`,
+          `/conversations/${conversationId}/documents/${documentIds[documentId]}`,
+        );
+        url.searchParams.set("document_id", documentIds[documentId]);
+      } else if (value.includes(filePrefix)) {
+        if (!fileId || !fileIds[fileId]) throw new ConflictError("历史文件已不可用，无法创建完整分支");
+        url.pathname = url.pathname.replace(
+          `${filePrefix}${fileId}`,
+          `/conversations/${conversationId}/files/${fileIds[fileId]}`,
+        );
+        url.searchParams.set("file_id", fileIds[fileId]);
+      } else {
+        return value;
+      }
       return value.startsWith("/") ? `${url.pathname}${url.search}${url.hash}` : url.href;
     }
     return value;

@@ -95,11 +95,11 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       let target = "";
       const pending = forkConversation(auth, sourceId, replyId, {
         ...conversationForkDependencies,
-        forkConversationFiles: async (input) => {
+        forkConversationDocuments: async (input) => {
           target = input.conversationId;
           copying.open();
           await copied.promise;
-          return { document_ids: {}, paths: {} };
+          return { document_ids: {} };
         },
       });
       const result = pending.then(
@@ -132,14 +132,14 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
     let blocker: Promise<unknown> | undefined;
     const pending = forkConversation(auth, sourceId, replyId, {
       ...conversationForkDependencies,
-      forkConversationFiles: async (input) => {
+      forkConversationDocuments: async (input) => {
         blocker = peer.begin(async (tx) => {
           await tx`select conversation_id from conversation_artifact_cleanup_outbox where conversation_id = ${input.conversationId} for update`;
           locked.open();
           await release.promise;
         });
         await locked.promise;
-        return { document_ids: {}, paths: {} };
+        return { document_ids: {} };
       },
     });
     // Hold the target cleanup row so the REAL publication transaction pauses
@@ -204,9 +204,9 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
     await assert.rejects(
       forkConversation(auth, sourceId, replyId, {
         ...conversationForkDependencies,
-        forkConversationFiles: async () => {
+        forkConversationDocuments: async () => {
           copied = true;
-          return { document_ids: {}, paths: {} };
+          return { document_ids: {} };
         },
       }),
       /停止/,

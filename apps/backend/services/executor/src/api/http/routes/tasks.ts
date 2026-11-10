@@ -8,7 +8,6 @@ import { z } from "zod";
 
 import { canvasArchiveInputSchema } from "../../../../workflows/canvas-archive.js";
 import { canvasVideoFramesInputSchema } from "../../../../workflows/canvas-video-frames.js";
-import { fileTaskBatchInputSchema } from "../../../../workflows/file-task-batch.js";
 import { knowledgeDocumentProcessInputSchema } from "../../../../workflows/knowledge-document-process.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
@@ -47,7 +46,6 @@ const createTaskEnvelope = {
 const createTaskSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("canvas-archive"), payload: canvasArchiveInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("canvas-video-frames"), payload: canvasVideoFramesInputSchema, ...createTaskEnvelope }),
-  z.object({ type: z.literal("file-task-batch"), payload: fileTaskBatchInputSchema, ...createTaskEnvelope }),
   z.object({
     type: z.literal("knowledge-document-process"),
     payload: knowledgeDocumentProcessInputSchema,

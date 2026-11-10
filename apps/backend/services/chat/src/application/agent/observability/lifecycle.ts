@@ -138,25 +138,6 @@ function sanitizeToolInput(toolName: string, input: unknown): unknown {
     return input;
   }
   const source = input as Record<string, unknown>;
-  if ((toolName === "write_file" || toolName === "write_plan") && typeof source.content === "string") {
-    return { ...source, content: truncate(source.content) };
-  }
-  if (toolName === "edit_file" && Array.isArray(source.edits)) {
-    return {
-      ...source,
-      edits: source.edits.slice(0, 100).map((edit) => {
-        if (!edit || typeof edit !== "object") {
-          return edit;
-        }
-        const item = edit as Record<string, unknown>;
-        return {
-          ...item,
-          ...(typeof item.old_text === "string" ? { old_text: truncate(item.old_text) } : {}),
-          ...(typeof item.new_text === "string" ? { new_text: truncate(item.new_text) } : {}),
-        };
-      }),
-    };
-  }
   return input;
 }
 

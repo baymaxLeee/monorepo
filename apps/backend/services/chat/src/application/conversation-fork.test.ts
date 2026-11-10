@@ -41,7 +41,7 @@ function setup() {
         providerId: "provider",
         projectId: null,
         canvasId: null,
-        activePlanPath: null,
+        activePlanFileId: null,
         runRevision: 0n,
         historyRevision: 0n,
         selectedMessageId: "2",
@@ -54,17 +54,18 @@ function setup() {
     reserve: async () => {
       calls.push("reserve");
     },
-    forkConversationFiles: async (input) => {
+    forkConversationDocuments: async (input) => {
       assert.equal(input.sourceConversationId, "source");
       assert.notEqual(input.conversationId, "source");
       assert.equal(input.workspaceId, "workspace");
-      calls.push("files");
-      return { document_ids: {}, paths: {} };
+      calls.push("documents");
+      return { document_ids: {} };
     },
-    publish: async (_source, _id, _now, messages) => {
+    publish: async (_source, _id, _now, messages, documentIds) => {
       calls.push("publish");
       assert.equal(messages.length, 2);
-      assert.deepEqual(messages[1].content.metadata, { fork: { conversationId: "source", messageId: "1" } });
+      assert.equal(messages[1]?.id, "1");
+      assert.deepEqual(documentIds, {});
     },
     release: async () => {
       calls.push("release");
@@ -78,7 +79,7 @@ test("fork publishes only through the selected reply after files are ready", asy
   const original = structuredClone(history);
   const branch = await forkConversation(auth, "source", "1", deps);
   assert.notEqual(branch.id, "source");
-  assert.deepEqual(calls, ["authorize", "reserve", "files", "publish"]);
+  assert.deepEqual(calls, ["authorize", "reserve", "documents", "publish"]);
   assert.deepEqual(history, original);
 });
 test("authorization failure and live runs cannot create orphan copies", async () => {
@@ -93,12 +94,12 @@ test("authorization failure and live runs cannot create orphan copies", async ()
   await assert.rejects(forkConversation(auth, "source", "1", active.deps), /停止/);
   assert.deepEqual(active.calls, ["authorize"]);
 });
-test("invalid checkpoint does not copy files", () => {
+test("invalid checkpoint does not copy documents or files", () => {
   assert.throws(() => selectForkMessages(history, "outside"), /不存在/);
   assert.throws(() => selectForkMessages(history, "0"), /完成/);
   assert.throws(() => selectForkMessages([{ ...history[1], status: "streaming" }], "1"), /完成/);
 });
-for (const step of ["forkConversationFiles", "publish"] as const) {
+for (const step of ["forkConversationDocuments", "publish"] as const) {
   test(`failed ${step} releases durable compensation and never mutates source`, async () => {
     const { calls, deps } = setup();
     deps[step] = async () => {
@@ -120,10 +121,10 @@ test("file references remap while completed results remain history and unfinishe
         url: "/api/chat-server/conversations/source/documents/doc/content?document_id=doc",
       },
       {
-        type: "tool-write",
+        type: "tool-save_sandbox_file",
         state: "output-available",
         toolCallId: "done",
-        output: { document_id: "doc", path: "sources/source.pdf" },
+        output: { file_id: "file", filename: "report.md" },
       },
       {
         type: "tool-bash",
@@ -132,7 +133,7 @@ test("file references remap while completed results remain history and unfinishe
         input: { command: "delete" },
         approval: { id: "old-approval" },
       },
-      { type: "data-plan-execution", data: { path: "plan.md" } },
+      { type: "data-plan-execution", data: { file_id: "plan" } },
     ],
   };
   const clone = forkMessageContent(content, {
@@ -140,11 +141,11 @@ test("file references remap while completed results remain history and unfinishe
     conversationId: "branch",
     messageId: "reply",
     documentIds: { doc: "copy" },
-    paths: { "sources/source.pdf": "documents/copy" },
+    fileIds: { file: "file-copy", plan: "plan-copy" },
   });
   const parts = clone.parts as Record<string, unknown>[];
   assert.equal(parts[0].url, "/api/chat-server/conversations/branch/documents/copy/content?document_id=copy");
-  assert.deepEqual(parts[1].output, { document_id: "copy", path: "documents/copy" });
+  assert.deepEqual(parts[1].output, { file_id: "file-copy", filename: "report.md" });
   assert.equal(parts[1].state, "output-available");
   assert.equal(parts[2].state, "output-error");
   assert.equal(parts[2].approval, undefined);
@@ -159,11 +160,11 @@ test("preliminary output and unfinished todo state are frozen without replay", (
       version: 2,
       parts: [
         {
-          type: "tool-delegate_tasks",
-          toolCallId: "batch",
+          type: "tool-research",
+          toolCallId: "research",
           state: "output-available",
           preliminary: true,
-          output: { ok: true, status: "running", progress: { done: 1, total: 2 } },
+          output: { ok: true, status: "running" },
         },
         {
           type: "tool-update_todos",
@@ -182,7 +183,7 @@ test("preliminary output and unfinished todo state are frozen without replay", (
         },
       ],
     },
-    { sourceId: "source", conversationId: "branch", messageId: "failed-reply", documentIds: {}, paths: {} },
+    { sourceId: "source", conversationId: "branch", messageId: "failed-reply", documentIds: {}, fileIds: {} },
   );
   const parts = result.parts as Record<string, unknown>[];
   assert.equal(parts[0].state, "output-error");

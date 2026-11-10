@@ -78,31 +78,6 @@
                     "type": "object",
                     "properties": {
                       "type": {
-                        "const": "file-task-batch"
-                      },
-                      "owner_service": {
-                        "type": "string",
-                        "description": "calling service, e.g. chat"
-                      },
-                      "owner_ref": {
-                        "type": "string",
-                        "description": "idempotency key scoped to owner_service"
-                      },
-                      "payload": {
-                        "$ref": "#/components/schemas/FileTaskBatchPayload"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "owner_service",
-                      "owner_ref",
-                      "payload"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
                         "const": "knowledge-document-process"
                       },
                       "owner_service": {
@@ -1107,31 +1082,6 @@
             "type": "object",
             "properties": {
               "type": {
-                "const": "file-task-batch"
-              },
-              "owner_service": {
-                "type": "string",
-                "description": "calling service, e.g. chat"
-              },
-              "owner_ref": {
-                "type": "string",
-                "description": "idempotency key scoped to owner_service"
-              },
-              "payload": {
-                "$ref": "#/components/schemas/FileTaskBatchPayload"
-              }
-            },
-            "required": [
-              "type",
-              "owner_service",
-              "owner_ref",
-              "payload"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
                 "const": "knowledge-document-process"
               },
               "owner_service": {
@@ -1205,60 +1155,6 @@
         },
         "required": [
           "taskRunId"
-        ]
-      },
-      "FileTaskBatchPayload": {
-        "type": "object",
-        "properties": {
-          "tenantId": {
-            "type": "string"
-          },
-          "workspaceId": {
-            "type": "string"
-          },
-          "userId": {
-            "type": "string"
-          },
-          "providerId": {
-            "type": "string"
-          },
-          "stagingId": {
-            "type": "string"
-          },
-          "sharedContext": {
-            "type": "string"
-          },
-          "tasks": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "instruction": {
-                  "type": "string"
-                },
-                "outputPath": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "instruction",
-                "outputPath"
-              ]
-            }
-          }
-        },
-        "required": [
-          "tenantId",
-          "workspaceId",
-          "userId",
-          "providerId",
-          "stagingId",
-          "sharedContext",
-          "tasks"
         ]
       },
       "KnowledgeDocumentProcessPayload": {

@@ -289,7 +289,6 @@ func uploadResponse(asset domain.Asset, revision domain.Revision) map[string]any
 	return map[string]any{
 		"asset_id": asset.ID, "revision_id": revision.ID, "filename": revision.Filename,
 		"media_type": revision.MediaType, "size_bytes": revision.SizeBytes, "sha256": revision.SHA256,
-		"url": fmt.Sprintf("/api/storage-server/assets/%s/revisions/%s/content", asset.ID, revision.ID),
 	}
 }
 

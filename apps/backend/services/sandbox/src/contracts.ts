@@ -17,6 +17,10 @@ export const startSchema = z
     request_id: identity,
     command: z.string().min(1).max(65536),
     workdir: z.string().max(1024).default("/workspace/work"),
+    env: z
+      .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string().max(4096))
+      .refine((value) => Object.keys(value).length <= 64, "too many environment variables")
+      .optional(),
     tty: z.boolean().default(false),
     yield_time_ms: z.number().int().min(0).max(10000).default(1000),
     timeout_ms: z.number().int().positive().default(120000),

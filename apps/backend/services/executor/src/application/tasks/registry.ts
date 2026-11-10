@@ -1,6 +1,5 @@
 import { canvasArchiveInputSchema } from "../../../workflows/canvas-archive.js";
 import { canvasVideoFramesInputSchema } from "../../../workflows/canvas-video-frames.js";
-import { fileTaskBatchInputSchema } from "../../../workflows/file-task-batch.js";
 import { knowledgeDocumentProcessInputSchema } from "../../../workflows/knowledge-document-process.js";
 import { videoGenerationInputSchema } from "../../../workflows/video-generation.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
@@ -18,12 +17,6 @@ export function registerTaskType<TInput, TOutput>(definition: TaskTypeDefinition
 export function getTaskType(name: string): TaskTypeDefinition | undefined {
   return registry.get(name);
 }
-
-registerTaskType({
-  name: "file-task-batch",
-  inputSchema: fileTaskBatchInputSchema,
-  workflow: { workflowId: "workflow//./workflows/file-task-batch//fileTaskBatchWorkflow" },
-});
 
 registerTaskType({
   name: "knowledge-document-process",

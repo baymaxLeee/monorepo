@@ -2,14 +2,14 @@ import type { LanguageModelV4Content, LanguageModelV4Middleware, LanguageModelV4
 
 import type { AgentMode } from "./types.js";
 
-type ExclusivePlanToolKind = "ask-user" | "plan-write";
+type ExclusivePlanToolKind = "ask-user";
 type SkillBarrierSide = "load-skill" | "ordinary";
 
-function exclusivePlanToolKind(mode: AgentMode, toolName: string): ExclusivePlanToolKind | null {
+function exclusivePlanToolKind(_mode: AgentMode, toolName: string): ExclusivePlanToolKind | null {
   if (toolName === "ask_user") {
     return "ask-user";
   }
-  return mode === "plan" && toolName === "write_plan" ? "plan-write" : null;
+  return null;
 }
 
 function createBatchFilter(mode: AgentMode) {

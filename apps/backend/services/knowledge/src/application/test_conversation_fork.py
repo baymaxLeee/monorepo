@@ -8,11 +8,11 @@ from kernel.errors import ConflictError
 from pydantic import ValidationError
 
 from application import conversation_fork as service
-from application.contracts.conversation_fork import ForkConversationFilesInput
+from application.contracts.conversation_fork import ForkConversationDocumentsInput
 
 
 def payload(**patch):
-    return ForkConversationFilesInput(
+    return ForkConversationDocumentsInput(
         **dict(
             source_conversation_id="source",
             conversation_id="branch",
@@ -66,14 +66,14 @@ def test_snapshot_retains_original_bytes_without_duplicating_upload_or_indexing(
 @pytest.mark.parametrize(
     "patch", [{"tenant_id": "other"}, {"workspace_id": "other"}, {"ingest_status": "converting"}, {"asset_id": None}]
 )
-def test_unavailable_or_cross_scope_files_reject_snapshot(patch):
+def test_unavailable_or_cross_scope_documents_reject_snapshot(patch):
     with pytest.raises(ConflictError):
         service.snapshot_document(document(**patch), payload())
 
 
 def test_target_must_be_a_new_conversation():
     with pytest.raises(ValidationError):
-        ForkConversationFilesInput(
+        ForkConversationDocumentsInput(
             source_conversation_id="same", conversation_id="same", user_id="u", tenant_id="t", workspace_id="w"
         )
 
@@ -98,13 +98,12 @@ async def test_snapshots_and_durable_claims_share_transaction(monkeypatch):
 
     session = SimpleNamespace(
         scalar=AsyncMock(return_value=None),
-        scalars=AsyncMock(side_effect=[[document()], []]),
+        scalars=AsyncMock(return_value=[document()]),
         add=Mock(side_effect=stage),
     )
-    result = await service.fork_conversation_files(session, payload())
+    result = await service.fork_conversation_documents(session, payload())
     copy = session.add.call_args.args[0]
     assert result.document_ids == {"original": copy.id}
-    assert result.paths == {"sources/original-notes.pdf": f"documents/{copy.id}"}
     claim.assert_awaited_once_with(
         session,
         tenant_id="tenant",
@@ -127,6 +126,6 @@ async def test_cleanup_tombstone_blocks_new_claims(monkeypatch):
     )
     session = SimpleNamespace(scalar=AsyncMock(), scalars=AsyncMock(), add=Mock())
     with pytest.raises(ConflictError, match="deleted"):
-        await service.fork_conversation_files(session, payload())
+        await service.fork_conversation_documents(session, payload())
     session.add.assert_not_called()
     session.scalars.assert_not_awaited()

@@ -5,9 +5,7 @@ import time
 from datetime import datetime
 from hashlib import sha256
 
-from application.artifact_preview import decode_artifact_preview, is_text_artifact
 from application.contracts.document import (
-    CreateArtifactInput,
     CreateMediaDocumentInput,
     CreateStagedMediaInput,
     Document,
@@ -19,7 +17,6 @@ from application.contracts.document import (
 from application.conversation_cleanup import assert_conversation_accepts_artifacts
 from application.document_edits import apply_document_edit
 from application.documents import document_to_schema
-from application.file_content import store_text
 from application.indexer import index_document_by_id
 from application.processor import convert_document
 from application.storage_client import (
@@ -29,7 +26,6 @@ from application.storage_client import (
     mark_document_claim_released,
     mark_staged_media_claim_released,
 )
-from bootstrap.config import get_settings
 from fastapi import APIRouter, Depends, Query
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
@@ -90,6 +86,27 @@ def staged_media_to_schema(row: StagedMediaRow) -> StagedMedia:
         created_at=row.created_at.isoformat(),
         updated_at=row.updated_at.isoformat(),
     )
+
+
+def _validate_staged_media_replay(row: StagedMediaRow, payload: CreateStagedMediaInput) -> None:
+    if row.asset_id != payload.asset_id or row.revision_id != payload.revision_id:
+        raise ConflictError("idempotency key is already bound to a different Storage revision")
+
+
+async def _find_staged_media_replay(session: DbSession, payload: CreateStagedMediaInput) -> StagedMediaRow | None:
+    if not payload.idempotency_key:
+        return None
+    row = await staged_media_crud.get_by_idempotency_key(
+        session,
+        idempotency_key=payload.idempotency_key,
+        user_id=payload.user_id,
+        tenant_id=payload.tenant_id,
+        workspace_id=payload.workspace_id,
+        conversation_id=payload.conversation_id,
+    )
+    if row is not None:
+        _validate_staged_media_replay(row, payload)
+    return row
 
 
 @router.get("/documents", response_model=list[Document])
@@ -202,79 +219,6 @@ async def get_document_slice(
         await asyncio.sleep(_SLICE_POLL_INTERVAL_S)
 
 
-@router.post("/artifacts", response_model=Document, status_code=201)
-async def create_artifact(payload: CreateArtifactInput, session: DbSession) -> Document:
-    mime = payload.mime_type or (
-        "text/html" if payload.filename.lower().endswith((".html", ".htm")) else "text/markdown"
-    )
-    document_id = None
-    if payload.idempotency_key:
-        document_id = sha256(
-            f"{payload.workspace_id}:{payload.user_id}:{payload.conversation_id or ''}:{payload.idempotency_key}".encode()
-        ).hexdigest()[:16]
-    document_id = document_id or document_crud.new_document_id()
-    async with write_tx(session):
-        await assert_conversation_accepts_artifacts(
-            session, user_id=payload.user_id, conversation_id=payload.conversation_id
-        )
-        existing = await document_crud.get_document(session, document_id, payload.user_id)
-        if existing is not None:
-            return document_to_schema(existing, include_content=True)
-    asset = await store_text(
-        tenant_id=payload.tenant_id,
-        workspace_id=payload.workspace_id,
-        user_id=payload.user_id,
-        filename=payload.filename,
-        media_type=mime,
-        content=payload.content,
-        operation_id=f"artifact:{document_id}",
-    )
-    try:
-        async with write_tx(session):
-            await assert_conversation_accepts_artifacts(
-                session, user_id=payload.user_id, conversation_id=payload.conversation_id
-            )
-            existing = await document_crud.get_document(session, document_id, payload.user_id)
-            if existing is not None:
-                return document_to_schema(existing, include_content=True)
-            row = await document_crud.create_document(
-                session,
-                user_id=payload.user_id,
-                workspace_id=payload.workspace_id,
-                tenant_id=payload.tenant_id,
-                conversation_id=payload.conversation_id,
-                kind="artifact",
-                title=payload.title,
-                filename=payload.filename,
-                mime_type=mime,
-                content_md=payload.content,
-                editable_source=True,
-                asset_id=asset.asset_id,
-                source_revision_id=asset.revision_id,
-                source_sha256=asset.sha256,
-                source_size=asset.size_bytes,
-                source_mime_type=asset.media_type,
-                source_filename=asset.filename,
-                ingest_status="ready",
-                ingest_progress=100,
-                document_id=document_id,
-            )
-            await ensure_document_claim_active(
-                session,
-                tenant_id=payload.tenant_id,
-                workspace_id=payload.workspace_id,
-                document_id=row.id,
-                asset_id=asset.asset_id,
-                revision_id=asset.revision_id,
-            )
-    except IntegrityError:
-        existing = await document_crud.get_document(session, document_id, payload.user_id)
-        if existing is None:
-            raise
-        return document_to_schema(existing, include_content=True)
-    return document_to_schema(row, include_content=True)
-
-
 @router.post("/media-documents", response_model=Document, status_code=201)
 async def create_media_document(payload: CreateMediaDocumentInput, session: DbSession) -> Document:
     """Register agent-generated media already persisted by Asset."""
@@ -298,16 +242,8 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
     )
     if asset.created_by != payload.user_id:
         raise RequestError("asset was not created for the requested user")
-    preview = ""
-    if is_text_artifact(asset.media_type) and asset.size_bytes <= get_settings().attachment_max_upload_bytes:
-        raw = await get_storage_client().read(
-            tenant_id=payload.tenant_id,
-            workspace_id=payload.workspace_id,
-            asset_id=payload.asset_id,
-            revision_id=payload.revision_id,
-            max_bytes=get_settings().attachment_max_upload_bytes,
-        )
-        preview = decode_artifact_preview(raw, asset.media_type)
+    if not asset.media_type.startswith(("image/", "audio/", "video/")):
+        raise RequestError("media documents accept only image, audio, or video revisions")
     storage_document_id = document_id or document_crud.new_document_id()
     try:
         async with write_tx(session):
@@ -328,7 +264,7 @@ async def create_media_document(payload: CreateMediaDocumentInput, session: DbSe
                 title=payload.title,
                 filename=asset.filename,
                 mime_type=asset.media_type,
-                content_md=preview,
+                content_md="",
                 source_size=asset.size_bytes,
                 source_mime_type=asset.media_type,
                 asset_id=asset.asset_id,
@@ -363,7 +299,7 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
             await assert_conversation_accepts_artifacts(
                 session, user_id=payload.user_id, conversation_id=payload.conversation_id
             )
-            existing = await staged_media_crud.get_by_idempotency_key(session, payload.idempotency_key, payload.user_id)
+            existing = await _find_staged_media_replay(session, payload)
         if existing is not None:
             return staged_media_to_schema(existing)
     asset = await get_storage_client().describe(
@@ -381,9 +317,7 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
                 session, user_id=payload.user_id, conversation_id=payload.conversation_id
             )
             if payload.idempotency_key:
-                existing = await staged_media_crud.get_by_idempotency_key(
-                    session, payload.idempotency_key, payload.user_id
-                )
+                existing = await _find_staged_media_replay(session, payload)
                 if existing is not None:
                     return staged_media_to_schema(existing)
             row = await staged_media_crud.create_staged_media(
@@ -413,7 +347,7 @@ async def create_staged_media(payload: CreateStagedMediaInput, session: DbSessio
     except IntegrityError:
         if not payload.idempotency_key:
             raise
-        existing = await staged_media_crud.get_by_idempotency_key(session, payload.idempotency_key, payload.user_id)
+        existing = await _find_staged_media_replay(session, payload)
         if existing is None:
             raise
         return staged_media_to_schema(existing)

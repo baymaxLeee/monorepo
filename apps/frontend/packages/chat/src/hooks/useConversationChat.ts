@@ -31,6 +31,8 @@ function messagesSnapshotKey(messages: ChatUIMessage[]): string {
 export function useConversationChat(id: string) {
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyMutationPending, setHistoryMutationPending] = useState(false);
   const [issue, setIssue] = useState<{ kind: "connection" | "history" | "cancel"; message: string } | null>(null);
   const refreshRef = useRef<(() => Promise<void>) | null>(null);
   const titleRafRef = useRef<number | null>(null);
@@ -39,6 +41,8 @@ export function useConversationChat(id: string) {
   const historyRevisionRef = useRef<number | undefined>(undefined);
   const connectedChatRef = useRef<Chat<ChatUIMessage> | null>(null);
   const historySelectionRef = useRef(0);
+  const historySelectionPendingRef = useRef(false);
+  const retryRequestPendingRef = useRef(false);
   const { setTraceRun, clearTraceRun, bumpTraceRefresh, applyConversationTitle } = useChatStore(
     useShallow((s) => ({
       setTraceRun: s.setTraceRun,
@@ -159,6 +163,7 @@ export function useConversationChat(id: string) {
                 return;
               if (next.revision < (historyRevisionRef.current ?? 0)) return;
               historyRevisionRef.current = next.revision;
+              setHistoryReady(true);
               setDetail(next);
               if (!preserveClientTool && !next.active_run_id) chat.messages = messages;
             })
@@ -186,9 +191,14 @@ export function useConversationChat(id: string) {
     }
     let active = true;
     setLoading(true);
+    setHistoryReady(false);
+    setHistoryMutationPending(false);
     setDetail(null);
     setIssue(null);
     historyRevisionRef.current = undefined;
+    historySelectionRef.current++;
+    historySelectionPendingRef.current = false;
+    retryRequestPendingRef.current = false;
     clearTraceRun();
     fetchConversation(id, { skipErrorNotify: true })
       .then(async (next) => {
@@ -198,6 +208,7 @@ export function useConversationChat(id: string) {
         }
         setDetail(next);
         historyRevisionRef.current = next.revision;
+        setHistoryReady(true);
         chat.messages = messages;
         const latestRunId = next.active_run_id ?? next.latest_run_id;
         if (latestRunId) {
@@ -229,6 +240,7 @@ export function useConversationChat(id: string) {
       return;
     if (next.revision < (historyRevisionRef.current ?? 0)) return;
     historyRevisionRef.current = next.revision;
+    setHistoryReady(true);
     setDetail(next);
     const pending = transport.getPendingRequest?.();
     // An unchanged revision proves the POST was never claimed. Keep its exact
@@ -257,9 +269,21 @@ export function useConversationChat(id: string) {
     }
   }, [chat, refresh]);
 
+  const canStartHistoryMutation = useCallback(
+    () =>
+      connectedChatRef.current === chat &&
+      historyRevisionRef.current !== undefined &&
+      !historySelectionPendingRef.current &&
+      !retryRequestPendingRef.current &&
+      !isRunning(chat.status),
+    [chat],
+  );
+
   const retryRequest = useCallback(async () => {
     const pending = transport.getPendingRequest?.();
-    if (!pending || isRunning(chat.status)) return;
+    if (!pending || !canStartHistoryMutation()) return;
+    retryRequestPendingRef.current = true;
+    setHistoryMutationPending(true);
     try {
       const next = await fetchConversation(id, { skipErrorNotify: true });
       if (connectedChatRef.current !== chat) return;
@@ -273,13 +297,19 @@ export function useConversationChat(id: string) {
       await chat.sendMessage();
     } catch (error) {
       if (connectedChatRef.current === chat) setIssue({ kind: "connection", message: getErrorMessage(error) });
+    } finally {
+      if (connectedChatRef.current === chat) {
+        retryRequestPendingRef.current = false;
+        setHistoryMutationPending(historySelectionPendingRef.current);
+      }
     }
-  }, [chat, id, recover, transport]);
+  }, [canStartHistoryMutation, chat, id, recover, transport]);
 
   const stopRun = useCallback(async () => {
-    const runId = detail?.active_run_id ?? useChatStore.getState().traceRunId;
     await chat.stop();
     try {
+      const authoritative = await fetchConversation(id, { skipErrorNotify: true });
+      const runId = authoritative.active_run_id ?? detail?.active_run_id ?? useChatStore.getState().traceRunId;
       if (runId) {
         const result = await cancelConversationAgentRun(id, runId, { skipErrorNotify: true });
         if (result?.status === "running" || result?.status === "cancel_requested")
@@ -296,36 +326,51 @@ export function useConversationChat(id: string) {
   const selectHistory = useCallback(
     async (leafMessageId: string) => {
       const expectedRevision = historyRevisionRef.current;
-      if (!id || expectedRevision === undefined || isRunning(chat.status)) {
+      if (!id || expectedRevision === undefined || !canStartHistoryMutation()) {
         throw new Error("当前无法切换消息候选");
       }
       const selection = ++historySelectionRef.current;
-      const next = await selectConversationHistory(id, {
-        leaf_message_id: leafMessageId,
-        expected_revision: expectedRevision,
-      });
-      const messages = await validateConversationMessages(next.messages);
-      if (
-        connectedChatRef.current !== chat ||
-        historySelectionRef.current !== selection ||
-        historyRevisionRef.current !== expectedRevision ||
-        isRunning(chat.status)
-      ) {
-        return;
+      const snapshot = messagesSnapshotKey(chat.messages);
+      historySelectionPendingRef.current = true;
+      setHistoryMutationPending(true);
+      try {
+        const next = await selectConversationHistory(id, {
+          leaf_message_id: leafMessageId,
+          expected_revision: expectedRevision,
+        });
+        const messages = await validateConversationMessages(next.messages);
+        if (
+          connectedChatRef.current !== chat ||
+          historySelectionRef.current !== selection ||
+          historyRevisionRef.current !== expectedRevision ||
+          messagesSnapshotKey(chat.messages) !== snapshot ||
+          isRunning(chat.status)
+        ) {
+          return;
+        }
+        historyRevisionRef.current = next.revision;
+        setHistoryReady(true);
+        setDetail(next);
+        chat.messages = messages;
+      } finally {
+        if (connectedChatRef.current === chat && historySelectionRef.current === selection) {
+          historySelectionPendingRef.current = false;
+          setHistoryMutationPending(retryRequestPendingRef.current);
+        }
       }
-      historyRevisionRef.current = next.revision;
-      setDetail(next);
-      chat.messages = messages;
     },
-    [chat, id],
+    [canStartHistoryMutation, chat, id],
   );
 
   return {
     chat,
     detail,
     loading,
+    historyReady,
+    historyMutationPending,
     issue,
-    canRetry: transport.getPendingRequest?.() != null,
+    canRetry: transport.getPendingRequest?.() != null && !retryRequestPendingRef.current,
+    canStartHistoryMutation,
     recover,
     retryRequest,
     stopRun,

@@ -127,7 +127,6 @@ export interface UploadResult {
   /** @pattern ^[a-f0-9]{64}$ */
   sha256: string;
   size_bytes: number;
-  url: string;
 }
 
 export type UploadSessionState = typeof UploadSessionState[keyof typeof UploadSessionState];

@@ -54,9 +54,9 @@ const takePathParam = {
   schema: { type: "string" },
 };
 
-const filePathQuery = {
-  name: "path",
-  in: "query",
+const fileIdPathParam = {
+  name: "file_id",
+  in: "path",
   required: true,
   schema: { type: "string" },
 };
@@ -213,11 +213,23 @@ const openapi = {
         },
       },
     },
-    "/conversations/{conversation_id}/files/delivery": {
+    "/conversations/{conversation_id}/files/{file_id}/delivery": {
       post: {
-        parameters: [pathParam, filePathQuery],
+        parameters: [pathParam, fileIdPathParam],
         responses: {
           "200": jsonResponse("authorized Storage capability", ref("StorageDelivery")),
+          "404": { description: "file not accessible" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/files/{file_id}/content": {
+      get: {
+        parameters: [pathParam, fileIdPathParam],
+        responses: {
+          "307": {
+            description: "Authorized redirect to Storage",
+            headers: { Location: { schema: { type: "string" } } },
+          },
           "404": { description: "file not accessible" },
         },
       },
@@ -246,15 +258,11 @@ const openapi = {
         },
       },
     },
-    "/conversations/{conversation_id}/files/detail": {
+    "/conversations/{conversation_id}/files/{file_id}": {
       get: {
-        parameters: [
-          pathParam,
-          filePathQuery,
-          { name: "include_content", in: "query", schema: { type: "boolean", default: true } },
-        ],
+        parameters: [pathParam, fileIdPathParam],
         responses: {
-          "200": jsonResponse("conversation virtual file detail", ref("ConversationFile")),
+          "200": jsonResponse("Chat-owned conversation file reference", ref("ConversationFile")),
           "404": { description: "file not found" },
         },
       },
@@ -520,7 +528,7 @@ const openapi = {
           title: { type: "string" },
           model: { type: "string" },
           provider_id: { type: "string" },
-          active_plan_path: { type: "string", nullable: true },
+          active_plan_file_id: { type: "string", nullable: true },
           project_id: { type: "string", nullable: true },
           canvas_id: { type: "string", nullable: true },
           created_at: { type: "string", format: "date-time" },
@@ -558,7 +566,8 @@ const openapi = {
       ConversationFile: {
         type: "object",
         required: [
-          "path",
+          "id",
+          "conversation_id",
           "asset_id",
           "revision_id",
           "title",
@@ -566,22 +575,23 @@ const openapi = {
           "mime_type",
           "size",
           "sha256",
-          "writable",
-          "derived",
-          "content",
+          "kind",
+          "created_at",
+          "updated_at",
         ],
         properties: {
-          path: { type: "string" },
+          id: { type: "string" },
+          conversation_id: { type: "string" },
           asset_id: { type: "string" },
           revision_id: { type: "string" },
           title: { type: "string" },
           filename: { type: "string" },
           mime_type: { type: "string" },
-          size: { type: "integer", nullable: true },
+          size: { type: "integer" },
           sha256: { type: "string" },
-          writable: { type: "boolean" },
-          derived: { type: "boolean" },
-          content: { type: "string" },
+          kind: { type: "string", enum: ["artifact", "plan"] },
+          created_at: { type: "string", format: "date-time" },
+          updated_at: { type: "string", format: "date-time" },
         },
       },
       AgentRunTrace: {

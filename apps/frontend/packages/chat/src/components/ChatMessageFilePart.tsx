@@ -6,7 +6,7 @@ import { useRef } from "react";
 
 import { useDocumentBlobUrl } from "../hooks/useDocumentSource";
 import { useInView } from "../hooks/useInView";
-import { documentIdFromFilePart } from "../lib/file-parts";
+import { conversationFileIdFromFilePart, documentIdFromFilePart } from "../lib/file-parts";
 
 const IMAGE_THUMB_MAX_DIM = 192;
 
@@ -20,18 +20,21 @@ export function ChatMessageFilePart({
   part,
   conversationId,
   partIndex,
-  onOpen,
+  onOpenArtifact,
+  onOpenFile,
   onOpenImage,
   variant = "assistant",
 }: {
   part: FileUIPart | ReasoningFileUIPart;
   conversationId: string;
   partIndex: number;
-  onOpen: (documentId: string) => void;
+  onOpenArtifact: (documentId: string) => void;
+  onOpenFile: (fileId: string) => void;
   onOpenImage: (partIndex: number) => void;
   variant?: "user" | "assistant";
 }) {
   const documentId = documentIdFromFilePart(part);
+  const fileId = conversationFileIdFromFilePart(part);
   const isImage = part.mediaType.startsWith("image/");
   const thumbRef = useRef<HTMLSpanElement>(null);
   const inView = useInView(thumbRef);
@@ -42,7 +45,7 @@ export function ChatMessageFilePart({
     { maxDim: IMAGE_THUMB_MAX_DIM },
   );
 
-  if (!documentId) {
+  if (!documentId && !fileId) {
     return <span className="rounded-full border border-dashed px-2 py-0.5 text-[11px] opacity-70">附件无效</span>;
   }
 
@@ -52,7 +55,7 @@ export function ChatMessageFilePart({
     url: part.url,
     filename: "filename" in part ? part.filename : undefined,
     providerMetadata: part.providerMetadata,
-    id: documentId,
+    id: documentId ?? fileId!,
   };
   const Icon = CATEGORY_ICON[getMediaCategory(item)] ?? FileIcon;
 
@@ -67,7 +70,11 @@ export function ChatMessageFilePart({
             "max-w-[min(100%,20rem)] transition-colors hover:bg-muted/60",
             variant === "user" && "bg-background/90 shadow-sm",
           )}
-          onClick={() => (isImage ? onOpenImage(partIndex) : onOpen(documentId))}
+          onClick={() => {
+            if (fileId) onOpenFile(fileId);
+            else if (isImage) onOpenImage(partIndex);
+            else onOpenArtifact(documentId!);
+          }}
         />
       }
     >

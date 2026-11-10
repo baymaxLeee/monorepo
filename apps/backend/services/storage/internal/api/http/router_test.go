@@ -255,4 +255,14 @@ func TestUploadCapabilityStreamsAnAuthorizedExactFile(t *testing.T) {
 	if repository.session.State != "completed" || repository.session.AssetID == "" || repository.session.RevisionID == "" {
 		t.Fatalf("session = %#v", repository.session)
 	}
+	var result map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, exists := result["url"]; exists {
+		t.Fatalf("upload response must not expose an unauthenticated content URL: %#v", result)
+	}
+	if result["asset_id"] == nil || result["revision_id"] == nil {
+		t.Fatalf("upload response is missing immutable identifiers: %#v", result)
+	}
 }

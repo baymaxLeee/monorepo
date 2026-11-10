@@ -42,13 +42,15 @@ function resolvedCitationSource(citation: Citation, sources: SourceItem[]): Sour
 }
 
 function CitationLink({ href, children }: { href?: string; children?: ReactNode }) {
-  const { sources, resolveSourceHref, resolveSourceAction } = useContext(CitationContext);
+  const { citations, sources, resolveSourceHref, resolveSourceAction } = useContext(CitationContext);
   // Match explicit links to native evidence without changing Streamdown's renderer
   // identity when text chunks or late source parts arrive.
-  const index = sources.findIndex((source) => {
-    const value = source as Record<string, unknown>;
-    return value.url === href && href && isPublicHttpUrl(href);
-  });
+  const index = citations.length
+    ? -1
+    : sources.findIndex((source) => {
+        const value = source as Record<string, unknown>;
+        return value.url === href && href && isPublicHttpUrl(href);
+      });
   return index >= 0 ? (
     <InlineCitation
       source={sources[index]}
@@ -119,15 +121,17 @@ export function ChatCitedResponse({
       </MessageResponse>
       {unpositionedCitations.length ? (
         <span className="mt-1 flex flex-wrap gap-1" aria-label="此文本的引用">
-          {unpositionedCitations.map((citation, index) => {
+          {unpositionedCitations.map((citation) => {
             const source = resolvedCitationSource(citation, sources);
+            const citationIndex = citations.indexOf(citation);
+            const listedSourceIndex = sources.findIndex((candidate) => sourceId(candidate) === citation.source.id);
             return (
               <InlineCitation
-                key={`${citation.source.id}-${index}`}
+                key={`${citation.source.id}-${citationIndex}`}
                 source={source}
                 resolvedHref={resolveSourceHref?.(source)}
                 onOpen={resolveSourceAction?.(source)}
-                index={index + 1}
+                index={listedSourceIndex >= 0 ? listedSourceIndex + 1 : citationIndex + 1}
                 aria-label={`引用：${citation.source.title}`}
               />
             );

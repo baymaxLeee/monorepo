@@ -7,7 +7,7 @@ export type ArtifactPreviewState = {
   open: boolean;
   conversationId: string | null;
   documentId: string | null;
-  path: string | null;
+  fileId: string | null;
   // Bumped on every open so re-opening the same in-place-edited artifact
   // (same id) still forces the panel to refetch the latest revision.
   token: number;
@@ -48,7 +48,7 @@ export type ChatUIState = {
   bumpTraceRefresh: () => void;
   artifactPreview: ArtifactPreviewState;
   openArtifactPreview: (conversationId: string, documentId: string) => void;
-  openFilePreview: (conversationId: string, path: string) => void;
+  openFilePreview: (conversationId: string, fileId: string) => void;
   closeArtifactPreview: () => void;
   videoProductionWorkspace: VideoProductionWorkspaceState;
   openVideoProductionWorkspace: (conversationId: string, productionId: string) => void;
@@ -67,7 +67,7 @@ const CLOSED_ARTIFACT_PREVIEW: ArtifactPreviewState = {
   open: false,
   conversationId: null,
   documentId: null,
-  path: null,
+  fileId: null,
   token: 0,
 };
 
@@ -166,12 +166,12 @@ export const useChatStore = create<ChatUIState>()(
             open: true,
             conversationId,
             documentId,
-            path: null,
+            fileId: null,
             token: state.artifactPreview.token + 1,
           },
           videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
         })),
-      openFilePreview: (conversationId, path) =>
+      openFilePreview: (conversationId, fileId) =>
         set((state) => ({
           memoryPanelOpen: false,
           tracePanelOpen: false,
@@ -179,7 +179,7 @@ export const useChatStore = create<ChatUIState>()(
             open: true,
             conversationId,
             documentId: null,
-            path,
+            fileId,
             token: state.artifactPreview.token + 1,
           },
           videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,

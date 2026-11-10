@@ -4,7 +4,6 @@ from hashlib import blake2b
 from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.models.conversation_cleanup import ConversationArtifactTombstoneRow
 from infrastructure.persistence.models.document import DocumentRow
-from infrastructure.persistence.models.file_store import FileChangeSetEntryRow, FileChangeSetRow, FileEntryRow
 from infrastructure.persistence.models.staged_media import StagedMediaRow
 from kernel.errors import ConflictError
 from sqlalchemy import delete, or_, select, text
@@ -64,24 +63,6 @@ async def cleanup_conversation_artifacts(
             )
             .on_conflict_do_nothing(index_elements=[ConversationArtifactTombstoneRow.conversation_id])
         )
-        change_sets = select(FileChangeSetRow.id).where(
-            FileChangeSetRow.user_id == payload.user_id, FileChangeSetRow.conversation_id == payload.conversation_id
-        )
-        staged_files = (
-            await session.execute(
-                delete(FileChangeSetEntryRow)
-                .where(FileChangeSetEntryRow.change_set_id.in_(change_sets))
-                .returning(FileChangeSetEntryRow.id)
-            )
-        ).all()
-        await session.execute(delete(FileChangeSetRow).where(FileChangeSetRow.id.in_(change_sets)))
-        deleted_files = (
-            await session.execute(
-                delete(FileEntryRow)
-                .where(FileEntryRow.user_id == payload.user_id, FileEntryRow.conversation_id == payload.conversation_id)
-                .returning(FileEntryRow.id)
-            )
-        ).all()
         staged = (
             await session.execute(
                 delete(StagedMediaRow)
@@ -124,19 +105,10 @@ async def cleanup_conversation_artifacts(
             owner_type="document",
             owner_ids=[row.id for row in documents],
         )
-        for owner_type, deleted in (("file_entry", deleted_files), ("file_change_set_entry", staged_files)):
-            released_claims += await mark_asset_claims_released(
-                session,
-                tenant_id=payload.tenant_id,
-                workspace_id=payload.workspace_id,
-                owner_type=owner_type,
-                owner_ids=[row.id for row in deleted],
-            )
     return CleanupConversationArtifactsResult(
         conversation_id=payload.conversation_id,
         deleted_documents=len(documents),
         deleted_generations=0,
-        deleted_blocks=len(deleted_files),
         deleted_staged_media=len(staged),
         released_asset_claims=released_claims,
     )

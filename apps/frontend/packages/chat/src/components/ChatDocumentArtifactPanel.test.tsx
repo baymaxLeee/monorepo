@@ -1,11 +1,21 @@
-import { createStorageDownloadUrl, fetchAssetText, fetchConversationDocument } from "@repo/api";
+import { createStorageDownloadUrl, fetchAssetText, fetchConversationDocument, fetchConversationFile } from "@repo/api";
 import { render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 import { ChatDocumentArtifactPanel } from "./ChatDocumentArtifactPanel";
 import { ChatFileArtifactPanel } from "./ChatFileArtifactPanel";
 
 const resourceUrl = "/api/storage-server/media/asset/revisions/revision/content?expires=2000000000&signature=signed";
+
+const chatStoreMock = vi.hoisted(() => ({
+  artifactPreview: {
+    open: true,
+    conversationId: "conversation" as string | null,
+    documentId: "document" as string | null,
+    fileId: null as string | null,
+    token: 1,
+  },
+}));
 
 vi.mock("@repo/api", () => ({
   fetchConversationDocument: vi.fn(async () => ({
@@ -24,6 +34,8 @@ vi.mock("@repo/api", () => ({
     expires_at: new Date(Date.now() + 21600000).toISOString(),
   })),
   fetchConversationFile: vi.fn(async () => ({
+    id: "file",
+    conversation_id: "conversation",
     path: "page.HTML",
     asset_id: "asset",
     revision_id: "revision",
@@ -31,7 +43,11 @@ vi.mock("@repo/api", () => ({
     title: "Legacy page",
     mime_type: "text/html; charset=utf-8",
     content: "<h1>Legacy page</h1>",
+    size: 21,
     sha256: "sha",
+    kind: "artifact",
+    created_at: "2026-11-05T00:00:00Z",
+    updated_at: "2026-11-05T00:00:00Z",
   })),
   fetchAssetText: vi.fn(async () => "# Editable plan"),
   fetchConversationDocumentSource: vi.fn(),
@@ -40,16 +56,20 @@ vi.mock("@repo/api", () => ({
 
 vi.mock("../store/useChatStore", () => ({
   useChatStore: () => ({
-    artifactPreview: {
-      open: true,
-      conversationId: "conversation",
-      documentId: "document",
-      path: "page.HTML",
-      token: 1,
-    },
+    artifactPreview: chatStoreMock.artifactPreview,
     closeArtifactPreview: vi.fn(),
   }),
 }));
+
+beforeEach(() => {
+  Object.assign(chatStoreMock.artifactPreview, {
+    open: true,
+    conversationId: "conversation",
+    documentId: "document",
+    fileId: null,
+    token: 1,
+  });
+});
 
 it("loads metadata then previews HTML from the Asset capability URL", async () => {
   render(<ChatDocumentArtifactPanel />);
@@ -67,11 +87,17 @@ it("loads metadata then previews HTML from the Asset capability URL", async () =
 });
 
 it("renders migrated virtual files through the same Storage URL preview", async () => {
+  Object.assign(chatStoreMock.artifactPreview, { documentId: null, fileId: "file" });
   render(<ChatFileArtifactPanel />);
   const frame = await screen.findByTitle("Legacy page");
   expect(frame.tagName).toBe("IFRAME");
   expect(frame.getAttribute("src")).toBe(resourceUrl);
   expect(frame.hasAttribute("srcdoc")).toBe(false);
+  expect(fetchConversationFile).toHaveBeenCalledWith(
+    "conversation",
+    "file",
+    expect.objectContaining({ signal: expect.anything() }),
+  );
 });
 
 it("loads an editable Markdown revision from Storage before opening the editor", async () => {

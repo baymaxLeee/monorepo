@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, model_validator
 
 
-class ForkConversationFilesInput(BaseModel):
+class ForkConversationDocumentsInput(BaseModel):
     source_conversation_id: str = Field(min_length=1, max_length=32)
     conversation_id: str = Field(min_length=1, max_length=32)
     user_id: str = Field(min_length=1, max_length=26)
@@ -15,6 +15,5 @@ class ForkConversationFilesInput(BaseModel):
         return self
 
 
-class ForkConversationFilesResult(BaseModel):
+class ForkConversationDocumentsResult(BaseModel):
     document_ids: dict[str, str]
-    paths: dict[str, str]

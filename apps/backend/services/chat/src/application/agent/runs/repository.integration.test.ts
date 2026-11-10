@@ -13,6 +13,7 @@ import {
   conversationRunLeases,
   messages,
 } from "../../../infrastructure/persistence/schema.js";
+import { deleteConversation, listMessages, selectConversationHistory } from "../../conversations.js";
 import { ConflictError } from "../../errors.js";
 import {
   claimAgentRunOperation,
@@ -28,24 +29,48 @@ function identifier(prefix: string): string {
   return `${prefix}_${randomBytes(10).toString("hex")}`;
 }
 
-async function createConversation(): Promise<{ conversationId: string; userId: string }> {
+async function createConversation(): Promise<{
+  conversationId: string;
+  userId: string;
+  auth: {
+    userId: string;
+    username: string;
+    email: string;
+    tenantId: string;
+    workspaceId: string;
+    workspaceRole: string;
+    roles: string[];
+  };
+}> {
   const conversationId = identifier("cv");
   const userId = identifier("u");
+  const tenantId = identifier("t");
+  const workspaceId = identifier("w");
   const now = new Date();
-  await getDb()
-    .insert(conversations)
-    .values({
-      id: conversationId,
+  await getDb().insert(conversations).values({
+    id: conversationId,
+    userId,
+    tenantId,
+    workspaceId,
+    title: "integration test",
+    model: "test-model",
+    providerId: "test-provider",
+    createdAt: now,
+    updatedAt: now,
+  });
+  return {
+    conversationId,
+    userId,
+    auth: {
       userId,
-      tenantId: identifier("t"),
-      workspaceId: identifier("w"),
-      title: "integration test",
-      model: "test-model",
-      providerId: "test-provider",
-      createdAt: now,
-      updatedAt: now,
-    });
-  return { conversationId, userId };
+      username: userId,
+      email: "",
+      tenantId,
+      workspaceId,
+      workspaceRole: "member",
+      roles: [],
+    },
+  };
 }
 
 async function claimSubmit(
@@ -102,6 +127,129 @@ test("concurrent claims serialize on history revision", { skip: !enabled }, asyn
     assert.equal(runs.length, 1);
     assert.equal(persistedMessages.length, 1);
     assert.equal(leases.length, 1);
+  } finally {
+    await cleanup(conversationId);
+  }
+});
+
+test("history selection reclaims terminal and expired run leases", { skip: !enabled }, async () => {
+  for (const staleKind of ["terminal", "expired"] as const) {
+    const { conversationId, userId, auth } = await createConversation();
+    try {
+      const claim = await claimSubmit(conversationId, userId);
+      if (staleKind === "terminal") {
+        await getDb()
+          .update(agentRuns)
+          .set({ status: "completed", finishedAt: new Date() })
+          .where(eq(agentRuns.id, claim.runId));
+      } else {
+        await getDb()
+          .update(conversationRunLeases)
+          .set({ expiresAt: new Date(0) })
+          .where(eq(conversationRunLeases.runId, claim.runId));
+      }
+
+      const detail = await selectConversationHistory(auth, conversationId, {
+        leaf_message_id: claim.inputMessageId,
+        expected_revision: 1,
+      });
+      assert.equal(detail.selected_message_id, claim.inputMessageId);
+      assert.equal(detail.revision, 2);
+      const [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
+      assert.equal(run?.status, staleKind === "terminal" ? "completed" : "interrupted");
+      const leases = await getDb()
+        .select()
+        .from(conversationRunLeases)
+        .where(eq(conversationRunLeases.conversationId, conversationId));
+      assert.equal(leases.length, 0);
+    } finally {
+      await cleanup(conversationId);
+    }
+  }
+});
+
+test("terminal run cleanup and conversation deletion cannot leave blocking leases", { skip: !enabled }, async () => {
+  const finished = await createConversation();
+  const deleted = await createConversation();
+  try {
+    const finishedClaim = await claimSubmit(finished.conversationId, finished.userId);
+    await finishAgentRun({ runId: finishedClaim.runId, status: "failed", error: "provider failed" });
+    assert.equal(
+      (
+        await getDb()
+          .select()
+          .from(conversationRunLeases)
+          .where(eq(conversationRunLeases.conversationId, finished.conversationId))
+      ).length,
+      0,
+    );
+
+    const deletedClaim = await claimSubmit(deleted.conversationId, deleted.userId);
+    await getDb()
+      .update(agentRuns)
+      .set({ status: "completed", finishedAt: new Date() })
+      .where(eq(agentRuns.id, deletedClaim.runId));
+    await deleteConversation(deleted.auth, deleted.conversationId);
+    assert.equal(
+      (await getDb().select().from(conversations).where(eq(conversations.id, deleted.conversationId))).length,
+      0,
+    );
+    assert.equal(
+      (
+        await getDb()
+          .select()
+          .from(conversationRunLeases)
+          .where(eq(conversationRunLeases.conversationId, deleted.conversationId))
+      ).length,
+      0,
+    );
+  } finally {
+    await cleanup(finished.conversationId);
+    await cleanup(deleted.conversationId);
+  }
+});
+
+test("message listing reads the selected pointer and graph from one ordered snapshot", { skip: !enabled }, async () => {
+  const { conversationId, userId } = await createConversation();
+  try {
+    const claim = await claimSubmit(conversationId, userId);
+    const newLeafId = identifier("msg");
+    let listing: ReturnType<typeof listMessages> | undefined;
+    await getSql().begin(async (tx) => {
+      const [blocker] = await tx`select pg_backend_pid() as pid`;
+      await tx`lock table conversations in access exclusive mode`;
+      listing = listMessages(conversationId);
+      const deadline = Date.now() + 5_000;
+      while (true) {
+        const blocked = await getSql()`
+          select pid from pg_stat_activity where ${blocker!.pid} = any(pg_blocking_pids(pid))
+        `;
+        if (blocked.length > 0) break;
+        assert.ok(Date.now() < deadline, "message listing did not reach the conversation lock");
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10);
+        });
+      }
+      await tx`
+        insert into messages (
+          id, conversation_id, role, content, status, parent_message_id, branch_index, created_at
+        ) values (
+          ${newLeafId}, ${conversationId}, 'assistant',
+          ${JSON.stringify({ version: 2, parts: [{ type: "text", text: "new leaf" }] })}::jsonb,
+          'ok', ${claim.inputMessageId}, 0, now()
+        )
+      `;
+      await tx`
+        update conversations set selected_message_id = ${newLeafId}, updated_at = now()
+        where id = ${conversationId}
+      `;
+    });
+
+    const history = await listing;
+    assert.deepEqual(
+      history?.map((message) => message.id),
+      [claim.inputMessageId, newLeafId],
+    );
   } finally {
     await cleanup(conversationId);
   }
@@ -400,6 +548,35 @@ test(
     }
   },
 );
+
+test("terminal cleanup locks conversation before run and lease", { skip: !enabled }, async () => {
+  const { conversationId, userId } = await createConversation();
+  let finishing: ReturnType<typeof finishAgentRun> | undefined;
+  try {
+    const claim = await claimSubmit(conversationId, userId);
+    await getSql().begin(async (tx) => {
+      const [blocker] = await tx`select pg_backend_pid() as pid`;
+      await tx`select id from conversations where id = ${conversationId} for update`;
+      finishing = finishAgentRun({ runId: claim.runId, status: "failed", error: "provider failed" });
+      const deadline = Date.now() + 5_000;
+      while (true) {
+        const blocked = await getSql()`
+          select pid from pg_stat_activity where ${blocker!.pid} = any(pg_blocking_pids(pid))
+        `;
+        if (blocked.length > 0) break;
+        assert.ok(Date.now() < deadline, "terminal cleanup did not reach the conversation lock");
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10);
+        });
+      }
+      await tx`select id from agent_runs where id = ${claim.runId} for update nowait`;
+      await tx`select run_id from conversation_run_leases where run_id = ${claim.runId} for update nowait`;
+    });
+  } finally {
+    await finishing;
+    await cleanup(conversationId);
+  }
+});
 
 test("a trace completion gap cannot override the SDK outcome or leave a running step", { skip: !enabled }, async () => {
   const { conversationId, userId } = await createConversation();

@@ -125,6 +125,18 @@ export function createApp(config: Settings, engine = new Engine(config)) {
       }),
     );
   });
+  app.delete("/sessions/:id/processes/:processId", async (c) => {
+    const scope = scopeSchema.parse(JSON.parse(c.req.header("X-Sandbox-Scope") ?? "null"));
+    return c.json(
+      await engine.process(c.req.param("id"), scope, {
+        op: "cancel",
+        session_id: c.req.param("processId"),
+        stdout_offset: 0,
+        stderr_offset: 0,
+        yield_time_ms: 0,
+      }),
+    );
+  });
   const headerScope = (value: string | undefined) => scopeSchema.parse(JSON.parse(value ?? "null"));
   app.put("/sessions/:id/files", async (c) => {
     const scope = headerScope(c.req.header("X-Sandbox-Scope"));

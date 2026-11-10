@@ -17,19 +17,19 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
       closeArtifactPreview: state.closeArtifactPreview,
     })),
   );
-  const { open, conversationId, path, token } = artifactPreview;
+  const { open, conversationId, fileId, token } = artifactPreview;
   const handleClose = onClose ?? closeArtifactPreview;
   const [file, setFile] = useState<ConversationFileDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const previewFile = file?.path === path ? file : null;
-  const isChangingFile = Boolean(file && path && file.path !== path);
+  const previewFile = file?.id === fileId ? file : null;
+  const isChangingFile = Boolean(file && fileId && file.id !== fileId);
   const isHtmlFile = resolveArtifactPreviewKind(undefined, previewFile?.mime_type, previewFile?.filename) === "html";
 
   useEffect(() => {
-    if (!open || !conversationId || !path) {
+    if (!open || !conversationId || !fileId) {
       setFile(null);
       return;
     }
@@ -37,7 +37,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     const controller = new AbortController();
     setLoading(true);
     setFile(null);
-    void fetchConversationFile(conversationId, path, { includeContent: false, signal: controller.signal })
+    void fetchConversationFile(conversationId, fileId, { signal: controller.signal })
       .then((result) => {
         if (active) {
           setFile(result);
@@ -57,7 +57,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
       active = false;
       controller.abort();
     };
-  }, [conversationId, open, path, token]);
+  }, [conversationId, fileId, open, token]);
 
   useEffect(() => {
     const sync = () => {
@@ -90,7 +90,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
       const capability = await createStorageDownloadUrl({
         assetId: previewFile.asset_id,
         revisionId: previewFile.revision_id,
-        owner: { kind: "conversation-file", conversationId: conversationId!, path: previewFile.path },
+        owner: { kind: "conversation-file", conversationId: conversationId!, fileId: previewFile.id },
       });
       downloadAssetUrl(capability.url, capability.filename);
     } catch (error) {
@@ -107,7 +107,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
           <p className="truncate text-sm font-medium">{previewFile?.title ?? (loading ? "加载中…" : "预览")}</p>
           {previewFile ? (
             <p className="truncate text-xs text-muted-foreground">
-              {previewFile.path} · {previewFile.mime_type}
+              {previewFile.filename} · {previewFile.mime_type}
             </p>
           ) : null}
         </div>
@@ -164,7 +164,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
             asset={{
               assetId: previewFile.asset_id,
               revisionId: previewFile.revision_id,
-              owner: { kind: "conversation-file", conversationId: conversationId!, path: previewFile.path },
+              owner: { kind: "conversation-file", conversationId: conversationId!, fileId: previewFile.id },
             }}
             showHeader={false}
             className="h-full min-h-0 min-w-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0 [&_iframe]:min-w-0"

@@ -229,20 +229,8 @@ conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {
   );
 });
 
-conversationsRoutes.get("/:conversationId/files/detail", async (c) => {
-  const path = c.req.query("path");
-  if (!path) {
-    throw new NotFoundError("file path is required");
-  }
-  return c.json(
-    await getConversationFile(
-      getAuth(c),
-      c.req.param("conversationId"),
-      path,
-      undefined,
-      c.req.query("include_content") !== "false",
-    ),
-  );
+conversationsRoutes.get("/:conversationId/files/:fileId", async (c) => {
+  return c.json(await getConversationFile(getAuth(c), c.req.param("conversationId"), c.req.param("fileId")));
 });
 
 conversationsRoutes.get("/:conversationId/video-productions/:productionId", async (c) => {
@@ -359,10 +347,13 @@ conversationsRoutes.post("/:conversationId/documents/:documentId/delivery", asyn
     await authorizeDocumentDelivery(getAuth(c), c.req.param("conversationId"), c.req.param("documentId"), maxDim),
   );
 });
-conversationsRoutes.post("/:conversationId/files/delivery", async (c) => {
-  const path = c.req.query("path");
-  if (!path) return c.json({ title: "path is required", status: 400 }, 400);
-  return c.json(await authorizeFileDelivery(getAuth(c), c.req.param("conversationId"), path));
+conversationsRoutes.post("/:conversationId/files/:fileId/delivery", async (c) => {
+  return c.json(await authorizeFileDelivery(getAuth(c), c.req.param("conversationId"), c.req.param("fileId")));
+});
+conversationsRoutes.get("/:conversationId/files/:fileId/content", async (c) => {
+  const capability = await authorizeFileDelivery(getAuth(c), c.req.param("conversationId"), c.req.param("fileId"));
+  c.header("Cache-Control", "no-store");
+  return c.redirect(capability.url, 307);
 });
 conversationsRoutes.get("/:conversationId/documents/:documentId/content", async (c) => {
   const capability = await authorizeDocumentDelivery(

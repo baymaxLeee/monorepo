@@ -10,7 +10,6 @@ from api.http.routes import (
     conversation_fork_internal,
     documents,
     documents_internal,
-    files_internal,
     health,
     ingest,
     retrieval_internal,
@@ -51,7 +50,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Knowledge Service",
         version="0.1.0",
-        description="Knowledge base: parsing, virtual agent workspaces, and RAG",
+        description="Knowledge base: document parsing, indexing, and RAG",
         lifespan=lifespan,
         # Swagger/OpenAPI HTTP routes are docs UI only — `gen-openapi` calls
         # app.openapi() in-process, so hiding these in prod doesn't affect
@@ -68,7 +67,6 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router)
     app.include_router(documents.router)
     app.include_router(documents_internal.router)
-    app.include_router(files_internal.router)
     app.include_router(conversation_cleanup_internal.router)
     app.include_router(conversation_fork_internal.router)
     app.include_router(retrieval_internal.router)

@@ -33,7 +33,6 @@ export interface ChatAgentInput {
   modelMessages: ModelMessage[];
   previousResponseId?: string | null;
   attachedImageDocumentIds?: string[];
-  executionPlanDocumentId?: string | null;
   instructionInput: InstructionInput;
   /** Skill already active in the logical turn, including client-tool continuations. */
   activeSkillName?: string | null;

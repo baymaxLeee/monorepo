@@ -51,16 +51,16 @@ type ChatTranscriptProps = Pick<
   branches: NonNullable<ChatMessageViewProps["branch"]>[];
 };
 
-function collectExecutedPlanPaths(messages: ChatUIMessage[]): Set<string> {
+function collectExecutedPlanIds(messages: ChatUIMessage[]): Set<string> {
   const executed = new Set<string>();
   for (const message of messages) {
     for (const part of message.parts) {
       if (part.type !== "data-plan-execution") {
         continue;
       }
-      const path = (part.data as { path?: unknown } | undefined)?.path;
-      if (typeof path === "string") {
-        executed.add(path);
+      const fileId = (part.data as { file_id?: unknown } | undefined)?.file_id;
+      if (typeof fileId === "string") {
+        executed.add(fileId);
       }
     }
   }
@@ -121,7 +121,7 @@ export const ChatTranscript = memo(function ChatTranscript({
     () => collectDeliverableCompletion(messages, latestTodoCallId),
     [messages, latestTodoCallId],
   );
-  const executedPlanPaths = useMemo(() => collectExecutedPlanPaths(messages), [messages]);
+  const executedPlanIds = useMemo(() => collectExecutedPlanIds(messages), [messages]);
   const branchBySelectedMessage = useMemo(
     () => new Map(branches.map((branch) => [branch.selected_message_id, branch] as const)),
     [branches],
@@ -170,7 +170,7 @@ export const ChatTranscript = memo(function ChatTranscript({
               onToolApproval={onToolApproval}
               onExecutePlan={onExecutePlan}
               onFork={onFork}
-              planExecutedIds={executedPlanPaths}
+              planExecutedIds={executedPlanIds}
               planBusy={busy}
             />
           </MessageScrollerItem>

@@ -19,7 +19,7 @@ import uuid
 from contextlib import suppress
 
 
-def safe_open(root, name, *, write=False):
+def safe_open(root, name, *, write=False, owner=None):
     parts = pathlib.PurePosixPath(name).parts
     if not parts or name.startswith("/") or any(p in ("..", ".") for p in parts):
         raise ValueError("file path must be relative to the workspace")
@@ -29,6 +29,8 @@ def safe_open(root, name, *, write=False):
             if write:
                 with suppress(FileExistsError):
                     os.mkdir(part, mode=0o755, dir_fd=directory)
+                if owner is not None:
+                    os.chown(part, *owner, dir_fd=directory, follow_symlinks=False)
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
             os.close(directory)
             directory = child
@@ -40,6 +42,8 @@ def safe_open(root, name, *, write=False):
             raise ValueError("only regular, unlinked workspace files may be transferred")
         if write:
             os.ftruncate(fd, 0)
+            if owner is not None:
+                os.fchown(fd, *owner)
         return fd
     finally:
         os.close(directory)
@@ -69,7 +73,7 @@ class Output:
 class Process:
     def __init__(self, request, root, uid, gid, output_limit, max_timeout, expire, pids):
         self.id = uuid.uuid4().hex
-        self.request = {k: request.get(k) for k in ("command", "workdir", "tty", "timeout_ms")}
+        self.request = {k: request.get(k) for k in ("command", "workdir", "env", "tty", "timeout_ms")}
         self.condition = threading.Condition()
         self.stdin_lock = threading.Lock()
         self.writes = {}
@@ -91,6 +95,7 @@ class Process:
             "TERM": "xterm-256color",
             "PYTHONUNBUFFERED": "1",
         }
+        env.update(request.get("env") or {})
         # Only configured outbound proxies cross into the guest environment.
         for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
             if key in os.environ:
@@ -134,7 +139,10 @@ class Process:
                 output.append(chunk)
 
     def kill(self):
-        with suppress(ProcessLookupError):
+        # The leader can already be a zombie when the final cleanup races its
+        # successful timeout kill. macOS may report EPERM for that dead process
+        # group instead of ESRCH; cleanup is already complete in that state.
+        with suppress(ProcessLookupError, PermissionError):
             os.killpg(self.process.pid, signal.SIGKILL)
 
     def wait(self, timeout):
@@ -372,12 +380,18 @@ def main():
         operation, name, limit = sys.argv[1:4]
         limit = int(limit)
         root = pathlib.Path("/workspace")
-        if operation == "write" and not name.startswith("sources/"):
-            raise ValueError("imports must be placed under sources/")
+        if operation == "write" and not name.startswith(("sources/", "work/", "outputs/")):
+            raise ValueError("imports must be placed under sources/, work/ or outputs/")
         temporary = (
             str(pathlib.PurePosixPath(name).with_name(".upload-" + uuid.uuid4().hex)) if operation == "write" else None
         )
-        fd = safe_open(root, temporary or name, write=operation == "write")
+        writable_guest_file = name.startswith(("work/", "outputs/"))
+        fd = safe_open(
+            root,
+            temporary or name,
+            write=operation == "write",
+            owner=(1000, 1000) if writable_guest_file else None,
+        )
         with os.fdopen(fd, "wb" if operation == "write" else "rb") as file:
             before = os.fstat(file.fileno())
             if operation == "stat":
@@ -412,7 +426,8 @@ def main():
             if operation == "write":
                 file.flush()
                 os.fsync(file.fileno())
-                # sources/ and its ancestors are root-owned, never guest-writable.
+                # sources/ stays root-owned; SDK writes under work/outputs remain
+                # editable by the unprivileged guest user.
                 # A failed import leaves the previous complete snapshot intact.
                 os.replace(root / temporary, root / name)
             if operation == "read":

@@ -10,7 +10,7 @@ export interface StorageRevisionRef {
 export interface StorageDeliveryRef extends StorageRevisionRef {
   owner:
     | { kind: "conversation-document"; conversationId: string; documentId: string }
-    | { kind: "conversation-file"; conversationId: string; path: string }
+    | { kind: "conversation-file"; conversationId: string; fileId: string }
     | { kind: "knowledge-document"; documentId: string };
 }
 
@@ -59,13 +59,12 @@ export async function createStorageDownloadUrl(
       ? `/api/knowledge-server/documents/${encodeURIComponent(owner.documentId)}/delivery`
       : owner.kind === "conversation-document"
         ? `/api/chat-server/conversations/${encodeURIComponent(owner.conversationId)}/documents/${encodeURIComponent(owner.documentId)}/delivery`
-        : `/api/chat-server/conversations/${encodeURIComponent(owner.conversationId)}/files/delivery`;
+        : `/api/chat-server/conversations/${encodeURIComponent(owner.conversationId)}/files/${encodeURIComponent(owner.fileId)}/delivery`;
   const capability = await request<StorageDownloadCapability>({
     url,
     method: "POST",
     params: {
       ...(maxDim ? { max_dim: maxDim } : {}),
-      ...(owner.kind === "conversation-file" ? { path: owner.path } : {}),
     },
     signal,
     skipErrorNotify: true,

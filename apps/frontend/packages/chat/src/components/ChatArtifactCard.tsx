@@ -1,14 +1,13 @@
 import { Artifact, ArtifactContent, ArtifactDescription, ArtifactHeader, ArtifactTitle } from "@repo/ai-elements";
-import type { ConversationDocument, TaskStatus } from "@repo/api";
+import type { ConversationDocument } from "@repo/api";
 import { Button } from "@repo/design-system";
-import { FileTextIcon, Loader2Icon } from "lucide-react";
+import { FileTextIcon } from "lucide-react";
 
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
-import { ArtifactFileCard } from "./ChatFileArtifactCard";
 
 export type ArtifactOutput = {
   documentId?: string;
-  path?: string;
+  fileId?: string;
   status: string;
   title: string;
   filename: string;
@@ -30,170 +29,33 @@ export function parseArtifactOutput(output: unknown): ArtifactOutput | null {
     return null;
   }
   const documentId = typeof raw.document_id === "string" ? raw.document_id : undefined;
-  const path = typeof raw.path === "string" ? raw.path : undefined;
-  if (!documentId && !path) {
+  const fileId = typeof raw.file_id === "string" ? raw.file_id : undefined;
+  if (!documentId && !fileId) {
     return null;
   }
-  const filename = typeof raw.filename === "string" ? raw.filename : (path?.split("/").at(-1) ?? "artifact");
+  const filename = typeof raw.filename === "string" ? raw.filename : "artifact";
   return {
     documentId,
-    path,
+    fileId,
     status: typeof raw.status === "string" ? raw.status : "persisted",
     title: typeof raw.title === "string" ? raw.title : filename,
     filename,
-    kind: typeof raw.kind === "string" ? raw.kind : path?.endsWith("-plan.md") ? "plan" : "file",
+    kind: typeof raw.kind === "string" ? raw.kind : "artifact",
     totalChars: typeof raw.total_chars === "number" ? raw.total_chars : undefined,
   };
-}
-
-export type ArtifactTaskOutput = {
-  taskId: string;
-  title: string;
-  filename: string;
-  kind: string;
-  status?: TaskStatus;
-  tasksDone?: number;
-  tasksTotal?: number;
-  documentId?: string;
-  path?: string;
-  totalChars?: number;
-  error?: string;
-};
-
-export function parseArtifactTaskOutput(output: unknown): ArtifactTaskOutput | null {
-  const outcome = parseToolOutcome(output);
-  if (!outcome) {
-    return null;
-  }
-  const payload = toolOutcomePayload(outcome);
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-  const raw = payload as Record<string, unknown>;
-  if (typeof raw.task_id !== "string") {
-    return null;
-  }
-  const path = typeof raw.path === "string" ? raw.path : undefined;
-  const filename = typeof raw.filename === "string" ? raw.filename : (path?.split("/").at(-1) ?? "artifact");
-  return {
-    taskId: raw.task_id,
-    title: typeof raw.title === "string" ? raw.title : filename,
-    filename,
-    kind: typeof raw.kind === "string" ? raw.kind : "html",
-    status: outcome.status === "running" || outcome.status === "completed" ? outcome.status : undefined,
-    tasksDone: typeof raw.done === "number" ? raw.done : undefined,
-    tasksTotal: typeof raw.total === "number" ? raw.total : undefined,
-    documentId: typeof raw.document_id === "string" ? raw.document_id : undefined,
-    path,
-    totalChars: typeof raw.total_chars === "number" ? raw.total_chars : undefined,
-    error: outcome.ok === false ? outcome.error.message : typeof raw.error === "string" ? raw.error : undefined,
-  };
-}
-
-export function ArtifactTaskCard({
-  task,
-  documents,
-  onOpen,
-  onOpenFile,
-}: {
-  task: ArtifactTaskOutput;
-  documents: Map<string, ConversationDocument>;
-  onOpen: (documentId: string) => void;
-  onOpenFile: (path: string) => void;
-}) {
-  const status = task.status ?? "queued";
-
-  if (status === "completed" && task.documentId) {
-    return (
-      <ArtifactDocumentCard
-        document={documents.get(task.documentId)}
-        documentId={task.documentId}
-        fallback={{
-          documentId: task.documentId,
-          status: "persisted",
-          title: task.title,
-          filename: task.filename,
-          kind: task.kind,
-          totalChars: task.totalChars ?? undefined,
-        }}
-        onOpen={() => onOpen(task.documentId!)}
-      />
-    );
-  }
-
-  if (status === "completed" && task.path) {
-    return (
-      <ArtifactFileCard
-        artifact={{
-          path: task.path,
-          status: "persisted",
-          title: task.title,
-          filename: task.path.split("/").at(-1) ?? task.filename,
-          kind: task.kind,
-        }}
-        onOpen={() => onOpenFile(task.path!)}
-      />
-    );
-  }
-
-  if (status === "failed" || status === "cancelled") {
-    return (
-      <Artifact>
-        <ArtifactHeader>
-          <div className="min-w-0">
-            <ArtifactTitle className="truncate">{task.title}</ArtifactTitle>
-            <ArtifactDescription className="truncate">
-              {task.kind} · {task.filename} · {status === "cancelled" ? "已取消" : "生成失败"}
-            </ArtifactDescription>
-          </div>
-        </ArtifactHeader>
-        {status === "failed" && task.error ? (
-          <ArtifactContent className="px-4 py-3 text-xs text-destructive">{task.error}</ArtifactContent>
-        ) : null}
-      </Artifact>
-    );
-  }
-
-  const done = task.tasksDone ?? 0;
-  const total = task.tasksTotal ?? 0;
-  const hasTaskProgress = total > 0;
-  return (
-    <Artifact>
-      <ArtifactHeader>
-        <div className="min-w-0">
-          <ArtifactTitle className="truncate">{task.title}</ArtifactTitle>
-          <ArtifactDescription className="truncate">
-            {[task.kind, task.filename].filter(Boolean).join(" · ")}
-          </ArtifactDescription>
-        </div>
-        <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" />
-      </ArtifactHeader>
-      <ArtifactContent className="flex-none px-4 py-3 text-xs text-muted-foreground">
-        <FileTextIcon className="mr-1 inline size-3" />
-        {hasTaskProgress ? `并发生成中 · 已完成 ${done}/${total} 个文件` : "正在启动并发生成"}
-      </ArtifactContent>
-    </Artifact>
-  );
 }
 
 export function ArtifactDocumentCard({
   document,
   documentId,
   fallback,
-  planExecuted,
-  planBusy,
   onOpen,
-  onExecutePlan,
 }: {
   document: ConversationDocument | undefined;
   documentId: string;
   fallback?: ArtifactOutput;
-  planExecuted?: boolean;
-  planBusy?: boolean;
   onOpen: () => void;
-  onExecutePlan?: () => void;
 }) {
-  const isPlan = fallback?.kind === "plan";
   return (
     <Artifact>
       <ArtifactHeader>
@@ -206,13 +68,8 @@ export function ArtifactDocumentCard({
           </ArtifactDescription>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={onOpen}>
-          {isPlan ? "编辑" : "预览"}
+          预览
         </Button>
-        {isPlan ? (
-          <Button type="button" size="sm" disabled={planBusy} onClick={onExecutePlan}>
-            {planExecuted ? "再次执行" : "立即执行"}
-          </Button>
-        ) : null}
       </ArtifactHeader>
       <ArtifactContent className="px-4 py-3 text-xs text-muted-foreground">
         <FileTextIcon className="mr-1 inline size-3" />

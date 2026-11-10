@@ -31,6 +31,13 @@ export class SandboxInternalClient {
       signal,
     });
   }
+  cancel(id: string, processId: string, scope: SandboxScope): Promise<SandboxProcess> {
+    return this.http.requestJson({
+      method: "DELETE",
+      path: `/sessions/${encodeURIComponent(id)}/processes/${encodeURIComponent(processId)}`,
+      headers: { "X-Sandbox-Scope": JSON.stringify(scope) },
+    });
+  }
   destroy(scope: SandboxScope): Promise<{ destroyed: boolean }> {
     return this.http.requestJson({
       method: "DELETE",

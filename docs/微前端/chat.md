@@ -6,8 +6,8 @@
 
 - 消息流使用 AI SDK v7 `useChat` + `DefaultChatTransport`，直接消费原生
   UIMessage SSE parts。
-- 交互只有 Send/Stop：持久化消息加载后，每个会话调用一次 `resumeStream()`；刷新或
-  切换路由可重新订阅 Redis 中的活动 UIMessage SSE。
+- 交互只有 Send/Stop：持久化消息加载并确认 `active_run_id` 后才调用 `resumeStream()`；
+  空闲会话不做 204 探针，刷新或切换路由可重新订阅 Redis 中的活动 UIMessage SSE。
 - Stop 同时调用 `useChat.stop()` 与 run cancel API；前者断开本地 subscriber，后者
   才终止服务端 Agent。浏览器断连本身不再等价于 Stop。
 - cancel API 返回后重新读取持久化消息；未完成的 HTML/image/video/tool 卡片使用
@@ -23,18 +23,19 @@
   重试按钮。失败回调不得从持久化历史覆盖尚未写入服务端的回答。
 - POST 与恢复 GET 都返回 `x-agent-run-id`，用于 Stop 和执行轨迹查询；stream 内容
   仍完全遵循 AI SDK UIMessage 协议。
-- plan 作为 `tool-write_file` part 随消息持久化；后续 run 从
-  服务端会话历史恢复。
-- “执行计划”发送持久化 `data-plan-execution` path 引用；正文不由浏览器复制。后端
-  强制先用现有 `read_file` 读取该 Plan 最新全文。执行结束后按钮变为“再次执行”而
-  不是永久禁用，后续点击仍携带稳定 path，不依赖长对话里的旧计划内容。
-- `write_file`/`edit_file`/`delegate_tasks` 的官方 tool output 直接携带 path 和
-  task progress。Markdown/Plan 渲染 path 卡片；委派任务在同一 tool part 上增量更新
-  `done`/`total`。写入或编辑成功的 HTML 立即显示可预览入口，不等待额外校验状态。
+- Plan 作为 `tool-save_sandbox_file` 的原生结果随消息持久化，结果携带稳定 Chat `file_id`；
+  后续 run 从服务端会话历史和 conversation-file registry 恢复。
+- “执行计划”发送严格的持久化 `data-plan-execution { file_id }` 引用；正文不由浏览器复制。
+  后端把该不可变 Plan 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求先用
+  Bash 完整读取。执行结束后按钮变为“再次执行”而不是永久禁用，后续点击仍携带稳定 id，
+  不依赖长对话里的旧计划内容。
+- `save_sandbox_file` 的官方 tool output 直接携带 file id、文件名与资源元数据，并按
+  `uiKind: artifact` 渲染 Artifact 卡；它不会被复制成原生 `file` part。原生 model
+  `file`/`reasoning-file` 仍按文件 part 呈现，两类产物保持不同协议语义。
 - HTML artifact 使用独立右侧普通 iframe，按浏览器原生语义开放脚本、模块、表单、
   存储、导航、Canvas/WebGL、Worker、媒体和交互能力，不维护 sandbox allow-list。
-  完整正文经 chat 的鉴权 file facade 按需加载，不进入聊天消息。
-  Markdown path 在同一面板只读渲染。
+  完整正文经 Chat 的鉴权 file delivery facade 按需加载，不进入聊天消息。
+  Markdown/Plan file id 在同一面板只读渲染。
 - 视频工具在进入耐久审批点后返回普通完成态并结束 SSE。右侧导演工作台按
   production id 读取 Executor 投影，展示并结构化编辑分镜，预览/重拍/选择每镜头
   Take，并展示成本、QA、暂存成片和事件；批准或拒绝直接恢复 Workflow Hook，不创建

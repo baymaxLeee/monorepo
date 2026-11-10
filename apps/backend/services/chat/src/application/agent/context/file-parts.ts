@@ -11,6 +11,15 @@ export function documentIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): 
   }
 }
 
+export function conversationFileIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): string | null {
+  try {
+    const url = new URL(part.url, "http://internal");
+    return url.searchParams.get("file_id");
+  } catch {
+    return null;
+  }
+}
+
 export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {
   return parts.flatMap((part) => {
     if (isFileUIPart(part)) {
@@ -24,21 +33,21 @@ export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {
   });
 }
 
-export function planExecutionPathFromParts(parts: ChatPart[]): string | null {
+export function planExecutionFileIdFromParts(parts: ChatPart[]): string | null {
   for (const part of parts) {
     if (part.type !== "data-plan-execution") {
       continue;
     }
-    const path = (part.data as { path?: unknown } | undefined)?.path;
-    if (typeof path === "string" && path) {
-      return path;
+    const fileId = (part.data as { file_id?: unknown } | undefined)?.file_id;
+    if (typeof fileId === "string" && fileId.length === 32) {
+      return fileId;
     }
   }
   return null;
 }
 
 export function hasUntrustedFilePart(parts: ChatPart[]): boolean {
-  return parts.some((part) => isFileUIPart(part) && !documentIdFromFilePart(part));
+  return parts.some((part) => isFileUIPart(part) && (part.providerReference != null || !documentIdFromFilePart(part)));
 }
 
 /** Skill the user explicitly invoked via `/`, carried as a persisted message

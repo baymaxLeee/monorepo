@@ -48,13 +48,13 @@ export function ChatMessagePart({
   latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
   onOpenArtifact: (documentId: string) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (fileId: string) => void;
   resolveSourceHref?: (source: SourceItem) => string | undefined;
   resolveSourceAction?: (source: SourceItem) => (() => Promise<void>) | undefined;
   onOpenImage: (partIndex: number) => void;
   onAnswerClientTool: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval: (approvalId: string, approved: boolean) => void;
-  onExecutePlan: (documentId: string) => void;
+  onExecutePlan: (fileId: string) => void;
   planExecutedIds: ReadonlySet<string>;
   planBusy: boolean;
 }) {
@@ -107,7 +107,8 @@ export function ChatMessagePart({
         conversationId={conversationId}
         partIndex={partIndex}
         variant={variant}
-        onOpen={onOpenArtifact}
+        onOpenArtifact={onOpenArtifact}
+        onOpenFile={onOpenFile}
         onOpenImage={onOpenImage}
       />
     );
@@ -123,7 +124,8 @@ export function ChatMessagePart({
             conversationId={conversationId}
             partIndex={partIndex}
             variant={variant}
-            onOpen={onOpenArtifact}
+            onOpenArtifact={onOpenArtifact}
+            onOpenFile={onOpenFile}
             onOpenImage={onOpenImage}
           />
         </ReasoningAttachmentContent>

@@ -6,21 +6,20 @@ Sandbox 是内部执行控制服务。Chat 拥有 run、附件授权与发布；
 
 ## 文件与工具
 
-首次 Bash 调用懒创建一个 run 沙箱，导入当前会话附件的原始字节。`sources/documents/`
-存文档原件，`sources/saved/` 存历史 Knowledge 文件树快照；两者只读。`work/`、
+首次 Bash/SDK sandbox 调用懒创建一个 run 沙箱，导入当前会话附件的原始字节。`sources/documents/`
+存 Knowledge 文档原件，`sources/saved/<file_id>/` 存 Chat-owned 会话文件/Plan 的不可变快照；两者只读。`work/`、
 `outputs/`、`.home/` 可写。文件操作使用真实 Bash/Python/Node/CLI；进程的 cwd 和
 环境变量不跨命令继承，文件在同一 run 内保留。
 
-- `bash`：command、workdir、tty、yield_time_ms、timeout_ms；未结束返回 session_id。
-- `write_stdin`：追加输入或以空 chars 取增量输出；Ctrl-C 为 `\u0003`。
+- `bash`：模型可见的 command/workdir 工具，通过当前 run 的官方 AI SDK `SandboxSession.run` 执行并等待终态，Stop 传播 AbortSignal。
+- SDK sandbox adapter 同时实现 binary/text read/write 和 `spawn`。SDK 写入只允许 `work/outputs`，对 `sources` 保持只读；当前 transport 不支持 writable spawn stdin，必须在启动前明确拒绝 `stdin: true`。
 - `load_conversation_files`：返回精确路径；也可刷新本轮其他工具刚保存的文件。
-- `save_sandbox_file`：流式上传原件至 Asset，然后在 Knowledge 登记不可变会话产物。
+- `save_sandbox_file`：流式上传原件至 Asset，然后由 Chat 登记不可变 `conversation_file` 与 Claim intent。
   每次发布产生新快照；本地编辑/删除不会修改旧产物。文本预览可省略，原件仍可下载。
-- `list_conversation_files` / `read_conversation_file`：查询持久文件和 Plan 的文本视图。
-  `write_plan` 只在 Plan mode 保存完整计划，沿用原路径和版本检查。
+- Plan mode 同样用 Bash 创建完整 `*-plan.md` 并通过 `save_sandbox_file` 发布；Chat 以 file id 标记 Plan。
 
 正常结束、异常、Stop 都调用幂等销毁。浏览器 SSE 断线只断订阅，不销毁仍执行的 run。
-下一 run 从持久资源重新导入；未显式保存的临时文件不恢复。历史文件树、文档、UIMessage
+下一 run 从持久资源重新导入；未显式保存的临时文件不恢复。历史 Chat files、文档、UIMessage
 保持可读，未重写既有数据。Code Mode 仍只暴露 Web Fetch。
 
 ## 执行与隔离

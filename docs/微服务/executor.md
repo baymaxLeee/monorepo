@@ -12,8 +12,8 @@ Chat 负责交互意图与创作规划，Executor 负责任务、执行投影、
 
 当前 task type 以
 [registry](../../apps/backend/services/executor/src/application/tasks/registry.ts)
-为准：file-task-batch、knowledge-document-process、video-generation、
-canvas-archive、canvas-video-frames。类型/schema 与 workflow 实现在同一注册点连接，
+为准：knowledge-document-process、video-generation、canvas-archive、
+canvas-video-frames。类型/schema 与 workflow 实现在同一注册点连接；通用文件生成不经过 Executor，
 不要从旧计划恢复已删除任务。
 
 视频制片通过 projection 和带版本的 decisions 管理审批；Workflow Hook 恢复原 run。

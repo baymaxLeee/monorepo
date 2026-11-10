@@ -36,7 +36,7 @@ export interface ChatMessageViewProps {
   latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
   onOpenArtifact: (documentId: string) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (fileId: string) => void;
   resolveSourceHref?: (source: SourceItem) => string | undefined;
   resolveSourceAction?: (source: SourceItem) => (() => Promise<void>) | undefined;
   branch?: MessageBranchGroup;
@@ -45,7 +45,7 @@ export interface ChatMessageViewProps {
   onRegenerate?: (messageId: string) => Promise<void>;
   onAnswerClientTool: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval: (approvalId: string, approved: boolean) => void;
-  onExecutePlan: (documentId: string) => void;
+  onExecutePlan: (fileId: string) => void;
   planExecutedIds: ReadonlySet<string>;
   planBusy: boolean;
 }

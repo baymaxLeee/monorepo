@@ -25,13 +25,7 @@ type AnyUIMessage = UIMessage<unknown, any, any>;
 
 const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 
-const HISTORICAL_FILE_MUTATIONS = new Set([
-  "write_file",
-  "edit_file",
-  "delegate_tasks",
-  "write_plan",
-  "save_sandbox_file",
-]);
+const HISTORICAL_FILE_MUTATIONS = new Set(["save_sandbox_file"]);
 
 function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
   return messages.map((message) => ({
@@ -56,14 +50,10 @@ function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
         const value = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
         const summary = {
           status: outcome?.status ?? "completed",
-          path: value.path,
-          paths: value.paths,
+          file_id: value.file_id,
           sha256: value.sha256,
-          task_id: value.task_id,
-          document_id: value.document_id,
           filename: value.filename,
           media_type: value.media_type,
-          replacements: value.replacements,
           error: outcome?.ok === false ? outcome.error : undefined,
         };
         return [
@@ -202,6 +192,8 @@ export async function projectModelContext(input: {
   runId: string;
   conversationId: string;
   userId: string;
+  tenantId: string;
+  workspaceId: string;
   provider: LanguageProviderSnapshot & { supportsImageInput: boolean };
   abortSignal: AbortSignal;
   messages: AnyUIMessage[];
@@ -280,6 +272,8 @@ export async function projectModelContext(input: {
 
   const modelReadyRecent = await transformFilePartsForModel(recent, {
     userId: input.userId,
+    tenantId: input.tenantId,
+    workspaceId: input.workspaceId,
     conversationId: input.conversationId,
     supportsImageInput: input.provider.supportsImageInput,
     signal: input.abortSignal,
@@ -287,13 +281,13 @@ export async function projectModelContext(input: {
   const converted = await convertToModelMessages(modelReadyRecent, {
     convertDataPart: (part) => {
       if (part.type === "data-plan-execution") {
-        const path = (part.data as { path?: unknown } | undefined)?.path;
-        if (typeof path !== "string" || !path) {
+        const fileId = (part.data as { file_id?: unknown } | undefined)?.file_id;
+        if (typeof fileId !== "string" || fileId.length !== 32) {
           return undefined;
         }
         return {
           type: "text",
-          text: `<plan_execution_request path="${escapeXmlText(path)}">Read this exact plan completely with read_conversation_file before using update_todos or any generation tool.</plan_execution_request>`,
+          text: `<plan_execution_request file_id="${escapeXmlText(fileId)}">The selected immutable Plan is imported under /workspace/sources/saved/${escapeXmlText(fileId)}/. Read the file completely with bash before using update_todos or any generation tool.</plan_execution_request>`,
         };
       }
       return undefined;

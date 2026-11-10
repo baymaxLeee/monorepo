@@ -4,7 +4,6 @@ import { expect, test, vi } from "vitest";
 
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { ChatCitedResponse } from "./ChatCitedResponse";
-import { ChatFileTree } from "./ChatFileTree";
 import { collectDeliverableCompletion } from "./ChatTodoListCard";
 
 for (const [text, startIndex, endIndex] of [
@@ -47,6 +46,59 @@ test("citations match explicit source URLs without inventing references", () => 
   expect(screen.getByRole("link", { name: /文档/ }).getAttribute("href")).toBe("https://example.com/doc");
   expect(screen.getByRole("link", { name: "其他" }).getAttribute("href")).toBe("https://example.com/other");
   expect(screen.queryByText("2")).toBeNull();
+});
+test("native citations do not duplicate explicit URL fallback citations", () => {
+  const url = "https://example.com/evidence";
+  render(
+    <ChatCitedResponse
+      streaming={false}
+      text={`[Evidence](${url})`}
+      sources={[{ type: "source-url", sourceId: "evidence", url, title: "Evidence" }]}
+      citations={[
+        {
+          source: { type: "source", sourceType: "url", id: "evidence", url, title: "Evidence" },
+          startIndex: 1,
+          endIndex: 9,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getAllByRole("link", { name: "引用：Evidence" })).toHaveLength(1);
+  expect(screen.getByRole("link", { name: "Evidence" }).getAttribute("href")).toBe(url);
+});
+
+test("positioned and unpositioned native citations keep one global numbering sequence", () => {
+  render(
+    <ChatCitedResponse
+      streaming={false}
+      text="证据"
+      sources={[]}
+      citations={[
+        {
+          source: {
+            type: "source",
+            sourceType: "url",
+            id: "positioned",
+            url: "https://example.com/positioned",
+            title: "Positioned",
+          },
+          startIndex: 0,
+          endIndex: 2,
+        },
+        {
+          source: {
+            type: "source",
+            sourceType: "url",
+            id: "unpositioned",
+            url: "https://example.com/unpositioned",
+            title: "Unpositioned",
+          },
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "引用：Positioned" }).textContent).toMatch(/^1/);
+  expect(screen.getByRole("link", { name: "引用：Unpositioned" }).textContent).toMatch(/^2/);
 });
 test("native citations render without a separate source part and preserve emoji and Markdown", () => {
   const text = "😀 **结论** 与 [指南](https://example.com/guide)";
@@ -120,23 +172,8 @@ test("document citations use the application resolver and unpositioned evidence 
     "/api/chat-server/conversations/c/sources/document/content",
   );
 });
-test("file tree opens frozen source snapshots through document ownership", () => {
-  const openFile = vi.fn();
-  const openDocument = vi.fn();
-  render(
-    <ChatFileTree
-      files={[{ path: "documents/snapshot", title: "引用文件" }, { path: "src/main.ts" }]}
-      onOpenFile={openFile}
-      onOpenArtifact={openDocument}
-    />,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "引用文件" }));
-  expect(openDocument).toHaveBeenCalledWith("snapshot");
-  fireEvent.click(screen.getByRole("button", { name: "main.ts" }));
-  expect(openFile).toHaveBeenCalledWith("src/main.ts");
-});
 test.each(["completed", "running", "failed"] as const)(
-  "subagent %s settles the associated artifact todo from real outcomes",
+  "sandbox publication %s settles the associated artifact todo from real outcomes",
   (status) => {
     const messages: UIMessage[] = [
       {
@@ -145,17 +182,17 @@ test.each(["completed", "running", "failed"] as const)(
         parts: [
           { type: "tool-update_todos", toolCallId: "todo", state: "output-available", input: {}, output: {} },
           {
-            type: "tool-delegate_tasks",
-            toolCallId: "batch",
+            type: "tool-save_sandbox_file",
+            toolCallId: "save",
             state: "output-available",
             input: {},
-            toolMetadata: { agent: { uiKind: "subagent" } },
+            toolMetadata: { agent: { uiKind: "artifact" } },
             output:
               status === "failed"
                 ? { ok: false, status, error: { code: "failed", message: "failed", retryable: false } }
                 : status === "running"
                   ? { ok: true, status, progress: { done: 1, total: 2 } }
-                  : { ok: true, status, data: { paths: ["a", "b"] } },
+                  : { ok: true, status, data: { file_id: "file", filename: "report.md" } },
           },
         ],
       },

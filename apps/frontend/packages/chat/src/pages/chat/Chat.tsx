@@ -138,8 +138,11 @@ export function ChatSession({
     chat,
     detail,
     loading,
+    historyReady,
+    historyMutationPending,
     issue,
     canRetry,
+    canStartHistoryMutation,
     recover,
     retryRequest,
     stopRun,
@@ -148,7 +151,12 @@ export function ChatSession({
   } = useConversationChat(id);
   const { sendMessage, regenerate, addToolOutput, addToolApprovalResponse } = chat;
   const [status, setStatus] = useState<typeof chat.status>(chat.status);
-  const busy = status === "streaming" || status === "submitted" || (issue !== null && Boolean(detail?.active_run_id));
+  const busy =
+    !historyReady ||
+    historyMutationPending ||
+    status === "streaming" ||
+    status === "submitted" ||
+    (issue !== null && Boolean(detail?.active_run_id));
   useEffect(() => {
     void useChatStore.getState().loadAgents();
   }, []);
@@ -157,6 +165,7 @@ export function ChatSession({
       !externalRequest ||
       !id ||
       loading ||
+      !canStartHistoryMutation() ||
       detail?.id !== id ||
       chat.status === "streaming" ||
       chat.status === "submitted" ||
@@ -174,7 +183,7 @@ export function ChatSession({
     void sent.catch(() => {
       handledExternalRequestRef.current = null;
     });
-  }, [busy, detail?.id, externalRequest, id, loading, requestBody, sendMessage]);
+  }, [canStartHistoryMutation, detail?.id, externalRequest, id, loading, requestBody, sendMessage]);
 
   useEffect(() => {
     closeArtifactPreview();
@@ -183,7 +192,7 @@ export function ChatSession({
 
   const submit = useCallback(
     async (value: PromptInputValue) => {
-      if (chat.status === "streaming" || chat.status === "submitted" || !id) {
+      if (!id || !canStartHistoryMutation()) {
         return;
       }
       pendingClientContinuationRef.current = false;
@@ -246,7 +255,7 @@ export function ChatSession({
         throw error;
       }
     },
-    [chat, id, activatedSkillName, requestBody, sendMessage],
+    [activatedSkillName, canStartHistoryMutation, id, requestBody, sendMessage],
   );
 
   const changeMode = useCallback(
@@ -262,8 +271,8 @@ export function ChatSession({
   );
 
   const executePlan = useCallback(
-    async (path: string) => {
-      if (!id || chat.status === "streaming" || chat.status === "submitted") {
+    async (fileId: string) => {
+      if (!id || !canStartHistoryMutation()) {
         return;
       }
       setMode("normal");
@@ -274,7 +283,7 @@ export function ChatSession({
         {
           parts: [
             { type: "text", text: "请按照这个计划开始执行。" },
-            { type: "data-plan-execution", data: { path } },
+            { type: "data-plan-execution", data: { file_id: fileId } },
           ] as ChatUIMessage["parts"],
         },
         { body: { ...requestBody, mode: "normal" as const } },
@@ -282,11 +291,12 @@ export function ChatSession({
       conversationScrollRef.current?.scrollToEnd();
       await sent;
     },
-    [chat, id, requestBody, sendMessage],
+    [canStartHistoryMutation, id, requestBody, sendMessage],
   );
 
   const answerClientTool = useCallback(
     (toolName: string, toolCallId: string, output: unknown) => {
+      if (!canStartHistoryMutation()) return;
       pendingClientContinuationRef.current = true;
       addToolOutput({
         tool: toolName,
@@ -295,7 +305,7 @@ export function ChatSession({
         options: { body: requestBody },
       });
     },
-    [addToolOutput, requestBody],
+    [addToolOutput, canStartHistoryMutation, requestBody],
   );
 
   const openArtifact = useCallback(
@@ -309,42 +319,43 @@ export function ChatSession({
   );
 
   const openFile = useCallback(
-    (path: string) => {
+    (fileId: string) => {
       if (!id) {
         return;
       }
-      openFilePreview(id, path);
+      openFilePreview(id, fileId);
     },
     [id, openFilePreview],
   );
 
   const approveTool = useCallback(
     (approvalId: string, approved: boolean) => {
+      if (!canStartHistoryMutation()) return;
       pendingClientContinuationRef.current = true;
       void addToolApprovalResponse({ id: approvalId, approved, options: { body: requestBody } });
     },
-    [addToolApprovalResponse, requestBody],
+    [addToolApprovalResponse, canStartHistoryMutation, requestBody],
   );
   const editMessage = useCallback(
     async (messageId: string, parts: ChatUIMessage["parts"]) => {
-      if (chat.status === "streaming" || chat.status === "submitted") return;
+      if (!canStartHistoryMutation()) return;
       pendingClientContinuationRef.current = false;
       conversationScrollRef.current?.scrollToEnd();
       await sendMessage({ id: crypto.randomUUID().replaceAll("-", ""), messageId, parts }, { body: requestBody });
     },
-    [chat, pendingClientContinuationRef, requestBody, sendMessage],
+    [canStartHistoryMutation, pendingClientContinuationRef, requestBody, sendMessage],
   );
   const regenerateMessage = useCallback(
     async (messageId: string) => {
-      if (chat.status === "streaming" || chat.status === "submitted") return;
+      if (!canStartHistoryMutation()) return;
       pendingClientContinuationRef.current = false;
       conversationScrollRef.current?.scrollToEnd();
       await regenerate({ messageId, body: requestBody });
     },
-    [chat, pendingClientContinuationRef, regenerate, requestBody],
+    [canStartHistoryMutation, pendingClientContinuationRef, regenerate, requestBody],
   );
   const resolveSourceAction = useSourceAction(id);
-  const handleExecutePlan = useCallback((path: string) => void executePlan(path).catch(() => {}), [executePlan]);
+  const handleExecutePlan = useCallback((fileId: string) => void executePlan(fileId).catch(() => {}), [executePlan]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -355,7 +366,7 @@ export function ChatSession({
       <ChatStream
         onFork={forkConversation}
         chat={chat}
-        resume={!loading && detail?.id === id}
+        resume={!loading && detail?.id === id && Boolean(detail.active_run_id)}
         conversationId={id}
         loading={loading}
         conversationDocuments={detail?.documents ?? EMPTY_DOCUMENTS}

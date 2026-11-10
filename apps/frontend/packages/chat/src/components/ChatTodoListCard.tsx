@@ -2,7 +2,7 @@ import { Plan, PlanContent, PlanHeader, Task, TaskTitle } from "@repo/ai-element
 import { isToolUIPart, type UIMessage } from "ai";
 
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
-import { parseArtifactOutput, parseArtifactTaskOutput } from "./ChatArtifactCard";
+import { parseArtifactOutput } from "./ChatArtifactCard";
 import { parseGenerateImageOutput } from "./ChatImageCard";
 import { parseCreateVideoProductionOutput } from "./ChatVideoCard";
 
@@ -128,25 +128,12 @@ function deliverablePartStatus(part: ToolPart): DeliverablePartStatus {
       }
       return parsed?.status === "completed" && (parsed.productionId || parsed.documentId) ? "completed" : "running";
     }
-    case "subagent": {
+    case "artifact": {
       const outcome = parseToolOutcome(output);
       if (outcome?.ok === false) return "error";
-      return outcome?.status === "completed" ? "completed" : "running";
-    }
-    case "artifact": {
       const artifact = parseArtifactOutput(output);
-      if (artifact?.documentId || artifact?.path) {
+      if (artifact?.documentId || artifact?.fileId) {
         return "completed";
-      }
-      const task = parseArtifactTaskOutput(output);
-      if (task?.status === "completed" && task.path) {
-        return "completed";
-      }
-      if (task?.status === "cancelled") {
-        return "cancelled";
-      }
-      if (task?.status === "failed") {
-        return "error";
       }
       return "running";
     }
@@ -159,7 +146,6 @@ const DELIVERABLE_BY_UI_KIND: Record<string, DeliverableKind> = {
   "image-gallery": "image",
   video: "video",
   artifact: "artifact",
-  subagent: "artifact",
 };
 
 // The todo snapshot is rewritten only between agent steps. Read later official

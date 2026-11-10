@@ -25,16 +25,12 @@ import {
   recordToolStart,
   startModelStep,
 } from "../observability/lifecycle.js";
+import { RunSandbox } from "../tools/builtins/sandbox-session.js";
 import { ToolCatalog } from "../tools/catalog.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { exactTextResponseModel } from "./exact-text-response-model.js";
-import {
-  deriveOrchestrationState,
-  MAX_AGENT_STEPS,
-  resolveOrchestrationDirective,
-  type OrchestrationSeed,
-} from "./orchestration.js";
+import { deriveOrchestrationState, MAX_AGENT_STEPS, resolveOrchestrationDirective } from "./orchestration.js";
 import { newMessagesForStoredResponse } from "./response-continuation.js";
 import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
@@ -148,16 +144,14 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
   const instrumentedTools = withActiveToolSpans(tools, toolSpans);
 
-  const orchestrationSeed: OrchestrationSeed = {
-    executionPlanDocumentId: input.mode === "normal" ? (input.executionPlanDocumentId ?? null) : null,
-  };
+  const sandbox = new RunSandbox(toolContext);
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
     userId: input.userId,
     conversationId: input.conversationId,
     profileId: input.mode,
     runtimeKind: "tool-loop",
-    orchestration: deriveOrchestrationState(orchestrationSeed, []),
+    orchestration: deriveOrchestrationState([]),
   };
   const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
   const providerModel = createProviderModel(provider, {
@@ -224,7 +218,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions, messages }) => {
-      const orchestration = deriveOrchestrationState(orchestrationSeed, steps);
+      const orchestration = deriveOrchestrationState(steps);
       const directive = resolveOrchestrationDirective(orchestration, steps.length);
       const activeTools = orchestration.skillLoadedThisRun ? loadSkillActiveTools : resolvedTools.activeTools;
       const nextContext = { ...stepContext, orchestration };
@@ -256,15 +250,6 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
           runtimeContext: nextContext,
           activeTools: [],
           toolChoice: "none",
-          instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
-        };
-      }
-      if (directive.kind === "read-plan" && "read_conversation_file" in instrumentedTools) {
-        return {
-          ...continuation,
-          runtimeContext: nextContext,
-          activeTools: ["read_conversation_file"],
-          toolChoice: { type: "tool", toolName: "read_conversation_file" },
           instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
         };
       }
@@ -394,7 +379,10 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   });
   return {
     agent,
-    dispose: resolvedTools.dispose,
+    sandbox,
+    dispose: async () => {
+      await Promise.all([sandbox.dispose(), resolvedTools.dispose()]);
+    },
     responseLineage: () => ({ responseId, parentResponseId }),
   };
 }

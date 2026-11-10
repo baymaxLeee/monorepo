@@ -330,9 +330,6 @@
           "size_bytes": {
             "format": "int64",
             "type": "integer"
-          },
-          "url": {
-            "type": "string"
           }
         },
         "required": [
@@ -341,8 +338,7 @@
           "filename",
           "media_type",
           "size_bytes",
-          "sha256",
-          "url"
+          "sha256"
         ],
         "type": "object"
       },

@@ -134,3 +134,25 @@ test("SDK edit keeps the new message id aligned between the local snapshot and w
   });
   expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toMatchObject({ messageId: "old-user", message: edited });
 });
+
+test("the official transport rejects structurally invalid UIMessage chunks", async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(
+    async () =>
+      new Response('data: {"type":"not-a-ui-message-chunk"}\n\ndata: [DONE]\n\n', {
+        headers: { "content-type": "text/event-stream" },
+      }),
+  );
+  const transport = createConversationTransport<UIMessage>("conversation", { fetch });
+  const stream = await transport.sendMessages({
+    trigger: "submit-message",
+    chatId: "conversation",
+    messageId: "user",
+    messages: [{ id: "user", role: "user", parts: [{ type: "text", text: "question" }] }],
+    abortSignal: undefined,
+  });
+  await expect(async () => {
+    for await (const _chunk of stream) {
+      // Parsing itself is the assertion: invalid chunks must fail before reaching Chat.
+    }
+  }).rejects.toThrow();
+});

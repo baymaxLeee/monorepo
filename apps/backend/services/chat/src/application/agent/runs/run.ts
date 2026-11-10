@@ -31,7 +31,6 @@ import {
   activatedSkillNameFromParts,
   attachedImageDocumentIdsFromParts,
   hasUntrustedFilePart,
-  planExecutionPathFromParts,
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
@@ -376,6 +375,8 @@ export async function createAgentRunResponse(
       runId,
       conversationId: conversation.id,
       userId: conversation.userId,
+      tenantId: conversation.tenantId,
+      workspaceId: conversation.workspaceId,
       provider,
       abortSignal: runSignal,
       messages: await validateUIMessages<AnyUIMessage>({
@@ -390,7 +391,6 @@ export async function createAgentRunResponse(
     const botSkills = input.botSkills ?? [];
 
     const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
-    const executionPlanDocumentId = latestUser ? planExecutionPathFromParts(latestUser.parts) : null;
     const currentSkillName = continuedSkill?.name ?? activatedSkillName;
     if (currentSkillName) {
       const picked = botSkills.find((skill) => skill.name === currentSkillName);
@@ -424,7 +424,6 @@ export async function createAgentRunResponse(
       modelMessages,
       previousResponseId: lineageIsCurrent && supportsStoredContinuation ? lineage.responseId : null,
       attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
-      executionPlanDocumentId,
       instructionInput,
       activeSkillName: instructionInput.activatedSkill?.name ?? null,
       botSkills,
@@ -436,7 +435,11 @@ export async function createAgentRunResponse(
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;
-    const result = await agent.stream({ messages: modelMessages, abortSignal: runSignal });
+    const result = await agent.stream({
+      messages: modelMessages,
+      abortSignal: runSignal,
+      experimental_sandbox: agentInstance.sandbox,
+    });
     logger.info(
       { conversationId: conversation.id, runId, setupMs: Math.round(performance.now() - startedAt) },
       "run accepted",

@@ -8,7 +8,7 @@ import { extractJsonMiddleware, generateText, Output, wrapLanguageModel, type UI
 
 import { addUsage, EMPTY_USAGE, extractUsageTokens, type UsageTokens } from "../observability/lifecycle.js";
 import { COMPACTION_STATE_VERSION, compactionModelOutputSchema, type CompactionState } from "./compaction-state.js";
-import { documentIdFromFilePart } from "./file-parts.js";
+import { conversationFileIdFromFilePart, documentIdFromFilePart } from "./file-parts.js";
 import { estimateTextTokens, truncateToTokenBudget } from "./token-estimate.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -35,6 +35,7 @@ function compactPart(part: AnyUIMessage["parts"][number]): unknown | null {
     return {
       type: "file",
       document_id: documentIdFromFilePart(part),
+      file_id: conversationFileIdFromFilePart(part),
       filename: part.filename,
       media_type: part.mediaType,
     };

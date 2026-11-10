@@ -339,7 +339,6 @@ export interface components {
             sha256: string;
             /** Format: int64 */
             size_bytes: number;
-            url: string;
         };
         UploadSession: {
             /** Format: uuid */

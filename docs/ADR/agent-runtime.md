@@ -4,9 +4,13 @@
 
 ## 执行与传输
 
-Chat 使用 AI SDK 7 的 `Agent` interface 和一个 `ToolLoopAgent`；normal/plan 是行为配置，不是互相交接的独立角色。SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、显式 Plan 读取、取消、上下文与持久化。
+Chat 使用 AI SDK 7 的 `Agent` interface 和一个主 `ToolLoopAgent`；normal/plan
+是行为配置，不是互相交接的独立角色。主 agent 持有用户意图、计划、交付顺序和最终综合权。
+`research` 可作为普通 tool 创建一个短时、只读、独立 context 的 child `ToolLoopAgent`，
+但 child 不继承父会话或 response lineage，也不成为第二个规划权威。SDK 拥有模型/工具循环，
+harness 只处理真实边界：租约、权限、显式 Plan 引用、取消、上下文与持久化。
 
-ToolLoopAgent 使用 50 个 model step 的安全上限，并保留最后一步做禁止工具调用的真实结果总结；这高于 SDK 的 20 步保守默认值，适配长任务，同时仍有明确成本边界。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 只隔离 `load_skill` 和 Plan/client-tool 语义屏障，独立读取可在同一步并行，生成和有依赖的副作用继续串行。
+ToolLoopAgent 使用 50 个 model step 的安全上限，并保留最后一步做禁止工具调用的真实结果总结；这高于 SDK 的 20 步保守默认值，适配长任务，同时仍有明确成本边界。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 把 `load_skill` 作为屏障并保持 `ask_user` 独占，独立读取可在同一步并行，生成和有依赖的副作用继续串行。
 
 PostgreSQL UIMessage 是语义会话记录；Redis 保存原生 UIMessage SSE，负责浏览器断网后的 transport resume；Executor Workflow 负责跨进程的 execution resume。三者不可混同。断开浏览器只释放 subscriber；显式 Stop 才传播 AbortSignal，收口未完成工具为官方 error 状态、取消未完成 todo，并等待 run finalizer。
 
@@ -21,15 +25,21 @@ Instructions 使用代码拥有的固定层次：稳定策略、模式/执行契
 
 UIMessage 到 ModelMessage 的投影保留近期原生语义，预算不足才增量压缩旧前缀。摘要记录覆盖位置并以 revision CAS 写入；失败不推进未完成的覆盖范围。历史文件写入保留路径、SHA、结果和失败事实，不重复大正文与旧工具参数。
 
-每个使用可变权威信息的 run 从所属服务读取最新 Plan、已发布 Skill 和配置。历史搜索结果是证据，只有刷新/最新需求且现有证据不足时重新查询。Skill 初始仅暴露名称/描述，激活后按需读取资源；草稿不进入执行上下文。显式 Plan 执行必须先完整读取选中文件；自然语言执行由 agent 用文件工具发现。
+Plan 是 Chat 注册的不可变 conversation file；显式执行按 `file_id` 导入该精确快照，自然语言执行由 agent 用 `load_conversation_files` 和 Bash 发现候选。每个 run 仍从所属服务读取已发布 Skill 和配置等可变权威信息。历史搜索结果是证据，只有刷新/最新需求且现有证据不足时重新查询。Skill 初始仅暴露名称/描述，激活后按需读取资源；草稿不进入执行上下文。显式 Plan 执行必须先完整读取选中文件。
 
 ## 工具与模型
 
 - `ask_user` 是无 server execute 的 client tool，批量询问已知独立问题，客户端 `addToolOutput` 后 continuation；依赖答案的后续问题再提出。
 - 应用工具使用 ToolOutcome；业务失败可在 UI/persistence 保留结构化结果，同时向模型投影为 error-json。Abort、审批拒绝、输入/协议错误保留原生控制流。 `toolSearch()` 保留原生结果以激活延迟工具。
-- Bash 使用独立 sandbox 服务的真实 Linux 环境，按 run 懒创建并销毁。Chat 管理附件导入、明确发布和 finalizer；Executor 仍只管理 durable 业务任务。 `bash` / `write_stdin` 提供命令、PTY、增量输出及硬超时；权限由 OS/runtime 与出口代理执行，不能靠模型自律。Code Mode 仍只暴露 Web Fetch。详见 [Sandbox](../微服务/sandbox.md)。
+- Bash 使用独立 sandbox 服务的真实 Linux 环境，按 run 懒创建并销毁。Chat 管理附件导入、明确发布和 finalizer；Executor 仍只管理已声明的 durable 业务任务。AI SDK `SandboxSession` 的 `run`/file/spawn 接口映射到受限命令、文件与进程 API；模型可见 `bash` 负责普通命令，SDK 写入只能落在临时 `work/outputs`，`sources` 保持只读。权限由 OS/runtime 与出口代理执行，不能靠模型自律。Code Mode 仍只暴露 Web Fetch。详见 [Sandbox](../微服务/sandbox.md)。
 - 单个、公开数据驱动的 HTML 交付优先走最短路径：先观察一次公开来源，再在确有缺失时换取同一来源的原始表示；尽量用一次 Bash 完成文件生成与交付物特定的轻量检查，随后显式发布。固定浏览器/ECharts loader 契约不在用户 run 内通过下载运行时、安装测试依赖或另建 harness 重复验证。
-- 生成交付物按主 agent 计划串行；`delegate_tasks` 仅并发独立完整文件，冻结共享上下文，不创建另一套对话意图。todo 是官方工具结果中的替换快照。
+- 生成交付物按主 agent 计划串行；普通文件均由主 agent 在 run sandbox 中生成并逐个发布，不存在平行的 durable 文件批次或第二套对话意图。todo 是官方工具结果中的替换快照。
+- `research` 仅用于会显著膨胀主 context 的多来源公开研究。每次调用以显式 task/可选冻结
+  context 创建 fresh child，只开放自动执行的 `web_search`/`web_fetch`，禁止审批、写入和递归委派。
+  子执行通过 preliminary tool result 携带累计 nested UIMessage；用户可见研究过程，主模型经
+  `toModelOutput` 只收到最终证据报告。父 Stop 的 AbortSignal 必须透传，child step/tool/token
+  用量关联父 toolCall span；进程丢失不恢复该内联执行。
+- `research` 是 inline Subagent，不等同于 Executor Workflow。Executor 继续承载视频制片、文档处理和 Canvas 等已注册耐久任务，不承载通用文件生成。
 - 文本模型使用 Admin 显式配置的 Responses dialect；不凭 URL 猜协议。支持存储续接的 provider 使用 response lineage，其他 provider 从本地 journal 重放。provider cursor 不是唯一会话记录；媒体/embedding/rerank 使用各自 API。
 
 ## 取舍与事实源

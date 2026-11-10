@@ -34,6 +34,9 @@ and record high-risk extraction decisions before moving code.
 - Steps are contiguous from zero within each three-part release directory.
   Four-part IDs target exact steps; three-part CLI targets select the release head.
   Old three-part database records identify step zero only.
+- Append the next contiguous step to the latest existing release directory by
+  default. Never create a new minor or patch migration release unless the user
+  explicitly says they have opened that version.
 - Each release directory must include a generated `checksums.yaml`. Run root
   `just migrate-checksums <service> <version>` when authoring, then
   `just migrate-check`; never regenerate applied versions to bypass drift.

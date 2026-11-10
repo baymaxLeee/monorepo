@@ -74,6 +74,23 @@ test("tool failure surfaces its reason without an extra click", async () => {
   expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
 });
 
+test("structured tool failures drive the native header state", async () => {
+  render(
+    message({
+      ...running,
+      state: "output-available",
+      output: {
+        ok: false,
+        status: "failed",
+        error: { code: "provider_failed", message: "上游服务失败", retryable: true },
+      },
+    }),
+  );
+  expect(await screen.findByText("上游服务失败")).toBeTruthy();
+  expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
+  expect(screen.queryByRole("button", { name: /fetch\s*已完成/ })).toBeNull();
+});
+
 test("reasoning files stay in a separate disclosure instead of becoming final attachments", () => {
   render(
     <ChatMessageView

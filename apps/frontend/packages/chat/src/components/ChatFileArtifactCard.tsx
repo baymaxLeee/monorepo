@@ -11,20 +11,20 @@ export function ArtifactFileCard({
   onOpen,
   onExecutePlan,
 }: {
-  artifact: ArtifactOutput & { path: string };
+  artifact: ArtifactOutput & { fileId: string };
   planExecuted?: boolean;
   planBusy?: boolean;
   onOpen: () => void;
   onExecutePlan?: () => void;
 }) {
-  const isPlan = artifact.kind === "plan" || artifact.path.endsWith("-plan.md");
+  const isPlan = artifact.kind === "plan";
   return (
     <Artifact>
       <ArtifactHeader>
         <div className="min-w-0">
           <ArtifactTitle className="truncate">{artifact.title}</ArtifactTitle>
           <ArtifactDescription className="truncate">
-            {[artifact.kind, artifact.path].filter(Boolean).join(" · ")}
+            {[artifact.kind, artifact.filename].filter(Boolean).join(" · ")}
           </ArtifactDescription>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={onOpen}>

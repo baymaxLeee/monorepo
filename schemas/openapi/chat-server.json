@@ -434,7 +434,7 @@
         }
       }
     },
-    "/conversations/{conversation_id}/files/delivery": {
+    "/conversations/{conversation_id}/files/{file_id}/delivery": {
       "post": {
         "parameters": [
           {
@@ -446,8 +446,8 @@
             }
           },
           {
-            "name": "path",
-            "in": "query",
+            "name": "file_id",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string"
@@ -461,6 +461,43 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StorageDelivery"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "file not accessible"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/files/{file_id}/content": {
+      "get": {
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Authorized redirect to Storage",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -545,7 +582,7 @@
         }
       }
     },
-    "/conversations/{conversation_id}/files/detail": {
+    "/conversations/{conversation_id}/files/{file_id}": {
       "get": {
         "parameters": [
           {
@@ -557,25 +594,17 @@
             }
           },
           {
-            "name": "path",
-            "in": "query",
+            "name": "file_id",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "include_content",
-            "in": "query",
-            "schema": {
-              "type": "boolean",
-              "default": true
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "conversation virtual file detail",
+            "description": "Chat-owned conversation file reference",
             "content": {
               "application/json": {
                 "schema": {
@@ -1320,7 +1349,7 @@
           "provider_id": {
             "type": "string"
           },
-          "active_plan_path": {
+          "active_plan_file_id": {
             "type": "string",
             "nullable": true
           },
@@ -1429,7 +1458,8 @@
       "ConversationFile": {
         "type": "object",
         "required": [
-          "path",
+          "id",
+          "conversation_id",
           "asset_id",
           "revision_id",
           "title",
@@ -1437,12 +1467,15 @@
           "mime_type",
           "size",
           "sha256",
-          "writable",
-          "derived",
-          "content"
+          "kind",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
-          "path": {
+          "id": {
+            "type": "string"
+          },
+          "conversation_id": {
             "type": "string"
           },
           "asset_id": {
@@ -1461,20 +1494,25 @@
             "type": "string"
           },
           "size": {
-            "type": "integer",
-            "nullable": true
+            "type": "integer"
           },
           "sha256": {
             "type": "string"
           },
-          "writable": {
-            "type": "boolean"
+          "kind": {
+            "type": "string",
+            "enum": [
+              "artifact",
+              "plan"
+            ]
           },
-          "derived": {
-            "type": "boolean"
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           },
-          "content": {
-            "type": "string"
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

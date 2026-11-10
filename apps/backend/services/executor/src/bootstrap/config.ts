@@ -17,7 +17,6 @@ export interface Settings {
   knowledgeServiceUrl: string;
   canvasServiceUrl: string;
   ffmpegPath: string;
-  fileTaskConcurrency: number;
   videoSegmentConcurrency: number;
 }
 
@@ -105,9 +104,6 @@ export function getSettings(): Settings {
     canvasServiceUrl: envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),
-    // Bounded above by WORKFLOW_POSTGRES_WORKER_CONCURRENCY (the WDK step pool)
-    // and the provider's rate limit; transient 429/5xx are absorbed by retries.
-    fileTaskConcurrency: envIntClamped("FILE_TASK_CONCURRENCY", 8, 1, 32),
     videoSegmentConcurrency: envIntClamped("VIDEO_SEGMENT_CONCURRENCY", 12, 1, 12),
   };
 }

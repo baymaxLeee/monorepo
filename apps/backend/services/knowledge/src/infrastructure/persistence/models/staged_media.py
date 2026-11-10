@@ -22,7 +22,7 @@ class StagedMediaRow(Base):
     asset_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
     revision_id: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), nullable=True)
     asset_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     document_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

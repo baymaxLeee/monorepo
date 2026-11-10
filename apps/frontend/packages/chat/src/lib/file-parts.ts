@@ -24,3 +24,11 @@ export function documentIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): 
     return null;
   }
 }
+
+export function conversationFileIdFromFilePart(part: FileUIPart | ReasoningFileUIPart): string | null {
+  try {
+    return new URL(part.url, window.location.origin).searchParams.get("file_id");
+  } catch {
+    return null;
+  }
+}

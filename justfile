@@ -53,11 +53,6 @@ migrate-checksums service version:
 migrate-check:
     @bash scripts/db-checksums.sh check
 
-# Offline owner-run byte migration; stop Knowledge writers first. Use --verify for a read-only audit.
-# Requires KNOWLEDGE_DATABASE_URL, STORAGE_SERVICE_URL and INTERNAL_API_TOKEN.
-backfill-knowledge-storage *args:
-    @cd apps/backend/services/knowledge/tools/storage-backfill && GOWORK=off go run . "$@"
-
 # Integration tests create and remove their own disposable PostgreSQL container.
 test-db-migrations:
     @python3 scripts/tests/test-db-migrate.py

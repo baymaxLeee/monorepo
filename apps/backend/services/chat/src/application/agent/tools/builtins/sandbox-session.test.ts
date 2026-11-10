@@ -54,6 +54,7 @@ function fixture() {
       assert.equal(input.stdout_offset, 5);
       return { ...process, stdout: "second", stdout_offset: 11, exitCode: 0 };
     },
+    cancel: async () => ({ ...process, exitCode: 137 }),
   };
   const deps: SandboxDependencies = {
     sandbox: () => client,
@@ -70,15 +71,28 @@ function fixture() {
           mediaType: "application/octet-stream",
           sizeBytes: 5,
           sha256: "sha",
-          url: "",
         };
       },
     }),
     documents: async () => [document],
     files: async () => [],
-    publish: async () => {
+    publish: async (input) => {
       calls.push("publish");
-      return { ...document, id: "saved", filename: "output.bin" };
+      assert.equal(input.assetId, "saved");
+      return {
+        id: "saved",
+        conversation_id: "c",
+        filename: "output.bin",
+        title: "Output",
+        mime_type: "application/octet-stream",
+        size: 5,
+        asset_id: "saved",
+        revision_id: "rev",
+        sha256: "sha",
+        kind: "artifact" as const,
+        created_at: "now",
+        updated_at: "now",
+      };
     },
   };
   return { deps, client, calls, imported };
@@ -86,18 +100,22 @@ function fixture() {
 
 test("lazy run allocation is single-flight; original binary bytes survive import and explicit publication", async () => {
   const f = fixture();
-  const run = new RunSandbox(f.deps);
+  const run = new RunSandbox(context, f.deps);
   assert.equal(f.calls.length, 0);
-  await Promise.all([run.start({ command: "one" }, context, "a"), run.start({ command: "two" }, context, "b")]);
+  await Promise.all([run.run({ command: "one" }), run.run({ command: "two" })]);
   assert.equal(f.calls.filter((c) => c === "create").length, 1);
   assert.deepEqual(f.imported, [bytes]);
   assert.ok(!f.calls.includes("publish"));
   const saved = await run.save(
-    { path: "outputs/output.bin", filename: "output.bin", media_type: "application/octet-stream", title: "Output" },
-    context,
+    {
+      path: "/workspace/outputs/output.bin",
+      filename: "output.bin",
+      media_type: "application/octet-stream",
+      title: "Output",
+    },
     "save",
   );
-  assert.equal(saved.document_id, "saved");
+  assert.equal(saved.file_id, "saved");
   assert.deepEqual(f.calls.slice(-2), ["upload", "publish"]);
   await Promise.all([run.dispose(), run.dispose()]);
   assert.equal(f.calls.filter((c) => c === "destroy").length, 1);
@@ -114,9 +132,9 @@ test("Stop during provisioning waits for creation then deletes it without execut
     await gate;
     return { id: "sandbox", workdir: "/workspace/work", expires_at: "later" };
   };
-  const run = new RunSandbox(f.deps);
+  const run = new RunSandbox(context, f.deps);
   const stop = new AbortController();
-  const pending = run.start({ command: "never" }, context, "a", stop.signal);
+  const pending = run.run({ command: "never", abortSignal: stop.signal });
   const rejected = assert.rejects(pending, { name: "AbortError" });
   stop.abort();
   release();
@@ -128,23 +146,42 @@ test("Stop during provisioning waits for creation then deletes it without execut
 test("attachment scope failures destroy partial initialization; foreign process sessions never execute", async () => {
   const f = fixture();
   f.deps.documents = async () => [{ ...document, workspace_id: "other" }];
-  const run = new RunSandbox(f.deps);
-  await assert.rejects(run.start({ command: "never" }, context, "a"), /scope mismatch/);
+  const run = new RunSandbox(context, f.deps);
+  await assert.rejects(run.run({ command: "never" }), /scope mismatch/);
   assert.deepEqual(f.calls, ["create", "destroy"]);
-  const g = fixture();
-  const fresh = new RunSandbox(g.deps);
-  await assert.rejects(fresh.write({ session_id: "foreign" }, context, "b"), /does not belong/);
-  assert.deepEqual(g.calls, []);
-  await fresh.dispose();
 });
 
-test("continuations consume output offsets and context identity cannot change within a run", async () => {
+test("command continuation consumes output offsets and preserves streamed output", async () => {
   const f = fixture();
-  const run = new RunSandbox(f.deps);
-  await run.start({ command: "cat" }, context, "a");
-  const result = await run.write({ session_id: "process", chars: "hello\n" }, context, "b");
-  assert.equal(result.stdout, "second");
-  await assert.rejects(run.start({ command: "x" }, { ...context, runId: "other" }, "c"), /context mismatch/);
+  const run = new RunSandbox(context, f.deps);
+  const result = await run.run({ command: "cat" });
+  assert.equal(result.stdout, "firstsecond");
+  await run.dispose();
+});
+
+test("official SDK file methods preserve bytes and keep source snapshots read-only", async () => {
+  const f = fixture();
+  const run = new RunSandbox(context, f.deps);
+  await run.writeBinaryFile({ path: "/workspace/work/data.bin", content: bytes });
+  assert.deepEqual(f.imported.at(-1), bytes);
+  assert.deepEqual(await run.readBinaryFile({ path: "/workspace/work/data.bin" }), bytes);
+  await assert.rejects(run.writeTextFile({ path: "/workspace/sources/data.txt", content: "blocked" }), /limited/);
+  await run.dispose();
+});
+
+test("official SDK spawn streams process output and rejects unsupported writable stdin", async () => {
+  const f = fixture();
+  const run = new RunSandbox(context, f.deps);
+  const process = await run.spawn({ command: "printf output" });
+  const [stdout, stderr, status] = await Promise.all([
+    new Response(process.stdout).text(),
+    new Response(process.stderr).text(),
+    process.wait(),
+  ]);
+  assert.equal(stdout, "firstsecond");
+  assert.equal(stderr, "");
+  assert.deepEqual(status, { exitCode: 0 });
+  await assert.rejects(run.spawn({ command: "cat", stdin: true }), /not supported/);
   await run.dispose();
 });
 
@@ -157,15 +194,15 @@ test("failed exports are never registered as artifacts, and later runs import pe
         c.error(new Error("truncated"));
       },
     });
-  const run = new RunSandbox(f.deps);
+  const run = new RunSandbox(context, f.deps);
   await assert.rejects(
-    run.save({ path: "outputs/x", filename: "x", media_type: "application/octet-stream", title: "X" }, context, "a"),
+    run.save({ path: "/workspace/outputs/x", filename: "x", media_type: "application/octet-stream", title: "X" }, "a"),
     /truncated/,
   );
   assert.ok(!f.calls.includes("publish"));
   await run.dispose();
-  const next = new RunSandbox(f.deps);
-  await next.start({ command: "cat" }, { ...context, runId: "next" }, "b");
+  const next = new RunSandbox({ ...context, runId: "next" }, f.deps);
+  await next.run({ command: "cat" });
   assert.deepEqual(f.imported, [bytes, bytes]);
   await next.dispose();
 });
@@ -173,26 +210,37 @@ test("failed exports are never registered as artifacts, and later runs import pe
 test("attachments without a migrated Storage revision fail and clean up the sandbox", async () => {
   const f = fixture();
   f.deps.documents = async () => [{ ...document, asset_id: null, source_revision_id: null, content_md: "legacy body" }];
-  const run = new RunSandbox(f.deps);
-  await assert.rejects(run.load(context), /no Storage revision/);
+  const run = new RunSandbox(context, f.deps);
+  await assert.rejects(run.load(), /no Storage revision/);
   assert.deepEqual(f.imported, []);
   assert.deepEqual(f.calls, ["create", "destroy"]);
 });
 
-test("virtual file imports preserve exact stored bytes including trailing newlines", async () => {
+test("Chat-owned saved files import exact Storage bytes including trailing newlines", async () => {
   const f = fixture();
   f.deps.documents = async () => [];
   f.deps.files = async () => [
-    { path: "notes.md", asset_id: "asset", revision_id: "revision", writable: true } as Awaited<
-      ReturnType<SandboxDependencies["files"]>
-    >[number],
+    {
+      id: "file",
+      conversation_id: "c",
+      title: "Notes",
+      filename: "notes.md",
+      mime_type: "text/markdown",
+      size: 11,
+      asset_id: "asset",
+      revision_id: "revision",
+      sha256: "sha",
+      kind: "artifact",
+      created_at: "now",
+      updated_at: "now",
+    },
   ];
   const original = new TextEncoder().encode("# Notes\r\n\n");
   const storage = f.deps.asset();
   storage.content = async () => new Blob([original]).stream();
   f.deps.asset = () => storage;
-  const run = new RunSandbox(f.deps);
-  await run.load(context);
+  const run = new RunSandbox(context, f.deps);
+  await run.load();
   assert.deepEqual(f.imported, [original]);
   await run.dispose();
 });

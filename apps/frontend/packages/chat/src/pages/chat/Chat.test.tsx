@@ -63,6 +63,8 @@ vi.mock("@repo/api", () => ({
   fetchConversation: async () => ({
     id: "conversation",
     title: "Test",
+    revision: 0,
+    active_run_id: "run",
     documents: state.documents,
     messages: state.messages.map((message) => ({
       id: message.id,
@@ -179,6 +181,7 @@ async function mount() {
     </MemoryRouter>,
   );
   await waitFor(() => expect(screen.getByText("Test")).toBeTruthy());
+  await waitFor(() => expect(screen.getByTestId(state.messages.at(-1)!.id)).toBeTruthy());
   state.composerRenders = 0;
   state.messageRenders = [];
   state.sessionRenders = 0;
@@ -236,13 +239,14 @@ test("ready status and changed request options reach memoized controls and tool 
 
 test("plan execution context still updates an unchanged historical row", async () => {
   const history = state.messages[0];
+  const planFileId = "11111111111111111111111111111111";
   await mount();
   state.messages = [
     history,
-    { id: "execution", role: "user", parts: [{ type: "data-plan-execution", data: { path: "plan.md" } }] },
+    { id: "execution", role: "user", parts: [{ type: "data-plan-execution", data: { file_id: planFileId } }] },
   ];
   await publish();
-  expect(screen.getByTestId("live").getAttribute("data-plans")).toBe("plan.md");
+  expect(screen.getByTestId("live").getAttribute("data-plans")).toBe(planFileId);
 });
 
 test("a suspended transcript update does not block edits or cancellation", async () => {

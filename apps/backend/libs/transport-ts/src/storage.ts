@@ -17,7 +17,15 @@ export interface StorageRevision {
   mediaType: string;
   sizeBytes: number;
   sha256: string;
-  url: string;
+}
+
+export interface StorageClaimIdentity {
+  tenantId: string;
+  workspaceId: string;
+  ownerType: string;
+  ownerId: string;
+  slot: string;
+  generation: number;
 }
 
 export type StorageUploadBody = Blob | Uint8Array | ReadableStream<Uint8Array>;
@@ -96,6 +104,59 @@ export class StorageInternalClient {
     return result.items[0];
   }
 
+  async prepareClaim(
+    input: StorageClaimIdentity & {
+      assetId: string;
+      revisionId: string;
+      kind: "strong" | "snapshot" | "lease" | "weak";
+      expiresAt?: string;
+    },
+  ): Promise<void> {
+    await this.claimRequest("/internal/claims:prepare", {
+      ...this.claimBody(input),
+      asset_id: input.assetId,
+      revision_id: input.revisionId,
+      kind: input.kind,
+      ...(input.expiresAt ? { expires_at: input.expiresAt } : {}),
+    });
+  }
+
+  async activateClaim(input: StorageClaimIdentity): Promise<void> {
+    await this.claimRequest("/internal/claims:activate", this.claimBody(input));
+  }
+
+  async releaseClaim(input: StorageClaimIdentity): Promise<void> {
+    await this.claimRequest("/internal/claims:release", this.claimBody(input));
+  }
+
+  private claimBody(input: StorageClaimIdentity) {
+    return {
+      tenant_id: input.tenantId,
+      workspace_id: input.workspaceId,
+      owner_type: input.ownerType,
+      owner_id: input.ownerId,
+      slot: input.slot,
+      generation: input.generation,
+    };
+  }
+
+  private async claimRequest(path: string, body: Record<string, unknown>): Promise<void> {
+    const response = await fetch(new URL(path, this.options.baseUrl), {
+      method: "POST",
+      headers: {
+        ...this.options.propagatedHeaders?.(),
+        "Content-Type": "application/json",
+        "X-Caller-Service": this.options.callerService,
+        "X-Internal-Token": this.options.internalToken,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.options.timeoutMs ?? 15000),
+    });
+    if (!response.ok) {
+      throw new TransportError("storage", response.status, `Storage claim operation failed: ${response.status}`);
+    }
+  }
+
   async upload(input: {
     tenantId: string;
     workspaceId: string;
@@ -152,7 +213,6 @@ export class StorageInternalClient {
         media_type: string;
         size_bytes: number;
         sha256: string;
-        url: string;
       };
       return {
         assetId: result.asset_id,
@@ -161,7 +221,6 @@ export class StorageInternalClient {
         mediaType: result.media_type,
         sizeBytes: result.size_bytes,
         sha256: result.sha256,
-        url: result.url,
       };
     } finally {
       clearTimeout(timer);

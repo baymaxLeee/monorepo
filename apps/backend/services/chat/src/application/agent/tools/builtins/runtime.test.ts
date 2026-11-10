@@ -21,7 +21,7 @@ test("runtime tools are base tools available without discovery", async () => {
   try {
     assert.deepEqual(
       runtime.manifests.map((manifest) => manifest.name),
-      ["web_fetch", "bash", "write_stdin", "load_conversation_files", "save_sandbox_file", "code_mode"],
+      ["web_fetch", "bash", "load_conversation_files", "save_sandbox_file", "code_mode"],
     );
     assert.ok(runtime.manifests.every((manifest) => manifest.tool?.deferLoading !== true));
   } finally {

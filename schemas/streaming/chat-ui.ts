@@ -40,7 +40,7 @@ export const chatMessageMetadataSchema = z
   });
 
 export const chatDataPartSchemas = {
-  "plan-execution": z.object({ path: z.string().min(1).max(512) }).strict(),
+  "plan-execution": z.object({ file_id: z.string().length(32) }).strict(),
   "conversation-title": z.object({ title: z.string().trim().min(1).max(200) }).strict(),
   "skill-activation": z.object({ name: z.string().min(1).max(120) }).strict(),
 };

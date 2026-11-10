@@ -16,19 +16,13 @@ import { getToolName, type UIMessage } from "ai";
 
 import { parseAskUserInput } from "../lib/ask-user";
 import { isClientTool } from "../lib/conversation-messages";
-import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
+import { parseToolOutcome } from "../lib/tool-outcome";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
-import {
-  ArtifactDocumentCard,
-  ArtifactTaskCard,
-  parseArtifactOutput,
-  parseArtifactTaskOutput,
-} from "./ChatArtifactCard";
-import { ChatDelegatedTasks } from "./ChatDelegatedTasks";
+import { ArtifactDocumentCard, parseArtifactOutput } from "./ChatArtifactCard";
 import { ArtifactFileCard } from "./ChatFileArtifactCard";
-import { ChatFileTree, parseChatFiles } from "./ChatFileTree";
 import { ChatImageCard } from "./ChatImageCard";
+import { ChatResearchSubagent } from "./ChatResearchSubagent";
 import { ChatTerminalTool } from "./ChatTerminalTool";
 import {
   ChatTodoListCard,
@@ -58,7 +52,7 @@ export function ChatToolPart({
   latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
   onOpenArtifact: (documentId: string) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (fileId: string) => void;
   onAnswerClientTool: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval: (approvalId: string, approved: boolean) => void;
   onExecutePlan: (documentId: string) => void;
@@ -186,37 +180,11 @@ export function ChatToolPart({
   }
 
   if (kind === "subagent") {
-    return (
-      <ChatDelegatedTasks
-        output={output}
-        errorText={errorText}
-        onOpenFile={onOpenFile}
-        onOpenArtifact={onOpenArtifact}
-      />
-    );
-  }
-  const outcome = parseToolOutcome(output);
-  const files = kind === "file-tree" && outcome?.ok ? parseChatFiles(toolOutcomePayload(outcome)) : null;
-  if (files) {
-    return (
-      <Tool>
-        <ToolHeader
-          type={part.type}
-          toolName={part.type === "dynamic-tool" ? toolName : undefined}
-          state={part.state}
-          preliminary={part.state === "output-available" && part.preliminary}
-          title={`会话文件 · ${files.length}`}
-        />
-        <ToolContent>
-          <ChatFileTree files={files} onOpenFile={onOpenFile} onOpenArtifact={onOpenArtifact} />
-        </ToolContent>
-      </Tool>
-    );
+    return <ChatResearchSubagent output={output} errorText={errorText} />;
   }
 
   const outputErrorReason = parseToolOutputError(output);
   const artifact = kind === "artifact" ? parseArtifactOutput(output) : null;
-  const artifactTask = kind === "artifact" ? parseArtifactTaskOutput(output) : null;
   const askUserInput =
     kind === "ask-user" && toolName === "ask_user" && !part.providerExecuted && isClientTool(part)
       ? parseAskUserInput(input)
@@ -230,30 +198,21 @@ export function ChatToolPart({
         document={documents.get(documentId)}
         documentId={documentId}
         fallback={artifact}
-        planExecuted={planExecutedIds.has(documentId)}
-        planBusy={planBusy}
         onOpen={() => onOpenArtifact(documentId)}
-        onExecutePlan={() => onExecutePlan(documentId)}
       />
     );
   }
 
-  if (artifact?.path) {
-    const path = artifact.path;
+  if (artifact?.fileId) {
+    const fileId = artifact.fileId;
     return (
       <ArtifactFileCard
-        artifact={{ ...artifact, path }}
-        planExecuted={planExecutedIds.has(path)}
+        artifact={{ ...artifact, fileId }}
+        planExecuted={planExecutedIds.has(fileId)}
         planBusy={planBusy}
-        onOpen={() => onOpenFile(path)}
-        onExecutePlan={() => onExecutePlan(path)}
+        onOpen={() => onOpenFile(fileId)}
+        onExecutePlan={() => onExecutePlan(fileId)}
       />
-    );
-  }
-
-  if (artifactTask) {
-    return (
-      <ArtifactTaskCard task={artifactTask} documents={documents} onOpen={onOpenArtifact} onOpenFile={onOpenFile} />
     );
   }
 
@@ -266,10 +225,10 @@ export function ChatToolPart({
     <Tool defaultOpen={isOpenByDefault}>
       <ToolHeader
         title={part.title}
-        preliminary={part.state === "output-available" && part.preliminary}
+        preliminary={!hasError && part.state === "output-available" && part.preliminary}
         type={part.type}
         toolName={part.type === "dynamic-tool" ? toolName : undefined}
-        state={part.state}
+        state={hasError ? "output-error" : part.state}
       />
       <ToolContent>
         {part.state === "input-available" && askUserInput ? (

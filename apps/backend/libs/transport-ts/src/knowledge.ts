@@ -10,10 +10,6 @@ export type DocumentSlice = components["schemas"]["DocumentSlice"];
 export type RetrieveResult = components["schemas"]["RetrieveResult"];
 export type RetrievedChunk = components["schemas"]["RetrievedChunk"];
 export type StagedMedia = components["schemas"]["StagedMedia"];
-export type VirtualFileEntry = components["schemas"]["FileEntry"];
-export type VirtualFileRead = components["schemas"]["FileRead"];
-export type FileChangeSet = components["schemas"]["ChangeSet"];
-export type FileSearchMatch = components["schemas"]["FileSearchMatch"];
 export type CleanupConversationArtifactsResult = components["schemas"]["CleanupConversationArtifactsResult"];
 
 export interface KnowledgeClientOptions {
@@ -31,13 +27,13 @@ export class KnowledgeInternalClient {
     this.client = createInternalOpenApiClient<paths>({ ...options, service: "knowledge" });
   }
 
-  forkConversationFiles(input: {
+  forkConversationDocuments(input: {
     sourceConversationId: string;
     conversationId: string;
     userId: string;
     tenantId: string;
     workspaceId: string;
-  }): Promise<components["schemas"]["ForkConversationFilesResult"]> {
+  }): Promise<components["schemas"]["ForkConversationDocumentsResult"]> {
     return this.unwrap(
       this.client.POST("/internal/conversation-forks", {
         body: {
@@ -89,146 +85,6 @@ export class KnowledgeInternalClient {
     );
   }
 
-  listVirtualFiles(input: { userId: string; conversationId: string; path?: string }): Promise<VirtualFileEntry[]> {
-    return this.unwrap(
-      this.client.GET("/internal/files", {
-        params: { query: { user_id: input.userId, conversation_id: input.conversationId, path: input.path } },
-      }),
-    );
-  }
-
-  readVirtualFile(input: {
-    userId: string;
-    conversationId: string;
-    path: string;
-    offset?: number;
-    limit?: number;
-  }): Promise<VirtualFileRead> {
-    return this.unwrap(
-      this.client.GET("/internal/files/read", {
-        params: {
-          query: {
-            user_id: input.userId,
-            conversation_id: input.conversationId,
-            path: input.path,
-            offset: input.offset ?? 1,
-            limit: input.limit ?? 2_000,
-          },
-        },
-      }),
-    );
-  }
-
-  createFileChangeSet(input: {
-    userId: string;
-    tenantId: string;
-    workspaceId: string;
-    conversationId: string;
-    metadata?: Record<string, string>;
-  }): Promise<FileChangeSet> {
-    return this.unwrap(
-      this.client.POST("/internal/files/change-sets", {
-        body: {
-          user_id: input.userId,
-          tenant_id: input.tenantId,
-          workspace_id: input.workspaceId,
-          conversation_id: input.conversationId,
-          metadata: input.metadata,
-        },
-      }),
-    );
-  }
-
-  writeChangeSetFile(input: {
-    userId: string;
-    changeSetId: string;
-    path: string;
-    content: string;
-    mimeType: string;
-    writable?: boolean;
-    derived?: boolean;
-  }): Promise<VirtualFileEntry> {
-    return this.unwrap(
-      this.client.PUT("/internal/files/change-sets/{change_set_id}/files", {
-        params: { path: { change_set_id: input.changeSetId } },
-        body: {
-          user_id: input.userId,
-          path: input.path,
-          content: input.content,
-          mime_type: input.mimeType,
-          writable: input.writable ?? true,
-          derived: input.derived ?? false,
-        },
-      }),
-    );
-  }
-
-  listChangeSetFiles(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
-    return this.unwrap(
-      this.client.GET("/internal/files/change-sets/{change_set_id}/files", {
-        params: {
-          path: { change_set_id: input.changeSetId },
-          query: { user_id: input.userId },
-        },
-      }),
-    );
-  }
-
-  readChangeSetFile(input: {
-    userId: string;
-    changeSetId: string;
-    path: string;
-    offset?: number;
-    limit?: number;
-  }): Promise<VirtualFileRead> {
-    return this.unwrap(
-      this.client.GET("/internal/files/change-sets/{change_set_id}/read", {
-        params: {
-          path: { change_set_id: input.changeSetId },
-          query: { user_id: input.userId, path: input.path, offset: input.offset ?? 1, limit: input.limit ?? 2_000 },
-        },
-      }),
-    );
-  }
-
-  promoteFileChangeSet(input: { userId: string; changeSetId: string }): Promise<VirtualFileEntry[]> {
-    return this.unwrap(
-      this.client.POST("/internal/files/change-sets/{change_set_id}/promote", {
-        params: { path: { change_set_id: input.changeSetId } },
-        body: { user_id: input.userId },
-      }),
-    );
-  }
-
-  discardFileChangeSet(input: { userId: string; changeSetId: string }): Promise<FileChangeSet> {
-    return this.unwrap(
-      this.client.POST("/internal/files/change-sets/{change_set_id}/discard", {
-        params: { path: { change_set_id: input.changeSetId } },
-        body: { user_id: input.userId },
-      }),
-    );
-  }
-
-  searchVirtualFiles(input: {
-    userId: string;
-    conversationId: string;
-    pattern: string;
-    path?: string;
-    glob?: string;
-  }): Promise<FileSearchMatch[]> {
-    return this.unwrap(
-      this.client.POST("/internal/files/search", {
-        body: {
-          user_id: input.userId,
-          conversation_id: input.conversationId,
-          pattern: input.pattern,
-          path: input.path,
-          glob: input.glob,
-        },
-      }),
-    );
-  }
-
   getDocumentSlice(input: {
     userId: string;
     documentId: string;
@@ -248,35 +104,6 @@ export class KnowledgeInternalClient {
           },
         },
       }),
-    );
-  }
-
-  createArtifact(input: {
-    userId: string;
-    tenantId: string;
-    workspaceId: string;
-    conversationId: string;
-    title: string;
-    filename: string;
-    content: string;
-    mimeType?: string;
-    idempotencyKey?: string;
-  }): Promise<KnowledgeDocument> {
-    return this.unwrap(
-      this.client.POST("/internal/artifacts", {
-        body: {
-          user_id: input.userId,
-          tenant_id: input.tenantId,
-          workspace_id: input.workspaceId,
-          conversation_id: input.conversationId,
-          title: input.title,
-          filename: input.filename,
-          content: input.content,
-          mime_type: input.mimeType,
-          idempotency_key: input.idempotencyKey,
-        },
-      }),
-      normalizeDocument,
     );
   }
 

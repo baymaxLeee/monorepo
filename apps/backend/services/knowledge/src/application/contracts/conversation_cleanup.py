@@ -12,6 +12,5 @@ class CleanupConversationArtifactsResult(BaseModel):
     conversation_id: str
     deleted_documents: int
     deleted_generations: int
-    deleted_blocks: int
     deleted_staged_media: int
     released_asset_claims: int

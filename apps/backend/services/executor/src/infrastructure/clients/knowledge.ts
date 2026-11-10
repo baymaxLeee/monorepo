@@ -3,12 +3,11 @@ import {
   KnowledgeInternalClient,
   type KnowledgeDocument,
   type StagedMedia,
-  type VirtualFileRead,
 } from "@backend/transport-ts";
 
 import { getSettings } from "../../bootstrap/config.js";
 
-export type { KnowledgeDocument, StagedMedia, VirtualFileRead } from "@backend/transport-ts";
+export type { KnowledgeDocument, StagedMedia } from "@backend/transport-ts";
 
 function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
   const settings = getSettings();
@@ -18,28 +17,6 @@ function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
     callerService: "executor",
     ...(timeoutMs ? { timeoutMs } : {}),
   });
-}
-
-export function readVirtualFile(input: {
-  userId: string;
-  conversationId: string;
-  path: string;
-  offset?: number;
-  limit?: number;
-}): Promise<VirtualFileRead> {
-  return knowledgeClient().readVirtualFile(input);
-}
-
-export function writeChangeSetFile(input: {
-  userId: string;
-  changeSetId: string;
-  path: string;
-  content: string;
-  mimeType: string;
-  writable?: boolean;
-  derived?: boolean;
-}) {
-  return knowledgeClient().writeChangeSetFile(input);
 }
 
 export async function getDocument(userId: string, documentId: string): Promise<KnowledgeDocument> {

@@ -8,8 +8,6 @@ import {
   getDocument,
   getWorkspaceDocument,
   listDocuments,
-  listVirtualFiles,
-  readVirtualFile,
   updateArtifact,
   type KnowledgeDocument,
 } from "../infrastructure/clients/knowledge.js";
@@ -23,7 +21,10 @@ import {
   messages,
   type PersistedMessageContent,
 } from "../infrastructure/persistence/schema.js";
+import { getConversationFile, releaseConversationFileClaims } from "./conversation-files.js";
 import { ConflictError, NotFoundError } from "./errors.js";
+
+export { getConversationFile } from "./conversation-files.js";
 
 export interface Conversation {
   id: string;
@@ -33,7 +34,7 @@ export interface Conversation {
   title: string;
   model: string;
   provider_id: string;
-  active_plan_path: string | null;
+  active_plan_file_id: string | null;
   project_id: string | null;
   canvas_id: string | null;
   created_at: string;
@@ -114,20 +115,6 @@ export interface ConversationDocumentDetail extends ConversationDocument {
   content_md: string;
 }
 
-export interface ConversationFileDetail {
-  path: string;
-  asset_id: string;
-  revision_id: string;
-  title: string;
-  filename: string;
-  mime_type: string;
-  size: number | null;
-  sha256: string;
-  writable: boolean;
-  derived: boolean;
-  content: string;
-}
-
 export interface ConversationDetail extends Conversation {
   messages: Message[];
   branches: MessageBranchGroup[];
@@ -149,7 +136,7 @@ function toConversation(row: typeof conversations.$inferSelect): Conversation {
     title: row.title,
     model: row.model,
     provider_id: row.providerId,
-    active_plan_path: row.activePlanPath,
+    active_plan_file_id: row.activePlanFileId,
     project_id: row.projectId,
     canvas_id: row.canvasId,
     created_at: iso(row.createdAt),
@@ -377,14 +364,28 @@ export async function selectConversationHistory(
         current_revision: Number(conversation.historyRevision),
       });
     }
-    const [activeLease] = await tx
-      .select({ runId: conversationRunLeases.runId })
+    const now = new Date();
+    const [lease] = await tx
+      .select()
       .from(conversationRunLeases)
-      .where(eq(conversationRunLeases.conversationId, conversationId));
-    if (activeLease) {
+      .where(eq(conversationRunLeases.conversationId, conversationId))
+      .for("update");
+    const [leasedRun] = lease
+      ? await tx.select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, lease.runId)).for("update")
+      : [];
+    if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status) && lease.expiresAt > now) {
       throw new ConflictError("cannot switch history while an agent run is active", "active_run_exists", {
-        run_id: activeLease.runId,
+        run_id: lease.runId,
       });
+    }
+    if (lease) {
+      await tx.delete(conversationRunLeases).where(eq(conversationRunLeases.runId, lease.runId));
+      if (leasedRun && ["running", "cancel_requested"].includes(leasedRun.status)) {
+        await tx
+          .update(agentRuns)
+          .set({ status: "interrupted", finishedAt: now, error: "run lease expired" })
+          .where(eq(agentRuns.id, lease.runId));
+      }
     }
     const [leaf] = await tx
       .select({ id: messages.id })
@@ -403,28 +404,43 @@ export async function selectConversationHistory(
   return getConversation(auth, conversationId);
 }
 
-export async function setActivePlanPath(conversationId: string, path: string): Promise<void> {
-  await getDb()
-    .update(conversations)
-    .set({ activePlanPath: path, updatedAt: new Date() })
-    .where(eq(conversations.id, conversationId));
-}
-
 export async function deleteConversation(auth: AuthContext, conversationId: string): Promise<void> {
-  const row = await getConversationRow(auth, conversationId);
   const db = getDb();
   const now = new Date();
   await db.transaction(async (tx) => {
-    const [activeLease] = await tx
-      .select({ runId: conversationRunLeases.runId })
+    const [row] = await tx
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.userId, auth.userId),
+          eq(conversations.tenantId, auth.tenantId),
+          eq(conversations.workspaceId, auth.workspaceId),
+        ),
+      )
+      .for("update");
+    if (!row) throw new NotFoundError(`conversation ${conversationId} not found`);
+    const [lease] = await tx
+      .select()
       .from(conversationRunLeases)
       .where(eq(conversationRunLeases.conversationId, row.id))
       .for("update");
-    if (activeLease) {
+    const [leasedRun] = lease
+      ? await tx.select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, lease.runId)).for("update")
+      : [];
+    if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status) && lease.expiresAt > now) {
       throw new ConflictError("conversation has an active agent run; cancel it before deleting", "active_run_exists", {
-        run_id: activeLease.runId,
+        run_id: lease.runId,
       });
     }
+    if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status)) {
+      await tx
+        .update(agentRuns)
+        .set({ status: "interrupted", finishedAt: now, error: "run lease expired" })
+        .where(eq(agentRuns.id, lease.runId));
+    }
+    if (lease) await tx.delete(conversationRunLeases).where(eq(conversationRunLeases.runId, lease.runId));
     await tx
       .insert(conversationArtifactCleanupOutbox)
       .values({
@@ -436,6 +452,12 @@ export async function deleteConversation(auth: AuthContext, conversationId: stri
         createdAt: now,
       })
       .onConflictDoNothing();
+    await releaseConversationFileClaims(tx, {
+      conversationId: row.id,
+      userId: row.userId,
+      tenantId: row.tenantId,
+      workspaceId: row.workspaceId,
+    });
     await tx.delete(conversations).where(eq(conversations.id, row.id));
   });
 }
@@ -462,56 +484,6 @@ export async function getConversationDocument(
     ...mapKnowledgeDocument(doc, conversationId),
     content_md: doc.content_md ?? "",
   };
-}
-
-export async function getConversationFile(
-  auth: AuthContext,
-  conversationId: string,
-  path: string,
-  deps: {
-    getConversationRow: (auth: AuthContext, id: string) => Promise<{ userId: string }>;
-    listVirtualFiles: typeof listVirtualFiles;
-    readVirtualFile: typeof readVirtualFile;
-  } = { getConversationRow, listVirtualFiles, readVirtualFile },
-  includeContent = true,
-): Promise<ConversationFileDetail> {
-  const conversation = await deps.getConversationRow(auth, conversationId);
-  const entry = (await deps.listVirtualFiles(conversation.userId, conversationId)).find(
-    (candidate) => candidate.path === path,
-  );
-  if (!entry) {
-    throw new NotFoundError(`file ${path} not found in conversation ${conversationId}`);
-  }
-  const detail = {
-    path: entry.path,
-    asset_id: entry.asset_id,
-    revision_id: entry.revision_id,
-    title: entry.path.split("/").at(-1) ?? entry.path,
-    filename: entry.path,
-    mime_type: entry.mime_type,
-    size: entry.size,
-    sha256: entry.sha256,
-    writable: entry.writable,
-    derived: entry.derived,
-  };
-  if (!includeContent) return { ...detail, content: "" };
-  let offset = 1;
-  const chunks: string[] = [];
-  while (true) {
-    const slice = await deps.readVirtualFile({
-      userId: conversation.userId,
-      conversationId,
-      path,
-      offset,
-      limit: 2_000,
-    });
-    chunks.push(slice.content);
-    if (slice.next_offset === null) {
-      break;
-    }
-    offset = slice.next_offset;
-  }
-  return { ...detail, content: chunks.join("\n") };
 }
 
 export async function updateConversationDocument(
@@ -570,19 +542,19 @@ export async function getConversationRow(
 
 export async function listMessages(conversationId: string, leafMessageId?: string | null): Promise<Message[]> {
   const db = getDb();
-  const [conversation, rows] = await Promise.all([
-    db
+  return db.transaction(async (tx) => {
+    const [conversation] = await tx
       .select({ selectedMessageId: conversations.selectedMessageId })
       .from(conversations)
-      .where(eq(conversations.id, conversationId)),
-    db
+      .where(eq(conversations.id, conversationId));
+    const rows = await tx
       .select()
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
-      .orderBy(asc(messages.createdAt), asc(messages.id)),
-  ]);
-  const selectedLeaf = leafMessageId === undefined ? (conversation[0]?.selectedMessageId ?? null) : leafMessageId;
-  return selectMessagePath(rows.map(toMessage), selectedLeaf);
+      .orderBy(asc(messages.createdAt), asc(messages.id));
+    const selectedLeaf = leafMessageId === undefined ? (conversation?.selectedMessageId ?? null) : leafMessageId;
+    return selectMessagePath(rows.map(toMessage), selectedLeaf);
+  });
 }
 
 export async function createMessage(input: {
@@ -694,8 +666,8 @@ export async function authorizeConversationSourceDelivery(auth: AuthContext, con
     revisionId: document.source_revision_id,
   });
 }
-export async function authorizeFileDelivery(auth: AuthContext, conversationId: string, path: string) {
-  const file = await getConversationFile(auth, conversationId, path, undefined, false);
+export async function authorizeFileDelivery(auth: AuthContext, conversationId: string, fileId: string) {
+  const file = await getConversationFile(auth, conversationId, fileId);
   return storageClient().mintDelivery({
     tenantId: auth.tenantId,
     workspaceId: auth.workspaceId,

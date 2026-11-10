@@ -50,8 +50,8 @@ ownership and failure semantics. No service-to-service source imports.
 
 ## File and media work
 
-- File batches receive frozen shared context and independent complete-file
-  instructions. Chat owns planning and publishes/discards the Knowledge change set.
+- Ordinary file authoring is not an Executor task. The primary Chat Agent writes
+  and validates files in its run Sandbox, then explicitly publishes them to Storage.
 - Knowledge processing calls Knowledge-owned convert/index commands; no foreign
   DB access. Canvas archive/frame workflows preserve Canvas domain ownership.
 - Video approval binds to projection version. Paid create calls must not retry

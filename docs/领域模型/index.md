@@ -7,9 +7,9 @@
 |---|---|---|
 | 账号、凭据、tenant/workspace、成员与角色、会话、refresh token、用户偏好 | iam | Gateway 认证与服务身份查询 |
 | 应用注册、bot、provider、skill、套餐与运营配置 | admin | 消费服务读取/缓存，不复制管理表 |
-| 会话、消息、agent run、tool trace、运行时上下文 | chat | 原生 AI SDK 消息与流 |
+| 会话、消息、agent run、tool trace、运行时上下文、会话文件/Plan 引用 | chat | 原生 AI SDK 消息与流；引用不可变 Asset revision |
 | 项目、画布、节点、素材业务记录、生成任务与用量 | canvas | 引用 Asset；耐久工作交给 Executor |
-| 语义文档、虚拟文件树、change set、解析索引与检索 | knowledge | 语义归 Knowledge，物理 bytes 归 Asset |
+| 语义文档、解析索引与检索 | knowledge | 文档语义归 Knowledge，物理 bytes 归 Storage |
 | 耐久 task、workflow、视频制片审批与执行投影 | executor | 任务契约与持久工作流 |
 | Asset、Revision、Blob、Claim、上传与 delivery、物理回收 | asset | asset/revision ID 与 Claim intent |
 | RUM、遥测接收与查询 | telemetry | 可观测契约 |

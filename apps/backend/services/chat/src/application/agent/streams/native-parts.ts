@@ -11,8 +11,9 @@ import {
   type UIMessageStreamOnEndCallback,
 } from "ai";
 
-import { createMediaDocument, getDocument } from "../../../infrastructure/clients/knowledge.js";
+import { getDocument } from "../../../infrastructure/clients/knowledge.js";
 import { uploadAsset } from "../../../infrastructure/clients/storage.js";
+import { getConversationFile, publishConversationFile } from "../../conversation-files.js";
 import { RequestError } from "../../errors.js";
 import { isToolOutcome } from "../tools/outcome.js";
 
@@ -25,14 +26,16 @@ type NativeSourceChunk = Extract<UIMessageChunk, { type: "source-url" | "source-
 export interface NativePartDependencies {
   fetchDataUrl: typeof fetch;
   uploadAsset: typeof uploadAsset;
-  createMediaDocument: typeof createMediaDocument;
+  publishConversationFile: typeof publishConversationFile;
+  getConversationFile: typeof getConversationFile;
   getDocument: typeof getDocument;
 }
 
 const nativePartDependencies: NativePartDependencies = {
   fetchDataUrl: fetch,
   uploadAsset,
-  createMediaDocument,
+  publishConversationFile,
+  getConversationFile,
   getDocument,
 };
 
@@ -199,6 +202,18 @@ function authorizedDocumentId(url: string, conversationId: string): string | nul
   }
 }
 
+function authorizedConversationFileId(url: string, conversationId: string): string | null {
+  try {
+    const parsed = new URL(url, "http://chat.local");
+    const fileId = parsed.searchParams.get("file_id");
+    return fileId && parsed.pathname.includes(`/conversations/${encodeURIComponent(conversationId)}/files/`)
+      ? fileId
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function publishNativeFileParts(
   parts: AnyUIMessage["parts"],
   context: NativeFilePublicationContext,
@@ -208,6 +223,12 @@ export async function publishNativeFileParts(
   const published: NativeFileChunk[] = [];
   for (const [index, part] of parts.entries()) {
     if (part.type !== "file" && part.type !== "reasoning-file") continue;
+    const existingFileId = authorizedConversationFileId(part.url, context.conversationId);
+    if (existingFileId) {
+      await dependencies.getConversationFile(context, context.conversationId, existingFileId);
+      published.push(part);
+      continue;
+    }
     const existingDocumentId = authorizedDocumentId(part.url, context.conversationId);
     if (existingDocumentId) {
       const document = await dependencies.getDocument(context.userId, existingDocumentId, false);
@@ -243,7 +264,7 @@ export async function publishNativeFileParts(
       idempotencyKey,
       signal: context.signal,
     });
-    const document = await dependencies.createMediaDocument({
+    const file = await dependencies.publishConversationFile({
       userId: context.userId,
       tenantId: context.tenantId,
       workspaceId: context.workspaceId,
@@ -251,9 +272,13 @@ export async function publishNativeFileParts(
       title: filename,
       assetId: asset.assetId,
       revisionId: asset.revisionId,
+      filename: asset.filename,
+      mediaType: asset.mediaType,
+      sizeBytes: asset.sizeBytes,
+      sha256: asset.sha256,
       idempotencyKey,
     });
-    const url = `/api/chat-server/conversations/${encodeURIComponent(context.conversationId)}/documents/${encodeURIComponent(document.id)}/content?document_id=${encodeURIComponent(document.id)}`;
+    const url = `/api/chat-server/conversations/${encodeURIComponent(context.conversationId)}/files/${encodeURIComponent(file.id)}/content?file_id=${encodeURIComponent(file.id)}`;
     published.push({ ...part, url } as NativeFileChunk);
   }
   return published;

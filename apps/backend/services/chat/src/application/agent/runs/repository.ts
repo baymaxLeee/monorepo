@@ -341,8 +341,22 @@ export async function finishAgentRun(input: {
   totalTokens?: number | null;
 }): Promise<void> {
   await getDb().transaction(async (tx) => {
+    const [binding] = await tx
+      .select({ conversationId: agentRuns.conversationId })
+      .from(agentRuns)
+      .where(eq(agentRuns.id, input.runId));
+    if (!binding) return;
+    await tx
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(eq(conversations.id, binding.conversationId))
+      .for("update");
     const [run] = await tx.select().from(agentRuns).where(eq(agentRuns.id, input.runId)).for("update");
-    if (!run || !["running", "cancel_requested"].includes(run.status)) return;
+    if (!run) return;
+    if (!["running", "cancel_requested"].includes(run.status)) {
+      await tx.delete(conversationRunLeases).where(eq(conversationRunLeases.runId, input.runId));
+      return;
+    }
     const { status, error } = input;
     const now = new Date();
 
@@ -374,6 +388,7 @@ export async function finishAgentRun(input: {
         finishedAt: now,
       })
       .where(eq(agentRuns.id, input.runId));
+    await tx.delete(conversationRunLeases).where(eq(conversationRunLeases.runId, input.runId));
   });
 }
 

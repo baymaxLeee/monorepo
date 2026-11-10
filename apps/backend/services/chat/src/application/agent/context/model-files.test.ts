@@ -3,15 +3,19 @@ import test from "node:test";
 
 import { convertToModelMessages, type UIMessage } from "ai";
 
+import { hasUntrustedFilePart } from "./file-parts.js";
 import { transformFilePartsForModel } from "./model-files.js";
 
 const context = {
   userId: "user",
+  tenantId: "tenant",
+  workspaceId: "workspace",
   conversationId: "conversation",
   supportsImageInput: true,
   signal: new AbortController().signal,
 };
 const url = "/api/chat-server/conversations/conversation/documents/doc/content?document_id=doc";
+const fileUrl = "/api/chat-server/conversations/conversation/files/file/content?file_id=file";
 
 test("assistant files and reasoning files replay through the real SDK without changing the journal", async () => {
   const messages: UIMessage[] = [
@@ -37,6 +41,7 @@ test("assistant files and reasoning files replay through the real SDK without ch
     assert.equal(documentId, "doc");
     assert.equal(options?.conversationId, context.conversationId);
     assert.equal(options?.signal, context.signal);
+    assert.equal(options?.maxDim, 1536);
     reads++;
     return { bytes: new Uint8Array([1, 2, 3]), mimeType: "image/png" };
   });
@@ -46,6 +51,30 @@ test("assistant files and reasoning files replay through the real SDK without ch
   assert.equal(model[0]?.role, "assistant");
   assert.equal(model[0]?.content.length, 2);
   assert.deepEqual(projected[0]?.parts[0], { ...messages[0]!.parts[0], url: "data:image/png;base64,AQID" });
+});
+
+test("user-controlled provider references are rejected before SDK model projection", async () => {
+  const messages: UIMessage[] = [
+    {
+      id: "user",
+      role: "user",
+      parts: [
+        {
+          type: "file",
+          mediaType: "image/png",
+          url,
+          providerReference: { provider: "untrusted-reference" },
+        },
+      ],
+    },
+  ];
+  assert.equal(hasUntrustedFilePart(messages[0]!.parts), true);
+  await assert.rejects(
+    transformFilePartsForModel(messages, context, async () => {
+      assert.fail("untrusted provider references must not bypass the authorized document read");
+    }),
+    /provider reference/,
+  );
 });
 
 test("file projection propagates access and cancellation failures instead of silently dropping evidence", async () => {
@@ -75,4 +104,27 @@ test("text document attachments are model references while the journal keeps nat
   });
   assert.equal(projected[0]?.parts[0]?.type, "text");
   assert.equal(messages[0]?.parts[0]?.type, "file");
+});
+
+test("assistant conversation files read exact Storage bytes without Knowledge", async () => {
+  const messages: UIMessage[] = [
+    { id: "assistant", role: "assistant", parts: [{ type: "file", mediaType: "text/plain", url: fileUrl }] },
+  ];
+  const projected = await transformFilePartsForModel(
+    messages,
+    context,
+    async () => {
+      assert.fail("Chat files must not read through Knowledge");
+    },
+    async (scope, fileId, maxDim) => {
+      assert.equal(scope.tenantId, "tenant");
+      assert.equal(scope.workspaceId, "workspace");
+      assert.equal(fileId, "file");
+      assert.equal(maxDim, undefined);
+      return { bytes: new TextEncoder().encode("saved"), mimeType: "text/plain" };
+    },
+  );
+  const projectedPart = projected[0]?.parts[0];
+  assert.equal(projectedPart?.type, "file");
+  assert.equal((projectedPart as { url?: string }).url, "data:text/plain;base64,c2F2ZWQ=");
 });

@@ -11,7 +11,7 @@ from kernel.errors import ConflictError, NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.conversation_cleanup import assert_conversation_accepts_artifacts
-from application.file_content import store_text
+from application.document_content import store_document_text
 from application.storage_client import ensure_document_claim_active
 
 
@@ -26,7 +26,7 @@ async def apply_document_edit(
     if snapshot.editable_source and "content_md" in values:
         if not snapshot.tenant_id or not snapshot.workspace_id:
             raise ConflictError("document ownership must be resolved before publishing content")
-        revision = await store_text(
+        revision = await store_document_text(
             tenant_id=snapshot.tenant_id,
             workspace_id=snapshot.workspace_id,
             user_id=snapshot.user_id,
