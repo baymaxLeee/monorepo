@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle } from "@repo/design-system";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { type AnyExtension, Editor, type JSONContent } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
@@ -82,6 +83,97 @@ function createSSEStream(...contents: string[]): ReadableStream<Uint8Array> {
 }
 
 describe("MarkdownEditor content and lifecycle", () => {
+  it("keeps toolbar and AI surfaces in the nested dialog layer", async () => {
+    const ref = createRef<MarkdownEditorRef>();
+    const view = render(
+      <Dialog open>
+        <DialogContent initialFocus={false} showCloseButton={false}>
+          <DialogTitle>Parent dialog</DialogTitle>
+          <Dialog open>
+            <DialogContent initialFocus={false} showCloseButton={false}>
+              <DialogTitle>Nested dialog</DialogTitle>
+              <MarkdownEditor
+                ref={ref}
+                features={compactFeatures}
+                toolbarMode="fixed"
+                defaultValue="<p>hello</p>"
+                editable
+                onAiPolish={vi.fn(async () => new ReadableStream())}
+              />
+            </DialogContent>
+          </Dialog>
+        </DialogContent>
+      </Dialog>,
+    );
+    await waitFor(() => expect(ref.current?.editor).not.toBeNull());
+
+    fireEvent.click(view.getByRole("button", { name: "节点类型" }));
+
+    const item = await view.findByText("一级标题");
+    expect(item.closest<HTMLElement>('[data-slot="dropdown-menu-content"]')?.parentElement?.style.zIndex).toBe("1150");
+    fireEvent.keyDown(item, { key: "Escape" });
+
+    act(() => {
+      ref.current!.editor!.chain().focus().setTextSelection({ from: 1, to: 6 }).run();
+    });
+    const polishButton = await view.findByRole("button", { name: "AI 润色" });
+    const nestedDialog = view.getByRole("dialog", { name: "Nested dialog" });
+    expect(nestedDialog.contains(polishButton.closest(".markdown-editor-bubble-toolbar"))).toBe(true);
+
+    fireEvent.click(polishButton);
+    const polishInput = await view.findByRole("textbox", { name: "AI 润色指令和结果" });
+    fireEvent.focus(polishInput);
+    const quickActions = await view.findByText("快捷指令");
+    expect(quickActions.closest<HTMLElement>('[data-slot="popover-content"]')?.parentElement?.style.zIndex).toBe(
+      "1150",
+    );
+  });
+
+  it("keeps add, table and drag controls in the nested editor boundary", async () => {
+    const ref = createRef<MarkdownEditorRef>();
+    const view = render(
+      <Dialog open>
+        <DialogContent initialFocus={false} showCloseButton={false}>
+          <DialogTitle>Parent dialog</DialogTitle>
+          <Dialog open>
+            <DialogContent initialFocus={false} showCloseButton={false}>
+              <DialogTitle>Nested controls</DialogTitle>
+              <div data-testid="clipping-boundary" className="overflow-hidden">
+                <MarkdownEditor
+                  ref={ref}
+                  features={{ blockDrag: true, blockMenu: true, codeBlock: false }}
+                  defaultValue="<p></p>"
+                  editable
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </DialogContent>
+      </Dialog>,
+    );
+    await waitFor(() => expect(ref.current?.editor).not.toBeNull());
+    const editor = ref.current!.editor!;
+    const nestedDialog = view.getByRole("dialog", { name: "Nested controls" });
+
+    act(() => editor.commands.focus());
+    const addButton = await view.findByRole("button", { name: "插入块" });
+    expect(nestedDialog.contains(addButton.closest(".markdown-editor-floating-surface"))).toBe(true);
+
+    act(() => {
+      editor.commands.setContent(
+        "<table><tbody><tr><th>A</th><th>B</th></tr><tr><td>C</td><td>D</td></tr></tbody></table>",
+      );
+    });
+    const columnGrip = await view.findByRole("button", { name: "选择第 1 列" });
+    fireEvent.mouseDown(columnGrip);
+
+    const tableMenuItem = await view.findByText("在左侧插入");
+    expect(nestedDialog.contains(tableMenuItem.closest(".markdown-editor-floating-surface"))).toBe(true);
+    const tableControl = await view.findByRole("button", { name: "选择整张表格" });
+    expect(nestedDialog.contains(tableControl)).toBe(true);
+    expect(view.getByTestId("clipping-boundary").contains(tableControl)).toBe(false);
+  });
+
   it("round-trips JSON string content as a TipTap document", async () => {
     const value = JSON.stringify({
       type: "doc",
@@ -718,6 +810,7 @@ describe("MarkdownEditor editing transactions", () => {
       expect(view.getByRole("button", { name: "选择整张表格" }).closest(".markdown-editor")).not.toBeNull(),
     );
     const selectButton = view.getByRole("button", { name: "选择整张表格" }) as HTMLButtonElement;
+    await waitFor(() => expect(selectButton.style.top).toBe("110px"));
     expect(selectButton.draggable).toBe(true);
     expect(view.queryByRole("button", { name: "拖拽表格" })).toBeNull();
     expect(editor.view.dom.querySelector(".markdown-editor-table-grip-table")).toBeNull();

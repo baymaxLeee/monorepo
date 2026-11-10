@@ -13,7 +13,6 @@ import { useState } from "react";
 
 import { EditorTooltipContent } from "../../components/EditorTooltipContent";
 import { useEditorContext } from "../../context";
-import { getMountedEditorDom } from "../../utils";
 
 const lowlight = createLowlight(common);
 lowlight.registerAlias("xml", ["html"]);
@@ -25,12 +24,12 @@ const ACTION_BTN_CLS =
 
 const ACTION_BTN_ACTIVE_CLS = "bg-blue-50 text-blue-600 hover:text-blue-600";
 
-export const CodeBlockComponent: React.FC<NodeViewProps> = ({ editor, node, updateAttributes }) => {
+export const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes }) => {
   const { language, title } = node.attrs;
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isAutoWrap, setIsAutoWrap] = useState(false);
-  const { contentType, editable, popupConfig } = useEditorContext();
-  const popupContainer = popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body);
+  const { contentType, editable, portal } = useEditorContext();
+  const popupContainer = portal.getPopupContainer();
   const isMarkdown = contentType === "markdown";
 
   const handleCopy = () => {
@@ -93,7 +92,7 @@ export const CodeBlockComponent: React.FC<NodeViewProps> = ({ editor, node, upda
                   >
                     <SelectValue placeholder="语言" />
                   </TooltipTrigger>
-                  <SelectContent container={popupContainer} positionerStyle={{ zIndex: popupConfig.zIndex }}>
+                  <SelectContent container={popupContainer}>
                     {supportedLanguages.map((lang) => (
                       <SelectItem key={lang} value={lang}>
                         {lang}

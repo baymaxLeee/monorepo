@@ -5,6 +5,7 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useEditorContext } from "../../context";
 import { isCellSelection } from "../../extensions/Table/utils";
 import { getMountedEditorDom } from "../../utils";
 import { AIPolishPanel } from "../AIPolishPanel";
@@ -12,8 +13,6 @@ import { Toolbar } from "../Toolbar";
 
 interface IProps {
   editor: Editor;
-  appendTo?: HTMLElement | (() => HTMLElement);
-  zIndex?: number;
   aiOnly?: boolean;
 }
 
@@ -23,7 +22,6 @@ const BUBBLE_TOOLBAR_HOOK_CLASS = "markdown-editor-bubble-toolbar";
 const FLOATING_PANEL_CLS = `${BUBBLE_TOOLBAR_HOOK_CLASS} relative rounded-md border bg-background text-sm text-foreground shadow-lg`;
 /** 用于 closest 查找编辑器根容器的稳定 hook */
 const EDITOR_ROOT_CLASS = "markdown-editor";
-const OVERLAY_CONTENT_SELECTOR = '[data-slot="sheet-content"], [data-slot="dialog-content"]';
 const BUBBLE_MENU_PLUGIN_KEY = "markdownEditorBubbleToolbar";
 
 const isValidSelection = (editor: Editor) => {
@@ -44,21 +42,14 @@ const isValidSelection = (editor: Editor) => {
 };
 
 export const BubbleToolbar: React.FC<IProps> = (props) => {
-  const { editor, appendTo, zIndex, aiOnly = false } = props;
+  const { editor, aiOnly = false } = props;
+  const { portal } = useEditorContext();
 
   const [polishVisible, setPolishVisible] = useState(false);
   const [showCentered, setShowCentered] = useState(false);
   const bubbleToolbarRef = useRef<HTMLDivElement>(null);
   const isRightClickRef = useRef(false);
   const dragRef = useRef({ selecting: false, scrolled: false });
-
-  const getPortalContainer = useCallback(() => {
-    if (typeof appendTo === "function") return appendTo();
-    if (appendTo) return appendTo;
-    const dom = getMountedEditorDom(editor);
-    const overlayContent = dom?.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null;
-    return overlayContent ?? document.body;
-  }, [appendTo, editor]);
 
   useEffect(() => {
     const dom = getMountedEditorDom(editor);
@@ -207,18 +198,15 @@ export const BubbleToolbar: React.FC<IProps> = (props) => {
     };
   }, [polishVisible, showCentered, updateBubbleMenuPosition]);
 
-  const portalContainer = getPortalContainer();
-
   return (
     <BubbleMenu
       ref={bubbleToolbarRef}
       pluginKey={BUBBLE_MENU_PLUGIN_KEY}
-      className={cn(FLOATING_PANEL_CLS, showCentered && "translate-y-1/2")}
+      className={cn("markdown-editor-floating-surface", FLOATING_PANEL_CLS, showCentered && "translate-y-1/2")}
       editor={editor}
       shouldShow={shouldShow}
-      appendTo={appendTo ?? portalContainer}
+      appendTo={portal.getMenuContainer}
       getReferencedVirtualElement={getReferencedVirtualElement}
-      style={zIndex === undefined ? undefined : { zIndex }}
       options={{
         placement: "top",
         offset: showCentered ? false : 8,

@@ -4,6 +4,7 @@ import { GripVertical, Table as TableIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { useEditorContext } from "../../context";
 import { getBlockDragState } from "../../extensions/BlockDrag";
 import { selectTableAt } from "../../extensions/Table/utils";
 import { getMountedEditorDom } from "../../utils";
@@ -12,21 +13,19 @@ interface DragHandlerProps {
   editor: Editor;
 }
 
-const editorRootClassName = "markdown-editor";
-
 const HANDLE_BASE_CLS =
-  "absolute z-20 flex size-5 cursor-grab select-none items-center justify-center rounded text-foreground/80 transition-[background-color,color,opacity] duration-150 hover:bg-accent hover:text-foreground active:bg-accent active:text-foreground";
+  "markdown-editor-drag-handle absolute flex size-5 cursor-grab select-none items-center justify-center rounded text-foreground/80 transition-[background-color,color,opacity] duration-150 hover:bg-accent hover:text-foreground active:bg-accent active:text-foreground";
 
 const HANDLE_DRAGGING_CLS = "cursor-grabbing bg-accent text-foreground";
 
 const TABLE_HANDLE_CLS =
-  "absolute z-20 flex h-7 w-10 cursor-grab items-center justify-center gap-0.5 rounded-lg border bg-background/95 text-muted-foreground shadow-sm backdrop-blur transition-[background-color,border-color,box-shadow,color] duration-150 hover:border-foreground/20 hover:bg-accent hover:text-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing";
+  "markdown-editor-drag-handle absolute flex h-7 w-10 cursor-grab items-center justify-center gap-0.5 rounded-lg border bg-background/95 text-muted-foreground shadow-sm backdrop-blur transition-[background-color,border-color,box-shadow,color] duration-150 hover:border-foreground/20 hover:bg-accent hover:text-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing";
 
 const TABLE_HANDLE_WIDTH = 40;
 const TABLE_HANDLE_HEIGHT = 28;
 const TABLE_HANDLE_GAP = 4;
 
-const INDICATOR_CLS = "pointer-events-none absolute z-[19] h-0.5 rounded-full bg-primary";
+const INDICATOR_CLS = "markdown-editor-drop-indicator pointer-events-none absolute h-0.5 rounded-full bg-primary";
 
 function isHTMLElement(value: unknown): value is HTMLElement {
   return value instanceof HTMLElement;
@@ -113,10 +112,11 @@ function isSameLinePosition(left: LinePosition | null, right: LinePosition | nul
 }
 
 export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
+  const { maskVisible, portal } = useEditorContext();
   const layoutFrameRef = useRef<number | null>(null);
   const [dragViewState, setDragViewState] = useState(() => readDragViewState(editor));
   const dragViewStateRef = useRef(dragViewState);
-  const [portalContainer, setPortalContainer] = useState<HTMLElement>(() => document.body);
+  const [portalContainer, setPortalContainer] = useState<HTMLElement>(portal.getMenuContainer);
   const [position, setPosition] = useState<HandlePosition>(HIDDEN_HANDLE_POSITION);
   const [linePosition, setLinePosition] = useState<LinePosition | null>(null);
 
@@ -159,7 +159,7 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
           ? (() => {
               const tableRect = tableDom.getBoundingClientRect();
               return {
-                top: tableRect.top - measuredContainerRect.top + container.scrollTop - TABLE_HANDLE_HEIGHT,
+                top: tableRect.top - measuredContainerRect.top + container.scrollTop - TABLE_HANDLE_HEIGHT / 2,
                 left:
                   tableRect.left -
                   measuredContainerRect.left +
@@ -230,15 +230,13 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
         return;
       }
 
-      const wrapper = editorDom.closest<HTMLElement>(`.${editorRootClassName}`) || editorDom.parentElement;
-      if (wrapper) {
-        setPortalContainer((current) => (current === wrapper ? current : wrapper));
-      }
+      const container = portal.getMenuContainer();
+      setPortalContainer((current) => (current === container ? current : container));
       scheduleLayoutSync();
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [editor, scheduleLayoutSync]);
+  }, [editor, portal, scheduleLayoutSync]);
 
   const isDragging = dragViewState.draggingBlockPos !== null;
 
@@ -340,7 +338,7 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
   );
 
   const activeBlockPos = getActiveBlockPos(dragViewState);
-  const visible = activeBlockPos !== null && !dragViewState.floatingMenuActive;
+  const visible = activeBlockPos !== null && !dragViewState.floatingMenuActive && !maskVisible;
   const activeBlock = activeBlockPos === null ? null : editor.state.doc.nodeAt(activeBlockPos);
   const isTableBlock = activeBlock?.type.spec.tableRole === "table";
 

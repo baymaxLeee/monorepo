@@ -19,7 +19,6 @@ import { useRef, useState } from "react";
 
 import { useEditorContext } from "../../context";
 import { RewriteActionType } from "../../interface";
-import { getMountedEditorDom } from "../../utils";
 import { EditorTooltipContent } from "../EditorTooltipContent";
 import { useAiPolish } from "./useAiPolish";
 
@@ -31,10 +30,10 @@ interface AIPolishPanelProps {
 export const AIPolishPanel = ({ editor, onClose }: AIPolishPanelProps) => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { popupConfig } = useEditorContext();
+  const { portal } = useEditorContext();
   const { copy, errorMessage, hasGeneratedText, insert, replace, reset, retry, run, setText, status, stop, text } =
     useAiPolish(editor, onClose);
-  const overlayContainer = popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body);
+  const overlayContainer = portal.getPopupContainer();
   const isIdle = status === "idle";
 
   const runQuickAction = (action: RewriteActionType) => {
@@ -203,7 +202,6 @@ export const AIPolishPanel = ({ editor, onClose }: AIPolishPanelProps) => {
         sideOffset={4}
         className="w-auto rounded-lg border bg-popover p-1 shadow-md"
         container={overlayContainer}
-        positionerStyle={{ zIndex: popupConfig.zIndex }}
         initialFocus={false}
       >
         <Menu inline>

@@ -133,20 +133,6 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     }),
     [blockDragEnabled, blockMenuEnabled, codeBlockEnabled],
   );
-  const getEditorPopupContainer = useCallback(
-    (trigger: HTMLElement) =>
-      popupConfig?.getContainer?.(trigger) ??
-      (trigger.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null) ??
-      document.body,
-    [popupConfig?.getContainer],
-  );
-  const resolvedPopupConfig = useMemo(
-    () => ({
-      getContainer: getEditorPopupContainer,
-      zIndex: popupConfig?.zIndex ?? 101,
-    }),
-    [getEditorPopupContainer, popupConfig?.zIndex],
-  );
   const initialContent = useMemo(() => {
     const content = value ?? defaultValue;
     return content === undefined ? undefined : parseEditorContent(content, contentType);
@@ -248,6 +234,28 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     [editorExtensions],
   );
 
+  const portal = useMemo(
+    () => ({
+      getPopupContainer: () => {
+        const editorDom = getMountedEditorDom(editor);
+        return editorDom ? popupConfig?.getContainer?.(editorDom) : undefined;
+      },
+      getMenuContainer: () => {
+        const editorDom = getMountedEditorDom(editor);
+        if (!editorDom) {
+          return document.body;
+        }
+        return (
+          popupConfig?.getContainer?.(editorDom) ??
+          (editorDom.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null) ??
+          editorDom.closest<HTMLElement>(".markdown-editor") ??
+          editorDom.ownerDocument.body
+        );
+      },
+    }),
+    [editor, popupConfig?.getContainer],
+  );
+
   useImperativeHandle(
     ref,
     () => ({
@@ -341,14 +349,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
     }
 
     if (toolbarMode === "bubble" || onAiPolish) {
-      return (
-        <BubbleToolbar
-          appendTo={() => resolvedPopupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
-          editor={editor}
-          aiOnly={toolbarMode === "fixed"}
-          zIndex={resolvedPopupConfig.zIndex}
-        />
-      );
+      return <BubbleToolbar editor={editor} aiOnly={toolbarMode === "fixed"} />;
     }
 
     return null;
@@ -373,7 +374,7 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
         contentType={contentType}
         toolbarMode={toolbarMode}
         features={resolvedFeatures}
-        popupConfig={resolvedPopupConfig}
+        portal={portal}
         toolbarRender={toolbarRender}
         editable={editable}
       >

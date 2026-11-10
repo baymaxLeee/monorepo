@@ -24,7 +24,6 @@ import { useRef, useState } from "react";
 
 import { ALLOWED_IMAGE_ACCEPT, isAllowedImageFile } from "../../constants";
 import { useEditorContext } from "../../context";
-import { getMountedEditorDom } from "../../utils";
 import { TableSelector } from "../TableSelector";
 
 interface BlockMenuProps {
@@ -45,10 +44,9 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
   const [visible, setVisible] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { features, onUpload, popupConfig } = useEditorContext();
+  const { features, onUpload, portal } = useEditorContext();
   const codeBlockEnabled = features.codeBlock;
-  const popupContainer = popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body);
-  const positionerStyle = { zIndex: popupConfig.zIndex };
+  const popupContainer = portal.getPopupContainer();
 
   const handleInsert = (command: () => void) => {
     command();
@@ -68,7 +66,7 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
   };
 
   return (
-    <FloatingMenu editor={editor}>
+    <FloatingMenu editor={editor} appendTo={portal.getMenuContainer} className="markdown-editor-floating-surface">
       <div className="-translate-x-[2.4em]">
         <Popover open={visible} onOpenChange={setVisible}>
           <PopoverTrigger
@@ -87,7 +85,6 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
 
           <PopoverContent
             container={popupContainer}
-            positionerStyle={positionerStyle}
             side="bottom"
             align="start"
             sideOffset={4}
@@ -119,7 +116,6 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                   </PopoverTrigger>
                   <PopoverContent
                     container={popupContainer}
-                    positionerStyle={positionerStyle}
                     side="right"
                     align="start"
                     sideOffset={8}
@@ -202,7 +198,6 @@ export const BlockMenu: React.FC<BlockMenuProps> = ({ editor }) => {
                   </PopoverTrigger>
                   <PopoverContent
                     container={popupContainer}
-                    positionerStyle={positionerStyle}
                     side="right"
                     align="start"
                     sideOffset={8}

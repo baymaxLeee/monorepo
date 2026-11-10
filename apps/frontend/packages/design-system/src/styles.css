@@ -236,16 +236,31 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    overflow: hidden;
+    /* EditorContent owns scrolling; the root only isolates the local control stack. */
+    isolation: isolate;
+    overflow: visible;
   }
 
+  /* Local order: document < table controls < drag controls < AI mask < floating menus. */
   .markdown-editor-mask {
     height: 100%;
     width: 100%;
     position: absolute;
     inset: 0;
-    z-index: 100;
+    z-index: 4;
     background-color: rgb(255 255 255 / 0%);
+  }
+
+  .markdown-editor-floating-surface {
+    z-index: 5;
+  }
+
+  .markdown-editor-drag-handle {
+    z-index: 3;
+  }
+
+  .markdown-editor-drop-indicator {
+    z-index: 2;
   }
 
   .markdown-editor-with-block-gutter .markdown-editor-content {
@@ -256,6 +271,8 @@
 
   .markdown-editor-content {
     flex: 1;
+    position: relative;
+    z-index: 0;
     overflow-y: auto;
     min-height: 0;
     line-height: 1.6;
@@ -574,7 +591,7 @@
   .markdown-editor-content .markdown-editor-table-grip-column,
   .markdown-editor-content .markdown-editor-table-grip-table {
     position: absolute;
-    z-index: 10;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -658,7 +675,7 @@
   }
   .markdown-editor-content .column-resize-handle {
     position: absolute;
-    z-index: 20;
+    z-index: 2;
     top: -1px;
     right: -2px;
     bottom: -1px;

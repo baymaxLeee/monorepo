@@ -1,13 +1,12 @@
 import type { Editor } from "@tiptap/core";
 import { createContext, type FC, type PropsWithChildren, type ReactNode, useContext, useMemo } from "react";
 
-import type {
-  AiPolishCallback,
-  ContentType,
-  MarkdownEditorFeatures,
-  MarkdownEditorPopupConfig,
-  ToolbarMode,
-} from "../interface";
+import type { AiPolishCallback, ContentType, MarkdownEditorFeatures, ToolbarMode } from "../interface";
+
+export interface EditorPortal {
+  getMenuContainer: () => HTMLElement;
+  getPopupContainer: () => HTMLElement | undefined;
+}
 
 type Props = {
   editable: boolean;
@@ -15,7 +14,7 @@ type Props = {
   contentType: ContentType;
   toolbarMode: ToolbarMode;
   features: Required<MarkdownEditorFeatures>;
-  popupConfig: Required<MarkdownEditorPopupConfig>;
+  portal: EditorPortal;
   setMaskVisible: (value: boolean) => void;
   onAiPolish?: AiPolishCallback;
   toolbarRender?: (editor: Editor) => ReactNode;
@@ -33,9 +32,9 @@ const EditorContext = createContext<Props>({
     blockMenu: true,
     codeBlock: true,
   },
-  popupConfig: {
-    getContainer: (trigger) => trigger.ownerDocument.body,
-    zIndex: 101,
+  portal: {
+    getMenuContainer: () => document.body,
+    getPopupContainer: () => undefined,
   },
 });
 
@@ -52,7 +51,7 @@ export const EditorProvider: FC<PropsWithChildren<Props>> = (props) => {
     contentType,
     toolbarMode,
     features,
-    popupConfig,
+    portal,
     toolbarRender,
   } = props;
   const contextValue = useMemo(
@@ -65,7 +64,7 @@ export const EditorProvider: FC<PropsWithChildren<Props>> = (props) => {
       contentType,
       toolbarMode,
       features,
-      popupConfig,
+      portal,
       toolbarRender,
     }),
     [
@@ -77,7 +76,7 @@ export const EditorProvider: FC<PropsWithChildren<Props>> = (props) => {
       contentType,
       toolbarMode,
       features,
-      popupConfig,
+      portal,
       toolbarRender,
     ],
   );

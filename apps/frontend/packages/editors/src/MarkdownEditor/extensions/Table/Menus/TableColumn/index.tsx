@@ -16,7 +16,6 @@ import {
 import type React from "react";
 
 import { useEditorContext } from "../../../../context";
-import { getMountedEditorDom } from "../../../../utils";
 import { isCellSelection, isEntireTableSelected } from "../../utils";
 import { ALWAYS_SHOW, MenuItem } from "../MenuItem";
 
@@ -31,7 +30,7 @@ const clearSelection = ({ tr }: { tr: Transaction }) => {
 };
 
 export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
-  const { contentType, popupConfig } = useEditorContext();
+  const { contentType, portal } = useEditorContext();
   const isMarkdown = contentType === "markdown";
   const { canDeleteColumn, isTableSelected } = useEditorState({
     editor,
@@ -62,8 +61,8 @@ export const TableColumnMenu: React.FC<TableColumnMenuProps> = ({ editor }) => {
     <BubbleMenu
       editor={editor}
       pluginKey="tableColumnMenu"
-      appendTo={() => popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
-      style={{ zIndex: popupConfig.zIndex }}
+      appendTo={portal.getMenuContainer}
+      className="markdown-editor-floating-surface"
       updateDelay={0}
       shouldShow={ALWAYS_SHOW}
       options={{ offset: 16 }}

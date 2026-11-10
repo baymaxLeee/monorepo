@@ -128,7 +128,7 @@ export function MarkdownEditorTab() {
         </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
+      <div className="flex min-h-0 flex-1 rounded-md border">
         <MarkdownEditor
           ref={editorRef}
           value={value}

@@ -51,7 +51,7 @@ import { useMemo, useRef, useState } from "react";
 import { ALLOWED_IMAGE_ACCEPT, BG_COLORS, FONT_COLORS, isAllowedImageFile, URL_REGEX } from "../../constants";
 import { useEditorContext } from "../../context";
 import { type ContentType, type ToolbarMode } from "../../interface";
-import { getFullUrl, getMountedEditorDom } from "../../utils";
+import { getFullUrl } from "../../utils";
 import { AIPolishTrigger } from "../AIPolishPanel/AIPolishTrigger";
 import { EditorTooltipContent } from "../EditorTooltipContent";
 import { TableSelector } from "../TableSelector";
@@ -569,13 +569,13 @@ interface ToolbarContentProps {
 }
 
 const ToolbarContent = ({ editor, onOpenPolish }: ToolbarContentProps) => {
-  const { features, contentType, toolbarMode, toolbarRender, onUpload, popupConfig } = useEditorContext();
+  const { features, contentType, toolbarMode, toolbarRender, onUpload, portal } = useEditorContext();
   const codeBlockEnabled = features.codeBlock;
   const [linkUrl, setLinkUrl] = useState("");
   const [linkVisible, setLinkVisible] = useState(false);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const overlayContainer = popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body);
+  const overlayContainer = portal.getPopupContainer();
 
   const handleImageClick = () => {
     if (editorState.isImage) {
@@ -753,12 +753,7 @@ const ToolbarContent = ({ editor, onOpenPolish }: ToolbarContentProps) => {
           {getNodeTypeIcon(editorState.activeNodeType)}
           <ChevronDown className="icon-down" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="min-w-32"
-          container={overlayContainer}
-          positionerStyle={{ zIndex: popupConfig.zIndex }}
-        >
+        <DropdownMenuContent align="start" className="min-w-32" container={overlayContainer}>
           <NodeTypeDropdownItems
             editor={editor}
             activeNodeType={editorState.activeNodeType}
@@ -782,12 +777,7 @@ const ToolbarContent = ({ editor, onOpenPolish }: ToolbarContentProps) => {
               {getAlignIcon(editorState.textAlign)}
               <ChevronDown className="icon-down" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="min-w-28"
-              container={overlayContainer}
-              positionerStyle={{ zIndex: popupConfig.zIndex }}
-            >
+            <DropdownMenuContent align="start" className="min-w-28" container={overlayContainer}>
               <AlignDropdownItems editor={editor} textAlign={editorState.textAlign} />
             </DropdownMenuContent>
           </DropdownMenu>
@@ -856,13 +846,7 @@ const ToolbarContent = ({ editor, onOpenPolish }: ToolbarContentProps) => {
           </TooltipTrigger>
           <EditorTooltipContent>链接</EditorTooltipContent>
         </Tooltip>
-        <PopoverContent
-          align="start"
-          className="w-64 p-3"
-          container={overlayContainer}
-          positionerStyle={{ zIndex: popupConfig.zIndex }}
-          initialFocus={false}
-        >
+        <PopoverContent align="start" className="w-64 p-3" container={overlayContainer} initialFocus={false}>
           <Input
             autoFocus
             placeholder="输入链接地址..."
@@ -915,12 +899,7 @@ const ToolbarContent = ({ editor, onOpenPolish }: ToolbarContentProps) => {
             </span>
             <ChevronDown className="icon-down" />
           </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            className="w-auto p-3"
-            container={overlayContainer}
-            positionerStyle={{ zIndex: popupConfig.zIndex }}
-          >
+          <PopoverContent align="start" className="w-auto p-3" container={overlayContainer}>
             <ColorPickerContent editor={editor} onClose={() => setColorPickerVisible(false)} />
           </PopoverContent>
         </Popover>
@@ -980,12 +959,7 @@ const ToolbarContent = ({ editor, onOpenPolish }: ToolbarContentProps) => {
                 </TooltipTrigger>
                 <EditorTooltipContent>插入表格</EditorTooltipContent>
               </Tooltip>
-              <PopoverContent
-                align="start"
-                className="w-auto p-2"
-                container={overlayContainer}
-                positionerStyle={{ zIndex: popupConfig.zIndex }}
-              >
+              <PopoverContent align="start" className="w-auto p-2" container={overlayContainer}>
                 <TableSelector
                   onSelect={(rows, cols) => {
                     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();

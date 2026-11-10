@@ -9,7 +9,7 @@ interface IProps {
 
 export const FixedToolbar: React.FC<IProps> = (props) => {
   return (
-    <div className="z-10 w-full border-b bg-muted/30">
+    <div className="w-full border-b bg-muted/30">
       <Toolbar {...props} />
     </div>
   );

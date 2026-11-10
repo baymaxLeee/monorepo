@@ -23,7 +23,6 @@ export interface MarkdownEditorFeatures {
 /** Controls where editor-owned floating UI is mounted. */
 export interface MarkdownEditorPopupConfig {
   getContainer?: (trigger: HTMLElement) => HTMLElement;
-  zIndex?: number;
 }
 
 export enum MenuType {
@@ -67,7 +66,10 @@ export type AiPolishCallback = (
  * @description 基于 TipTap 封装，支持 HTML、Markdown、JSON 三种内容格式，以及气泡工具栏、固定工具栏、表格、代码块、AI 润色等能力
  */
 export interface MarkdownEditorProps {
-  /** Floating UI configuration. Explicit values override automatic Dialog/Sheet discovery. */
+  /**
+   * Floating UI boundary override for iframe or custom clipping integrations.
+   * Dialog and Sheet layers are discovered automatically.
+   */
   popupConfig?: MarkdownEditorPopupConfig;
   /**
    * @zh 受控内容值

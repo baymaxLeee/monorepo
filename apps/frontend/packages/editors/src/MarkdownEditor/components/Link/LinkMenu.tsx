@@ -64,7 +64,7 @@ export const replaceLinkText = (
 };
 
 export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
-  const { popupConfig } = useEditorContext();
+  const { portal } = useEditorContext();
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const form = useForm<LinkFormValues>({
     resolver: zodResolver(linkSchema as never),
@@ -235,8 +235,7 @@ export const LinkMenu: React.FC<LinkMenuProps> = ({ editor }) => {
     >
       <PopoverContent
         anchor={anchorEl}
-        container={popupConfig.getContainer(getMountedEditorDom(editor) ?? document.body)}
-        positionerStyle={{ zIndex: popupConfig.zIndex }}
+        container={portal.getPopupContainer()}
         ref={menuRef}
         side={mode === "preview" ? "top" : "bottom"}
         align="start"
