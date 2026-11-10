@@ -101,6 +101,13 @@ export function registerRunController(runId: string): AbortSignal {
   return controller.signal;
 }
 
+export function abortRun(runId: string, reason: unknown): boolean {
+  const controller = controllers.get(runId);
+  if (!controller || controller.signal.aborted) return false;
+  controller.abort(reason);
+  return true;
+}
+
 export async function releaseRun(runId: string): Promise<void> {
   controllers.delete(runId);
   completions.get(runId)?.resolve();

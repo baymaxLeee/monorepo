@@ -21,3 +21,13 @@ test("fixed ECharts loader validation stays out of user runs", () => {
 test("execution observes a retrieval before trying another path for the same source", () => {
   assert.match(renderExecutionProtocol(), /Do not fetch the same source through another path in the same step/i);
 });
+
+test("research reports route through subagents while simple lookups stay direct", () => {
+  const execution = renderExecutionProtocol();
+  const normal = renderRuntimeContract("normal");
+
+  assert.match(execution, /research, 调研.*deep research.*evidence-backed report/i);
+  assert.match(execution, /2-3 tasks only when the tracks are independent/i);
+  assert.match(execution, /simple single-fact or single-page lookup/i);
+  assert.match(normal, /requested research\/report.*must use subagents first/i);
+});

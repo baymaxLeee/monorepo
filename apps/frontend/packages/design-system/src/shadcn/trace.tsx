@@ -3,6 +3,8 @@ import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import * as React from "react";
 
+type TraceStatus = "running" | "completed" | "error" | "cancelled" | "pending";
+
 function Trace({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -21,14 +23,14 @@ function TraceLine({
   status,
   ...props
 }: React.ComponentProps<"span"> & {
-  status?: "running" | "error" | "pending";
+  status?: TraceStatus;
 }) {
   return (
     <span
       data-slot="trace-line"
       data-status={status}
       className={cn(
-        "flex w-fit max-w-full min-w-0 items-center gap-2 text-sm text-muted-foreground transition-colors in-[a,button]:cursor-pointer in-[a:hover,button:hover]:text-foreground data-[status=error]:text-destructive data-[status=error]:in-[a:hover,button:hover]:text-destructive data-[status=pending]:opacity-60 data-[status=running]:*:data-[slot=trace-title]:shimmer",
+        "flex w-fit max-w-full min-w-0 items-center gap-2 text-sm text-muted-foreground transition-colors in-[a,button]:cursor-pointer in-[a:hover,button:hover]:text-foreground data-[status=cancelled]:*:data-[slot=trace-icon]:text-orange-600 data-[status=completed]:*:data-[slot=trace-icon]:text-green-600 data-[status=error]:text-destructive data-[status=error]:in-[a:hover,button:hover]:text-destructive data-[status=pending]:opacity-60 data-[status=running]:*:data-[slot=trace-icon]:text-primary data-[status=running]:*:data-[slot=trace-title]:shimmer",
         className,
       )}
       {...props}
@@ -130,3 +132,4 @@ export {
   TraceCollapsibleTrigger,
   TraceCollapsibleContent,
 };
+export type { TraceStatus };

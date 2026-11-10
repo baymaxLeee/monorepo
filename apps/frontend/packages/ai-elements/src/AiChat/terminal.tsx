@@ -32,7 +32,11 @@ export function Terminal({ command, output, isStreaming = false, exitCode, ...pr
     <Trace {...props}>
       <TraceCollapsible open={open} onOpenChange={setOpen}>
         <TraceCollapsibleTrigger>
-          <TraceLine status={isStreaming ? "running" : exitCode ? "error" : undefined}>
+          <TraceLine
+            status={
+              isStreaming ? "running" : exitCode === undefined ? undefined : exitCode === 0 ? "completed" : "error"
+            }
+          >
             <TraceIcon>
               <TerminalIcon />
             </TraceIcon>

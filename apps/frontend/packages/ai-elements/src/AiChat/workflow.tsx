@@ -7,6 +7,7 @@ import {
   TraceIcon,
   TraceLine,
   TraceTitle,
+  type TraceStatus,
 } from "@repo/design-system/shadcn/trace";
 import { cn } from "@repo/shared";
 import { CheckCircleIcon, CircleIcon, ListTodoIcon, Loader2Icon, XCircleIcon } from "lucide-react";
@@ -14,14 +15,8 @@ import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 export type WorkflowStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
-export function workflowTraceStatus(status?: WorkflowStatus) {
-  return status === "running"
-    ? "running"
-    : status === "failed"
-      ? "error"
-      : status === "pending"
-        ? "pending"
-        : undefined;
+export function workflowTraceStatus(status?: WorkflowStatus): TraceStatus | undefined {
+  return status === "failed" ? "error" : status;
 }
 
 function StatusIcon({ status }: { status: WorkflowStatus }) {

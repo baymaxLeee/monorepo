@@ -33,7 +33,7 @@ export function TestResults({ suites, isRunning = false, ...props }: TestResults
     <Trace {...props}>
       <TraceCollapsible defaultOpen={failed > 0}>
         <TraceCollapsibleTrigger>
-          <TraceLine status={isRunning ? "running" : failed ? "error" : undefined}>
+          <TraceLine status={isRunning ? "running" : failed ? "error" : tests.length > 0 ? "completed" : undefined}>
             <TraceIcon>
               <FlaskConicalIcon />
             </TraceIcon>
@@ -74,7 +74,17 @@ export function TestSuite({ suite }: { suite: TestSuiteResult }) {
 export function Test({ result }: { result: TestResult }) {
   return (
     <div className="flex-col items-stretch gap-2">
-      <TraceLine status={result.status === "failed" ? "error" : result.status === "running" ? "running" : undefined}>
+      <TraceLine
+        status={
+          result.status === "failed"
+            ? "error"
+            : result.status === "running"
+              ? "running"
+              : result.status === "passed"
+                ? "completed"
+                : "pending"
+        }
+      >
         <TraceIcon>
           {result.status === "passed" ? (
             <CheckCircleIcon />

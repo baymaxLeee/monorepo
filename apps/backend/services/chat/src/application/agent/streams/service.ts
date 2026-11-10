@@ -7,8 +7,19 @@ type XReadRedis = ReturnType<typeof getRedisClient> & {
   xread(...args: Array<string | number>): Promise<[string, [string, string[]][]][] | null>;
 };
 
-const STREAM_TTL_SECONDS = 60 * 60;
+const STREAM_TTL_SECONDS = 5 * 60;
+const STREAM_HEARTBEAT_MS = 60_000;
 const STREAM_READ_BLOCK_MS = 5_000;
+const STREAM_FRAGMENT_MAX_BYTES = 64 * 1_024;
+export const AGENT_STREAM_MAX_BYTES = 8 * 1_024 * 1_024;
+export const AGENT_STREAM_MAX_ENTRIES = 10_000;
+
+export class AgentStreamCapacityError extends Error {
+  constructor(readonly runId: string) {
+    super(`agent stream ${runId} exceeded its Redis replay capacity`);
+    this.name = "AgentStreamCapacityError";
+  }
+}
 
 function activeKey(conversationId: string): string {
   return `chat:agent-streams:${conversationId}:active`;
@@ -27,6 +38,8 @@ export async function activateAgentStream(conversationId: string, runId: string)
     .hset(activeKey(conversationId), {
       run_id: runId,
       started_at_ms: String(Date.now()),
+      bytes: "0",
+      entries: "0",
     })
     .expire(activeKey(conversationId), STREAM_TTL_SECONDS)
     .exec();
@@ -36,9 +49,19 @@ export async function consumeAgentSseStream(
   conversationId: string,
   runId: string,
   stream: ReadableStream<string>,
+  options?: { onCapacityExceeded?: (error: AgentStreamCapacityError) => void | Promise<void> },
 ): Promise<void> {
   const reader = stream.getReader();
   let redisErrorLogged = false;
+  const heartbeat = setInterval(() => {
+    void refreshAgentStreamLease(conversationId, runId).catch((error) => {
+      if (!redisErrorLogged) {
+        redisErrorLogged = true;
+        logger.error({ err: error }, "resumable stream lease refresh failed");
+      }
+    });
+  }, STREAM_HEARTBEAT_MS);
+  heartbeat.unref();
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -51,6 +74,11 @@ export async function consumeAgentSseStream(
       try {
         await appendSseChunk(conversationId, runId, value);
       } catch (error) {
+        if (error instanceof AgentStreamCapacityError) {
+          await options?.onCapacityExceeded?.(error);
+          await reader.cancel(error).catch(() => undefined);
+          throw error;
+        }
         if (!redisErrorLogged) {
           redisErrorLogged = true;
           logger.error({ err: error }, "resumable stream persistence failed");
@@ -58,6 +86,7 @@ export async function consumeAgentSseStream(
       }
     }
   } finally {
+    clearInterval(heartbeat);
     reader.releaseLock();
     await deactivateAgentStream(conversationId, runId).catch((error) =>
       logger.error({ err: error }, "failed to clear resumable stream"),
@@ -66,25 +95,90 @@ export async function consumeAgentSseStream(
 }
 
 async function appendSseChunk(conversationId: string, runId: string, chunk: string): Promise<void> {
+  const byteCount = Buffer.byteLength(chunk, "utf8");
+  if (byteCount > AGENT_STREAM_MAX_BYTES) throw new AgentStreamCapacityError(runId);
+  const fragments = splitSseChunk(chunk);
   const client = getRedisClient();
-  await client
-    .pipeline()
-    .xadd(streamKey(runId), "*", "sse", chunk)
-    .expire(streamKey(runId), STREAM_TTL_SECONDS)
-    .expire(activeKey(conversationId), STREAM_TTL_SECONDS)
-    .exec();
+  const result = await client.eval(
+    [
+      "if redis.call('HGET', KEYS[1], 'run_id') ~= ARGV[1] then return -2 end",
+      "local next_bytes = tonumber(redis.call('HGET', KEYS[1], 'bytes') or '0') + tonumber(ARGV[5])",
+      "local next_entries = tonumber(redis.call('HGET', KEYS[1], 'entries') or '0') + tonumber(ARGV[6])",
+      "if next_bytes > tonumber(ARGV[3]) or next_entries > tonumber(ARGV[4]) then return -1 end",
+      "for index = 7, #ARGV do",
+      "  redis.call('XADD', KEYS[2], 'MAXLEN', '~', ARGV[4], '*', 'sse', ARGV[index])",
+      "end",
+      "redis.call('HSET', KEYS[1], 'bytes', next_bytes, 'entries', next_entries)",
+      "redis.call('EXPIRE', KEYS[1], ARGV[2])",
+      "redis.call('EXPIRE', KEYS[2], ARGV[2])",
+      "return 1",
+    ].join("\n"),
+    2,
+    activeKey(conversationId),
+    streamKey(runId),
+    runId,
+    STREAM_TTL_SECONDS,
+    AGENT_STREAM_MAX_BYTES,
+    AGENT_STREAM_MAX_ENTRIES,
+    byteCount,
+    fragments.length,
+    ...fragments,
+  );
+  if (result === -1) {
+    throw new AgentStreamCapacityError(runId);
+  }
+  if (result !== 1) {
+    throw new Error(`agent stream ${runId} is no longer active`);
+  }
+}
+
+function splitSseChunk(chunk: string): string[] {
+  if (Buffer.byteLength(chunk, "utf8") <= STREAM_FRAGMENT_MAX_BYTES) return [chunk];
+  const fragments: string[] = [];
+  let fragment = "";
+  let fragmentBytes = 0;
+  for (const character of chunk) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (fragment && fragmentBytes + characterBytes > STREAM_FRAGMENT_MAX_BYTES) {
+      fragments.push(fragment);
+      fragment = "";
+      fragmentBytes = 0;
+    }
+    fragment += character;
+    fragmentBytes += characterBytes;
+  }
+  if (fragment) fragments.push(fragment);
+  return fragments;
+}
+
+async function refreshAgentStreamLease(conversationId: string, runId: string): Promise<void> {
+  await getRedisClient().eval(
+    [
+      "if redis.call('HGET', KEYS[1], 'run_id') ~= ARGV[1] then return 0 end",
+      "redis.call('EXPIRE', KEYS[1], ARGV[2])",
+      "if redis.call('EXISTS', KEYS[2]) == 1 then redis.call('EXPIRE', KEYS[2], ARGV[2]) end",
+      "return 1",
+    ].join("\n"),
+    2,
+    activeKey(conversationId),
+    streamKey(runId),
+    runId,
+    STREAM_TTL_SECONDS,
+  );
 }
 
 export async function deactivateAgentStream(conversationId: string, runId: string): Promise<void> {
   await getRedisClient().eval(
     [
+      "redis.call('DEL', KEYS[2])",
       "if redis.call('HGET', KEYS[1], 'run_id') == ARGV[1] then",
       "  return redis.call('DEL', KEYS[1])",
       "end",
       "return 0",
     ].join("\n"),
-    1,
+    2,
     activeKey(conversationId),
+    streamKey(runId),
     runId,
   );
 }

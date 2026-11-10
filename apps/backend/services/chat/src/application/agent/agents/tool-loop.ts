@@ -255,6 +255,8 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       }
       return { ...continuation, runtimeContext: nextContext, activeTools, instructions: initialInstructions };
     },
+    // Generic ToolSet context requirements are conditional; the catalog still builds the inferred context map above.
+    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
     toolsContext: toolsContext as never,
     runtimeContext,
     onStepStart: (event) => {

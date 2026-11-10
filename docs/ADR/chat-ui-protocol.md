@@ -54,9 +54,9 @@ SDK API 与协议机制属于官方能力。下文的权限校验、文件发布
 | schema 与续跑权限 | [共享 metadata/data schema](../../schemas/streaming/chat-ui.ts) 经 `just sync` 生成双端校验器，与 SDK `validateUIMessages` 校验结构；[continuation](../../apps/backend/services/chat/src/application/agent/runs/continuation.ts) 只允许等待中的客户端结果或审批决定，调用身份不可变。 |
 | 来源与引用 | 搜索 ToolOutcome 保留给模型并投影原生 source part；正文消费原生 citations。文档来源只通过 workspace ACL resolver 和 journal 关系生成可打开链接。 |
 | 文件与产物 | 原生 `file`/`reasoning-file` 发布为受权会话资源；`save_sandbox_file` 保持原生工具结果并显示 Artifact 卡，不复制成同义 file part。任意远程 URL 不由 Chat 代取。 |
-| 工具生命周期 | static/dynamic、preliminary、provider-executed、审批和 client tool 使用 SDK 原生状态；业务 ToolOutcome 只承载业务成功/失败数据。内联 `research` 的累计 nested UIMessage 作为 preliminary/final tool payload 更新，不增加平行 data part。 |
+| 工具生命周期 | static/dynamic、preliminary、provider-executed、审批和 client tool 使用 SDK 原生状态；业务 ToolOutcome 只承载业务成功/失败数据。内联 `subagents` 的 1–3 条紧凑有界 nested progress 作为 preliminary payload，完整 message 只进入 final tool payload，不增加平行 data part。 |
 | 并发与持久化 | `(conversation_id, request_id)` 和完整请求指纹绑定逻辑操作；claim 锁定 revision。工具终态、assistant 消息、run、selected leaf 和 lease 由同一个幂等 finalizer 事务提交。 |
-| 恢复与取消 | Redis 只保存可重放 transport stream 和 active pointer；subscriber 断开不取消 run，显式 Stop 才传播取消并由同一 finalizer 收口。 |
+| 恢复与取消 | Redis 只在 run 活跃期间保存可重放 transport stream 和 active pointer；短滑动租约回收崩溃遗留，字节/entry budget 防止运行期无界增长，journal 终态提交并排空流后立即删除。subscriber 断开不取消 run，显式 Stop 才传播用户取消并由同一 finalizer 收口。 |
 | 客户端状态 | 一个 `Chat<ChatUIMessage>` 持有实时消息；完整 hydration 和完成回读都检查会话/操作身份与 revision，迟到响应不能覆盖新 run。 |
 
 ## 4. 终态架构与职责
@@ -139,7 +139,7 @@ flowchart LR
 
 来源投影、文件发布和模型输出必须在终结前汇合。可选的会话标题更新失败不会把成功回复标成失败；必须交付的文件发布失败则不能把该文件显示为已保存。SDK 的 finish chunk 不等于数据库提交确认。最外层 `onEnd` 必须 await 关键持久化；失败要使响应流失败、呈现“保存未确认”，恢复后查询权威状态，不能吞错后展示“已保存”。trace 写入仍是观测，不得阻断回复；trace step 缺少完成记录只记为观测缺口，不能据此覆盖 SDK 已确认的成功 outcome。
 
-最终 parts、metadata、run 终态与数据库中的运行租约在 Chat 本地事务边界内一致收口。claim 与 finalizer 统一先锁 conversation 再锁 run，避免租约接替与旧 run 收尾死锁。最终状态以锁内读取为准：已确认取消不能被较早的流快照覆盖；消息状态、metadata 和 run 同步提交。已提交的终态不可被迟到的失败清理或孤儿扫描改写；孤儿回收须重新确认租约仍失效，只清理实际被中断的 run。终态 run、缺失 run 或已过期 lease 不能长期阻塞历史选择和会话删除：持有 conversation 锁的事务会回收陈旧 lease，并把仍标记 active 的过期 run 收口为 interrupted。读取选中历史时先在同一数据库事务中取得 selected leaf，再读取消息图，不能由两个并行连接拼接出“新 pointer + 旧 graph”的不存在快照。Redis active pointer 在数据库提交后按 run id 比较清除；不能声称 PostgreSQL 与 Redis 共享一个本地事务。清理失败可重试，恢复端以权威 run 状态识别并收口陈旧指针。外部文件服务请求也在事务之外完成，部分失败由文件 owner 的发布/清理机制处理。取消和失败经过同一幂等 finalizer。需要服务端快照时使用 SDK `readUIMessageStream` 或原生回调，不另写逐 delta reducer。
+最终 parts、metadata、run 终态与数据库中的运行租约在 Chat 本地事务边界内一致收口。claim 与 finalizer 统一先锁 conversation 再锁 run，避免租约接替与旧 run 收尾死锁。最终状态以锁内读取为准：已确认取消不能被较早的流快照覆盖；消息状态、metadata 和 run 同步提交。已提交的终态不可被迟到的失败清理或孤儿扫描改写；孤儿回收须重新确认租约仍失效，只清理实际被中断的 run。终态 run、缺失 run 或已过期 lease 不能长期阻塞历史选择和会话删除：持有 conversation 锁的事务会回收陈旧 lease，并把仍标记 active 的过期 run 收口为 interrupted。读取选中历史时先在同一数据库事务中取得 selected leaf，再读取消息图，不能由两个并行连接拼接出“新 pointer + 旧 graph”的不存在快照。Redis 不在数据库事务内；active pointer 的续租、运行期容量边界、终态删除和 crash fallback 统一遵循 [Chat 活跃流恢复决策](chat-stream-resumption.md)。清理失败可重试，恢复端以权威 run 状态识别并收口陈旧指针。外部文件服务请求也在事务之外完成，部分失败由文件 owner 的发布/清理机制处理。取消和失败经过同一幂等 finalizer。需要服务端快照时使用 SDK `readUIMessageStream` 或原生回调，不另写逐 delta reducer。
 
 ## 6. 请求、编辑、重新生成与分支
 
@@ -197,7 +197,7 @@ Chat 的存储层保留消息父子关系和当前选中路径；客户端仍只
 
 应用 ToolOutcome 继续承载 domain data、partial/blocked/failed 等业务事实； `toModelOutput` 控制给模型的表示。不能用 ToolOutcome 吞掉 Abort、审批拒绝或原生输入错误，也不能把 SDK `toolSearch` 的原生协议结果套入业务 envelope。
 
-内联 `research` Subagent 遵循同一规则：外层仍是一个官方 `tool-research` part；preliminary ToolOutcome 携带当前累计 child UIMessage，终态携带完整 child message、报告和 usage。前端用 `uiKind: subagent` 展示研究步骤；主模型通过 `toModelOutput` 只接收最终报告。普通文件由主 Agent 在 run sandbox 中生成，`save_sandbox_file` 的原生工具结果以 `uiKind: artifact` 呈现；没有另一条 Executor 文件批次 UI 语义。
+内联 `subagents` 遵循同一规则：外层仍是一个官方 `tool-subagents` part；preliminary ToolOutcome 的 `subagents[]` 携带 1–3 条 child 的紧凑有界进度，终态才为每条 child 保留完整 message、报告、usage 或结构化失败。这样保留官方 preliminary/final tool 语义，同时禁止逐 token 重复累计全文造成 O(n²) SSE；具体更新边界归 [Chat 活跃流恢复决策](chat-stream-resumption.md)。前端用 `uiKind: subagent` 分别展示研究轨道；主模型通过 `toModelOutput` 只接收压缩后的各轨报告。普通文件由主 Agent 在 run sandbox 中生成，`save_sandbox_file` 的原生工具结果以 `uiKind: artifact` 呈现；没有另一条 Executor 文件批次 UI 语义。
 
 ### 7.2 客户端工具
 
@@ -279,7 +279,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 
 ### 11.1 恢复传输
 
-Redis 保存最终输出的原生 SSE，GET 恢复与初始 POST 使用相同响应协议。从头重放时使用安装版 `DefaultChatTransport` 的 `resumeStreamIsReplay: true` 语义，让 SDK 重建当前消息；不在应用里清空所有历史或额外拼接相同文本。没有活动流返回 204，再读取权威 run/message 状态。重放不执行任何工具。网络失败保留部分消息；显式重试先确认服务端 revision 未前进且无活动 run，只有确认未被 claim 的请求才重新 POST，并复用原始请求内容、目标、revision 和 request_id。revision 已前进时只恢复/同步。停止接口未确认终态时保留“停止未确认”及重试动作。
+Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同响应协议。从头重放时使用安装版 `DefaultChatTransport` 的 `resumeStreamIsReplay: true` 语义，让 SDK 重建当前消息；不在应用里清空所有历史或额外拼接相同文本。完成、失败、取消或 orphan 收口后按 [Chat 活跃流恢复决策](chat-stream-resumption.md) 删除 stream，历史恢复读取 PostgreSQL journal；没有活动流返回 204，再读取权威 run/message 状态。重放不执行任何工具。网络失败保留部分消息；显式重试先确认服务端 revision 未前进且无活动 run，只有确认未被 claim 的请求才重新 POST，并复用原始请求内容、目标、revision 和 request_id。revision 已前进时只恢复/同步。停止接口未确认终态时保留“停止未确认”及重试动作。
 
 历史加载并通过 schema 验证后，由一个 `useChat` 订阅者仅在权威 detail 指出活动 run 时启用 `resume`，使用 SDK 的公开恢复能力；空闲会话不发送 204 探针和随后的全量刷新，不同时保留第二套挂载时 GET effect。后台断线后恢复可见性采用安装版支持的 SDK 行为；显式“恢复连接”使用 `resumeStream()`。任何自动行为都要检查仍是当前会话，不调用 SDK 内部私有方法，不增加无依据的重试次数或永久轮询。
 

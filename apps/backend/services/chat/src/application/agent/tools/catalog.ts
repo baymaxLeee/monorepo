@@ -11,9 +11,9 @@ import { createInteractionToolManifests } from "./builtins/interaction.js";
 import { createMediaToolManifests } from "./builtins/media.js";
 import { createMemoryToolManifests } from "./builtins/memory.js";
 import { createPlanningToolManifests } from "./builtins/planning.js";
-import { createResearchSubagentManifest } from "./builtins/research.js";
 import { createRuntimeTools } from "./builtins/runtime.js";
 import { createSearchToolManifests } from "./builtins/search.js";
+import { createSubagentsManifest } from "./builtins/subagents.js";
 import { createToolSearchManifest } from "./discovery.js";
 import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "./manifest.js";
 import type { AgentToolManifest, ToolSource } from "./types.js";
@@ -104,16 +104,16 @@ export class ToolCatalog {
           : []),
         ...resolvedSkills.manifests,
       ];
-      const researchTools = manifestsToTools(
+      const subagentTools = manifestsToTools(
         manifests.filter((manifest) => manifest.name === "web_search" || manifest.name === "web_fetch"),
       );
-      if (researchTools.web_search && researchTools.web_fetch) {
+      if (subagentTools.web_search && subagentTools.web_fetch) {
         manifests.push(
-          createResearchSubagentManifest({
+          createSubagentsManifest({
             provider: providers.textProvider,
             tools: {
-              web_search: researchTools.web_search,
-              web_fetch: researchTools.web_fetch,
+              web_search: subagentTools.web_search,
+              web_fetch: subagentTools.web_fetch,
             },
           }),
         );

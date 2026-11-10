@@ -160,8 +160,8 @@ test("preliminary output and unfinished todo state are frozen without replay", (
       version: 2,
       parts: [
         {
-          type: "tool-research",
-          toolCallId: "research",
+          type: "tool-subagents",
+          toolCallId: "subagents",
           state: "output-available",
           preliminary: true,
           output: { ok: true, status: "running" },

@@ -56,12 +56,18 @@ mypy 保持逐项目执行。工具由 backend uv workspace 锁定，不另加 B
 [Oxfmt 配置](https://oxc.rs/docs/guide/usage/formatter/config.html)、
 [pre-commit](https://pre-commit.com/)。
 
-## 文档只维护当前一套
+## AI-native 决策知识层
 
-本目录压缩合并原时间序列 ADR，按主题更新正文，删除失效说明。每个文件说明
-当前决定、非显然原因、取舍、实现入口与验证边界，不追加实施日志、编号修订层
-或“新决定覆盖上文”的段落。业务细节在对应领域文档，字段/端口/版本在配置或
-schema；引用所属文件，不在决策文档再抄完整清单。
+Agent instructions、ADR 和可执行事实分层维护：根/路径 AGENTS 只保存高频触发、
+路由和硬约束；topic ADR 保存独立可检索的当前决策、理由、取舍、生命周期与验证
+边界；字段/端口/版本归 schema、manifest 或配置；测试和检查拒绝错误实现。这样
+agent 先加载短指令，再按任务读取相关决策，不必把整本架构手册塞进每轮 context。
+
+本目录压缩合并原时间序列 ADR，按主题更新正文，删除失效说明，不追加实施日志、
+编号修订层或“新决定覆盖上文”的段落。已有主题拥有同一 decision key 时原地更新；
+当一个决定有独立检索键，并跨多个边界、改变权威来源/生命周期/恢复/权限/资源边界，
+或包含未来会重访的实质取舍时，创建新的描述性 topic ADR，而不是埋入宽泛 catch-all。
+创建/更新算法与内容要求由 [ADR instructions](AGENTS.md) 直接提供给 agent。
 
 这是本仓库为 AI 上下文明确选择的约定。传统 ADR 通常保留旧决定并标记替代；
 这里使用 Git 保存旧版本，工作树只提供当前快照。追溯历史用 `git log -- docs/ADR`
@@ -70,14 +76,14 @@ schema；引用所属文件，不在决策文档再抄完整清单。
 
 ## 参考与适用边界
 
-[OpenAI Agents SDK](https://github.com/openai/openai-agents-python/blob/main/AGENTS.md)
-提供条件触发的 skill/检查入口；[Anthropic Agent SDK](https://github.com/anthropics/claude-agent-sdk-python/blob/main/CLAUDE.md)
-提供具体代码定位与命令。采用其可执行入口，不照搬厂商发布/权限策略。
 [OpenAI 分层规则](https://developers.openai.com/codex/guides/agents-md)、
 [Claude 项目上下文](https://code.claude.com/docs/en/memory)与
 [Turborepo 结构](https://turborepo.com/docs/crafting-your-repository/structuring-a-repository)
-支持分层指导与声明依赖。Codex 源仓库 AGENTS 本次获取返回 404，未把镜像作为
-核实依据。
+支持分层指导与声明依赖。OpenAI 明确从项目根到当前目录合并 instructions、越近
+越具体并设置总 context 上限；Anthropic 建议 instructions 简短具体、消除冲突，
+大型仓库使用 path-scoped rules，把任务型多步骤流程移入 skills。两者都没有发布
+通用 ADR 格式，因此本仓库只采用其 context 分层原则，不把自有 topic/Git 策略
+误称为厂商标准。
 
 [AWS](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html)
 和 [GDS](https://gds-way.digital.cabinet-office.gov.uk/standards/architecture-decisions.html)

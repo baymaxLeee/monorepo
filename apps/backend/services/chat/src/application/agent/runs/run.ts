@@ -46,6 +46,7 @@ import {
 } from "../observability/lifecycle.js";
 import { createPublishedAgentPartStream } from "../streams/native-parts.js";
 import {
+  AgentStreamCapacityError,
   activateAgentStream,
   consumeAgentSseStream,
   createAgentReplayResponse,
@@ -58,7 +59,7 @@ import {
   continuedSkillReference,
   type ContinuedSkillReference,
 } from "./continuation.js";
-import { registerRunController, releaseRun } from "./lease.js";
+import { abortRun, registerRunController, releaseRun } from "./lease.js";
 import {
   claimAgentRunOperation,
   finalizeAgentRunJournal,
@@ -110,6 +111,9 @@ function isAutoNamableTitle(title: string): boolean {
 }
 
 function describeStreamError(error: unknown): string {
+  if (error instanceof AgentStreamCapacityError) {
+    return "响应流超过可恢复容量限制，已安全终止。";
+  }
   if (
     (error instanceof Error && error.name === "AbortError") ||
     (typeof error === "object" &&
@@ -493,8 +497,10 @@ export async function createAgentRunResponse(
         const end = await agentParts.end;
         await titlePromise;
         const currentRun = await getAgentRunById(runId).catch(() => null);
-        const aborted = end.isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
-        const streamError = terminalStreamError(end.outcome, end.finishReason);
+        const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
+        const aborted =
+          capacityError == null && (end.isAborted || runSignal.aborted || currentRun?.status === "cancel_requested");
+        const streamError = capacityError ?? terminalStreamError(end.outcome, end.finishReason);
         const failed = streamError != null;
         const usage = await Promise.resolve(result.totalUsage).catch(() => null);
         const tokens = addUsage(extractUsageTokens(usage), contextUsage);
@@ -521,8 +527,10 @@ export async function createAgentRunResponse(
       onError: describeStreamError,
       onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason, outcome }) => {
         const currentRun = await getAgentRunById(runId).catch(() => null);
-        const aborted = isAborted || runSignal.aborted || currentRun?.status === "cancel_requested";
-        const streamError = terminalStreamError(outcome, finishReason);
+        const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
+        const aborted =
+          capacityError == null && (isAborted || runSignal.aborted || currentRun?.status === "cancel_requested");
+        const streamError = capacityError ?? terminalStreamError(outcome, finishReason);
         const failed = streamError != null;
         try {
           if (isContinuation !== (operation === "tool-continuation")) {
@@ -591,7 +599,12 @@ export async function createAgentRunResponse(
       headers: { "x-agent-run-id": runId },
       consumeSseStream: ({ stream }) => {
         const consumption = resumable
-          ? consumeAgentSseStream(conversation.id, runId, stream)
+          ? consumeAgentSseStream(conversation.id, runId, stream, {
+              onCapacityExceeded: (error) => {
+                logger.error({ err: error, runId }, "agent replay stream capacity exceeded");
+                abortRun(runId, error);
+              },
+            })
           : consumeStream({ stream });
         void consumption.catch((error) => logger.error({ err: error }, "agent stream consumption failed"));
       },

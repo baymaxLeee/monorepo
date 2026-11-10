@@ -8,25 +8,26 @@ const FINAL_REPORT_INSTRUCTION =
 function assertAutomaticTools(tools: ToolSet): void {
   for (const [name, definition] of Object.entries(tools)) {
     if (!("execute" in definition) || typeof definition.execute !== "function") {
-      throw new Error(`inline subagent tool ${name} must execute automatically`);
+      throw new Error(`subagent tool ${name} must execute automatically`);
     }
     const approval = (definition as { needsApproval?: unknown }).needsApproval;
     if (approval !== undefined && approval !== false) {
-      throw new Error(`inline subagent tool ${name} cannot require approval`);
+      throw new Error(`subagent tool ${name} cannot require approval`);
     }
   }
 }
 
 /**
- * Builds an isolated child agent. Callers can supply only an explicit prompt;
+ * Builds one isolated child agent. Callers can supply only an explicit prompt;
  * parent conversation messages and response lineage are intentionally absent.
  */
-export function createInlineSubagent<const TOOLS extends ToolSet>({
+export function createSubagent<const TOOLS extends ToolSet>({
   id,
   model,
   instructions,
   tools,
   toolsContext,
+  supportsStoredContinuation,
   maxOutputTokens,
   maxSteps = 20,
 }: {
@@ -35,14 +36,16 @@ export function createInlineSubagent<const TOOLS extends ToolSet>({
   instructions: string;
   tools: TOOLS;
   toolsContext: InferToolSetContext<TOOLS>;
+  supportsStoredContinuation: boolean;
   maxOutputTokens?: number;
   maxSteps?: number;
 }) {
   assertAutomaticTools(tools);
   if (!Number.isInteger(maxSteps) || maxSteps < 2) {
-    throw new Error("inline subagent maxSteps must be an integer of at least 2");
+    throw new Error("subagent maxSteps must be an integer of at least 2");
   }
   const activeTools = Object.keys(tools) as Array<keyof TOOLS & string>;
+  let previousResponseId: string | null = null;
   const agent = new ToolLoopAgent<never, TOOLS>({
     id,
     model: wrapLanguageModel({ model, middleware: addToolInputExamplesMiddleware() }),
@@ -50,20 +53,40 @@ export function createInlineSubagent<const TOOLS extends ToolSet>({
     maxOutputTokens,
     timeout: { chunkMs: 120_000 },
     tools,
-    // Generic ToolSet context requirements are conditional; callers still provide the inferred map above.
-    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
-    toolsContext: toolsContext as never,
     activeTools,
     toolOrder: [...activeTools].sort(),
     stopWhen: isStepCount(maxSteps),
-    prepareStep: ({ steps }) =>
-      steps.length === maxSteps - 1
+    prepareStep: ({ steps }) => {
+      const toolResultMessages = steps.at(-1)?.response.messages.filter((message) => message.role === "tool") ?? [];
+      const continuation =
+        supportsStoredContinuation && previousResponseId && toolResultMessages.length > 0
+          ? {
+              providerOptions: { openai: { previousResponseId } },
+              messages: toolResultMessages,
+            }
+          : {};
+      return steps.length === maxSteps - 1
         ? {
+            ...continuation,
             activeTools: [],
             toolChoice: "none",
             instructions: `${instructions}\n\n${FINAL_REPORT_INSTRUCTION}`,
           }
-        : undefined,
+        : continuation;
+    },
+    // Generic ToolSet context requirements are conditional; callers still provide the inferred map above.
+    // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
+    toolsContext: toolsContext as never,
+    onStepEnd: (event) => {
+      if (!supportsStoredContinuation) return;
+      const providerResponseId = event.providerMetadata?.openai?.responseId;
+      previousResponseId =
+        typeof providerResponseId === "string"
+          ? providerResponseId
+          : typeof event.response.id === "string"
+            ? event.response.id
+            : null;
+    },
   });
 
   return {

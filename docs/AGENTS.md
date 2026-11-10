@@ -10,7 +10,10 @@ Do not append revision logs, overrides or a second architecture manual.
   explicitly; it must not enter the current-specification index as fact.
 - ADRs are current topic-based decision snapshots. Update the relevant topic
   directly with implementation evidence and tradeoffs; Git preserves history.
-  Do not create a numbered successor or append an override to the old decision.
+  A durable independently searchable cross-boundary decision may require a new
+  descriptive topic rather than being buried in a broad ADR; follow
+  [ADR instructions](ADR/AGENTS.md). Do not create numbered successors or append
+  overrides to old decisions.
 - Plans, baselines and progress notes are opt-in history. Read only relevant
   current topics; do not load chronological history to reconstruct current rules.
 - Multi-phase work follows the current

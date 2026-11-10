@@ -108,10 +108,21 @@ export function ToolHeader({
   const running =
     preliminary || state === "input-streaming" || state === "input-available" || state === "approval-responded";
   const failed = state === "output-error";
+  const status = failed
+    ? "error"
+    : state === "output-denied"
+      ? "cancelled"
+      : running
+        ? "running"
+        : state === "output-available"
+          ? "completed"
+          : state === "approval-requested"
+            ? "pending"
+            : undefined;
   return (
     <TraceCollapsibleTrigger className={className} {...props}>
       {children ?? (
-        <TraceLine status={failed ? "error" : running ? "running" : undefined}>
+        <TraceLine status={status}>
           <TraceIcon>
             <WrenchIcon />
           </TraceIcon>

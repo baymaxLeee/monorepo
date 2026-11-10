@@ -104,8 +104,11 @@ override a managed `core.hooksPath` to install them. Fix explicitly with native
   explicit request or a claim only verifiable through rendering/interaction.
 - Put rules in the closest AGENTS. Update current architecture/business conventions
   in place through [docs/index.md](docs/index.md). Topic-based ADRs describe current
-  decisions; Git preserves prior versions. Old plans/progress notes are opt-in
-  history. Do not append conflicting updates to a current specification.
+  decisions; Git preserves prior versions. A durable decision with its own retrieval
+  key, cross-boundary lifecycle or material tradeoff may need a new descriptive ADR;
+  use [ADR instructions](docs/ADR/AGENTS.md) instead of burying it in a catch-all.
+  Old plans/progress notes are opt-in history. Do not append conflicting updates to
+  a current specification.
 - Ask only when a remaining decision changes scope, product behavior or external
   state. Existing user authorization applies throughout the task.
 - Use Conventional Commits with a scope, e.g. `fix(canvas): ...`.

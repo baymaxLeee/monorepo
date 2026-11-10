@@ -10,6 +10,8 @@ import { getDb, getSql } from "../../../infrastructure/persistence/index.js";
 import { conversations } from "../../../infrastructure/persistence/schema.js";
 import { closeRedisClient, getRedisClient } from "../../../infrastructure/redis/index.js";
 import {
+  AGENT_STREAM_MAX_BYTES,
+  AgentStreamCapacityError,
   activateAgentStream,
   activeAgentStreamRunId,
   consumeAgentSseStream,
@@ -44,9 +46,13 @@ test("active pointer compare-delete cannot clear a newer run", { skip: !enabled 
   try {
     await activateAgentStream(conversationId, oldRunId);
     assert.equal(await activeAgentStreamRunId(conversationId), oldRunId);
+    const ttl = await getRedisClient().ttl(`chat:agent-streams:${conversationId}:active`);
+    assert.ok(ttl > 0 && ttl <= 5 * 60, `expected a short active stream lease, received ${ttl}s`);
+    await getRedisClient().xadd(`chat:agent-streams:${oldRunId}:sse`, "*", "sse", "old");
     await activateAgentStream(conversationId, newRunId);
     await deactivateAgentStream(conversationId, oldRunId);
     assert.equal(await activeAgentStreamRunId(conversationId), newRunId);
+    assert.equal(await getRedisClient().exists(`chat:agent-streams:${oldRunId}:sse`), 0);
     await deactivateAgentStream(conversationId, newRunId);
     assert.equal(await activeAgentStreamRunId(conversationId), null);
   } finally {
@@ -59,7 +65,7 @@ test("active pointer compare-delete cannot clear a newer run", { skip: !enabled 
 });
 
 test(
-  "native SSE is replayed once and subscriber cancellation interrupts blocking read",
+  "active native SSE is replayed once, then terminal cleanup removes its Redis cache",
   { skip: !enabled },
   async () => {
     const conversationId = identifier("cv");
@@ -68,22 +74,35 @@ test(
     try {
       await activateAgentStream(conversationId, replayRunId);
       const chunks = ['data: {"type":"start"}\n\n', 'data: {"type":"finish"}\n\n', "data: [DONE]\n\n"];
-      await consumeAgentSseStream(
+      let closeReplayStream: (() => void) | undefined;
+      const consumption = consumeAgentSseStream(
         conversationId,
         replayRunId,
         new ReadableStream<string>({
           start(controller) {
             for (const chunk of chunks) controller.enqueue(chunk);
-            controller.close();
+            closeReplayStream = () => controller.close();
           },
         }),
       );
-      assert.equal(await activeAgentStreamRunId(conversationId), null);
+      for (let attempt = 0; attempt < 50; attempt++) {
+        if ((await getRedisClient().xlen(`chat:agent-streams:${replayRunId}:sse`)) === chunks.length) break;
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 10);
+        });
+      }
+      assert.equal(await activeAgentStreamRunId(conversationId), replayRunId);
 
       const response = createAgentReplayResponse(conversationId, replayRunId, { isRunLive: async () => false });
       assert.equal(response.headers.get("x-vercel-ai-ui-message-stream"), "v1");
       assert.equal(response.headers.get("x-agent-run-id"), replayRunId);
       assert.equal(await response.text(), chunks.join(""));
+
+      assert.ok(closeReplayStream);
+      closeReplayStream();
+      await consumption;
+      assert.equal(await activeAgentStreamRunId(conversationId), null);
+      assert.equal(await getRedisClient().exists(`chat:agent-streams:${replayRunId}:sse`), 0);
 
       await activateAgentStream(conversationId, blockingRunId);
       const blocking = createAgentReplayResponse(conversationId, blockingRunId, { isRunLive: async () => true });
@@ -109,6 +128,71 @@ test(
     }
   },
 );
+
+test("large Unicode SSE chunks are fragmented and replayed byte-for-byte", { skip: !enabled }, async () => {
+  const conversationId = identifier("cv");
+  const runId = identifier("run");
+  const chunks = [`data: ${JSON.stringify({ type: "text", value: "你".repeat(30_000) })}\n\n`, "data: [DONE]\n\n"];
+  let closeStream: (() => void) | undefined;
+  try {
+    await activateAgentStream(conversationId, runId);
+    const consumption = consumeAgentSseStream(
+      conversationId,
+      runId,
+      new ReadableStream<string>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(chunk);
+          closeStream = () => controller.close();
+        },
+      }),
+    );
+    for (let attempt = 0; attempt < 50; attempt++) {
+      if ((await getRedisClient().xlen(`chat:agent-streams:${runId}:sse`)) >= 3) break;
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 10);
+      });
+    }
+    const response = createAgentReplayResponse(conversationId, runId, { isRunLive: async () => true });
+    assert.equal(await response.text(), chunks.join(""));
+    assert.ok(closeStream);
+    closeStream();
+    await consumption;
+    assert.equal(await getRedisClient().exists(`chat:agent-streams:${runId}:sse`), 0);
+  } finally {
+    await getRedisClient().del(`chat:agent-streams:${conversationId}:active`, `chat:agent-streams:${runId}:sse`);
+  }
+});
+
+test("replay capacity overflow stops persistence and removes the active cache", { skip: !enabled }, async () => {
+  const conversationId = identifier("cv");
+  const runId = identifier("run");
+  let exceeded: AgentStreamCapacityError | undefined;
+  try {
+    await activateAgentStream(conversationId, runId);
+    await assert.rejects(
+      consumeAgentSseStream(
+        conversationId,
+        runId,
+        new ReadableStream<string>({
+          start(controller) {
+            controller.enqueue("x".repeat(AGENT_STREAM_MAX_BYTES + 1));
+          },
+        }),
+        {
+          onCapacityExceeded(error) {
+            exceeded = error;
+          },
+        },
+      ),
+      AgentStreamCapacityError,
+    );
+    assert.equal(exceeded?.runId, runId);
+    assert.equal(await activeAgentStreamRunId(conversationId), null);
+    assert.equal(await getRedisClient().exists(`chat:agent-streams:${runId}:sse`), 0);
+  } finally {
+    await getRedisClient().del(`chat:agent-streams:${conversationId}:active`, `chat:agent-streams:${runId}:sse`);
+  }
+});
 
 test("resume endpoint returns 204 when no stream is active", { skip: !enabled }, async () => {
   const conversationId = identifier("cv");

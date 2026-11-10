@@ -1,13 +1,16 @@
 # 当前架构决策
 
 这里是按主题压缩后的当前决策集。每篇文档原地维护，不再累积编号 ADR 或追加
-“更新覆盖上文”。旧版本通过 Git 追溯，工作树只保留当前决定及必要理由。
+“更新覆盖上文”。旧版本通过 Git 追溯，工作树只保留当前决定及必要理由。新决策
+若有独立检索键且跨边界、改变生命周期/权威来源或包含长期取舍，应按
+[ADR instructions](AGENTS.md) 新建描述性主题，不能因为已有宽泛文档就把它埋进去。
 
 | 主题 | 决策 |
 |---|---|
 | 服务组成、分层、共享与事务边界 | [architecture](architecture.md) |
 | 主 Agent、上下文、工具与流 | [agent-runtime](agent-runtime.md) |
 | Chat UIMessage 协议、消息操作与呈现 | [chat-ui-protocol](chat-ui-protocol.md) |
+| Chat 活跃流恢复、Redis 生命周期与容量边界 | [chat-stream-resumption](chat-stream-resumption.md) |
 | Workflow、耐久任务、取消与审批 | [durable-execution](durable-execution.md) |
 | Asset、Knowledge、Canvas 与文件生命周期 | [files-and-assets](files-and-assets.md) |
 | IAM、scope、caller identity 与 Admin 配置 | [identity-and-configuration](identity-and-configuration.md) |

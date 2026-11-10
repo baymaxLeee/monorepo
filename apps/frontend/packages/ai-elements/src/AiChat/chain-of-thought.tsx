@@ -50,7 +50,7 @@ export type ChainOfThoughtStepProps = Omit<ComponentProps<typeof TraceLine>, "st
 };
 export function ChainOfThoughtStep({ label, description, icon, status, children, ...props }: ChainOfThoughtStepProps) {
   return (
-    <TraceLine status={status === "active" ? "running" : status === "complete" ? undefined : status} {...props}>
+    <TraceLine status={status === "active" ? "running" : status === "complete" ? "completed" : status} {...props}>
       {icon ? <TraceIcon>{icon}</TraceIcon> : null}
       <TraceTitle>{label}</TraceTitle>
       {description ? <TraceDescription>{description}</TraceDescription> : null}

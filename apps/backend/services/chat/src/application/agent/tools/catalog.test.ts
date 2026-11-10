@@ -17,7 +17,7 @@ const textProvider: LanguageProviderSnapshot = {
   maxOutputTokens: 4_096,
 };
 
-void test("tool catalog exposes inline research without legacy virtual file tools", async () => {
+void test("tool catalog exposes inline subagents without legacy virtual file tools", async () => {
   const resolved = await new ToolCatalog().resolve(
     {
       mode: "normal",
@@ -28,10 +28,11 @@ void test("tool catalog exposes inline research without legacy virtual file tool
     { textProvider, imageProvider: null, videoProviderId: null },
   );
   try {
-    const research = resolved.manifests.find((manifest) => manifest.name === "research");
-    assert.equal(research?.policy.uiKind, "subagent");
-    assert.equal(research?.policy.execution, "inline");
-    assert.ok(resolved.activeTools.includes("research"));
+    const subagents = resolved.manifests.find((manifest) => manifest.name === "subagents");
+    assert.equal(subagents?.policy.uiKind, "subagent");
+    assert.equal(subagents?.policy.execution, "inline");
+    assert.ok(resolved.activeTools.includes("subagents"));
+    assert.ok(!resolved.activeTools.includes("research"));
     assert.ok(!resolved.activeTools.includes("delegate_tasks"));
     assert.ok(!resolved.activeTools.includes("write_plan"));
     assert.ok(!resolved.activeTools.includes("read_conversation_file"));

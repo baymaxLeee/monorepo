@@ -22,7 +22,7 @@ import { AskUserToolCard } from "./AskUserToolCard";
 import { ArtifactDocumentCard, parseArtifactOutput } from "./ChatArtifactCard";
 import { ArtifactFileCard } from "./ChatFileArtifactCard";
 import { ChatImageCard } from "./ChatImageCard";
-import { ChatResearchSubagent } from "./ChatResearchSubagent";
+import { ChatSubagents } from "./ChatSubagents";
 import { ChatTerminalTool } from "./ChatTerminalTool";
 import {
   ChatTodoListCard,
@@ -180,7 +180,7 @@ export function ChatToolPart({
   }
 
   if (kind === "subagent") {
-    return <ChatResearchSubagent output={output} errorText={errorText} />;
+    return <ChatSubagents output={output} errorText={errorText} />;
   }
 
   const outputErrorReason = parseToolOutputError(output);
