@@ -197,6 +197,7 @@ export async function projectModelContext(input: {
   provider: LanguageProviderSnapshot & { supportsImageInput: boolean };
   abortSignal: AbortSignal;
   messages: AnyUIMessage[];
+  onCompactionUsage?: (usage: UsageTokens) => void;
 }): Promise<{ messages: ModelMessage[]; compactionUsage: UsageTokens }> {
   const projectedMessages = compactHistoricalToolInputs(input.messages);
   const inputTokenBudget = effectiveModelInputWindow(input.provider);
@@ -236,30 +237,20 @@ export async function projectModelContext(input: {
         messages: messagesToCompact,
         previous: canIncrement ? storedState : null,
         abortSignal: input.abortSignal,
+        onUsage: input.onCompactionUsage,
       });
       compactionState = compacted.state;
       compactionUsage = compacted.usage;
       compactionCoveredThroughMessageId = older.at(-1)!.id;
-      if (!compacted.complete) {
-        logger.warn(
-          {
-            err: compacted.error,
-            conversationId: input.conversationId,
-            coveredMessageCount: compacted.coveredMessageCount,
-            pendingMessageCount: messagesToCompact.length - compacted.coveredMessageCount,
-          },
-          "context compaction used a run-local deterministic fallback",
-        );
-      }
       const successfullyCoveredMessage =
         compacted.coveredMessageCount > 0 ? messagesToCompact[compacted.coveredMessageCount - 1] : null;
-      if (compacted.successfulState && successfullyCoveredMessage) {
+      if (successfullyCoveredMessage) {
         await saveSnapshot({
           conversationId: input.conversationId,
           currentRevision: stored?.revision ?? null,
           currentCreatedAt: stored?.createdAt ?? null,
           coveredThroughMessageId: successfullyCoveredMessage.id,
-          state: compacted.successfulState,
+          state: compacted.state,
         }).catch((error) => {
           logger.warn({ err: error, conversationId: input.conversationId }, "context snapshot persistence skipped");
         });

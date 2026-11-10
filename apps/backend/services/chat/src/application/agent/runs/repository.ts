@@ -676,41 +676,49 @@ export async function getLatestResponseLineage(input: {
   conversationId: string;
   providerId: string;
   model: string;
-}): Promise<{ responseId: string; outputMessageId: string } | null> {
+}): Promise<{ responseId: string; outputMessageId: string; inputTokens: number | null } | null> {
   const [latestRun] = await getDb()
-    .select({ id: agentRuns.id, status: agentRuns.status, outputMessageId: agentRuns.outputMessageId })
+    .select({
+      id: agentRuns.id,
+      status: agentRuns.status,
+      outputMessageId: agentRuns.outputMessageId,
+      providerId: agentRuns.providerId,
+      model: agentRuns.model,
+    })
     .from(agentRuns)
-    .where(
-      and(
-        ne(agentRuns.id, input.runId),
-        eq(agentRuns.conversationId, input.conversationId),
-        eq(agentRuns.providerId, input.providerId),
-        eq(agentRuns.model, input.model),
-      ),
-    )
+    .where(and(ne(agentRuns.id, input.runId), eq(agentRuns.conversationId, input.conversationId)))
     .orderBy(desc(agentRuns.createdAt))
     .limit(1);
-  if (latestRun?.status !== "completed" || !latestRun.outputMessageId) {
+  if (
+    latestRun?.status !== "completed" ||
+    !latestRun.outputMessageId ||
+    latestRun.providerId !== input.providerId ||
+    latestRun.model !== input.model
+  ) {
     return null;
   }
-  const [row] = await getDb()
-    .select({ metadata: agentSteps.metadata })
-    .from(agentSteps)
-    .where(
-      and(
-        eq(agentSteps.runId, latestRun.id),
-        eq(agentSteps.kind, "model"),
-        eq(agentSteps.status, "completed"),
-        sql`${agentSteps.metadata}->>'response_id' IS NOT NULL`,
-      ),
-    )
-    .orderBy(desc(agentSteps.stepIndex))
-    .limit(1);
+  const [[row], [outputMessage]] = await Promise.all([
+    getDb()
+      .select({ metadata: agentSteps.metadata, inputTokens: agentSteps.inputTokens, status: agentSteps.status })
+      .from(agentSteps)
+      .where(and(eq(agentSteps.runId, latestRun.id), eq(agentSteps.kind, "model")))
+      .orderBy(desc(agentSteps.stepIndex))
+      .limit(1),
+    getDb()
+      .select({ content: messages.content })
+      .from(messages)
+      .where(eq(messages.id, latestRun.outputMessageId))
+      .limit(1),
+  ]);
+  if (row?.status !== "completed") {
+    return null;
+  }
   const responseId = row?.metadata?.response_id;
-  if (typeof responseId !== "string") {
+  const journalResponseId = outputMessage?.content.metadata?.responseId;
+  if (typeof responseId !== "string" || responseId !== journalResponseId) {
     return null;
   }
-  return { responseId, outputMessageId: latestRun.outputMessageId };
+  return { responseId, outputMessageId: latestRun.outputMessageId, inputTokens: row.inputTokens ?? null };
 }
 
 function isoOrNull(d: Date | null): string | null {

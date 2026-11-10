@@ -103,6 +103,9 @@ void test("subagents stream isolated progress and return only compressed reports
     "web_search",
   ]);
   assert.match(JSON.stringify(model.doStreamCalls[0].prompt), /Compare primary sources/);
+  assert.match(JSON.stringify(model.doStreamCalls[0].prompt), /minimum evidence sufficient/i);
+  assert.match(JSON.stringify(model.doStreamCalls[0].prompt), /Do not broaden the scope/i);
+  assert.doesNotMatch(JSON.stringify(model.doStreamCalls[0].prompt), /deep research subagent/i);
   assert.equal(model.doStreamCalls[0].prompt.length, 2);
   assert.match(JSON.stringify(model.doStreamCalls[0].prompt[1]), /Only public evidence is in scope/);
   assert.equal(manifest.policy.uiKind, "subagent");
@@ -112,6 +115,20 @@ void test("subagents stream isolated progress and return only compressed reports
     type: "text",
     value: "## evidence\n\nEvidence-backed report with https://example.com/source",
   });
+});
+
+void test("subagents are optional context isolation, not a mandatory research router", () => {
+  const manifest = createSubagentsManifest({ provider, tools, model: new MockLanguageModelV4() });
+  assert.ok(manifest.tool && "description" in manifest.tool);
+  const description = manifest.tool.description;
+  assert.equal(typeof description, "string");
+  if (typeof description !== "string") return;
+
+  assert.match(description, /fresh disposable context/i);
+  assert.match(description, /genuinely independent investigations can run in parallel/i);
+  assert.match(description, /Keep work in the primary loop when it is small, sequential/i);
+  assert.match(description, /research or a report alone is not a reason to delegate/i);
+  assert.doesNotMatch(description, /Prefer this tool whenever/i);
 });
 
 void test("subagents accept one to three uniquely identified tasks", async () => {

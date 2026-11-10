@@ -22,12 +22,13 @@ test("execution observes a retrieval before trying another path for the same sou
   assert.match(renderExecutionProtocol(), /Do not fetch the same source through another path in the same step/i);
 });
 
-test("research reports route through subagents while simple lookups stay direct", () => {
+test("the primary loop chooses tools without a mandatory research router", () => {
   const execution = renderExecutionProtocol();
   const normal = renderRuntimeContract("normal");
 
-  assert.match(execution, /research, 调研.*deep research.*evidence-backed report/i);
-  assert.match(execution, /2-3 tasks only when the tracks are independent/i);
-  assert.match(execution, /simple single-fact or single-page lookup/i);
-  assert.match(normal, /requested research\/report.*must use subagents first/i);
+  assert.match(execution, /delegate a bounded task when an available tool is genuinely useful/i);
+  assert.match(execution, /do not add a router, classifier, or hidden workflow/i);
+  assert.doesNotMatch(execution, /call subagents before synthesis/i);
+  assert.match(normal, /preserve the user's requested scope.*shortest sufficient evidence-to-artifact path/i);
+  assert.doesNotMatch(normal, /must use subagents first/i);
 });

@@ -197,7 +197,7 @@ Chat 的存储层保留消息父子关系和当前选中路径；客户端仍只
 
 应用 ToolOutcome 继续承载 domain data、partial/blocked/failed 等业务事实； `toModelOutput` 控制给模型的表示。不能用 ToolOutcome 吞掉 Abort、审批拒绝或原生输入错误，也不能把 SDK `toolSearch` 的原生协议结果套入业务 envelope。
 
-内联 `subagents` 遵循同一规则：外层仍是一个官方 `tool-subagents` part；preliminary ToolOutcome 的 `subagents[]` 携带 1–3 条 child 的紧凑有界进度，终态才为每条 child 保留完整 message、报告、usage 或结构化失败。这样保留官方 preliminary/final tool 语义，同时禁止逐 token 重复累计全文造成 O(n²) SSE；具体更新边界归 [Chat 活跃流恢复决策](chat-stream-resumption.md)。前端用 `uiKind: subagent` 分别展示研究轨道；主模型通过 `toModelOutput` 只接收压缩后的各轨报告。普通文件由主 Agent 在 run sandbox 中生成，`save_sandbox_file` 的原生工具结果以 `uiKind: artifact` 呈现；没有另一条 Executor 文件批次 UI 语义。
+内联 `subagents` 遵循同一规则：外层仍是一个官方 `tool-subagents` part；preliminary ToolOutcome 的 `subagents[]` 携带 1–3 条 child 的紧凑有界进度，终态才为每条 child 保留完整 message、结果、usage 或结构化失败。这样保留官方 preliminary/final tool 语义，同时禁止逐 token 重复累计全文造成 O(n²) SSE；具体更新边界归 [Chat 活跃流恢复决策](chat-stream-resumption.md)。前端用 `uiKind: subagent` 分别展示委派任务；主模型通过 `toModelOutput` 只接收压缩后的各任务结果。普通文件由主 Agent 在 run sandbox 中生成，`save_sandbox_file` 的原生工具结果以 `uiKind: artifact` 呈现；没有另一条 Executor 文件批次 UI 语义。
 
 ### 7.2 客户端工具
 

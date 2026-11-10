@@ -26,6 +26,7 @@ import {
 import { NotFoundError, RequestError } from "../../errors.js";
 import { createAgent } from "../agents/factory.js";
 import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
+import { shouldResetStoredResponseLineage } from "../context/budget.js";
 import type { ContextCategoryId } from "../context/context-snapshot.js";
 import {
   activatedSkillNameFromParts,
@@ -215,14 +216,22 @@ export function persistedMessagesToModelUiMessages(messages: Message[]): AnyUIMe
 export function removeStoredResponseReferences(messages: AnyUIMessage[]): AnyUIMessage[] {
   return messages.map((message) => ({
     ...message,
-    parts: message.parts.map((part) => {
+    parts: message.parts.flatMap((part): AnyUIMessage["parts"] => {
+      if (part.type === "custom" && part.kind === "openai.compaction") {
+        return [];
+      }
       if (!("providerMetadata" in part)) {
-        return part;
+        return [part];
       }
       const { providerMetadata: _providerMetadata, ...rest } = part;
-      return rest;
-    }) as AnyUIMessage["parts"],
+      return [rest];
+    }),
   }));
+}
+
+export function isStoredResponseLineageCurrent(messages: AnyUIMessage[], outputMessageId: string): boolean {
+  const predecessor = messages.at(-1)?.role === "user" ? messages.at(-2) : messages.at(-1);
+  return predecessor?.id === outputMessageId;
 }
 
 export async function createAgentRunResponse(
@@ -367,11 +376,23 @@ export async function createAgentRunResponse(
       model: provider.model,
     });
     const lineageIsCurrent =
-      lineage != null && modelUiMessages.some((message) => message.id === lineage.outputMessageId);
+      lineage !== null && isStoredResponseLineageCurrent(modelUiMessages, lineage.outputMessageId);
     const supportsStoredContinuation = provider.responsesDialect !== "deepseek_responses";
-    const projectionSource =
-      lineageIsCurrent && supportsStoredContinuation ? [modelUiMessages.at(-1)!] : modelUiMessages;
-    const replayingFullHistory = !lineageIsCurrent || !supportsStoredContinuation;
+    const lineageNeedsCompaction = lineageIsCurrent && shouldResetStoredResponseLineage(lineage.inputTokens, provider);
+    const continueStoredLineage = lineageIsCurrent && supportsStoredContinuation && !lineageNeedsCompaction;
+    if (lineageNeedsCompaction) {
+      logger.info(
+        {
+          conversationId: conversation.id,
+          runId,
+          providerId: provider.id,
+          inputTokens: lineage.inputTokens,
+        },
+        "stored response lineage requires compaction or lacks reliable usage; rebuilding from the local journal",
+      );
+    }
+    const projectionSource = continueStoredLineage ? [modelUiMessages.at(-1)!] : modelUiMessages;
+    const replayingFullHistory = !continueStoredLineage;
     const projectionUiMessages = replayingFullHistory
       ? removeStoredResponseReferences(projectionSource.map(compactHistoricalSkillOutputs))
       : projectionSource.map(compactHistoricalSkillOutputs);
@@ -388,6 +409,9 @@ export async function createAgentRunResponse(
         metadataSchema: chatMessageMetadataSchema.optional(),
         dataSchemas: chatDataSchemas,
       }),
+      onCompactionUsage: (usage) => {
+        contextUsage = addUsage(contextUsage, usage);
+      },
     });
     const modelMessages = projected.messages;
     contextUsage = projected.compactionUsage;
@@ -426,7 +450,7 @@ export async function createAgentRunResponse(
       imageProvider: input.imageProvider,
       videoProviderId: input.videoProviderId,
       modelMessages,
-      previousResponseId: lineageIsCurrent && supportsStoredContinuation ? lineage.responseId : null,
+      previousResponseId: continueStoredLineage ? lineage.responseId : null,
       attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
       instructionInput,
       activeSkillName: instructionInput.activatedSkill?.name ?? null,

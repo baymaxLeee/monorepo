@@ -11,6 +11,7 @@ import { conversations } from "../../../infrastructure/persistence/schema.js";
 import { closeRedisClient, getRedisClient } from "../../../infrastructure/redis/index.js";
 import {
   AGENT_STREAM_MAX_BYTES,
+  AGENT_STREAM_MAX_ENTRIES,
   AgentStreamCapacityError,
   activateAgentStream,
   activeAgentStreamRunId,
@@ -162,6 +163,52 @@ test("large Unicode SSE chunks are fragmented and replayed byte-for-byte", { ski
     await getRedisClient().del(`chat:agent-streams:${conversationId}:active`, `chat:agent-streams:${runId}:sse`);
   }
 });
+
+test(
+  "more than ten thousand tiny provider chunks are coalesced without limiting the agent run",
+  { skip: !enabled },
+  async () => {
+    const conversationId = identifier("cv");
+    const runId = identifier("run");
+    const chunks = Array.from({ length: AGENT_STREAM_MAX_ENTRIES + 2_000 }, (_, index) => `data: ${index}\n\n`);
+    const expected = chunks.join("");
+    let closeStream: (() => void) | undefined;
+    try {
+      await activateAgentStream(conversationId, runId);
+      const consumption = consumeAgentSseStream(
+        conversationId,
+        runId,
+        new ReadableStream<string>({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(chunk);
+            closeStream = () => controller.close();
+          },
+        }),
+      );
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const persistedBytes = Number(
+          (await getRedisClient().hget(`chat:agent-streams:${conversationId}:active`, "bytes")) ?? 0,
+        );
+        if (persistedBytes === Buffer.byteLength(expected, "utf8")) break;
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 10);
+        });
+      }
+
+      const entryCount = await getRedisClient().xlen(`chat:agent-streams:${runId}:sse`);
+      assert.ok(entryCount > 0 && entryCount < 100, `expected coalesced replay entries, received ${entryCount}`);
+      const response = createAgentReplayResponse(conversationId, runId, { isRunLive: async () => true });
+      assert.equal(await response.text(), expected);
+
+      assert.ok(closeStream);
+      closeStream();
+      await consumption;
+      assert.equal(await getRedisClient().exists(`chat:agent-streams:${runId}:sse`), 0);
+    } finally {
+      await getRedisClient().del(`chat:agent-streams:${conversationId}:active`, `chat:agent-streams:${runId}:sse`);
+    }
+  },
+);
 
 test("replay capacity overflow stops persistence and removes the active cache", { skip: !enabled }, async () => {
   const conversationId = identifier("cv");

@@ -97,6 +97,7 @@ function providerBodyOptions(
   provider: LanguageProviderSnapshot,
   options: {
     parallelToolCalls?: boolean | null;
+    contextCompactionThreshold?: number | null;
   },
 ): { requestBody: JSONObject; providerOptions: OpenAIResponsesProviderOptions } {
   const body: JSONObject = {};
@@ -109,6 +110,12 @@ function providerBodyOptions(
   const providerOptions: OpenAIResponsesProviderOptions = {
     parallelToolCalls: options.parallelToolCalls ?? undefined,
     store: provider.responsesDialect === "deepseek_responses" ? false : true,
+    contextManagement:
+      provider.responsesDialect === "openai_responses" &&
+      options.contextCompactionThreshold !== null &&
+      options.contextCompactionThreshold !== undefined
+        ? [{ type: "compaction", compactThreshold: options.contextCompactionThreshold }]
+        : undefined,
   };
 
   return { requestBody: body, providerOptions };
@@ -292,6 +299,9 @@ function createResponsesFetch(dialect: ResponsesDialect, extraBody: JSONObject):
     }
     const body = JSON.parse(init.body) as JSONObject;
     Object.assign(body, extraBody);
+    if (dialect !== "openai_responses") {
+      delete body.context_management;
+    }
     if (dialect === "deepseek_responses") {
       normalizeDeepSeekRequest(body);
     }
@@ -332,6 +342,7 @@ export function createProviderModel(
   provider: LanguageProviderSnapshot,
   options: {
     parallelToolCalls?: boolean | null;
+    contextCompactionThreshold?: number | null;
   } = {},
 ): LanguageModelV4 {
   const name = providerName(provider.id);
@@ -349,11 +360,13 @@ export function createProviderModel(
         ...configured,
         ...params.providerOptions?.openai,
       };
+      if (provider.responsesDialect !== "openai_responses") {
+        openaiOptions.contextManagement = undefined;
+      }
       if (provider.responsesDialect === "deepseek_responses") {
         openaiOptions.store = false;
         openaiOptions.previousResponseId = undefined;
         openaiOptions.conversation = undefined;
-        openaiOptions.contextManagement = undefined;
       }
       return {
         ...params,

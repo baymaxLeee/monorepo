@@ -16,7 +16,6 @@ type AnyUIMessage = UIMessage<unknown, any, any>;
 const COMPACTION_MAX_OUTPUT_TOKENS = 4_096;
 const COMPACTION_PROMPT_OVERHEAD_TOKENS = 1_000;
 const BATCH_TOKEN_RESERVE = 256;
-const FALLBACK_SUMMARY = "Some later historical messages were omitted because context compaction became unavailable.";
 
 const COMPACTION_INSTRUCTIONS = [
   "Compress an older conversation prefix into durable historical context for a later agent turn.",
@@ -69,16 +68,6 @@ function serializeMessage(message: AnyUIMessage): string {
 
 function escapePromptData(value: string): string {
   return value.replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
-}
-
-function isAbortError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  if (error.name === "AbortError") {
-    return true;
-  }
-  return "cause" in error && isAbortError(error.cause);
 }
 
 function renderPrompt(previous: string, batch: string): string {
@@ -142,13 +131,11 @@ export async function compactConversationPrefix(input: {
   messages: AnyUIMessage[];
   previous: CompactionState | null;
   abortSignal: AbortSignal;
+  onUsage?: (usage: UsageTokens) => void;
 }): Promise<{
   state: CompactionState;
-  successfulState: CompactionState | null;
   coveredMessageCount: number;
   usage: UsageTokens;
-  complete: boolean;
-  error?: unknown;
 }> {
   const span = startSpan("agent.context_compaction", {
     "agent.run_id": input.runId,
@@ -189,7 +176,9 @@ export async function compactConversationPrefix(input: {
         maxOutputTokens,
         abortSignal: input.abortSignal,
       });
-      usage = addUsage(usage, extractUsageTokens(result.usage));
+      const batchUsage = extractUsageTokens(result.usage);
+      usage = addUsage(usage, batchUsage);
+      input.onUsage?.(batchUsage);
       if (!result.output) {
         throw new Error("context compaction returned no structured output");
       }
@@ -216,34 +205,10 @@ export async function compactConversationPrefix(input: {
     });
     return {
       state,
-      successfulState: state,
       coveredMessageCount: cursor,
       usage,
-      complete: true,
     };
   } catch (error) {
-    if (input.abortSignal.aborted || isAbortError(error)) {
-      finishSpan(span, { "agent.context_compaction.batch_count": batchCount }, error);
-      throw error;
-    }
-    const fallbackState: CompactionState = {
-      ...(state ?? {
-        version: COMPACTION_STATE_VERSION,
-        summary: FALLBACK_SUMMARY,
-        goals: [],
-        constraints: [],
-        decisions: [],
-        completedWork: [],
-        openQuestions: [],
-        documentReferences: [],
-      }),
-      summary: state
-        ? `${state.summary.slice(0, 12_000 - FALLBACK_SUMMARY.length - 2)}\n\n${FALLBACK_SUMMARY}`
-        : FALLBACK_SUMMARY,
-      documentReferences: [
-        ...new Set([...(state?.documentReferences ?? []), ...documentReferences(input.messages)]),
-      ].slice(-32),
-    };
     finishSpan(
       span,
       {
@@ -256,13 +221,6 @@ export async function compactConversationPrefix(input: {
       },
       error,
     );
-    return {
-      state: fallbackState,
-      successfulState: state,
-      coveredMessageCount: cursor,
-      usage,
-      complete: false,
-      error,
-    };
+    throw error;
   }
 }

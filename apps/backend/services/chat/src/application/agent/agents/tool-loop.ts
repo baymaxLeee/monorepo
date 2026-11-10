@@ -13,6 +13,7 @@ import type { ToolSet } from "ai";
 
 import { getSettings } from "../../../bootstrap/config.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
+import { contextCompactionThreshold } from "../context/budget.js";
 import { estimateConversationContext, type ContextEstimate } from "../context/context-snapshot.js";
 import { assembleInstructions } from "../context/instructions/index.js";
 import { INSTRUCTION_SECTION_TAGS } from "../context/instructions/section-tags.js";
@@ -156,6 +157,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
   const providerModel = createProviderModel(provider, {
     parallelToolCalls: true,
+    contextCompactionThreshold: contextCompactionThreshold(provider),
   });
   const toolSources = new Map(resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]));
   const contextCaptureMiddleware: LanguageModelV4Middleware = {

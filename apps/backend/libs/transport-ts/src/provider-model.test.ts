@@ -26,7 +26,7 @@ test("rejects local and reserved provider addresses before fetch", async () => {
   await assert.rejects(assertPublicProviderUrl("http://[::1]/v1"), /private or reserved/);
 });
 
-test("uses the official Responses model while preserving safe body extensions", async () => {
+test("uses the official Responses model with native compaction while preserving safe body extensions", async () => {
   const originalFetch = globalThis.fetch;
   let requestUrl = "";
   let requestBody: Record<string, unknown> = {};
@@ -60,7 +60,10 @@ test("uses the official Responses model while preserving safe body extensions", 
   };
 
   try {
-    const model = createProviderModel(provider, { parallelToolCalls: true });
+    const model = createProviderModel(provider, {
+      parallelToolCalls: true,
+      contextCompactionThreshold: 90_000,
+    });
 
     const result = await model.doGenerate({
       prompt,
@@ -73,6 +76,7 @@ test("uses the official Responses model while preserving safe body extensions", 
     assert.equal(requestBody.store, true);
     assert.equal(requestBody.previous_response_id, "resp_parent");
     assert.equal(requestBody.parallel_tool_calls, false);
+    assert.deepEqual(requestBody.context_management, [{ type: "compaction", compact_threshold: 90_000 }]);
     assert.deepEqual(requestBody.safe_extension, { enabled: true });
     assert.equal(result.content[0]?.type, "text");
   } finally {
@@ -80,7 +84,7 @@ test("uses the official Responses model while preserving safe body extensions", 
   }
 });
 
-test("passes parallel tool calling through every Responses dialect", async () => {
+test("limits OpenAI-native context management to the OpenAI Responses dialect", async () => {
   const originalFetch = globalThis.fetch;
   const requestBodies: Record<string, unknown>[] = [];
   globalThis.fetch = async (_input, init) => {
@@ -113,13 +117,72 @@ test("passes parallel tool calling through every Responses dialect", async () =>
 
   try {
     for (const responsesDialect of ["openai_responses", "ark_responses", "deepseek_responses"] as const) {
-      const model = createProviderModel({ ...provider, responsesDialect }, { parallelToolCalls: true });
+      const model = createProviderModel(
+        { ...provider, responsesDialect },
+        { parallelToolCalls: true, contextCompactionThreshold: 90_000 },
+      );
       await model.doGenerate({ prompt });
     }
 
     assert.equal(requestBodies.length, 3);
-    for (const body of requestBodies) {
+    for (const [index, body] of requestBodies.entries()) {
       assert.equal(body.parallel_tool_calls, true);
+      if (index === 0) {
+        assert.deepEqual(body.context_management, [{ type: "compaction", compact_threshold: 90_000 }]);
+      } else {
+        assert.equal("context_management" in body, false);
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("removes caller-supplied OpenAI context management from non-OpenAI dialects", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: Record<string, unknown>[] = [];
+  globalThis.fetch = async (_input, init) => {
+    requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return Response.json({
+      id: "resp_isolated",
+      object: "response",
+      created_at: 1_700_000_000,
+      model: "gpt-test",
+      status: "completed",
+      incomplete_details: null,
+      output: [
+        {
+          type: "message",
+          id: "msg_isolated",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: "ok" }],
+        },
+      ],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        total_tokens: 2,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens_details: { reasoning_tokens: 0 },
+      },
+    });
+  };
+
+  try {
+    for (const responsesDialect of ["ark_responses", "deepseek_responses"] as const) {
+      const model = createProviderModel({ ...provider, responsesDialect });
+      await model.doGenerate({
+        prompt,
+        providerOptions: {
+          openai: { contextManagement: [{ type: "compaction", compactThreshold: 123 }] },
+        },
+      });
+    }
+
+    assert.equal(requestBodies.length, 2);
+    for (const body of requestBodies) {
+      assert.equal("context_management" in body, false);
     }
   } finally {
     globalThis.fetch = originalFetch;
