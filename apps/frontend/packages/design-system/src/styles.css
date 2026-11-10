@@ -557,7 +557,7 @@
   }
   .markdown-editor-content th {
     font-weight: 600;
-    background-color: var(--muted);
+    background-color: color-mix(in oklab, var(--muted) 55%, var(--background));
   }
   .markdown-editor-content :is(td, th) p {
     margin: 0 !important;
@@ -599,13 +599,13 @@
   }
   .markdown-editor-content .markdown-editor-table-grip-row,
   .markdown-editor-content .markdown-editor-table-grip-column {
-    background-color: color-mix(in oklab, var(--muted) 38%, transparent);
+    background-color: color-mix(in oklab, var(--muted) 80%, var(--border));
   }
   .markdown-editor-content .markdown-editor-table-grip-row:hover,
   .markdown-editor-content .markdown-editor-table-grip-column:hover,
   .markdown-editor-content .markdown-editor-table-grip-table:hover {
     color: var(--foreground);
-    background-color: color-mix(in oklab, var(--muted) 72%, transparent);
+    background-color: color-mix(in oklab, var(--muted) 55%, var(--border));
   }
   .markdown-editor-content .markdown-editor-table-grip-row-selected,
   .markdown-editor-content .markdown-editor-table-grip-column-selected,

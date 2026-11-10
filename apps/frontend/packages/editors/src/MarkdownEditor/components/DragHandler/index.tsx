@@ -20,12 +20,9 @@ const HANDLE_BASE_CLS =
 const HANDLE_DRAGGING_CLS = "cursor-grabbing bg-accent text-foreground";
 
 const TABLE_HANDLE_CLS =
-  "absolute z-20 flex h-7 items-stretch overflow-hidden rounded-lg border bg-background/95 text-muted-foreground shadow-sm backdrop-blur transition-[background-color,border-color,box-shadow] duration-150 hover:border-foreground/20 hover:shadow-md";
+  "absolute z-20 flex h-7 w-10 cursor-grab items-center justify-center gap-0.5 rounded-lg border bg-background/95 text-muted-foreground shadow-sm backdrop-blur transition-[background-color,border-color,box-shadow,color] duration-150 hover:border-foreground/20 hover:bg-accent hover:text-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing";
 
-const TABLE_ACTION_CLS =
-  "flex items-center justify-center transition-[background-color,color] duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-const TABLE_HANDLE_WIDTH = 56;
+const TABLE_HANDLE_WIDTH = 40;
 const TABLE_HANDLE_HEIGHT = 28;
 const TABLE_HANDLE_GAP = 4;
 
@@ -53,6 +50,7 @@ function isFloatingMenuActive(editor: Editor, blockPos: number): boolean {
 }
 
 type DragViewState = ReturnType<typeof getBlockDragState> & {
+  selectedTablePos: number | null;
   floatingMenuActive: boolean;
 };
 
@@ -67,18 +65,36 @@ interface LinePosition extends HandlePosition {
 
 const HIDDEN_HANDLE_POSITION: HandlePosition = { top: 0, left: 0 };
 
+function getSelectedTablePos(editor: Editor): number | null {
+  const { selection } = editor.state;
+  for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+    if (selection.$from.node(depth).type.spec.tableRole === "table") {
+      return selection.$from.before(depth);
+    }
+  }
+
+  const selectedNode = editor.state.doc.nodeAt(selection.from);
+  return selectedNode?.type.spec.tableRole === "table" ? selection.from : null;
+}
+
 function readDragViewState(editor: Editor): DragViewState {
   const dragState = getBlockDragState(editor);
   return {
     ...dragState,
+    selectedTablePos: getSelectedTablePos(editor),
     floatingMenuActive: dragState.activeBlockPos !== null && isFloatingMenuActive(editor, dragState.activeBlockPos),
   };
+}
+
+function getActiveBlockPos(state: DragViewState): number | null {
+  return state.draggingBlockPos ?? state.activeBlockPos ?? state.selectedTablePos;
 }
 
 function isSameDragViewState(left: DragViewState, right: DragViewState): boolean {
   return (
     left.activeBlockPos === right.activeBlockPos &&
     left.draggingBlockPos === right.draggingBlockPos &&
+    left.selectedTablePos === right.selectedTablePos &&
     left.dropTarget?.pos === right.dropTarget?.pos &&
     left.dropTarget?.placement === right.dropTarget?.placement &&
     left.floatingMenuActive === right.floatingMenuActive
@@ -112,8 +128,8 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
       return;
     }
 
-    const dragState = getBlockDragState(editor);
-    const activePos = dragState.draggingBlockPos ?? dragState.activeBlockPos ?? null;
+    const dragState = readDragViewState(editor);
+    const activePos = getActiveBlockPos(dragState);
     let containerRect: DOMRect | null = null;
     const getContainerRect = () => {
       containerRect ??= container.getBoundingClientRect();
@@ -312,7 +328,7 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
 
   const onDragStart = useCallback(
     (event: React.DragEvent<HTMLElement>) => {
-      const activePos = getBlockDragState(editor).activeBlockPos;
+      const activePos = getActiveBlockPos(dragViewStateRef.current);
       if (activePos === null) {
         event.preventDefault();
         return;
@@ -323,49 +339,37 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
     [editor],
   );
 
-  const visible = dragViewState.activeBlockPos !== null && !dragViewState.floatingMenuActive;
-  const activeBlockPos = dragViewState.draggingBlockPos ?? dragViewState.activeBlockPos;
+  const activeBlockPos = getActiveBlockPos(dragViewState);
+  const visible = activeBlockPos !== null && !dragViewState.floatingMenuActive;
   const activeBlock = activeBlockPos === null ? null : editor.state.doc.nodeAt(activeBlockPos);
   const isTableBlock = activeBlock?.type.spec.tableRole === "table";
 
   const selectActiveTable = useCallback(() => {
-    const activePos = getBlockDragState(editor).activeBlockPos;
+    const activePos = getActiveBlockPos(dragViewStateRef.current);
     if (activePos === null || editor.state.doc.nodeAt(activePos)?.type.spec.tableRole !== "table") {
       return;
     }
-    editor.view.dispatch(selectTableAt(activePos)(editor.state.tr));
     editor.view.focus();
+    editor.view.dispatch(selectTableAt(activePos)(editor.state.tr));
   }, [editor]);
 
   return createPortal(
     <>
       {visible && isTableBlock ? (
-        <div
+        <button
+          type="button"
+          aria-label="选择整张表格"
+          title="点击选择整张表格，拖拽移动表格"
           className={cn(TABLE_HANDLE_CLS, isDragging && "border-primary shadow-md")}
           style={{ top: position.top, left: position.left }}
           data-drag-handle=""
+          draggable
+          onClick={selectActiveTable}
+          onDragStart={onDragStart}
         >
-          <button
-            type="button"
-            aria-label="选择整张表格"
-            title="选择整张表格"
-            className={cn(TABLE_ACTION_CLS, "w-8 border-r text-primary")}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={selectActiveTable}
-          >
-            <TableIcon className="size-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="拖拽表格"
-            title="拖拽表格"
-            className={cn(TABLE_ACTION_CLS, "w-6 cursor-grab active:cursor-grabbing")}
-            draggable
-            onDragStart={onDragStart}
-          >
-            <GripVertical className="size-4" />
-          </button>
-        </div>
+          <TableIcon className="size-3.5 text-primary" />
+          <GripVertical className="size-3.5" />
+        </button>
       ) : visible ? (
         <div
           className={cn(HANDLE_BASE_CLS, isDragging && HANDLE_DRAGGING_CLS)}

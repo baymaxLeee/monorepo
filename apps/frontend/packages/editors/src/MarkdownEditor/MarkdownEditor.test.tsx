@@ -651,7 +651,7 @@ describe("MarkdownEditor editing transactions", () => {
       }
     });
 
-    editor.commands.setTextSelection(firstCellPos + 1);
+    editor.view.dispatch(editor.state.tr.setSelection(CellSelection.create(editor.state.doc, firstCellPos)));
 
     expect(editor.view.dom.querySelectorAll(".markdown-editor-table-grip-row")).toHaveLength(2);
     expect(editor.view.dom.querySelectorAll(".markdown-editor-table-grip-column")).toHaveLength(2);
@@ -679,7 +679,7 @@ describe("MarkdownEditor editing transactions", () => {
     expect(editor.view.dom.classList.contains("resize-cursor")).toBe(true);
   });
 
-  it("merges whole-table selection and block dragging into one hover control", async () => {
+  it("keeps the combined table control interactive after table focus", async () => {
     const ref = createRef<MarkdownEditorRef>();
     const view = render(
       <MarkdownEditor
@@ -692,27 +692,39 @@ describe("MarkdownEditor editing transactions", () => {
     await waitFor(() => expect(ref.current?.editor).not.toBeNull());
     const editor = ref.current!.editor!;
     let tablePos = -1;
+    let firstCellPos = -1;
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === "table") {
         tablePos = pos;
-        return false;
+      }
+      if (firstCellPos === -1 && (node.type.name === "tableHeader" || node.type.name === "tableCell")) {
+        firstCellPos = pos;
       }
       return true;
     });
     expect(tablePos).toBeGreaterThan(0);
+    expect(firstCellPos).toBeGreaterThan(tablePos);
     const tableWrapper = editor.view.dom.querySelector<HTMLElement>(".tableWrapper")!;
     const table = tableWrapper.querySelector<HTMLTableElement>("table")!;
     vi.spyOn(editor.view.dom, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 0, 700, 600));
     vi.spyOn(tableWrapper, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 100, 500, 240));
     vi.spyOn(table, "getBoundingClientRect").mockReturnValue(new DOMRect(128, 124, 472, 216));
 
-    fireEvent.mouseMove(table, { clientX: 200, clientY: 160 });
+    editor.view.dispatch(editor.state.tr.setSelection(CellSelection.create(editor.state.doc, firstCellPos)));
+    editor.view.focus();
 
-    const selectButton = await view.findByRole("button", { name: "选择整张表格" });
-    const dragButton = view.getByRole("button", { name: "拖拽表格" });
+    await view.findByRole("button", { name: "选择整张表格" });
+    await waitFor(() =>
+      expect(view.getByRole("button", { name: "选择整张表格" }).closest(".markdown-editor")).not.toBeNull(),
+    );
+    const selectButton = view.getByRole("button", { name: "选择整张表格" }) as HTMLButtonElement;
+    expect(selectButton.draggable).toBe(true);
+    expect(view.queryByRole("button", { name: "拖拽表格" })).toBeNull();
     expect(editor.view.dom.querySelector(".markdown-editor-table-grip-table")).toBeNull();
 
+    selectButton.focus();
     fireEvent.mouseDown(selectButton);
+    expect(document.body.contains(selectButton)).toBe(true);
     fireEvent.click(selectButton);
     expect(editor.state.selection).toBeInstanceOf(CellSelection);
     expect((editor.state.selection as CellSelection).isRowSelection()).toBe(true);
@@ -724,11 +736,11 @@ describe("MarkdownEditor editing transactions", () => {
       setData: vi.fn(),
       setDragImage: vi.fn(),
     } as unknown as DataTransfer;
-    fireEvent.dragStart(dragButton, { dataTransfer });
+    fireEvent.dragStart(selectButton, { dataTransfer });
     expect(getBlockDragState(editor).draggingBlockPos).toBe(tablePos);
     expect(dataTransfer.effectAllowed).toBe("move");
     expect(dataTransfer.setDragImage).toHaveBeenCalledWith(tableWrapper, 0, 0);
-    fireEvent.dragEnd(dragButton, { dataTransfer });
+    fireEvent.dragEnd(selectButton, { dataTransfer });
   });
 
   it("uses one command transaction and cancels dragend without moving content", () => {
