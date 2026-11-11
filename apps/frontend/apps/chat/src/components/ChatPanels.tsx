@@ -21,7 +21,6 @@ import {
 import { memo, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import { Outlet } from "react-router-dom";
 
-import { usePanelResizeIsolation } from "../hooks/usePanelResizeIsolation";
 import { ChatConversationSidebar } from "./ChatConversationSidebar";
 import { ChatInspector } from "./ChatInspector";
 
@@ -59,7 +58,6 @@ export function ChatPanels() {
     () => false,
   );
   const historyPanel = usePanelRef();
-  const { groupRef, startResize } = usePanelResizeIsolation();
   const closeInspector = useCallback(() => {
     const state = useChatStore.getState();
     state.closeArtifactPreview();
@@ -84,11 +82,9 @@ export function ChatPanels() {
       {isMobile ? <ChatConversationSidebar /> : null}
       <ResizablePanelGroup
         id="chat-workspace"
-        elementRef={groupRef}
         orientation="horizontal"
         defaultLayout={defaultLayout}
         onLayoutChanged={onLayoutChanged}
-        onPointerDownCapture={startResize}
       >
         {!isMobile ? (
           <ResizablePanel
@@ -99,15 +95,13 @@ export function ChatPanels() {
             minSize="12rem"
             maxSize="24rem"
             collapsible
-            className="relative overflow-hidden"
+            className="min-w-0 overflow-hidden [contain:layout_paint_style]"
             groupResizeBehavior="preserve-pixel-size"
             onResize={(size) => {
               if (size.inPixels > 0 !== open) setOpen(size.inPixels > 0);
             }}
           >
-            <div data-chat-panel-resize-isolate="start" className="h-full min-h-0 w-full min-w-0 overflow-hidden">
-              <ChatConversationSidebar />
-            </div>
+            <ChatConversationSidebar />
           </ResizablePanel>
         ) : null}
         {!isMobile && open ? <ResizableHandle key="history-resize" aria-label="调整会话记录宽度" /> : null}
@@ -115,11 +109,9 @@ export function ChatPanels() {
           key="conversation"
           id="conversation"
           minSize={isMobile ? 0 : "20rem"}
-          className="relative overflow-hidden"
+          className="min-w-0 overflow-hidden [contain:layout_paint_style]"
         >
-          <div data-chat-panel-resize-isolate="start" className="h-full min-h-0 w-full min-w-0 overflow-hidden">
-            <ChatContent />
-          </div>
+          <ChatContent />
         </ResizablePanel>
         {wide && inspectorOpen ? <ResizableHandle key="artifact-resize" aria-label="调整预览宽度" /> : null}
         {wide && inspectorOpen ? (
@@ -130,16 +122,14 @@ export function ChatPanels() {
             minSize="20rem"
             maxSize="70%"
             collapsible
-            className="relative overflow-hidden"
+            className="min-w-0 overflow-hidden [contain:layout_paint_style]"
             onResize={(size, _id, previous) => {
               if (previous && size.inPixels === 0 && previous.inPixels > 0) closeInspector();
             }}
           >
-            <div data-chat-panel-resize-isolate="end" className="h-full min-h-0 w-full min-w-0 overflow-hidden">
-              <aside aria-label="Artifact 预览" className="h-full w-full min-w-0 overflow-hidden">
-                <ChatInspector />
-              </aside>
-            </div>
+            <aside aria-label="Artifact 预览" className="h-full w-full min-w-0 overflow-hidden">
+              <ChatInspector />
+            </aside>
           </ResizablePanel>
         ) : null}
       </ResizablePanelGroup>
