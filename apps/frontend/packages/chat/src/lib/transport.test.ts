@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 vi.mock("@repo/api", () => ({
   authFetch: vi.fn(),
@@ -7,6 +7,8 @@ vi.mock("@repo/api", () => ({
 }));
 
 import { createConversationTransport } from "./transport";
+
+afterEach(() => vi.unstubAllGlobals());
 
 function emptySseResponse() {
   return new Response("data: [DONE]\n\n", {
@@ -88,6 +90,8 @@ test("regeneration retains its target even though the SDK sends only the parent 
 });
 
 test("an explicit retry preserves the entire original operation and request id", async () => {
+  // Public HTTP origins expose getRandomValues, but not randomUUID.
+  vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
   const fetch = vi.fn<typeof globalThis.fetch>(async () => emptySseResponse());
   let revision = 7;
   const transport = createConversationTransport<UIMessage>("conversation", {
@@ -104,6 +108,7 @@ test("an explicit retry preserves the entire original operation and request id",
   };
   await transport.sendMessages(original);
   const first = JSON.parse(String(fetch.mock.calls[0]![1]?.body));
+  expect(first.request_id).toMatch(/^[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$/);
   revision = 9;
   transport.prepareRetry();
   await transport.sendMessages({

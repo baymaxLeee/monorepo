@@ -1,4 +1,5 @@
 import { authFetch, conversationAgentStreamUrl } from "@repo/api";
+import { randomId } from "@repo/shared";
 import { DefaultChatTransport, type UIMessage } from "ai";
 export function createConversationTransport<MESSAGE extends UIMessage>(
   conversationId: string,
@@ -17,8 +18,7 @@ export function createConversationTransport<MESSAGE extends UIMessage>(
       }
       const targetedMessage =
         trigger === "submit-message" && messageId ? messages.find((message) => message.id === messageId) : undefined;
-      const requestId =
-        typeof body?.request_id === "string" ? body.request_id : crypto.randomUUID().replaceAll("-", "");
+      const requestId = typeof body?.request_id === "string" ? body.request_id : randomId().replaceAll("-", "");
       const message = targetedMessage ?? messages.at(-1);
       const requestBody = {
         ...body,

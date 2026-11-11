@@ -89,6 +89,17 @@ Host provides only runtime-critical shared packages:
 
 Remotes consume these from the host with `import: false`; they must not bundle fallback copies of React, router, or platform runtime infra. UI packages and API clients (`@repo/design-system`, `@repo/api`, …) remain normal workspace dependencies so each app can tree-shake the imports it actually uses. MFE remotes are independently deployed asset bundles, but platform is the only user-facing entry.
 
+### Browser capabilities
+
+- Public HTTP origins remain supported. Browser business code generates IDs through
+  `randomId()` from `@repo/shared`; direct `randomUUID` access is rejected by the
+  shared Oxlint gate (`just lint-ts`). Only capability-tested fallback implementations
+  may use a narrow, explained inline exemption. Node code and tests are exempt.
+- Shared Vitest setup removes `crypto.randomUUID` before each test while preserving
+  `getRandomValues`, so consumer tests exercise the HTTP-compatible path by default.
+  Tests of native capability branches must explicitly provide that capability and
+  restore their override. This models UUID availability, not all browser HTTP behavior.
+
 ### API calls
 
 - ALWAYS via `@repo/api` (typed wrappers / generated clients re-exported from package entry)

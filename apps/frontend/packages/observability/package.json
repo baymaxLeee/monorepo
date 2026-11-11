@@ -12,6 +12,7 @@
     "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@repo/shared": "workspace:*",
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {

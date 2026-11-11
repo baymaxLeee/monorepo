@@ -40,7 +40,10 @@ export const API_BASE_URL =
  */
 export function randomId(): string {
   const c: Crypto | undefined = globalThis.crypto;
+  // Native UUID is optional on HTTP; the fallback below is required.
+  // eslint-disable-next-line no-restricted-properties
   if (c?.randomUUID) {
+    // eslint-disable-next-line no-restricted-properties
     return c.randomUUID();
   }
   if (c?.getRandomValues) {

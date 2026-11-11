@@ -1,6 +1,7 @@
 import { type ConversationScrollHandle } from "@repo/ai-elements";
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
 import { type ConversationDocument, fetchBotSkills } from "@repo/api";
+import { randomId } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -341,7 +342,7 @@ export function ChatSession({
       if (!canStartHistoryMutation()) return;
       pendingClientContinuationRef.current = false;
       conversationScrollRef.current?.scrollToEnd();
-      await sendMessage({ id: crypto.randomUUID().replaceAll("-", ""), messageId, parts }, { body: requestBody });
+      await sendMessage({ id: randomId().replaceAll("-", ""), messageId, parts }, { body: requestBody });
     },
     [canStartHistoryMutation, pendingClientContinuationRef, requestBody, sendMessage],
   );

@@ -184,3 +184,37 @@ test("browser globals and locally declared bundler constants remain valid", (t) 
   const result = spawnSync("pnpm", ["lint:ts", "apps/frontend"], { cwd: f.root, encoding: "utf8" });
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
+
+test("browser UUID access must use the HTTP-compatible shared helper", (t) => {
+  const f = typescriptFixture(t);
+  const cases = {
+    "direct.ts": "export const id = crypto.randomUUID();",
+    "global.ts": "export const id = globalThis.crypto.randomUUID();",
+    "window.ts": "export const id = window.crypto.randomUUID();",
+    "computed.ts": 'export const id = crypto["randomUUID"]();',
+    "alias.ts": "const c = globalThis.crypto; export const id = c.randomUUID();",
+    "destructure.ts": "export const { randomUUID } = crypto;",
+  };
+  for (const [name, content] of Object.entries(cases)) {
+    writeFileSync(join(f.root, "apps/frontend/apps/example/src", name), content + "\n");
+  }
+  const result = spawnSync("pnpm", ["lint:ts", "apps/frontend"], { cwd: f.root, encoding: "utf8" });
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  for (const name of Object.keys(cases)) {
+    assert.ok((result.stdout + result.stderr).includes(name), result.stdout + result.stderr);
+  }
+  assert.match(result.stdout + result.stderr, /randomId/);
+});
+
+test("UUID access remains available in Node and capability tests", (t) => {
+  const f = typescriptFixture(t);
+  for (const path of ["scripts/id.mts", "apps/frontend/apps/example/src/id.test.ts"]) {
+    writeFileSync(join(f.root, path), "export const id = crypto.randomUUID();\n");
+  }
+  writeFileSync(
+    join(f.root, "apps/frontend/apps/example/src/id.ts"),
+    'import { randomId } from "@repo/shared"; export const id = randomId();\n',
+  );
+  const result = spawnSync("pnpm", ["lint:ts", "apps/frontend", "scripts"], { cwd: f.root, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});

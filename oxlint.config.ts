@@ -77,6 +77,10 @@ export default defineConfig({
       plugins: [...commonPlugins, "react", "react-perf", "jsx-a11y"],
       rules: {
         "import/no-nodejs-modules": "error",
+        "no-restricted-properties": [
+          "error",
+          { property: "randomUUID", message: "Use randomId() from @repo/shared for HTTP-compatible browser IDs." },
+        ],
         "no-restricted-globals": [
           "error",
           "process",
@@ -108,6 +112,7 @@ export default defineConfig({
       env: { browser: true, node: true },
       rules: {
         "import/no-nodejs-modules": "off",
+        "no-restricted-properties": "off",
         "no-restricted-globals": "off",
       },
     },

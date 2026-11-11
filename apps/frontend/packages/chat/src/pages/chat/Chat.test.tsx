@@ -2,8 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { UIMessage } from "ai";
 import { Suspense, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
+import type { ChatMessageViewProps } from "../../components/ChatMessageView";
 import type * as ConversationModule from "../../hooks/useConversationChat";
 import { ChatSession } from "./Chat";
 
@@ -15,6 +16,7 @@ const state = vi.hoisted(() => ({
   listeners: new Set<() => void>(),
   messageRenders: [] as string[],
   sendMessage: vi.fn(),
+  editMessage: undefined as ChatMessageViewProps["onEditMessage"],
   setMessages: vi.fn(),
   stop: vi.fn(),
   resumeStream: vi.fn(),
@@ -119,12 +121,15 @@ vi.mock("../../components/ChatMessageView", () => ({
     onToolApproval,
     planExecutedIds,
     planBusy,
+    onEditMessage,
   }: {
     message: UIMessage;
     onToolApproval: (id: string, approved: boolean) => void;
     planExecutedIds: ReadonlySet<string>;
     planBusy: boolean;
+    onEditMessage: ChatMessageViewProps["onEditMessage"];
   }) => {
+    state.editMessage = onEditMessage;
     state.messageRenders.push(message.id);
     const text = message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
     if (text === state.suspendedText) throw state.pendingRender;
@@ -172,7 +177,10 @@ beforeEach(() => {
   state.composerRenders = 0;
   state.messageRenders = [];
   state.suspendedText = null;
+  state.editMessage = undefined;
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 async function mount() {
   const view = render(
@@ -187,6 +195,19 @@ async function mount() {
   state.sessionRenders = 0;
   return view;
 }
+
+test("editing a message on HTTP preserves its target and generates a new message id", async () => {
+  vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+  state.status = "ready";
+  state.messages = [{ id: "original-user", role: "user", parts: [{ type: "text", text: "original" }] }];
+  await mount();
+  const parts = [{ type: "text" as const, text: "edited" }];
+  await act(async () => state.editMessage!("original-user", parts));
+  expect(state.sendMessage).toHaveBeenCalledWith(
+    { id: expect.stringMatching(/^[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$/), messageId: "original-user", parts },
+    { body: { agent_id: null, mode: "normal" } },
+  );
+});
 
 test("text deltas do not rerender the composer, and typing/stop remain available", async () => {
   await mount();
