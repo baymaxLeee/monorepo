@@ -1,5 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 
 import { getConversationContext } from "../../../application/agent/index.js";
@@ -18,8 +19,10 @@ import {
   selectConversationHistory,
   updateConversation,
   updateConversationDocument,
+  updateConversationFileContent,
 } from "../../../application/conversations.js";
 import { ForbiddenError, NotFoundError } from "../../../application/errors.js";
+import { editableFileByteLimit } from "../../../application/file-edit-limits.js";
 import {
   decideVideoProduction,
   getVideoProduction,
@@ -66,6 +69,12 @@ const selectHistorySchema = z.object({
 const updateDocumentSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   content_md: z.string().optional(),
+});
+
+const updateFileContentSchema = z.object({
+  content: z.string(),
+  expected_etag: z.string().regex(/^"[a-f0-9]{32}"$/),
+  operation_id: z.string().min(1).max(80),
 });
 
 const shotPlanInputSchema = z.object({
@@ -230,8 +239,30 @@ conversationsRoutes.get("/:conversationId/documents/:documentId", async (c) => {
 });
 
 conversationsRoutes.get("/:conversationId/files/:fileId", async (c) => {
-  return c.json(await getConversationFile(getAuth(c), c.req.param("conversationId"), c.req.param("fileId")));
+  const file = await getConversationFile(getAuth(c), c.req.param("conversationId"), c.req.param("fileId"));
+  c.header("ETag", file.etag);
+  c.header("Cache-Control", "no-store");
+  return c.json(file);
 });
+
+conversationsRoutes.patch(
+  "/:conversationId/files/:fileId/content",
+  // JSON may encode one byte as six ASCII characters (\u0000).
+  async (c, next) => bodyLimit({ maxSize: editableFileByteLimit() * 6 + 1024 })(c, next),
+  zValidator("json", updateFileContentSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const file = await updateConversationFileContent(getAuth(c), c.req.param("conversationId"), c.req.param("fileId"), {
+      content: body.content,
+      expectedEtag: body.expected_etag,
+      operationId: body.operation_id,
+      signal: c.req.raw.signal,
+    });
+    c.header("ETag", file.etag);
+    c.header("Cache-Control", "no-store");
+    return c.json(file);
+  },
+);
 
 conversationsRoutes.get("/:conversationId/video-productions/:productionId", async (c) => {
   const auth = getAuth(c);
@@ -348,7 +379,14 @@ conversationsRoutes.post("/:conversationId/documents/:documentId/delivery", asyn
   );
 });
 conversationsRoutes.post("/:conversationId/files/:fileId/delivery", async (c) => {
-  return c.json(await authorizeFileDelivery(getAuth(c), c.req.param("conversationId"), c.req.param("fileId")));
+  return c.json(
+    await authorizeFileDelivery(
+      getAuth(c),
+      c.req.param("conversationId"),
+      c.req.param("fileId"),
+      c.req.query("revision_id"),
+    ),
+  );
 });
 conversationsRoutes.get("/:conversationId/files/:fileId/content", async (c) => {
   const capability = await authorizeFileDelivery(getAuth(c), c.req.param("conversationId"), c.req.param("fileId"));

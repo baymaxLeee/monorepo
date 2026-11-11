@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import type {
   KnowledgeDocument,
@@ -14,7 +14,8 @@ import { listDocuments } from "../../../../infrastructure/clients/knowledge.js";
 import { sandboxClient } from "../../../../infrastructure/clients/sandbox.js";
 import { storageClient } from "../../../../infrastructure/clients/storage.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
-import { listConversationFiles, publishConversationFile } from "../../../conversation-files.js";
+import { listConversationFiles, publishConversationFile, saveConversationFile } from "../../../conversation-files.js";
+import { assertEditableFileSize } from "../../../file-edit-limits.js";
 import type { ArtifactToolContext } from "../context.js";
 
 export interface SandboxDependencies {
@@ -22,10 +23,11 @@ export interface SandboxDependencies {
     SandboxInternalClient,
     "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download"
   >;
-  asset: () => Pick<StorageInternalClient, "content" | "upload">;
+  asset: () => Pick<StorageInternalClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
   documents: typeof listDocuments;
   files: typeof listConversationFiles;
   publish: typeof publishConversationFile;
+  update: typeof saveConversationFile;
 }
 
 const defaults: SandboxDependencies = {
@@ -34,6 +36,7 @@ const defaults: SandboxDependencies = {
   documents: listDocuments,
   files: listConversationFiles,
   publish: publishConversationFile,
+  update: saveConversationFile,
 };
 
 export function documentSandboxPath(document: Pick<KnowledgeDocument, "id" | "filename" | "source_filename">) {
@@ -96,6 +99,9 @@ export class RunSandbox implements Experimental_SandboxSession {
     string,
     { fingerprint: string; source: { path: string; document_id?: string; file_id?: string } }
   >();
+  private readonly importedFiles = new Map<string, { etag: string; path: string }>();
+  private readonly workFileEtags = new Map<string, { fileId: string; etag: string }>();
+  private sourceManifest = "";
   private readonly scope: SandboxScope;
 
   constructor(
@@ -209,7 +215,26 @@ export class RunSandbox implements Experimental_SandboxSession {
         if (!body.locked) await body.cancel().catch(() => {});
       }
       this.sources.set(key, { fingerprint, source });
+      this.importedFiles.set(file.id, { etag: file.etag, path });
       imported.push(source);
+    }
+    const manifest = `${JSON.stringify(
+      {
+        version: 1,
+        files: files.map((file) => ({
+          file_id: file.id,
+          path: `/workspace/${savedFileSandboxPath(file)}`,
+          etag: file.etag,
+          revision_id: file.revision_id,
+          editable: file.editable,
+        })),
+      },
+      null,
+      2,
+    )}\n`;
+    if (files.length > 0 && manifest !== this.sourceManifest) {
+      await client.upload(id, this.scope, "sources/saved/manifest.json", new Blob([manifest]).stream(), signal);
+      this.sourceManifest = manifest;
     }
     return imported;
   }
@@ -223,6 +248,24 @@ export class RunSandbox implements Experimental_SandboxSession {
         }))
       : [...this.sources.values()].map((entry) => entry.source);
     return { sources };
+  }
+
+  async checkoutFile(input: { fileId: string; etag: string; path: string }, signal?: AbortSignal) {
+    const session = await this.ensure(signal);
+    const destination = writableSandboxPath(input.path);
+    const imported = this.importedFiles.get(input.fileId);
+    if (!imported || imported.etag !== input.etag) {
+      throw new Error("The requested file revision is not the current imported source. Refresh sources and retry.");
+    }
+    const client = this.deps.sandbox();
+    const body = await client.download(session.id, this.scope, imported.path, this.operationSignal(signal));
+    try {
+      await client.upload(session.id, this.scope, destination, body, this.operationSignal(signal));
+    } finally {
+      if (!body.locked) await body.cancel().catch(() => {});
+    }
+    this.workFileEtags.set(destination, { fileId: input.fileId, etag: input.etag });
+    return { path: `/workspace/${destination}`, file_id: input.fileId, etag: input.etag };
   }
 
   async run(options: {
@@ -443,7 +486,9 @@ export class RunSandbox implements Experimental_SandboxSession {
   }
 
   async save(
-    input: { path: string; filename: string; media_type: string; title: string },
+    input:
+      | { operation: "create"; path: string; filename: string; media_type: string; title: string }
+      | { operation: "update"; path: string; file_id: string; etag: string },
     requestId: string,
     signal?: AbortSignal,
   ) {
@@ -452,6 +497,96 @@ export class RunSandbox implements Experimental_SandboxSession {
       throw new Error("Published files must use an absolute path under /workspace.");
     }
     const path = sandboxRelativePath(input.path);
+    if (input.operation === "update") {
+      if (!path.startsWith("work/") && !path.startsWith("outputs/")) {
+        throw new Error("Updated conversation files must be saved from work/ or outputs/.");
+      }
+      const pathBaseline = this.workFileEtags.get(path);
+      const baselineKnown = pathBaseline?.fileId === input.file_id && pathBaseline.etag === input.etag;
+      if (!baselineKnown) {
+        throw new Error("The update ETag was not imported for this file or recorded for this working copy.");
+      }
+      const firstBody = await this.deps.sandbox().download(session.id, this.scope, path, this.operationSignal(signal));
+      const hash = createHash("sha256");
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      const reader = firstBody.getReader();
+      let size = 0;
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          size += chunk.value.byteLength;
+          assertEditableFileSize(size);
+          hash.update(chunk.value);
+          decoder.decode(chunk.value, { stream: true });
+        }
+        decoder.decode();
+      } catch (error) {
+        if (error instanceof TypeError) {
+          throw new Error("Updated conversation files must contain valid UTF-8 text.", { cause: error });
+        }
+        throw error;
+      } finally {
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
+        if (!firstBody.locked) await firstBody.cancel().catch(() => {});
+      }
+      const file = await this.deps.update(
+        {
+          userId: this.context.userId,
+          tenantId: this.context.tenantId,
+          workspaceId: this.context.workspaceId,
+          conversationId: this.context.conversationId,
+          fileId: input.file_id,
+          expectedEtag: input.etag,
+          contentSha256: hash.digest("hex"),
+          operationId: createHash("sha256").update(`${this.context.runId}:${requestId}`).digest("hex"),
+          writerType: "agent",
+          writerId: this.context.runId,
+        },
+        async (idempotencyKey, current, claim) => {
+          const storage = this.deps.asset();
+          const claimInput = {
+            tenantId: this.context.tenantId,
+            workspaceId: this.context.workspaceId,
+            ...claim,
+          };
+          await storage.prepareClaim({
+            ...claimInput,
+            assetId: current.asset_id,
+            revisionId: current.revision_id,
+            kind: "strong",
+          });
+          await storage.activateClaim(claimInput);
+          const body = await this.deps.sandbox().download(session.id, this.scope, path, this.operationSignal(signal));
+          try {
+            return await storage.appendRevision({
+              ...this.context,
+              assetId: current.asset_id,
+              baseRevisionId: current.revision_id,
+              ...claim,
+              filename: current.filename,
+              mediaType: current.mime_type,
+              body,
+              idempotencyKey,
+              signal,
+            });
+          } finally {
+            if (!body.locked) await body.cancel().catch(() => {});
+          }
+        },
+      );
+      this.workFileEtags.set(path, { fileId: file.id, etag: file.etag });
+      return {
+        file_id: file.id,
+        filename: file.filename,
+        title: file.title,
+        media_type: file.mime_type,
+        kind: file.kind,
+        etag: file.etag,
+        updated: true,
+      };
+    }
     const body = await this.deps.sandbox().download(session.id, this.scope, path, this.operationSignal(signal));
     try {
       const asset = await this.deps.asset().upload({
@@ -484,6 +619,8 @@ export class RunSandbox implements Experimental_SandboxSession {
         title: file.title,
         media_type: file.mime_type,
         kind: file.kind,
+        etag: file.etag,
+        updated: false,
       };
     } finally {
       if (!body.locked) await body.cancel().catch(() => {});

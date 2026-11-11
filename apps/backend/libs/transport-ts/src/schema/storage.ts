@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/assets/{assetID}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Idempotently append an immutable revision under an exact strong Claim */
+        post: operations["storageAppendRevisionInternal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/assets/{assetID}/revisions/{revisionID}": {
         parameters: {
             query: {
@@ -384,6 +401,73 @@ export interface operations {
                 "X-Internal-Token": string;
             };
             path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResult"];
+                };
+            };
+            /** @description Problem */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Problem */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    storageAppendRevisionInternal: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                workspace_id: string;
+                user_id: string;
+                filename: string;
+                idempotency_key: string;
+                base_revision_id: string;
+                owner_type: string;
+                owner_id: string;
+                slot: string;
+                generation: string;
+            };
+            header: {
+                "X-Caller-Service": string;
+                "X-Internal-Token": string;
+            };
+            path: {
+                assetID: string;
+            };
             cookie?: never;
         };
         requestBody: {

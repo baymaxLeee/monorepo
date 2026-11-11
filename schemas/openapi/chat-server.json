@@ -452,6 +452,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "revision_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -467,6 +476,9 @@
           },
           "404": {
             "description": "file not accessible"
+          },
+          "409": {
+            "description": "file changed since metadata was read"
           }
         }
       }
@@ -504,6 +516,61 @@
           },
           "404": {
             "description": "file not accessible"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateConversationFileContent",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationFileContentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "same conversation file pointing to the committed content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationFile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "file is not editable UTF-8 text"
+          },
+          "404": {
+            "description": "file not found in the caller scope"
+          },
+          "409": {
+            "description": "stale ETag, reused operation id, or save already in progress"
+          },
+          "413": {
+            "description": "file exceeds text editing byte budget"
           }
         }
       }
@@ -1468,6 +1535,10 @@
           "size",
           "sha256",
           "kind",
+          "editable",
+          "edit_max_bytes",
+          "etag",
+          "last_writer",
           "created_at",
           "updated_at"
         ],
@@ -1506,6 +1577,38 @@
               "plan"
             ]
           },
+          "editable": {
+            "type": "boolean"
+          },
+          "edit_max_bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[a-f0-9]{32}\"$"
+          },
+          "last_writer": {
+            "type": "object",
+            "required": [
+              "type",
+              "id"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "user",
+                  "agent"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -1513,6 +1616,29 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "UpdateConversationFileContentInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "content",
+          "expected_etag",
+          "operation_id"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "expected_etag": {
+            "type": "string",
+            "pattern": "^\"[a-f0-9]{32}\"$"
+          },
+          "operation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
           }
         }
       },

@@ -31,6 +31,12 @@ prepare 的 `client_ref` 是幂等键：页面重载后用同一引用重试会�
 同样走 `/internal/*`。业务服务只保存 `asset_id + revision_id`，并在自己的数据库事务内写
 durable Claim intent；relay 至少一次投递，Storage 按 owner identity + generation 幂等收敛。
 
+已拥有精确 strong Claim 的内部服务可调用 `POST /internal/assets/{assetID}/revisions`，以稳定
+幂等键向同一 Asset 追加 immutable revision。请求绑定 base revision 与完整 owner/slot/generation；
+Storage 在 staging 前和最终事务中复验 caller-owned Claim，锁定 Asset 后分配递增序号，并拒绝
+`deleting`、`deleted`、`quarantined`。`current_revision_id` 只是 Storage 最近追加 head；业务服务
+始终保存和读取明确的 `asset_id + revision_id`，不能用 head 推断业务当前版本。
+
 ## 预览与下载签发
 
 下载授权由资源所属服务完成：Chat 检查会话和文件归属，Knowledge 检查文档可读性，
@@ -51,6 +57,8 @@ Redis 不可用时直接签发。默认 TTL 为 6 小时，临近过期重新签
 Storage 同时提供有界图片缩略图：内部读取或签发 capability 时指定 `max_dim`，
 由 Storage 处理方向、等比缩放和 JPEG 编码。变换参数参与签名，不能换取原件或其他尺寸；
 原件保持不变，Knowledge 不再持有图片处理或文件签名实现。
+
+追加上传的执行租约为两分钟；过期 uploading 或 failed 重试使用新 upload ID，旧尝试转为 aborted 并保留清理记录。完成后恢复 24 小时上传幂等保留窗口，迟到的旧尝试不能提交新 revision。
 
 ## 本地文件系统生产约束
 

@@ -17,15 +17,17 @@ func (clock fixedClock) Now() time.Time { return clock.now }
 
 type repositoryStub struct {
 	Repository
-	created        CreateUploadInput
-	beginResult    BeginUploadResult
-	createdSession CreateUploadSessionInput
-	session        UploadSession
-	completed      CompleteUploadInput
-	completeResult CompleteUploadResult
-	completeErr    error
-	prepared       PrepareClaimInput
-	mutated        ClaimMutationInput
+	created         CreateUploadInput
+	appended        AppendRevisionInput
+	beginResult     BeginUploadResult
+	createdSession  CreateUploadSessionInput
+	session         UploadSession
+	completed       CompleteUploadInput
+	completedAppend CompleteRevisionAppendInput
+	completeResult  CompleteUploadResult
+	completeErr     error
+	prepared        PrepareClaimInput
+	mutated         ClaimMutationInput
 }
 
 type revisionRepositoryStub struct{ Repository }
@@ -36,6 +38,13 @@ func (revisionRepositoryStub) GetRevision(context.Context, string, string, strin
 
 func (stub *repositoryStub) BeginUpload(_ context.Context, input CreateUploadInput, id string, _, _ time.Time) (BeginUploadResult, error) {
 	stub.created = input
+	if stub.beginResult.UploadID == "" {
+		stub.beginResult.UploadID = id
+	}
+	return stub.beginResult, nil
+}
+func (stub *repositoryStub) BeginRevisionAppend(_ context.Context, input AppendRevisionInput, id string, _, _ time.Time) (BeginUploadResult, error) {
+	stub.appended = input
 	if stub.beginResult.UploadID == "" {
 		stub.beginResult.UploadID = id
 	}
@@ -61,6 +70,10 @@ func (stub *repositoryStub) GetUploadSession(context.Context, string, string, st
 func (stub *repositoryStub) FailUpload(context.Context, string, string, time.Time) error { return nil }
 func (stub *repositoryStub) CompleteUpload(_ context.Context, input CompleteUploadInput) (CompleteUploadResult, error) {
 	stub.completed = input
+	return stub.completeResult, stub.completeErr
+}
+func (stub *repositoryStub) CompleteRevisionAppend(_ context.Context, input CompleteRevisionAppendInput) (CompleteUploadResult, error) {
+	stub.completedAppend = input
 	return stub.completeResult, stub.completeErr
 }
 func (stub *repositoryStub) PrepareClaim(_ context.Context, input PrepareClaimInput, _ string, _ time.Time) (domain.Claim, error) {
@@ -170,6 +183,57 @@ func TestServiceUpload(t *testing.T) {
 		}
 		if len(storage.deleted) != 0 {
 			t.Fatalf("ambiguous blob was deleted: %v", storage.deleted)
+		}
+	})
+}
+
+func TestServiceAppendRevision(t *testing.T) {
+	now := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
+	valid := AppendRevisionInput{
+		TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", CallerService: "chat",
+		IdempotencyKey: "save-1", AssetID: "asset", BaseRevisionID: "revision-1", Filename: "note.md",
+		MediaType: "text/markdown", OwnerType: "conversation_file", OwnerID: "conversation", Slot: "file", Generation: 3,
+	}
+
+	t.Run("keeps the asset stable and completes a new revision under the exact claim", func(t *testing.T) {
+		repository := &repositoryStub{completeResult: CompleteUploadResult{
+			Asset: domain.Asset{ID: "asset"}, Revision: domain.Revision{ID: "revision-2", AssetID: "asset", RevisionNumber: 2},
+		}}
+		storage := &blobStoreStub{staged: StagedBlob{TemporaryKey: "staging/part", SHA256: strings.Repeat("a", 64), SizeBytes: 4, DetectedMediaType: "text/markdown"}}
+		service := NewService(repository, storage, fixedClock{now}, 1024)
+		asset, revision, err := service.AppendRevision(context.Background(), valid, strings.NewReader("next"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if asset.ID != "asset" || revision.AssetID != "asset" || repository.completedAppend.AssetID != "asset" {
+			t.Fatalf("asset changed: asset=%#v revision=%#v complete=%#v", asset, revision, repository.completedAppend)
+		}
+		if repository.completedAppend.BaseRevisionID != "revision-1" || repository.completedAppend.OwnerService != "chat" ||
+			repository.completedAppend.OwnerType != "conversation_file" || repository.completedAppend.Generation != 3 {
+			t.Fatalf("append authorization was not preserved: %#v", repository.completedAppend)
+		}
+	})
+
+	t.Run("requires a complete claim identity", func(t *testing.T) {
+		input := valid
+		input.Slot = ""
+		service := NewService(&repositoryStub{}, &blobStoreStub{}, fixedClock{now}, 1024)
+		if _, _, err := service.AppendRevision(context.Background(), input, strings.NewReader("next")); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("error = %v, want ErrInvalidInput", err)
+		}
+	})
+
+	t.Run("recovers a completed idempotent append without staging bytes", func(t *testing.T) {
+		repository := &repositoryStub{beginResult: BeginUploadResult{UploadID: "upload", AssetID: "asset", RevisionID: "revision-2", Completed: true}}
+		repository.Repository = revisionRepositoryStub{}
+		storage := &blobStoreStub{}
+		service := NewService(repository, storage, fixedClock{now}, 1024)
+		asset, revision, err := service.AppendRevision(context.Background(), valid, strings.NewReader("retry"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if asset.ID != "asset" || revision.ID != "revision" || storage.stagedCalls != 0 {
+			t.Fatalf("result = %#v %#v, staged calls = %d", asset, revision, storage.stagedCalls)
 		}
 	})
 }

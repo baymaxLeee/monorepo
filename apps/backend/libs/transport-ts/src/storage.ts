@@ -226,4 +226,75 @@ export class StorageInternalClient {
       clearTimeout(timer);
     }
   }
+
+  async appendRevision(
+    input: StorageClaimIdentity & {
+      userId: string;
+      assetId: string;
+      baseRevisionId: string;
+      filename: string;
+      mediaType: string;
+      body: StorageUploadBody;
+      contentLength?: number;
+      idempotencyKey: string;
+      signal?: AbortSignal;
+    },
+  ): Promise<StorageRevision> {
+    const url = new URL(`/internal/assets/${encodeURIComponent(input.assetId)}/revisions`, this.options.baseUrl);
+    url.searchParams.set("tenant_id", input.tenantId);
+    url.searchParams.set("workspace_id", input.workspaceId);
+    url.searchParams.set("user_id", input.userId);
+    url.searchParams.set("filename", input.filename);
+    url.searchParams.set("idempotency_key", input.idempotencyKey);
+    url.searchParams.set("base_revision_id", input.baseRevisionId);
+    url.searchParams.set("owner_type", input.ownerType);
+    url.searchParams.set("owner_id", input.ownerId);
+    url.searchParams.set("slot", input.slot);
+    url.searchParams.set("generation", String(input.generation));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 180_000);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": input.mediaType,
+        "X-Caller-Service": this.options.callerService,
+        "X-Internal-Token": this.options.internalToken,
+        ...this.options.propagatedHeaders?.(),
+      };
+      if (input.contentLength !== undefined) headers["Content-Length"] = String(input.contentLength);
+      const request: RequestInit & { duplex?: "half" } = {
+        method: "POST",
+        headers,
+        body: input.body,
+        signal: AbortSignal.any([controller.signal, ...(input.signal ? [input.signal] : [])]),
+      };
+      if (input.body instanceof ReadableStream) request.duplex = "half";
+      const response = await fetch(url, request);
+      if (!response.ok) {
+        throw new TransportError(
+          "storage",
+          response.status,
+          `storage revision append failed: ${response.status}`,
+          await response.text(),
+        );
+      }
+      const result = (await response.json()) as {
+        asset_id: string;
+        revision_id: string;
+        filename: string;
+        media_type: string;
+        size_bytes: number;
+        sha256: string;
+      };
+      return {
+        assetId: result.asset_id,
+        revisionId: result.revision_id,
+        filename: result.filename,
+        mediaType: result.media_type,
+        sizeBytes: result.size_bytes,
+        sha256: result.sha256,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }

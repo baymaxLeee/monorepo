@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
+import { asSchema, experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
 import type { Tool, ToolExecutionOptions } from "ai";
 
 import { isToolOutcome } from "../outcome.js";
@@ -23,12 +23,33 @@ function staticDescription(definition: { description?: unknown } | undefined): s
 
 const options = { toolCallId: "runtime-test", messages: [], context: undefined };
 
+test("save schema has a strict-provider-compatible object root", async () => {
+  const runtime = await createRuntimeTools();
+  try {
+    const definition = runtime.manifests.find((entry) => entry.name === "save_sandbox_file")!.tool;
+    assert.ok(definition && definition.inputSchema);
+    const schema = await asSchema(definition.inputSchema).jsonSchema;
+    assert.equal(schema.type, "object");
+    assert.equal(schema.oneOf, undefined);
+    assert.equal(schema.anyOf, undefined);
+  } finally {
+    await runtime.dispose();
+  }
+});
+
 test("runtime tools are base tools available without discovery", async () => {
   const runtime = await createRuntimeTools();
   try {
     assert.deepEqual(
       runtime.manifests.map((manifest) => manifest.name),
-      ["web_fetch", "bash", "refresh_conversation_sources", "save_sandbox_file", "code_mode"],
+      [
+        "web_fetch",
+        "bash",
+        "refresh_conversation_sources",
+        "checkout_conversation_file",
+        "save_sandbox_file",
+        "code_mode",
+      ],
     );
     assert.ok(runtime.manifests.every((manifest) => manifest.tool?.deferLoading !== true));
   } finally {

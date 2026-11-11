@@ -1,14 +1,26 @@
 import { resolveArtifactPreviewKind } from "@repo/ai-elements";
-import type { ConversationFileDetail } from "@repo/api";
-import { createStorageDownloadUrl, downloadAssetUrl, fetchConversationFile } from "@repo/api";
-import { Toolbar, ToolbarButton, Tooltip, TooltipTrigger, TooltipContent, toast } from "@repo/design-system";
+import { createStorageDownloadUrl, downloadAssetUrl } from "@repo/api";
+import { Button, Toolbar, ToolbarButton, Tooltip, TooltipContent, TooltipTrigger, toast } from "@repo/design-system";
+import { CodeEditor } from "@repo/editors/code-editor";
+import { MarkdownEditor } from "@repo/editors/markdown-editor";
 import { getErrorMessage } from "@repo/shared";
-import { DownloadIcon, Loader2Icon, Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
+import {
+  Code2Icon,
+  DownloadIcon,
+  EyeIcon,
+  Loader2Icon,
+  SaveIcon,
+  XIcon,
+  Maximize2Icon,
+  Minimize2Icon,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { useChatStore } from "../store/useChatStore";
+import { ArtifactRouteGuard, ArtifactUnsavedChanges } from "./ArtifactUnsavedChanges";
 import { ChatArtifactPreview } from "./ChatArtifactPreview";
+import { useConversationFileEditor } from "./useConversationFileEditor";
 
 export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   const { artifactPreview, closeArtifactPreview } = useChatStore(
@@ -18,79 +30,33 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     })),
   );
   const { open, conversationId, fileId, token } = artifactPreview;
-  const handleClose = onClose ?? closeArtifactPreview;
-  const [file, setFile] = useState<ConversationFileDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  const editor = useConversationFileEditor(conversationId, fileId, open, token);
+  const file = editor.file?.id === fileId ? editor.file : null;
+  const kind = resolveArtifactPreviewKind(undefined, file?.mime_type, file?.filename);
+  const markdown = /\.(md|markdown)$/i.test(file?.filename ?? "");
+  // Raw HTML is not a lossless rich-text round trip. Keep it editable as source.
+  const requiresSource =
+    markdown && /<\/?[a-z][^>]*>/i.test(editor.draft.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, ""));
+  const [sourceMode, setSourceMode] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const previewFile = file?.id === fileId ? file : null;
-  const isChangingFile = Boolean(file && fileId && file.id !== fileId);
-  const isHtmlFile = resolveArtifactPreviewKind(undefined, previewFile?.mime_type, previewFile?.filename) === "html";
-
   useEffect(() => {
-    if (!open || !conversationId || !fileId) {
-      setFile(null);
-      return;
-    }
-    let active = true;
-    const controller = new AbortController();
-    setLoading(true);
-    setFile(null);
-    void fetchConversationFile(conversationId, fileId, { signal: controller.signal })
-      .then((result) => {
-        if (active) {
-          setFile(result);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setFile(null);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [conversationId, fileId, open, token]);
-
+    setSourceMode(false);
+  }, [fileId, token]);
   useEffect(() => {
-    const sync = () => {
-      const root = panelRef.current;
-      const element = document.fullscreenElement;
-      setIsFullscreen(Boolean(root && element && (element === root || root.contains(element))));
-    };
+    const sync = () => setFullscreen(document.fullscreenElement === panelRef.current);
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
-
-  const toggleFullscreen = useCallback(async () => {
-    const root = panelRef.current;
-    if (!root) {
-      return;
-    }
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    } else {
-      await root.requestFullscreen();
-    }
-  }, []);
-
-  const downloadFile = useCallback(async () => {
-    if (!previewFile) {
-      return;
-    }
+  const download = useCallback(async () => {
+    if (!file || !conversationId) return;
     setDownloading(true);
     try {
       const capability = await createStorageDownloadUrl({
-        assetId: previewFile.asset_id,
-        revisionId: previewFile.revision_id,
-        owner: { kind: "conversation-file", conversationId: conversationId!, fileId: previewFile.id },
+        assetId: file.asset_id,
+        revisionId: file.revision_id,
+        owner: { kind: "conversation-file", conversationId, fileId: file.id },
       });
       downloadAssetUrl(capability.url, capability.filename);
     } catch (error) {
@@ -98,26 +64,102 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
     } finally {
       setDownloading(false);
     }
-  }, [previewFile]);
+  }, [file, conversationId]);
+  const close = () => {
+    if (onClose)
+      void editor.requestNavigation().then((allowed) => {
+        if (allowed) onClose();
+      });
+    else closeArtifactPreview();
+  };
+  const label =
+    editor.saveState === "saving"
+      ? "保存中…"
+      : editor.saveState === "saved"
+        ? "已保存"
+        : editor.saveState === "conflict"
+          ? "内容已变化，草稿已保留"
+          : editor.saveState === "error"
+            ? "保存失败"
+            : editor.dirty
+              ? "未保存"
+              : "";
 
   return (
-    <div ref={panelRef} className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-background">
+    <div
+      ref={panelRef}
+      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-background"
+      onKeyDown={(event) => {
+        if (editor.editing && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+          event.preventDefault();
+          void editor.runSave();
+        }
+      }}
+    >
+      <ArtifactRouteGuard dirty={editor.dirty} confirm={editor.requestNavigation} />
       <div className="flex h-11 shrink-0 items-center gap-2 px-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{previewFile?.title ?? (loading ? "加载中…" : "预览")}</p>
-          {previewFile ? (
+          <p className="truncate text-sm font-medium">{file?.title ?? (editor.loading ? "加载中…" : "预览")}</p>
+          {file && (
             <p className="truncate text-xs text-muted-foreground">
-              {previewFile.filename} · {previewFile.mime_type}
+              {file.filename} · {file.mime_type}
             </p>
-          ) : null}
+          )}
         </div>
-        <Toolbar aria-label="文件预览操作">
-          {previewFile ? (
+        {label && (
+          <span className="max-w-64 truncate text-xs text-muted-foreground" role="status" aria-live="polite">
+            {label}
+          </span>
+        )}
+        <Toolbar aria-label="文件操作">
+          {file?.editable && (
+            <>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <ToolbarButton
+                      aria-label={editor.editing ? "查看已保存预览" : "编辑文件"}
+                      disabled={editor.loading}
+                      onClick={() => {
+                        if (editor.editing) editor.setEditing(false);
+                        else void editor.beginEditing();
+                      }}
+                    />
+                  }
+                >
+                  {editor.editing ? <EyeIcon className="size-4" /> : <Code2Icon className="size-4" />}
+                </TooltipTrigger>
+                <TooltipContent>{editor.editing ? "预览" : "编辑"}</TooltipContent>
+              </Tooltip>
+              {markdown && editor.editing && !requiresSource && (
+                <ToolbarButton onClick={() => setSourceMode((value) => !value)}>
+                  {sourceMode ? "Markdown 编辑" : "源码"}
+                </ToolbarButton>
+              )}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <ToolbarButton
+                      aria-label="保存文件"
+                      disabled={!editor.dirty || editor.saveState === "saving"}
+                      onClick={() => void editor.runSave()}
+                    />
+                  }
+                >
+                  {editor.saveState === "saving" ? (
+                    <Loader2Icon className="size-4 motion-safe:animate-spin" />
+                  ) : (
+                    <SaveIcon className="size-4" />
+                  )}
+                </TooltipTrigger>
+                <TooltipContent>保存（Ctrl/⌘ S）</TooltipContent>
+              </Tooltip>
+            </>
+          )}
+          {file && (
             <Tooltip>
               <TooltipTrigger
-                render={
-                  <ToolbarButton aria-label="下载产物" disabled={downloading} onClick={() => void downloadFile()} />
-                }
+                render={<ToolbarButton aria-label="下载产物" disabled={downloading} onClick={() => void download()} />}
               >
                 {downloading ? (
                   <Loader2Icon className="size-4 motion-safe:animate-spin" />
@@ -125,56 +167,83 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
                   <DownloadIcon className="size-4" />
                 )}
               </TooltipTrigger>
-              <TooltipContent>{downloading ? "下载中…" : "下载"}</TooltipContent>
+              <TooltipContent>下载</TooltipContent>
             </Tooltip>
-          ) : null}
-          {isHtmlFile ? (
+          )}
+          {kind === "html" && !editor.editing && (
             <ToolbarButton
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 shrink-0"
-              aria-label={isFullscreen ? "退出全屏" : "全屏"}
-              onClick={() => void toggleFullscreen()}
+              aria-label={fullscreen ? "退出全屏" : "全屏"}
+              onClick={() => {
+                if (document.fullscreenElement) void document.exitFullscreen();
+                else void panelRef.current?.requestFullscreen();
+              }}
             >
-              {isFullscreen ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
+              {fullscreen ? <Minimize2Icon className="size-4" /> : <Maximize2Icon className="size-4" />}
             </ToolbarButton>
-          ) : null}
-          <ToolbarButton
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0"
-            aria-label="关闭预览"
-            onClick={handleClose}
-          >
+          )}
+          <ToolbarButton aria-label="关闭预览" onClick={close}>
             <XIcon className="size-4" />
           </ToolbarButton>
         </Toolbar>
       </div>
+      {editor.editing && requiresSource && (
+        <p className="px-3 py-2 text-xs text-muted-foreground">此 Markdown 含原始 HTML，使用源码编辑保留标签。</p>
+      )}
+      {editor.error && (
+        <div role="alert" className="flex shrink-0 items-center gap-2 px-3 py-2 text-sm text-destructive">
+          <span>{editor.error}</span>
+          <Button variant="outline" onClick={() => void editor.reloadFile()}>
+            重新加载
+          </Button>
+        </div>
+      )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {loading || isChangingFile ? (
+        {editor.loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中…</div>
-        ) : previewFile ? (
+        ) : file && editor.editing ? (
+          markdown && !sourceMode && !requiresSource ? (
+            <MarkdownEditor
+              key={`${file.id}:${token}`}
+              value={editor.draft}
+              contentType="markdown"
+              editable
+              onChange={editor.changeDraft}
+              className="h-full w-full overflow-y-auto"
+            />
+          ) : (
+            <CodeEditor
+              fileId={file.id}
+              value={editor.draft}
+              fileName={file.filename}
+              onChange={editor.changeDraft}
+              onSave={() => void editor.runSave()}
+              className="h-full min-h-0 w-full"
+            />
+          )
+        ) : file ? (
           <ChatArtifactPreview
-            title={previewFile.title}
-            filename={previewFile.filename}
-            mimeType={previewFile.mime_type}
+            title={file.title}
+            filename={file.filename}
+            mimeType={file.mime_type}
             content=""
             asset={{
-              assetId: previewFile.asset_id,
-              revisionId: previewFile.revision_id,
-              owner: { kind: "conversation-file", conversationId: conversationId!, fileId: previewFile.id },
+              assetId: file.asset_id,
+              revisionId: file.revision_id,
+              owner: { kind: "conversation-file", conversationId: conversationId!, fileId: file.id },
             }}
             showHeader={false}
             className="h-full min-h-0 min-w-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0 [&_iframe]:min-w-0"
           />
         ) : (
-          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-            无法加载预览
-          </div>
+          <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">无法加载预览</div>
         )}
       </div>
+      <ArtifactUnsavedChanges
+        open={editor.confirmingNavigation}
+        saving={editor.saveState === "saving"}
+        resolve={editor.resolveNavigation}
+        save={editor.runSave}
+      />
     </div>
   );
 }

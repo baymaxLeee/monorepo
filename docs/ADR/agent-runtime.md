@@ -22,7 +22,7 @@ UIMessage 到 ModelMessage 的投影保留近期原生语义，预算不足才�
 
 上下文压缩按 provider 能力分层，但 PostgreSQL UIMessage journal 始终是可重建的业务事实源。OpenAI Responses 在有效输入预算（扣除最大输出与 harness/tool 预留）的 80% 水位启用原生 `context_management`，让同一个多步 ToolLoopAgent run 内也能产生并沿用 opaque compaction item；其他 Responses dialect 不接收未经验证的 OpenAI 私有字段。Stored continuation 只允许连接同 provider/model 且紧邻当前 journal 输入的最后一个已完成输出；切换模型、切换分支、cursor 缺失或最后一步 usage 不可观测时都必须从完整 journal 重建。每个已完成 run 的最后一个 model step input usage 达到同一水位时，下一次 HTTP run 同样断开 `previous_response_id` lineage，增量摘要旧前缀并保留近期原生消息。断链重放会移除 provider opaque compaction item 和 stored item reference，不能把它们误当成跨 provider 的会话事实。摘要模型、结构化输出或批次处理失败时，本次主模型调用失败且不推进 coverage；不得用“内容已省略”占位符静默丢弃未压缩历史，已经成功的压缩批次 usage 仍计入失败 run。
 
-Plan 是 Chat 注册的不可变 conversation file；首次 Bash 自动导入当前会话 source，显式执行按 `file_id` 读取该精确快照，自然语言执行由 agent 用 Bash 发现候选。只有其他工具在同一 run 新增或更新会话资源后才调用 `refresh_conversation_sources`。每个 run 仍从所属服务读取已发布 Skill 和配置等可变权威信息。历史搜索结果是证据，只有刷新/最新需求且现有证据不足时重新查询。Skill 初始仅暴露名称/描述，激活后按需读取资源；草稿不进入执行上下文。显式 Plan 执行必须先完整读取选中文件。
+Plan 是 Chat 注册的稳定 conversation file，已保存内容指向精确 Asset revision；首次 Bash 自动导入当前会话 source，显式执行按 `file_id` 解析 run 开始时的当前 revision，自然语言执行由 agent 用 Bash 发现候选。运行中的工作副本不会随其他保存实时漂移。只有其他工具在同一 run 新增或更新会话资源后才调用 `refresh_conversation_sources`。每个 run 仍从所属服务读取已发布 Skill 和配置等可变权威信息。历史搜索结果是证据，只有刷新/最新需求且现有证据不足时重新查询。Skill 初始仅暴露名称/描述，激活后按需读取资源；草稿不进入执行上下文。显式 Plan 执行必须先完整读取选中文件。
 
 ## 工具与模型
 

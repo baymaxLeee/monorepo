@@ -3,6 +3,8 @@ import { getErrorMessage } from "@repo/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { allowArtifactNavigation } from "./artifactNavigationGuard";
+
 export type ArtifactPreviewState = {
   open: boolean;
   conversationId: string | null;
@@ -115,15 +117,18 @@ export const useChatStore = create<ChatUIState>()(
 
       memoryPanelOpen: false,
       setMemoryPanelOpen: (memoryPanelOpen) =>
-        set({
-          memoryPanelOpen,
-          ...(memoryPanelOpen
-            ? {
-                tracePanelOpen: false,
-                artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-                videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
-              }
-            : {}),
+        void (memoryPanelOpen ? allowArtifactNavigation() : Promise.resolve(true)).then((allowed) => {
+          if (!allowed) return;
+          set({
+            memoryPanelOpen,
+            ...(memoryPanelOpen
+              ? {
+                  tracePanelOpen: false,
+                  artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+                  videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
+                }
+              : {}),
+          });
         }),
 
       tracePanelOpen: false,
@@ -133,73 +138,88 @@ export const useChatStore = create<ChatUIState>()(
       setTraceRun: (conversationId, runId) => set({ traceConversationId: conversationId, traceRunId: runId }),
       clearTraceRun: () => set({ traceRunId: null }),
       openTracePanel: (conversationId) =>
-        set((state) => ({
-          tracePanelOpen: true,
-          memoryPanelOpen: false,
-          artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-          videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
-          traceConversationId: conversationId,
-          traceRunId: state.traceConversationId === conversationId ? state.traceRunId : null,
-        })),
+        void allowArtifactNavigation().then((allowed) => {
+          if (!allowed) return;
+          set((state) => ({
+            tracePanelOpen: true,
+            memoryPanelOpen: false,
+            artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+            videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
+            traceConversationId: conversationId,
+            traceRunId: state.traceConversationId === conversationId ? state.traceRunId : null,
+          }));
+        }),
       setTracePanelOpen: (tracePanelOpen) =>
-        set((state) => ({
-          tracePanelOpen,
-          ...(tracePanelOpen
-            ? {
-                memoryPanelOpen: false,
-                artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-                videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
-              }
-            : {}),
-          traceConversationId: tracePanelOpen ? state.traceConversationId : null,
-        })),
+        void (tracePanelOpen ? allowArtifactNavigation() : Promise.resolve(true)).then((allowed) => {
+          if (!allowed) return;
+          set((state) => ({
+            tracePanelOpen,
+            ...(tracePanelOpen
+              ? {
+                  memoryPanelOpen: false,
+                  artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+                  videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
+                }
+              : {}),
+            traceConversationId: tracePanelOpen ? state.traceConversationId : null,
+          }));
+        }),
       bumpTraceRefresh: () => set((state) => ({ traceRefreshKey: state.traceRefreshKey + 1 })),
 
       artifactPreview: {
         ...CLOSED_ARTIFACT_PREVIEW,
       },
       openArtifactPreview: (conversationId, documentId) =>
-        set((state) => ({
-          memoryPanelOpen: false,
-          tracePanelOpen: false,
-          artifactPreview: {
-            open: true,
-            conversationId,
-            documentId,
-            fileId: null,
-            token: state.artifactPreview.token + 1,
-          },
-          videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
-        })),
+        void allowArtifactNavigation().then((allowed) => {
+          if (!allowed) return;
+          set((state) => ({
+            memoryPanelOpen: false,
+            tracePanelOpen: false,
+            artifactPreview: {
+              open: true,
+              conversationId,
+              documentId,
+              fileId: null,
+              token: state.artifactPreview.token + 1,
+            },
+            videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
+          }));
+        }),
       openFilePreview: (conversationId, fileId) =>
-        set((state) => ({
-          memoryPanelOpen: false,
-          tracePanelOpen: false,
-          artifactPreview: {
-            open: true,
-            conversationId,
-            documentId: null,
-            fileId,
-            token: state.artifactPreview.token + 1,
-          },
-          videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
-        })),
+        void allowArtifactNavigation().then((allowed) => {
+          if (!allowed) return;
+          set((state) => ({
+            memoryPanelOpen: false,
+            tracePanelOpen: false,
+            artifactPreview: {
+              open: true,
+              conversationId,
+              documentId: null,
+              fileId,
+              token: state.artifactPreview.token + 1,
+            },
+            videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE,
+          }));
+        }),
       closeArtifactPreview: () =>
-        set({
-          artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+        void allowArtifactNavigation().then((allowed) => {
+          if (allowed) set({ artifactPreview: CLOSED_ARTIFACT_PREVIEW });
         }),
 
       videoProductionWorkspace: { ...CLOSED_VIDEO_PRODUCTION_WORKSPACE },
       openVideoProductionWorkspace: (conversationId, productionId) =>
-        set({
-          memoryPanelOpen: false,
-          tracePanelOpen: false,
-          artifactPreview: CLOSED_ARTIFACT_PREVIEW,
-          videoProductionWorkspace: {
-            open: true,
-            conversationId,
-            productionId,
-          },
+        void allowArtifactNavigation().then((allowed) => {
+          if (!allowed) return;
+          set({
+            memoryPanelOpen: false,
+            tracePanelOpen: false,
+            artifactPreview: CLOSED_ARTIFACT_PREVIEW,
+            videoProductionWorkspace: {
+              open: true,
+              conversationId,
+              productionId,
+            },
+          });
         }),
       closeVideoProductionWorkspace: () => set({ videoProductionWorkspace: CLOSED_VIDEO_PRODUCTION_WORKSPACE }),
 

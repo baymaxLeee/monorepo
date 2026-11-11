@@ -62,6 +62,11 @@ function fixture() {
     sandbox: () => client,
     asset: () => ({
       content: async () => new Blob([bytes]).stream(),
+      appendRevision: async () => {
+        throw new Error("appendRevision was not expected");
+      },
+      prepareClaim: async () => {},
+      activateClaim: async () => {},
       upload: async (input) => {
         assert.ok(input.body instanceof ReadableStream);
         assert.deepEqual(new Uint8Array(await new Response(input.body).arrayBuffer()), bytes);
@@ -92,8 +97,58 @@ function fixture() {
         revision_id: "rev",
         sha256: "sha",
         kind: "artifact" as const,
+        editable: false,
+        edit_max_bytes: 2097152,
+        etag: '"00000000000000000000000000000000"',
+        last_writer: { type: "agent" as const, id: "r" },
         created_at: "now",
         updated_at: "now",
+      };
+    },
+    update: async (input, upload) => {
+      calls.push("update");
+      assert.equal(input.fileId, "file");
+      assert.equal(input.expectedEtag, '"11111111111111111111111111111111"');
+      const candidate = await upload(
+        "update-key",
+        {
+          id: "file",
+          conversation_id: "c",
+          filename: "notes.md",
+          title: "Notes",
+          mime_type: "text/markdown",
+          size: 4,
+          asset_id: "asset",
+          revision_id: "revision",
+          sha256: "old",
+          kind: "artifact",
+          editable: true,
+          edit_max_bytes: 2097152,
+          etag: input.expectedEtag,
+          last_writer: { type: "agent", id: "old" },
+          created_at: "now",
+          updated_at: "now",
+        },
+        { ownerType: "conversation_file", ownerId: "file", slot: "source", generation: 1 },
+      );
+      assert.equal(candidate.filename, "notes.md");
+      return {
+        id: "file",
+        conversation_id: "c",
+        filename: "notes.md",
+        title: "Notes",
+        mime_type: "text/markdown",
+        size: candidate.sizeBytes,
+        asset_id: candidate.assetId,
+        revision_id: candidate.revisionId,
+        sha256: candidate.sha256,
+        kind: "artifact" as const,
+        editable: true,
+        edit_max_bytes: 2097152,
+        etag: '"22222222222222222222222222222222"',
+        last_writer: { type: "agent" as const, id: "r" },
+        created_at: "now",
+        updated_at: "later",
       };
     },
   };
@@ -110,6 +165,7 @@ test("lazy run allocation is single-flight; original binary bytes survive import
   assert.ok(!f.calls.includes("publish"));
   const saved = await run.save(
     {
+      operation: "create",
       path: "/workspace/outputs/output.bin",
       filename: "output.bin",
       media_type: "application/octet-stream",
@@ -242,7 +298,16 @@ test("failed exports are never registered as artifacts, and later runs import pe
     });
   const run = new RunSandbox(context, f.deps);
   await assert.rejects(
-    run.save({ path: "/workspace/outputs/x", filename: "x", media_type: "application/octet-stream", title: "X" }, "a"),
+    run.save(
+      {
+        operation: "create",
+        path: "/workspace/outputs/x",
+        filename: "x",
+        media_type: "application/octet-stream",
+        title: "X",
+      },
+      "a",
+    ),
     /truncated/,
   );
   assert.ok(!f.calls.includes("publish"));
@@ -277,6 +342,10 @@ test("Chat-owned saved files import exact Storage bytes including trailing newli
       revision_id: "revision",
       sha256: "sha",
       kind: "artifact",
+      editable: true,
+      edit_max_bytes: 2097152,
+      etag: '"11111111111111111111111111111111"',
+      last_writer: { type: "agent" as const, id: "old" },
       created_at: "now",
       updated_at: "now",
     },
@@ -287,6 +356,111 @@ test("Chat-owned saved files import exact Storage bytes including trailing newli
   f.deps.asset = () => storage;
   const run = new RunSandbox(context, f.deps);
   await run.refresh();
-  assert.deepEqual(f.imported, [original]);
+  assert.deepEqual(f.imported[0], original);
+  assert.match(new TextDecoder().decode(f.imported[1]), /11111111111111111111111111111111/);
+  await run.dispose();
+});
+
+test("agent updates preserve file identity, validate UTF-8, and advance only that work copy baseline", async () => {
+  const f = fixture();
+  const original = new TextEncoder().encode("old\n");
+  const updated = new TextEncoder().encode("new\n");
+  f.deps.documents = async () => [];
+  f.deps.files = async () => [
+    {
+      id: "file",
+      conversation_id: "c",
+      title: "Notes",
+      filename: "notes.md",
+      mime_type: "text/markdown",
+      size: original.byteLength,
+      asset_id: "asset",
+      revision_id: "revision",
+      sha256: "old",
+      kind: "artifact",
+      editable: true,
+      edit_max_bytes: 2097152,
+      etag: '"11111111111111111111111111111111"',
+      last_writer: { type: "agent", id: "old" },
+      created_at: "now",
+      updated_at: "now",
+    },
+  ];
+  const storage = f.deps.asset();
+  storage.content = async () => new Blob([original]).stream();
+  storage.appendRevision = async (input) => {
+    assert.deepEqual(new Uint8Array(await new Response(input.body).arrayBuffer()), updated);
+    assert.equal(input.assetId, "asset");
+    assert.equal(input.baseRevisionId, "revision");
+    assert.equal(input.ownerId, "file");
+    assert.equal(input.generation, 1);
+    return {
+      assetId: "asset",
+      revisionId: "new-revision",
+      filename: "notes.md",
+      mediaType: "text/markdown",
+      sizeBytes: updated.byteLength,
+      sha256: "7aa7a5359173d05b63cfd682e3c38487f3cb4f7f1d60659fe59fab1505977d4c",
+    };
+  };
+  f.deps.asset = () => storage;
+  f.client.download = async () => new Blob([updated]).stream();
+  const run = new RunSandbox(context, f.deps);
+  await run.refresh();
+  await run.checkoutFile({
+    fileId: "file",
+    etag: '"11111111111111111111111111111111"',
+    path: "/workspace/work/notes.md",
+  });
+  const saved = await run.save(
+    {
+      operation: "update",
+      path: "/workspace/work/notes.md",
+      file_id: "file",
+      etag: '"11111111111111111111111111111111"',
+    },
+    "save-update",
+  );
+  assert.equal(saved.file_id, "file");
+  assert.equal(saved.etag, '"22222222222222222222222222222222"');
+  await assert.rejects(
+    run.save(
+      {
+        operation: "update",
+        path: "/workspace/work/notes.md",
+        file_id: "file",
+        etag: '"11111111111111111111111111111111"',
+      },
+      "stale-update",
+    ),
+    /working copy/i,
+  );
+  // A refresh alone must not grant a new baseline to an old working copy.
+  const originalFiles = f.deps.files;
+  f.deps.files = async (scope) =>
+    (await originalFiles(scope)).map((file) => ({
+      ...file,
+      etag: '"33333333333333333333333333333333"',
+      revision_id: "user-revision",
+    }));
+  await run.refresh();
+  await assert.rejects(
+    run.save(
+      {
+        operation: "update",
+        path: "/workspace/work/notes.md",
+        file_id: "file",
+        etag: '"33333333333333333333333333333333"',
+      },
+      "not-rebased",
+    ),
+    /working copy/i,
+  );
+  const checkout = await run.checkoutFile({
+    fileId: "file",
+    etag: '"33333333333333333333333333333333"',
+    path: "/workspace/work/notes.md",
+  });
+  assert.equal(checkout.etag, '"33333333333333333333333333333333"');
   await run.dispose();
 });

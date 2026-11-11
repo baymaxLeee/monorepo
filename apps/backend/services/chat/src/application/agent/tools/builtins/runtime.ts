@@ -106,24 +106,86 @@ export async function createRuntimeTools() {
       { summary: "Import conversation sources added by another tool after the sandbox was initialized." },
     ),
     defineAgentTool(
+      "checkout_conversation_file",
+      tool({
+        description:
+          "Create or replace a writable working copy from an exact imported conversation-file revision. Use this before editing an existing saved file and again after refresh when rebasing onto a newer ETag. This copies the source bytes and binds that work path to the supplied file_id and ETag; refresh alone never upgrades an existing working copy.",
+        inputSchema: z.object({
+          file_id: z.string().length(32).describe("Stable file id from sources/saved/manifest.json."),
+          etag: z
+            .string()
+            .regex(/^\"[a-f0-9]{32}\"$/)
+            .describe("Exact ETag from sources/saved/manifest.json."),
+          path: z.string().min(1).describe("Destination under /workspace/work or /workspace/outputs."),
+        }),
+        contextSchema: artifactToolContextSchema,
+        execute: async (input, options) =>
+          requireRunSandbox(options.experimental_sandbox).checkoutFile(
+            { fileId: input.file_id, etag: input.etag, path: input.path },
+            options.abortSignal,
+          ),
+      }),
+      { ...readPolicy, capability: "files", effect: "write", trust: "private-untrusted", modes: ["normal", "plan"] },
+      { summary: "Create a fenced writable copy of an imported conversation file revision." },
+    ),
+    defineAgentTool(
       "save_sandbox_file",
       tool({
         description:
-          "Publish one completed sandbox file to the conversation. Uploads its exact bytes to Asset and registers a downloadable artifact; supports text, HTML, images, PDF, spreadsheets, archives and other binary files. Local edits and deletions do not change saved artifacts. Each save creates an immutable artifact snapshot. Save before finishing; unsaved files are lost when this run ends.",
+          "Save one completed sandbox file. Use operation=create for a new artifact or intentional Save As. For update, first use checkout_conversation_file for the exact imported ETag, edit that bound working path, then save it with the same file_id and ETag. Update supports bounded UTF-8 text, preserves file identity, and returns a new ETag. Refresh alone never rebases a work copy; never turn a conflict into create automatically.",
         inputSchema: z.object({
-          path: z.string().min(1).describe("File path under /workspace, such as /workspace/outputs/report.xlsx."),
+          operation: z.enum(["create", "update"]),
+          path: z.string().min(1).describe("Completed file path under /workspace/work or /workspace/outputs."),
           filename: z
             .string()
             .min(1)
             .max(255)
             .regex(/^[^/\\\x00-\x1f]+$/)
-            .describe("Download filename including extension."),
-          media_type: z.string().min(1).max(255).describe("File MIME type, for example application/pdf or text/html."),
-          title: z.string().min(1).max(255).describe("User-visible artifact title."),
+            .nullable()
+            .describe("Required for create; null for update."),
+          media_type: z.string().min(1).max(255).nullable().describe("Required for create; null for update."),
+          title: z.string().min(1).max(255).nullable().describe("Required for create; null for update."),
+          file_id: z.string().length(32).nullable().describe("Required for update; null for create."),
+          etag: z
+            .string()
+            .regex(/^"[a-f0-9]{32}"$/)
+            .nullable()
+            .describe("Read baseline for update; null for create."),
         }),
         contextSchema: artifactToolContextSchema,
-        execute: async (input, options) =>
-          requireRunSandbox(options.experimental_sandbox).save(input, options.toolCallId, options.abortSignal),
+        execute: async (input, options) => {
+          const sandbox = requireRunSandbox(options.experimental_sandbox);
+          if (input.operation === "create") {
+            if (!input.filename || !input.media_type || !input.title || input.file_id !== null || input.etag !== null) {
+              throw new Error("Create requires filename, media_type and title; file_id and etag must be null.");
+            }
+            return sandbox.save(
+              {
+                operation: "create",
+                path: input.path,
+                filename: input.filename,
+                media_type: input.media_type,
+                title: input.title,
+              },
+              options.toolCallId,
+              options.abortSignal,
+            );
+          }
+          if (
+            !input.file_id ||
+            !input.etag ||
+            input.filename !== null ||
+            input.media_type !== null ||
+            input.title !== null
+          ) {
+            throw new Error("Update requires file_id and etag; filename, media_type and title must be null.");
+          }
+          return sandbox.save(
+            { operation: "update", path: input.path, file_id: input.file_id, etag: input.etag },
+            options.toolCallId,
+            options.abortSignal,
+          );
+        },
       }),
       {
         ...readPolicy,
@@ -133,7 +195,7 @@ export async function createRuntimeTools() {
         modes: ["normal", "plan"],
         uiKind: "artifact",
       },
-      { summary: "Persist and publish a sandbox file as a conversation artifact." },
+      { summary: "Create a conversation artifact or update an imported editable text file with CAS." },
     ),
     defineAgentTool("code_mode", code, readPolicy, {
       summary: "Use JavaScript to search and fetch public sources concurrently, then filter or combine their results.",

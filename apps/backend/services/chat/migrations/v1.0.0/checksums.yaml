@@ -21,3 +21,7 @@ steps:
       checksum: 910aee207d68b81a19675069ca0bb0686f40dd76d4026b72a32879cc52a3ee25
       files:
         v1.0.0.4.up.sql: 1ef79b884d03dfa58386c5c5ab0632ae870ff7e970c457a9380fe071ecd4a5f1
+    - version: v1.0.0.5
+      checksum: 9b6405b51a70f8ba8ee8dbc0dda39338b984f319b0e669fcc3c592d34ec012cf
+      files:
+        v1.0.0.5.up.sql: 65d75049681be9dad3f6dc69843bf21f9882b31339d2cb4c14d3d2189cd67de0

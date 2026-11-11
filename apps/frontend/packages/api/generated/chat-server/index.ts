@@ -208,6 +208,21 @@ export const ConversationFileKind = {
   plan: 'plan',
 } as const;
 
+export type ConversationFileLastWriterType = typeof ConversationFileLastWriterType[keyof typeof ConversationFileLastWriterType];
+
+
+export const ConversationFileLastWriterType = {
+  unknown: 'unknown',
+  user: 'user',
+  agent: 'agent',
+} as const;
+
+export type ConversationFileLastWriter = {
+  type: ConversationFileLastWriterType;
+  /** @nullable */
+  id: string | null;
+};
+
 export interface ConversationFile {
   id: string;
   conversation_id: string;
@@ -219,8 +234,25 @@ export interface ConversationFile {
   size: number;
   sha256: string;
   kind: ConversationFileKind;
+  editable: boolean;
+  /** @minimum 1 */
+  edit_max_bytes: number;
+  /** @pattern ^"[a-f0-9]{32}"$ */
+  etag: string;
+  last_writer: ConversationFileLastWriter;
   created_at: string;
   updated_at: string;
+}
+
+export interface UpdateConversationFileContentInput {
+  content: string;
+  /** @pattern ^"[a-f0-9]{32}"$ */
+  expected_etag: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  operation_id: string;
 }
 
 /**
@@ -568,6 +600,10 @@ export type PostConversationsConversationIdDocumentsDocumentIdDeliveryParams = {
 max_dim?: number;
 };
 
+export type PostConversationsConversationIdFilesFileIdDeliveryParams = {
+revision_id?: string;
+};
+
 export type GetConversationsConversationIdVideoProductionsProductionIdPreviewUrl200 = {
   url: string;
   expires_at: string;
@@ -738,9 +774,11 @@ const postConversationsConversationIdDocumentsDocumentIdDelivery = (
 const postConversationsConversationIdFilesFileIdDelivery = (
     conversationId: string,
     fileId: string,
+    params?: PostConversationsConversationIdFilesFileIdDeliveryParams,
  options?: SecondParameter<typeof apiMutator<StorageDelivery>>,) => {
       return apiMutator<StorageDelivery>(
-      {url: `/conversations/${conversationId}/files/${fileId}/delivery`, method: 'POST'
+      {url: `/conversations/${conversationId}/files/${fileId}/delivery`, method: 'POST',
+        params
     },
       options);
     }
@@ -751,6 +789,19 @@ const getConversationsConversationIdFilesFileIdContent = (
  options?: SecondParameter<typeof apiMutator<unknown>>,) => {
       return apiMutator<unknown>(
       {url: `/conversations/${conversationId}/files/${fileId}/content`, method: 'GET'
+    },
+      options);
+    }
+
+const updateConversationFileContent = (
+    conversationId: string,
+    fileId: string,
+    updateConversationFileContentInput: UpdateConversationFileContentInput,
+ options?: SecondParameter<typeof apiMutator<ConversationFile>>,) => {
+      return apiMutator<ConversationFile>(
+      {url: `/conversations/${conversationId}/files/${fileId}/content`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateConversationFileContentInput
     },
       options);
     }
@@ -907,7 +958,7 @@ const deleteMemoriesId = (
       options);
     }
 
-return {createCanvasConversation,getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,selectConversationHistory,forkConversation,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,postConversationsConversationIdDocumentsDocumentIdDelivery,postConversationsConversationIdFilesFileIdDelivery,getConversationsConversationIdFilesFileIdContent,getConversationsConversationIdDocumentsDocumentIdContent,postConversationsConversationIdSourcesSourceIdDelivery,getConversationsConversationIdFilesFileId,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreviewUrl,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreviewUrl,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
+return {createCanvasConversation,getHealthz,getConversations,postConversations,getConversationsConversationId,patchConversationsConversationId,deleteConversationsConversationId,selectConversationHistory,forkConversation,getConversationsConversationIdContext,getConversationsConversationIdAgentsRunStream,postConversationsConversationIdAgentsRunStream,getConversationsConversationIdDocumentsDocumentId,patchConversationsConversationIdDocumentsDocumentId,postConversationsConversationIdDocumentsDocumentIdDelivery,postConversationsConversationIdFilesFileIdDelivery,getConversationsConversationIdFilesFileIdContent,updateConversationFileContent,getConversationsConversationIdDocumentsDocumentIdContent,postConversationsConversationIdSourcesSourceIdDelivery,getConversationsConversationIdFilesFileId,getConversationsConversationIdAgentsRunsRunIdTrace,postConversationsConversationIdAgentsRunsRunIdCancel,getConversationsConversationIdVideoProductionsProductionId,postConversationsConversationIdVideoProductionsProductionIdDecisions,getConversationsConversationIdVideoProductionsProductionIdPreviewUrl,getConversationsConversationIdVideoProductionsProductionIdShotsShotIdTakesTakeIdPreviewUrl,getMemories,getMemoriesCandidates,postMemoriesCandidatesIdApprove,postMemoriesCandidatesIdReject,patchMemoriesCandidatesId,deleteMemoriesId}};
 export type CreateCanvasConversationResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['createCanvasConversation']>>>
 export type GetHealthzResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getHealthz']>>>
 export type GetConversationsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversations']>>>
@@ -925,6 +976,7 @@ export type PatchConversationsConversationIdDocumentsDocumentIdResult = NonNulla
 export type PostConversationsConversationIdDocumentsDocumentIdDeliveryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdDocumentsDocumentIdDelivery']>>>
 export type PostConversationsConversationIdFilesFileIdDeliveryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdFilesFileIdDelivery']>>>
 export type GetConversationsConversationIdFilesFileIdContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdFilesFileIdContent']>>>
+export type UpdateConversationFileContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['updateConversationFileContent']>>>
 export type GetConversationsConversationIdDocumentsDocumentIdContentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdDocumentsDocumentIdContent']>>>
 export type PostConversationsConversationIdSourcesSourceIdDeliveryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['postConversationsConversationIdSourcesSourceIdDelivery']>>>
 export type GetConversationsConversationIdFilesFileIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getChatService>['getConversationsConversationIdFilesFileId']>>>

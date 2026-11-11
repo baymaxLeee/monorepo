@@ -10,6 +10,16 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it("binds conversation file delivery to the revision paired with the editor ETag", async () => {
+  vi.mocked(request).mockResolvedValue({ url: "/signed", revision_id: "revision" });
+  await createStorageDownloadUrl({
+    assetId: "asset",
+    revisionId: "revision",
+    owner: { kind: "conversation-file", conversationId: "c", fileId: "f" },
+  });
+  expect(request).toHaveBeenCalledWith(expect.objectContaining({ params: { revision_id: "revision" } }));
+});
+
 it("signs through the authorizing business owner and resolves the gateway URL", async () => {
   vi.mocked(request).mockResolvedValue({
     url: "/api/storage-server/media/file?signature=capability",
@@ -56,4 +66,16 @@ it("preserves denial status for the bounded renewal policy", async () => {
 it("rejects binary content instead of silently rendering replacement characters", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array([255, 254]))));
   await expect(fetchAssetText("/binary")).rejects.toThrow();
+});
+
+it("bounds streamed editing bytes and preserves a UTF-8 BOM", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(new Response("12345"))
+      .mockResolvedValueOnce(new Response(new Uint8Array([239, 187, 191, 65]))),
+  );
+  await expect(fetchAssetText("/large", undefined, 4)).rejects.toThrow("大小限制");
+  expect(await fetchAssetText("/bom", undefined, 4)).toBe("\uFEFFA");
 });

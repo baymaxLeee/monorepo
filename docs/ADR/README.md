@@ -13,6 +13,7 @@
 | Chat 活跃流恢复、Redis 生命周期与容量边界 | [chat-stream-resumption](chat-stream-resumption.md) |
 | Workflow、耐久任务、取消与审批 | [durable-execution](durable-execution.md) |
 | Asset、Knowledge、Canvas 与文件生命周期 | [files-and-assets](files-and-assets.md) |
+| 会话文件原文件编辑、同 Asset Revision 保存与跨 run 恢复 | [editable-conversation-files](editable-conversation-files.md) |
 | IAM、scope、caller identity 与 Admin 配置 | [identity-and-configuration](identity-and-configuration.md) |
 | MFE、路由、包、AI UI 与设计边界 | [frontend](frontend.md) |
 | 数据基线、部署、密钥与观测 | [operations](operations.md) |

@@ -69,6 +69,48 @@ func (s *Service) Upload(ctx context.Context, input CreateUploadInput, body io.R
 	}, body)
 }
 
+func (s *Service) AppendRevision(ctx context.Context, input AppendRevisionInput, body io.Reader) (domain.Asset, domain.Revision, error) {
+	input.TenantID = strings.TrimSpace(input.TenantID)
+	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
+	input.UserID = strings.TrimSpace(input.UserID)
+	input.CallerService = strings.TrimSpace(input.CallerService)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	input.AssetID = strings.TrimSpace(input.AssetID)
+	input.BaseRevisionID = strings.TrimSpace(input.BaseRevisionID)
+	input.OwnerType = strings.TrimSpace(input.OwnerType)
+	input.OwnerID = strings.TrimSpace(input.OwnerID)
+	input.Slot = strings.TrimSpace(input.Slot)
+	filename := strings.TrimSpace(input.Filename)
+	if input.TenantID == "" || input.UserID == "" || input.CallerService == "" || input.IdempotencyKey == "" ||
+		len(input.IdempotencyKey) > 255 || input.AssetID == "" || input.BaseRevisionID == "" || input.OwnerType == "" ||
+		input.OwnerID == "" || input.Slot == "" || input.Generation < 1 || filename == "" || body == nil {
+		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
+	}
+	input.Filename = filepath.Base(filename)
+	if input.Filename == "." {
+		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
+	}
+	// Match the Chat save execution lease; completed uploads retain the normal 24h retry window.
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	now := s.clock.Now()
+	started, err := s.repository.BeginRevisionAppend(ctx, input, uuid.Must(uuid.NewV7()).String(), now.Add(2*time.Minute), now)
+	if err != nil {
+		return domain.Asset{}, domain.Revision{}, err
+	}
+	if started.Completed {
+		asset, revision, _, lookupErr := s.repository.GetRevision(ctx, input.TenantID, input.WorkspaceID, started.AssetID, started.RevisionID)
+		return asset, revision, lookupErr
+	}
+	return s.persistUpload(ctx, UploadSession{
+		ID: started.UploadID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, UserID: input.UserID,
+		CallerService: input.CallerService, IdempotencyKey: input.IdempotencyKey, Filename: input.Filename,
+		MediaType: input.MediaType, SizeBytes: -1, State: "uploading", TargetAssetID: input.AssetID,
+		BaseRevisionID: input.BaseRevisionID, OwnerType: input.OwnerType, OwnerID: input.OwnerID, Slot: input.Slot,
+		Generation: input.Generation,
+	}, body)
+}
+
 func (s *Service) CreateUploadSession(ctx context.Context, input CreateUploadSessionInput) (UploadSession, error) {
 	input.TenantID = strings.TrimSpace(input.TenantID)
 	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
@@ -156,7 +198,10 @@ func (s *Service) persistUpload(ctx context.Context, session UploadSession, body
 		_ = s.repository.FailUpload(context.WithoutCancel(ctx), uploadID, "size_mismatch", s.clock.Now())
 		return domain.Asset{}, domain.Revision{}, ErrInvalidInput
 	}
-	assetID := uuid.Must(uuid.NewV7()).String()
+	assetID := session.TargetAssetID
+	if assetID == "" {
+		assetID = uuid.Must(uuid.NewV7()).String()
+	}
 	revisionID := uuid.Must(uuid.NewV7()).String()
 	blobID := uuid.Must(uuid.NewV7()).String()
 	tenantDigest := sha256.Sum256([]byte(session.TenantID))
@@ -171,13 +216,22 @@ func (s *Service) persistUpload(ctx context.Context, session UploadSession, body
 		mediaType = session.MediaType
 	}
 	completedAt := s.clock.Now()
-	result, err := s.repository.CompleteUpload(ctx, CompleteUploadInput{
+	completeInput := CompleteUploadInput{
 		UploadID: uploadID, AssetID: assetID, RevisionID: revisionID, BlobID: blobID, StorageKey: storageKey,
 		UploadClaimID: uuid.Must(uuid.NewV7()).String(),
 		SHA256:        staged.SHA256, Filename: session.Filename, MediaType: mediaType, Category: session.Category,
 		TenantID: session.TenantID, WorkspaceID: session.WorkspaceID, UserID: session.UserID, SizeBytes: staged.SizeBytes,
 		Now: completedAt, UploadLeaseExpiresAt: completedAt.Add(24 * time.Hour),
-	})
+	}
+	var result CompleteUploadResult
+	if session.TargetAssetID != "" {
+		result, err = s.repository.CompleteRevisionAppend(ctx, CompleteRevisionAppendInput{
+			CompleteUploadInput: completeInput, BaseRevisionID: session.BaseRevisionID, OwnerService: session.CallerService,
+			OwnerType: session.OwnerType, OwnerID: session.OwnerID, Slot: session.Slot, Generation: session.Generation,
+		})
+	} else {
+		result, err = s.repository.CompleteUpload(ctx, completeInput)
+	}
 	if err != nil {
 		_ = s.repository.FailUpload(context.WithoutCancel(ctx), uploadID, "metadata_commit_failed", s.clock.Now())
 		// The canonical blob is deliberately retained. A later orphan scrub can

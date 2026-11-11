@@ -65,6 +65,7 @@ export async function createStorageDownloadUrl(
     method: "POST",
     params: {
       ...(maxDim ? { max_dim: maxDim } : {}),
+      ...(owner.kind === "conversation-file" ? { revision_id: ref.revisionId } : {}),
     },
     signal,
     skipErrorNotify: true,
@@ -73,10 +74,32 @@ export async function createStorageDownloadUrl(
 }
 
 /** Never attach application credentials to a signed URL (which may point at a CDN). */
-export async function fetchAssetText(url: string, signal?: AbortSignal): Promise<string> {
+export async function fetchAssetText(
+  url: string,
+  signal?: AbortSignal,
+  maxBytes = Number.POSITIVE_INFINITY,
+): Promise<string> {
   const response = await fetch(url, { signal, credentials: "omit", referrerPolicy: "no-referrer" });
   if (!response.ok) throw new AssetDownloadError(response.status);
-  return new TextDecoder("utf-8", { fatal: true }).decode(await response.arrayBuffer());
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  const chunks: string[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw new Error("文件超过文本编辑大小限制");
+      chunks.push(decoder.decode(value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+    return chunks.join("");
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 
 export class AssetDownloadError extends Error {

@@ -14,8 +14,9 @@ Sandbox 是内部执行控制服务。Chat 拥有 run、附件授权与发布；
 - `bash`：模型可见的 command/workdir 工具，通过当前 run 的官方 AI SDK `SandboxSession.run` 执行并等待终态，Stop 传播 AbortSignal。
 - SDK sandbox adapter 同时实现 binary/text read/write 和 `spawn`。SDK 写入只允许 `work/outputs`，对 `sources` 保持只读；当前 transport 不支持 writable spawn stdin，必须在启动前明确拒绝 `stdin: true`。
 - 首次 Bash 自动导入当前会话 source；`refresh_conversation_sources` 只导入并返回本轮其他工具随后新增或更新的路径。
-- `save_sandbox_file`：流式上传原件至 Asset，然后由 Chat 登记不可变 `conversation_file` 与 Claim intent。
-  每次发布产生新快照；本地编辑/删除不会修改旧产物。文本预览可省略，原件仍可下载。
+- `save_sandbox_file`：create 模式流式上传并登记新的 `conversation_file`；update 模式要求已导入
+  文件的 `file_id + ETag`，从 `work/outputs` 提交到同一 Chat 文件和 Storage Asset 的新 revision。
+  两种模式都不覆盖旧 revision；本地未保存的编辑/删除不会修改已发布内容。
 - Plan mode 同样用 Bash 创建完整 `*-plan.md` 并通过 `save_sandbox_file` 发布；Chat 以 file id 标记 Plan。
 
 正常结束、异常、Stop 都调用幂等销毁。浏览器 SSE 断线只断订阅，不销毁仍执行的 run。

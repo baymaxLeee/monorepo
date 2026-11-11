@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   index,
@@ -64,6 +65,11 @@ export const conversationFiles = pgTable(
     kind: varchar("kind", { length: 20 }).notNull().default("artifact"),
     idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    contentGeneration: bigint("content_generation", { mode: "bigint" }).notNull().default(1n),
+    contentEtag: varchar("content_etag", { length: 32 }).notNull(),
+    lastWriterType: varchar("last_writer_type", { length: 20 }).notNull(),
+    lastWriterId: varchar("last_writer_id", { length: 128 }),
   },
   (t) => [
     index("ix_conversation_files_conversation").on(t.conversationId, t.createdAt),
@@ -75,6 +81,39 @@ export const conversationFiles = pgTable(
       t.conversationId,
       t.idempotencyKey,
     ),
+  ],
+);
+
+export const conversationFileSaveOperations = pgTable(
+  "conversation_file_save_operations",
+  {
+    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
+    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
+    userId: varchar("user_id", { length: 26 }).notNull(),
+    conversationId: varchar("conversation_id", { length: 32 })
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    operationId: varchar("operation_id", { length: 80 }).notNull(),
+    fileId: varchar("file_id", { length: 32 })
+      .notNull()
+      .references(() => conversationFiles.id, { onDelete: "cascade" }),
+    expectedEtag: varchar("expected_etag", { length: 34 }).notNull(),
+    contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
+    operationType: varchar("operation_type", { length: 20 }).notNull(),
+    writerType: varchar("writer_type", { length: 20 }).notNull(),
+    writerId: varchar("writer_id", { length: 128 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    leaseUntil: timestamp("lease_until", { mode: "date", withTimezone: true, precision: 6 }),
+    resultJson: jsonb("result_json").$type<Record<string, unknown> | null>(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.workspaceId, t.userId, t.conversationId, t.operationId] }),
+    index("ix_conversation_file_save_operations_file").on(t.fileId, t.createdAt),
+    index("ix_conversation_file_save_operations_pending")
+      .on(t.status, t.leaseUntil)
+      .where(sql`${t.status} = 'pending'`),
   ],
 );
 

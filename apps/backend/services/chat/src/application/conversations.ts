@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { and, asc, desc, eq } from "drizzle-orm";
 
@@ -21,10 +21,61 @@ import {
   messages,
   type PersistedMessageContent,
 } from "../infrastructure/persistence/schema.js";
-import { getConversationFile, releaseConversationFileClaims } from "./conversation-files.js";
+import { getConversationFile, releaseConversationFileClaims, saveConversationFile } from "./conversation-files.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 
 export { getConversationFile } from "./conversation-files.js";
+import { assertEditableFileSize } from "./file-edit-limits.js";
+
+export async function updateConversationFileContent(
+  auth: Pick<AuthContext, "userId" | "tenantId" | "workspaceId">,
+  conversationId: string,
+  fileId: string,
+  input: { content: string; expectedEtag: string; operationId: string; signal?: AbortSignal },
+) {
+  assertEditableFileSize(Buffer.byteLength(input.content, "utf8"));
+  const bytes = new TextEncoder().encode(input.content);
+  const contentSha256 = createHash("sha256").update(bytes).digest("hex");
+  return saveConversationFile(
+    {
+      ...auth,
+      conversationId,
+      fileId,
+      expectedEtag: input.expectedEtag,
+      contentSha256,
+      operationId: input.operationId,
+      writerType: "user",
+      writerId: auth.userId,
+    },
+    async (idempotencyKey, file, claim) => {
+      const client = storageClient();
+      const claimInput = {
+        tenantId: auth.tenantId,
+        workspaceId: auth.workspaceId,
+        ...claim,
+      };
+      await client.prepareClaim({
+        ...claimInput,
+        assetId: file.asset_id,
+        revisionId: file.revision_id,
+        kind: "strong",
+      });
+      await client.activateClaim(claimInput);
+      return client.appendRevision({
+        ...claimInput,
+        userId: auth.userId,
+        assetId: file.asset_id,
+        baseRevisionId: file.revision_id,
+        filename: file.filename,
+        mediaType: file.mime_type,
+        body: bytes,
+        contentLength: bytes.byteLength,
+        idempotencyKey,
+        signal: input.signal,
+      });
+    },
+  );
+}
 
 export interface Conversation {
   id: string;
@@ -666,8 +717,16 @@ export async function authorizeConversationSourceDelivery(auth: AuthContext, con
     revisionId: document.source_revision_id,
   });
 }
-export async function authorizeFileDelivery(auth: AuthContext, conversationId: string, fileId: string) {
+export async function authorizeFileDelivery(
+  auth: AuthContext,
+  conversationId: string,
+  fileId: string,
+  expectedRevision?: string,
+) {
   const file = await getConversationFile(auth, conversationId, fileId);
+  if (expectedRevision !== undefined && expectedRevision !== file.revision_id) {
+    throw new ConflictError("conversation file changed while loading", "file_content_conflict");
+  }
   return storageClient().mintDelivery({
     tenantId: auth.tenantId,
     workspaceId: auth.workspaceId,

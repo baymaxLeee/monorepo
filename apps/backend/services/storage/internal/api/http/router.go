@@ -61,6 +61,7 @@ func NewRouter(service *application.Service, readiness func(context.Context) err
 	router.Group(func(internal chi.Router) {
 		internal.Use(transport.serviceAuthentication)
 		internal.Post("/internal/assets", transport.internalUploadRoute())
+		internal.Post("/internal/assets/{assetID}/revisions", transport.internalAppendRevisionRoute())
 		internal.Post("/internal/upload-sessions", transport.createUploadSessionRoute())
 		internal.Get("/internal/upload-sessions/{uploadID}", transport.describeUploadSessionRoute())
 		internal.Get("/internal/assets/{assetID}/revisions/{revisionID}", transport.internalDescribeRoute())
@@ -248,6 +249,32 @@ func (router *Router) internalUploadRoute() http.HandlerFunc {
 		}
 		request.Body = http.MaxBytesReader(w, request.Body, router.maxBytes)
 		asset, revision, err := router.service.Upload(request.Context(), input, request.Body)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, uploadResponse(asset, revision))
+	}
+}
+
+func (router *Router) internalAppendRevisionRoute() http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		query := request.URL.Query()
+		generation, err := strconv.ParseInt(query.Get("generation"), 10, 64)
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, "invalid_request", "generation must be a positive integer")
+			return
+		}
+		input := application.AppendRevisionInput{
+			TenantID: strings.TrimSpace(query.Get("tenant_id")), WorkspaceID: strings.TrimSpace(query.Get("workspace_id")),
+			UserID: strings.TrimSpace(query.Get("user_id")), Filename: strings.TrimSpace(query.Get("filename")),
+			MediaType: strings.TrimSpace(request.Header.Get("Content-Type")), CallerService: request.Header.Get("X-Caller-Service"),
+			IdempotencyKey: strings.TrimSpace(query.Get("idempotency_key")), AssetID: chi.URLParam(request, "assetID"),
+			BaseRevisionID: strings.TrimSpace(query.Get("base_revision_id")), OwnerType: strings.TrimSpace(query.Get("owner_type")),
+			OwnerID: strings.TrimSpace(query.Get("owner_id")), Slot: strings.TrimSpace(query.Get("slot")), Generation: generation,
+		}
+		request.Body = http.MaxBytesReader(w, request.Body, router.maxBytes)
+		asset, revision, err := router.service.AppendRevision(request.Context(), input, request.Body)
 		if err != nil {
 			writeServiceError(w, err)
 			return

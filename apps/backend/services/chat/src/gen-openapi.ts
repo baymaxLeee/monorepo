@@ -215,10 +215,15 @@ const openapi = {
     },
     "/conversations/{conversation_id}/files/{file_id}/delivery": {
       post: {
-        parameters: [pathParam, fileIdPathParam],
+        parameters: [
+          pathParam,
+          fileIdPathParam,
+          { name: "revision_id", in: "query", required: false, schema: { type: "string", format: "uuid" } },
+        ],
         responses: {
           "200": jsonResponse("authorized Storage capability", ref("StorageDelivery")),
           "404": { description: "file not accessible" },
+          "409": { description: "file changed since metadata was read" },
         },
       },
     },
@@ -231,6 +236,21 @@ const openapi = {
             headers: { Location: { schema: { type: "string" } } },
           },
           "404": { description: "file not accessible" },
+        },
+      },
+      patch: {
+        operationId: "updateConversationFileContent",
+        parameters: [pathParam, fileIdPathParam],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: ref("UpdateConversationFileContentInput") } },
+        },
+        responses: {
+          "200": jsonResponse("same conversation file pointing to the committed content", ref("ConversationFile")),
+          "400": { description: "file is not editable UTF-8 text" },
+          "413": { description: "file exceeds text editing byte budget" },
+          "404": { description: "file not found in the caller scope" },
+          "409": { description: "stale ETag, reused operation id, or save already in progress" },
         },
       },
     },
@@ -576,6 +596,10 @@ const openapi = {
           "size",
           "sha256",
           "kind",
+          "editable",
+          "edit_max_bytes",
+          "etag",
+          "last_writer",
           "created_at",
           "updated_at",
         ],
@@ -590,8 +614,29 @@ const openapi = {
           size: { type: "integer" },
           sha256: { type: "string" },
           kind: { type: "string", enum: ["artifact", "plan"] },
+          editable: { type: "boolean" },
+          edit_max_bytes: { type: "integer", minimum: 1 },
+          etag: { type: "string", pattern: '^"[a-f0-9]{32}"$' },
+          last_writer: {
+            type: "object",
+            required: ["type", "id"],
+            properties: {
+              type: { type: "string", enum: ["unknown", "user", "agent"] },
+              id: { type: "string", nullable: true },
+            },
+          },
           created_at: { type: "string", format: "date-time" },
           updated_at: { type: "string", format: "date-time" },
+        },
+      },
+      UpdateConversationFileContentInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["content", "expected_etag", "operation_id"],
+        properties: {
+          content: { type: "string" },
+          expected_etag: { type: "string", pattern: '^"[a-f0-9]{32}"$' },
+          operation_id: { type: "string", minLength: 1, maxLength: 80 },
         },
       },
       AgentRunTrace: {

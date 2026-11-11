@@ -165,6 +165,19 @@ category: string;
 idempotency_key: string;
 };
 
+export type StorageAppendRevisionInternalParams = {
+tenant_id: string;
+workspace_id: string;
+user_id: string;
+filename: string;
+idempotency_key: string;
+base_revision_id: string;
+owner_type: string;
+owner_id: string;
+slot: string;
+generation: string;
+};
+
 export type StorageDescribeRevisionInternalParams = {
 tenant_id: string;
 workspace_id: string;
@@ -259,6 +272,23 @@ const storageUploadInternal = (
       {url: `/api/storage-server/internal/assets`, method: 'POST',
       headers: {'Content-Type': 'application/octet-stream', },
       data: storageUploadInternalBody,
+        params
+    },
+      options);
+    }
+
+/**
+ * @summary Idempotently append an immutable revision under an exact strong Claim
+ */
+const storageAppendRevisionInternal = (
+    assetID: string,
+    storageAppendRevisionInternalBody: Blob,
+    params: StorageAppendRevisionInternalParams,
+ options?: SecondParameter<typeof apiMutator<UploadResult>>,) => {
+      return apiMutator<UploadResult>(
+      {url: `/api/storage-server/internal/assets/${assetID}/revisions`, method: 'POST',
+      headers: {'Content-Type': 'application/octet-stream', },
+      data: storageAppendRevisionInternalBody,
         params
     },
       options);
@@ -430,8 +460,9 @@ const storageUploadSessionContent = (
       options);
     }
 
-return {storageUploadInternal,storageDescribeRevisionInternal,storageReadContentInternal,storageHeadContentInternal,storageReadImageVariant,storageActivateClaim,storagePrepareClaim,storageReleaseClaim,storageMintDeliveryCapabilities,storageCreateUploadSessionInternal,storageDescribeUploadSessionInternal,storageReadCapabilityContent,storageHeadCapabilityContent,storageUploadSessionContent}};
+return {storageUploadInternal,storageAppendRevisionInternal,storageDescribeRevisionInternal,storageReadContentInternal,storageHeadContentInternal,storageReadImageVariant,storageActivateClaim,storagePrepareClaim,storageReleaseClaim,storageMintDeliveryCapabilities,storageCreateUploadSessionInternal,storageDescribeUploadSessionInternal,storageReadCapabilityContent,storageHeadCapabilityContent,storageUploadSessionContent}};
 export type StorageUploadInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getStorageServerAPI>['storageUploadInternal']>>>
+export type StorageAppendRevisionInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getStorageServerAPI>['storageAppendRevisionInternal']>>>
 export type StorageDescribeRevisionInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getStorageServerAPI>['storageDescribeRevisionInternal']>>>
 export type StorageReadContentInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getStorageServerAPI>['storageReadContentInternal']>>>
 export type StorageHeadContentInternalResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getStorageServerAPI>['storageHeadContentInternal']>>>

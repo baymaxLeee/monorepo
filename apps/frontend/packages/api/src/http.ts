@@ -130,6 +130,7 @@ export async function request<T>(config: ApiRequestConfig): Promise<T> {
 }
 
 export type ApiProblem = {
+  code?: string;
   detail?: string;
   message?: string;
   title?: string;
@@ -161,7 +162,7 @@ export function toApiError(error: unknown): ApiError {
   const message = data?.detail ?? data?.message ?? data?.title ?? error.message;
   return new ApiError(message, {
     status: error.response?.status,
-    code: data?.title,
+    code: data?.code ?? data?.title,
   });
 }
 

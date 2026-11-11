@@ -19,7 +19,7 @@ TypeScript / Hono / Vercel AI SDK v7 Agent Runtime。业务状态存于 PostgreS
 
 ## Agent runtime
 
-Chat 升级依次应用追加迁移 `v1.0.0.1` 至 `v1.0.0.4` （`just migrate-up chat`）。这些步骤依次增加 run revision/lease 触发器、history revision/selected leaf/消息分支和 run operation binding、完整逻辑请求指纹，以及 Chat-owned `conversation_files`、`asset_claim_intents` 和 `active_plan_file_id`。相同 `request_id` 只有完全一致的重试能够复用 run；文件发布以稳定 idempotency key 注册不可变 revision。迁移不重置消息或 run；应用回退保留扩展 schema，不提供自动 DOWN。并发集成测试使用隔离且已迁移的数据库：`CHAT_FORK_TEST_URL=<isolated-postgres-url> just test backend/chat src/application/conversation-fork.postgres.ts`。缺少该配置时失败，不作为跳过或通过；默认单元测试不依赖数据库。Chat journal 与 Redis transport 的基础设施测试需要显式启用： `CHAT_POSTGRES_INTEGRATION=1 just test backend/chat src/application/agent/runs/repository.integration.test.ts` 和 `CHAT_REDIS_INTEGRATION=1 just test backend/chat src/application/agent/streams/service.integration.test.ts`。它们使用已迁移的本地 Chat 数据库/Redis、只创建唯一前缀记录并清理；默认套件中的 skip 不构成通过证据，发布验证必须单独执行启用后的命令。
+Chat 升级依次应用追加迁移 `v1.0.0.1` 至 `v1.0.0.5` （`just migrate-up chat`）。前四步增加 run/history、逻辑请求指纹与 Chat-owned 文件/Claim；`v1.0.0.5` 增加文件内容 generation/ETag/写入者和持久保存操作。相同 `request_id` 或文件保存 operation id 只有完全一致的重试能够复用结果。迁移不重置消息或 run；应用回退保留扩展 schema，不提供自动 DOWN。文件保存 PostgreSQL 集成测试使用 `CHAT_FILE_SAVE_TEST_URL=<isolated-postgres-url> just test backend/chat src/application/conversation-files.postgres.ts`；缺少配置时默认套件明确 skip，不构成通过。其他 fork、journal 与 Redis 集成测试仍使用各自显式环境变量和已迁移隔离实例。
 
 - 主链使用 `ToolLoopAgent`。服务端 run controller 的 AbortSignal 贯穿模型、web search、图片分析和 artifact 内部模型调用；只有显式 Stop/cancel 才终止生成。
 - Context 以 PostgreSQL UIMessage journal 为权威。OpenAI Responses 在有效输入预算的 80% 水位启用原生 server compaction，覆盖同一 ToolLoopAgent run 内的多步增长；stored continuation 只连接同 provider/model 且紧邻当前输入的 journal 输出。每个 run 结束后记录最后一步 input usage，达到水位或 usage 缺失时，下一次 run 不再续接旧 `previous_response_id`，而是从完整 journal 增量摘要旧前缀、保留 recent tail 后建立新 lineage。Ark 等未验证兼容 dialect 不接收 OpenAI 专有 `context_management`；DeepSeek 始终本地重放。断链重放删除 opaque provider compaction item 和 stored item reference。摘要失败会阻止本次生成且不推进 coverage，不以省略占位符静默丢历史；已完成压缩批次的 usage 仍会记入失败 run。
@@ -35,22 +35,24 @@ Chat 升级依次应用追加迁移 `v1.0.0.1` 至 `v1.0.0.4` （`just migrate-u
 ## Files
 
 - Bash 操作真实的 run 工作区，支持普通文件与二进制文件的创建、读取、修改、删除、转换和验证。底层 SandboxSession 支持进程生命周期与增量输出，但模型侧只暴露一个等待终态并响应 Stop 的 `bash` 工具。
-- `save_sandbox_file` 显式上传文件至 Asset，并在当前会话注册不可变快照。保存前的工作文件仅存在于沙箱；run 结束后销毁。原始附件和已保存成果可在后续 run 重新导入。
+- `save_sandbox_file` 的 create 模式创建新 file/Asset；update 模式用已导入 ETag 把工作副本保存为同一 file/Asset 的新 revision。保存前的工作文件仅存在于沙箱；run 结束后销毁。后续 run 导入 Chat 当前精确 revision。
 - user `file` 只接受当前会话的稳定 Knowledge 文档引用，不接受客户端提供的 `providerReference`；providerReference 仅保留服务端/provider 产生的 assistant 语义。模型新产生的 `file/reasoning-file` 先上传 Storage，再登记为 Chat conversation file。图片进入模型上下文时经受权 Storage 派生最长边 1536 的输入，journal 不改写为 base64。
 - 首次 Bash 自动将原始文档附件与 Chat-owned 会话文件/Plan 导入只读 `sources/`。本轮其他工具新增或更新会话资源后，`refresh_conversation_sources` 只导入并返回变化的路径；发现和读取统一使用 Bash。
 - 普通文件全部由主 Agent 通过 Bash 编写、验证后逐个 `save_sandbox_file` 发布。HTML 是完整浏览器文件，不经过 compiler/block/verification 状态机。
 - 运行隔离、出口策略、回收与部署见 [Sandbox](sandbox.md)。
 - HTML 类型与生成规模正交。报告、动态 Dashboard、H5 游戏、模拟器和互动课件均可使用完整 JavaScript/DOM/Canvas/SVG/WebGL/媒体能力。前端使用普通 iframe 预览，不通过 sandbox allow-list、Executor sanitizer 或格式白名单裁剪能力。
-- 每次 `save_sandbox_file` 都创建新的不可变会话文件快照；编辑旧产物时先导入、复制到 work、修改和验证，再发布新 file id。主 Agent 按顺序逐个启动 Markdown、HTML、图片和视频交付物。
+- `save_sandbox_file` 只有 create/另存为创建新 file id；编辑旧产物时先导入、通过 `checkout_conversation_file` 复制到 work 并绑定 ETag、修改和验证，再以 update 意图保存原 file id。主 Agent 按顺序逐个启动 Markdown、HTML、图片和视频交付物。
 - `create_video_production` 的产品语义是“创建视频制片任务”，不是同步生成最终视频。初步分镜与成本投影持久化并派发给 Executor Workflow 后，工具携带 `production_id` 完成，对应 video todo 也立即完成。此后由同一个 Workflow 独立等待审批并推进生成、Take 审核、合成与发布；后续串行的 HTML/图片无需等待完整视频生命周期。返回边界依据持久化 stage，而不是可能在两次轮询间被快速审批跨过的瞬时 `awaiting_approval` 状态。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的视频 Executor task；进程故障不会自动取消 durable task。Sandbox 中未发布的临时文件随 run 回收，已发布的不可变快照不受影响。
+
+会话文本编辑的内存预算由 `CHAT_EDITABLE_FILE_MAX_BYTES` 控制（默认 2 MiB），文件详情返回 `edit_max_bytes`；预览不预加载编辑正文。保存前限制请求体与实际 UTF-8 大小，下载签发校验读取时的 revision，避免内容与 ETag 错配。Markdown 使用 MarkdownEditor 并保留源码回退。
 
 ## Tool contracts
 
 - `tools/builtins/` 按 search/files/planning/interaction/media/memory 分类，提供给模型的 ToolSet 仍为扁平结构。
 - `manifest.ts` 统一生成 mode availability、审批策略、Plan capability projection 和前端 `toolMetadata.agent.uiKind`。
 - Plan mode 可用只读研究/Skill 工具和 Sandbox Bash；首次 Bash 已自动导入当前会话 source。唯一允许的写入是用 `save_sandbox_file` 发布完整 Plan，同时获得正常执行能力摘要但不能提前执行最终产物。
-- 用户从 Plan 卡片执行时，`data-plan-execution` 携带稳定 `file_id`；首次 Bash 将该不可变 Plan 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求完整读取后再开始 todo 或生成。用户仅用自然语言要求执行 Plan 时，由模型用 Bash 发现 `*-plan.md`；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、Harness 选择器或动态候选注入。
+- 用户从 Plan 卡片执行时，`data-plan-execution` 携带稳定 `file_id`；首次 Bash 将该次解析到的精确 Plan revision 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求完整读取后再开始 todo 或生成。用户仅用自然语言要求执行 Plan 时，由模型用 Bash 发现 `*-plan.md`；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、Harness 选择器或动态候选注入。
 - 每个 run 解析本轮使用的权威引用：显式 Plan `file_id` 绑定 Chat 中选中的不可变 Asset revision；激活的 Skill（含 client-tool continuation）从 Admin 读取最新发布版本，其他 instruction/config 引用从其 owner 读取。历史 search tool 结果属于证据，默认复用；只有用户明确要求重新检索或最新信息且旧证据不足时才再次搜索。
 - Admin Skill 只广告已发布快照的名称与描述；`load_skill` 读取已发布 `SKILL.md`，`read_skill_file` 再按需读取该快照列出的 references/templates/ scripts 等文本资源，草稿树永不进入运行时。
 

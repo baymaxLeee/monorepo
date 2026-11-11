@@ -4,8 +4,14 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
 import { getDb } from "../infrastructure/persistence/index.js";
-import { assetClaimIntents, conversationFiles, conversations } from "../infrastructure/persistence/schema.js";
-import { ConflictError, NotFoundError } from "./errors.js";
+import {
+  assetClaimIntents,
+  conversationFiles,
+  conversationFileSaveOperations,
+  conversations,
+} from "../infrastructure/persistence/schema.js";
+import { ConflictError, NotFoundError, RequestError } from "./errors.js";
+import { assertEditableFileSize, editableFileByteLimit } from "./file-edit-limits.js";
 
 export interface ConversationFile {
   id: string;
@@ -18,6 +24,10 @@ export interface ConversationFile {
   revision_id: string;
   sha256: string;
   kind: "artifact" | "plan";
+  editable: boolean;
+  edit_max_bytes: number;
+  etag: string;
+  last_writer: { type: "unknown" | "user" | "agent"; id: string | null };
   created_at: string;
   updated_at: string;
 }
@@ -32,7 +42,6 @@ type FileScope = {
 type ChatTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 function toConversationFile(row: typeof conversationFiles.$inferSelect): ConversationFile {
-  const createdAt = row.createdAt.toISOString();
   return {
     id: row.id,
     conversation_id: row.conversationId,
@@ -44,9 +53,56 @@ function toConversationFile(row: typeof conversationFiles.$inferSelect): Convers
     revision_id: row.revisionId,
     sha256: row.sha256,
     kind: row.kind as ConversationFile["kind"],
-    created_at: createdAt,
-    updated_at: createdAt,
+    editable: isEditableConversationFile(row.filename, row.mediaType) && row.sizeBytes <= editableFileByteLimit(),
+    edit_max_bytes: editableFileByteLimit(),
+    etag: formatContentEtag(row.contentEtag),
+    last_writer: {
+      type: row.lastWriterType as ConversationFile["last_writer"]["type"],
+      id: row.lastWriterId,
+    },
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
   };
+}
+
+const EDITABLE_EXTENSIONS = new Set([
+  "css",
+  "go",
+  "htm",
+  "html",
+  "js",
+  "json",
+  "jsx",
+  "md",
+  "markdown",
+  "mjs",
+  "cjs",
+  "py",
+  "rs",
+  "ts",
+  "tsx",
+  "txt",
+  "yaml",
+  "yml",
+]);
+
+function normalizedMediaType(value: string): string {
+  return value.split(";", 1)[0]!.trim().toLowerCase();
+}
+
+export function isEditableConversationFile(filename: string, mediaType: string): boolean {
+  const extension = filename.toLowerCase().split(".").at(-1) ?? "";
+  const mime = normalizedMediaType(mediaType);
+  const textLikeMime = mime.startsWith("text/") || mime === "application/json" || mime === "application/yaml";
+  return EDITABLE_EXTENSIONS.has(extension) && textLikeMime;
+}
+
+function formatContentEtag(token: string): string {
+  return `"${token}"`;
+}
+
+function newContentEtag(): string {
+  return randomBytes(16).toString("hex");
 }
 
 function scopeCondition(scope: FileScope) {
@@ -158,6 +214,11 @@ export async function publishConversationFile(
         kind,
         idempotencyKey: input.idempotencyKey,
         createdAt: now,
+        updatedAt: now,
+        contentGeneration: 1n,
+        contentEtag: newContentEtag(),
+        lastWriterType: "agent",
+        lastWriterId: input.userId,
       })
       .returning();
     if (!row) throw new Error("conversation file insert returned no row");
@@ -185,6 +246,323 @@ export async function publishConversationFile(
       .where(eq(conversations.id, input.conversationId));
     return toConversationFile(row);
   });
+}
+
+export interface ConversationFileSaveCandidate {
+  assetId: string;
+  revisionId: string;
+  filename: string;
+  mediaType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+export type ConversationFileSaveInput = FileScope & {
+  fileId: string;
+  expectedEtag: string;
+  contentSha256: string;
+  operationId: string;
+  writerType: "user" | "agent";
+  writerId: string;
+};
+
+type SavePreparation =
+  | { kind: "done"; file: ConversationFile }
+  | { kind: "conflict"; currentEtag: string }
+  | { kind: "in_progress" }
+  | {
+      kind: "upload";
+      file: ConversationFile;
+      storageIdempotencyKey: string;
+      storageClaimGeneration: number;
+    };
+
+function operationCondition(input: ConversationFileSaveInput) {
+  return and(
+    eq(conversationFileSaveOperations.tenantId, input.tenantId),
+    eq(conversationFileSaveOperations.workspaceId, input.workspaceId),
+    eq(conversationFileSaveOperations.userId, input.userId),
+    eq(conversationFileSaveOperations.conversationId, input.conversationId),
+    eq(conversationFileSaveOperations.operationId, input.operationId),
+  );
+}
+
+function operationMatches(
+  operation: typeof conversationFileSaveOperations.$inferSelect,
+  input: ConversationFileSaveInput,
+): boolean {
+  return (
+    operation.fileId === input.fileId &&
+    operation.expectedEtag === input.expectedEtag &&
+    operation.contentSha256 === input.contentSha256 &&
+    operation.operationType === "update" &&
+    operation.writerType === input.writerType &&
+    operation.writerId === input.writerId
+  );
+}
+
+function assertSaveInput(input: ConversationFileSaveInput): void {
+  if (
+    !/^"[a-f0-9]{32}"$/.test(input.expectedEtag) ||
+    !/^[a-f0-9]{64}$/.test(input.contentSha256) ||
+    input.operationId.length < 1 ||
+    input.operationId.length > 80 ||
+    input.writerId.length < 1 ||
+    input.writerId.length > 128
+  ) {
+    throw new RequestError("invalid conversation file save input");
+  }
+}
+
+async function prepareConversationFileSave(input: ConversationFileSaveInput): Promise<SavePreparation> {
+  assertSaveInput(input);
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + 2 * 60_000);
+  return getDb().transaction(async (tx) => {
+    const [conversation] = await tx
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(scopeCondition(input))
+      .for("update");
+    if (!conversation) throw new NotFoundError(`conversation ${input.conversationId} not found`);
+
+    const [row] = await tx
+      .select()
+      .from(conversationFiles)
+      .where(
+        and(
+          eq(conversationFiles.id, input.fileId),
+          eq(conversationFiles.conversationId, input.conversationId),
+          eq(conversationFiles.userId, input.userId),
+          eq(conversationFiles.tenantId, input.tenantId),
+          eq(conversationFiles.workspaceId, input.workspaceId),
+        ),
+      )
+      .for("update");
+    if (!row) throw new NotFoundError(`file ${input.fileId} not found in conversation ${input.conversationId}`);
+    if (!isEditableConversationFile(row.filename, row.mediaType)) {
+      throw new RequestError("conversation file is not editable text");
+    }
+    assertEditableFileSize(row.sizeBytes);
+
+    const [operation] = await tx
+      .select()
+      .from(conversationFileSaveOperations)
+      .where(operationCondition(input))
+      .for("update");
+    if (operation) {
+      if (!operationMatches(operation, input)) {
+        throw new ConflictError(
+          "file save operation id was already used for a different request",
+          "file_save_operation_conflict",
+        );
+      }
+      if (operation.status === "succeeded" && operation.resultJson) {
+        return { kind: "done", file: operation.resultJson as unknown as ConversationFile };
+      }
+      if (operation.status === "conflict") {
+        return { kind: "conflict", currentEtag: formatContentEtag(row.contentEtag) };
+      }
+      if (operation.leaseUntil && operation.leaseUntil > now) return { kind: "in_progress" };
+      await tx
+        .update(conversationFileSaveOperations)
+        .set({ leaseUntil, updatedAt: now })
+        .where(operationCondition(input));
+    } else {
+      await tx.insert(conversationFileSaveOperations).values({
+        tenantId: input.tenantId,
+        workspaceId: input.workspaceId,
+        userId: input.userId,
+        conversationId: input.conversationId,
+        operationId: input.operationId,
+        fileId: input.fileId,
+        expectedEtag: input.expectedEtag,
+        contentSha256: input.contentSha256,
+        operationType: "update",
+        writerType: input.writerType,
+        writerId: input.writerId,
+        status: "pending",
+        leaseUntil,
+        resultJson: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const current = toConversationFile(row);
+    if (current.etag !== input.expectedEtag) {
+      await tx
+        .update(conversationFileSaveOperations)
+        .set({ status: "conflict", leaseUntil: null, updatedAt: now })
+        .where(operationCondition(input));
+      return { kind: "conflict", currentEtag: current.etag };
+    }
+    if (row.sha256 === input.contentSha256) {
+      await tx
+        .update(conversationFileSaveOperations)
+        .set({ status: "succeeded", leaseUntil: null, resultJson: { ...current }, updatedAt: now })
+        .where(operationCondition(input));
+      return { kind: "done", file: current };
+    }
+    const storageClaimGeneration = Number(row.contentGeneration);
+    if (!Number.isSafeInteger(storageClaimGeneration) || storageClaimGeneration < 1) {
+      throw new Error("conversation file content generation is outside the supported range");
+    }
+    return {
+      kind: "upload",
+      file: current,
+      storageIdempotencyKey: `conversation-file-save:${input.fileId}:${input.operationId}`,
+      storageClaimGeneration,
+    };
+  });
+}
+
+async function releaseSaveOperationLease(input: ConversationFileSaveInput): Promise<void> {
+  await getDb()
+    .update(conversationFileSaveOperations)
+    .set({ leaseUntil: null, updatedAt: new Date() })
+    .where(and(operationCondition(input), eq(conversationFileSaveOperations.status, "pending")));
+}
+
+function throwPreparationFailure(preparation: Extract<SavePreparation, { kind: "conflict" | "in_progress" }>): never {
+  if (preparation.kind === "in_progress") {
+    throw new ConflictError("file save operation is already in progress", "file_save_in_progress");
+  }
+  throw new ConflictError("conversation file changed since it was read", "file_content_conflict", {
+    current_etag: preparation.currentEtag,
+  });
+}
+
+export async function saveConversationFile(
+  input: ConversationFileSaveInput,
+  upload: (
+    idempotencyKey: string,
+    file: ConversationFile,
+    claim: { ownerType: "conversation_file"; ownerId: string; slot: "source"; generation: number },
+  ) => Promise<ConversationFileSaveCandidate>,
+): Promise<ConversationFile> {
+  const preparation = await prepareConversationFileSave(input);
+  if (preparation.kind === "done") return preparation.file;
+  if (preparation.kind !== "upload") throwPreparationFailure(preparation);
+
+  let candidate: ConversationFileSaveCandidate;
+  try {
+    candidate = await upload(preparation.storageIdempotencyKey, preparation.file, {
+      ownerType: "conversation_file",
+      ownerId: preparation.file.id,
+      slot: "source",
+      generation: preparation.storageClaimGeneration,
+    });
+  } catch (error) {
+    await releaseSaveOperationLease(input).catch(() => {});
+    throw error;
+  }
+  if (
+    !candidate.assetId ||
+    candidate.assetId !== preparation.file.asset_id ||
+    !candidate.revisionId ||
+    candidate.filename !== preparation.file.filename ||
+    !isEditableConversationFile(candidate.filename, candidate.mediaType) ||
+    candidate.sizeBytes < 0 ||
+    candidate.sha256 !== input.contentSha256
+  ) {
+    await releaseSaveOperationLease(input);
+    throw new RequestError("storage returned invalid conversation file content metadata");
+  }
+  assertEditableFileSize(candidate.sizeBytes);
+
+  const outcome = await getDb().transaction(async (tx) => {
+    const [conversation] = await tx
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(scopeCondition(input))
+      .for("update");
+    if (!conversation) throw new NotFoundError(`conversation ${input.conversationId} not found`);
+    const [row] = await tx
+      .select()
+      .from(conversationFiles)
+      .where(
+        and(
+          eq(conversationFiles.id, input.fileId),
+          eq(conversationFiles.conversationId, input.conversationId),
+          eq(conversationFiles.userId, input.userId),
+          eq(conversationFiles.tenantId, input.tenantId),
+          eq(conversationFiles.workspaceId, input.workspaceId),
+        ),
+      )
+      .for("update");
+    if (!row) throw new NotFoundError(`file ${input.fileId} not found in conversation ${input.conversationId}`);
+    const [operation] = await tx
+      .select()
+      .from(conversationFileSaveOperations)
+      .where(operationCondition(input))
+      .for("update");
+    if (!operation || !operationMatches(operation, input)) {
+      throw new ConflictError("file save operation is unavailable", "file_save_operation_conflict");
+    }
+    if (operation.status === "succeeded" && operation.resultJson) {
+      return { kind: "done" as const, file: operation.resultJson as unknown as ConversationFile };
+    }
+    if (operation.status === "conflict" || formatContentEtag(row.contentEtag) !== input.expectedEtag) {
+      await tx
+        .update(conversationFileSaveOperations)
+        .set({ status: "conflict", leaseUntil: null, updatedAt: new Date() })
+        .where(operationCondition(input));
+      return { kind: "conflict" as const, currentEtag: formatContentEtag(row.contentEtag) };
+    }
+
+    const now = new Date();
+    const nextGeneration = row.contentGeneration + 1n;
+    const [updated] = await tx
+      .update(conversationFiles)
+      .set({
+        revisionId: candidate.revisionId,
+        sizeBytes: candidate.sizeBytes,
+        sha256: candidate.sha256,
+        updatedAt: now,
+        contentGeneration: nextGeneration,
+        contentEtag: newContentEtag(),
+        lastWriterType: input.writerType,
+        lastWriterId: input.writerId,
+      })
+      .where(eq(conversationFiles.id, input.fileId))
+      .returning();
+    if (!updated) throw new Error("conversation file update returned no row");
+    const file = toConversationFile(updated);
+    const claimRows = await tx
+      .update(assetClaimIntents)
+      .set({
+        revisionId: candidate.revisionId,
+        generation: nextGeneration,
+        desiredState: "active",
+        deliveredAt: null,
+        attemptCount: 0,
+        nextAttemptAt: now,
+        leaseUntil: null,
+        stateVersion: sql`${assetClaimIntents.stateVersion} + 1`,
+        lastError: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(assetClaimIntents.tenantId, input.tenantId),
+          eq(assetClaimIntents.workspaceId, input.workspaceId),
+          eq(assetClaimIntents.ownerType, "conversation_file"),
+          eq(assetClaimIntents.ownerId, input.fileId),
+          eq(assetClaimIntents.slot, "source"),
+        ),
+      )
+      .returning({ ownerId: assetClaimIntents.ownerId });
+    if (claimRows.length !== 1) throw new Error("conversation file claim intent is missing");
+    await tx.update(conversations).set({ updatedAt: now }).where(eq(conversations.id, input.conversationId));
+    await tx
+      .update(conversationFileSaveOperations)
+      .set({ status: "succeeded", leaseUntil: null, resultJson: { ...file }, updatedAt: now })
+      .where(operationCondition(input));
+    return { kind: "done" as const, file };
+  });
+  if (outcome.kind === "conflict") throwPreparationFailure(outcome);
+  return outcome.file;
 }
 
 export async function releaseConversationFileClaims(tx: ChatTransaction, scope: FileScope): Promise<void> {
@@ -267,6 +645,11 @@ export async function forkConversationFileRows(
       kind: file.kind,
       idempotencyKey: `fork:${input.conversationId}:${file.id}`,
       createdAt: input.now,
+      updatedAt: input.now,
+      contentGeneration: 1n,
+      contentEtag: newContentEtag(),
+      lastWriterType: file.lastWriterType,
+      lastWriterId: file.lastWriterId,
     })),
   );
   await tx.insert(assetClaimIntents).values(

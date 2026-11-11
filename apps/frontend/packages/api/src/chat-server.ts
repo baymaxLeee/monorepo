@@ -158,6 +158,10 @@ export interface ConversationFileDetail {
   size: number;
   sha256: string;
   kind: "artifact" | "plan";
+  editable: boolean;
+  edit_max_bytes: number;
+  etag: string;
+  last_writer: { type: "unknown" | "user" | "agent"; id: string | null };
   created_at: string;
   updated_at: string;
 }
@@ -273,6 +277,18 @@ export function fetchConversationFile(
     url: `${BASE}/${encodeURIComponent(conversationId)}/files/${encodeURIComponent(fileId)}`,
     method: "GET",
     signal: options?.signal,
+  });
+}
+
+export function updateConversationFileContent(
+  conversationId: string,
+  fileId: string,
+  input: { content: string; expected_etag: string; operation_id: string },
+): Promise<ConversationFileDetail> {
+  return request<ConversationFileDetail>({
+    url: `${BASE}/${encodeURIComponent(conversationId)}/files/${encodeURIComponent(fileId)}/content`,
+    method: "PATCH",
+    data: input,
   });
 }
 
