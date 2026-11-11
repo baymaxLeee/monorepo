@@ -20,6 +20,7 @@ export type ToolAvailability = "available" | "requires-configuration";
 
 export interface AgentToolPolicy {
   capability: ToolCapability;
+  callableByCodeMode?: boolean;
   effect: ToolEffect;
   trust: ToolTrust;
   execution: ToolExecution;

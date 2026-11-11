@@ -1,4 +1,4 @@
-import { experimental_createCodeModeTool as createCodeModeTool } from "@ai-sdk/code-mode";
+import { experimental_codeModeTool as codeModeTool } from "@ai-sdk/code-mode";
 import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/tool-web-fetch";
 import { tool } from "ai";
 import { z } from "zod";
@@ -19,7 +19,7 @@ export async function createRuntimeTools() {
           source: "bash",
         });
   const webFetch = createWebFetchTool();
-  const code = createCodeModeTool({ web_fetch: webFetch });
+  const code = codeModeTool({ toolDiscovery: "conversation" });
   const readPolicy = {
     capability: "search" as const,
     effect: "read" as const,
@@ -41,7 +41,7 @@ export async function createRuntimeTools() {
             : toolCompleted(result);
         },
       },
-      readPolicy,
+      { ...readPolicy, callableByCodeMode: true },
       { summary: "Read a public web page or text URL as Markdown.", parallelizable: true },
     ),
     defineAgentTool(
@@ -126,9 +126,9 @@ export async function createRuntimeTools() {
       { summary: "Persist and publish a sandbox file as a conversation artifact." },
     ),
     defineAgentTool("code_mode", code, readPolicy, {
-      summary: "Use JavaScript to fetch public pages concurrently and filter or combine their results.",
+      summary: "Use JavaScript to search and fetch public sources concurrently, then filter or combine their results.",
       constraints: [
-        "Only web_fetch is callable from generated code; business writes and approvals remain direct tools.",
+        "Only explicitly eligible read tools are callable from generated code; business writes and approvals remain direct tools.",
       ],
     }),
   ];

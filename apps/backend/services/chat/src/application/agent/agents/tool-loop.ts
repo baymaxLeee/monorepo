@@ -1,3 +1,4 @@
+import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
@@ -28,6 +29,7 @@ import {
 } from "../observability/lifecycle.js";
 import { RunSandbox } from "../tools/builtins/sandbox-session.js";
 import { ToolCatalog } from "../tools/catalog.js";
+import { transformToolPreservingCaller } from "../tools/manifest.js";
 import { isToolOutcome } from "../tools/outcome.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { exactTextResponseModel } from "./exact-text-response-model.js";
@@ -69,20 +71,22 @@ function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<t
       if (!("execute" in definition) || typeof definition.execute !== "function") {
         return [name, definition];
       }
-      const execute = definition.execute as (...args: unknown[]) => unknown;
       return [
         name,
-        {
-          ...definition,
-          execute: (...args: unknown[]) => {
-            const toolCallId = toolCallIdFromOptions(args[1]);
-            const span = toolCallId ? toolSpans.get(toolCallId) : undefined;
-            if (!span) {
-              return execute(...args);
-            }
-            return runWithActiveSpan(span, () => execute(...args));
-          },
-        } satisfies ExecutableTool,
+        transformToolPreservingCaller(definition, (candidate) => {
+          const execute = (candidate as ExecutableTool).execute;
+          return {
+            ...candidate,
+            execute: (...args: unknown[]) => {
+              const toolCallId = toolCallIdFromOptions(args[1]);
+              const span = toolCallId ? toolSpans.get(toolCallId) : undefined;
+              if (!span) {
+                return execute(...args);
+              }
+              return runWithActiveSpan(span, () => execute(...args));
+            },
+          } satisfies ExecutableTool;
+        }),
       ];
     }),
   );
@@ -189,6 +193,9 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     ],
   });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
+  const codeModeToolCallers = Object.fromEntries(
+    resolvedTools.codeModeTools.map((name) => [name, ["code_mode", DIRECT_TOOL_CALL] as const]),
+  );
   const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
   // The provider may emit multiple calls per model response, and the AI SDK executes retained calls concurrently by
   // default because toolCallConcurrency is intentionally unset. The batch middleware only preserves semantic barriers.
@@ -199,6 +206,8 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     maxOutputTokens: provider.maxOutputTokens,
     timeout: { chunkMs: 120_000 },
     tools: instrumentedTools,
+    // The catalog is dynamic, so its string-keyed ToolSet cannot retain the caller-name literal type.
+    experimental_toolCallers: codeModeToolCallers as never,
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),

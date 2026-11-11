@@ -1,5 +1,9 @@
 import type { JSONObject, JSONValue } from "@ai-sdk/provider";
-import type { ToolResultOutput } from "@ai-sdk/provider-utils";
+import {
+  experimental_getToolCaller as getToolCaller,
+  experimental_toolCaller as toolCaller,
+  type ToolResultOutput,
+} from "@ai-sdk/provider-utils";
 import type { ToolSet } from "ai";
 import { z } from "zod";
 
@@ -67,66 +71,89 @@ async function* wrapAsyncToolResult(
   }
 }
 
-function wrapToolDefinition(definition: ToolSet[string], options: { strictByDefault: boolean }): ToolSet[string] {
-  const candidate = definition as ToolSet[string] & {
-    outputSchema?: z.ZodType<unknown>;
-    execute?: (input: unknown, options: { abortSignal?: AbortSignal; toolCallId?: string }) => unknown;
-    toModelOutput?: (options: Record<string, unknown> & { output: unknown }) => unknown;
-  };
-  const dataSchema = candidate.outputSchema ?? z.unknown();
-  const execute = candidate.execute;
-  const toModelOutput = candidate.toModelOutput;
-
-  const modelOutput = (
-    options: Record<string, unknown> & { output: ToolOutcome },
-  ): ToolResultOutput | PromiseLike<ToolResultOutput> => {
-    const { output } = options;
-    if (output.status === "completed") {
-      return toModelOutput
-        ? (toModelOutput({ ...options, output: output.data }) as ToolResultOutput | PromiseLike<ToolResultOutput>)
-        : { type: "json", value: (output.data ?? null) as JSONValue };
-    }
-    if (output.status === "blocked" || output.status === "failed") {
-      return { type: "error-json", value: output.error as JSONValue };
-    }
-    return { type: "json", value: output as JSONValue };
-  };
-
-  return {
-    ...candidate,
-    ...(options.strictByDefault && "inputSchema" in candidate ? { strict: candidate.strict ?? true } : {}),
-    outputSchema: toolOutcomeSchema(dataSchema),
-    ...(execute
+export function transformToolPreservingCaller(
+  definition: ToolSet[string],
+  transform: (tool: ToolSet[string]) => ToolSet[string],
+): ToolSet[string] {
+  const transformed = transform(definition);
+  const caller = getToolCaller(definition);
+  if (!caller) {
+    return transformed;
+  }
+  return toolCaller(
+    transformed,
+    caller.type === "local"
       ? {
-          execute: (input: unknown, options: { abortSignal?: AbortSignal; toolCallId?: string }) => {
-            try {
-              const result = execute(input, options);
-              if (isAsyncIterable(result)) {
-                return wrapAsyncToolResult(result, options);
-              }
-              return Promise.resolve(result)
-                .then((data) =>
-                  isToolEmission(data)
-                    ? outcomeFromEmission(data)
-                    : ({ ok: true, status: "completed", data } satisfies ToolOutcome),
-                )
-                .catch((error: unknown) => {
-                  if (shouldRethrowToolError(error, options.abortSignal)) {
-                    throw error;
-                  }
-                  return caughtErrorOutcome(error, options.toolCallId);
-                });
-            } catch (error) {
-              if (shouldRethrowToolError(error, options.abortSignal)) {
-                throw error;
-              }
-              return caughtErrorOutcome(error, options.toolCallId);
-            }
-          },
+          ...caller,
+          bind: (tools) => transform(caller.bind(tools)),
         }
-      : {}),
-    toModelOutput: modelOutput,
-  } as unknown as ToolSet[string];
+      : caller,
+  );
+}
+
+function wrapToolDefinition(definition: ToolSet[string], options: { strictByDefault: boolean }): ToolSet[string] {
+  return transformToolPreservingCaller(definition, (current) => {
+    const candidate = current as ToolSet[string] & {
+      outputSchema?: z.ZodType<unknown>;
+      execute?: (input: unknown, options: { abortSignal?: AbortSignal; toolCallId?: string }) => unknown;
+      toModelOutput?: (options: Record<string, unknown> & { output: unknown }) => unknown;
+    };
+    const dataSchema = candidate.outputSchema ?? z.unknown();
+    const execute = candidate.execute;
+    const toModelOutput = candidate.toModelOutput;
+    const modelOutput = (
+      modelOptions: Record<string, unknown> & { output: ToolOutcome },
+    ): ToolResultOutput | PromiseLike<ToolResultOutput> => {
+      const { output } = modelOptions;
+      if (output.status === "completed") {
+        return toModelOutput
+          ? (toModelOutput({ ...modelOptions, output: output.data }) as
+              | ToolResultOutput
+              | PromiseLike<ToolResultOutput>)
+          : { type: "json", value: (output.data ?? null) as JSONValue };
+      }
+      if (output.status === "blocked" || output.status === "failed") {
+        return { type: "error-json", value: output.error as JSONValue };
+      }
+      return { type: "json", value: output as JSONValue };
+    };
+
+    return {
+      ...candidate,
+      ...(options.strictByDefault && "inputSchema" in candidate ? { strict: candidate.strict ?? true } : {}),
+      outputSchema: toolOutcomeSchema(dataSchema),
+      ...(execute
+        ? {
+            execute: (input: unknown, options: { abortSignal?: AbortSignal; toolCallId?: string }) => {
+              try {
+                const result = execute(input, options);
+                if (isAsyncIterable(result)) {
+                  return wrapAsyncToolResult(result, options);
+                }
+                return Promise.resolve(result)
+                  .then((data) =>
+                    isToolEmission(data)
+                      ? outcomeFromEmission(data)
+                      : ({ ok: true, status: "completed", data } satisfies ToolOutcome),
+                  )
+                  .catch((error: unknown) => {
+                    if (shouldRethrowToolError(error, options.abortSignal)) {
+                      throw error;
+                    }
+                    return caughtErrorOutcome(error, options.toolCallId);
+                  });
+              } catch (error) {
+                if (shouldRethrowToolError(error, options.abortSignal)) {
+                  throw error;
+                }
+                return caughtErrorOutcome(error, options.toolCallId);
+              }
+            },
+          }
+        : {}),
+      toModelOutput: modelOutput,
+    } as unknown as ToolSet[string];
+  });
 }
 
 export function defineAgentTool(
@@ -139,6 +166,7 @@ export function defineAgentTool(
   const resolvedPolicy = { source: "builtin" as const, ...policy };
   const agentMetadata = {
     capability: resolvedPolicy.capability,
+    ...(resolvedPolicy.callableByCodeMode ? { callableByCodeMode: true } : {}),
     effect: resolvedPolicy.effect,
     execution: resolvedPolicy.execution,
     modes: resolvedPolicy.modes,
@@ -148,17 +176,21 @@ export function defineAgentTool(
     ...(resolvedPolicy.visibility ? { visibility: resolvedPolicy.visibility } : {}),
   } satisfies JSONObject;
 
+  const wrapped = wrapToolDefinition(definition, {
+    strictByDefault: resolvedPolicy.source === "builtin",
+  });
+  const wrappedWithMetadata = transformToolPreservingCaller(wrapped, (candidate) => ({
+    ...candidate,
+    metadata: {
+      ...candidate.metadata,
+      ...definition.metadata,
+      agent: agentMetadata,
+    },
+  }));
+
   return {
     name,
-    tool: {
-      ...wrapToolDefinition(definition, {
-        strictByDefault: resolvedPolicy.source === "builtin",
-      }),
-      metadata: {
-        ...definition.metadata,
-        agent: agentMetadata,
-      },
-    },
+    tool: wrappedWithMetadata,
     policy: resolvedPolicy,
     planning,
     availability,

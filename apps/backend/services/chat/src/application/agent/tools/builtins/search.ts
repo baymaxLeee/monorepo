@@ -332,6 +332,7 @@ export function createSearchToolManifests() {
       }),
       {
         capability: "search",
+        callableByCodeMode: true,
         effect: "read",
         trust: "open-world",
         execution: "inline",

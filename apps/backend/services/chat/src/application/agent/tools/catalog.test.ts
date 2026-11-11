@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 
 import { ToolCatalog } from "./catalog.js";
@@ -37,6 +38,15 @@ void test("tool catalog exposes inline subagents without legacy virtual file too
     assert.ok(!resolved.activeTools.includes("write_plan"));
     assert.ok(!resolved.activeTools.includes("read_conversation_file"));
     assert.ok(!resolved.activeTools.includes("list_conversation_files"));
+    assert.deepEqual([...resolved.codeModeTools].sort(), ["web_fetch", "web_search"]);
+    const codeModeCaller = getToolCaller(resolved.tools.code_mode);
+    assert.ok(codeModeCaller?.type === "local" && codeModeCaller.prepareModelMessage);
+    const catalog = codeModeCaller.prepareModelMessage(
+      Object.fromEntries(resolved.codeModeTools.map((name) => [name, resolved.tools[name]])),
+    );
+    assert.match(catalog ?? "", /web_fetch/);
+    assert.match(catalog ?? "", /web_search/);
+    assert.doesNotMatch(catalog ?? "", /\bbash\b/);
   } finally {
     await resolved.dispose();
   }

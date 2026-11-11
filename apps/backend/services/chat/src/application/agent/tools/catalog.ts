@@ -84,6 +84,7 @@ export class ToolCatalog {
   ): Promise<{
     tools: ToolSet;
     activeTools: string[];
+    codeModeTools: string[];
     manifests: AgentToolManifest[];
     contributions: InstructionContributions;
     dispose: () => Promise<void>;
@@ -169,10 +170,22 @@ export class ToolCatalog {
       );
       const tools = manifestsToTools(activeManifests);
       const activeTools = Object.keys(tools);
+      const codeModeManifests = activeManifests.filter((manifest) => manifest.policy.callableByCodeMode);
+      for (const manifest of codeModeManifests) {
+        if (
+          manifest.policy.effect !== "read" ||
+          manifest.policy.execution !== "inline" ||
+          manifest.policy.trust !== "open-world"
+        ) {
+          throw new Error(`Code Mode tool ${manifest.name} must be an inline, open-world read`);
+        }
+      }
+      const codeModeTools = codeModeManifests.map((manifest) => manifest.name);
 
       return {
         tools,
         activeTools,
+        codeModeTools,
         manifests,
         contributions: { capabilities, skills },
         dispose: async () => {

@@ -20,7 +20,9 @@ Sandbox 是内部执行控制服务。Chat 拥有 run、附件授权与发布；
 
 正常结束、异常、Stop 都调用幂等销毁。浏览器 SSE 断线只断订阅，不销毁仍执行的 run。
 下一 run 从持久资源重新导入；未显式保存的临时文件不恢复。历史 Chat files、文档、UIMessage
-保持可读，未重写既有数据。Code Mode 仍只暴露 Web Fetch。
+保持可读，未重写既有数据。Code Mode 不进入 Linux guest；它在隔离 QuickJS 中通过 AI SDK
+caller 仅编排 Chat 显式授权的公开 `web_search` / `web_fetch`，不获得 Bash、附件、私有 Knowledge、
+审批或业务写入能力。
 
 ## 执行与隔离
 

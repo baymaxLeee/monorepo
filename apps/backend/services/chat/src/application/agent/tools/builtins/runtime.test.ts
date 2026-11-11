@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
 import type { Tool, ToolExecutionOptions } from "ai";
 
 import { isToolOutcome } from "../outcome.js";
@@ -50,6 +51,18 @@ test("Code Mode computes in isolation and cannot invoke business writes", async 
     assert.equal(result.data, 6);
     const denied = await code({ js: "return await tools.write_file({path: 'x', content: 'x'})" }, options);
     assert.ok(isToolOutcome(denied) && denied.status === "failed");
+  } finally {
+    await runtime.dispose();
+  }
+});
+
+test("Code Mode is an AI SDK caller with a cache-stable conversation catalog", async () => {
+  const runtime = await createRuntimeTools();
+  try {
+    const definition = runtime.manifests.find((manifest) => manifest.name === "code_mode")?.tool;
+    const caller = getToolCaller(definition);
+    assert.equal(caller?.type, "local");
+    assert.ok(caller?.type === "local" && caller.prepareModelMessage);
   } finally {
     await runtime.dispose();
   }

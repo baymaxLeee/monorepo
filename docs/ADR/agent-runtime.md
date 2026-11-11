@@ -28,7 +28,7 @@ Plan 是 Chat 注册的不可变 conversation file；显式执行按 `file_id` �
 
 - `ask_user` 是无 server execute 的 client tool，批量询问已知独立问题，客户端 `addToolOutput` 后 continuation；依赖答案的后续问题再提出。
 - 应用工具使用 ToolOutcome；业务失败可在 UI/persistence 保留结构化结果，同时向模型投影为 error-json。Abort、审批拒绝、输入/协议错误保留原生控制流。 `toolSearch()` 保留原生结果以激活延迟工具。
-- Bash 使用独立 sandbox 服务的真实 Linux 环境，按 run 懒创建并销毁。Chat 管理附件导入、明确发布和 finalizer；Executor 仍只管理已声明的 durable 业务任务。AI SDK `SandboxSession` 的 `run`/file/spawn 接口映射到受限命令、文件与进程 API；模型可见 `bash` 负责普通命令，SDK 写入只能落在临时 `work/outputs`，`sources` 保持只读。权限由 OS/runtime 与出口代理执行，不能靠模型自律。Code Mode 仍只暴露 Web Fetch。详见 [Sandbox](../微服务/sandbox.md)。
+- Bash 使用独立 sandbox 服务的真实 Linux 环境，按 run 懒创建并销毁。Chat 管理附件导入、明确发布和 finalizer；Executor 仍只管理已声明的 durable 业务任务。AI SDK `SandboxSession` 的 `run`/file/spawn 接口映射到受限命令、文件与进程 API；模型可见 `bash` 负责普通命令，SDK 写入只能落在临时 `work/outputs`，`sources` 保持只读。权限由 OS/runtime 与出口代理执行，不能靠模型自律。Code Mode 使用 AI SDK local tool caller 与 `toolDiscovery: "conversation"`，仅编排 manifest 显式声明可进入 Code Mode 的公开 `web_search` / `web_fetch` 读取；两者同时保留 direct call，简单调用无需生成代码。ToolOutcome、AbortSignal 与 active span 包装在 caller bind 后继续生效。Bash、私有 Knowledge、审批、client/durable 工具和业务写入不得进入 Code Mode。详见 [Sandbox](../微服务/sandbox.md) 与 AI SDK [Code Mode](https://ai-sdk.dev/docs/ai-sdk-core/code-mode)。
 - 单个、公开数据驱动的 HTML 交付优先走最短路径：先观察一次公开来源，再在确有缺失时换取同一来源的原始表示；尽量用一次 Bash 完成文件生成与交付物特定的轻量检查，随后显式发布。固定浏览器/ECharts loader 契约不在用户 run 内通过下载运行时、安装测试依赖或另建 harness 重复验证。
 - 生成交付物按主 agent 计划串行；普通文件均由主 agent 在 run sandbox 中生成并逐个发布，不存在平行的 durable 文件批次或第二套对话意图。todo 是官方工具结果中的替换快照。
 - `subagents` 只在有界 web 调查能从 fresh disposable context 获得实质收益，或 2–3 个真正独立的调查值得并行时使用。调研、报告、多实体或 deep research 这些标签本身都不构成强制委派；小型、串行、依赖主上下文或可由主模型直接调用 `web_search`/`web_fetch` 完成的工作留在主 loop。一次调用仍接受 1–3 个任务，但多个任务必须由模型判断为可独立并发，不能由 harness 自动拆解。
