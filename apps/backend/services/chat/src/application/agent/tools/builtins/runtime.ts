@@ -1,11 +1,11 @@
-import { experimental_codeModeTool as codeModeTool } from "@ai-sdk/code-mode";
 import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/tool-web-fetch";
-import { tool } from "ai";
+import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
 import { artifactToolContextSchema } from "../context.js";
-import { defineAgentTool } from "../manifest.js";
+import { defineAgentTool, transformToolPreservingCaller } from "../manifest.js";
 import { toolCompleted, toolFailed, toolPartial } from "../outcome.js";
+import { createAgentCodeModeTool } from "./code-mode.js";
 import { requireRunSandbox } from "./sandbox-session.js";
 
 export async function createRuntimeTools() {
@@ -18,8 +18,17 @@ export async function createRuntimeTools() {
           retryable: false,
           source: "bash",
         });
-  const webFetch = createWebFetchTool();
-  const code = codeModeTool({ toolDiscovery: "conversation" });
+  const webFetchBase = createWebFetchTool();
+  const webFetch = transformToolPreservingCaller(
+    webFetchBase,
+    (definition) =>
+      ({
+        ...definition,
+        description:
+          "Read one known public URL and return its main content as Markdown or text. Use this tool directly for one URL. For two or more independent URLs, or when results need programmatic filtering or aggregation, use code_mode. Do not use web_fetch to discover sources; use web_search instead. JavaScript-rendered pages may return little content.",
+      }) as ToolSet[string],
+  );
+  const code = createAgentCodeModeTool();
   const readPolicy = {
     capability: "search" as const,
     effect: "read" as const,
@@ -33,7 +42,7 @@ export async function createRuntimeTools() {
       {
         ...webFetch,
         execute: async (input, options) => {
-          const result = await webFetch.execute(input, options);
+          const result = await webFetchBase.execute(input, options);
           options.abortSignal?.throwIfAborted();
           if (!("type" in result)) throw new Error("Web Fetch returned an unexpected streaming result.");
           return result.type === "error"
@@ -48,7 +57,7 @@ export async function createRuntimeTools() {
       "bash",
       tool({
         description:
-          "Run real Bash through this run's AI SDK sandbox session. Supports curl (through the configured egress proxy), Python, Node, CLI programs and file create/read/edit/delete. The initial working directory is /workspace/work; /workspace/outputs is writable; /workspace/sources contains read-only original conversation attachments and saved files. Copy a source into work before editing. State and files persist across commands in this run; shell variables/cwd do not. Use save_sandbox_file for every deliverable before the run ends. No host mounts, service credentials, sudo or unsandboxed fallback.",
+          "Run real Bash through this run's AI SDK sandbox session for file, CLI, raw-response, or program execution work. Do not use Bash for ordinary public web discovery or page reading: use web_search for one query, web_fetch for one known URL, and code_mode for multiple public reads with programmatic aggregation. Bash supports curl only through the configured egress proxy, plus Python, Node, CLI programs and file create/read/edit/delete. The initial working directory is /workspace/work; /workspace/outputs is writable; /workspace/sources contains read-only original conversation attachments and saved files. Copy a source into work before editing. State and files persist across commands in this run; shell variables/cwd do not. Use save_sandbox_file for every deliverable before the run ends. No host mounts, service credentials, sudo or unsandboxed fallback.",
         inputSchema: z.object({
           command: z
             .string()
@@ -84,16 +93,17 @@ export async function createRuntimeTools() {
       },
     ),
     defineAgentTool(
-      "load_conversation_files",
+      "refresh_conversation_sources",
       tool({
         description:
-          "Import current conversation attachments and saved artifacts into /workspace/sources and return their exact sandbox paths. Bash does this automatically once on first use. Call again to load files saved by other tools during this run. Working copies in work/ and outputs/ are preserved.",
+          "Refresh /workspace/sources after another tool publishes a new conversation attachment or saved artifact during this run. The first Bash call imports existing sources automatically, so do not call this before ordinary discovery or reading. Returns only newly imported or updated source paths; use Bash to inspect and read them. Working copies in work/ and outputs/ are preserved.",
         inputSchema: z.object({}),
         contextSchema: artifactToolContextSchema,
-        execute: async (_input, options) => requireRunSandbox(options.experimental_sandbox).load(options.abortSignal),
+        execute: async (_input, options) =>
+          requireRunSandbox(options.experimental_sandbox).refresh(options.abortSignal),
       }),
-      { ...readPolicy, capability: "files", effect: "read", modes: ["normal", "plan"] },
-      { summary: "Load current saved conversation files into the sandbox." },
+      { ...readPolicy, capability: "files", effect: "read", modes: ["normal"] },
+      { summary: "Import conversation sources added by another tool after the sandbox was initialized." },
     ),
     defineAgentTool(
       "save_sandbox_file",

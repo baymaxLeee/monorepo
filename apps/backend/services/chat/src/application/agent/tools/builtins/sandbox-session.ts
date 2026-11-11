@@ -87,11 +87,15 @@ export class RunSandbox implements Experimental_SandboxSession {
     "A run-scoped Linux sandbox rooted at /workspace. Commands start in /workspace/work; /workspace/outputs is writable and /workspace/sources contains read-only conversation snapshots. Files persist only for this run unless save_sandbox_file publishes one.";
 
   private initializing?: Promise<SandboxResource>;
+  private refreshing?: Promise<Array<{ path: string; document_id?: string; file_id?: string }>>;
   private disposal?: Promise<void>;
   private closed = false;
   private readonly abort = new AbortController();
   private readonly stopListeners = new Map<AbortSignal, () => void>();
-  private manifest: Array<{ path: string; document_id?: string; file_id?: string }> = [];
+  private readonly sources = new Map<
+    string,
+    { fingerprint: string; source: { path: string; document_id?: string; file_id?: string } }
+  >();
   private readonly scope: SandboxScope;
 
   constructor(
@@ -145,8 +149,8 @@ export class RunSandbox implements Experimental_SandboxSession {
   private async hydrate(id: string) {
     const signal = this.abort.signal;
     const client = this.deps.sandbox();
+    const imported: Array<{ path: string; document_id?: string; file_id?: string }> = [];
     const documents = await this.deps.documents(this.context.userId, this.context.conversationId);
-    this.manifest = [];
     for (const document of documents) {
       signal.throwIfAborted();
       if (
@@ -159,6 +163,10 @@ export class RunSandbox implements Experimental_SandboxSession {
       }
       if (!document.asset_id || !document.source_revision_id) throw new Error("attachment has no Storage revision");
       const path = documentSandboxPath(document);
+      const source = { path: `/workspace/${path}`, document_id: document.id };
+      const key = `document:${document.id}`;
+      const fingerprint = `${document.asset_id}:${document.source_revision_id}:${path}`;
+      if (this.sources.get(key)?.fingerprint === fingerprint) continue;
       const body = await this.deps.asset().content({
         tenantId: this.context.tenantId,
         workspaceId: this.context.workspaceId,
@@ -171,7 +179,8 @@ export class RunSandbox implements Experimental_SandboxSession {
       } finally {
         if (!body.locked) await body.cancel().catch(() => {});
       }
-      this.manifest.push({ path: `/workspace/${path}`, document_id: document.id });
+      this.sources.set(key, { fingerprint, source });
+      imported.push(source);
     }
 
     const files = await this.deps.files({
@@ -182,6 +191,11 @@ export class RunSandbox implements Experimental_SandboxSession {
     });
     for (const file of files) {
       signal.throwIfAborted();
+      const path = savedFileSandboxPath(file);
+      const source = { path: `/workspace/${path}`, file_id: file.id };
+      const key = `file:${file.id}`;
+      const fingerprint = `${file.asset_id}:${file.revision_id}:${path}`;
+      if (this.sources.get(key)?.fingerprint === fingerprint) continue;
       const body = await this.deps.asset().content({
         tenantId: this.context.tenantId,
         workspaceId: this.context.workspaceId,
@@ -189,21 +203,26 @@ export class RunSandbox implements Experimental_SandboxSession {
         revisionId: file.revision_id,
         signal,
       });
-      const path = savedFileSandboxPath(file);
       try {
         await client.upload(id, this.scope, path, body, signal);
       } finally {
         if (!body.locked) await body.cancel().catch(() => {});
       }
-      this.manifest.push({ path: `/workspace/${path}`, file_id: file.id });
+      this.sources.set(key, { fingerprint, source });
+      imported.push(source);
     }
+    return imported;
   }
 
-  async load(signal?: AbortSignal) {
+  async refresh(signal?: AbortSignal) {
     const existed = Boolean(this.initializing);
     const session = await this.ensure(signal);
-    if (existed) await this.hydrate(session.id);
-    return { files: this.manifest };
+    const sources = existed
+      ? await (this.refreshing ??= this.hydrate(session.id).finally(() => {
+          this.refreshing = undefined;
+        }))
+      : [...this.sources.values()].map((entry) => entry.source);
+    return { sources };
   }
 
   async run(options: {

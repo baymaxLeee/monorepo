@@ -13,7 +13,7 @@ Sandbox 是内部执行控制服务。Chat 拥有 run、附件授权与发布；
 
 - `bash`：模型可见的 command/workdir 工具，通过当前 run 的官方 AI SDK `SandboxSession.run` 执行并等待终态，Stop 传播 AbortSignal。
 - SDK sandbox adapter 同时实现 binary/text read/write 和 `spawn`。SDK 写入只允许 `work/outputs`，对 `sources` 保持只读；当前 transport 不支持 writable spawn stdin，必须在启动前明确拒绝 `stdin: true`。
-- `load_conversation_files`：返回精确路径；也可刷新本轮其他工具刚保存的文件。
+- 首次 Bash 自动导入当前会话 source；`refresh_conversation_sources` 只导入并返回本轮其他工具随后新增或更新的路径。
 - `save_sandbox_file`：流式上传原件至 Asset，然后由 Chat 登记不可变 `conversation_file` 与 Claim intent。
   每次发布产生新快照；本地编辑/删除不会修改旧产物。文本预览可省略，原件仍可下载。
 - Plan mode 同样用 Bash 创建完整 `*-plan.md` 并通过 `save_sandbox_file` 发布；Chat 以 file id 标记 Plan。
@@ -22,7 +22,10 @@ Sandbox 是内部执行控制服务。Chat 拥有 run、附件授权与发布；
 下一 run 从持久资源重新导入；未显式保存的临时文件不恢复。历史 Chat files、文档、UIMessage
 保持可读，未重写既有数据。Code Mode 不进入 Linux guest；它在隔离 QuickJS 中通过 AI SDK
 caller 仅编排 Chat 显式授权的公开 `web_search` / `web_fetch`，不获得 Bash、附件、私有 Knowledge、
-审批或业务写入能力。
+审批或业务写入能力。QuickJS 只提供普通 ECMAScript、Promise、JSON 与正则等本地计算能力；
+`URL`、`fetch`、`process`、`require`、`Buffer`、宿主文件系统和动态代码生成都不可用，网络访问必须
+通过已授权工具。每个嵌套工具调用必须直接 `await` 或被已等待的 `Promise.all` 观察，否则整个调用
+失败并给出恢复提示。外层墙钟预算为 90 秒；它不是 Linux sandbox 的命令 deadline。
 
 ## 执行与隔离
 

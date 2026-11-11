@@ -18,7 +18,7 @@ const textProvider: LanguageProviderSnapshot = {
   maxOutputTokens: 4_096,
 };
 
-void test("tool catalog exposes inline subagents without legacy virtual file tools", async () => {
+void test("tool catalog exposes the current inline research and sandbox workflow", async () => {
   const resolved = await new ToolCatalog().resolve(
     {
       mode: "normal",
@@ -32,12 +32,9 @@ void test("tool catalog exposes inline subagents without legacy virtual file too
     const subagents = resolved.manifests.find((manifest) => manifest.name === "subagents");
     assert.equal(subagents?.policy.uiKind, "subagent");
     assert.equal(subagents?.policy.execution, "inline");
-    assert.ok(resolved.activeTools.includes("subagents"));
-    assert.ok(!resolved.activeTools.includes("research"));
-    assert.ok(!resolved.activeTools.includes("delegate_tasks"));
-    assert.ok(!resolved.activeTools.includes("write_plan"));
-    assert.ok(!resolved.activeTools.includes("read_conversation_file"));
-    assert.ok(!resolved.activeTools.includes("list_conversation_files"));
+    for (const name of ["bash", "refresh_conversation_sources", "save_sandbox_file", "subagents"]) {
+      assert.ok(resolved.activeTools.includes(name), `${name} should be active`);
+    }
     assert.deepEqual([...resolved.codeModeTools].sort(), ["web_fetch", "web_search"]);
     const codeModeCaller = getToolCaller(resolved.tools.code_mode);
     assert.ok(codeModeCaller?.type === "local" && codeModeCaller.prepareModelMessage);
@@ -46,7 +43,6 @@ void test("tool catalog exposes inline subagents without legacy virtual file too
     );
     assert.match(catalog ?? "", /web_fetch/);
     assert.match(catalog ?? "", /web_search/);
-    assert.doesNotMatch(catalog ?? "", /\bbash\b/);
   } finally {
     await resolved.dispose();
   }

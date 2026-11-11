@@ -37,7 +37,7 @@ Chat 升级依次应用追加迁移 `v1.0.0.1` 至 `v1.0.0.4` （`just migrate-u
 - Bash 操作真实的 run 工作区，支持普通文件与二进制文件的创建、读取、修改、删除、转换和验证。底层 SandboxSession 支持进程生命周期与增量输出，但模型侧只暴露一个等待终态并响应 Stop 的 `bash` 工具。
 - `save_sandbox_file` 显式上传文件至 Asset，并在当前会话注册不可变快照。保存前的工作文件仅存在于沙箱；run 结束后销毁。原始附件和已保存成果可在后续 run 重新导入。
 - user `file` 只接受当前会话的稳定 Knowledge 文档引用，不接受客户端提供的 `providerReference`；providerReference 仅保留服务端/provider 产生的 assistant 语义。模型新产生的 `file/reasoning-file` 先上传 Storage，再登记为 Chat conversation file。图片进入模型上下文时经受权 Storage 派生最长边 1536 的输入，journal 不改写为 base64。
-- `load_conversation_files` 将原始文档附件与 Chat-owned 会话文件/Plan 导入只读 `sources/` 并返回精确路径，也支持重新导入本轮其他工具刚发布的文件。发现和读取统一使用 Bash。
+- 首次 Bash 自动将原始文档附件与 Chat-owned 会话文件/Plan 导入只读 `sources/`。本轮其他工具新增或更新会话资源后，`refresh_conversation_sources` 只导入并返回变化的路径；发现和读取统一使用 Bash。
 - 普通文件全部由主 Agent 通过 Bash 编写、验证后逐个 `save_sandbox_file` 发布。HTML 是完整浏览器文件，不经过 compiler/block/verification 状态机。
 - 运行隔离、出口策略、回收与部署见 [Sandbox](sandbox.md)。
 - HTML 类型与生成规模正交。报告、动态 Dashboard、H5 游戏、模拟器和互动课件均可使用完整 JavaScript/DOM/Canvas/SVG/WebGL/媒体能力。前端使用普通 iframe 预览，不通过 sandbox allow-list、Executor sanitizer 或格式白名单裁剪能力。
@@ -49,8 +49,8 @@ Chat 升级依次应用追加迁移 `v1.0.0.1` 至 `v1.0.0.4` （`just migrate-u
 
 - `tools/builtins/` 按 search/files/planning/interaction/media/memory 分类，提供给模型的 ToolSet 仍为扁平结构。
 - `manifest.ts` 统一生成 mode availability、审批策略、Plan capability projection 和前端 `toolMetadata.agent.uiKind`。
-- Plan mode 可用只读研究/Skill 工具以及 Sandbox Bash/load；唯一允许的写入是用 `save_sandbox_file` 发布完整 Plan，同时获得正常执行能力摘要但不能提前执行最终产物。
-- 用户从 Plan 卡片执行时，`data-plan-execution` 携带稳定 `file_id`；sandbox 将该不可变 Plan 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求用 Bash 完整读取后再开始 todo 或生成。用户仅用自然语言要求执行 Plan 时，由模型先调用 `load_conversation_files` 并用 Bash 发现 `*-plan.md`；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、Harness 选择器或动态候选注入。
+- Plan mode 可用只读研究/Skill 工具和 Sandbox Bash；首次 Bash 已自动导入当前会话 source。唯一允许的写入是用 `save_sandbox_file` 发布完整 Plan，同时获得正常执行能力摘要但不能提前执行最终产物。
+- 用户从 Plan 卡片执行时，`data-plan-execution` 携带稳定 `file_id`；首次 Bash 将该不可变 Plan 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求完整读取后再开始 todo 或生成。用户仅用自然语言要求执行 Plan 时，由模型用 Bash 发现 `*-plan.md`；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、Harness 选择器或动态候选注入。
 - 每个 run 解析本轮使用的权威引用：显式 Plan `file_id` 绑定 Chat 中选中的不可变 Asset revision；激活的 Skill（含 client-tool continuation）从 Admin 读取最新发布版本，其他 instruction/config 引用从其 owner 读取。历史 search tool 结果属于证据，默认复用；只有用户明确要求重新检索或最新信息且旧证据不足时才再次搜索。
 - Admin Skill 只广告已发布快照的名称与描述；`load_skill` 读取已发布 `SKILL.md`，`read_skill_file` 再按需读取该快照列出的 references/templates/ scripts 等文本资源，草稿树永不进入运行时。
 

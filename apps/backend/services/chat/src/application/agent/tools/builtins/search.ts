@@ -295,7 +295,7 @@ export function createSearchToolManifests() {
       "web_search",
       tool({
         description:
-          "Search current or public web information and return titled sources with URLs. Set category to 'news' for current events/trends or 'research_paper' for academic and technical papers; use time_range or start_date/end_date to bound recency.",
+          "Run one focused public-web query and return titled sources with URLs. Use web_search directly for a single query or a small lookup that needs no programmatic aggregation. For two or more independent queries, or when results must be deduplicated, filtered, joined, or reduced before reaching the model, use code_mode. Set category to 'news' for current events/trends or 'research_paper' for academic and technical papers; use time_range or start_date/end_date to bound recency.",
         inputSchema: z.object({
           query: z.string().min(1).max(2_000).describe("Focused natural-language search query."),
           max_results: z.number().int().min(1).max(8).default(5).describe("Maximum sources to return."),

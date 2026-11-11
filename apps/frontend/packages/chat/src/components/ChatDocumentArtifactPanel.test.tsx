@@ -40,9 +40,9 @@ vi.mock("@repo/api", () => ({
     asset_id: "asset",
     revision_id: "revision",
     filename: "page.HTML",
-    title: "Legacy page",
+    title: "Saved page",
     mime_type: "text/html; charset=utf-8",
-    content: "<h1>Legacy page</h1>",
+    content: "<h1>Saved page</h1>",
     size: 21,
     sha256: "sha",
     kind: "artifact",
@@ -86,10 +86,10 @@ it("loads metadata then previews HTML from the Asset capability URL", async () =
   expect(screen.queryByText("HTML 预览地址不可用，请重新打开预览。")).toBeNull();
 });
 
-it("renders migrated virtual files through the same Storage URL preview", async () => {
+it("renders Chat-owned conversation files through their Storage URL", async () => {
   Object.assign(chatStoreMock.artifactPreview, { documentId: null, fileId: "file" });
   render(<ChatFileArtifactPanel />);
-  const frame = await screen.findByTitle("Legacy page");
+  const frame = await screen.findByTitle("Saved page");
   expect(frame.tagName).toBe("IFRAME");
   expect(frame.getAttribute("src")).toBe(resourceUrl);
   expect(frame.hasAttribute("srcdoc")).toBe(false);

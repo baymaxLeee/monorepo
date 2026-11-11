@@ -362,7 +362,7 @@ export function createSubagentsManifest({
     "subagents",
     tool({
       description:
-        "Run 1-3 isolated read-only web-research subagents and return their results to the current primary agent. Delegate only when a bounded investigation benefits from a fresh disposable context, or when 2-3 genuinely independent investigations can run in parallel. Keep work in the primary loop when it is small, sequential, depends on shared context, or can be completed directly with web_search/web_fetch; a request for research or a report alone is not a reason to delegate. Preserve the user's scope. Multiple tasks must be independent, not an automatic decomposition.",
+        "Run 1-3 isolated read-only web-research subagents and return their results to the current primary agent. Delegate only when a bounded investigation benefits from a fresh disposable context with separate reasoning, or when 2-3 genuinely independent investigations can run in parallel. Use code_mode, not subagents, for deterministic batches of public searches/fetches that only need programmatic deduplication, filtering, or aggregation. Keep work in the primary loop when it is small, sequential, depends on shared context, or can be completed directly with web_search/web_fetch; a request for research or a report alone is not a reason to delegate. Preserve the user's scope. Multiple tasks must be independent, not an automatic decomposition.",
       inputSchema: subagentsInputSchema,
       outputSchema: subagentsPayloadSchema,
       contextSchema: subagentToolContextSchema,

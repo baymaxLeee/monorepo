@@ -23,6 +23,7 @@ const document = {
 function fixture() {
   const calls: string[] = [];
   const imported: Uint8Array[] = [];
+  const importedPaths: string[] = [];
   const process: SandboxProcess = {
     session_id: "process",
     stdout: "first",
@@ -42,7 +43,8 @@ function fixture() {
       calls.push("destroy");
       return { destroyed: true };
     },
-    upload: async (_id, _scope, _path, body) => {
+    upload: async (_id, _scope, path, body) => {
+      importedPaths.push(path);
       imported.push(new Uint8Array(await new Response(body).arrayBuffer()));
     },
     download: async () => new Blob([bytes]).stream(),
@@ -95,7 +97,7 @@ function fixture() {
       };
     },
   };
-  return { deps, client, calls, imported };
+  return { deps, client, calls, imported, importedPaths };
 }
 
 test("lazy run allocation is single-flight; original binary bytes survive import and explicit publication", async () => {
@@ -169,6 +171,50 @@ test("official SDK file methods preserve bytes and keep source snapshots read-on
   await run.dispose();
 });
 
+test("refresh imports and reports only conversation sources added or updated after initial Bash hydration", async () => {
+  const f = fixture();
+  let documents = [document];
+  f.deps.documents = async () => documents;
+  const run = new RunSandbox(context, f.deps);
+
+  await run.run({ command: "true" });
+  documents = [
+    document,
+    {
+      ...document,
+      id: "generated-image",
+      filename: "generated.png",
+      asset_id: "generated-asset",
+      source_revision_id: "generated-revision",
+    },
+  ];
+
+  const refreshed = await run.refresh();
+  assert.deepEqual(f.importedPaths, [
+    "sources/documents/doc/测试.bin",
+    "sources/documents/generated-image/generated.png",
+  ]);
+  assert.deepEqual(refreshed, {
+    sources: [{ path: "/workspace/sources/documents/generated-image/generated.png", document_id: "generated-image" }],
+  });
+
+  documents = documents.map((entry) =>
+    entry.id === "generated-image" ? { ...entry, source_revision_id: "generated-revision-2" } : entry,
+  );
+  const [firstRefresh, concurrentRefresh] = await Promise.all([run.refresh(), run.refresh()]);
+  const updated = {
+    sources: [{ path: "/workspace/sources/documents/generated-image/generated.png", document_id: "generated-image" }],
+  };
+  assert.deepEqual(firstRefresh, updated);
+  assert.deepEqual(concurrentRefresh, updated);
+  assert.deepEqual(f.importedPaths, [
+    "sources/documents/doc/测试.bin",
+    "sources/documents/generated-image/generated.png",
+    "sources/documents/generated-image/generated.png",
+  ]);
+  await run.dispose();
+});
+
 test("official SDK spawn streams process output and rejects unsupported writable stdin", async () => {
   const f = fixture();
   const run = new RunSandbox(context, f.deps);
@@ -211,7 +257,7 @@ test("attachments without a migrated Storage revision fail and clean up the sand
   const f = fixture();
   f.deps.documents = async () => [{ ...document, asset_id: null, source_revision_id: null, content_md: "legacy body" }];
   const run = new RunSandbox(context, f.deps);
-  await assert.rejects(run.load(), /no Storage revision/);
+  await assert.rejects(run.refresh(), /no Storage revision/);
   assert.deepEqual(f.imported, []);
   assert.deepEqual(f.calls, ["create", "destroy"]);
 });
@@ -240,7 +286,7 @@ test("Chat-owned saved files import exact Storage bytes including trailing newli
   storage.content = async () => new Blob([original]).stream();
   f.deps.asset = () => storage;
   const run = new RunSandbox(context, f.deps);
-  await run.load();
+  await run.refresh();
   assert.deepEqual(f.imported, [original]);
   await run.dispose();
 });

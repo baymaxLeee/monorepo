@@ -32,3 +32,13 @@ test("the primary loop chooses tools without a mandatory research router", () =>
   assert.match(normal, /preserve the user's requested scope.*shortest sufficient evidence-to-artifact path/i);
   assert.doesNotMatch(normal, /must use subagents first/i);
 });
+
+test("public web tools have mutually exclusive routing guidance", () => {
+  const execution = renderExecutionProtocol();
+
+  assert.match(execution, /web_search directly for one focused query/i);
+  assert.match(execution, /web_fetch directly for one known URL/i);
+  assert.match(execution, /multiple independent searches.*code_mode/i);
+  assert.match(execution, /separate reasoning context.*subagents/i);
+  assert.match(execution, /file, CLI, or raw-response work.*Bash/i);
+});

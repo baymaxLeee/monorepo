@@ -20,7 +20,7 @@ Claim 的 strong/snapshot/lease/weak 语义分别表达当前所有权、固定�
 
 ## Agent 文件与知识
 
-模型用 `bash` 在每 run 的 Linux 工作区操作真实文件；不会自动同步临时修改。 `save_sandbox_file` 流式上传原始字节至 Storage，再由 Chat 在本地事务中登记不可变 `conversation_file`、写入 Claim intent，并在文件名以 `-plan.md` 结尾时更新 `active_plan_file_id`。正常结束、Stop 或异常回收沙箱；下一 run 通过 `load_conversation_files` 从原始文档和 Chat 会话文件引用重新导入。`sources/` 只读，编辑在工作副本进行；发现、读取、精确编辑和删除统一由 Bash/CLI 完成。每次发布产生新 file id，旧快照不被原地覆盖。大文本的可选预览不阻断原件发布下载。执行资源与网络边界见 [Sandbox](../微服务/sandbox.md)。
+模型用 `bash` 在每 run 的 Linux 工作区操作真实文件；不会自动同步临时修改。 `save_sandbox_file` 流式上传原始字节至 Storage，再由 Chat 在本地事务中登记不可变 `conversation_file`、写入 Claim intent，并在文件名以 `-plan.md` 结尾时更新 `active_plan_file_id`。正常结束、Stop 或异常回收沙箱；下一 run 的首次 Bash 自动从原始文档和 Chat 会话文件引用导入只读 `sources/`。同一 run 中其他工具新增或更新会话资源后，`refresh_conversation_sources` 只导入并返回发生变化的 source；它不承担文件发现或读取。编辑在工作副本进行，发现、读取、精确编辑和删除统一由 Bash/CLI 完成。每次发布产生新 file id，旧快照不被原地覆盖。大文本的可选预览不阻断原件发布下载。执行资源与网络边界见 [Sandbox](../微服务/sandbox.md)。
 
 普通文件由主 Agent 在 Sandbox 中完成并逐个发布。HTML 内容与脚本归产物本身；预览宿主不按页数裁剪或改写模型文档。iframe 使用存储服务临时 URL 加载 HTML 并允许脚本执行，通过不授予 allow-same-origin 隔离宿主页面权限。
 
