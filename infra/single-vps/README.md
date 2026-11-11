@@ -179,11 +179,18 @@ IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 
 ---
 
-## (Optional but strongly recommended for China-hosted VPS) Mirror images to Tencent TCR
+## (Optional but strongly recommended for China-hosted VPS) Mirror images to a domestic OCI registry
 
-GHCR is in the US. From a 3Mbps Tencent-Cloud Lighthouse box, the first pull of all 10 images is **~30 minutes** (limited by trans-Pacific link, not your bandwidth). Subsequent pulls are tiny because only the changed layer comes down, but every "first" pull on a fresh VPS hurts.
+GHCR is in the US. From a 3Mbps Tencent-Cloud Lighthouse box, the first pull of
+the full application image set is **~30 minutes** (limited by the trans-Pacific
+link, not your bandwidth). Subsequent pulls are tiny because only changed layers
+come down, but every first pull on a fresh VPS hurts.
 
-Solution: have the CI also push every image to a **Tencent Container Registry (TCR) Personal Edition** in your TCR namespace. The VPS then pulls from intra-Tencent-Cloud (MB/s scale, **first pull drops to ~1–3 minutes**). The CI already supports this — it's just opt-in.
+Solution: let `mirror-images` copy the atomic GHCR release to a domestic OCI
+registry after `build-images` completes. Changed components transfer their layers;
+unchanged components only receive the new release tag inside the target registry.
+Tencent TCR is the documented example, but `TCR_HOST` may point at another
+OCI-compatible registry such as an Aliyun regional registry.
 
 ### 1. Create TCR namespace (Tencent Cloud console, one-time, free)
 
@@ -205,7 +212,8 @@ GitHub repo → Settings → Secrets and variables → Actions:
 | Secret | `TCR_USERNAME` | Tencent Cloud account ID (digits) |
 | Secret | `TCR_PASSWORD` | TCR access credential from step 1.4 |
 
-Next `build-images` run will mirror all 10 images to both GHCR and TCR.
+The next `build-images` run publishes GHCR first; `mirror-images` then transfers
+only rebuilt components and retags unchanged component digests in TCR.
 
 ### 3. One-time `docker login` on the VPS
 
@@ -258,11 +266,14 @@ And optionally these **Variables**:
 
 Done. Now every `git push origin main`:
 
-1. For release-affecting changes, `build-images.yml` runs affected backend/frontend/tooling tests and contract checks through reusable workflows, then builds & pushes the 11 images only if all checks succeed.
-2. `deploy-single-vps.yml` waits for build-images success, checks out that exact commit, then SSH's to the VPS and runs the deploy
-3. After the health check succeeds, the deploy removes images not referenced by any container
+1. `build-images.yml` runs backend/frontend/tooling/contract gates, builds only affected images, retags unchanged digests, and verifies a complete immutable GHCR release.
+2. `mirror-images.yml` copies only rebuilt images to the optional operator registry and retags unchanged images without uploading their layers.
+3. `deploy-single-vps.yml` reads the exact commit and tag from the release artifact, then SSH's to the VPS and deploys only after publication succeeds.
+4. After the health check succeeds, the deploy removes images not referenced by any container.
 
-The CI overrides `IMAGE_TAG` to the just-built `sha-<short>` so each deploy is pinned to the commit that triggered it. The registry remains the rollback source of truth; the VPS keeps only images used by its current containers.
+Every component receives the same `sha-<short>` release tag even when its digest
+was reused, so Compose keeps one atomic `IMAGE_TAG`. The registry remains the
+rollback source of truth; the VPS keeps only images used by its current containers.
 
 ### B. Manual deploy from laptop
 

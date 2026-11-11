@@ -17,6 +17,7 @@
 | IAM、scope、caller identity 与 Admin 配置 | [identity-and-configuration](identity-and-configuration.md) |
 | MFE、路由、包、AI UI 与设计边界 | [frontend](frontend.md) |
 | 数据基线、部署、密钥与观测 | [operations](operations.md) |
+| 容器镜像增量构建、原子 release、镜像同步与部署门禁 | [container-image-delivery](container-image-delivery.md) |
 | AI 开发入口、增量验证与文档维护 | [engineering](engineering.md) |
 
 业务细节从 [docs/index.md](../index.md) 进入；字段、版本、端口以 schema/manifest

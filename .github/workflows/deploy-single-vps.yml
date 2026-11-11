@@ -1,9 +1,10 @@
 name: deploy-single-vps
 
-# Deploys after build-images passes its test/contract gates and publishes images.
+# Deploys after build-images publishes an atomic GHCR release and mirror-images
+# finishes copying the changed components to the optional operator registry.
 #
 # Trigger:
-#   • Auto: when build-images workflow completes on main (so images are ready)
+#   • Auto: when mirror-images completes on main (so the selected registry is ready)
 #   • Manual: workflow_dispatch with a specific image tag
 #
 # Secrets model: the VPS assembles its own compose `.env` (see docs/ADR/0031),
@@ -24,7 +25,7 @@ name: deploy-single-vps
 
 on:
   workflow_run:
-    workflows: ["build-images"]
+    workflows: ["mirror-images"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -44,31 +45,50 @@ concurrency:
 
 jobs:
   deploy:
-    # Skip auto-run if build-images failed; manual runs always proceed.
+    # Skip auto-run if image publication failed; manual runs always proceed.
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
     environment:
       name: single-vps
       # Add yourself as a required reviewer in repo Settings → Environments
       # if you want a manual approval gate before every deploy.
     steps:
-      - uses: actions/checkout@v4
+      - name: Download automatic release metadata
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
         with:
-          # workflow_run defaults to the latest main; deploy the checked revision.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          name: image-plan
+          path: release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Resolve release
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "${EVENT_NAME}" = "workflow_run" ]; then
+            HEAD_SHA="$(jq -r '.headSha' release/image-plan.json)"
+            TAG="$(jq -r '.imageTag' release/image-plan.json)"
+          else
+            HEAD_SHA="${GITHUB_SHA}"
+            TAG="${MANUAL_TAG:-sha-$(echo "${GITHUB_SHA}" | cut -c1-8)}"
+          fi
+          echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.release.outputs.head_sha }}
 
       - name: Resolve image tag
         id: vars
         run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            TAG="${{ inputs.tag }}"
-          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
-            # build-images tagged the images with sha-<8> of the head commit.
-            TAG="sha-$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-8)"
-          else
-            TAG="sha-$(echo '${{ github.sha }}' | cut -c1-8)"
-          fi
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ steps.release.outputs.tag }}" >> "$GITHUB_OUTPUT"
 
           REGISTRY="${{ vars.IMAGE_REGISTRY }}"
           if [ -z "${REGISTRY}" ]; then

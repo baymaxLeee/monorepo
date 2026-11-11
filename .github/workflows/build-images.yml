@@ -1,24 +1,10 @@
 name: build-images
 
-# Builds all backend, frontend, and migration container images and pushes them.
-#
-# Push targets:
-#   1. GHCR — always. Free, public-friendly, no extra config required;
-#      authenticates with the workflow's GITHUB_TOKEN.
-#   2. Tencent TCR — OPTIONAL mirror. Enable by setting in repo Settings
-#      → Secrets and variables → Actions:
-#         vars.TCR_NAMESPACE      e.g. baymaxleee
-#         vars.TCR_HOST           (optional, default ccr.ccs.tencentyun.com)
-#         secrets.TCR_USERNAME    Tencent Cloud account ID (digits)
-#         secrets.TCR_PASSWORD    TCR access credential
-#      The VPS then pulls from intra-Tencent-Cloud (~MB/s) instead of the
-#      30-minute trans-Pacific haul through GHCR. Set IMAGE_REGISTRY in the
-#      VPS's .env to the TCR path to actually consume the mirror.
-#
-# Tag strategy (applied to every registry the build pushes to):
-#   - every commit on main → :sha-<short>   (immutable, deployable)
-#   - every commit on main → :main          (mutable, "current main")
-#   - every tag v*.*.*     → :<tag>         (immutable, release)
+# Publishes one atomic image release while building only affected components.
+# Changed images are built in a dynamic matrix. Unchanged images keep their
+# existing layers and receive the new immutable sha-* tag by manifest retagging.
+# A downstream mirror-images workflow copies that release to the optional
+# operator registry without putting cross-region uploads on this critical path.
 
 on:
   push:
@@ -34,21 +20,18 @@ on:
       - "mise.toml"
       - "justfile"
       - "ruff.toml"
+      - "oxlint.config.ts"
+      - "oxfmt.config.ts"
       - ".pre-commit-config.yaml"
       - "services.yaml"
-      - "*config.*"
-      # db-init bakes scripts/db-migrate.sh (see Dockerfile.db-init); a change
-      # there MUST rebuild images or the deployed migrator stays stale.
       - "scripts/**"
       - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Custom tag to push (overrides default tag strategy)"
+        description: "Additional tag to publish after rebuilding every image"
         required: false
 
-# Only the newest build for a branch can deploy. Besides avoiding duplicate
-# registry uploads, this prevents a slow older run from deploying after a newer commit.
 concurrency:
   group: build-images-${{ github.ref }}
   cancel-in-progress: true
@@ -66,46 +49,90 @@ jobs:
   contracts:
     uses: ./.github/workflows/contracts.yml
 
-  build:
-    needs: [backend, frontend, tooling, contracts]
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      build-matrix: ${{ steps.plan.outputs.build_matrix }}
+      reuse-matrix: ${{ steps.plan.outputs.reuse_matrix }}
+      has-build: ${{ steps.plan.outputs.has_build }}
+      has-reuse: ${{ steps.plan.outputs.has_reuse }}
+      image-tag: ${{ steps.plan.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Select affected images
+        id: plan
+        env:
+          FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          BASE_SHA=""
+          if [ "${FORCE_ALL}" != "true" ]; then
+            BASE_SHA="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow build-images.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha' 2>/dev/null || true)"
+          fi
+          if [ "${FORCE_ALL}" = "true" ] || [ -z "${BASE_SHA}" ] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            PLAN="$(node scripts/image-plan.mjs --all)"
+          else
+            PLAN="$(node scripts/image-plan.mjs "${BASE_SHA}")"
+          fi
+
+          IMAGE_TAG="sha-$(echo "${HEAD_SHA}" | cut -c1-8)"
+          ALIASES='[]'
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            ALIASES='["main"]'
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            ALIASES="$(jq -cn --arg tag "${GITHUB_REF#refs/tags/}" '[$tag]')"
+          fi
+          if [ -n "${{ inputs.tag }}" ]; then
+            ALIASES="$(jq -c --arg tag "${{ inputs.tag }}" '. + [$tag] | unique' <<<"${ALIASES}")"
+          fi
+          PLAN="$(jq -c --arg base_sha "${BASE_SHA}" --arg head_sha "${HEAD_SHA}" --arg image_tag "${IMAGE_TAG}" --argjson aliases "${ALIASES}" '. + {baseSha: $base_sha, headSha: $head_sha, imageTag: $image_tag, aliases: $aliases}' <<<"${PLAN}")"
+          printf '%s\n' "${PLAN}" > image-plan.json
+
+          echo "build_matrix=$(jq -c '.buildMatrix' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "reuse_matrix=$(jq -c '.reuseMatrix' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "has_build=$(jq -r '.build | length > 0' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "has_reuse=$(jq -r '.reuse | length > 0' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+          echo "### Image release plan" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base release: ${BASE_SHA:-none — conservative full build}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build: $(jq -r '.build | if length == 0 then "none" else join(", ") end' <<<"${PLAN}")" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Reuse: $(jq -r '.reuse | if length == 0 then "none" else join(", ") end' <<<"${PLAN}")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save release plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-plan
+          path: image-plan.json
+          retention-days: 30
+          if-no-files-found: error
+
+  build:
+    needs: [backend, frontend, tooling, contracts, plan]
+    if: >-
+      needs.backend.result == 'success' &&
+      needs.frontend.result == 'success' &&
+      needs.tooling.result == 'success' &&
+      needs.contracts.result == 'success' &&
+      needs.plan.outputs.has-build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
-      packages: write # required to push to ghcr.io
+      packages: write
     strategy:
       fail-fast: false
-      # Personal registries throttle many simultaneous layer uploads.
-      max-parallel: 3
-      matrix:
-        # gateway / iam / knowledge / admin / chat / executor / telemetry / sandbox → backend service images
-        # sandbox-runtime                          → ephemeral execution environment
-        # web                                      → nginx + bundled frontend SPA dist
-        # db-init                                  → one-shot Postgres schema bootstrap
-        service:
-          [
-            gateway,
-            iam,
-            storage,
-            canvas,
-            knowledge,
-            admin,
-            chat,
-            executor,
-            telemetry,
-            sandbox,
-            sandbox-runtime,
-            sandbox-proxy,
-            web,
-            db-init,
-          ]
-    env:
-      # Surfaced into the shell of every step so the "Compute tags" script
-      # can branch on whether the TCR mirror is configured.
-      TCR_HOST: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
-      TCR_NAMESPACE: ${{ vars.TCR_NAMESPACE }}
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.build-matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
@@ -115,89 +142,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to Tencent TCR (only when TCR_NAMESPACE is configured)
-        if: vars.TCR_NAMESPACE != ''
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
-          username: ${{ secrets.TCR_USERNAME }}
-          password: ${{ secrets.TCR_PASSWORD }}
-
-      - name: Compute tags
+      - name: Compute image tags
         id: tags
+        env:
+          CUSTOM_TAG: ${{ inputs.tag }}
+          IMAGE_TAG: ${{ needs.plan.outputs.image-tag }}
+          SERVICE: ${{ matrix.service }}
         run: |
           REPO_LC="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
-          GHCR_IMAGE="ghcr.io/${REPO_LC}/${{ matrix.service }}"
-          SHA_SHORT=$(echo "${GITHUB_SHA}" | cut -c1-8)
-
-          # Pick the immutable VER tag (always set) and an optional MOVABLE
-          # tag (skipped for manual dispatch where the user gave their own).
-          if [ -n "${{ inputs.tag }}" ]; then
-            VER="${{ inputs.tag }}"
-            MOVABLE=""
+          IMAGE="ghcr.io/${REPO_LC}/${SERVICE}"
+          TAGS="${IMAGE}:${IMAGE_TAG}"
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            TAGS="${TAGS},${IMAGE}:main"
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            VER="${GITHUB_REF#refs/tags/}"
-            MOVABLE="sha-${SHA_SHORT}"
-          else
-            VER="sha-${SHA_SHORT}"
-            MOVABLE="main"
+            TAGS="${TAGS},${IMAGE}:${GITHUB_REF#refs/tags/}"
           fi
-
-          # Comma-separated tag list; buildx pushes to all in a single upload.
-          TAGS="${GHCR_IMAGE}:${VER}"
-          [ -n "${MOVABLE}" ] && TAGS="${TAGS},${GHCR_IMAGE}:${MOVABLE}"
-
-          if [ -n "${TCR_NAMESPACE}" ]; then
-            TCR_IMAGE="${TCR_HOST}/${TCR_NAMESPACE}/${{ matrix.service }}"
-            TAGS="${TAGS},${TCR_IMAGE}:${VER}"
-            [ -n "${MOVABLE}" ] && TAGS="${TAGS},${TCR_IMAGE}:${MOVABLE}"
-            echo "→ mirroring to TCR: ${TCR_IMAGE}"
-          else
-            echo "→ TCR mirror disabled (set vars.TCR_NAMESPACE to enable)"
-          fi
-
+          [ -z "${CUSTOM_TAG}" ] || TAGS="${TAGS},${IMAGE}:${CUSTOM_TAG}"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-          echo "sha_short=${SHA_SHORT}" >> "$GITHUB_OUTPUT"
 
-      # Each Dockerfile expects a specific build context. We pick it per service.
-      - name: Build context per service
-        id: ctx
-        run: |
-          case "${{ matrix.service }}" in
-            gateway|iam|storage|canvas)
-              echo "context=apps/backend/services/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
-              echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
-              ;;
-            chat|executor|sandbox)
-              # Root context gives the image access to the backend workspace;
-              # Corepack reads the repository-level pnpm version from here.
-              echo "context=." >> "$GITHUB_OUTPUT"
-              echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
-              ;;
-            sandbox-proxy)
-              echo "context=." >> "$GITHUB_OUTPUT"
-              echo "dockerfile=apps/backend/services/sandbox/proxy/Dockerfile" >> "$GITHUB_OUTPUT"
-              ;;
-            sandbox-runtime)
-              echo "context=." >> "$GITHUB_OUTPUT"
-              echo "dockerfile=apps/backend/services/sandbox/runtime/Dockerfile" >> "$GITHUB_OUTPUT"
-              ;;
-            admin|knowledge|telemetry)
-              echo "context=apps/backend" >> "$GITHUB_OUTPUT"
-              echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
-              ;;
-            web|db-init)
-              # Single-VPS image; build context is the monorepo root so we can
-              # COPY across frontend dist, backend migrations, and infra/.
-              echo "context=." >> "$GITHUB_OUTPUT"
-              echo "dockerfile=infra/single-vps/Dockerfile.${{ matrix.service }}" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-
-      - uses: docker/build-push-action@v6
+      - name: Build and publish ${{ matrix.service }}
+        uses: docker/build-push-action@v6
         with:
-          context: ${{ steps.ctx.outputs.context }}
-          file: ${{ steps.ctx.outputs.dockerfile }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
@@ -208,3 +175,84 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+
+  reuse:
+    needs: [backend, frontend, tooling, contracts, plan]
+    if: >-
+      needs.backend.result == 'success' &&
+      needs.frontend.result == 'success' &&
+      needs.tooling.result == 'success' &&
+      needs.contracts.result == 'success' &&
+      needs.plan.outputs.has-reuse == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJSON(needs.plan.outputs.reuse-matrix) }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Reuse published digest for ${{ matrix.service }}
+        env:
+          IMAGE_TAG: ${{ needs.plan.outputs.image-tag }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          REPO_LC="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          IMAGE="ghcr.io/${REPO_LC}/${SERVICE}"
+          docker buildx imagetools create --prefer-index=false --tag "${IMAGE}:${IMAGE_TAG}" "${IMAGE}:main"
+
+  publish:
+    needs: [backend, frontend, tooling, contracts, plan, build, reuse]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Require a complete atomic release
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          TOOLING_RESULT: ${{ needs.tooling.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          REUSE_RESULT: ${{ needs.reuse.result }}
+        run: |
+          for result in "${BACKEND_RESULT}" "${FRONTEND_RESULT}" "${TOOLING_RESULT}" "${CONTRACTS_RESULT}" "${PLAN_RESULT}"; do
+            [ "${result}" = "success" ] || exit 1
+          done
+          for result in "${BUILD_RESULT}" "${REUSE_RESULT}"; do
+            [ "${result}" = "success" ] || [ "${result}" = "skipped" ] || exit 1
+          done
+
+      - name: Download release plan
+        uses: actions/download-artifact@v5
+        with:
+          name: image-plan
+          path: image-plan
+
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify every immutable image tag
+        env:
+          IMAGE_TAG: ${{ needs.plan.outputs.image-tag }}
+        run: |
+          REPO_LC="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          while IFS= read -r service; do
+            docker buildx imagetools inspect "ghcr.io/${REPO_LC}/${service}:${IMAGE_TAG}" >/dev/null
+          done < <(jq -r '(.build + .reuse)[]' image-plan/image-plan.json)

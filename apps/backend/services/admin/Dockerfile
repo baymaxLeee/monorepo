@@ -12,17 +12,19 @@ WORKDIR /app
 
 # Build context = apps/backend, so copies are workspace-root-relative.
 COPY pyproject.toml uv.lock /app/
-COPY services/admin /app/services/admin
-COPY libs /app/libs
+COPY libs/kernel /app/libs/kernel
+COPY services/admin/pyproject.toml /app/services/admin/pyproject.toml
 
 WORKDIR /app/services/admin
 RUN uv sync --frozen --no-dev
 
+COPY services/admin /app/services/admin
+
 # ─── runtime ────────────────────────────────────────────
 FROM python:3.14.5-slim
-COPY --from=builder /app /app
-# uv puts the venv at the workspace root (apps/backend = /app here), not at
-# the member directory — so the bin/ to add to PATH is /app/.venv/bin.
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/libs/kernel /app/libs/kernel
+COPY --from=builder /app/services/admin /app/services/admin
 ENV PATH="/app/.venv/bin:$PATH"
 WORKDIR /app/services/admin
 

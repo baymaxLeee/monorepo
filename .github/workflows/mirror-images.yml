@@ -1,0 +1,145 @@
+name: mirror-images
+
+# Mirrors only changed images to the operator registry. Unchanged components are
+# retagged inside that registry without uploading layers. This workflow is kept
+# separate so cross-region registry latency does not block GHCR publication.
+
+on:
+  workflow_run:
+    workflows: ["build-images"]
+    types: [completed]
+
+concurrency:
+  group: mirror-images-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  packages: read
+
+jobs:
+  prepare:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.plan.outputs.enabled }}
+      build-matrix: ${{ steps.plan.outputs.build_matrix }}
+      reuse-matrix: ${{ steps.plan.outputs.reuse_matrix }}
+      has-build: ${{ steps.plan.outputs.has_build }}
+      has-reuse: ${{ steps.plan.outputs.has_reuse }}
+      image-tag: ${{ steps.plan.outputs.image_tag }}
+      aliases: ${{ steps.plan.outputs.aliases }}
+    steps:
+      - name: Download trusted release plan
+        uses: actions/download-artifact@v4
+        with:
+          name: image-plan
+          path: release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Read release plan
+        id: plan
+        env:
+          MIRROR_NAMESPACE: ${{ vars.TCR_NAMESPACE }}
+        run: |
+          PLAN="$(jq -c . release/image-plan.json)"
+          echo "enabled=$([ -n "${MIRROR_NAMESPACE}" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "build_matrix=$(jq -c '.buildMatrix' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "reuse_matrix=$(jq -c '.reuseMatrix' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "has_build=$(jq -r '.build | length > 0' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "has_reuse=$(jq -r '.reuse | length > 0' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$(jq -r '.imageTag' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+          echo "aliases=$(jq -c '.aliases' <<<"${PLAN}")" >> "$GITHUB_OUTPUT"
+
+      - name: Forward release plan to deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-plan
+          path: release/image-plan.json
+          retention-days: 30
+          if-no-files-found: error
+
+  mirror-built:
+    needs: prepare
+    if: needs.prepare.outputs.enabled == 'true' && needs.prepare.outputs.has-build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.prepare.outputs.build-matrix) }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to mirror registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+      - name: Copy changed image to mirror
+        env:
+          IMAGE_TAG: ${{ needs.prepare.outputs.image-tag }}
+          ALIASES: ${{ needs.prepare.outputs.aliases }}
+          MIRROR_HOST: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
+          MIRROR_NAMESPACE: ${{ vars.TCR_NAMESPACE }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          REPO_LC="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          SOURCE="ghcr.io/${REPO_LC}/${SERVICE}:${IMAGE_TAG}"
+          TARGET="${MIRROR_HOST}/${MIRROR_NAMESPACE}/${SERVICE}"
+          TAGS=(--tag "${TARGET}:${IMAGE_TAG}")
+          while IFS= read -r alias; do
+            TAGS+=(--tag "${TARGET}:${alias}")
+          done < <(jq -r '.[]' <<<"${ALIASES}")
+          docker buildx imagetools create --prefer-index=false "${TAGS[@]}" "${SOURCE}"
+
+  mirror-reused:
+    needs: prepare
+    if: needs.prepare.outputs.enabled == 'true' && needs.prepare.outputs.has-reuse == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.prepare.outputs.reuse-matrix) }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to mirror registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+      - name: Reuse mirrored digest
+        env:
+          IMAGE_TAG: ${{ needs.prepare.outputs.image-tag }}
+          MIRROR_HOST: ${{ vars.TCR_HOST || 'ccr.ccs.tencentyun.com' }}
+          MIRROR_NAMESPACE: ${{ vars.TCR_NAMESPACE }}
+          SERVICE: ${{ matrix.service }}
+        run: |
+          TARGET="${MIRROR_HOST}/${MIRROR_NAMESPACE}/${SERVICE}"
+          docker buildx imagetools create --prefer-index=false --tag "${TARGET}:${IMAGE_TAG}" "${TARGET}:main"
+
+  complete:
+    needs: [prepare, mirror-built, mirror-reused]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require mirror completion when configured
+        env:
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          MIRROR_BUILT_RESULT: ${{ needs.mirror-built.result }}
+          MIRROR_REUSED_RESULT: ${{ needs.mirror-reused.result }}
+        run: |
+          [ "${PREPARE_RESULT}" = "success" ] || exit 1
+          for result in "${MIRROR_BUILT_RESULT}" "${MIRROR_REUSED_RESULT}"; do
+            [ "${result}" = "success" ] || [ "${result}" = "skipped" ] || exit 1
+          done
