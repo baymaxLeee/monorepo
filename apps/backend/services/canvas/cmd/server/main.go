@@ -546,7 +546,7 @@ func run() error {
 		applicationresourceassetgeneration.WithImageModelCatalog(models),
 		applicationresourceassetgeneration.WithUploadedReferenceReader(assetService),
 	)
-	nodeHandler := maturehttp.NewCanvasNodeHandler(nodes, assets, generations, storyboards)
+	nodeHandler := maturehttp.NewCanvasNodeHandler(nodes, assets, generations, textGenerations, storyboards)
 	nodeHandler.SetStream(canvasJournal)
 	resourceHandler := maturehttp.NewResourceHandler(resourceService, assetService, resourceGenerations)
 	memberAccess := projectaccesspersistence.NewChecker(db, redisClient, log)

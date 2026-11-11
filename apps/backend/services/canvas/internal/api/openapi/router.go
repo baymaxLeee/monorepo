@@ -647,6 +647,18 @@ func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.Pro
 			input.NodeID = chi.URLParam(request, "nodeId")
 			return transport.nodes.StartCanvasNodeGeneration(ctx, input)
 		}))
+		r.Post("/nodes/{nodeId}/text-generations:stream", transport.nodeStreamRoute("StartCanvasNodeTextGeneration", applicationprojectaccess.AccessUpdate, func(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+			workspaceID := metadataWorkspace(request)
+			return transport.nodes.StreamLegacyCanvasNodeTextGeneration(
+				ctx,
+				writer,
+				request,
+				chi.URLParam(request, "projectId"),
+				chi.URLParam(request, "canvasId"),
+				chi.URLParam(request, "nodeId"),
+				&workspaceID,
+			)
+		}))
 		r.Post("/generations", transport.nodeRoute("StartCanvasGeneration", applicationprojectaccess.AccessUpdate, func(ctx context.Context, request *http.Request) (any, error) {
 			input := new(contractcanvasnode.StartCanvasGenerationRequest)
 			setScope(request, &input.WorkspaceID, &input.ProjectID, &input.CanvasID)

@@ -32,6 +32,8 @@ Canvas 合同的生成源是 `apps/backend/services/canvas/internal/api/contract
 
 顶层只由 `CanvasReplica` 安装快照和 SSE patch。断线保留最后状态并重连；过期或非法数据恢复 HTTP 快照。旧快照不得覆盖已安装的新事件。卸载或 401/403/404 结束复制并拒绝未完成的回执等待。
 
+部署期间保留 `POST .../nodes/{nodeId}/text-generations:stream` 供已经打开、仍运行旧版 JavaScript 的页面完成普通文本生成。该入口只启动同一个耐久文本任务，并把数据库 checkpoint 投影成旧 `session` / `delta` / `completed` 帧；断开只结束兼容订阅，不取消任务。它不写正式图、不恢复 Redis 文本缓冲，也不是新客户端可选的第二条状态源；刷新后的客户端仍只消费顶层 Canvas SSE。
+
 ## 验证
 
 - `just test backend/canvas`：diff、UTF-8 checkpoint、SSE 生命周期、超大帧恢复。

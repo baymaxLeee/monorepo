@@ -15,6 +15,7 @@ import (
 	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationcanvasgeneration "github.com/example/monorepo/canvas/internal/application/canvasgeneration"
+	applicationcanvastextgeneration "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domaincanvasnode "github.com/example/monorepo/canvas/internal/domain/canvas"
@@ -149,6 +150,11 @@ type generationService interface {
 	List(context.Context, applicationcanvasnode.Scope, string, string, string) ([]applicationvideogeneration.TaskRun, error)
 	Select(context.Context, applicationcanvasnode.Scope, string, string, string, string) (applicationvideogeneration.TaskRun, error)
 	Cancel(context.Context, applicationcanvasnode.Scope, string, string, string, string) error
+}
+
+type textGenerationCompatibilityService interface {
+	Start(context.Context, applicationcanvasnode.Scope, string, string, string) (applicationcanvastextgeneration.Session, error)
+	Get(context.Context, applicationcanvasnode.Scope, string, string, string, string) (applicationcanvastextgeneration.Session, error)
 }
 
 type storyboardDraftService interface {
@@ -286,23 +292,25 @@ func (h *CanvasNodeHandler) CancelCanvasNodeGeneration(ctx context.Context, r *t
 }
 
 type CanvasNodeHandler struct {
-	canvasMetadata *applicationcanvasnode.Service
-	stream         stream.Source
-	canvas_nodes   canvasnodeService
-	graph          canvasnodeGraphService
-	assets         canvasnodeAssetService
-	generations    generationService
-	drafts         storyboardDraftService
+	canvasMetadata  *applicationcanvasnode.Service
+	stream          stream.Source
+	canvas_nodes    canvasnodeService
+	graph           canvasnodeGraphService
+	assets          canvasnodeAssetService
+	generations     generationService
+	textGenerations textGenerationCompatibilityService
+	drafts          storyboardDraftService
 }
 
 func NewCanvasNodeHandler(
 	canvas_nodes *applicationcanvasnode.CanvasNodeService,
 	assets *applicationcanvasnode.CanvasNodeAssetService,
 	generations *applicationcanvasgeneration.Service,
+	textGenerations *applicationcanvastextgeneration.Service,
 	drafts *applicationcanvasnode.StoryboardService,
 ) *CanvasNodeHandler {
 	return &CanvasNodeHandler{
-		canvas_nodes: canvas_nodes, graph: canvas_nodes, assets: assets, generations: generations, drafts: drafts,
+		canvas_nodes: canvas_nodes, graph: canvas_nodes, assets: assets, generations: generations, textGenerations: textGenerations, drafts: drafts,
 	}
 }
 
