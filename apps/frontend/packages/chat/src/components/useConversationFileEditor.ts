@@ -22,6 +22,7 @@ export function useConversationFileEditor(
   const [file, setFile] = useState<ConversationFileDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState("");
+  const [initialContent, setInitialContent] = useState("");
   const [editing, setEditing] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export function useConversationFileEditor(
     operation.current = null;
     setFile(null);
     setDraft("");
+    setInitialContent("");
     setEditing(false);
     setSaveState("idle");
     setError(null);
@@ -86,6 +88,7 @@ export function useConversationFileEditor(
       state.current = { file: metadata, draft: content, saved: content };
       setFile(metadata);
       setDraft(content);
+      setInitialContent(content);
       setEditing(true);
     } catch (cause) {
       if (epoch.current === generation) setError(getErrorMessage(cause, "无法加载编辑内容，请重试"));
@@ -174,6 +177,7 @@ export function useConversationFileEditor(
     file,
     loading,
     draft,
+    initialContent,
     dirty,
     editing,
     setEditing,

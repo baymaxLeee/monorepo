@@ -24,3 +24,19 @@ it("does not rewrite Markdown on mount and preserves links, tables and code afte
   expect(saved).toContain('```js\nconst value = "<tag>";\n```');
   expect(editor.getJSON().content?.some((node) => node.type === "table")).toBe(true);
 });
+
+it("restores saved underline marks and preserves them after further edits", async () => {
+  const ref = createRef<MarkdownEditorRef>();
+  const onChange = vi.fn();
+  render(
+    <MarkdownEditor ref={ref} value="**<u>underlined</u>**" contentType="markdown" editable onChange={onChange} />,
+  );
+  await waitFor(() => expect(ref.current?.editor).toBeTruthy(), { timeout: 10_000 });
+  const editor = ref.current!.editor!;
+  expect(editor.view.dom.querySelector("u")?.textContent).toBe("underlined");
+  expect(onChange).not.toHaveBeenCalled();
+  act(() => {
+    editor.commands.insertContentAt(1, "Updated ");
+  });
+  expect(onChange.mock.lastCall![0]).toContain("<u>");
+});

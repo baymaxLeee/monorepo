@@ -84,6 +84,23 @@ describe("editable conversation file panel", () => {
     expect(api.updateConversationFileContent).not.toHaveBeenCalled();
   });
 
+  it("does not replace the Markdown editor when formatting emits HTML", async () => {
+    render(<ChatFileArtifactPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
+    const original = await screen.findByTestId("markdown-editor");
+    fireEvent.change(original, { target: { value: "**<u>underlined</u>**" } });
+    expect(screen.getByTestId("markdown-editor")).toBe(original);
+    fireEvent.change(original, { target: { value: '<span style="color: red">formatted</span>' } });
+    expect(screen.getByTestId("markdown-editor")).toBe(original);
+  });
+
+  it("reopens saved underlined Markdown in the rich editor", async () => {
+    api.fetchAssetText.mockResolvedValue("**<u>underlined</u>**");
+    render(<ChatFileArtifactPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
+    expect(await screen.findByTestId("markdown-editor")).toBeTruthy();
+  });
+
   it("blocks route changes until the user discards the draft", async () => {
     const router = createMemoryRouter([
       { path: "/", element: <ChatFileArtifactPanel /> },

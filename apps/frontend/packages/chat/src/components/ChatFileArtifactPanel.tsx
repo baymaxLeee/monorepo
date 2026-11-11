@@ -34,9 +34,10 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   const file = editor.file?.id === fileId ? editor.file : null;
   const kind = resolveArtifactPreviewKind(undefined, file?.mime_type, file?.filename);
   const markdown = /\.(md|markdown)$/i.test(file?.filename ?? "");
-  // Raw HTML is not a lossless rich-text round trip. Keep it editable as source.
+  // Decide from the loaded source, never from keystrokes or editor serialization.
+  // Underline is supported by MarkdownEditor and serializes as inline HTML.
   const requiresSource =
-    markdown && /<\/?[a-z][^>]*>/i.test(editor.draft.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, ""));
+    markdown && /<\/?[a-z][^>]*>/i.test(editor.initialContent.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~|<\/?u>/gi, ""));
   const [sourceMode, setSourceMode] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
