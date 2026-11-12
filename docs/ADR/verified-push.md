@@ -22,8 +22,16 @@ amd64 Rust 工具时的仿真器崩溃。Dockerfile 内 uv 版本仍与 `mise.to
 
 普通源码变更通过 repository manifests 解析 owner 与传递消费者，格式检查、lint、
 类型检查、测试和 build 只覆盖该闭包。文档只运行导航与 tooling 检查。manifest
-和栈级配置扩大到所属前端或后端栈；schema、根级 tooling 和其他无法可靠归属的
-影响才回退全量。不能用手工 allowlist 换取速度或漏掉消费者。
+项目 manifest 由当前依赖图限定到 owner 和消费者，未归属的栈级配置扩大到所属
+前端或后端栈；已映射的领域合同限定到 producer 和消费者；
+未映射 schema、全局配置和其他无法可靠归属的影响才回退全量。不能用手工
+allowlist 换取速度或漏掉消费者。
+
+Chat 端到端变更把 `schemas/streaming/chat-ui.ts` 等共享合同映射到 Chat producer
+和已声明消费者，所有任务复用同一份 owner 闭包；不再由测试 CLI 根据整个 diff
+二次扩大范围。repository tooling 自身只运行 tooling 检查，不触发应用 build。
+格式与源码 lint 只接收本次变更且仍存在的文件；类型检查、测试和 build 才按 owner
+及其消费者扩展，避免同模块历史文件影响当前提交。
 
 依据：[Vitest testTimeout](https://vitest.dev/config/testtimeout.html)、
 [GitHub-hosted runner labels](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job)。

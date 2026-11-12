@@ -34,10 +34,9 @@ Every internal package is scoped `@repo/*` and is imported by its real pnpm work
 | Package | Tag | Purpose |
 | --- | --- | --- |
 | `@repo/design-system` | `ui` | shadcn/ui primitives, layout, Tailwind v4 theme (`styles.css`) |
-| `@repo/ai-elements` | `ui` | AI Elements primitives + reusable Chat UI; host injects transport/state via props |
+| `@repo/ai-elements` | `feature` | AI Elements primitives plus the `/conversation` Chat session and workspace compositions |
 | `@repo/editors` | `ui` | Authoring surfaces: markdown (tiptap), code (CodeMirror), file workspace |
 | `@repo/viewers` | `ui` | Read-only previewers: PDF, XMind |
-| `@repo/chat` | `feature` | Shared Chat session, native messages, tool cards and artifact/video workspaces |
 | `@repo/api` | `data` | Unified axios runtime, auth/session, OpenAPI-generated clients |
 | `@repo/runtime` | `runtime` | MFE registry, event bus, auth context |
 | `@repo/observability` | `runtime` | Tracing / logging / error reporting |
@@ -170,7 +169,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 | `just dev <mfe>`    | Start a single MFE (port from PORTS map)          |
 | `just dev-all`      | Start platform + all MFEs (heavy)                 |
 | `just lint`         | Oxlint + Oxfmt check + TS7 typecheck + boundaries |
-| `just test [workspace-name]` | Run Vitest; use `@repo/chat` for the shared chat package |
+| `just test [workspace-name]` | Run Vitest; use `@repo/ai-elements` for AI and conversation components |
 | `just boundaries`   | Package dependency-tag rules only                 |
 | `just fmt`          | Oxfmt rewrite (auto-run, no need to ask)          |
 | `just gen-client`   | Regen `@repo/api` from `schemas/openapi/`         |
@@ -196,7 +195,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 
 After changing behavior, run root `just test-affected HEAD frontend` or
 `just test frontend/<workspace-name>`, for
-example `just test frontend/@repo/chat` or `just test frontend/chat`. Run root
+example `just test frontend/@repo/ai-elements` or `just test frontend/chat`. Run root
 `just test frontend` after shared testing changes. CI uses `just test-affected`
 with the PR/push base SHA to select the same test targets.
 

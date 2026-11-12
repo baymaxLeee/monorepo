@@ -28,7 +28,7 @@ just dev
 
 ```bash
 just repo-map
-just context frontend/@repo/chat
+just context frontend/@repo/ai-elements
 just context apps/backend/services/chat/src/application/agent
 just test-list
 just test-affected HEAD all --list
@@ -52,7 +52,7 @@ just test tooling
 | `just new-service <name>` / `just new-mfe <name>` | 按 playbook 创建组件 |
 
 构建目标与测试目标不是同一套参数语法。测试目标以 `just test-list` 为准，
-例如 `backend/chat`、`frontend/chat`、`frontend/@repo/chat`。
+例如 `backend/chat`、`frontend/chat`、`frontend/@repo/ai-elements`。
 详细语义见[测试规范](docs/开发规范/testing.md)。
 
 ## 目录与事实源

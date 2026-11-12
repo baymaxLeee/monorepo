@@ -11,6 +11,11 @@
     "./prompt-input": "./src/PromptInput/index.tsx",
     "./terminal": "./src/AiChat/terminal.tsx",
     "./code-block": "./src/AiChat/code-block.ts",
+    "./conversation": "./src/Conversation/index.ts",
+    "./conversation/components/*": "./src/Conversation/components/*.tsx",
+    "./conversation/hooks/*": "./src/Conversation/hooks/*.ts",
+    "./conversation/lib/*": "./src/Conversation/lib/*.ts",
+    "./conversation/store/*": "./src/Conversation/store/*.ts",
     "./components/*": "./src/components/*.tsx"
   },
   "scripts": {
@@ -21,8 +26,14 @@
     "ui:add": "shadcn add"
   },
   "dependencies": {
+    "@ai-sdk/react": "catalog:",
     "@base-ui/react": "catalog:",
+    "@hookform/resolvers": "catalog:",
+    "@repo/api": "workspace:*",
     "@repo/design-system": "workspace:*",
+    "@repo/editors": "workspace:*",
+    "@repo/observability": "workspace:*",
+    "@repo/runtime": "workspace:*",
     "@repo/shared": "workspace:*",
     "@streamdown/cjk": "catalog:",
     "@streamdown/code": "catalog:",
@@ -35,11 +46,14 @@
     "@tiptap/suggestion": "catalog:",
     "ai": "catalog:",
     "lucide-react": "catalog:",
+    "react-hook-form": "catalog:",
+    "react-router-dom": "catalog:",
     "rehype-harden": "catalog:",
-    "streamdown": "catalog:"
+    "streamdown": "catalog:",
+    "zod": "catalog:",
+    "zustand": "catalog:"
   },
   "devDependencies": {
-    "@ai-sdk/react": "catalog:",
     "@repo/typescript-config": "workspace:*",
     "@shadcn/helpers": "catalog:",
     "@testing-library/react": "catalog:",

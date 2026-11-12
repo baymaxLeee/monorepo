@@ -96,5 +96,5 @@ buffer 隔离到专用 Redis，而不是继续提高单 run 上限。
 - [Subagent tests](../../apps/backend/services/chat/src/application/agent/tools/builtins/subagents.test.ts)：并行、失败、取消、完整终态与 progress 上界。
 
 变更这些边界时运行 `just test backend/chat`、启用 `CHAT_REDIS_INTEGRATION=1` 的 stream integration、
-`just test frontend/@repo/chat`，并执行 Chat backend lint/typecheck。容量值变化还必须复核正常 run 的
+`just test frontend/@repo/ai-elements`，并执行 Chat backend lint/typecheck。容量值变化还必须复核正常 run 的
 P95/P99 bytes、active 并发和 Redis 总内存预算，不能只让单元测试通过。

@@ -49,7 +49,7 @@ SDK API 与协议机制属于官方能力。下文的权限校验、文件发布
 
 | 能力 | 当前实现与边界 |
 | --- | --- |
-| 原生 SSE 与多 step | [run](../../apps/backend/services/chat/src/application/agent/runs/run.ts) 组合唯一 start/finish 所有者；[transport](../../apps/frontend/packages/chat/src/lib/transport.ts) 使用 `DefaultChatTransport`，恢复直接重放原生 SSE。 |
+| 原生 SSE 与多 step | [run](../../apps/backend/services/chat/src/application/agent/runs/run.ts) 组合唯一 start/finish 所有者；[transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) 使用 `DefaultChatTransport`，恢复直接重放原生 SSE。 |
 | 权威历史与分支 | PostgreSQL 保存 UIMessage journal、父子分支、selected leaf 与单调 history revision；编辑、重新生成、工具续跑和历史选择是不同操作。 |
 | schema 与续跑权限 | [共享 metadata/data schema](../../schemas/streaming/chat-ui.ts) 经 `just sync` 生成双端校验器，与 SDK `validateUIMessages` 校验结构；[continuation](../../apps/backend/services/chat/src/application/agent/runs/continuation.ts) 只允许等待中的客户端结果或审批决定，调用身份不可变。 |
 | 来源与引用 | 搜索 ToolOutcome 保留给模型并投影原生 source part；正文消费原生 citations。文档来源只通过 workspace ACL resolver 和 journal 关系生成可打开链接。 |
@@ -81,8 +81,8 @@ flowchart LR
 | --- | --- | --- |
 | `ai` / `@ai-sdk/react` | SSE 解析、chunk 校验、part 归并、工具状态、Chat 状态、消息操作 | 会话权限、数据库事务、文件权限、应用业务决策 |
 | Chat service | 请求认证后的 scope、权威历史、工具响应验证、run 生命周期、原生流持久化 | 其他服务数据库、另一套模型工具循环 |
-| `@repo/chat` | Chat 实例生命周期、业务请求参数、操作 UI、资源解析与工作区 | 自制消息 reducer、JSON/SSE parser、工具执行调度器 |
-| `@repo/ai-elements` | 接受原生 parts/普通 props 的展示组合 | 网络请求、会话存储、服务端权限 |
+| `@repo/ai-elements/conversation` | Chat 实例生命周期、业务请求参数、操作 UI、资源解析与工作区 | 自制消息 reducer、JSON/SSE parser、工具执行调度器 |
+| `@repo/ai-elements` 根入口 | `src/AiChat` 中接受原生 parts/普通 props 的上游原子与展示组合 | 网络请求、会话存储、服务端权限 |
 | Knowledge / Asset / Storage | 文件所属关系、不可变字节、资源授权与访问 URL | Chat 消息状态 |
 | `schemas/` | 自有业务 metadata/data/request 字段契约 | 复制 AI SDK 全量类型定义 |
 
@@ -236,7 +236,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 - 支持同一来源的多个证据位置，不通过 URL 去重把不同引用折叠成一个。
 - 保留 URL 查询参数和 fragment；`citedText` 是来源证据，不能当作生成文本位置。
 - `source-document` 和文档 citation 由 Chat 持有的来源引用关系解析到可访问文档、revision 和可用定位信息。没有授权映射时显示来源名称及不可打开状态，不猜 document id。
-- 原生 citations 可在 `text-end` 才到达，来源也可能晚到；正文不重置、不重复追加，来源更新不更换 Markdown renderer 身份。文档点击由 `@repo/chat` 经鉴权 POST 申请 `/sources/{sourceId}/delivery`，再打开短期 capability；`@repo/ai-elements` 只接收通用的打开回调，显示等待和可重试错误。不能把 Bearer 保护的 API URL 直接赋给新标签页链接，也不将临时访问能力写回 journal。
+- 原生 citations 可在 `text-end` 才到达，来源也可能晚到；正文不重置、不重复追加，来源更新不更换 Markdown renderer 身份。文档点击由 `@repo/ai-elements/conversation` 经鉴权 POST 申请 `/sources/{sourceId}/delivery`，再打开短期 capability；`@repo/ai-elements` 只接收通用的打开回调，显示等待和可重试错误。不能把 Bearer 保护的 API URL 直接赋给新标签页链接，也不将临时访问能力写回 journal。
 - 一条回复存在任何原生 citation 时，不再把正文显式 URL 再提升成 citation；URL 仍是普通安全链接。定位和未定位 citation 共用原 citation/source 序号，不各自从 1 重新编号。
 
 对没有原生 citations 的模型，保留“正文显式 URL 与来源匹配”的展示方式；它是能力降级规则，不制造缺失证据。Source 标签区分检索来源与正文引用。
@@ -355,10 +355,10 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | [model file tests](../../apps/backend/services/chat/src/application/agent/context/model-files.test.ts)、[projector](../../apps/backend/services/chat/src/application/agent/context/projector.ts) | journal 与模型表示分离、数据引用、多模态输入 |
 | [stream service](../../apps/backend/services/chat/src/application/agent/streams/service.ts) | 原生 SSE 重放、取消 subscriber、active pointer 一致性 |
 | [tool manifest](../../apps/backend/services/chat/src/application/agent/tools/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
-| [frontend transport](../../apps/frontend/packages/chat/src/lib/transport.ts) | 精简但完整的操作语义、认证、原生 replay 配置 |
-| [useConversationChat](../../apps/frontend/packages/chat/src/hooks/useConversationChat.ts) | 实例生命周期、完整 hydration、错误恢复、过期响应拒绝 |
-| [ChatStream](../../apps/frontend/packages/chat/src/components/ChatStream.tsx) | 单一订阅与恢复入口，消息/状态快照和性能 |
-| [ChatMessageView](../../apps/frontend/packages/chat/src/components/ChatMessageView.tsx) | 原生 part 穷尽处理、引用/文件/工具呈现 |
+| [frontend transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) | 精简但完整的操作语义、认证、原生 replay 配置 |
+| [useConversationChat](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.ts) | 实例生命周期、完整 hydration、错误恢复、过期响应拒绝 |
+| [ChatStream](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatStream.tsx) | 单一订阅与恢复入口，消息/状态快照和性能 |
+| [ChatMessageView](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.tsx) | 原生 part 穷尽处理、引用/文件/工具呈现 |
 | [AI Elements compositions](../../apps/frontend/packages/ai-elements/src/AiChat) | Base UI 组合和无业务副作用的展示 API |
 
 ### 14.2 行为验收矩阵
@@ -367,23 +367,23 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 
 | 范围 | 必须区分的行为 | 实现与验证证据 |
 | --- | --- | --- |
-| 原生协议 | 正确 headers、SSE 分片、Unicode、text/reasoning 输入序列、多 step、finish/error/abort、无效 chunk 拒绝 | [run native parts tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts) 使用真实 `create/readUIMessageStream`，[transport tests](../../apps/frontend/packages/chat/src/lib/transport.test.ts) 使用真实 `DefaultChatTransport` parser，[Redis stream integration](../../apps/backend/services/chat/src/application/agent/streams/service.integration.test.ts) |
+| 原生协议 | 正确 headers、SSE 分片、Unicode、text/reasoning 输入序列、多 step、finish/error/abort、无效 chunk 拒绝 | [run native parts tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts) 使用真实 `create/readUIMessageStream`，[transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts) 使用真实 `DefaultChatTransport` parser，[Redis stream integration](../../apps/backend/services/chat/src/application/agent/streams/service.integration.test.ts) |
 | 生命周期 | 每次 HTTP 响应流只有一套消息 start/finish；工具 continuation 的新流继续原消息 id；新候选获得新 id | [run native parts tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts)、[repository integration](../../apps/backend/services/chat/src/application/agent/runs/repository.integration.test.ts) |
 | 合成流 | 模型正文、额外 source、file、持久 data 和 metadata 全部在最终 journal 中；瞬时通知不进入 parts | [run](../../apps/backend/services/chat/src/application/agent/runs/run.ts)、[run native parts tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts)、[message schemas](../../apps/backend/services/chat/src/application/agent/chat-ui-schema.ts) |
-| 历史一致性 | 流完成、刷新与恢复所得 parts/metadata 语义一致；custom/provider metadata 不被泛化删除 | [useConversationChat tests](../../apps/frontend/packages/chat/src/hooks/useConversationChat.test.tsx)、[run history tests](../../apps/backend/services/chat/src/application/agent/runs/run-history.test.ts) |
-| 动态工具 | static/dynamic 的输入流、providerExecuted、所有审批与输出状态；文字编码工具输入由 SDK 正确处理 | [continuation tests](../../apps/backend/services/chat/src/application/agent/runs/continuation.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/chat/src/components/ChatMessageView.test.tsx) |
-| preliminary | 多次中间快照可更新；中间结果不显示完成、不触发续跑；最终结果后才结束 | [runtime tool tests](../../apps/backend/services/chat/src/application/agent/tools/builtins/runtime.test.ts)、[conversation fork tests](../../apps/backend/services/chat/src/application/conversation-fork.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/chat/src/components/ChatMessageView.test.tsx) |
-| 客户端续跑 | 人工回答与浏览器结果成功/失败；篡改名称、input、metadata、approval id、重复 ID、伪造 server output 全部拒绝 | [continuation tests](../../apps/backend/services/chat/src/application/agent/runs/continuation.test.ts)、[useConversationChat tests](../../apps/frontend/packages/chat/src/hooks/useConversationChat.test.tsx) |
-| 审批 | 允许、拒绝、重复点击、并发提交、自动审批检查；拒绝不会执行工具 | [AI Elements transport test](../../apps/frontend/packages/ai-elements/src/AiChat/transport.test.tsx)、[continuation tests](../../apps/backend/services/chat/src/application/agent/runs/continuation.test.ts)、[Chat page tests](../../apps/frontend/packages/chat/src/pages/chat/Chat.test.tsx) |
-| citations | 无独立 source chunk 的 citation、晚到 citation、同源多位置、原生/URL fallback 不重复、全局编号、文档来源、emoji 索引与 Markdown 结构不破坏 | [citation tests](../../apps/frontend/packages/chat/src/components/ChatFeaturePatterns.test.tsx)、[source relationship tests](../../apps/backend/services/chat/src/application/message-branches.test.ts) |
-| 文件 | 用户附件、模型 file/reasoning-file、工具 Artifact；用户 providerReference 拒绝、图片投影预算、发布失败、链接过期、资源越权、取消预览与重复引用 | [model file tests](../../apps/backend/services/chat/src/application/agent/context/model-files.test.ts)、[run native parts tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/chat/src/components/ChatMessageView.test.tsx)、[Knowledge resolver test](../../apps/backend/services/knowledge/src/api/http/routes/test_internal_source_resolver.py) |
-| metadata/data | schema 验证、fork provenance、metadata 合并、同 ID 更新、不同 ID 独立对象、瞬时通知不持久化、非法业务类型拒绝 | [real SDK producer/consumer tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts)、[backend schemas](../../apps/backend/services/chat/src/application/agent/chat-ui-schema.ts)、[frontend schemas](../../apps/frontend/packages/chat/src/lib/chat-message.ts)、[hydration tests](../../apps/frontend/packages/chat/src/hooks/useConversationChat.test.tsx) |
-| 编辑与重新生成 | 正确选择历史前缀，原候选保留，刷新可选，新回复不混入旧分支 delta；副作用不因选择历史执行 | [transport tests](../../apps/frontend/packages/chat/src/lib/transport.test.ts)、[message branch tests](../../apps/backend/services/chat/src/application/message-branches.test.ts)、[history selection tests](../../apps/frontend/packages/chat/src/hooks/useConversationChat.test.tsx) |
-| 请求并发 | 双提交、模糊网络失败、同请求单 replay、旧 revision、迟到 history/detail 响应、pointer/graph 一致快照、陈旧 lease 回收；只认领一次执行 | [repository integration](../../apps/backend/services/chat/src/application/agent/runs/repository.integration.test.ts)、[transport tests](../../apps/frontend/packages/chat/src/lib/transport.test.ts)、[late response tests](../../apps/frontend/packages/chat/src/hooks/useConversationChat.test.tsx) |
-| 恢复与停止 | 初始加载、空闲不探针、部分流断开、完整重放不重复、204、后台恢复、切换会话、响应头前 Stop；旧取消不影响新 run | [Redis stream integration](../../apps/backend/services/chat/src/application/agent/streams/service.integration.test.ts)、[useConversationChat tests](../../apps/frontend/packages/chat/src/hooks/useConversationChat.test.tsx) |
+| 历史一致性 | 流完成、刷新与恢复所得 parts/metadata 语义一致；custom/provider metadata 不被泛化删除 | [useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx)、[run history tests](../../apps/backend/services/chat/src/application/agent/runs/run-history.test.ts) |
+| 动态工具 | static/dynamic 的输入流、providerExecuted、所有审批与输出状态；文字编码工具输入由 SDK 正确处理 | [continuation tests](../../apps/backend/services/chat/src/application/agent/runs/continuation.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx) |
+| preliminary | 多次中间快照可更新；中间结果不显示完成、不触发续跑；最终结果后才结束 | [runtime tool tests](../../apps/backend/services/chat/src/application/agent/tools/builtins/runtime.test.ts)、[conversation fork tests](../../apps/backend/services/chat/src/application/conversation-fork.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx) |
+| 客户端续跑 | 人工回答与浏览器结果成功/失败；篡改名称、input、metadata、approval id、重复 ID、伪造 server output 全部拒绝 | [continuation tests](../../apps/backend/services/chat/src/application/agent/runs/continuation.test.ts)、[useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
+| 审批 | 允许、拒绝、重复点击、并发提交、自动审批检查；拒绝不会执行工具 | [AI Elements transport test](../../apps/frontend/packages/ai-elements/src/AiChat/transport.test.tsx)、[continuation tests](../../apps/backend/services/chat/src/application/agent/runs/continuation.test.ts)、[Chat page tests](../../apps/frontend/packages/ai-elements/src/Conversation/pages/chat/Chat.test.tsx) |
+| citations | 无独立 source chunk 的 citation、晚到 citation、同源多位置、原生/URL fallback 不重复、全局编号、文档来源、emoji 索引与 Markdown 结构不破坏 | [citation tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatFeaturePatterns.test.tsx)、[source relationship tests](../../apps/backend/services/chat/src/application/message-branches.test.ts) |
+| 文件 | 用户附件、模型 file/reasoning-file、工具 Artifact；用户 providerReference 拒绝、图片投影预算、发布失败、链接过期、资源越权、取消预览与重复引用 | [model file tests](../../apps/backend/services/chat/src/application/agent/context/model-files.test.ts)、[run native parts tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts)、[ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx)、[Knowledge resolver test](../../apps/backend/services/knowledge/src/api/http/routes/test_internal_source_resolver.py) |
+| metadata/data | schema 验证、fork provenance、metadata 合并、同 ID 更新、不同 ID 独立对象、瞬时通知不持久化、非法业务类型拒绝 | [real SDK producer/consumer tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts)、[backend schemas](../../apps/backend/services/chat/src/application/agent/chat-ui-schema.ts)、[frontend schemas](../../apps/frontend/packages/ai-elements/src/Conversation/lib/chat-message.ts)、[hydration tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
+| 编辑与重新生成 | 正确选择历史前缀，原候选保留，刷新可选，新回复不混入旧分支 delta；副作用不因选择历史执行 | [transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts)、[message branch tests](../../apps/backend/services/chat/src/application/message-branches.test.ts)、[history selection tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
+| 请求并发 | 双提交、模糊网络失败、同请求单 replay、旧 revision、迟到 history/detail 响应、pointer/graph 一致快照、陈旧 lease 回收；只认领一次执行 | [repository integration](../../apps/backend/services/chat/src/application/agent/runs/repository.integration.test.ts)、[transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts)、[late response tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
+| 恢复与停止 | 初始加载、空闲不探针、部分流断开、完整重放不重复、204、后台恢复、切换会话、响应头前 Stop；旧取消不影响新 run | [Redis stream integration](../../apps/backend/services/chat/src/application/agent/streams/service.integration.test.ts)、[useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 异常收口 | provider 失败、critical persistence 失败、取消、进程丢失的权威 run 状态；部分内容保持可见 | [stream outcome tests](../../apps/backend/services/chat/src/application/agent/runs/stream-outcome.test.ts)、[run native parts tests](../../apps/backend/services/chat/src/application/agent/runs/run-native-parts.test.ts)、[repository integration](../../apps/backend/services/chat/src/application/agent/runs/repository.integration.test.ts) |
 | 模型投影 | 仅当前分支进入模型；data part 是否入模按定义；多模态工具确实发送受权内容而不只是文件 ID | [run history tests](../../apps/backend/services/chat/src/application/agent/runs/run-history.test.ts)、[message branch tests](../../apps/backend/services/chat/src/application/message-branches.test.ts)、[model file tests](../../apps/backend/services/chat/src/application/agent/context/model-files.test.ts)、[projector](../../apps/backend/services/chat/src/application/agent/context/projector.ts) |
-| UI | 错误与待交互状态可访问，键盘操作、滚动稳定、窄屏、媒体按需加载、完成消息不随无关 delta 重渲染 | [ChatMessageView tests](../../apps/frontend/packages/chat/src/components/ChatMessageView.test.tsx)、[stream performance tests](../../apps/frontend/packages/chat/src/components/ChatStreamingPerformance.test.tsx)、UI contracts 和真实浏览器验收 |
+| UI | 错误与待交互状态可访问，键盘操作、滚动稳定、窄屏、媒体按需加载、完成消息不随无关 delta 重渲染 | [ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx)、[stream performance tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatStreamingPerformance.test.tsx)、UI contracts 和真实浏览器验收 |
 
 从仓库根目录执行相关验证：
 
@@ -391,7 +391,6 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 just test backend/chat
 CHAT_POSTGRES_INTEGRATION=1 just test backend/chat src/application/agent/runs/repository.integration.test.ts
 CHAT_REDIS_INTEGRATION=1 just test backend/chat src/application/agent/streams/service.integration.test.ts
-just test frontend/@repo/chat
 just test frontend/@repo/ai-elements
 just test-affected HEAD all --list
 just typecheck-ts

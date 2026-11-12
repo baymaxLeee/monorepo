@@ -173,8 +173,8 @@ CodeEditor 保存原始文本，不做 JSON parse/stringify 或默认格式化�
 | Sandbox 导入、基准与发布 | [sandbox-session.ts](../../apps/backend/services/chat/src/application/agent/tools/builtins/sandbox-session.ts)、[runtime.ts](../../apps/backend/services/chat/src/application/agent/tools/builtins/runtime.ts)、对应测试与指令 |
 | Storage 追加与事务 | [service.go](../../apps/backend/services/storage/internal/application/service.go)、[ports.go](../../apps/backend/services/storage/internal/application/ports.go)、[repository.go](../../apps/backend/services/storage/internal/infrastructure/persistence/repository.go)、HTTP/OpenAPI 与迁移 |
 | 服务间传输 | [storage.ts](../../apps/backend/libs/transport-ts/src/storage.ts) 与生成契约；禁止跨服务导入源码/查库 |
-| Chat 编辑面板 | [ChatFileArtifactPanel.tsx](../../apps/frontend/packages/chat/src/components/ChatFileArtifactPanel.tsx)、[ChatArtifactPreview.tsx](../../apps/frontend/packages/chat/src/components/ChatArtifactPreview.tsx)、文件列表/卡片与查询缓存 |
-| 编辑器复用参考 | [ChatDocumentArtifactPanel.tsx](../../apps/frontend/packages/chat/src/components/ChatDocumentArtifactPanel.tsx)，只复用组件及交互经验，不改变 Knowledge 流程 |
+| Chat 编辑面板 | [ChatFileArtifactPanel.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatFileArtifactPanel.tsx)、[ChatArtifactPreview.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatArtifactPreview.tsx)、文件列表/卡片与查询缓存 |
+| 编辑器复用参考 | [ChatDocumentArtifactPanel.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatDocumentArtifactPanel.tsx)，只复用组件及交互经验，不改变 Knowledge 流程 |
 
 执行时先运行 `just context <path>` 并读取相关 AGENTS；前端按要求读取 DESIGN，契约修改先读 schemas 路由。一个主 Agent 负责端到端交付；本文不授权拆分前后端所有权。先补行为测试，再实现 Storage 追加、Chat 保存事务、Agent 工具和前端编辑，最后联调并同步当前规范。实现若发现本文依赖的既有机制与代码不符，先核实并原地修订设计，不保留互相冲突的说明。
 
@@ -201,7 +201,7 @@ CodeEditor 保存原始文本，不做 JSON parse/stringify 或默认格式化�
 
 检查从根执行，以 `just test-list` 和 `just context` 确认实际 target：
 
-- 受影响测试：`just test backend/storage`、`just test backend/chat`、transport-ts 对应 target、`just test frontend/@repo/chat` 及受影响 API/编辑器包。
+- 受影响测试：`just test backend/storage`、`just test backend/chat`、transport-ts 对应 target、`just test frontend/@repo/ai-elements` 及受影响 API/编辑器包。
 - 契约：`just sync`，核对 Storage → transport → Chat → frontend 全链路，禁止手改生成输出。
 - 构建/静态检查：`just build storage`、`just build chat`、`just build frontend`、根 `just lint` 与 `just check-repo`。
 - 迁移：所属新迁移校验和、`just migrate-check`、`just test-db-migrations`，在保留旧数据的测试库验证升级。

@@ -77,7 +77,7 @@ Base UI Sheet 展示侧栏和预览，正文保持挂载。列宽、键盘缩放
 
 输入区的 mention/slash 菜单使用所属 React 树的 Base UI Popover，避免独立 React root
 丢失 modal 层级和焦点边界。附件状态由 UI 的 generic token 表达，文件服务字段由
-`@repo/chat` 映射。草稿恢复不改变 token 的 inline 位置和空行。Base UI 的 Meter、
+`@repo/ai-elements/conversation` 映射。草稿恢复不改变 token 的 inline 位置和空行。Base UI 的 Meter、
 NumberField、Toolbar 补齐容量、数值配置和检查器键盘操作；Toast 继续使用已有
 Base UI 命令式入口，不引入第二套 Sonner 通知。
 

@@ -1,4 +1,4 @@
-import { useChatStore } from "@repo/chat/store/useChatStore";
+import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import {
   ResizableHandle,
   ResizablePanel,

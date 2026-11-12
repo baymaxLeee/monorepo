@@ -1,6 +1,6 @@
 # Chat UIMessage stream contract (chat backend ↔ chat frontend)
 
-The chat SSE stream is a **cross-stack wire contract**, exactly like `openapi/` and `proto/` — so it lives here. It is the Vercel AI SDK **UI Message Stream** carried over SSE between `services/chat` (producer) and `apps/frontend/packages/chat` (consumer, via `useChat`).
+The chat SSE stream is a **cross-stack wire contract**, exactly like `openapi/` and `proto/` — so it lives here. It is the Vercel AI SDK **UI Message Stream** carried over SSE between `services/chat` (producer) and `apps/frontend/packages/ai-elements` (consumer, via `useChat`).
 
 The golden rule for this contract: **reuse official AI SDK parts first. Only invent a `data-*` part for data the official protocol has no part for.** A custom part that duplicates an official one is a bug (see the file-token precedent below), not a feature.
 
@@ -74,7 +74,7 @@ An earlier iteration embedded a **custom file token** in message text to referen
 
 There is **one** stream — the main chat stream:
 
-- **Main chat stream** — `POST .../agents/run/stream`, typed as `ChatUIMessage = UIMessage<ChatMessageMetadata, ChatUIDataTypes>` (`apps/frontend/packages/chat/src/lib/chat-message.ts`).
+- **Main chat stream** — `POST .../agents/run/stream`, typed as `ChatUIMessage = UIMessage<ChatMessageMetadata, ChatUIDataTypes>` (`apps/frontend/packages/ai-elements/src/Conversation/lib/chat-message.ts`).
 
 There is no separate task-progress SSE stream. Durable video creation progress rides the main stream as **preliminary `tool-*` results** (see docs/ADR/agent-runtime.md): `create_video_production` watches Executor's authenticated task-status SSE and yields running snapshots (`progress_done`/`progress_total`) that the SDK emits as preliminary tool outputs, then a terminal result with the production id. `ChatVideoCard` reads progress straight off the tool part — no second browser connection and no `data-artifact-progress`. Ordinary files are generated in the run sandbox and appear as the terminal native result of `save_sandbox_file`; there is no delegated-file stream.
 

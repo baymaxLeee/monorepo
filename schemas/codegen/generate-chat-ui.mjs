@@ -7,7 +7,7 @@ const source = await readFile(resolve(root, "schemas/streaming/chat-ui.ts"), "ut
 const generated = `// Generated from schemas/streaming/chat-ui.ts by just sync. Do not edit.\n${source}`;
 for (const path of [
   "apps/backend/services/chat/src/application/agent/generated/chat-ui.ts",
-  "apps/frontend/packages/chat/src/lib/generated/chat-ui.ts",
+  "apps/frontend/packages/ai-elements/src/Conversation/lib/generated/chat-ui.ts",
 ]) {
   const destination = resolve(root, path);
   if (process.argv.includes("--check")) {

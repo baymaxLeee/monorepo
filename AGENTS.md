@@ -63,7 +63,7 @@ authorization, concurrency and retry changes need failure/cleanup coverage.
 | `just build [target]` | Build apps/services |
 | `just sync` | Regenerate contracts and clients |
 | `just test-list` | Targets and missing suites |
-| `just test <target> [args...]` | Target tests, e.g. `frontend/@repo/chat` |
+| `just test <target> [args...]` | Target tests, e.g. `frontend/@repo/ai-elements` |
 | `just test-affected [base] [scope] [--list]` | Dependency-aware tests; HEAD includes local edits |
 | `just check-repo` | Project graph and documentation navigation |
 | `just lint` / `just check` | Static checks / lint + tests + generated-contract checks |

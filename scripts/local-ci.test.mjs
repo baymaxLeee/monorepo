@@ -90,17 +90,10 @@ test("invalid bases fail closed instead of selecting no tests", async (t) => {
   const f = fixture(t);
   await assert.rejects(verify(f.root, "missing-base"));
 });
-test("the shared code gate retains affected tests and full tooling tests", () => {
-  const steps = codePlan("base-sha", ["scripts/test.mjs", "apps/frontend/apps/chat/src/example.ts"]);
-  assert.ok(steps.some((s) => s[0] === "all-tests"));
-  assert.ok(!steps.some((s) => s[0] === "affected-tests"));
-  const scoped = codePlan("base-sha", ["apps/frontend/apps/chat/src/example.ts"]);
-  assert.deepEqual(scoped.find((s) => s[0] === "affected-tests").slice(1), [
-    "just",
-    "test-affected",
-    "base-sha",
-    "all",
-  ]);
+test("tooling changes run tooling checks without application tests or builds", () => {
+  const steps = codePlan("base-sha", ["scripts/test.mjs", "scripts/README.md"]);
+  assert.ok(steps.some((step) => step[0] === "tooling-tests"));
+  assert.ok(!steps.some((step) => step[0] === "all-tests" || step[0] === "build"));
 });
 test("an explicit all base produces a complete gate without a fake breaking-change comparison", () => {
   const steps = codePlan("head-sha", null);
@@ -110,13 +103,20 @@ test("an explicit all base produces a complete gate without a fake breaking-chan
   assert.ok(!steps.some((step) => step[0] === "protobuf-breaking"));
 });
 test("ordinary project changes scope lint, format, types, tests and builds to owners and consumers", () => {
-  const steps = codePlan("base-sha", ["apps/frontend/packages/chat/src/index.ts"]);
+  const steps = codePlan("base-sha", ["apps/frontend/packages/ai-elements/src/Conversation/index.ts"]);
   assert.ok(steps.some((step) => step[0] === "frontend-lint"));
   assert.ok(steps.some((step) => step[0] === "frontend-format"));
+  assert.deepEqual(steps.find((step) => step[0] === "frontend-format").slice(-1), [
+    "apps/frontend/packages/ai-elements/src/Conversation/index.ts",
+  ]);
   assert.ok(steps.some((step) => step[0] === "frontend-types"));
-  assert.ok(steps.find((step) => step[0] === "frontend-ui-contracts").includes("apps/frontend/packages/chat"));
-  assert.ok(steps.find((step) => step[0] === "frontend-boundaries").includes("@repo/chat"));
-  assert.ok(steps.some((step) => step[0] === "affected-tests"));
+  assert.ok(
+    steps
+      .find((step) => step[0] === "frontend-ui-contracts")
+      .includes("apps/frontend/packages/ai-elements/src/Conversation/index.ts"),
+  );
+  assert.ok(steps.find((step) => step[0] === "frontend-boundaries").includes("@repo/ai-elements"));
+  assert.ok(steps.find((step) => step[0] === "frontend-tests").includes("@repo/ai-elements"));
   assert.ok(steps.some((step) => step[0] === "build-frontend/chat"));
   assert.ok(!steps.some((step) => step[0] === "lint-format-types" || step[0] === "build"));
   assert.deepEqual(steps.find((step) => step[0] === "build-frontend/chat").slice(1), [
@@ -129,11 +129,45 @@ test("ordinary project changes scope lint, format, types, tests and builds to ow
     "chat",
   ]);
 });
+test("end-to-end chat changes stay inside chat owners and declared consumers", () => {
+  const steps = codePlan("base-sha", [
+    "apps/frontend/apps/chat/src/App.tsx",
+    "apps/frontend/packages/ai-elements/src/Conversation/index.ts",
+    "apps/backend/services/chat/src/main.ts",
+  ]);
+  const serialized = JSON.stringify(steps);
+  assert.match(serialized, /frontend\/chat/);
+  assert.match(serialized, /apps\/frontend\/packages\/ai-elements|@repo\/ai-elements/);
+  assert.match(serialized, /backend\/chat/);
+  assert.doesNotMatch(serialized, /frontend\/platform|frontend\/admin|backend\/admin|backend\/knowledge/);
+  assert.ok(!steps.some((step) => step[0] === "all-tests" || step[0] === "build"));
+});
+test("chat app and service changes do not pull in unrelated consumers", () => {
+  const steps = codePlan("base-sha", ["apps/frontend/apps/chat/src/App.tsx", "apps/backend/services/chat/src/main.ts"]);
+  const serialized = JSON.stringify(steps);
+  assert.match(serialized, /frontend\/chat/);
+  assert.match(serialized, /backend\/chat/);
+  assert.doesNotMatch(serialized, /frontend\/canvas/);
+});
+test("the chat stream contract selects chat producers and consumers instead of the whole repository", () => {
+  const steps = codePlan("base-sha", ["schemas/streaming/chat-ui.ts"]);
+  assert.ok(steps.some((step) => step[0] === "contracts"));
+  assert.ok(steps.some((step) => step[0] === "test-backend/chat"));
+  assert.ok(steps.some((step) => step[0] === "frontend-tests"));
+  assert.ok(!steps.some((step) => step[0] === "all-tests" || step[0] === "build"));
+});
 test("area-level configuration changes widen only to their owning stack", () => {
   const steps = codePlan("base-sha", ["apps/frontend/vitest.config.mts"]);
   assert.ok(steps.some((step) => step[0] === "build-frontend/chat"));
   assert.ok(!steps.some((step) => step[0].startsWith("build-backend/")));
   assert.ok(!steps.some((step) => step[0] === "all-tests"));
+});
+test("a project manifest stays within its owner and declared consumers", () => {
+  const steps = codePlan("base-sha", ["apps/frontend/packages/ai-elements/package.json"]);
+  const serialized = JSON.stringify(steps);
+  assert.match(serialized, /frontend\/chat/);
+  assert.match(serialized, /frontend\/canvas/);
+  assert.doesNotMatch(serialized, /frontend\/platform|frontend\/admin/);
 });
 test("the push gate remains fast while the optional release gate retains production-platform images", () => {
   assert.deepEqual(plan("base-sha"), [["code", "just", "ci-code", "base-sha"]]);

@@ -1,12 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { imagePlan } from "./image-plan.mjs";
 import { consumersOf, discoverProjects, ownerOf } from "./repository.mjs";
 import { changedFiles } from "./test-affected.mjs";
+import { discoverTargets } from "./test.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 function git(root, ...args) {
@@ -67,29 +68,60 @@ function fullCodePlan(base, files) {
   }
   return steps;
 }
-function unique(values) {
-  return [...new Set(values)];
+function isDocumentation(path) {
+  return path.endsWith(".md") || /(^|\/)AGENTS(?:\.override)?\.md$/.test(path);
+}
+function isTooling(path) {
+  return (
+    isDocumentation(path) ||
+    path.startsWith("scripts/") ||
+    path.startsWith(".agents/") ||
+    path.startsWith(".github/") ||
+    ["justfile", "mise.toml"].includes(path)
+  );
+}
+function contractOwners(path) {
+  if (
+    path === "schemas/streaming/chat-ui.ts" ||
+    path === "schemas/streaming/chat-uimessage-stream.md" ||
+    path === "schemas/codegen/generate-chat-ui.mjs"
+  )
+    return ["backend/chat", "frontend/@repo/ai-elements"];
+  if (path === "schemas/openapi/chat-server.json") return ["backend/chat", "frontend/chat"];
+  return [];
+}
+function toolingCodePlan(files) {
+  const executable = files.filter((path) => !isDocumentation(path));
+  const lintFiles = executable.filter((path) => /\.[cm]?[jt]sx?$/.test(path));
+  const formatFiles = executable.filter((path) => /\.(?:jsonc?|[cm]?[jt]sx?)$/.test(path));
+  const steps = [["repository", "just", "check-repo"]];
+  if (lintFiles.length || formatFiles.length) steps.push(["root-dependencies", "pnpm", "install", "--frozen-lockfile"]);
+  if (lintFiles.length) steps.push(["tooling-lint", "pnpm", "lint:ts", ...lintFiles]);
+  if (formatFiles.length) steps.push(["tooling-format", "pnpm", "exec", "oxfmt", "--check", ...formatFiles]);
+  steps.push(["tooling-tests", "just", "test", "tooling"]);
+  return steps;
 }
 export function codePlan(base, files, root = ROOT) {
   if (files === null) return fullCodePlan(base, files);
-  if (files.length && files.every((path) => path.endsWith(".md"))) return fullCodePlan(base, files);
+  if (files.length && files.every(isTooling)) return toolingCodePlan(files);
   const projects = discoverProjects(root);
-  const changes = files.map((path) => ({
+  const executableFiles = files.filter((path) => !isDocumentation(path));
+  const changes = executableFiles.map((path) => ({
     path,
     area: path.startsWith("apps/frontend/") ? "frontend" : path.startsWith("apps/backend/") ? "backend" : null,
     owner: ownerOf(projects, root, path),
+    contractOwners: contractOwners(path),
   }));
-  if (changes.some(({ area }) => !area)) return fullCodePlan(base, files);
+  if (changes.some(({ area, contractOwners: owners }) => !area && !owners.length)) return fullCodePlan(base, files);
 
   const broadAreas = new Set(
     changes
       .filter(
-        ({ path, owner }) =>
-          !owner ||
-          /\/(?:package\.json|pyproject\.toml|go\.mod|tsconfig[^/]*)$/.test(path) ||
-          (owner.area === "backend" && owner.kind === "libs" && owner.runtime !== "node"),
+        ({ owner, contractOwners: owners }) =>
+          !owners.length && (!owner || (owner.area === "backend" && owner.kind === "libs" && owner.runtime !== "node")),
       )
-      .map(({ area }) => area),
+      .map(({ area }) => area)
+      .filter(Boolean),
   );
   for (const project of projects) {
     if (project.dependencyErrors?.length) broadAreas.add(project.area);
@@ -97,7 +129,7 @@ export function codePlan(base, files, root = ROOT) {
   const affectedIds = new Set(
     consumersOf(
       projects,
-      changes.flatMap(({ owner }) => (owner ? [owner.id] : [])),
+      changes.flatMap(({ owner, contractOwners: owners }) => (owner ? [owner.id] : owners)),
     ),
   );
   for (const { id, area } of projects) {
@@ -111,6 +143,8 @@ export function codePlan(base, files, root = ROOT) {
   const goBackend = backend.filter(({ runtime }) => runtime === "go");
   const steps = [];
 
+  if (files.some(isDocumentation)) steps.push(["repository", "just", "check-repo"]);
+
   if (frontend.length || nodeBackend.length) steps.push(["root-dependencies", "pnpm", "install", "--frozen-lockfile"]);
   if (frontend.length)
     steps.push(["frontend-dependencies", "pnpm", "--dir", "apps/frontend", "install", "--frozen-lockfile"]);
@@ -120,49 +154,61 @@ export function codePlan(base, files, root = ROOT) {
     steps.push(["python-dependencies", "uv", "sync", "--project", "apps/backend", "--all-packages", "--locked"]);
 
   if (frontend.length) {
-    const paths = unique(frontend.map(({ path }) => path));
-    steps.push(
-      ["frontend-lint", "pnpm", "lint:ts", ...paths],
-      ["frontend-format", "pnpm", "exec", "oxfmt", "--check", ...paths],
-      [
-        "frontend-types",
-        "pnpm",
-        "--dir",
-        "apps/frontend",
-        "exec",
-        "turbo",
-        "run",
-        "typecheck",
-        ...frontend.flatMap(({ packageName }) => ["--filter", packageName]),
-      ],
-      ["frontend-ui-contracts", "pnpm", "lint:ui-contracts", ...paths],
-      [
-        "frontend-boundaries",
-        "pnpm",
-        "--dir",
-        "apps/frontend",
-        "exec",
-        "turbo",
-        "boundaries",
-        ...frontend.flatMap(({ packageName }) => ["--filter", packageName]),
-      ],
-    );
+    const changed = changes
+      .filter(({ area, path }) => area === "frontend" && existsSync(resolve(root, path)))
+      .map(({ path }) => path);
+    const lintFiles = changed.filter((path) => /\.[cm]?[jt]sx?$/.test(path));
+    const formatFiles = changed.filter((path) => /\.(?:css|jsonc?|[cm]?[jt]sx?)$/.test(path));
+    const uiFiles = changed.filter((path) => /\.(?:css|tsx?)$/.test(path));
+    if (lintFiles.length) steps.push(["frontend-lint", "pnpm", "lint:ts", ...lintFiles]);
+    if (formatFiles.length) steps.push(["frontend-format", "pnpm", "exec", "oxfmt", "--check", ...formatFiles]);
+    steps.push([
+      "frontend-types",
+      "pnpm",
+      "--dir",
+      "apps/frontend",
+      "exec",
+      "turbo",
+      "run",
+      "typecheck",
+      ...frontend.flatMap(({ packageName }) => ["--filter", packageName]),
+    ]);
+    if (uiFiles.length) steps.push(["frontend-ui-contracts", "pnpm", "lint:ui-contracts", ...uiFiles]);
+    steps.push([
+      "frontend-boundaries",
+      "pnpm",
+      "--dir",
+      "apps/frontend",
+      "exec",
+      "turbo",
+      "boundaries",
+      ...frontend.flatMap(({ packageName }) => ["--filter", packageName]),
+    ]);
   }
   if (nodeBackend.length) {
-    const paths = unique(nodeBackend.map(({ path }) => path));
-    steps.push(
-      ["backend-node-lint", "pnpm", "lint:ts", ...paths],
-      ["backend-node-format", "pnpm", "exec", "oxfmt", "--check", ...paths],
-      ...nodeBackend.map(({ id, path }) => [`type-${id}`, "pnpm", "--dir", path, "run", "typecheck"]),
-    );
+    const changed = changes
+      .filter(
+        ({ area, owner, path }) => area === "backend" && owner?.runtime === "node" && existsSync(resolve(root, path)),
+      )
+      .map(({ path }) => path);
+    const lintFiles = changed.filter((path) => /\.[cm]?[jt]sx?$/.test(path));
+    const formatFiles = changed.filter((path) => /\.(?:jsonc?|[cm]?[jt]sx?)$/.test(path));
+    if (lintFiles.length) steps.push(["backend-node-lint", "pnpm", "lint:ts", ...lintFiles]);
+    if (formatFiles.length) steps.push(["backend-node-format", "pnpm", "exec", "oxfmt", "--check", ...formatFiles]);
+    steps.push(...nodeBackend.map(({ id, path }) => [`type-${id}`, "pnpm", "--dir", path, "run", "typecheck"]));
   }
   if (pythonBackend.length) {
-    const paths = unique(pythonBackend.map(({ path }) => path));
-    steps.push(
-      ["backend-python-lint", "just", "lint-py", ...paths],
-      ["backend-python-format", "just", "fmt-py", "--check", ...paths],
-      ...pythonBackend.map(({ id, path }) => [`type-${id}`, "uv", "run", "--directory", path, "mypy", "."]),
-    );
+    const changed = changes
+      .filter(
+        ({ area, owner, path }) =>
+          area === "backend" && owner?.runtime === "python" && path.endsWith(".py") && existsSync(resolve(root, path)),
+      )
+      .map(({ path }) => path);
+    if (changed.length) {
+      steps.push(["backend-python-lint", "just", "lint-py", ...changed]);
+      steps.push(["backend-python-format", "just", "fmt-py", "--check", ...changed]);
+    }
+    steps.push(...pythonBackend.map(({ id, path }) => [`type-${id}`, "uv", "run", "--directory", path, "mypy", "."]));
   }
   for (const { id, path } of goBackend) {
     steps.push(
@@ -171,7 +217,21 @@ export function codePlan(base, files, root = ROOT) {
     );
   }
 
-  steps.push(["affected-tests", "just", "test-affected", base, "all"]);
+  const targets = new Map(discoverTargets(root).map((target) => [target.id, target]));
+  const frontendTests = frontend.filter(({ id }) => targets.get(id)?.files.length);
+  if (frontendTests.length)
+    steps.push([
+      "frontend-tests",
+      "pnpm",
+      "--dir",
+      "apps/frontend",
+      "test",
+      ...frontendTests.flatMap(({ packageName }) => ["--project", packageName]),
+    ]);
+  for (const { id } of backend.filter(({ id }) => targets.get(id)?.files.length)) {
+    steps.push([`test-${id}`, "just", "test", id]);
+  }
+  if (changes.some(({ contractOwners: owners }) => owners.length)) steps.push(["contracts", "just", "sync-check"]);
   for (const { area, id, path } of affected.filter(({ kind }) => kind === "apps" || kind === "services")) {
     const name = path.split("/").at(-1);
     steps.push([

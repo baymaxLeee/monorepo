@@ -18,7 +18,7 @@ Start with `repo-map` if the owner is unknown, then use `context` and read its
 listed instructions before editing. For example:
 
 ```bash
-just context frontend/@repo/chat
+just context frontend/@repo/ai-elements
 just context apps/backend/services/chat/src/application/agent --json
 just context scripts/repo.mjs
 just test-affected HEAD frontend --list
@@ -34,7 +34,7 @@ just test-affected HEAD frontend --list
   Scope is `all`, `frontend`, `backend` or `tooling`, not an individual target.
   Supply both positional arguments before `--list`. HEAD includes staged,
   unstaged and untracked changes; use the PR base SHA to include committed work.
-  For a single target use `just test frontend/@repo/chat`.
+  For a single target use `just test frontend/@repo/ai-elements`.
 - Dependency and consumer results describe declared workspace dependencies.
   Trace HTTP, events and runtime federation consumers separately. `check-repo`
   does not inspect source imports, validate document claims or run application
@@ -94,11 +94,13 @@ static checks, affected behavior tests, contract consistency and application
 builds. GitHub and local push verification therefore execute the same command
 graph; only the operating system and available machine resources can differ.
 For ordinary project source changes it resolves the owner and declared transitive
-consumers, then limits format checks, lint, typechecks, tests and builds to those
-projects. Documentation uses repository/tooling checks only. Project manifests
-and stack-level configuration widen to that frontend or backend stack. Contracts,
-root tooling and other unknown impact fall back to the full gate because a narrower
-result would be unreliable.
+consumers. Format and source lint receive only changed files; typechecks, tests and
+builds run for the affected owners and consumers. Cross-stack Chat stream contracts map directly to their Chat producer
+and consumers instead of selecting the repository. Documentation and repository
+tooling changes use repository/tooling checks only. Project manifests stay with
+their owner and declared consumers. Unmapped stack/global configuration, contracts
+and other unknown impact fall back to the corresponding stack or full gate because
+a narrower result would be unreliable.
 
 `just ci-plan [base]` prints JSON with the resolved merge base, all changed files
 (including committed work) and exact commands. `just ci [base]` runs the same
@@ -191,6 +193,9 @@ Repository commands enforce pass/fail; the agent diagnoses and repairs failures.
   `just migrate-down <service> <target>`. SQL lives in `migrations/<release>/<release>.<step>.up.sql`
   and optional `down.sql`;
   missing reversals fail closed. `migration_audit` retains UP/DOWN execution checksums.
+- `rename-storage-database.sh`: idempotently renames the legacy Storage PostgreSQL
+  database/role from `asset` to `storage` before schema migration and rejects
+  ambiguous environments where both identities exist.
 - `db-checksums.sh`: explicit per-version manifest generation and read-only catalog
   verification through `just migrate-checksums` / `just migrate-check`.
 - `dbmigrate/`: pinned Goose transaction execution with the repository version-directory

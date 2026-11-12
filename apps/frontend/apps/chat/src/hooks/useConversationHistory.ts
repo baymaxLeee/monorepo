@@ -1,4 +1,5 @@
 import { downloadConversationMarkdown } from "@repo/ai-elements";
+import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import {
   type Conversation,
   createConversation,
@@ -6,7 +7,6 @@ import {
   fetchConversation,
   fetchConversations,
 } from "@repo/api";
-import { useChatStore } from "@repo/chat/store/useChatStore";
 import { getErrorMessage } from "@repo/shared";
 import type { UIMessage } from "ai";
 import { useCallback, useEffect, useRef, useState } from "react";

@@ -1,4 +1,4 @@
-import { useChatStore } from "@repo/chat/store/useChatStore";
+import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@repo/design-system";
 import { useShallow } from "zustand/react/shallow";
 

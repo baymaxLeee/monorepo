@@ -1,5 +1,5 @@
+import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import type * as ApiModule from "@repo/api";
-import { useChatStore } from "@repo/chat/store/useChatStore";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -20,7 +20,7 @@ vi.mock("../../components/ChatConversationSidebar", () => ({
     return <nav aria-label="会话记录" />;
   },
 }));
-vi.mock("@repo/chat/components/ChatArtifactPanel", () => ({
+vi.mock("@repo/ai-elements/conversation/components/ChatArtifactPanel", () => ({
   ChatArtifactPanel: () => {
     renders.preview();
     return <div>预览内容</div>;

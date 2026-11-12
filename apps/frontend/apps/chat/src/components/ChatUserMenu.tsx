@@ -1,5 +1,5 @@
+import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import { logout, switchActiveWorkspace } from "@repo/api";
-import { useChatStore } from "@repo/chat/store/useChatStore";
 import {
   Avatar,
   AvatarFallback,

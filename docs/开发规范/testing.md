@@ -3,7 +3,7 @@
 根 `just test` 是开发者、agent 和 CI 共用入口。`just test-list` 从 manifests
 发现目标。目标为 `backend/<service-or-library>`、`frontend/<package-name>`、
 `backend`、`frontend`、`tooling` 或全量默认值；共享包保留完整名称，例如
-`frontend/@repo/chat`。runner 参数仅允许附在单目标后。
+`frontend/@repo/ai-elements`。runner 参数仅允许附在单目标后。
 
 | 范围 | Runner | 约束 |
 |---|---|---|

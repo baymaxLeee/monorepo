@@ -13,7 +13,7 @@ vi.mock("@repo/api", () => ({
   fetchConversation: api.detail,
 }));
 vi.mock("@repo/ai-elements", () => ({ downloadConversationMarkdown: vi.fn() }));
-vi.mock("@repo/chat/store/useChatStore", () => ({
+vi.mock("@repo/ai-elements/conversation/store/useChatStore", () => ({
   useChatStore: Object.assign(() => null, { getState: () => ({ conversationTitleUpdate: null }) }),
 }));
 

@@ -1,12 +1,14 @@
-import { useChatStore } from "@repo/chat/store/useChatStore";
+import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import { Spinner } from "@repo/design-system";
 import { lazy, memo, Suspense } from "react";
 
 const Artifact = lazy(() =>
-  import("@repo/chat/components/ChatArtifactPanel").then((m) => ({ default: m.ChatArtifactPanel })),
+  import("@repo/ai-elements/conversation/components/ChatArtifactPanel").then((m) => ({ default: m.ChatArtifactPanel })),
 );
 const Video = lazy(() =>
-  import("@repo/chat/components/VideoProductionWorkspace").then((m) => ({ default: m.VideoProductionWorkspace })),
+  import("@repo/ai-elements/conversation/components/VideoProductionWorkspace").then((m) => ({
+    default: m.VideoProductionWorkspace,
+  })),
 );
 
 export const ChatInspector = memo(function ChatInspector() {

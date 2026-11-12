@@ -1,5 +1,5 @@
+import { ChatSession, ChatWorkspacePanel } from "@repo/ai-elements/conversation";
 import { createCanvasConversation } from "@repo/api";
-import { ChatSession, ChatWorkspacePanel } from "@repo/chat";
 import { Button } from "@repo/design-system";
 import { useEffect, useState } from "react";
 export function CanvasConversation({

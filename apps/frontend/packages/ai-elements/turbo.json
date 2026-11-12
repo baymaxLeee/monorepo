@@ -1,5 +1,5 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "extends": ["//"],
-  "tags": ["ui"]
+  "tags": ["feature"]
 }
