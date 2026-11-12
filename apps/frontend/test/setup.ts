@@ -31,3 +31,11 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// jsdom intentionally has no layout engine. Rich-text and code editors still
+// query Range geometry while scheduling measurements, so provide stable empty
+// geometry rather than letting those asynchronous measurements throw.
+Object.defineProperties(Range.prototype, {
+  getBoundingClientRect: { configurable: true, value: () => new DOMRect() },
+  getClientRects: { configurable: true, value: () => [] },
+});

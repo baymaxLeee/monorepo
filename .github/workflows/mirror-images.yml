@@ -21,7 +21,7 @@ permissions:
 jobs:
   prepare:
     if: github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       enabled: ${{ steps.plan.outputs.enabled }}
       build-matrix: ${{ steps.plan.outputs.build_matrix }}
@@ -64,7 +64,7 @@ jobs:
   mirror-built:
     needs: prepare
     if: needs.prepare.outputs.enabled == 'true' && needs.prepare.outputs.has-build == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -104,7 +104,7 @@ jobs:
   mirror-reused:
     needs: prepare
     if: needs.prepare.outputs.enabled == 'true' && needs.prepare.outputs.has-reuse == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -131,7 +131,7 @@ jobs:
   complete:
     needs: [prepare, mirror-built, mirror-reused]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Require mirror completion when configured
         env:

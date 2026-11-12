@@ -37,6 +37,11 @@ scope 允许尚无测试的包存在，但打印 UNTESTED；全前端无测试�
 
 根 `just check` 聚合 lint、测试与生成契约检查。测试工具变化执行根 `just test`；
 代码变化执行受影响测试与构建，契约变化额外 `just sync`。复用仍有效的结果。
+
+前端 Vitest 的统一测试上限为 15 秒，覆盖编辑器 readiness 最长 10 秒的契约并
+为固定 Ubuntu 24.04 runner 留出调度余量。测试仍应等待可观察状态，不以 sleep
+或逐个用例随意延长超时掩盖未完成行为。共享 jsdom setup 提供无布局环境下稳定的
+Range 空几何；需要具体坐标的测试在自己的用例中显式覆盖。
 CI 与本地用同一入口，不用跳过失败取得绿灯。
 
 提交推送流程与 CLI 见 [本地 CI 闭环](../../scripts/README.md#local-ci-and-verified-push)。

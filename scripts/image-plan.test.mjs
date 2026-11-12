@@ -15,12 +15,29 @@ test("covers every locally published image consumed by Single-VPS", () => {
   assert.deepEqual([...new Set(deployed)].sort(), [...all].sort());
 });
 
+test("Python images use the same pinned uv version as local and hosted checks", () => {
+  const mise = readFileSync(resolve(root, "mise.toml"), "utf8");
+  const uvVersion = mise.match(/^uv = "([^"]+)"$/m)?.[1];
+  assert.ok(uvVersion);
+  for (const service of ["admin", "knowledge", "telemetry"]) {
+    const dockerfile = readFileSync(resolve(root, `apps/backend/services/${service}/Dockerfile`), "utf8");
+    assert.match(
+      dockerfile,
+      new RegExp(`^COPY --from=ghcr\\.io/astral-sh/uv:${uvVersion.replaceAll(".", "\\.")} /uv /uvx /bin/$`, "m"),
+    );
+  }
+});
+
 test("plans from the last successful release and forwards exact metadata through deployment", () => {
   const build = readFileSync(resolve(root, ".github/workflows/build-images.yml"), "utf8");
   const mirror = readFileSync(resolve(root, ".github/workflows/mirror-images.yml"), "utf8");
   const deploy = readFileSync(resolve(root, ".github/workflows/deploy-single-vps.yml"), "utf8");
   assert.match(build, /gh run list[^\n]+--status success/);
-  assert.doesNotMatch(build, /github\.event\.before/);
+  const releasePlanStep = build.slice(
+    build.indexOf("- name: Select affected images"),
+    build.indexOf("- name: Save release plan"),
+  );
+  assert.doesNotMatch(releasePlanStep, /github\.event\.before/);
   assert.match(build, /name: image-plan/);
   assert.match(build, /\(\.build \+ \.reuse\)\[\]/);
   assert.doesNotMatch(build, /for service in gateway/);

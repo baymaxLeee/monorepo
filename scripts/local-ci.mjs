@@ -5,7 +5,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { imagePlan } from "./image-plan.mjs";
-import { discoverProjects } from "./repository.mjs";
+import { consumersOf, discoverProjects, ownerOf } from "./repository.mjs";
 import { changedFiles } from "./test-affected.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,8 +25,10 @@ function snapshot(root) {
   }
   return hash.digest("hex");
 }
-export function plan(base, files) {
-  if (files.length && files.every((path) => path.endsWith(".md"))) {
+function fullCodePlan(base, files) {
+  const forceAll = files === null;
+  const paths = files ?? [];
+  if (paths.length && paths.every((path) => path.endsWith(".md"))) {
     return [
       ["repository", "just", "check-repo"],
       ["tooling-tests", "just", "test", "tooling"],
@@ -42,19 +44,154 @@ export function plan(base, files) {
   ];
   // These executable tooling changes already select every scope in test-affected.
   // Use the required full runner once rather than executing both equivalent plans.
-  const fullTests = files.some((p) => (p.startsWith("scripts/") && !p.endsWith(".md")) || p === "justfile");
+  const fullTests = forceAll || paths.some((p) => (p.startsWith("scripts/") && !p.endsWith(".md")) || p === "justfile");
   steps.push(fullTests ? ["all-tests", "just", "test"] : ["affected-tests", "just", "test-affected", base, "all"]);
   steps.push(["contracts", "just", "sync-check"], ["build", "just", "build"]);
-  if (files.some((p) => /migrations\/|scripts\/db|infra\/single-vps/.test(p))) {
+  if (forceAll || paths.some((p) => /migrations\/|scripts\/db|infra\/single-vps/.test(p))) {
     steps.push(["migration-integration", "just", "test-db-migrations"]);
   }
-  if (files.some((path) => path.startsWith("schemas/proto/"))) {
+  if (forceAll || paths.some((path) => path.startsWith("schemas/proto/"))) {
     steps.push(
       ["protobuf-lint", "buf", "lint", "schemas/proto"],
       ["protobuf-format", "buf", "format", "--diff", "--exit-code", "schemas/proto"],
-      ["protobuf-breaking", "buf", "breaking", "schemas/proto", "--against", `.git#ref=${base},subdir=schemas/proto`],
+    );
+    if (!forceAll)
+      steps.push([
+        "protobuf-breaking",
+        "buf",
+        "breaking",
+        "schemas/proto",
+        "--against",
+        `.git#ref=${base},subdir=schemas/proto`,
+      ]);
+  }
+  return steps;
+}
+function unique(values) {
+  return [...new Set(values)];
+}
+export function codePlan(base, files, root = ROOT) {
+  if (files === null) return fullCodePlan(base, files);
+  if (files.length && files.every((path) => path.endsWith(".md"))) return fullCodePlan(base, files);
+  const projects = discoverProjects(root);
+  const changes = files.map((path) => ({
+    path,
+    area: path.startsWith("apps/frontend/") ? "frontend" : path.startsWith("apps/backend/") ? "backend" : null,
+    owner: ownerOf(projects, root, path),
+  }));
+  if (changes.some(({ area }) => !area)) return fullCodePlan(base, files);
+
+  const broadAreas = new Set(
+    changes
+      .filter(
+        ({ path, owner }) =>
+          !owner ||
+          /\/(?:package\.json|pyproject\.toml|go\.mod|tsconfig[^/]*)$/.test(path) ||
+          (owner.area === "backend" && owner.kind === "libs" && owner.runtime !== "node"),
+      )
+      .map(({ area }) => area),
+  );
+  for (const project of projects) {
+    if (project.dependencyErrors?.length) broadAreas.add(project.area);
+  }
+  const affectedIds = new Set(
+    consumersOf(
+      projects,
+      changes.flatMap(({ owner }) => (owner ? [owner.id] : [])),
+    ),
+  );
+  for (const { id, area } of projects) {
+    if (broadAreas.has(area)) affectedIds.add(id);
+  }
+  const affected = projects.filter(({ id }) => affectedIds.has(id));
+  const frontend = affected.filter(({ area }) => area === "frontend");
+  const backend = affected.filter(({ area }) => area === "backend");
+  const nodeBackend = backend.filter(({ runtime }) => runtime === "node");
+  const pythonBackend = backend.filter(({ runtime }) => runtime === "python");
+  const goBackend = backend.filter(({ runtime }) => runtime === "go");
+  const steps = [];
+
+  if (frontend.length || nodeBackend.length) steps.push(["root-dependencies", "pnpm", "install", "--frozen-lockfile"]);
+  if (frontend.length)
+    steps.push(["frontend-dependencies", "pnpm", "--dir", "apps/frontend", "install", "--frozen-lockfile"]);
+  if (nodeBackend.length)
+    steps.push(["backend-dependencies", "pnpm", "--dir", "apps/backend", "install", "--frozen-lockfile"]);
+  if (pythonBackend.length)
+    steps.push(["python-dependencies", "uv", "sync", "--project", "apps/backend", "--all-packages", "--locked"]);
+
+  if (frontend.length) {
+    const paths = unique(frontend.map(({ path }) => path));
+    steps.push(
+      ["frontend-lint", "pnpm", "lint:ts", ...paths],
+      ["frontend-format", "pnpm", "exec", "oxfmt", "--check", ...paths],
+      [
+        "frontend-types",
+        "pnpm",
+        "--dir",
+        "apps/frontend",
+        "exec",
+        "turbo",
+        "run",
+        "typecheck",
+        ...frontend.flatMap(({ packageName }) => ["--filter", packageName]),
+      ],
+      ["frontend-ui-contracts", "pnpm", "lint:ui-contracts", ...paths],
+      [
+        "frontend-boundaries",
+        "pnpm",
+        "--dir",
+        "apps/frontend",
+        "exec",
+        "turbo",
+        "boundaries",
+        ...frontend.flatMap(({ packageName }) => ["--filter", packageName]),
+      ],
     );
   }
+  if (nodeBackend.length) {
+    const paths = unique(nodeBackend.map(({ path }) => path));
+    steps.push(
+      ["backend-node-lint", "pnpm", "lint:ts", ...paths],
+      ["backend-node-format", "pnpm", "exec", "oxfmt", "--check", ...paths],
+      ...nodeBackend.map(({ id, path }) => [`type-${id}`, "pnpm", "--dir", path, "run", "typecheck"]),
+    );
+  }
+  if (pythonBackend.length) {
+    const paths = unique(pythonBackend.map(({ path }) => path));
+    steps.push(
+      ["backend-python-lint", "just", "lint-py", ...paths],
+      ["backend-python-format", "just", "fmt-py", "--check", ...paths],
+      ...pythonBackend.map(({ id, path }) => [`type-${id}`, "uv", "run", "--directory", path, "mypy", "."]),
+    );
+  }
+  for (const { id, path } of goBackend) {
+    steps.push(
+      [`lint-${id}`, "go", "-C", path, "vet", "./..."],
+      [`module-${id}`, "go", "-C", path, "mod", "tidy", "-diff"],
+    );
+  }
+
+  steps.push(["affected-tests", "just", "test-affected", base, "all"]);
+  for (const { area, id, path } of affected.filter(({ kind }) => kind === "apps" || kind === "services")) {
+    const name = path.split("/").at(-1);
+    steps.push([
+      `build-${id}`,
+      "just",
+      "--justfile",
+      `apps/${area}/justfile`,
+      "--working-directory",
+      `apps/${area}`,
+      "build",
+      name,
+    ]);
+  }
+  return steps;
+}
+export function localImagePlatform(arch = process.arch) {
+  return arch === "arm64" ? "linux/arm64" : "linux/amd64";
+}
+export function plan(base, files, imagePlatform = localImagePlatform()) {
+  const steps = [["code", "just", "ci-code", base]];
   for (const image of imagePlan(files).buildMatrix.include) {
     steps.push([
       `image-${image.service}`,
@@ -62,7 +199,7 @@ export function plan(base, files) {
       "buildx",
       "build",
       "--platform",
-      "linux/amd64",
+      imagePlatform,
       "--load",
       "--tag",
       `local/agent-ci-${image.service}:check`,
@@ -72,6 +209,23 @@ export function plan(base, files) {
     ]);
   }
   return steps;
+}
+async function executeDirect(root, step) {
+  const [name, command, ...args] = step;
+  console.log(`\n[${name}] ${[command, ...args].join(" ")}`);
+  const result = spawnSync(command, args, { cwd: root, env: { ...process.env, CI: "true" }, stdio: "inherit" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${name} failed`);
+}
+export async function runCode(root, baseRef) {
+  if (baseRef === "all" || /^0+$/.test(baseRef)) {
+    for (const step of codePlan(git(root, "rev-parse", "HEAD"), null, root)) await executeDirect(root, step);
+    return;
+  }
+  const base = git(root, "merge-base", "HEAD", git(root, "rev-parse", "--verify", `${baseRef}^{commit}`));
+  const files = changedFiles(root, base);
+  if (!files) throw new Error("Cannot determine changed files");
+  for (const step of codePlan(base, files, root)) await executeDirect(root, step);
 }
 async function execute(root, step, log) {
   const [name, command, ...args] = step;
@@ -197,9 +351,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const [mode, ...args] = process.argv.slice(2);
     if (["plan", "check"].includes(mode) && args.length <= 1)
       await verify(ROOT, args[0] || "origin/main", mode === "plan");
+    else if (mode === "code" && args.length <= 1) await runCode(ROOT, args[0] || "origin/main");
     else if (mode === "go-modules" && args.length === 0) checkGoModules(ROOT);
     else if (mode === "push" && args.length <= 2) await push(ROOT, args[0] || "origin", args[1]);
-    else throw new Error("Usage: just ci-plan [base] | just ci [base] | just push [remote] [branch]");
+    else
+      throw new Error(
+        "Usage: just ci-code [base] | just ci-plan [base] | just ci [base] | just push [remote] [branch]",
+      );
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

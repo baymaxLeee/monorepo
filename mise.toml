@@ -2,9 +2,10 @@
 node = "24.18.0"
 pnpm = "12.5.1"
 python = "3.14.5"
-uv = "latest"
+uv = "0.13.6"
 go = "1.26.3"
-just = "latest"
+just = "1.59.0"
+buf = "1.75.0"
 
 # Deploy / K8s tooling.
 # Intentionally NOT managing `kubectl` / `kustomize` here:

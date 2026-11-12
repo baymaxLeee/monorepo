@@ -88,6 +88,18 @@ there, or have the hook owner integrate the command.
 
 ## Local CI and verified push
 
+`just ci-code [base]` is the canonical code gate shared by the local verifier
+and the `build-images` GitHub workflow. It owns frozen dependency installation,
+static checks, affected behavior tests, contract consistency and application
+builds. GitHub and local push verification therefore execute the same command
+graph; only the operating system and available machine resources can differ.
+For ordinary project source changes it resolves the owner and declared transitive
+consumers, then limits format checks, lint, typechecks, tests and builds to those
+projects. Documentation uses repository/tooling checks only. Project manifests
+and stack-level configuration widen to that frontend or backend stack. Contracts,
+root tooling and other unknown impact fall back to the full gate because a narrower
+result would be unreliable.
+
 `just ci-plan [base]` prints JSON with the resolved merge base, all changed files
 (including committed work) and exact commands. `just ci [base]` runs the same
 plan sequentially with `CI=true`, stops on the first failure and writes logs plus
@@ -96,15 +108,20 @@ The default base is `origin/main`; fetch it first when using these diagnostic
 commands. Missing bases fail closed. Results are diagnostic evidence, never a
 reusable push permission.
 
-The release gate uses frozen pnpm installs in all three workspaces and locked uv
-sync, read-only Go module consistency (`just check-go-modules`), root lint (including format/type checks), affected tests, contract generation
-checks, and frontend/backend builds. Executable tooling edits run root tests once instead of the equivalent full
-affected selection.
+The code gate uses frozen pnpm installs in all three workspaces and locked uv
+sync, read-only Go module consistency (`just check-go-modules`), root lint
+(including format/type checks), affected tests, contract generation checks, and
+frontend/backend builds. Executable tooling edits run root tests once instead of
+the equivalent full affected selection.
 Migration-related edits add disposable PostgreSQL integration tests. Affected
-images reuse `image-plan.mjs` and build for `linux/amd64` with `--load`, without
-publishing. Protobuf changes additionally require local `buf` lint, format and
-breaking checks. Documentation-only diffs run repository and tooling checks.
-Docker/buildx and the pinned mise toolchain must be available. The
+images reuse `image-plan.mjs` and build for the local native Linux architecture
+with `--load`, without publishing. This avoids treating Apple Silicon QEMU faults
+as application failures; GitHub remains the authoritative native `linux/amd64`
+release build. Protobuf changes additionally require local `buf` lint, format
+and breaking checks. Documentation-only diffs run repository and tooling checks.
+GitHub jobs use the pinned Ubuntu 24.04 image; Node, pnpm, Python, uv, Go, just
+and Buf versions come from `mise.toml`. Docker/buildx and that pinned toolchain
+must be available locally. The
 command installs dependencies and may regenerate contracts/build output; it does
 not auto-fix source. Changes to tracked or untracked source during checks fail
 the run. Existing empty-suite policy is preserved, including failures for selected

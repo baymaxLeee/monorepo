@@ -37,20 +37,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
-    uses: ./.github/workflows/backend.yml
-
-  frontend:
-    uses: ./.github/workflows/frontend.yml
-
-  tooling:
-    uses: ./.github/workflows/tooling.yml
-
-  contracts:
-    uses: ./.github/workflows/contracts.yml
+  quality:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+      - name: Run the same code gate used before local push
+        env:
+          TEST_BASE: ${{ github.event.before || 'all' }}
+        run: just ci-code "${TEST_BASE}"
 
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -115,14 +115,11 @@ jobs:
           if-no-files-found: error
 
   build:
-    needs: [backend, frontend, tooling, contracts, plan]
+    needs: [quality, plan]
     if: >-
-      needs.backend.result == 'success' &&
-      needs.frontend.result == 'success' &&
-      needs.tooling.result == 'success' &&
-      needs.contracts.result == 'success' &&
+      needs.quality.result == 'success' &&
       needs.plan.outputs.has-build == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -177,14 +174,11 @@ jobs:
             org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
   reuse:
-    needs: [backend, frontend, tooling, contracts, plan]
+    needs: [quality, plan]
     if: >-
-      needs.backend.result == 'success' &&
-      needs.frontend.result == 'success' &&
-      needs.tooling.result == 'success' &&
-      needs.contracts.result == 'success' &&
+      needs.quality.result == 'success' &&
       needs.plan.outputs.has-reuse == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -211,24 +205,21 @@ jobs:
           docker buildx imagetools create --prefer-index=false --tag "${IMAGE}:${IMAGE_TAG}" "${IMAGE}:main"
 
   publish:
-    needs: [backend, frontend, tooling, contracts, plan, build, reuse]
+    needs: [quality, plan, build, reuse]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
     steps:
       - name: Require a complete atomic release
         env:
-          BACKEND_RESULT: ${{ needs.backend.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          TOOLING_RESULT: ${{ needs.tooling.result }}
-          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
           PLAN_RESULT: ${{ needs.plan.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           REUSE_RESULT: ${{ needs.reuse.result }}
         run: |
-          for result in "${BACKEND_RESULT}" "${FRONTEND_RESULT}" "${TOOLING_RESULT}" "${CONTRACTS_RESULT}" "${PLAN_RESULT}"; do
+          for result in "${QUALITY_RESULT}" "${PLAN_RESULT}"; do
             [ "${result}" = "success" ] || exit 1
           done
           for result in "${BUILD_RESULT}" "${REUSE_RESULT}"; do

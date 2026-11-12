@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +19,16 @@ const ignoredDirectories = new Set([
   "node_modules",
 ]);
 const failures = [];
+const requestedRoots = process.argv.slice(2).map((path) => resolve(repoRoot, path));
+const scanRoots = requestedRoots.length ? requestedRoots : [frontendRoot];
+
+for (const root of scanRoots) {
+  if (root !== frontendRoot && !root.startsWith(`${frontendRoot}/`)) {
+    throw new Error(`UI contract path must be inside apps/frontend: ${relative(repoRoot, root)}`);
+  }
+  if (!(await stat(root)).isDirectory())
+    throw new Error(`UI contract path must be a directory: ${relative(repoRoot, root)}`);
+}
 
 async function collectFiles(directory, extensions) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -156,25 +166,31 @@ function checkSource(file, source) {
   checkMenuGroups(file, source);
 }
 
-for (const file of await collectFiles(frontendRoot, sourceExtensions)) {
+const sourceFiles = [
+  ...new Set((await Promise.all(scanRoots.map((root) => collectFiles(root, sourceExtensions)))).flat()),
+];
+for (const file of sourceFiles) {
   checkSource(file, await readFile(file, "utf8"));
 }
 
-for (const file of await collectFiles(frontendRoot, lessExtensions)) {
+const lessFiles = [...new Set((await Promise.all(scanRoots.map((root) => collectFiles(root, lessExtensions)))).flat())];
+for (const file of lessFiles) {
   failures.push(`${relative(repoRoot, file)}:1 Less is forbidden; use Tailwind or component-owned CSS.`);
 }
 
 const globalStylesFile = resolve(frontendRoot, "packages/design-system/src/styles.css");
-const globalStyles = await readFile(globalStylesFile, "utf8");
-const capabilityStylePattern =
-  /\.code-editor|\.markdown-editor|\.pdf-previewer|\.x-mind-previewer|\.prompt-input|\.chat-|\.canvas-|\[data-streamdown=/g;
-for (const match of globalStyles.matchAll(capabilityStylePattern)) {
-  report(
-    globalStylesFile,
-    globalStyles,
-    match.index,
-    "Capability styles must live beside their owning package, not in the design-system global entry.",
-  );
+if (scanRoots.some((root) => globalStylesFile.startsWith(`${root}/`))) {
+  const globalStyles = await readFile(globalStylesFile, "utf8");
+  const capabilityStylePattern =
+    /\.code-editor|\.markdown-editor|\.pdf-previewer|\.x-mind-previewer|\.prompt-input|\.chat-|\.canvas-|\[data-streamdown=/g;
+  for (const match of globalStyles.matchAll(capabilityStylePattern)) {
+    report(
+      globalStylesFile,
+      globalStyles,
+      match.index,
+      "Capability styles must live beside their owning package, not in the design-system global entry.",
+    );
+  }
 }
 
 if (failures.length > 0) {

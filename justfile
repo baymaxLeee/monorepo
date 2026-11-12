@@ -203,6 +203,9 @@ check-go-modules:
     @node scripts/local-ci.mjs go-modules
 
 # Preview or run local release checks, including committed changes since base.
+ci-code base="origin/main":
+    @node scripts/local-ci.mjs code "$@"
+
 ci-plan base="origin/main":
     @node scripts/local-ci.mjs plan "$@"
 

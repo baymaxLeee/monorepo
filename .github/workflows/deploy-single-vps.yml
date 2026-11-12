@@ -47,7 +47,7 @@ jobs:
   deploy:
     # Skip auto-run if image publication failed; manual runs always proceed.
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read

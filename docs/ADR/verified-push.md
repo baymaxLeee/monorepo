@@ -9,6 +9,25 @@
 [操作流程](../../scripts/README.md#local-ci-and-verified-push)维护具体命令；
 [根规则](../../AGENTS.md)要求 agent 修复检查失败后再推送。
 
+`just ci-code <base>` 是本地 push 门禁与 GitHub `build-images` 共用的代码验证入口。
+两边执行同一命令图；GitHub runner 固定为 Ubuntu 24.04，语言与工具版本由
+`mise.toml` 精确固定。主机 OS、架构和资源仍可能不同，因此功能测试不能依赖
+接近默认上限的墙钟时间；编辑器测试统一使用 15 秒上限，以覆盖其 10 秒 readiness
+契约和较慢 Linux runner 的调度余量。
+
+本地 image gate 使用宿主原生 Linux 架构（Apple Silicon 为 `linux/arm64`），避免
+QEMU 执行 amd64 Rust 工具时的仿真器崩溃；GitHub 在原生 `linux/amd64` runner 上
+验证并发布生产镜像。Dockerfile 内 uv 版本与 `mise.toml` 一致，架构差异是显式的
+双架构验证，不通过放宽工具版本解决。
+
+普通源码变更通过 repository manifests 解析 owner 与传递消费者，格式检查、lint、
+类型检查、测试和 build 只覆盖该闭包。文档只运行导航与 tooling 检查。manifest
+和栈级配置扩大到所属前端或后端栈；schema、根级 tooling 和其他无法可靠归属的
+影响才回退全量。不能用手工 allowlist 换取速度或漏掉消费者。
+
+依据：[Vitest testTimeout](https://vitest.dev/config/testtimeout.html)、
+[GitHub-hosted runner labels](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job)。
+
 `ci-plan` 可审查范围；`ci` 在当前工作区诊断，保存逐步日志、退出码和 JSON 结果。
 `push` 要求干净提交、与远端 main 同步、目标分支可快进，再执行相同检查。
 检查期间源码或 HEAD 变化使结果失效，检查结束后的远端变化也拒绝推送。
