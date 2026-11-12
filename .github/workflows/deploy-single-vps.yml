@@ -38,6 +38,11 @@ on:
         required: false
         type: boolean
         default: false
+      reset_application_data:
+        description: "Recreate app data while preserving Admin and IAM"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-single-vps
@@ -132,6 +137,7 @@ jobs:
           PUBLIC_GATEWAY_URL: ${{ vars.PUBLIC_GATEWAY_URL }}
           DEPLOY_DIR: ${{ steps.vars.outputs.deploy_dir }}
           RESET_DATA: ${{ inputs.reset_data || 'false' }}
+          RESET_APPLICATION_DATA: ${{ inputs.reset_application_data || 'false' }}
         run: |
           # deploy.sh rsyncs the ops files (incl. the SOPS-encrypted
           # secrets.sops.env) and runs render-env.sh on the VPS, which

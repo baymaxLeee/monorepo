@@ -27,6 +27,8 @@
 #   PUBLIC_GATEWAY_URL (default http://<remote-host>:<public-port>) browser-reachable gateway origin
 #   DEPLOY_DIR      (default /opt/monorepo) remote path
 #   RESET_DATA      (default false) destroy all Compose volumes before startup
+#   RESET_APPLICATION_DATA (default false) recreate non-core app data while
+#                    preserving Admin and IAM data
 
 set -euo pipefail
 
@@ -46,9 +48,18 @@ PUBLIC_PORT="${PUBLIC_PORT:-8080}"
 REMOTE_HOST="${REMOTE#*@}"
 PUBLIC_GATEWAY_URL="${PUBLIC_GATEWAY_URL:-http://${REMOTE_HOST}:${PUBLIC_PORT}}"
 RESET_DATA="${RESET_DATA:-false}"
+RESET_APPLICATION_DATA="${RESET_APPLICATION_DATA:-false}"
 
-if [ "$RESET_DATA" != "true" ] && [ "$RESET_DATA" != "false" ]; then
-    echo "✗ RESET_DATA must be true or false" >&2
+for reset_flag in RESET_DATA RESET_APPLICATION_DATA; do
+    reset_value="${!reset_flag}"
+    if [ "${reset_value}" != "true" ] && [ "${reset_value}" != "false" ]; then
+        echo "✗ ${reset_flag} must be true or false" >&2
+        exit 1
+    fi
+done
+
+if [ "${RESET_DATA}" = "true" ] && [ "${RESET_APPLICATION_DATA}" = "true" ]; then
+    echo "✗ RESET_DATA and RESET_APPLICATION_DATA are mutually exclusive" >&2
     exit 1
 fi
 
@@ -76,6 +87,7 @@ ssh "${REMOTE}" "for f in otel-collector.yaml clickhouse-low-memory.xml clickhou
 rsync -avz --delete \
     --include='docker-compose.prod.yml' \
     --include='render-env.sh' \
+    --include='reset-application-data.sh' \
     --include='otel-collector.yaml' \
     --include='clickhouse-low-memory.xml' \
     --include='clickhouse-users.xml' \
@@ -94,6 +106,11 @@ ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml -
 if [ "$RESET_DATA" = "true" ]; then
     echo "→ RESET_DATA=true: destroying all remote service data volumes"
     ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env down -v --remove-orphans"
+fi
+
+if [ "${RESET_APPLICATION_DATA}" = "true" ]; then
+    echo "→ RESET_APPLICATION_DATA=true: recreating non-core data; preserving Admin and IAM"
+    ssh "${REMOTE}" "cd ${DEPLOY_DIR} && bash reset-application-data.sh"
 fi
 
 echo "→ pulling latest images on remote"

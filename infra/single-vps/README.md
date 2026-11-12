@@ -67,6 +67,7 @@ All images are pulled from GHCR (or any custom registry); the VPS only stores co
 | `secrets.sops.env.example` | Template for the operator secrets you hand-manage                                |
 | `secrets.sops.env`         | SOPS-encrypted operator secrets (committed; you create it once)                  |
 | `render-env.sh`            | Runs on the VPS: generates internal secrets + decrypts operator secrets → `.env` |
+| `reset-application-data.sh` | Recreates non-core data while preserving Admin and IAM                           |
 | `bootstrap.sh`             | Install Docker + sops/age + generate age key on a fresh VPS (run once, on VPS)   |
 | `deploy.sh`                | Push config + restart containers (run from laptop / CI)                          |
 
@@ -160,6 +161,15 @@ IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ./infra/single-vps/deploy.sh root@<vps-ip>
 Output ends with the URL to open in a browser.
 
 Database upgrades preserve existing data: `db-init` verifies applied SQL checksums and runs pending versions before services start. Do not set `RESET_DATA=true` for a schema upgrade. That option is an explicitly destructive whole-stack reinstall.
+
+For a deliberate application-data reset that retains operator configuration and
+identity state, deploy with `RESET_APPLICATION_DATA=true`. It preserves the
+PostgreSQL `admin` and `iam` databases and their shared infrastructure, while it
+recreates Storage, Canvas, Chat, Executor/Workflow, Knowledge and Telemetry data.
+It also removes all Redis cache/session state plus the Storage and ClickHouse
+data volumes. Existing logins are invalidated, but model, Agent and Provider
+configuration remains in the preserved `admin` database. The full
+`RESET_DATA=true` mode and the selective mode are mutually exclusive.
 
 Storage runs as `storage` with `STORAGE_*` configuration, the `storage`
 PostgreSQL database/role and the `storage_data` byte volume mounted at `/data/assets`.
