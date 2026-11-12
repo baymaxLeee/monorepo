@@ -98,7 +98,37 @@ test("context and unrelated workflow changes reuse existing images", () => {
 });
 
 test("ordinary documentation does not invalidate runtime images", () => {
-  const plan = imagePlan(["docs/ADR/container-image-delivery.md", "README.md"]);
+  const plan = imagePlan(["docs/ADR/container-image-delivery.md", "README.md", "apps/frontend/README.md"]);
   assert.deepEqual(plan.build, []);
   assert.deepEqual(plan.reuse, all);
+  assert.deepEqual(imagePlan(["apps/backend/services/chat/src/prompts/system.md"]).build, ["chat"]);
+});
+
+test("quality and agent configuration reuse every immutable image", () => {
+  for (const file of [
+    ".github/workflows/tooling.yml",
+    "oxlint.config.ts",
+    "oxfmt.config.ts",
+    ".pre-commit-config.yaml",
+    "AGENTS.md",
+    "apps/frontend/AGENTS.md",
+    ".agents/skills/plan/SKILL.md",
+    ".cursor/mcp.json",
+  ]) {
+    const plan = imagePlan([file]);
+    assert.deepEqual(plan.build, [], file);
+    assert.deepEqual(plan.reuse, all, file);
+    assert.equal(plan.conservative, false, file);
+  }
+});
+
+test("quality metadata does not widen a runtime change", () => {
+  const plan = imagePlan([
+    "apps/frontend/apps/chat/src/App.tsx",
+    "oxlint.config.ts",
+    "AGENTS.md",
+    ".github/workflows/tooling.yml",
+  ]);
+  assert.deepEqual(plan.build, ["web"]);
+  assert.equal(plan.conservative, false);
 });

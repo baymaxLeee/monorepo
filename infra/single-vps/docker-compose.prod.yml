@@ -251,9 +251,9 @@ services:
       STORAGE_DELIVERY_URL_TTL: ${STORAGE_DELIVERY_URL_TTL:-6h}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_USER: asset
+      POSTGRES_USER: storage
       POSTGRES_PASSWORD: ${STORAGE_POSTGRES_PASSWORD:?STORAGE_POSTGRES_PASSWORD is required}
-      POSTGRES_DATABASE: asset
+      POSTGRES_DATABASE: storage
       POSTGRES_SSLMODE: disable
       STORAGE_DATA_DIR: /data/assets
       STORAGE_SIGNING_KEY: ${STORAGE_SIGNING_KEY:?STORAGE_SIGNING_KEY is required}
@@ -264,7 +264,7 @@ services:
       STORAGE_RETENTION: ${STORAGE_RETENTION:-168h}
       INTERNAL_SERVICE_TOKENS: '{"admin":"${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
     volumes:
-      - asset_data:/data/assets
+      - storage_data:/data/assets
     <<: *restart_policy
 
   admin:
@@ -501,7 +501,7 @@ networks:
 volumes:
   sandbox_egress:
     name: monorepo-sandbox-egress
-  asset_data:
+  storage_data:
   redis_data:
   postgres_data:
   clickhouse_data:

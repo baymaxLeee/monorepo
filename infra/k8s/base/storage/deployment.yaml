@@ -29,7 +29,7 @@ spec:
             - configMapRef: { name: storage-config }
             - secretRef: { name: storage-secrets }
           volumeMounts:
-            - name: asset-data
+            - name: storage-data
               mountPath: /data/assets
           resources:
             requests: { cpu: 100m, memory: 128Mi }
@@ -47,7 +47,7 @@ spec:
             failureThreshold: 30
             periodSeconds: 2
       volumes:
-        - name: asset-data
+        - name: storage-data
           persistentVolumeClaim:
-            claimName: asset-data
+            claimName: storage-data
       terminationGracePeriodSeconds: 30

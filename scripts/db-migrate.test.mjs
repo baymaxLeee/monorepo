@@ -48,7 +48,7 @@ test("repository migration checksum manifests match committed artifacts", () => 
   assert.equal(result.status, 0, result.stdout + result.stderr);
 });
 
-test("a renamed service migrates its explicitly retained database", (t) => {
+test("a service migration defaults to its service-named database", (t) => {
   const root = mkdtempSync(join(tmpdir(), "migration-database-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const service = join(root, "storage");
@@ -69,12 +69,10 @@ test("a renamed service migrates its explicitly retained database", (t) => {
       PATH: `${bin}:${process.env.PATH}`,
       DB_MIGRATE_BINARY: migration,
       DB_MIGRATE_TRANSPORT: "tcp",
-      DATABASE_NAME: "asset",
-      DATABASE_USER: "asset",
       DATABASE_MARKER: marker,
     },
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(readFileSync(marker, "utf8"), "asset/asset");
+  assert.equal(readFileSync(marker, "utf8"), "storage/storage");
 });

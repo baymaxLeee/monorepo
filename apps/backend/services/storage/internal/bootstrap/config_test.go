@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -21,6 +22,23 @@ func TestDeliveryConfiguration(t *testing.T) {
 		t.Setenv("STORAGE_DELIVERY_URL_TTL", value)
 		if _, err := Load(); err == nil {
 			t.Fatalf("accepted invalid ttl %q", value)
+		}
+	}
+}
+
+func TestDevelopmentDatabaseIdentityDefaultsToStorage(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
+	t.Setenv("POSTGRES_USER", "")
+	t.Setenv("POSTGRES_PASSWORD", "")
+	t.Setenv("POSTGRES_DATABASE", "")
+	t.Setenv("INTERNAL_SERVICE_TOKENS", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"user=storage", "password=storage", "dbname=storage"} {
+		if !strings.Contains(cfg.DatabaseURL, expected) {
+			t.Fatalf("database URL %q does not contain %q", cfg.DatabaseURL, expected)
 		}
 	}
 }

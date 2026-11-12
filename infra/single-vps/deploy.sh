@@ -102,9 +102,6 @@ ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml -
 ssh "${REMOTE}" "docker pull '${IMAGE_REGISTRY}/sandbox-runtime:${IMAGE_TAG}'"
 ssh "${REMOTE}" "docker info --format '{{json .Runtimes}}' | grep -q runsc"
 
-echo "→ stopping the previous storage writer if present"
-ssh "${REMOTE}" 'set -e; old_storage_writer="$(docker ps -a --filter "name=^/monorepo-asset$" --format "{{.ID}}")"; if [ -n "$old_storage_writer" ]; then docker stop --time 30 "$old_storage_writer"; fi'
-
 echo "→ starting/restarting services"
 if ! ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans"; then
     echo "✗ compose startup failed; collecting one-shot container logs" >&2

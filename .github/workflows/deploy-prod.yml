@@ -217,14 +217,6 @@ jobs:
             exit 1
           fi
 
-      - name: Stop the previous storage writer before the first service rename
-        run: |
-          old_storage_writer="$(kubectl -n monorepo-prod get deployment asset --ignore-not-found -o name)"
-          if [ -n "$old_storage_writer" ]; then
-            # Foreground deletion waits for the old writer's pods; its standalone PVC remains.
-            kubectl -n monorepo-prod delete "$old_storage_writer" --cascade=foreground --wait=true --timeout=5m
-          fi
-
       - name: Apply prod manifest (secrets excluded — managed out-of-band)
         working-directory: infra/k8s/overlays/prod
         run: |

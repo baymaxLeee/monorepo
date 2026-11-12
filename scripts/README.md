@@ -123,6 +123,9 @@ changes locally; they build affected images for the local native Linux architect
 with `--load`, without publishing. This avoids treating Apple Silicon QEMU faults
 as application failures. Protobuf changes additionally require local `buf` lint,
 format and breaking checks. Documentation-only diffs run repository and tooling checks.
+Agent/editor instructions, lint/format/pre-commit configuration and tooling workflows
+also reuse existing immutable images; when mixed with runtime source, they do not widen
+the source-derived image set.
 GitHub jobs use the pinned Ubuntu 24.04 image; Node, pnpm, Python, uv, Go, just
 and Buf versions come from `mise.toml`. Docker/buildx and that pinned toolchain
 must be available locally. The
@@ -193,9 +196,6 @@ Repository commands enforce pass/fail; the agent diagnoses and repairs failures.
   `just migrate-down <service> <target>`. SQL lives in `migrations/<release>/<release>.<step>.up.sql`
   and optional `down.sql`;
   missing reversals fail closed. `migration_audit` retains UP/DOWN execution checksums.
-- `rename-storage-database.sh`: idempotently renames the legacy Storage PostgreSQL
-  database/role from `asset` to `storage` before schema migration and rejects
-  ambiguous environments where both identities exist.
 - `db-checksums.sh`: explicit per-version manifest generation and read-only catalog
   verification through `just migrate-checksums` / `just migrate-check`.
 - `dbmigrate/`: pinned Goose transaction execution with the repository version-directory

@@ -34,7 +34,7 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("unsupported ENVIRONMENT %q", environment)
 	}
 	deployed := environment != "development"
-	password, err := requiredEnv("POSTGRES_PASSWORD", deployed, "asset")
+	password, err := requiredEnv("POSTGRES_PASSWORD", deployed, "storage")
 	if err != nil {
 		return Config{}, err
 	}
@@ -42,7 +42,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if deployed && (password == "asset" || !strings.HasPrefix(dataDir, "/")) {
+	if deployed && (password == "storage" || !strings.HasPrefix(dataDir, "/")) {
 		return Config{}, fmt.Errorf("deployed environments require non-development database credentials and an absolute STORAGE_DATA_DIR")
 	}
 	tokens, err := serviceTokens(environment)
@@ -82,8 +82,8 @@ func Load() (Config, error) {
 	}
 	host := envOr("POSTGRES_HOST", "localhost")
 	port := envOr("POSTGRES_PORT", "5432")
-	user := envOr("POSTGRES_USER", "asset")
-	database := envOr("POSTGRES_DATABASE", "asset")
+	user := envOr("POSTGRES_USER", "storage")
+	database := envOr("POSTGRES_DATABASE", "storage")
 	sslMode := envOr("POSTGRES_SSLMODE", "disable")
 	return Config{
 		Environment: environment, Port: envOr("PORT", "8013"), DataDir: dataDir,

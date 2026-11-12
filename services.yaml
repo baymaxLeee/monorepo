@@ -121,7 +121,7 @@ services:
       - /api/storage-server/*
     bindings: []
     databases:
-      - asset
+      - storage
     openapi: schemas/openapi/storage-server.json
 
   sandbox:

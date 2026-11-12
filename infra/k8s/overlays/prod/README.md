@@ -38,7 +38,7 @@ Production deployment of the full backend stack. **Do not** `kubectl apply -k` t
    # variables. Each workload's own INTERNAL_API_TOKEN must be unique; never
    # reuse one shared value. chat-secrets also includes TOOL_APPROVAL_SECRET.
    ```
-   For real ops, switch to ExternalSecrets Operator pointing at 火山引擎 KMS or Vault, or use sealed-secrets. Before deploying, provision one same-named PostgreSQL database/owner role for `iam`, `admin`, `canvas`, `chat`, `executor`, `knowledge`, and `telemetry`; reserve the `workflow` role/database for Workflow World. Enable `vector` only in `knowledge`.
+   For real ops, switch to ExternalSecrets Operator pointing at 火山引擎 KMS or Vault, or use sealed-secrets. Before deploying, provision one same-named PostgreSQL database/owner role for `iam`, `admin`, `canvas`, `chat`, `executor`, `knowledge`, `storage`, and `telemetry`; reserve the `workflow` role/database for Workflow World. Enable `vector` only in `knowledge`.
 3. **Set up TLS**: create the `api-tls` Secret either via cert-manager (Let's Encrypt issuer) or upload a Cloudflare Origin CA cert manually:
    ```bash
    kubectl -n monorepo-prod create secret tls api-tls \
@@ -52,14 +52,12 @@ Production deployment of the full backend stack. **Do not** `kubectl apply -k` t
 
 ## CI flow
 
-Storage uses `storage` Deployment/Service and `storage-secrets`, with the existing
-physical `asset` PostgreSQL database/role and `asset-data` PVC. Provision
-`storage-secrets` with the existing database credentials and signing key under
-`STORAGE_SIGNING_KEY`. CI deletes the old `asset` Deployment with foreground
-propagation and waits for its pods before applying `storage`; the standalone PVC
-is retained. Manual deployments must perform the same cutover. Both deployments
-must never write the same volume concurrently. The migration Job uses the
-Storage schema files against the retained `asset` database.
+Storage uses `storage` Deployment/Service and `storage-secrets`, with the `storage`
+PostgreSQL database/role and the `storage-data` PVC. Provision `storage-secrets`
+with `POSTGRES_USER=storage` and the signing key under `STORAGE_SIGNING_KEY`.
+Deployment tooling does not discover, rename or adopt legacy Storage identities;
+the database, role and PVC must already use their current names. The migration Job
+uses the Storage schema files against the `storage` database.
 
 GitHub Actions deploy job:
 

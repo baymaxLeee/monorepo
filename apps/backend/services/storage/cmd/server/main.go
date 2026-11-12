@@ -25,25 +25,25 @@ func (utcClock) Now() time.Time { return time.Now().UTC() }
 func main() {
 	cfg, err := bootstrap.Load()
 	if err != nil {
-		slog.Error("load asset configuration", "error", err)
+		slog.Error("load storage configuration", "error", err)
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	repository, err := persistence.Connect(ctx, cfg.DatabaseURL)
 	cancel()
 	if err != nil {
-		slog.Error("connect asset database", "error", err)
+		slog.Error("connect storage database", "error", err)
 		os.Exit(1)
 	}
 	defer repository.Close()
 	filesystem, err := storage.NewFilesystem(cfg.DataDir)
 	if err != nil {
-		slog.Error("open asset storage", "error", err)
+		slog.Error("open storage byte store", "error", err)
 		os.Exit(1)
 	}
 	cache, err := deliverycache.New(cfg.RedisURL)
 	if err != nil {
-		slog.Error("load asset Redis configuration", "error", err)
+		slog.Error("load storage Redis configuration", "error", err)
 		os.Exit(1)
 	}
 	defer cache.Close()
@@ -70,9 +70,9 @@ func main() {
 	defer stopWorker()
 	go runCollector(workerCtx, collector, cfg.GCInterval)
 	go func() {
-		slog.Info("asset service starting", "port", cfg.Port, "environment", cfg.Environment, "data_dir", cfg.DataDir)
+		slog.Info("storage service starting", "port", cfg.Port, "environment", cfg.Environment, "data_dir", cfg.DataDir)
 		if listenErr := server.ListenAndServe(); listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
-			slog.Error("asset server failed", "error", listenErr)
+			slog.Error("storage server failed", "error", listenErr)
 			os.Exit(1)
 		}
 	}()
@@ -91,7 +91,7 @@ func runCollector(ctx context.Context, collector *application.Collector, interva
 	defer ticker.Stop()
 	for {
 		if err := collector.Run(ctx, 100); err != nil && ctx.Err() == nil {
-			slog.Error("asset lifecycle collection failed", "error", err)
+			slog.Error("storage lifecycle collection failed", "error", err)
 		}
 		select {
 		case <-ctx.Done():

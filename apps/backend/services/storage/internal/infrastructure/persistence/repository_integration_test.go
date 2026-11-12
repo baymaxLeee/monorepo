@@ -169,5 +169,5 @@ func storageTestDatabaseURL() string {
 	if value := os.Getenv("STORAGE_TEST_DATABASE_URL"); value != "" {
 		return value
 	}
-	return "postgres://asset:asset@localhost:5432/asset?sslmode=disable"
+	return "postgres://storage:storage@localhost:5432/storage?sslmode=disable"
 }

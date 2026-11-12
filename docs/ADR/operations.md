@@ -18,6 +18,11 @@ Goose 事务 API 执行计划，项目适配层保留既有历史和逐版本 ch
 已有 `v1.0.0` 库接入历史，不重建业务表。失败回滚，重复执行验证
 后跳过，禁止静默修复历史或用 reset 代替升级。
 
+Storage 的 PostgreSQL database/role 与服务同名为 `storage`。字节卷使用 K8s
+`storage-data` PVC 或 Single-VPS `storage_data` named volume。部署和迁移入口只接受这些
+当前 identity，不探测、重命名或接管任何旧服务、数据库、role 或 volume 名称；所需数据
+切换由操作者在部署前完成，缺少当前 identity 时失败闭合。
+
 应用回退优先保留兼容的新 schema；结构或数据撤销使用经过验证的向前修复或备份恢复，
 显式 DOWN 仅执行经过验证的逆向 SQL / Go 函数，缺失逆向脚本或数据保护条件不满足即失败；
 审计记录保留已执行 UP/DOWN 的 checksum，不能用降级抹除历史。VPS 的迁移镜像可独立固定版本，避免回退应用时误用

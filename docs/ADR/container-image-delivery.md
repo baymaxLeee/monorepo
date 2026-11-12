@@ -19,7 +19,10 @@
 
 影响关系按真实 Docker `COPY`/build input 维护，不按服务 HTTP binding 扩散。共享库只扩散到
 其镜像消费者；migration 同时影响所属服务镜像和聚合 `db-init`；frontend workspace 聚合到
-`web`。新增镜像或改变 Docker input 时必须同步选择器测试，未知可执行路径采用全量 fallback。
+`web`。普通文档、Agent/编辑器指令、lint/format/pre-commit 配置和 tooling workflow 只参与
+开发质量门禁，不改变运行时产物，因此复用全部 immutable image；这些文件与源码同批变更时也
+不得扩大源码本身的镜像集合。新增镜像或改变 Docker input 时必须同步选择器测试，未知可执行
+路径采用全量 fallback。
 
 ## 发布和部署生命周期
 

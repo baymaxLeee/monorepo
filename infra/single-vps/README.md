@@ -161,12 +161,10 @@ Output ends with the URL to open in a browser.
 
 Database upgrades preserve existing data: `db-init` verifies applied SQL checksums and runs pending versions before services start. Do not set `RESET_DATA=true` for a schema upgrade. That option is an explicitly destructive whole-stack reinstall.
 
-Storage runs as `storage` with `STORAGE_*` configuration and retains the physical
-`asset` PostgreSQL database/role and `asset_data` volume mounted at `/data/assets`.
-`render-env.sh` renames the persisted password/signing-key entries once while
-preserving their values. Before starting services, `deploy.sh` stops the old
-`monorepo-asset` container if present so the new Storage writer has exclusive
-access to the volume. Compose removes the obsolete service with `--remove-orphans`.
+Storage runs as `storage` with `STORAGE_*` configuration, the `storage`
+PostgreSQL database/role and the `storage_data` byte volume mounted at `/data/assets`.
+Deployment tooling has no legacy Storage identity compatibility; database, role,
+volume and persisted secrets must already use their current names before deployment.
 
 For an application rollback verified to accept the current schema, keep the migration image pinned to the release that owns that schema:
 
@@ -373,7 +371,7 @@ The persistent data is in these named Docker volumes:
 
 - `monorepo_postgres_data`
 - `monorepo_redis_data`
-- `monorepo_asset_data`
+- `monorepo_storage_data`
 - `monorepo_clickhouse_data`
 - `monorepo_clickhouse_logs`
 

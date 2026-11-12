@@ -56,6 +56,17 @@ function matches(file, path) {
   return file === path || file.startsWith(`${path}/`);
 }
 
+function isImageNeutralMetadata(file) {
+  return (
+    file === "DESIGN.md" ||
+    /(^|\/)AGENTS(?:\.override)?\.md$/.test(file) ||
+    /(^|\/)README\.md$/.test(file) ||
+    matches(file, "docs") ||
+    matches(file, ".agents") ||
+    matches(file, ".cursor")
+  );
+}
+
 function affectedByFile(file) {
   const selected = new Set();
 
@@ -63,6 +74,7 @@ function affectedByFile(file) {
     add(selected, allServices);
     return selected;
   }
+  if (isImageNeutralMetadata(file)) return selected;
 
   for (const service of allServices.filter(
     (candidate) => !["sandbox", "sandbox-runtime", "sandbox-proxy", "web", "db-init"].includes(candidate),
@@ -138,7 +150,7 @@ export function imagePlan(files, { forceAll = false } = {}) {
   if (!conservative) {
     for (const file of files) {
       const affected = affectedByFile(file);
-      if (!affected.size && !isReleaseOnly(file) && !/(^|\/)README\.md$/.test(file) && !file.startsWith("docs/")) {
+      if (!affected.size && !isReleaseOnly(file) && !isImageNeutralMetadata(file)) {
         conservative = true;
         break;
       }

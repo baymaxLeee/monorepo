@@ -36,13 +36,13 @@ reset-demo-data:
 
 # Apply pending migrations without resetting data. Empty target means latest.
 migrate-up service target="":
-    @db="{{ service }}"; if [ "$db" = storage ]; then db=asset; fi; \
+    @db="{{ service }}"; \
     DATABASE_NAME="${DATABASE_NAME:-$db}" DATABASE_USER="${DATABASE_USER:-$db}" DATABASE_PASSWORD="${DATABASE_PASSWORD:-$db}" \
     bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}"
 
 # Explicit schema downgrade; refuses missing or unsafe reverse migrations.
 migrate-down service target:
-    @db="{{ service }}"; if [ "$db" = storage ]; then db=asset; fi; \
+    @db="{{ service }}"; \
     DATABASE_NAME="${DATABASE_NAME:-$db}" DATABASE_USER="${DATABASE_USER:-$db}" DATABASE_PASSWORD="${DATABASE_PASSWORD:-$db}" \
     bash scripts/db-migrate.sh "apps/backend/services/{{ service }}" "{{ target }}" down
 
