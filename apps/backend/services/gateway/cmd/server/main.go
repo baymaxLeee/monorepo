@@ -114,7 +114,7 @@ func main() {
 			"port", cfg.Port,
 			"environment", cfg.Environment,
 			"admin_upstream", cfg.AdminServiceURL,
-				"asset_upstream", cfg.AssetServiceURL,
+			"asset_upstream", cfg.AssetServiceURL,
 			"chat_upstream", cfg.ChatServiceURL,
 			"iam_upstream", cfg.IAMServiceURL,
 			"knowledge_upstream", cfg.KnowledgeServiceURL,
