@@ -212,6 +212,12 @@ ci-plan base="origin/main":
 ci base="origin/main":
     @node scripts/local-ci.mjs check "$@"
 
+ci-release-plan base="origin/main":
+    @node scripts/local-ci.mjs release-plan "$@"
+
+ci-release base="origin/main":
+    @node scripts/local-ci.mjs release "$@"
+
 # Verify a clean commit against fresh remote main, then push that exact SHA.
 push remote="origin" branch="":
     @node scripts/local-ci.mjs push "$@"

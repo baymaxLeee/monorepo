@@ -15,10 +15,10 @@
 接近默认上限的墙钟时间；编辑器测试统一使用 15 秒上限，以覆盖其 10 秒 readiness
 契约和较慢 Linux runner 的调度余量。
 
-本地 image gate 使用宿主原生 Linux 架构（Apple Silicon 为 `linux/arm64`），避免
-QEMU 执行 amd64 Rust 工具时的仿真器崩溃；GitHub 在原生 `linux/amd64` runner 上
-验证并发布生产镜像。Dockerfile 内 uv 版本与 `mise.toml` 一致，架构差异是显式的
-双架构验证，不通过放宽工具版本解决。
+生产 image build 不进入同步 push 门禁，由 GitHub 在原生 `linux/amd64` runner 上
+验证并发布。仅在明确修改 image/release pipeline 时按需执行 `just ci-release`；该
+命令使用宿主原生 Linux 架构（Apple Silicon 为 `linux/arm64`），避免 QEMU 执行
+amd64 Rust 工具时的仿真器崩溃。Dockerfile 内 uv 版本仍与 `mise.toml` 一致。
 
 普通源码变更通过 repository manifests 解析 owner 与传递消费者，格式检查、lint、
 类型检查、测试和 build 只覆盖该闭包。文档只运行导航与 tooling 检查。manifest

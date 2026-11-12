@@ -102,7 +102,7 @@ result would be unreliable.
 
 `just ci-plan [base]` prints JSON with the resolved merge base, all changed files
 (including committed work) and exact commands. `just ci [base]` runs the same
-plan sequentially with `CI=true`, stops on the first failure and writes logs plus
+push gate sequentially with `CI=true`, stops on the first failure and writes logs plus
 `result.json` under the worktree's Git directory (`git rev-parse --git-path agent-ci`).
 The default base is `origin/main`; fetch it first when using these diagnostic
 commands. Missing bases fail closed. Results are diagnostic evidence, never a
@@ -113,12 +113,14 @@ sync, read-only Go module consistency (`just check-go-modules`), root lint
 (including format/type checks), affected tests, contract generation checks, and
 frontend/backend builds. Executable tooling edits run root tests once instead of
 the equivalent full affected selection.
-Migration-related edits add disposable PostgreSQL integration tests. Affected
-images reuse `image-plan.mjs` and build for the local native Linux architecture
+Migration-related edits add disposable PostgreSQL integration tests. Production
+image builds are intentionally not part of `just push`: GitHub builds affected
+images on native `linux/amd64` after the code gate. Use `just ci-release-plan`
+and `just ci-release` only when explicitly validating image or release-pipeline
+changes locally; they build affected images for the local native Linux architecture
 with `--load`, without publishing. This avoids treating Apple Silicon QEMU faults
-as application failures; GitHub remains the authoritative native `linux/amd64`
-release build. Protobuf changes additionally require local `buf` lint, format
-and breaking checks. Documentation-only diffs run repository and tooling checks.
+as application failures. Protobuf changes additionally require local `buf` lint,
+format and breaking checks. Documentation-only diffs run repository and tooling checks.
 GitHub jobs use the pinned Ubuntu 24.04 image; Node, pnpm, Python, uv, Go, just
 and Buf versions come from `mise.toml`. Docker/buildx and that pinned toolchain
 must be available locally. The
@@ -134,7 +136,9 @@ Agent procedure:
 2. Implement and run focused tests during development. Apply scoped Oxfmt,
    Ruff or gofmt fixes, inspect the diff, and preserve unrelated changes. Use
    `just fmt` only when the entire formatting scope belongs to the task.
-3. Run `just ci-plan origin/main`, then `just ci origin/main`. Read the first
+3. Run `just ci-plan origin/main`, then `just ci origin/main`. Use
+   `just ci-release-plan origin/main` and `just ci-release origin/main` only for
+   explicit image/release-pipeline work. Read the first
    failed step's log, fix its cause and repeat. Do not remove assertions, add
    skips, relax timeouts without diagnosis, or suppress an empty suite. Missing
    tools/services are blockers to verification, not passing results.

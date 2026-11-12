@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { codePlan, localImagePlatform, plan, push, verify } from "./local-ci.mjs";
+import { codePlan, localImagePlatform, plan, push, releasePlan, verify } from "./local-ci.mjs";
 
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), "local-ci-"));
@@ -135,8 +135,9 @@ test("area-level configuration changes widen only to their owning stack", () => 
   assert.ok(!steps.some((step) => step[0].startsWith("build-backend/")));
   assert.ok(!steps.some((step) => step[0] === "all-tests"));
 });
-test("the release gate delegates code checks and retains the CI image platform", () => {
-  const steps = plan("base-sha", ["scripts/test.mjs", "apps/frontend/apps/chat/src/example.ts"], "linux/amd64");
+test("the push gate remains fast while the optional release gate retains production-platform images", () => {
+  assert.deepEqual(plan("base-sha"), [["code", "just", "ci-code", "base-sha"]]);
+  const steps = releasePlan("base-sha", ["scripts/test.mjs", "apps/frontend/apps/chat/src/example.ts"], "linux/amd64");
   assert.deepEqual(steps[0], ["code", "just", "ci-code", "base-sha"]);
   const image = steps.find((s) => s[0] === "image-web");
   assert.ok(image.includes("linux/amd64"));

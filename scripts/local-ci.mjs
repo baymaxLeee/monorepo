@@ -190,8 +190,8 @@ export function codePlan(base, files, root = ROOT) {
 export function localImagePlatform(arch = process.arch) {
   return arch === "arm64" ? "linux/arm64" : "linux/amd64";
 }
-export function plan(base, files, imagePlatform = localImagePlatform()) {
-  const steps = [["code", "just", "ci-code", base]];
+export function imageSteps(files, imagePlatform = localImagePlatform()) {
+  const steps = [];
   for (const image of imagePlan(files).buildMatrix.include) {
     steps.push([
       `image-${image.service}`,
@@ -209,6 +209,12 @@ export function plan(base, files, imagePlatform = localImagePlatform()) {
     ]);
   }
   return steps;
+}
+export function plan(base) {
+  return [["code", "just", "ci-code", base]];
+}
+export function releasePlan(base, files, imagePlatform = localImagePlatform()) {
+  return [...plan(base), ...imageSteps(files, imagePlatform)];
 }
 async function executeDirect(root, step) {
   const [name, command, ...args] = step;
@@ -252,11 +258,11 @@ async function execute(root, step, log) {
     child.on("close", (code, signal) => resolveResult({ code: code ?? 1, signal }));
   });
 }
-export async function verify(root, baseRef, preview = false) {
+export async function verify(root, baseRef, preview = false, includeImages = false) {
   const base = git(root, "merge-base", "HEAD", git(root, "rev-parse", "--verify", `${baseRef}^{commit}`));
   const files = changedFiles(root, base);
   if (!files) throw new Error("Cannot determine changed files");
-  const steps = plan(base, files);
+  const steps = includeImages ? releasePlan(base, files) : plan(base);
   if (preview) {
     console.log(JSON.stringify({ base, files, steps }, null, 2));
     return;
@@ -285,7 +291,9 @@ export async function verify(root, baseRef, preview = false) {
       report.steps.push({ name: step[0], command: step.slice(1), log, ...result });
       save();
       if (result.code !== 0)
-        throw new Error(`${step[0]} failed; fix the cause and rerun just ci ${baseRef}. Log: ${log}`);
+        throw new Error(
+          `${step[0]} failed; fix the cause and rerun just ${includeImages ? "ci-release" : "ci"} ${baseRef}. Log: ${log}`,
+        );
     }
     if (before !== snapshot(root)) throw new Error("Files changed during verification; review changes and rerun");
     report.status = "passed";
@@ -351,12 +359,14 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const [mode, ...args] = process.argv.slice(2);
     if (["plan", "check"].includes(mode) && args.length <= 1)
       await verify(ROOT, args[0] || "origin/main", mode === "plan");
+    else if (["release-plan", "release"].includes(mode) && args.length <= 1)
+      await verify(ROOT, args[0] || "origin/main", mode === "release-plan", true);
     else if (mode === "code" && args.length <= 1) await runCode(ROOT, args[0] || "origin/main");
     else if (mode === "go-modules" && args.length === 0) checkGoModules(ROOT);
     else if (mode === "push" && args.length <= 2) await push(ROOT, args[0] || "origin", args[1]);
     else
       throw new Error(
-        "Usage: just ci-code [base] | just ci-plan [base] | just ci [base] | just push [remote] [branch]",
+        "Usage: just ci-code [base] | just ci-plan [base] | just ci [base] | just ci-release-plan [base] | just ci-release [base] | just push [remote] [branch]",
       );
   } catch (error) {
     console.error(error.message);
