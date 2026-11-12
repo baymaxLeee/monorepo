@@ -18,7 +18,7 @@ MFE owns its visible shell. Do not add domain navigation or business UI here.
 - Registry topology and remote registration are cached for the document
   lifetime. Runtime registry edits take effect after a full page refresh.
 - Remote route paths are relative to their registered `base_path`.
-- Shared dependencies must stay aligned through `@repo/build-config/mf-shared`.
+- Shared dependencies must stay aligned through `@repo/shared/mf-shared`.
 
 ## URL layout
 

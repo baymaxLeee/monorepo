@@ -17,10 +17,14 @@ Platform 按导航发现/挂载路由，不静态导入 remote 业务代码。
 [turbo.json](../../apps/frontend/turbo.json) 管理，每包声明标签；应用无源码
 消费者。共享包使用 package exports，不从另包的 src 深入导入。
 
+前端通用资源统一由 `@repo/shared` 发布：根入口只包含浏览器安全的运行时工具；
+`/typescript-config` 发布 TS7 基线；`/rspack` 与 `/mf-shared` 仅供 Node 构建配置
+使用。物理合包不改变这些入口的运行环境，浏览器源码不得导入构建期子路径。
+
 Host 提供 React、Router 与需要跨 MFE 身份一致的运行时单例；remote 不打包这些
 依赖的 fallback。UI/API 能力包保持普通 workspace 依赖，按需 tree-shake。
 重型编辑器/预览/终端通过子路径懒加载。共享清单以
-[mf-shared](../../apps/frontend/packages/build-config/mf-shared.mjs) 为准。
+[mf-shared](../../apps/frontend/packages/shared/config/mf-shared.mjs) 为准。
 
 普通 API 经 `@repo/api` 的 axios 单例执行认证、refresh/retry 和错误通知；流式
 请求经 authFetch。业务层不重复全局错误 toast。UI primitives 不反向依赖 API

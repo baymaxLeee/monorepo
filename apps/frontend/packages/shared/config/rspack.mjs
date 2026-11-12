@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** apps/frontend absolute root — Tailwind's `@source` globs resolve against it. */
-export const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+export const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const require = createRequire(import.meta.url);
 const cssLoader = require.resolve("css-loader");

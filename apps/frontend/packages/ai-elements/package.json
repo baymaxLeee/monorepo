@@ -54,7 +54,6 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
     "@shadcn/helpers": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",

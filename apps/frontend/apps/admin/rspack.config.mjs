@@ -2,13 +2,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
-import { buildShared } from "@repo/build-config/mf-shared";
-import {
-  createAppResolveAlias,
-  createRemoteCssRule,
-  createSwcRule,
-  shouldShowRuntimeError,
-} from "@repo/build-config/rspack";
+import { buildShared } from "@repo/shared/mf-shared";
+import { createAppResolveAlias, createRemoteCssRule, createSwcRule, shouldShowRuntimeError } from "@repo/shared/rspack";
 import { defineConfig } from "@rspack/cli";
 
 const PORT = Number(process.env.PORT ?? 3001);

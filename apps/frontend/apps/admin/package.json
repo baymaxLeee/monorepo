@@ -31,8 +31,6 @@
   },
   "devDependencies": {
     "@module-federation/enhanced": "catalog:",
-    "@repo/build-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
     "@rspack/dev-server": "catalog:",

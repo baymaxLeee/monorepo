@@ -14,7 +14,7 @@ platform (host @ :3000)
 
 Capability packages（next-forge 风格，非业务服务模板）：
 `@repo/design-system` / `@repo/ai-elements` / `@repo/editors` / `@repo/viewers` /
-`@repo/api` / `@repo/runtime` / `@repo/build-config`。拆包基线见
+`@repo/api` / `@repo/runtime` / `@repo/shared`。拆包基线见
 `docs/baselines/`。
 
 ## 现有模块

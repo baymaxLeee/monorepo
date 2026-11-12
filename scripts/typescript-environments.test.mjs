@@ -37,7 +37,7 @@ function project(t, profile) {
 
 const nodeProfiles = [
   ...globSync("apps/backend/{services,libs}/*/tsconfig.json", { cwd: root }),
-  "apps/frontend/packages/build-config/tsconfig.json",
+  "apps/frontend/packages/shared/tsconfig.build.json",
 ];
 
 for (const profile of nodeProfiles) {
@@ -55,7 +55,7 @@ for (const profile of nodeProfiles) {
 }
 
 test("browser types expose DOM without ambient Node globals", (t) => {
-  const compile = project(t, "apps/frontend/packages/typescript-config/base.json");
+  const compile = project(t, "apps/frontend/packages/shared/typescript-config.json");
   const invalid = compile("export const pid = process.pid; export const bytes = Buffer.alloc(1);");
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.output, /Cannot find name 'process'/);

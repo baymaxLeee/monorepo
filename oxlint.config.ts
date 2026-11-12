@@ -69,7 +69,7 @@ export default defineConfig({
     {
       files: ["apps/frontend/apps/**", "apps/frontend/packages/**"],
       excludeFiles: [
-        "apps/frontend/packages/build-config/**",
+        "apps/frontend/packages/shared/config/**",
         "apps/frontend/**/*.config.*",
         "apps/frontend/**/scripts/**",
       ],

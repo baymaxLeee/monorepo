@@ -40,9 +40,7 @@ Every internal package is scoped `@repo/*` and is imported by its real pnpm work
 | `@repo/api` | `data` | Unified axios runtime, auth/session, OpenAPI-generated clients |
 | `@repo/runtime` | `runtime` | MFE registry, event bus, auth context |
 | `@repo/observability` | `runtime` | Tracing / logging / error reporting |
-| `@repo/shared` | `util` | Utils, types, constants |
-| `@repo/build-config` | `util` | Shared Rspack rules + Module Federation shared registry |
-| `@repo/typescript-config` | `util` | Shared `tsconfig` base |
+| `@repo/shared` | `util` | Runtime utilities plus `/typescript-config`, `/rspack` and `/mf-shared` build-time resources |
 
 Every consumer must declare the workspace dependency in its own `package.json` using `"workspace:*"`. An app depends only on the UI packages it actually uses — `platform` needs `design-system` only, `chat` does not pull `viewers`, `admin` does not pull `ai-elements`.
 
@@ -109,7 +107,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 ### shadcn / Tailwind v4
 
 - **Tailwind v4 + theme**: `packages/design-system/src/styles.css` (`@import "tailwindcss"`, `shadcn/tailwind.css`, `@theme` + sidebar tokens)
-- **Build**: **platform host only** — `@tailwindcss/webpack` wired in `@repo/build-config/rspack`; `main.tsx` imports `@repo/design-system/styles.css`（公开 CSS 入口）
+- **Build**: **platform host only** — `@tailwindcss/webpack` wired in `@repo/shared/rspack`; `main.tsx` imports `@repo/design-system/styles.css`（公开 CSS 入口）
 - **@source** in `styles.css`: `apps/*/src/**/*.{ts,tsx}` + all four `ui`-tagged packages (not shared/runtime/api). 新增 UI 包必须补一条 `@source`，否则该包的 class 会被 Tailwind 漏扫。
 - **MFE remotes**: no PostCSS/Tailwind; app-level styles come from platform-injected `@repo/design-system/styles.css`. Component-owned CSS/CSS Modules and third-party CSS stay inside their owner or lazy component entries and are handled by the shared remote CSS rule.
 - **Style ownership**: every layer is Tailwind-first. Keep `packages/design-system/src/styles.css` limited to theme/tokens, base, cross-package utilities and global interaction policy; capability and app styles live beside their owning component. Editors, canvases, generated third-party DOM, pseudo-elements, print and keyframes may use private `.module.css` or a component-root-scoped `.css` when that is clearer than utilities. Less, app-specific Less loaders and cross-package private-selector overrides are forbidden.
@@ -137,7 +135,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 
 ### React Compiler（build-time 自动记忆化，已启用）
 
-- **原生 SWC 路线，无 Babel**: Rspack **≥ 2.2** 把 React Compiler 用 Rust 移植进 `builtin:swc-loader`，通过 `jsc.transform.reactCompiler` 开启。统一封装在 `@repo/build-config/rspack` 的 `createSwcRule({ reactCompiler })`，四个 app 均以 `createSwcRule({ reactCompiler: { target: "19" } })` 接入——**别再各自内联 swc rule**。React 19 原生包含 compiler runtime；禁止重新加入 `react-compiler-runtime`。
+- **原生 SWC 路线，无 Babel**: Rspack **≥ 2.2** 把 React Compiler 用 Rust 移植进 `builtin:swc-loader`，通过 `jsc.transform.reactCompiler` 开启。统一封装在 `@repo/shared/rspack` 的 `createSwcRule({ reactCompiler })`，四个 app 均以 `createSwcRule({ reactCompiler: { target: "19" } })` 接入——**别再各自内联 swc rule**。React 19 原生包含 compiler runtime；禁止重新加入 `react-compiler-runtime`。
 - **模式**: 默认 `infer`（全量自动记忆化）；`panicThreshold` 默认 `none`——违反 Rules of React 的文件会被**安全跳过**、不炸构建。若要单文件退出用 `"use no memo"`，单文件强制用 `"use memo"`。
 - **约束**: 记忆化正确性依赖遵守 Rules of React（不要在渲染期 mutate props/state、hooks 只在顶层调用）。新组件若出现 stale/异常，先怀疑规则违背，用 `"use no memo"` 临时隔离再修。
 - **版本**: `@rspack/core`/`@rspack/cli` ≥ `2.2.7`；Module Federation Enhanced ≥ `2.9.1`。React 及其 JSX runtimes、React DOM 均保持 `^19.0.0` strict singleton；勿降回旧基线或允许 remote 打包 fallback React。
@@ -147,7 +145,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 - `@typescript/native` 固定原生 TypeScript 7，负责所有 `typecheck`；各包脚本显式调用 `node_modules/@typescript/native/bin/tsc`，不得改回不确定来源的裸 `tsc`。
 - `typescript` 5.x 暂时只服务仍依赖旧编程 API / peer range 的 Module Federation、Orval / TypeDoc、shadcn 等工具，不负责仓库类型检查；上游兼容稳定 API 后直接删除旧版本。
 - 普通 TS package 不得直接声明旧 `typescript`；每个含 TS 源码的 workspace package 必须提供独立 TS7 `typecheck`。只有承载明确旧 API / peer 消费者的 package 可保留 TS5。
-- 共享编译选项只维护在 `packages/typescript-config/base.json`。所有 app/package 必须声明 `"@repo/typescript-config": "workspace:*"` 并从包名继承；禁止用跨目录相对路径继承根 `tsconfig.base.json`，否则从 pnpm `node_modules` 符号链接进入时会解析到错误目录。
+- 共享编译选项只维护在 `packages/shared/typescript-config.json`。所有 app/package 必须声明 `"@repo/shared": "workspace:*"` 并从 `@repo/shared/typescript-config` 继承；只有 shared 自身使用包内相对路径，避免自引用解析。禁止用跨目录相对路径继承根 `tsconfig.base.json`。
 - TS7 不支持 `baseUrl`；`paths` replacement 必须以 `./` 开头，并相对声明它的项目 `tsconfig.json`。浏览器代码不要依赖默认注入的 Node 全局类型，计时器使用 `ReturnType<typeof setTimeout>`。
 - 浏览器基线显式使用 DOM libraries 与 `types: []`；Node 构建配置显式使用仅 ES 的 `lib` 与 `types: ["node"]`。Vitest API 在测试文件显式导入，不向业务配置注入 `vitest/globals`；不通过增加 Node polyfill 来绕过检查。
 - VS Code / Cursor 使用微软 `TypeScriptTeam.native-preview` 扩展，并在编辑器设置中启用 `js/ts.experimental.useTsgo`。

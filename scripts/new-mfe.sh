@@ -68,8 +68,6 @@ cat > "$MFE_DIR/package.json" <<EOF
   },
   "devDependencies": {
     "@module-federation/enhanced": "catalog:",
-    "@repo/build-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
     "@rspack/dev-server": "catalog:",
@@ -85,7 +83,7 @@ EOF
 
 cat > "$MFE_DIR/tsconfig.json" <<EOF
 {
-  "extends": "@repo/typescript-config",
+  "extends": "@repo/shared/typescript-config",
   "compilerOptions": {
     "outDir": "dist",
     "paths": {
@@ -109,12 +107,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ModuleFederationPlugin } from "@module-federation/enhanced/rspack";
 import { defineConfig } from "@rspack/cli";
-import { buildShared } from "@repo/build-config/mf-shared";
+import { buildShared } from "@repo/shared/mf-shared";
 import {
   createAppResolveAlias,
   createRemoteCssRule,
   createSwcRule,
-} from "@repo/build-config/rspack";
+} from "@repo/shared/rspack";
 
 const PORT = Number(process.env.PORT ?? 3099);
 const appDir = path.dirname(fileURLToPath(import.meta.url));

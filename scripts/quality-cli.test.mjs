@@ -145,7 +145,7 @@ test("Node imports remain valid in backend, build config, scripts and frontend t
   for (const path of [
     "apps/backend/services/example/src/main.ts",
     "apps/frontend/apps/example/rspack.config.mjs",
-    "apps/frontend/packages/build-config/loader.mjs",
+    "apps/frontend/packages/shared/config/loader.mjs",
     "apps/frontend/packages/example/orval.config.ts",
     "apps/frontend/packages/example/scripts/generate.ts",
     "apps/frontend/apps/example/src/view.spec.ts",
