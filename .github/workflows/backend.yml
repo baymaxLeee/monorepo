@@ -50,8 +50,4 @@ jobs:
           just build-go
           just build-node
       - name: Go module consistency
-        working-directory: apps/backend
-        run: |
-          for manifest in services/*/go.mod; do
-            (cd "$(dirname "$manifest")" && go mod tidy && git diff --exit-code -- go.mod go.sum)
-          done
+        run: just check-go-modules

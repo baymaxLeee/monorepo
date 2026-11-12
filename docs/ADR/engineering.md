@@ -26,6 +26,9 @@ Node workspace dependency/dev/peer/optional 构成源码依赖图，应用保持
 空套件与 runner 政策由[测试规范](../开发规范/testing.md)维护；缺环境/跳过不得
 算通过。测试工具变更执行全量入口；仅文档变更不需要应用构建。
 
+推送授权与验证生命周期由[本地验证与受控推送](verified-push.md)维护；
+模型负责诊断修复，CLI 依据实际检查结果约束固定提交的推送。
+
 ## 端到端代码规范与提交前自检
 
 JS/TS 的 frontend、Node backend、构建配置和仓库脚本共用根 Oxlint/Oxfmt

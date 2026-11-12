@@ -19,6 +19,7 @@
 | 数据基线、部署、密钥与观测 | [operations](operations.md) |
 | 容器镜像增量构建、原子 release、镜像同步与部署门禁 | [container-image-delivery](container-image-delivery.md) |
 | AI 开发入口、增量验证与文档维护 | [engineering](engineering.md) |
+| Agent 本地 CI、失败修复与受控推送 | [verified-push](verified-push.md) |
 
 业务细节从 [docs/index.md](../index.md) 进入；字段、版本、端口以 schema/manifest
 为准。决策文档不再复制完整清单、代码教程和任务执行日志。

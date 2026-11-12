@@ -71,6 +71,8 @@ authorization, concurrency and retry changes need failure/cleanup coverage.
 | `just lint-py [args...]` / `just fmt-py [args...]` | Native Ruff lint / format; checks do not rewrite unless requested |
 | `just check-py` | Repository-wide Ruff lint + format check and backend mypy |
 | `just pre-commit [--all-files]` | Read-only staged checks / all tracked files |
+| `just ci-plan [base]` / `just ci [base]` | Preview / execute local CI with logs; includes committed changes |
+| `just push [remote] [branch]` | Verify clean HEAD against fresh remote main, then push the verified SHA |
 | `just status` / `just doctor` | Repository/environment health |
 
 After code changes, run affected-target tests and builds. Test infrastructure
@@ -92,6 +94,14 @@ the affected checks above. Use `just pre-commit --all-files` after changing shar
 quality configuration. Hooks use the workspace-locked Ruff/Oxc versions; never
 override a managed `core.hooksPath` to install them. Fix explicitly with native
 `--fix` or format commands, review the diff and stage it again.
+
+Before pushing, follow the [local CI loop](scripts/README.md#local-ci-and-verified-push).
+Fix failures, review the final diff, and run staged checks before an authorized
+commit. For an authorized push use `just push [remote] [branch]`; never bypass
+failed/incomplete checks with raw Git, `--no-verify`, force or hook overrides.
+Do not weaken tests or suppress missing suites to obtain a pass. Inspect remote
+CI for the pushed SHA; local success does not establish deployment success.
+This workflow does not itself authorize a commit or push.
 
 ## Editing and context discipline
 

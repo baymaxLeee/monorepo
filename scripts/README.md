@@ -86,6 +86,78 @@ To enable automatic checks on machines without managed hooks, run the official
 replace an existing managed `core.hooksPath`; use `just pre-commit` explicitly
 there, or have the hook owner integrate the command.
 
+## Local CI and verified push
+
+`just ci-plan [base]` prints JSON with the resolved merge base, all changed files
+(including committed work) and exact commands. `just ci [base]` runs the same
+plan sequentially with `CI=true`, stops on the first failure and writes logs plus
+`result.json` under the worktree's Git directory (`git rev-parse --git-path agent-ci`).
+The default base is `origin/main`; fetch it first when using these diagnostic
+commands. Missing bases fail closed. Results are diagnostic evidence, never a
+reusable push permission.
+
+The release gate uses frozen pnpm installs in all three workspaces and locked uv
+sync, read-only Go module consistency (`just check-go-modules`), root lint (including format/type checks), affected tests, contract generation
+checks, and frontend/backend builds. Executable tooling edits run root tests once instead of the equivalent full
+affected selection.
+Migration-related edits add disposable PostgreSQL integration tests. Affected
+images reuse `image-plan.mjs` and build for `linux/amd64` with `--load`, without
+publishing. Protobuf changes additionally require local `buf` lint, format and
+breaking checks. Documentation-only diffs run repository and tooling checks.
+Docker/buildx and the pinned mise toolchain must be available. The
+command installs dependencies and may regenerate contracts/build output; it does
+not auto-fix source. Changes to tracked or untracked source during checks fail
+the run. Existing empty-suite policy is preserved, including failures for selected
+projects without tests; a broader suite's UNTESTED notice is not coverage.
+
+Agent procedure:
+
+1. Locate the owner with `just context`, state observable acceptance criteria and
+   protected invariants, and reproduce a bug with a failing behavior test.
+2. Implement and run focused tests during development. Apply scoped Oxfmt,
+   Ruff or gofmt fixes, inspect the diff, and preserve unrelated changes. Use
+   `just fmt` only when the entire formatting scope belongs to the task.
+3. Run `just ci-plan origin/main`, then `just ci origin/main`. Read the first
+   failed step's log, fix its cause and repeat. Do not remove assertions, add
+   skips, relax timeouts without diagnosis, or suppress an empty suite. Missing
+   tools/services are blockers to verification, not passing results.
+4. Review the complete diff against the requirement, including consumers and
+   failure/cleanup paths. Stage only task files and run `just pre-commit` before
+   an authorized commit. Generated-contract differences need review and commit;
+   `sync-check` compares generated files with Git, including intended changes.
+5. For an authorized push run `just push origin <current-branch>`. This requires
+   a clean tree, fetches remote main and destination, rejects a branch behind
+   main or a diverged destination, and runs the release gate again on clean HEAD.
+   It checks source/HEAD and remote refs again, then pushes a single fixed SHA.
+   Failures never execute push. New feature branches are supported. Main is the
+   repository integration branch; custom release destinations are not supported.
+6. Inspect GitHub Actions for that SHA with `gh run list --commit <sha>` and
+   `gh run view <id> --log-failed`. Fix the first failed dependency before
+   retrying downstream workflows. Report local results separately from image
+   publication, mirroring and deployment.
+
+`just push` deliberately reruns checks after commit: previous diagnostic runs
+may have used uncommitted files, older dependencies or a stale remote base. It
+never stashes, commits, force-pushes or replaces company-managed Git hooks.
+Concurrent checks in the same worktree are rejected. If a process is killed,
+confirm it has stopped before removing the Git-local `agent-ci/lock` directory;
+rerun the gate from the start. Logs may contain application test output; keep
+them local and review before sharing.
+
+This CLI cannot prevent someone from invoking raw Git or editing the gate.
+For enforcement across clients, configure remote branch rules requiring PRs and
+successful checks, restrict bypass permissions, and have the managed hook owner
+integrate the gate if required. These external settings are not changed by the
+CLI. Local checks cannot prove registry credentials, mirror connectivity or
+production deployment success. Remote CI remains authoritative for those steps;
+service-specific end-to-end checks must also follow their owning routes.
+
+The design applies [OpenAI Codex testing and review guidance](https://learn.chatgpt.com/guides/best-practices#improve-reliability-with-testing-and-review)
+and [Claude Code's distinction between instructions and enforced checks](https://code.claude.com/docs/en/best-practices).
+Acceptance-driven iteration and resumable evidence follow
+[Anthropic's agent harness guidance](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents).
+Repository commands enforce pass/fail; the agent diagnoses and repairs failures.
+
 ## Lifecycle
 
 - `install-deps.sh`: installs tool-managed dependencies, frontend packages,

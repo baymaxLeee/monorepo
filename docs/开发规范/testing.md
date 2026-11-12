@@ -38,3 +38,7 @@ scope 允许尚无测试的包存在，但打印 UNTESTED；全前端无测试�
 根 `just check` 聚合 lint、测试与生成契约检查。测试工具变化执行根 `just test`；
 代码变化执行受影响测试与构建，契约变化额外 `just sync`。复用仍有效的结果。
 CI 与本地用同一入口，不用跳过失败取得绿灯。
+
+提交推送流程与 CLI 见 [本地 CI 闭环](../../scripts/README.md#local-ci-and-verified-push)。
+`just ci` 提供诊断，`just push` 在干净提交上重新执行门禁后推送固定 SHA；
+任一步失败都不得推送。远端注册表、镜像同步和部署仍需检查对应 SHA 的 CI 结果。

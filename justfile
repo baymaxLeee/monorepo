@@ -198,6 +198,21 @@ context *args:
 check-repo:
     @node scripts/repo.mjs check
 
+# Read-only equivalent of CI's Go dependency consistency check.
+check-go-modules:
+    @node scripts/local-ci.mjs go-modules
+
+# Preview or run local release checks, including committed changes since base.
+ci-plan base="origin/main":
+    @node scripts/local-ci.mjs plan "$@"
+
+ci base="origin/main":
+    @node scripts/local-ci.mjs check "$@"
+
+# Verify a clean commit against fresh remote main, then push that exact SHA.
+push remote="origin" branch="":
+    @node scripts/local-ci.mjs push "$@"
+
 # Aggregate static checks, behavior tests, and generated contract consistency.
 check:
     @just lint
