@@ -50,6 +50,11 @@ export const createTableCellExtension = () => {
                 index === 0 && "markdown-editor-table-grip-row-first",
                 index === cells.length - 1 && "markdown-editor-table-grip-row-last",
               );
+              const icon = document.createElement("span");
+              icon.ariaHidden = "true";
+              icon.className = "markdown-editor-table-grip-icon markdown-editor-table-grip-icon-row";
+              icon.textContent = "•••";
+              grip.append(icon);
               grip.addEventListener("mousedown", (event) => {
                 event.preventDefault();
                 event.stopImmediatePropagation();

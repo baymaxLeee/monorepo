@@ -298,7 +298,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
               contentType="markdown"
               editable
               onChange={handleDraftChange}
-              className="h-full w-full overflow-y-auto"
+              className="h-full w-full"
             />
           </div>
         ) : artifact ? (
@@ -317,7 +317,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
                 : undefined
             }
             showHeader={false}
-            className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&>div]:overscroll-contain [&>div]:[scrollbar-width:none] [&>div]:[-ms-overflow-style:none] [&>div::-webkit-scrollbar]:hidden [&_iframe]:h-full [&_iframe]:min-h-0 [&_pre]:min-h-0 [&_pre]:overflow-visible"
+            className="h-full min-h-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:flex-1 [&_iframe]:h-full [&_iframe]:min-h-0 [&_pre]:min-h-0 [&_pre]:overflow-visible"
           />
         ) : open ? (
           <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">

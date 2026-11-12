@@ -248,7 +248,6 @@ const MarkdownEditorInner = forwardRef<MarkdownEditorRef, MarkdownEditorProps>((
         return (
           popupConfig?.getContainer?.(editorDom) ??
           (editorDom.closest(OVERLAY_CONTENT_SELECTOR) as HTMLElement | null) ??
-          editorDom.closest<HTMLElement>(".markdown-editor") ??
           editorDom.ownerDocument.body
         );
       },

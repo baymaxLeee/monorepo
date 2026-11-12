@@ -150,6 +150,9 @@ function expectAtBottom(viewport: HTMLElement) {
 
 test("reasoning and body share one viewport and follow streamed output", async () => {
   const { viewport, transcript, append } = await setupConversation();
+  expect(viewport.classList.contains("scrollbar-hide")).toBe(true);
+  expect(viewport.classList.contains("scrollbar-thin")).toBe(false);
+  expect(viewport.classList.contains("scrollbar-gutter-stable")).toBe(false);
   expect(viewport.querySelectorAll(".overflow-auto, .overflow-y-auto").length).toBe(0);
   expect(transcript.textContent).toContain("推理");
   expect(transcript.textContent).toContain("正文");

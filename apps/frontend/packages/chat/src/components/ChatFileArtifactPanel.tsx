@@ -34,17 +34,9 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
   const file = editor.file?.id === fileId ? editor.file : null;
   const kind = resolveArtifactPreviewKind(undefined, file?.mime_type, file?.filename);
   const markdown = /\.(md|markdown)$/i.test(file?.filename ?? "");
-  // Decide from the loaded source, never from keystrokes or editor serialization.
-  // Underline is supported by MarkdownEditor and serializes as inline HTML.
-  const requiresSource =
-    markdown && /<\/?[a-z][^>]*>/i.test(editor.initialContent.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~|<\/?u>/gi, ""));
-  const [sourceMode, setSourceMode] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    setSourceMode(false);
-  }, [fileId, token]);
   useEffect(() => {
     const sync = () => setFullscreen(document.fullscreenElement === panelRef.current);
     document.addEventListener("fullscreenchange", sync);
@@ -132,11 +124,6 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
                 </TooltipTrigger>
                 <TooltipContent>{editor.editing ? "预览" : "编辑"}</TooltipContent>
               </Tooltip>
-              {markdown && editor.editing && !requiresSource && (
-                <ToolbarButton onClick={() => setSourceMode((value) => !value)}>
-                  {sourceMode ? "Markdown 编辑" : "源码"}
-                </ToolbarButton>
-              )}
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -187,9 +174,6 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
           </ToolbarButton>
         </Toolbar>
       </div>
-      {editor.editing && requiresSource && (
-        <p className="px-3 py-2 text-xs text-muted-foreground">此 Markdown 含原始 HTML，使用源码编辑保留标签。</p>
-      )}
       {editor.error && (
         <div role="alert" className="flex shrink-0 items-center gap-2 px-3 py-2 text-sm text-destructive">
           <span>{editor.error}</span>
@@ -202,14 +186,14 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
         {editor.loading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中…</div>
         ) : file && editor.editing ? (
-          markdown && !sourceMode && !requiresSource ? (
+          markdown ? (
             <MarkdownEditor
               key={`${file.id}:${token}`}
               value={editor.draft}
               contentType="markdown"
               editable
               onChange={editor.changeDraft}
-              className="h-full w-full overflow-y-auto"
+              className="h-full w-full"
             />
           ) : (
             <CodeEditor
@@ -233,7 +217,7 @@ export function ChatFileArtifactPanel({ onClose }: { onClose?: () => void }) {
               owner: { kind: "conversation-file", conversationId: conversationId!, fileId: file.id },
             }}
             showHeader={false}
-            className="h-full min-h-0 min-w-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:overflow-y-auto [&_iframe]:h-full [&_iframe]:min-h-0 [&_iframe]:min-w-0"
+            className="h-full min-h-0 min-w-0 overflow-hidden rounded-none border-0 bg-transparent shadow-none [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&_iframe]:h-full [&_iframe]:min-h-0 [&_iframe]:min-w-0"
           />
         ) : (
           <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">无法加载预览</div>

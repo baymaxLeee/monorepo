@@ -22,9 +22,19 @@ const store = vi.hoisted(() => ({
 
 vi.mock("@repo/api", async (load) => ({ ...(await load()), ...api }));
 vi.mock("@repo/editors/code-editor", () => ({
-  CodeEditor: (props: { value?: string; onChange?: (value: string) => void; onSave?: () => void }) => (
+  CodeEditor: (props: {
+    value?: string;
+    readOnly?: boolean;
+    onChange?: (value: string) => void;
+    onSave?: () => void;
+  }) => (
     <div>
-      <textarea aria-label="源码" value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />
+      <textarea
+        aria-label="源码"
+        value={props.value}
+        readOnly={props.readOnly}
+        onChange={(event) => props.onChange?.(event.target.value)}
+      />
       <button type="button" onClick={props.onSave}>
         编辑器保存
       </button>
@@ -75,12 +85,11 @@ describe("editable conversation file panel", () => {
     api.fetchAssetText.mockResolvedValue("old\n");
   });
 
-  it("keeps raw HTML Markdown in the source editor", async () => {
+  it("keeps raw HTML Markdown in the MarkdownEditor", async () => {
     api.fetchAssetText.mockResolvedValue("<details><summary>Title</summary>Body</details>\n");
     render(<ChatFileArtifactPanel />);
     fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
-    await screen.findByRole("textbox", { name: "源码" });
-    expect(screen.queryByTestId("markdown-editor")).toBeNull();
+    expect(await screen.findByTestId("markdown-editor")).toBeTruthy();
     expect(api.updateConversationFileContent).not.toHaveBeenCalled();
   });
 
@@ -99,6 +108,14 @@ describe("editable conversation file panel", () => {
     render(<ChatFileArtifactPanel />);
     fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
     expect(await screen.findByTestId("markdown-editor")).toBeTruthy();
+  });
+
+  it("uses the editable CodeEditor after switching a code file into edit mode", async () => {
+    api.fetchConversationFile.mockResolvedValue({ ...file, filename: "script.js", mime_type: "text/javascript" });
+    api.createStorageDownloadUrl.mockResolvedValue({ url: "https://storage.test/file", filename: "script.js" });
+    render(<ChatFileArtifactPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));
+    expect((await screen.findByRole("textbox", { name: "源码" })).hasAttribute("readonly")).toBe(false);
   });
 
   it("blocks route changes until the user discards the draft", async () => {

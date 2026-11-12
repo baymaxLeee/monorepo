@@ -159,7 +159,7 @@ export const DragHandler: React.FC<DragHandlerProps> = ({ editor }) => {
           ? (() => {
               const tableRect = tableDom.getBoundingClientRect();
               return {
-                top: tableRect.top - measuredContainerRect.top + container.scrollTop - TABLE_HANDLE_HEIGHT / 2,
+                top: tableRect.top - measuredContainerRect.top + container.scrollTop - TABLE_HANDLE_HEIGHT,
                 left:
                   tableRect.left -
                   measuredContainerRect.left +

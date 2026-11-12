@@ -112,7 +112,7 @@ export function ArtifactAction({
 export type ArtifactContentProps = HTMLAttributes<HTMLDivElement>;
 
 export function ArtifactContent({ className, ...props }: ArtifactContentProps) {
-  return <div className={cn("min-w-0 flex-1 overflow-auto p-4", className)} {...props} />;
+  return <div className={cn("min-w-0 flex-1 scrollbar-hide overflow-auto p-4", className)} {...props} />;
 }
 
 export type ArtifactPreviewKind = "html" | "markdown" | "text" | "image" | "video" | "audio" | "pdf";
@@ -138,9 +138,36 @@ export type ArtifactPreviewProps = HTMLAttributes<HTMLDivElement> & {
   mimeType?: string;
   actions?: ReactNode;
   showHeader?: boolean;
+  renderMarkdown?: (content: string) => ReactNode;
   renderText?: (content: string) => ReactNode;
+  htmlBaseUrl?: string;
   onResourceError?: () => void;
 };
+
+const HIDDEN_SCROLLBARS_STYLE =
+  "<style data-artifact-hidden-scrollbars>:where(html,body,*){scrollbar-width:none!important;-ms-overflow-style:none!important;scrollbar-gutter:auto!important}:where(html,body,*)::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}</style>";
+
+function escapeHtmlAttribute(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+export function prepareArtifactHtml(content: string, baseUrl?: string): string {
+  const base = baseUrl ? `<base href="${escapeHtmlAttribute(baseUrl)}">` : "";
+  const injection = `${base}${HIDDEN_SCROLLBARS_STYLE}`;
+  const head = /<head(?:\s[^>]*)?>/i.exec(content);
+  if (head?.index !== undefined) {
+    const offset = head.index + head[0].length;
+    return `${content.slice(0, offset)}${injection}${content.slice(offset)}`;
+  }
+  const html = /<html(?:\s[^>]*)?>/i.exec(content);
+  if (html?.index !== undefined) {
+    const offset = html.index + html[0].length;
+    return `${content.slice(0, offset)}<head>${injection}</head>${content.slice(offset)}`;
+  }
+  const doctype = /^\s*<!doctype[^>]*>/i.exec(content);
+  const offset = doctype?.[0].length ?? 0;
+  return `${content.slice(0, offset)}<head>${injection}</head>${content.slice(offset)}`;
+}
 
 export function resolveArtifactPreviewKind(
   kind?: ArtifactPreviewKind,
@@ -183,12 +210,17 @@ export function ArtifactPreview({
   mimeType,
   actions,
   showHeader = true,
+  renderMarkdown,
   renderText,
+  htmlBaseUrl,
   onResourceError,
   ...props
 }: ArtifactPreviewProps) {
   const resolvedKind = resolveArtifactPreviewKind(kind, mimeType, filename);
+  const editorBacked =
+    (resolvedKind === "markdown" && Boolean(renderMarkdown)) || (resolvedKind === "text" && Boolean(renderText));
   const safeSrc = src && isAllowedArtifactSrc(src) ? src : undefined;
+  const safeHtmlBaseUrl = htmlBaseUrl && isAllowedArtifactSrc(htmlBaseUrl) ? htmlBaseUrl : undefined;
   return (
     <Artifact className={cn("h-full min-h-0 min-w-0", className)} {...props}>
       {showHeader ? (
@@ -204,7 +236,7 @@ export function ArtifactPreview({
           {actions ? <ArtifactActions>{actions}</ArtifactActions> : null}
         </ArtifactHeader>
       ) : null}
-      <ArtifactContent className="min-h-0 p-0">
+      <ArtifactContent className={cn("min-h-0 p-0", editorBacked && "overflow-hidden")}>
         {resolvedKind === "image" && safeSrc ? (
           <div className="flex h-full min-h-[40svh] items-center justify-center bg-muted/20 p-4">
             <img
@@ -236,12 +268,14 @@ export function ArtifactPreview({
             title={title}
             allowFullScreen
             onError={onResourceError}
-            src={safeSrc ?? undefined}
-            srcDoc={safeSrc ? undefined : content}
+            src={safeSrc && !safeHtmlBaseUrl ? safeSrc : undefined}
+            srcDoc={safeSrc && !safeHtmlBaseUrl ? undefined : prepareArtifactHtml(content, safeHtmlBaseUrl)}
             referrerPolicy="no-referrer"
             sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
             className="h-full min-h-[60svh] min-w-0 w-full bg-white"
           />
+        ) : resolvedKind === "markdown" && renderMarkdown ? (
+          renderMarkdown(content)
         ) : resolvedKind === "markdown" ? (
           <div className="p-4">
             <MessageResponse>{content}</MessageResponse>
@@ -249,7 +283,9 @@ export function ArtifactPreview({
         ) : renderText ? (
           renderText(content)
         ) : (
-          <pre className="h-full min-h-[60svh] overflow-auto whitespace-pre-wrap p-4 text-sm">{content}</pre>
+          <pre className="h-full min-h-[60svh] scrollbar-hide overflow-auto whitespace-pre-wrap p-4 text-sm">
+            {content}
+          </pre>
         )}
       </ArtifactContent>
     </Artifact>

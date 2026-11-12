@@ -4,7 +4,7 @@ import { type AnyExtension, Editor, type JSONContent } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import { MarkdownManager } from "@tiptap/markdown";
 import { NodeSelection } from "@tiptap/pm/state";
-import { CellSelection, columnResizingPluginKey } from "@tiptap/pm/tables";
+import { CellSelection, columnResizingPluginKey, TableMap } from "@tiptap/pm/tables";
 import StarterKit from "@tiptap/starter-kit";
 import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -172,6 +172,42 @@ describe("MarkdownEditor content and lifecycle", () => {
     const tableControl = await view.findByRole("button", { name: "选择整张表格" });
     expect(nestedDialog.contains(tableControl)).toBe(true);
     expect(view.getByTestId("clipping-boundary").contains(tableControl)).toBe(false);
+  });
+
+  it("ports table drag controls outside a non-modal clipping boundary", async () => {
+    const ref = createRef<MarkdownEditorRef>();
+    const view = render(
+      <div data-testid="clipping-boundary" className="overflow-hidden">
+        <MarkdownEditor
+          ref={ref}
+          editable
+          features={{ blockDrag: true, blockMenu: false, codeBlock: false }}
+          defaultValue="<table><tbody><tr><th>A</th><th>B</th></tr><tr><td>C</td><td>D</td></tr></tbody></table>"
+        />
+      </div>,
+    );
+    await waitFor(() => expect(ref.current?.editor).not.toBeNull());
+    const editor = ref.current!.editor!;
+    let firstCellPos = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (firstCellPos === -1 && (node.type.name === "tableHeader" || node.type.name === "tableCell")) {
+        firstCellPos = pos;
+      }
+    });
+
+    act(() => {
+      editor.view.dispatch(editor.state.tr.setSelection(CellSelection.create(editor.state.doc, firstCellPos)));
+      editor.view.focus();
+    });
+
+    const tableControl = await view.findByRole("button", { name: "选择整张表格" });
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+    expect(view.getByTestId("clipping-boundary").contains(tableControl)).toBe(false);
+    expect(document.body.contains(tableControl)).toBe(true);
   });
 
   it("round-trips JSON string content as a TipTap document", async () => {
@@ -748,6 +784,7 @@ describe("MarkdownEditor editing transactions", () => {
     expect(editor.view.dom.querySelectorAll(".markdown-editor-table-grip-row")).toHaveLength(2);
     expect(editor.view.dom.querySelectorAll(".markdown-editor-table-grip-column")).toHaveLength(2);
     expect(editor.view.dom.querySelectorAll(".markdown-editor-table-grip-table")).toHaveLength(1);
+    expect(editor.view.dom.querySelectorAll(".markdown-editor-table-grip-icon")).toHaveLength(4);
 
     editor.view.dom
       .querySelector<HTMLButtonElement>('button[aria-label="选择第 1 行"]')!
@@ -769,6 +806,40 @@ describe("MarkdownEditor editing transactions", () => {
     editor.view.dispatch(editor.state.tr.setMeta(columnResizingPluginKey, { setHandle: firstCellPos }));
     expect(editor.view.dom.querySelectorAll(".column-resize-handle")).toHaveLength(2);
     expect(editor.view.dom.classList.contains("resize-cursor")).toBe(true);
+  });
+
+  it("keeps quick row and column insertion active while the table has selection", () => {
+    const editor = createEditor({
+      extensions: createTableEditorExtensions(),
+      content: "<table><tbody><tr><th>A</th><th>B</th></tr><tr><td>C</td><td>D</td></tr></tbody></table>",
+    });
+    let firstCellPos = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (firstCellPos === -1 && (node.type.name === "tableHeader" || node.type.name === "tableCell")) {
+        firstCellPos = pos;
+      }
+    });
+    editor.view.dispatch(editor.state.tr.setSelection(CellSelection.create(editor.state.doc, firstCellPos)));
+
+    const wrapper = editor.view.dom.querySelector<HTMLElement>(".markdown-editor-table-wrapper")!;
+    const table = wrapper.querySelector<HTMLTableElement>("table")!;
+    vi.spyOn(table, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 100, 300, 200));
+    const getComputedStyle = window.getComputedStyle.bind(window);
+    const computedStyleSpy = vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudoElement) => {
+      if (pseudoElement === "::before" || pseudoElement === "::after") {
+        return { height: "20px", width: "20px" } as CSSStyleDeclaration;
+      }
+      return getComputedStyle(element);
+    });
+
+    expect(wrapper.classList.contains("markdown-editor-table-active")).toBe(true);
+
+    table.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 408, clientY: 150 }));
+    expect(TableMap.get(editor.state.doc.firstChild!).width).toBe(3);
+
+    table.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 150, clientY: 308 }));
+    expect(TableMap.get(editor.state.doc.firstChild!).height).toBe(3);
+    computedStyleSpy.mockRestore();
   });
 
   it("keeps the combined table control interactive after table focus", async () => {
@@ -806,11 +877,9 @@ describe("MarkdownEditor editing transactions", () => {
     editor.view.focus();
 
     await view.findByRole("button", { name: "选择整张表格" });
-    await waitFor(() =>
-      expect(view.getByRole("button", { name: "选择整张表格" }).closest(".markdown-editor")).not.toBeNull(),
-    );
+    await waitFor(() => expect(view.getByRole("button", { name: "选择整张表格" }).parentElement).toBe(document.body));
     const selectButton = view.getByRole("button", { name: "选择整张表格" }) as HTMLButtonElement;
-    await waitFor(() => expect(selectButton.style.top).toBe("110px"));
+    await waitFor(() => expect(selectButton.style.top).toBe("96px"));
     expect(selectButton.draggable).toBe(true);
     expect(view.queryByRole("button", { name: "拖拽表格" })).toBeNull();
     expect(editor.view.dom.querySelector(".markdown-editor-table-grip-table")).toBeNull();

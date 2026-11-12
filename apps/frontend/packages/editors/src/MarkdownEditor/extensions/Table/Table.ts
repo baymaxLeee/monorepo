@@ -11,6 +11,8 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 
+import { findTable } from "./utils";
+
 const tableClassName = "markdown-editor-table-table";
 const tableWrapperClassName = "markdown-editor-table-wrapper";
 
@@ -325,14 +327,13 @@ export const createTableExtension = ({ getCellExtensions }: TableExtensionOption
             root?.addEventListener("click", handleClick, true);
 
             const applyTableStyles = () => {
-              if (!editorView.editable) {
-                return;
-              }
+              const activeTablePos = editorView.editable ? findTable(editorView.state.selection)?.pos : undefined;
               editorView.state.doc.descendants((node, pos) => {
                 if (node.type.name === "table") {
                   const wrapper = editorView.nodeDOM(pos) as HTMLElement | null;
                   if (wrapper?.classList.contains("tableWrapper")) {
                     wrapper.classList.add(tableWrapperClassName);
+                    wrapper.classList.toggle("markdown-editor-table-active", pos === activeTablePos);
                     wrapper.querySelector("table")?.classList.add(tableClassName);
                   }
                   return false;
@@ -345,7 +346,7 @@ export const createTableExtension = ({ getCellExtensions }: TableExtensionOption
 
             return {
               update(view, prevState) {
-                if (view.state.doc !== prevState.doc) {
+                if (view.state.doc !== prevState.doc || !view.state.selection.eq(prevState.selection)) {
                   applyTableStyles();
                 }
               },

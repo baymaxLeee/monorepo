@@ -312,18 +312,31 @@
 
   /* MarkdownEditor table */
   .markdown-editor-content .markdown-editor-table-wrapper {
-    --markdown-editor-table-control-gutter: 0.625rem;
+    --markdown-editor-table-control-size: 0.8rem;
+    --markdown-editor-table-control-surface: color-mix(in oklab, var(--muted) 80%, var(--border));
 
     box-sizing: border-box;
     width: 100%;
     margin: 1em 0 1.5em;
-    padding: var(--markdown-editor-table-control-gutter) 0.25rem 0.25rem
-      var(--markdown-editor-table-control-gutter);
+    padding: var(--markdown-editor-table-control-size);
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent) transparent;
+  }
+  .markdown-editor-content .markdown-editor-table-wrapper::-webkit-scrollbar {
+    height: 0.375rem;
+  }
+  .markdown-editor-content .markdown-editor-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .markdown-editor-content .markdown-editor-table-wrapper::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
   }
   .markdown-editor-with-block-gutter .markdown-editor-content .markdown-editor-table-wrapper {
-    width: calc(100% + var(--markdown-editor-table-control-gutter));
-    margin-left: calc(0rem - var(--markdown-editor-table-control-gutter));
+    width: calc(100% + var(--markdown-editor-table-control-size));
+    margin-left: calc(0rem - var(--markdown-editor-table-control-size));
   }
   .markdown-editor-content table {
     border-collapse: collapse;
@@ -336,6 +349,52 @@
   }
   .markdown-editor-content .markdown-editor-table-wrapper table {
     margin: 0;
+  }
+  .markdown-editor-content .markdown-editor-table-table::before,
+  .markdown-editor-content .markdown-editor-table-table::after {
+    position: absolute;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    border: 0;
+    box-shadow: none;
+    color: var(--foreground);
+    background-color: var(--markdown-editor-table-control-surface);
+    content: "+";
+    font-size: 1.125rem;
+    font-weight: 500;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      background-color 120ms ease,
+      opacity 120ms ease;
+  }
+  .markdown-editor-content .markdown-editor-table-table::before {
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: var(--markdown-editor-table-control-size);
+    border-radius: 0 0 0.25rem 0.25rem;
+  }
+  .markdown-editor-content .markdown-editor-table-table::after {
+    top: 0;
+    left: 100%;
+    width: var(--markdown-editor-table-control-size);
+    height: 100%;
+    border-radius: 0 0.25rem 0.25rem 0;
+  }
+  .markdown-editor-content .markdown-editor-table-active .markdown-editor-table-table::before,
+  .markdown-editor-content .markdown-editor-table-active .markdown-editor-table-table::after {
+    opacity: 1;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .markdown-editor-content .markdown-editor-table-active .markdown-editor-table-table:hover::before,
+  .markdown-editor-content .markdown-editor-table-active .markdown-editor-table-table:hover::after {
+    background-color: var(--accent);
   }
   .markdown-editor-content :is(td, th) {
     border: 1px solid rgb(0 0 0 / 10%);
@@ -390,7 +449,28 @@
   }
   .markdown-editor-content .markdown-editor-table-grip-row,
   .markdown-editor-content .markdown-editor-table-grip-column {
-    background-color: color-mix(in oklab, var(--muted) 80%, var(--border));
+    background-color: var(--markdown-editor-table-control-surface);
+  }
+  .markdown-editor-content .markdown-editor-table-grip-icon {
+    display: block;
+    font-size: 0.5rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.05rem;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .markdown-editor-content .markdown-editor-table-grip-icon-row {
+    transform: rotate(90deg);
+  }
+  .markdown-editor-content :is(
+      .markdown-editor-table-grip-row:hover,
+      .markdown-editor-table-grip-column:hover,
+      .markdown-editor-table-grip-row-selected,
+      .markdown-editor-table-grip-column-selected
+    )
+    .markdown-editor-table-grip-icon {
+    opacity: 1;
   }
   .markdown-editor-content .markdown-editor-table-grip-row:hover,
   .markdown-editor-content .markdown-editor-table-grip-column:hover,
@@ -407,8 +487,8 @@
   .markdown-editor-content .markdown-editor-table-grip-row {
     top: -1px;
     bottom: -1px;
-    left: calc(0rem - var(--markdown-editor-table-control-gutter));
-    width: var(--markdown-editor-table-control-gutter);
+    left: calc(0rem - var(--markdown-editor-table-control-size));
+    width: var(--markdown-editor-table-control-size);
   }
   .markdown-editor-content .markdown-editor-table-grip-row-first {
     border-top-left-radius: 0.375rem;
@@ -417,10 +497,10 @@
     border-bottom-left-radius: 0.375rem;
   }
   .markdown-editor-content .markdown-editor-table-grip-column {
-    top: calc(0rem - var(--markdown-editor-table-control-gutter));
+    top: calc(0rem - var(--markdown-editor-table-control-size));
     right: -1px;
     left: -1px;
-    height: var(--markdown-editor-table-control-gutter);
+    height: var(--markdown-editor-table-control-size);
   }
   .markdown-editor-content .markdown-editor-table-grip-column-first {
     border-top-left-radius: 0.375rem;
@@ -429,10 +509,10 @@
     border-top-right-radius: 0.375rem;
   }
   .markdown-editor-content .markdown-editor-table-grip-table {
-    top: calc(0rem - var(--markdown-editor-table-control-gutter));
-    left: calc(0rem - var(--markdown-editor-table-control-gutter));
-    width: var(--markdown-editor-table-control-gutter);
-    height: var(--markdown-editor-table-control-gutter);
+    top: calc(0rem - var(--markdown-editor-table-control-size));
+    left: calc(0rem - var(--markdown-editor-table-control-size));
+    width: var(--markdown-editor-table-control-size);
+    height: var(--markdown-editor-table-control-size);
     border: 1px solid var(--border);
     border-radius: 0.25rem 0 0 0.25rem;
     background-color: var(--background);

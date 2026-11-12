@@ -49,7 +49,7 @@ vi.mock("@repo/api", () => ({
     created_at: "2026-11-05T00:00:00Z",
     updated_at: "2026-11-05T00:00:00Z",
   })),
-  fetchAssetText: vi.fn(async () => "# Editable plan"),
+  fetchAssetText: vi.fn(async () => "<h1>Stored page</h1>"),
   fetchConversationDocumentSource: vi.fn(),
   updateConversationDocument: vi.fn(),
 }));
@@ -62,6 +62,7 @@ vi.mock("../store/useChatStore", () => ({
 }));
 
 beforeEach(() => {
+  vi.mocked(fetchAssetText).mockReset().mockResolvedValue("<h1>Stored page</h1>");
   Object.assign(chatStoreMock.artifactPreview, {
     open: true,
     conversationId: "conversation",
@@ -71,12 +72,14 @@ beforeEach(() => {
   });
 });
 
-it("loads metadata then previews HTML from the Asset capability URL", async () => {
+it("loads metadata then previews HTML from srcDoc with the Asset URL as its base", async () => {
   render(<ChatDocumentArtifactPanel />);
   const frame = await screen.findByTitle("Generated page");
   expect(frame.tagName).toBe("IFRAME");
-  expect(frame.getAttribute("src")).toBe(resourceUrl);
-  expect(frame.hasAttribute("srcdoc")).toBe(false);
+  expect(frame.hasAttribute("src")).toBe(false);
+  expect(frame.getAttribute("srcdoc")).toContain(`<base href="${resourceUrl.replaceAll("&", "&amp;")}">`);
+  expect(frame.getAttribute("srcdoc")).toContain("data-artifact-hidden-scrollbars");
+  expect(frame.getAttribute("srcdoc")).toContain("Stored page");
   expect(fetchConversationDocument).toHaveBeenCalledWith(
     "conversation",
     "document",
@@ -86,13 +89,14 @@ it("loads metadata then previews HTML from the Asset capability URL", async () =
   expect(screen.queryByText("HTML 预览地址不可用，请重新打开预览。")).toBeNull();
 });
 
-it("renders Chat-owned conversation files through their Storage URL", async () => {
+it("renders Chat-owned HTML files with hidden scrollbars and preserved relative URL resolution", async () => {
   Object.assign(chatStoreMock.artifactPreview, { documentId: null, fileId: "file" });
   render(<ChatFileArtifactPanel />);
   const frame = await screen.findByTitle("Saved page");
   expect(frame.tagName).toBe("IFRAME");
-  expect(frame.getAttribute("src")).toBe(resourceUrl);
-  expect(frame.hasAttribute("srcdoc")).toBe(false);
+  expect(frame.hasAttribute("src")).toBe(false);
+  expect(frame.getAttribute("srcdoc")).toContain(`<base href="${resourceUrl.replaceAll("&", "&amp;")}">`);
+  expect(frame.getAttribute("srcdoc")).toContain("data-artifact-hidden-scrollbars");
   expect(fetchConversationFile).toHaveBeenCalledWith(
     "conversation",
     "file",
@@ -101,6 +105,7 @@ it("renders Chat-owned conversation files through their Storage URL", async () =
 });
 
 it("loads an editable Markdown revision from Storage before opening the editor", async () => {
+  vi.mocked(fetchAssetText).mockResolvedValueOnce("# Editable plan");
   vi.mocked(fetchConversationDocument).mockResolvedValueOnce({
     id: "plan",
     title: "Plan",
