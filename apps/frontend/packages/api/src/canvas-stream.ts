@@ -1,5 +1,5 @@
-import type { CanvasPatchEvent } from "../generated/canvas-server/index";
 import { authFetch } from "./auth-fetch";
+import type { CanvasPatchEvent } from "./canvas-server";
 import { API_BASE_URL, apiHttp, ApiError } from "./http";
 
 export class CanvasResyncRequired extends Error {}

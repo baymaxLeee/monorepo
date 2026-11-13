@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type AppEntry, createApp, deleteApp, fetchApps, updateApp } from "@repo/api";
+import { type App, createApp, deleteApp, listApps, updateApp } from "@repo/api/admin";
 import {
   Alert,
   AlertDescription,
@@ -76,8 +76,8 @@ const defaults: AppValues = {
 };
 
 export function AppsRegistryPage() {
-  const [apps, setApps] = useState<AppEntry[] | null>(null);
-  const [editing, setEditing] = useState<AppEntry | null>(null);
+  const [apps, setApps] = useState<App[] | null>(null);
+  const [editing, setEditing] = useState<App | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,7 +89,7 @@ export function AppsRegistryPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchApps({ skipErrorNotify: true })
+    listApps({ skipErrorNotify: true })
       .then(setApps)
       .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
@@ -105,7 +105,7 @@ export function AppsRegistryPage() {
     setCreateOpen(true);
   }
 
-  function openEdit(app: AppEntry) {
+  function openEdit(app: App) {
     setCreateOpen(false);
     setEditing(app);
     form.reset({
@@ -146,14 +146,14 @@ export function AppsRegistryPage() {
     } catch {}
   }
 
-  async function patch(app: AppEntry, values: Partial<AppEntry>) {
+  async function patch(app: App, values: Partial<App>) {
     try {
       await updateApp(app.id, values);
       load();
     } catch {}
   }
 
-  async function remove(app: AppEntry) {
+  async function remove(app: App) {
     if (!window.confirm(`确认删除应用「${app.title}」？`)) {
       return;
     }

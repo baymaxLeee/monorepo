@@ -1,4 +1,5 @@
-import { canvasCreateArchive, canvasUpdateCanvasView, fetchCanvasSettings } from "@repo/api";
+import { getCanvasSettings } from "@repo/api/admin";
+import { canvasCreateArchive, canvasUpdateCanvasView } from "@repo/api/canvas";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from "@repo/design-system";
 import { Provider, useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -340,7 +341,7 @@ function StudioContent() {
 
   useEffect(() => {
     let active = true;
-    fetchCanvasSettings()
+    getCanvasSettings()
       .then((config) => {
         if (active) {
           setDefaultModels(config.defaults);

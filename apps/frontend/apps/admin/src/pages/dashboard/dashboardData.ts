@@ -1,4 +1,4 @@
-import type { TelemetryErrorEvent, TelemetryPerformanceEvent } from "@repo/api";
+import { type ErrorEvent, type PerformanceEvent } from "@repo/api/telemetry";
 import type { EChartsOption } from "echarts";
 
 export type CountItem = {
@@ -47,7 +47,7 @@ export function shortId(value: string | null) {
   return value ? value.slice(0, 10) : "-";
 }
 
-export function buildDashboardData(items: TelemetryErrorEvent[]): DashboardData {
+export function buildDashboardData(items: ErrorEvent[]): DashboardData {
   const sessions = new Set(items.map((item) => item.session_id));
   const traces = new Set(items.map((item) => item.trace_id).filter(Boolean));
   return {
@@ -77,7 +77,7 @@ export function buildDashboardData(items: TelemetryErrorEvent[]): DashboardData 
   };
 }
 
-export function buildVitalSummaries(items: TelemetryPerformanceEvent[]): VitalSummary[] {
+export function buildVitalSummaries(items: PerformanceEvent[]): VitalSummary[] {
   const metrics: VitalMetric[] = ["fcp", "lcp", "inp", "cls", "ttfb"];
   return metrics.map((metric) => {
     const values = items
@@ -214,7 +214,7 @@ function topCounts(values: string[], limit: number): CountItem[] {
     .map(([name, value]) => ({ name, value }));
 }
 
-function countsByHour(items: TelemetryErrorEvent[]): CountItem[] {
+function countsByHour(items: ErrorEvent[]): CountItem[] {
   const formatter = new Intl.DateTimeFormat("zh-CN", {
     day: "2-digit",
     hour: "2-digit",

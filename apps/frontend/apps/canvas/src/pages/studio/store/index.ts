@@ -1,4 +1,4 @@
-import type { CanvasDefaults } from "@repo/api";
+import { type CanvasDefaults } from "@repo/api/admin";
 import { atom } from "jotai";
 
 import type { ImageGenerationModelOption } from "../../resources/generation/imageModels";

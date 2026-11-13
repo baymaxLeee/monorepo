@@ -31,15 +31,16 @@ export type ProviderSnapshot = {
   } | null;
 };
 
-export async function getProvider(
+export type ImageProviderSnapshot = Pick<ProviderSnapshot, "id" | "model" | "baseUrl" | "apiKey" | "extraBody">;
+
+async function loadProvider(
   providerId: string,
   tenantId: string,
   workspaceId: string,
-  existingTask = false,
-): Promise<ProviderSnapshot> {
-  let data: AdminProviderSnapshot;
+  existingTask: boolean,
+): Promise<AdminProviderSnapshot> {
   try {
-    data = existingTask
+    return existingTask
       ? await adminClient().getTaskProvider(providerId, tenantId, workspaceId)
       : await adminClient().getProvider(providerId, tenantId, workspaceId);
   } catch (err) {
@@ -48,6 +49,38 @@ export async function getProvider(
     }
     throw err;
   }
+}
+
+async function assertProviderUrl(baseUrl: string): Promise<void> {
+  await assertPublicProviderUrl(baseUrl).catch((error) => {
+    throw new RequestError(`provider base URL is not allowed: ${String(error)}`);
+  });
+}
+
+export async function getImageProvider(
+  providerId: string,
+  tenantId: string,
+  workspaceId: string,
+  existingTask = false,
+): Promise<ImageProviderSnapshot> {
+  const data = await loadProvider(providerId, tenantId, workspaceId, existingTask);
+  await assertProviderUrl(data.base_url);
+  return {
+    id: data.id,
+    model: data.model,
+    baseUrl: data.base_url,
+    apiKey: data.api_key,
+    extraBody: data.extra_body ?? {},
+  };
+}
+
+export async function getProvider(
+  providerId: string,
+  tenantId: string,
+  workspaceId: string,
+  existingTask = false,
+): Promise<ProviderSnapshot> {
+  const data = await loadProvider(providerId, tenantId, workspaceId, existingTask);
   if (!data.responses_dialect) {
     throw new RequestError(`provider ${providerId} has no Responses dialect`);
   }
@@ -69,8 +102,6 @@ export async function getProvider(
         }
       : null,
   };
-  await assertPublicProviderUrl(provider.baseUrl).catch((error) => {
-    throw new RequestError(`provider base URL is not allowed: ${String(error)}`);
-  });
+  await assertProviderUrl(provider.baseUrl);
   return provider;
 }

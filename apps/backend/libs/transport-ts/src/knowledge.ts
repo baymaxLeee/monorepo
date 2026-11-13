@@ -68,6 +68,14 @@ export class KnowledgeInternalClient {
     );
   }
 
+  async deleteDocument(input: { userId: string; documentId: string }): Promise<void> {
+    await this.unwrap(
+      this.client.DELETE("/internal/documents/{document_id}", {
+        params: { path: { document_id: input.documentId }, query: { user_id: input.userId } },
+      }),
+    );
+  }
+
   getWorkspaceDocument(input: {
     tenantId: string;
     workspaceId: string;

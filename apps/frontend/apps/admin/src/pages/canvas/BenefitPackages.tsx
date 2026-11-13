@@ -1,15 +1,15 @@
 import {
   createBenefitPackage,
   deleteBenefitPackage,
-  fetchModelProviders,
   listBenefitPackageAssetGroupCleanups,
   listBenefitPackages,
+  listProviders,
   retryBenefitPackageAssetGroupCleanup,
   updateBenefitPackage,
   type AssetGroupCleanup,
   type BenefitPackage,
   type ModelProvider,
-} from "@repo/api";
+} from "@repo/api/admin";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,7 +75,7 @@ export function BenefitPackages({ editable, workspaceKey }: { editable: boolean;
     let active = true;
     setItems(null);
     setFailed(false);
-    void Promise.all([listBenefitPackages(), fetchModelProviders(), listBenefitPackageAssetGroupCleanups()])
+    void Promise.all([listBenefitPackages(), listProviders(), listBenefitPackageAssetGroupCleanups()])
       .then(([packages, models, cleanupItems]) => {
         if (active) {
           setItems(packages);

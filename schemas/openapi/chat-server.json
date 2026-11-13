@@ -35,6 +35,7 @@
     },
     "/healthz": {
       "get": {
+        "operationId": "chatHealthz",
         "responses": {
           "200": {
             "description": "ok"
@@ -44,22 +45,52 @@
     },
     "/conversations": {
       "get": {
+        "operationId": "listConversations",
         "responses": {
           "200": {
-            "description": "list conversations"
+            "description": "list conversations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Conversation"
+                  }
+                }
+              }
+            }
           }
         }
       },
       "post": {
+        "operationId": "createConversation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationInput"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
-            "description": "create conversation"
+            "description": "created conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
           }
         }
       }
     },
     "/conversations/{conversation_id}": {
       "get": {
+        "operationId": "getConversation",
         "parameters": [
           {
             "name": "conversation_id",
@@ -84,6 +115,7 @@
         }
       },
       "patch": {
+        "operationId": "updateConversation",
         "parameters": [
           {
             "name": "conversation_id",
@@ -94,13 +126,31 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationInput"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "update conversation"
+            "description": "updated conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
           }
         }
       },
       "delete": {
+        "operationId": "deleteConversation",
         "parameters": [
           {
             "name": "conversation_id",
@@ -232,6 +282,7 @@
     },
     "/conversations/{conversation_id}/context": {
       "get": {
+        "operationId": "getConversationContext",
         "parameters": [
           {
             "name": "conversation_id",
@@ -258,6 +309,7 @@
     },
     "/conversations/{conversation_id}/agents/run/stream": {
       "get": {
+        "operationId": "resumeConversationAgentStream",
         "parameters": [
           {
             "name": "conversation_id",
@@ -286,6 +338,7 @@
         }
       },
       "post": {
+        "operationId": "startConversationAgentStream",
         "parameters": [
           {
             "name": "conversation_id",
@@ -330,6 +383,7 @@
     },
     "/conversations/{conversation_id}/documents/{document_id}": {
       "get": {
+        "operationId": "getConversationDocument",
         "parameters": [
           {
             "name": "conversation_id",
@@ -358,11 +412,19 @@
         ],
         "responses": {
           "200": {
-            "description": "conversation document detail; include_content=false returns metadata with an empty content_md"
+            "description": "conversation document detail; include_content=false returns metadata with an empty content_md",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDocumentDetail"
+                }
+              }
+            }
           }
         }
       },
       "patch": {
+        "operationId": "updateConversationDocument",
         "parameters": [
           {
             "name": "conversation_id",
@@ -381,15 +443,33 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationDocumentInput"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "update conversation artifact"
+            "description": "updated conversation artifact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDocumentDetail"
+                }
+              }
+            }
           }
         }
       }
     },
     "/conversations/{conversation_id}/documents/{document_id}/delivery": {
       "post": {
+        "operationId": "authorizeConversationDocumentDelivery",
         "parameters": [
           {
             "name": "conversation_id",
@@ -436,6 +516,7 @@
     },
     "/conversations/{conversation_id}/files/{file_id}/delivery": {
       "post": {
+        "operationId": "authorizeConversationFileDelivery",
         "parameters": [
           {
             "name": "conversation_id",
@@ -485,6 +566,7 @@
     },
     "/conversations/{conversation_id}/files/{file_id}/content": {
       "get": {
+        "operationId": "redirectConversationFileContent",
         "parameters": [
           {
             "name": "conversation_id",
@@ -577,6 +659,7 @@
     },
     "/conversations/{conversation_id}/documents/{document_id}/content": {
       "get": {
+        "operationId": "redirectConversationDocumentContent",
         "parameters": [
           {
             "name": "conversation_id",
@@ -614,6 +697,7 @@
     },
     "/conversations/{conversation_id}/sources/{source_id}/delivery": {
       "post": {
+        "operationId": "authorizeConversationSourceDelivery",
         "parameters": [
           {
             "name": "conversation_id",
@@ -651,6 +735,7 @@
     },
     "/conversations/{conversation_id}/files/{file_id}": {
       "get": {
+        "operationId": "getConversationFile",
         "parameters": [
           {
             "name": "conversation_id",
@@ -688,6 +773,7 @@
     },
     "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       "get": {
+        "operationId": "getConversationAgentTrace",
         "parameters": [
           {
             "name": "conversation_id",
@@ -722,6 +808,7 @@
     },
     "/conversations/{conversation_id}/agents/runs/{run_id}/cancel": {
       "post": {
+        "operationId": "cancelConversationAgentRun",
         "parameters": [
           {
             "name": "conversation_id",
@@ -756,6 +843,7 @@
     },
     "/conversations/{conversation_id}/video-productions/{production_id}": {
       "get": {
+        "operationId": "getVideoProduction",
         "parameters": [
           {
             "name": "conversation_id",
@@ -796,6 +884,7 @@
     },
     "/conversations/{conversation_id}/video-productions/{production_id}/decisions": {
       "post": {
+        "operationId": "decideVideoProduction",
         "parameters": [
           {
             "name": "conversation_id",
@@ -843,6 +932,7 @@
     },
     "/conversations/{conversation_id}/video-productions/{production_id}/preview-url": {
       "get": {
+        "operationId": "getVideoProductionPreviewUrl",
         "parameters": [
           {
             "name": "conversation_id",
@@ -893,6 +983,7 @@
     },
     "/conversations/{conversation_id}/video-productions/{production_id}/shots/{shot_id}/takes/{take_id}/preview-url": {
       "get": {
+        "operationId": "getVideoTakePreviewUrl",
         "parameters": [
           {
             "name": "conversation_id",
@@ -959,6 +1050,7 @@
     },
     "/memories": {
       "get": {
+        "operationId": "listActiveMemories",
         "responses": {
           "200": {
             "description": "list active user memories",
@@ -975,6 +1067,7 @@
     },
     "/memories/candidates": {
       "get": {
+        "operationId": "listMemoryCandidates",
         "responses": {
           "200": {
             "description": "list pending memory candidates",
@@ -991,6 +1084,7 @@
     },
     "/memories/candidates/{id}/approve": {
       "post": {
+        "operationId": "approveMemoryCandidate",
         "parameters": [
           {
             "name": "id",
@@ -1017,6 +1111,7 @@
     },
     "/memories/candidates/{id}/reject": {
       "post": {
+        "operationId": "rejectMemoryCandidate",
         "parameters": [
           {
             "name": "id",
@@ -1043,6 +1138,7 @@
     },
     "/memories/candidates/{id}": {
       "patch": {
+        "operationId": "updateMemoryCandidate",
         "parameters": [
           {
             "name": "id",
@@ -1079,6 +1175,7 @@
     },
     "/memories/{id}": {
       "delete": {
+        "operationId": "deleteMemory",
         "parameters": [
           {
             "name": "id",
@@ -1146,6 +1243,103 @@
           },
           "canvas_id": {
             "type": "string"
+          }
+        }
+      },
+      "CreateConversationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "provider_id": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true
+          }
+        }
+      },
+      "UpdateConversationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      },
+      "Conversation": {
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "tenant_id",
+          "workspace_id",
+          "title",
+          "model",
+          "provider_id",
+          "active_plan_file_id",
+          "project_id",
+          "canvas_id",
+          "created_at",
+          "updated_at",
+          "revision",
+          "selected_message_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "provider_id": {
+            "type": "string"
+          },
+          "active_plan_file_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "project_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "canvas_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "selected_message_id": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -1346,15 +1540,27 @@
           }
         }
       },
-      "ConversationDocumentSummary": {
+      "ConversationDocument": {
         "type": "object",
-        "additionalProperties": true,
         "required": [
           "id",
           "conversation_id",
+          "kind",
+          "editable_source",
           "title",
           "filename",
-          "mime_type"
+          "mime_type",
+          "source_size",
+          "source_mime_type",
+          "asset_id",
+          "source_revision_id",
+          "source_sha256",
+          "source_filename",
+          "ingest_status",
+          "ingest_progress",
+          "ingest_error",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
           "id": {
@@ -1363,6 +1569,16 @@
           "conversation_id": {
             "type": "string"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "source",
+              "artifact"
+            ]
+          },
+          "editable_source": {
+            "type": "boolean"
+          },
           "title": {
             "type": "string"
           },
@@ -1370,6 +1586,90 @@
             "type": "string"
           },
           "mime_type": {
+            "type": "string"
+          },
+          "source_size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source_mime_type": {
+            "type": "string",
+            "nullable": true
+          },
+          "asset_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "source_revision_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "source_sha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "source_filename": {
+            "type": "string",
+            "nullable": true
+          },
+          "ingest_status": {
+            "type": "string",
+            "enum": [
+              "uploading",
+              "processing",
+              "completed",
+              "failed",
+              "cancelled",
+              "pending"
+            ]
+          },
+          "ingest_progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "ingest_error": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConversationDocumentDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConversationDocument"
+          },
+          {
+            "type": "object",
+            "required": [
+              "content_md"
+            ],
+            "properties": {
+              "content_md": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "UpdateConversationDocumentInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "content_md": {
             "type": "string"
           }
         }
@@ -1459,7 +1759,7 @@
           "documents": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ConversationDocumentSummary"
+              "$ref": "#/components/schemas/ConversationDocument"
             }
           },
           "active_run_id": {
@@ -1814,9 +2114,47 @@
           "toolCalls": {
             "type": "array",
             "items": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/components/schemas/AgentTraceToolCall"
             }
+          }
+        }
+      },
+      "AgentTraceToolCall": {
+        "type": "object",
+        "required": [
+          "id",
+          "stepIndex",
+          "toolName",
+          "status",
+          "durationMs",
+          "error"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "stepIndex": {
+            "type": "integer",
+            "nullable": true
+          },
+          "toolName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "completed",
+              "failed"
+            ]
+          },
+          "durationMs": {
+            "type": "integer",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

@@ -56,7 +56,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [gateway, admin, chat, knowledge, executor, canvas]
+                values: [gateway, admin, chat, knowledge, executor, canvas, canvas-worker]
       ports:
         - protocol: TCP
           port: 8013
@@ -88,7 +88,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [admin, knowledge, canvas]
+        values: [admin, knowledge]
   policyTypes:
     - Ingress
   ingress:
@@ -112,45 +112,6 @@ spec:
         - podSelector:
             matchLabels:
               app: knowledge
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-knowledge-to-executor
-spec:
-  podSelector:
-    matchLabels:
-      app: executor
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: knowledge
-      ports:
-        - protocol: TCP
-          port: 8011
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-canvas-to-executor
-spec:
-  podSelector:
-    matchLabels:
-      app: executor
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: canvas
-      ports:
-        - protocol: TCP
-          port: 8011
-
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -182,8 +143,10 @@ spec:
   ingress:
     - from:
         - podSelector:
-            matchLabels:
-              app: canvas
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [canvas, canvas-worker]
       ports:
         - protocol: TCP
           port: 8001

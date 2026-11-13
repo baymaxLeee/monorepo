@@ -1,10 +1,5 @@
-import {
-  canvasAdminUpdateProject,
-  canvasAdminCreateProject,
-  listWorkspaceMembers,
-  type CanvasProjectDetail,
-  type WorkspaceMemberView,
-} from "@repo/api";
+import { canvasAdminUpdateProject, canvasAdminCreateProject, type CanvasProjectDetail } from "@repo/api/canvas";
+import { listWorkspaceMembers, type WorkspaceMemberView } from "@repo/api/iam";
 import {
   Button,
   Checkbox,
@@ -39,7 +34,7 @@ export function ProjectDialog({
   const [limit, setLimit] = useState(value?.usage_limit === undefined ? "" : String(value.usage_limit));
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (value !== undefined) void listWorkspaceMembers(workspaceId, "active").then(setDirectory);
+    if (value !== undefined) void listWorkspaceMembers(workspaceId, { status: "active" }).then(setDirectory);
   }, [value, workspaceId]);
   if (value === undefined) return null;
   const editing = value !== null;

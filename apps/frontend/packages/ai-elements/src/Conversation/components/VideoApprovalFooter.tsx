@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { VideoProduction } from "@repo/api";
+import { type VideoProduction } from "@repo/api/chat";
 import { Button, Field, FieldError, FieldLabel, Input, Textarea } from "@repo/design-system";
 import { CheckIcon, Loader2Icon, XIcon } from "lucide-react";
 import { useEffect } from "react";

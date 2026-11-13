@@ -12,7 +12,7 @@
           "meta"
         ],
         "summary": "Livez",
-        "operationId": "livez_livez_get",
+        "operationId": "livez",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -23,7 +23,7 @@
                     "type": "string"
                   },
                   "type": "object",
-                  "title": "Response Livez Livez Get"
+                  "title": "Response Livez"
                 }
               }
             }
@@ -37,7 +37,7 @@
           "meta"
         ],
         "summary": "Readyz",
-        "operationId": "readyz_readyz_get",
+        "operationId": "readyz",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -46,7 +46,7 @@
                 "schema": {
                   "additionalProperties": true,
                   "type": "object",
-                  "title": "Response Readyz Readyz Get"
+                  "title": "Response Readyz"
                 }
               }
             }
@@ -60,7 +60,7 @@
           "meta"
         ],
         "summary": "Healthz",
-        "operationId": "healthz_healthz_get",
+        "operationId": "healthz",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -69,7 +69,7 @@
                 "schema": {
                   "additionalProperties": true,
                   "type": "object",
-                  "title": "Response Healthz Healthz Get"
+                  "title": "Response Healthz"
                 }
               }
             }
@@ -83,7 +83,7 @@
           "bot"
         ],
         "summary": "List Bots",
-        "operationId": "list_bots_bot_get",
+        "operationId": "list_bots",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -208,7 +208,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Bot"
                   },
-                  "title": "Response List Bots Bot Get"
+                  "title": "Response List Bots"
                 }
               }
             }
@@ -230,7 +230,7 @@
           "bot"
         ],
         "summary": "Create Bot",
-        "operationId": "create_bot_bot_post",
+        "operationId": "create_bot",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -385,7 +385,7 @@
           "bot"
         ],
         "summary": "Get Bot",
-        "operationId": "get_bot_bot__bot_id__get",
+        "operationId": "get_bot",
         "parameters": [
           {
             "name": "bot_id",
@@ -537,7 +537,7 @@
           "bot"
         ],
         "summary": "Update Bot",
-        "operationId": "update_bot_bot__bot_id__patch",
+        "operationId": "update_bot",
         "parameters": [
           {
             "name": "bot_id",
@@ -699,7 +699,7 @@
           "bot"
         ],
         "summary": "Delete Bot",
-        "operationId": "delete_bot_bot__bot_id__delete",
+        "operationId": "delete_bot",
         "parameters": [
           {
             "name": "bot_id",
@@ -846,7 +846,7 @@
           "bot"
         ],
         "summary": "List Bot Skills",
-        "operationId": "list_bot_skills_bot__bot_id__skills_get",
+        "operationId": "list_bot_skills",
         "parameters": [
           {
             "name": "bot_id",
@@ -980,7 +980,7 @@
                   "items": {
                     "$ref": "#/components/schemas/SkillSummary"
                   },
-                  "title": "Response List Bot Skills Bot  Bot Id  Skills Get"
+                  "title": "Response List Bot Skills"
                 }
               }
             }
@@ -1002,7 +1002,7 @@
           "bot"
         ],
         "summary": "Attach Bot Skill",
-        "operationId": "attach_bot_skill_bot__bot_id__skills_post",
+        "operationId": "attach_bot_skill",
         "parameters": [
           {
             "name": "bot_id",
@@ -1146,7 +1146,7 @@
                   "items": {
                     "$ref": "#/components/schemas/SkillSummary"
                   },
-                  "title": "Response Attach Bot Skill Bot  Bot Id  Skills Post"
+                  "title": "Response Attach Bot Skill"
                 }
               }
             }
@@ -1170,7 +1170,7 @@
           "bot"
         ],
         "summary": "Detach Bot Skill",
-        "operationId": "detach_bot_skill_bot__bot_id__skills__skill_id__delete",
+        "operationId": "detach_bot_skill",
         "parameters": [
           {
             "name": "bot_id",
@@ -1313,7 +1313,7 @@
                   "items": {
                     "$ref": "#/components/schemas/SkillSummary"
                   },
-                  "title": "Response Detach Bot Skill Bot  Bot Id  Skills  Skill Id  Delete"
+                  "title": "Response Detach Bot Skill"
                 }
               }
             }
@@ -2353,7 +2353,7 @@
           "internal-canvas-benefit-packages"
         ],
         "summary": "Get Benefit Package Internal",
-        "operationId": "get_benefit_package_internal_internal_canvas_benefit_packages__package_id__get",
+        "operationId": "get_benefit_package_internal",
         "parameters": [
           {
             "name": "package_id",
@@ -3516,7 +3516,7 @@
           "skills"
         ],
         "summary": "List Skills",
-        "operationId": "list_skills_skills_get",
+        "operationId": "list_skills",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -3641,7 +3641,7 @@
                   "items": {
                     "$ref": "#/components/schemas/SkillSummary"
                   },
-                  "title": "Response List Skills Skills Get"
+                  "title": "Response List Skills"
                 }
               }
             }
@@ -3663,7 +3663,7 @@
           "skills"
         ],
         "summary": "Create Skill",
-        "operationId": "create_skill_skills_post",
+        "operationId": "create_skill",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -3818,7 +3818,7 @@
           "skills"
         ],
         "summary": "Get Skill",
-        "operationId": "get_skill_skills__skill_id__get",
+        "operationId": "get_skill",
         "parameters": [
           {
             "name": "skill_id",
@@ -3970,7 +3970,7 @@
           "skills"
         ],
         "summary": "Update Skill",
-        "operationId": "update_skill_skills__skill_id__patch",
+        "operationId": "update_skill",
         "parameters": [
           {
             "name": "skill_id",
@@ -4132,7 +4132,7 @@
           "skills"
         ],
         "summary": "Delete Skill",
-        "operationId": "delete_skill_skills__skill_id__delete",
+        "operationId": "delete_skill",
         "parameters": [
           {
             "name": "skill_id",
@@ -4279,7 +4279,7 @@
           "skills"
         ],
         "summary": "Get Skill Workspace",
-        "operationId": "get_skill_workspace_skills__skill_id__workspace_get",
+        "operationId": "get_skill_workspace",
         "parameters": [
           {
             "name": "skill_id",
@@ -4433,7 +4433,7 @@
           "skills"
         ],
         "summary": "Get Skill File",
-        "operationId": "get_skill_file_skills__skill_id__workspace_files__node_id__get",
+        "operationId": "get_skill_file",
         "parameters": [
           {
             "name": "skill_id",
@@ -4596,7 +4596,7 @@
           "skills"
         ],
         "summary": "Create Skill Node",
-        "operationId": "create_skill_node_skills__skill_id__workspace_nodes_post",
+        "operationId": "create_skill_node",
         "parameters": [
           {
             "name": "skill_id",
@@ -4760,7 +4760,7 @@
           "skills"
         ],
         "summary": "Attach Skill Asset",
-        "operationId": "attach_skill_asset_skills__skill_id__workspace_assets_post",
+        "operationId": "attach_skill_asset",
         "parameters": [
           {
             "name": "skill_id",
@@ -4924,7 +4924,7 @@
           "skills"
         ],
         "summary": "Prepare Skill Upload",
-        "operationId": "prepare_skill_upload_skills__skill_id__uploads_prepare_post",
+        "operationId": "prepare_skill_upload",
         "parameters": [
           {
             "name": "skill_id",
@@ -5088,7 +5088,7 @@
           "skills"
         ],
         "summary": "Import Skill Archive",
-        "operationId": "import_skill_archive_skills__skill_id__workspace_import_archive_post",
+        "operationId": "import_skill_archive",
         "parameters": [
           {
             "name": "skill_id",
@@ -5228,7 +5228,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ImportSkillArchiveResult"
+                  "$ref": "#/components/schemas/ImportSkillArchiveResponse"
                 }
               }
             }
@@ -5252,7 +5252,7 @@
           "skills"
         ],
         "summary": "Update Skill File Content",
-        "operationId": "update_skill_file_content_skills__skill_id__workspace_nodes__node_id__content_put",
+        "operationId": "update_skill_file_content",
         "parameters": [
           {
             "name": "skill_id",
@@ -5425,7 +5425,7 @@
           "skills"
         ],
         "summary": "Rename Skill Node",
-        "operationId": "rename_skill_node_skills__skill_id__workspace_nodes__node_id__name_put",
+        "operationId": "rename_skill_node",
         "parameters": [
           {
             "name": "skill_id",
@@ -5598,7 +5598,7 @@
           "skills"
         ],
         "summary": "Move Skill Node",
-        "operationId": "move_skill_node_skills__skill_id__workspace_nodes__node_id__parent_put",
+        "operationId": "move_skill_node",
         "parameters": [
           {
             "name": "skill_id",
@@ -5771,7 +5771,7 @@
           "skills"
         ],
         "summary": "Delete Skill Node",
-        "operationId": "delete_skill_node_skills__skill_id__workspace_nodes__node_id__delete",
+        "operationId": "delete_skill_node",
         "parameters": [
           {
             "name": "skill_id",
@@ -5945,7 +5945,7 @@
           "skills"
         ],
         "summary": "Validate Skill",
-        "operationId": "validate_skill_skills__skill_id__validate_post",
+        "operationId": "validate_skill",
         "parameters": [
           {
             "name": "skill_id",
@@ -6099,7 +6099,7 @@
           "skills"
         ],
         "summary": "Publish Skill",
-        "operationId": "publish_skill_skills__skill_id__publish_post",
+        "operationId": "publish_skill",
         "parameters": [
           {
             "name": "skill_id",
@@ -6239,7 +6239,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublishSkillResult"
+                  "$ref": "#/components/schemas/PublishSkillResponse"
                 }
               }
             }
@@ -6263,7 +6263,7 @@
           "skills"
         ],
         "summary": "Bulk Delete Skills",
-        "operationId": "bulk_delete_skills_skills_bulk_delete_post",
+        "operationId": "bulk_delete_skills",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -6394,7 +6394,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BulkDeleteSkillsResult"
+                  "$ref": "#/components/schemas/BulkDeleteSkillsResponse"
                 }
               }
             }
@@ -6418,7 +6418,7 @@
           "internal-skills"
         ],
         "summary": "Get Skill File Internal",
-        "operationId": "get_skill_file_internal_internal_skills__skill_id__files_get",
+        "operationId": "get_skill_file_internal",
         "parameters": [
           {
             "name": "skill_id",
@@ -6527,7 +6527,7 @@
           "internal-skills"
         ],
         "summary": "Get Skill Internal",
-        "operationId": "get_skill_internal_internal_skills__skill_id__get",
+        "operationId": "get_skill_internal",
         "parameters": [
           {
             "name": "skill_id",
@@ -6625,7 +6625,7 @@
           "providers"
         ],
         "summary": "List Providers",
-        "operationId": "list_providers_providers_get",
+        "operationId": "list_providers",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -6750,7 +6750,7 @@
                   "items": {
                     "$ref": "#/components/schemas/ModelProvider"
                   },
-                  "title": "Response List Providers Providers Get"
+                  "title": "Response List Providers"
                 }
               }
             }
@@ -6772,7 +6772,7 @@
           "providers"
         ],
         "summary": "Create Provider",
-        "operationId": "create_provider_providers_post",
+        "operationId": "create_provider",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -6927,7 +6927,7 @@
           "providers"
         ],
         "summary": "Get Provider",
-        "operationId": "get_provider_providers__provider_id__get",
+        "operationId": "get_provider",
         "parameters": [
           {
             "name": "provider_id",
@@ -7079,7 +7079,7 @@
           "providers"
         ],
         "summary": "Update Provider",
-        "operationId": "update_provider_providers__provider_id__patch",
+        "operationId": "update_provider",
         "parameters": [
           {
             "name": "provider_id",
@@ -7241,7 +7241,7 @@
           "providers"
         ],
         "summary": "Delete Provider",
-        "operationId": "delete_provider_providers__provider_id__delete",
+        "operationId": "delete_provider",
         "parameters": [
           {
             "name": "provider_id",
@@ -7388,7 +7388,7 @@
           "providers"
         ],
         "summary": "Bulk Delete Providers",
-        "operationId": "bulk_delete_providers_providers_bulk_delete_post",
+        "operationId": "bulk_delete_providers",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -7543,7 +7543,7 @@
           "providers"
         ],
         "summary": "Set Default Provider",
-        "operationId": "set_default_provider_providers__provider_id__set_default_post",
+        "operationId": "set_default_provider",
         "parameters": [
           {
             "name": "provider_id",
@@ -7697,7 +7697,7 @@
           "providers"
         ],
         "summary": "Test Provider",
-        "operationId": "test_provider_providers__provider_id__test_post",
+        "operationId": "test_provider",
         "parameters": [
           {
             "name": "provider_id",
@@ -7861,7 +7861,7 @@
           "internal-providers"
         ],
         "summary": "List Provider Catalog Internal",
-        "operationId": "list_provider_catalog_internal_internal_providers_get",
+        "operationId": "list_provider_catalog_internal",
         "parameters": [
           {
             "name": "workspace_id",
@@ -7930,7 +7930,7 @@
                   "items": {
                     "$ref": "#/components/schemas/ProviderCatalogItem"
                   },
-                  "title": "Response List Provider Catalog Internal Internal Providers Get"
+                  "title": "Response List Provider Catalog Internal"
                 }
               }
             }
@@ -7954,7 +7954,7 @@
           "internal-providers"
         ],
         "summary": "Get Default Provider Internal",
-        "operationId": "get_default_provider_internal_internal_providers_default_get",
+        "operationId": "get_default_provider_internal",
         "parameters": [
           {
             "name": "workspace_id",
@@ -8044,7 +8044,7 @@
         ],
         "summary": "Get Provider By Kind Internal",
         "description": "First enabled provider of `kind` (embedding/rerank/...) for the team.\n\nUsed by knowledge to resolve the embedding/rerank model for RAG. Non-chat\nkinds have no default flag, so this returns the newest enabled one.",
-        "operationId": "get_provider_by_kind_internal_internal_providers_by_kind__kind__get",
+        "operationId": "get_provider_by_kind_internal",
         "parameters": [
           {
             "name": "kind",
@@ -8142,7 +8142,7 @@
           "internal-providers"
         ],
         "summary": "Get Provider Internal",
-        "operationId": "get_provider_internal_internal_providers__provider_id__get",
+        "operationId": "get_provider_internal",
         "parameters": [
           {
             "name": "provider_id",
@@ -8240,7 +8240,7 @@
           "internal-providers"
         ],
         "summary": "Get Task Provider Internal",
-        "operationId": "get_task_provider_internal_internal_providers__provider_id__task_credentials_get",
+        "operationId": "get_task_provider_internal",
         "parameters": [
           {
             "name": "provider_id",
@@ -8327,7 +8327,7 @@
           "internal-agents"
         ],
         "summary": "Get Resolved Agent Internal",
-        "operationId": "get_resolved_agent_internal_internal_agents__agent_id__get",
+        "operationId": "get_resolved_agent_internal",
         "parameters": [
           {
             "name": "agent_id",
@@ -8437,7 +8437,7 @@
           "apps"
         ],
         "summary": "List Apps",
-        "operationId": "list_apps_apps_get",
+        "operationId": "list_apps",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -8562,7 +8562,7 @@
                   "items": {
                     "$ref": "#/components/schemas/App"
                   },
-                  "title": "Response List Apps Apps Get"
+                  "title": "Response List Apps"
                 }
               }
             }
@@ -8584,7 +8584,7 @@
           "apps"
         ],
         "summary": "Create App",
-        "operationId": "create_app_apps_post",
+        "operationId": "create_app",
         "parameters": [
           {
             "name": "X-Auth-Email",
@@ -8739,7 +8739,7 @@
           "apps"
         ],
         "summary": "Get App",
-        "operationId": "get_app_apps__app_id__get",
+        "operationId": "get_app",
         "parameters": [
           {
             "name": "app_id",
@@ -8891,7 +8891,7 @@
           "apps"
         ],
         "summary": "Update App",
-        "operationId": "update_app_apps__app_id__patch",
+        "operationId": "update_app",
         "parameters": [
           {
             "name": "app_id",
@@ -9053,7 +9053,7 @@
           "apps"
         ],
         "summary": "Delete App",
-        "operationId": "delete_app_apps__app_id__delete",
+        "operationId": "delete_app",
         "parameters": [
           {
             "name": "app_id",
@@ -9814,7 +9814,7 @@
         ],
         "title": "BulkDeleteSkillsInput"
       },
-      "BulkDeleteSkillsResult": {
+      "BulkDeleteSkillsResponse": {
         "properties": {
           "deleted": {
             "type": "integer",
@@ -9825,7 +9825,7 @@
         "required": [
           "deleted"
         ],
-        "title": "BulkDeleteSkillsResult"
+        "title": "BulkDeleteSkillsResponse"
       },
       "CanvasDefaults": {
         "properties": {
@@ -10340,7 +10340,7 @@
         ],
         "title": "ImportSkillArchiveInput"
       },
-      "ImportSkillArchiveResult": {
+      "ImportSkillArchiveResponse": {
         "properties": {
           "skill": {
             "$ref": "#/components/schemas/Skill"
@@ -10364,7 +10364,7 @@
           "imported_files",
           "imported_asset_files"
         ],
-        "title": "ImportSkillArchiveResult"
+        "title": "ImportSkillArchiveResponse"
       },
       "InternalBenefitPackage": {
         "properties": {
@@ -10964,7 +10964,7 @@
         ],
         "title": "PublishSkillInput"
       },
-      "PublishSkillResult": {
+      "PublishSkillResponse": {
         "properties": {
           "skill": {
             "$ref": "#/components/schemas/Skill"
@@ -10978,7 +10978,7 @@
           "skill",
           "validation"
         ],
-        "title": "PublishSkillResult"
+        "title": "PublishSkillResponse"
       },
       "RenameSkillNodeInput": {
         "properties": {

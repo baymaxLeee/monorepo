@@ -1,3 +1,4 @@
+import { type ApiRequestConfig } from "@repo/api";
 import {
   canvasCancelResourceGeneration,
   canvasBatchDeleteResourceAssets,
@@ -22,14 +23,13 @@ import {
   canvasUpdateResource,
   canvasUpdateResourceAsset,
   canvasUpdateResourceGeneration,
-  type ApiRequestConfig,
   type CanvasAssetReview,
   type CanvasResource,
   type CanvasResourceAsset,
   type CanvasResourceAssetGeneration,
   type CanvasResourceAssetGenerationRun,
   type CanvasResourceAssetGenerationState,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import { resource } from "@/domain";
 import type { asset } from "@/domain";

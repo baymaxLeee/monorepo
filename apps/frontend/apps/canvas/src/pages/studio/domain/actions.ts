@@ -1,3 +1,4 @@
+import { type ApiRequestConfig } from "@repo/api";
 import {
   canvasCancelStoryboardDrafts,
   canvasConfirmStoryboardDrafts,
@@ -5,9 +6,8 @@ import {
   canvasMaterializeResourceReference,
   canvasSearchNodeAssets,
   canvasStartStoryboardDrafts,
-  type ApiRequestConfig,
   type CanvasNodeDraftSession,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import type { MentionNode, MentionReferenceIdentity, MentionTreeResult } from "@/components/promptEditor";
 import { asset, canvasnode } from "@/domain";

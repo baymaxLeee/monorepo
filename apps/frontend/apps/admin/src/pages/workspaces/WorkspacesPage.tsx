@@ -1,4 +1,4 @@
-import { listWorkspacesForAdmin, type WorkspaceAdminView } from "@repo/api";
+import { listWorkspacesForAdmin, type WorkspaceAdminView } from "@repo/api/iam";
 import {
   Alert,
   AlertDescription,

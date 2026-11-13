@@ -5,15 +5,15 @@ from typing import Annotated
 from application.contracts.skill import (
     AttachSkillAssetInput,
     BulkDeleteSkillsInput,
-    BulkDeleteSkillsResult,
+    BulkDeleteSkillsResponse,
     CreateSkillInput,
     CreateSkillNodeInput,
     ImportSkillArchiveInput,
-    ImportSkillArchiveResult,
+    ImportSkillArchiveResponse,
     MoveSkillNodeInput,
     PrepareSkillUploadInput,
     PublishSkillInput,
-    PublishSkillResult,
+    PublishSkillResponse,
     RenameSkillNodeInput,
     Skill,
     SkillFileContent,
@@ -98,10 +98,10 @@ async def prepare_skill_upload(
     return await SkillService(session, current_user).prepare_upload(skill_id, payload)
 
 
-@router.post("/{skill_id}/workspace:import-archive", response_model=ImportSkillArchiveResult)
+@router.post("/{skill_id}/workspace:import-archive", response_model=ImportSkillArchiveResponse)
 async def import_skill_archive(
     skill_id: str, payload: ImportSkillArchiveInput, current_user: AdminUser, session: DbSession
-) -> ImportSkillArchiveResult:
+) -> ImportSkillArchiveResponse:
     return await SkillService(session, current_user).import_archive(skill_id, payload)
 
 
@@ -154,13 +154,13 @@ async def validate_skill(skill_id: str, current_user: AdminUser, session: DbSess
     return await SkillService(session, current_user).validate(skill_id)
 
 
-@router.post("/{skill_id}/publish", response_model=PublishSkillResult)
+@router.post("/{skill_id}/publish", response_model=PublishSkillResponse)
 async def publish_skill(
     skill_id: str,
     payload: PublishSkillInput,
     current_user: AdminUser,
     session: DbSession,
-) -> PublishSkillResult:
+) -> PublishSkillResponse:
     return await SkillService(session, current_user).publish(skill_id, payload)
 
 
@@ -169,11 +169,11 @@ async def delete_skill(skill_id: str, current_user: AdminUser, session: DbSessio
     await SkillService(session, current_user).delete(skill_id)
 
 
-@router.post("/bulk-delete", response_model=BulkDeleteSkillsResult)
+@router.post("/bulk-delete", response_model=BulkDeleteSkillsResponse)
 async def bulk_delete_skills(
     payload: BulkDeleteSkillsInput,
     current_user: AdminUser,
     session: DbSession,
-) -> BulkDeleteSkillsResult:
+) -> BulkDeleteSkillsResponse:
     deleted = await SkillService(session, current_user).bulk_delete(payload.ids)
-    return BulkDeleteSkillsResult(deleted=deleted)
+    return BulkDeleteSkillsResponse(deleted=deleted)

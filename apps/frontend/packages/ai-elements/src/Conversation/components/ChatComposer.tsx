@@ -4,7 +4,10 @@ import {
   type PromptInputValue,
   type PromptSlashCommand,
 } from "@repo/ai-elements/prompt-input";
-import { type Bot, type ConversationDocument, ingestConversationDocuments } from "@repo/api";
+import { authFetch } from "@repo/api";
+import { type Bot } from "@repo/api/admin";
+import { type ConversationDocument } from "@repo/api/chat";
+import { ingestDocuments, prepareIngest } from "@repo/api/knowledge";
 import { toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
 import { memo, type RefObject } from "react";
@@ -62,16 +65,37 @@ export const ChatComposer = memo(function ChatComposer({
           if (!id) {
             return;
           }
-          void ingestConversationDocuments(
-            id,
-            items.map(({ token, file }) => ({
-              clientRef: token.id,
-              file,
+          void prepareIngest({
+            conversation_id: id,
+            files: items.map(({ token, file }) => ({
+              client_ref: token.id,
+              filename: file.name,
+              media_type: file.type || "application/octet-stream",
+              size_bytes: file.size,
             })),
-            {
-              providerId: agents?.find((a) => a.id === selectedAgentId)?.text_provider_id ?? undefined,
-            },
-          )
+          })
+            .then(async (prepared) => {
+              await Promise.all(
+                prepared.uploads.map(async (plan) => {
+                  const file = items.find(({ token }) => token.id === plan.client_ref)?.file;
+                  if (!file) throw new Error(`missing upload source: ${plan.client_ref}`);
+                  const response = await authFetch(plan.upload_url, {
+                    method: "PUT",
+                    headers: { "Content-Type": file.type || "application/octet-stream" },
+                    body: file,
+                  });
+                  if (!response.ok) throw new Error(`upload failed: ${response.status}`);
+                }),
+              );
+              return ingestDocuments({
+                conversation_id: id,
+                provider_id: agents?.find((agent) => agent.id === selectedAgentId)?.text_provider_id ?? undefined,
+                uploads: prepared.uploads.map((plan) => ({
+                  client_ref: plan.client_ref,
+                  upload_session_id: plan.upload_session_id,
+                })),
+              });
+            })
             .then((result) => {
               for (const { client_ref: clientRef, document } of result.documents) {
                 promptRef.current?.updateToken(clientRef, {
@@ -84,7 +108,7 @@ export const ChatComposer = memo(function ChatComposer({
                   },
                 });
               }
-              for (const failure of result.failed) {
+              for (const failure of result.failed ?? []) {
                 promptRef.current?.updateToken(failure.client_ref, {
                   status: "failed",
                   error: failure.error,

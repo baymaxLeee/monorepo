@@ -28,7 +28,7 @@ services:
     bindings: []
     databases:
       - iam
-    openapi: null
+    openapi: schemas/openapi/iam-server.json
 
   admin:
     root: apps/backend/services/admin
@@ -67,7 +67,6 @@ services:
       - /api/knowledge-server/*
     bindings:
       - admin
-      - executor
       - storage
     databases:
       - knowledge
@@ -92,7 +91,6 @@ services:
     bindings:
       - admin
       - knowledge
-      - canvas
       - storage
     databases:
       - executor
@@ -107,7 +105,6 @@ services:
       - /api/canvas-server/*
     bindings:
       - admin
-      - executor
       - storage
     databases:
       - canvas

@@ -6,7 +6,7 @@ const api = vi.hoisted(() => ({
   createStorageDownloadUrl: vi.fn(),
   downloadAssetUrl: vi.fn(),
   fetchAssetText: vi.fn(),
-  fetchConversationFile: vi.fn(),
+  getConversationFile: vi.fn(),
   updateConversationFileContent: vi.fn(),
 }));
 const store = vi.hoisted(() => ({
@@ -21,6 +21,7 @@ const store = vi.hoisted(() => ({
 }));
 
 vi.mock("@repo/api", async (load) => ({ ...(await load()), ...api }));
+vi.mock("@repo/api/chat", async (load) => ({ ...(await load()), ...api }));
 vi.mock("@repo/editors/code-editor", () => ({
   CodeEditor: (props: {
     value?: string;
@@ -80,7 +81,7 @@ const file = {
 describe("editable conversation file panel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    api.fetchConversationFile.mockResolvedValue(file);
+    api.getConversationFile.mockResolvedValue(file);
     api.createStorageDownloadUrl.mockResolvedValue({ url: "https://storage.test/file", filename: "notes.md" });
     api.fetchAssetText.mockResolvedValue("old\n");
   });
@@ -111,7 +112,7 @@ describe("editable conversation file panel", () => {
   });
 
   it("uses the editable CodeEditor after switching a code file into edit mode", async () => {
-    api.fetchConversationFile.mockResolvedValue({ ...file, filename: "script.js", mime_type: "text/javascript" });
+    api.getConversationFile.mockResolvedValue({ ...file, filename: "script.js", mime_type: "text/javascript" });
     api.createStorageDownloadUrl.mockResolvedValue({ url: "https://storage.test/file", filename: "script.js" });
     render(<ChatFileArtifactPanel />);
     fireEvent.click(await screen.findByRole("button", { name: "编辑文件" }));

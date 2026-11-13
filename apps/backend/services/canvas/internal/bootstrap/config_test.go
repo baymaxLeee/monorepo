@@ -6,18 +6,16 @@ import (
 )
 
 var deployedEnvironment = map[string]string{
-	"ENVIRONMENT":             "single-vps",
-	"INTERNAL_API_TOKEN":      "test-canvas-internal-token-000001",
-	"INTERNAL_SERVICE_TOKENS": "{\"chat\":\"test-chat-internal-token-00000001\",\"executor\":\"test-executor-internal-token-0001\"}",
-	"POSTGRES_HOST":           "postgres",
-	"POSTGRES_USER":           "canvas",
-	"POSTGRES_PASSWORD":       "test-password",
-	"POSTGRES_DATABASE":       "canvas",
-	"REDIS_URL":               "redis://redis:6379/3",
-	"PUBLIC_GATEWAY_URL":      "http://example.test:8080",
-	"ADMIN_SERVICE_URL":       "http://admin:8001",
-	"STORAGE_SERVICE_URL":     "http://asset:8013",
-	"EXECUTOR_SERVICE_URL":    "http://executor:8011",
+	"ENVIRONMENT":         "single-vps",
+	"INTERNAL_API_TOKEN":  "test-canvas-internal-token-000001",
+	"POSTGRES_HOST":       "postgres",
+	"POSTGRES_USER":       "canvas",
+	"POSTGRES_PASSWORD":   "test-password",
+	"POSTGRES_DATABASE":   "canvas",
+	"REDIS_URL":           "redis://redis:6379/3",
+	"PUBLIC_GATEWAY_URL":  "http://example.test:8080",
+	"ADMIN_SERVICE_URL":   "http://admin:8001",
+	"STORAGE_SERVICE_URL": "http://asset:8013",
 }
 
 func setDeployedEnvironment(t *testing.T) {
@@ -81,22 +79,6 @@ func TestLoadDeployedEnvironmentRejectsDevelopmentCredentials(t *testing.T) {
 			_, err := Load()
 			if err == nil || !strings.Contains(err.Error(), "non-development") {
 				t.Fatalf("Load() error = %v, want development credential rejection", err)
-			}
-		})
-	}
-}
-
-func TestLoadDeployedEnvironmentRejectsInvalidServiceCredentials(t *testing.T) {
-	for name, value := range map[string]string{
-		"missing caller":    "{\"chat\":\"test-chat-internal-token-00000001\"}",
-		"development token": "{\"chat\":\"dev-chat-internal-token\",\"executor\":\"test-executor-internal-token-0001\"}",
-		"duplicate token":   "{\"chat\":\"same-internal-token-00000000000000\",\"executor\":\"same-internal-token-00000000000000\"}",
-	} {
-		t.Run(name, func(t *testing.T) {
-			setDeployedEnvironment(t)
-			t.Setenv("INTERNAL_SERVICE_TOKENS", value)
-			if _, err := Load(); err == nil {
-				t.Fatal("Load() accepted invalid internal service credentials")
 			}
 		})
 	}

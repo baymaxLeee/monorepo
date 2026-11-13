@@ -1,5 +1,5 @@
 import { MessageResponse } from "@repo/ai-elements";
-import type { MemoryCandidate, MemoryCategory, UserMemory } from "@repo/api";
+import { type MemoryCandidate, type MemoryCategory, type UserMemory } from "@repo/api/chat";
 import { Badge, Button, Textarea } from "@repo/design-system";
 import { useEffect, useState } from "react";
 

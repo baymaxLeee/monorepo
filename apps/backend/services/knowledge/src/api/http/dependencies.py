@@ -78,13 +78,6 @@ def require_internal_token(
         raise UnauthorizedError("invalid internal service credentials")
 
 
-def require_executor_caller(
-    x_caller_service: Annotated[str | None, Header(alias="X-Caller-Service")] = None,
-) -> None:
-    if x_caller_service != "executor":
-        raise UnauthorizedError("executor service identity is required")
-
-
 DbSession = Annotated[AsyncSession, Depends(db_session)]
 CurrentUser = Annotated[AuthContext, Depends(auth_context)]
 InternalAuth = Annotated[None, Depends(require_internal_token)]

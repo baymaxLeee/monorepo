@@ -145,7 +145,7 @@ class SkillUploadPlan(BaseModel):
     revision_id: str | None = None
 
 
-class ImportSkillArchiveResult(BaseModel):
+class ImportSkillArchiveResponse(BaseModel):
     skill: Skill
     workspace: SkillWorkspace
     imported_files: int
@@ -195,7 +195,7 @@ class SkillValidationResult(BaseModel):
     issues: list[SkillValidationIssue]
 
 
-class PublishSkillResult(BaseModel):
+class PublishSkillResponse(BaseModel):
     skill: Skill
     validation: SkillValidationResult
 
@@ -208,5 +208,5 @@ class BulkDeleteSkillsInput(BaseModel):
     ids: list[str] = Field(min_length=1, max_length=100)
 
 
-class BulkDeleteSkillsResult(BaseModel):
+class BulkDeleteSkillsResponse(BaseModel):
     deleted: int

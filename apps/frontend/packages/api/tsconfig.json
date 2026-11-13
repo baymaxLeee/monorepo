@@ -3,5 +3,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["index.ts", "orval.config.ts", "src/**/*", "generated/**/*"]
+  "include": ["index.ts", "orval.config.ts", "src/**/*"]
 }

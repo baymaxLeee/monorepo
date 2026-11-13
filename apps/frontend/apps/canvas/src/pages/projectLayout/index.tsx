@@ -1,4 +1,4 @@
-import { canvasGetProject } from "@repo/api";
+import { canvasGetProject } from "@repo/api/canvas";
 import { Button } from "@repo/design-system";
 import { Library as IconAssetLibrary, ChevronLeft as IconLeft, Clapperboard as IconVideoCreation } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";

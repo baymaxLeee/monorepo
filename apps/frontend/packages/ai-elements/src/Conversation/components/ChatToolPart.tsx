@@ -11,7 +11,7 @@ import {
   ToolHeader,
   ToolJsonBlock,
 } from "@repo/ai-elements";
-import type { ConversationDocument } from "@repo/api";
+import { type ConversationDocument } from "@repo/api/chat";
 import { getToolName, type UIMessage } from "ai";
 
 import { parseAskUserInput } from "../lib/ask-user";

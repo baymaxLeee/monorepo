@@ -9,7 +9,7 @@ import {
   CanvasResourceOwnerType as ResourceOwnerType,
   CanvasResourceSortField as ResourceSortField,
   CanvasResourceType as ResourceType,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import type * as asset from "./asset";
 import type * as common from "./common";

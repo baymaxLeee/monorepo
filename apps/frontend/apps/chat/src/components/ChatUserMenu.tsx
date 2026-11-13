@@ -1,5 +1,5 @@
 import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
-import { logout, switchActiveWorkspace } from "@repo/api";
+import { logout, switchActiveWorkspace } from "@repo/api/iam";
 import {
   Avatar,
   AvatarFallback,
@@ -50,7 +50,7 @@ export function ChatUserMenu() {
       return;
     }
     try {
-      const session = await switchActiveWorkspace(workspaceId);
+      const session = await switchActiveWorkspace({ workspaceId });
       // Persist the rescoped identity before the reload so the shell rehydrates
       // bound to the new workspace and drops all in-memory workspace-scoped state.
       setUser(session.user);

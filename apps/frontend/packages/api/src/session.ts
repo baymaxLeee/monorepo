@@ -1,34 +1,33 @@
-import { request, setRefreshAccessToken } from "./http";
+import { setRefreshAccessToken } from "./http";
 import {
   type AuthSession,
   type AuthUser,
+  checkAccountAvailability as checkAccountAvailabilityRequest,
+  fetchMe as fetchMeRequest,
+  fetchMemberships as fetchMembershipsRequest,
+  login as loginRequest,
+  logout as logoutRequest,
+  refreshSession as refreshSessionRequest,
+  register as registerRequest,
+  switchActiveWorkspace as switchActiveWorkspaceRequest,
+  type LoginInput,
+  type Membership,
+  type RegisterInput,
+} from "./iam-server";
+import {
   clearSession,
   commitSession,
   getCurrentUser,
   getToken,
   isAccessTokenValid,
-  type Membership,
+  onSessionChange as onTransportSessionChange,
   syncSessionFromStorage,
 } from "./storage";
 
-export type { AuthSession, AuthUser, Membership } from "./storage";
-export { onSessionChange } from "./storage";
-
-export type AuthCredentials = {
-  account: string;
-  password: string;
-};
-
-export type RegisterInput = AuthCredentials & {
-  /** Optional additional workspace application; guest-workspace membership is automatic. */
-  workspaceId?: string;
-  avatarUrl?: string;
-  email?: string;
-  displayName?: string;
-  locale?: string;
-  phoneNumber?: string;
-  timezone?: string;
-};
+export type { AuthSession, AuthUser, LoginInput as AuthCredentials, Membership, RegisterInput };
+export function onSessionChange(handler: (user: AuthUser | null) => void): () => void {
+  return onTransportSessionChange((user) => handler(user as AuthUser | null));
+}
 
 let refreshPromise: Promise<AuthSession | null> | null = null;
 
@@ -38,43 +37,23 @@ export function authHeaders(): Record<string, string> {
 }
 
 export async function register(input: RegisterInput): Promise<AuthSession> {
-  return commitSession(
-    await request<AuthSession>({
-      url: "/api/iam-server/register",
-      method: "POST",
-      data: input,
-    }),
-  );
+  return commitSession(await registerRequest(input));
 }
 
 export async function checkAccountAvailability(account: string): Promise<{
   account: string;
   available: boolean;
 }> {
-  return request({
-    url: "/api/iam-server/account-availability",
-    method: "GET",
-    params: { account },
-    skipErrorNotify: true,
-  });
+  return checkAccountAvailabilityRequest({ account }, { skipErrorNotify: true });
 }
 
-export async function login(input: AuthCredentials): Promise<AuthSession> {
-  return commitSession(
-    await request<AuthSession>({
-      url: "/api/iam-server/login",
-      method: "POST",
-      data: input,
-    }),
-  );
+export async function login(input: LoginInput): Promise<AuthSession> {
+  return commitSession(await loginRequest(input));
 }
 
 export async function logout(): Promise<void> {
   try {
-    await request<{ status: string }>({
-      url: "/api/iam-server/logout",
-      method: "POST",
-    });
+    await logoutRequest();
   } finally {
     clearSession();
   }
@@ -84,11 +63,7 @@ export async function refreshSession(): Promise<AuthSession | null> {
   if (refreshPromise) {
     return refreshPromise;
   }
-  refreshPromise = request<AuthSession>({
-    url: "/api/iam-server/refresh",
-    method: "POST",
-    skipErrorNotify: true,
-  })
+  refreshPromise = refreshSessionRequest({ skipErrorNotify: true })
     .then(commitSession)
     .catch(() => {
       clearSession();
@@ -103,33 +78,24 @@ export async function refreshSession(): Promise<AuthSession | null> {
 /** Current identity, reflecting the latest roles + memberships + activeWorkspace.
  * The waiting page polls this to observe an approval landing. */
 export async function fetchMe(): Promise<AuthUser> {
-  return request<AuthUser>({ url: "/api/iam-server/me", method: "GET" });
+  return fetchMeRequest();
 }
 
 export async function fetchMemberships(): Promise<Membership[]> {
-  return request<Membership[]>({
-    url: "/api/iam-server/me/memberships",
-    method: "GET",
-  });
+  return fetchMembershipsRequest();
 }
 
 /** Bind the session to a different active workspace (must be an active membership).
  * Rotates the refresh token and returns a freshly scoped session. */
 export async function switchActiveWorkspace(workspaceId: string): Promise<AuthSession> {
-  return commitSession(
-    await request<AuthSession>({
-      url: "/api/iam-server/session/active-workspace",
-      method: "POST",
-      data: { workspaceId },
-    }),
-  );
+  return commitSession(await switchActiveWorkspaceRequest({ workspaceId }));
 }
 
 export async function bootstrapSession(): Promise<AuthUser | null> {
   syncSessionFromStorage();
 
-  if (isAccessTokenValid() && getCurrentUser()) {
-    return getCurrentUser();
+  if (isAccessTokenValid() && getCurrentUser<AuthUser>()) {
+    return getCurrentUser<AuthUser>();
   }
 
   const refreshed = await refreshSession();

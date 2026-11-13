@@ -1,4 +1,4 @@
-import type { Conversation } from "@repo/api";
+import { type Conversation } from "@repo/api/chat";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -6,11 +6,11 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { useConversationHistory } from "./useConversationHistory";
 
 const api = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), remove: vi.fn(), detail: vi.fn() }));
-vi.mock("@repo/api", () => ({
-  fetchConversations: api.list,
+vi.mock("@repo/api/chat", () => ({
+  listConversations: api.list,
   createConversation: api.create,
   deleteConversation: api.remove,
-  fetchConversation: api.detail,
+  getConversation: api.detail,
 }));
 vi.mock("@repo/ai-elements", () => ({ downloadConversationMarkdown: vi.fn() }));
 vi.mock("@repo/ai-elements/conversation/store/useChatStore", () => ({

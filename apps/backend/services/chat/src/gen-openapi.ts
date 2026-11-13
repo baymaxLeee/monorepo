@@ -78,21 +78,32 @@ const openapi = {
         responses: { "201": jsonResponse("Canvas-bound conversation", ref("CanvasConversationBinding")) },
       },
     },
-    "/healthz": { get: { responses: { "200": { description: "ok" } } } },
+    "/healthz": { get: { operationId: "chatHealthz", responses: { "200": { description: "ok" } } } },
     "/conversations": {
-      get: { responses: { "200": { description: "list conversations" } } },
-      post: { responses: { "201": { description: "create conversation" } } },
+      get: {
+        operationId: "listConversations",
+        responses: { "200": jsonResponse("list conversations", { type: "array", items: ref("Conversation") }) },
+      },
+      post: {
+        operationId: "createConversation",
+        requestBody: { required: true, content: { "application/json": { schema: ref("CreateConversationInput") } } },
+        responses: { "201": jsonResponse("created conversation", ref("Conversation")) },
+      },
     },
     "/conversations/{conversation_id}": {
       get: {
+        operationId: "getConversation",
         parameters: [pathParam],
         responses: { "200": jsonResponse("selected conversation history", ref("ConversationDetail")) },
       },
       patch: {
+        operationId: "updateConversation",
         parameters: [pathParam],
-        responses: { "200": { description: "update conversation" } },
+        requestBody: { required: true, content: { "application/json": { schema: ref("UpdateConversationInput") } } },
+        responses: { "200": jsonResponse("updated conversation", ref("Conversation")) },
       },
       delete: {
+        operationId: "deleteConversation",
         parameters: [pathParam],
         responses: { "204": { description: "delete conversation" } },
       },
@@ -142,6 +153,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/context": {
       get: {
+        operationId: "getConversationContext",
         parameters: [pathParam],
         responses: {
           "200": jsonResponse("conversation context snapshot", ref("ConversationContextResponse")),
@@ -150,6 +162,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/agents/run/stream": {
       get: {
+        operationId: "resumeConversationAgentStream",
         parameters: [pathParam],
         responses: {
           "200": {
@@ -165,6 +178,7 @@ const openapi = {
         },
       },
       post: {
+        operationId: "startConversationAgentStream",
         parameters: [pathParam],
         requestBody: { required: true, content: { "application/json": { schema: ref("AgentRunRequest") } } },
         responses: {
@@ -183,25 +197,32 @@ const openapi = {
     },
     "/conversations/{conversation_id}/documents/{document_id}": {
       get: {
+        operationId: "getConversationDocument",
         parameters: [
           pathParam,
           documentPathParam,
           { name: "include_content", in: "query", schema: { type: "boolean", default: true } },
         ],
         responses: {
-          "200": {
-            description:
-              "conversation document detail; include_content=false returns metadata with an empty content_md",
-          },
+          "200": jsonResponse(
+            "conversation document detail; include_content=false returns metadata with an empty content_md",
+            ref("ConversationDocumentDetail"),
+          ),
         },
       },
       patch: {
+        operationId: "updateConversationDocument",
         parameters: [pathParam, documentPathParam],
-        responses: { "200": { description: "update conversation artifact" } },
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: ref("UpdateConversationDocumentInput") } },
+        },
+        responses: { "200": jsonResponse("updated conversation artifact", ref("ConversationDocumentDetail")) },
       },
     },
     "/conversations/{conversation_id}/documents/{document_id}/delivery": {
       post: {
+        operationId: "authorizeConversationDocumentDelivery",
         parameters: [
           pathParam,
           documentPathParam,
@@ -215,6 +236,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/files/{file_id}/delivery": {
       post: {
+        operationId: "authorizeConversationFileDelivery",
         parameters: [
           pathParam,
           fileIdPathParam,
@@ -229,6 +251,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/files/{file_id}/content": {
       get: {
+        operationId: "redirectConversationFileContent",
         parameters: [pathParam, fileIdPathParam],
         responses: {
           "307": {
@@ -256,6 +279,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/documents/{document_id}/content": {
       get: {
+        operationId: "redirectConversationDocumentContent",
         parameters: [pathParam, documentPathParam],
         responses: {
           "307": {
@@ -268,6 +292,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/sources/{source_id}/delivery": {
       post: {
+        operationId: "authorizeConversationSourceDelivery",
         parameters: [pathParam, sourcePathParam],
         responses: {
           "200": jsonResponse(
@@ -280,6 +305,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/files/{file_id}": {
       get: {
+        operationId: "getConversationFile",
         parameters: [pathParam, fileIdPathParam],
         responses: {
           "200": jsonResponse("Chat-owned conversation file reference", ref("ConversationFile")),
@@ -289,6 +315,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/agents/runs/{run_id}/trace": {
       get: {
+        operationId: "getConversationAgentTrace",
         parameters: [pathParam, runPathParam],
         responses: {
           "200": jsonResponse("agent run step/tool-call trace", ref("AgentRunTrace")),
@@ -297,12 +324,14 @@ const openapi = {
     },
     "/conversations/{conversation_id}/agents/runs/{run_id}/cancel": {
       post: {
+        operationId: "cancelConversationAgentRun",
         parameters: [pathParam, runPathParam],
         responses: { "200": jsonResponse("request agent run cancellation", ref("RunCancellation")) },
       },
     },
     "/conversations/{conversation_id}/video-productions/{production_id}": {
       get: {
+        operationId: "getVideoProduction",
         parameters: [pathParam, productionPathParam],
         responses: {
           "200": jsonResponse("durable video production projection", ref("VideoProductionDetail")),
@@ -313,6 +342,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/video-productions/{production_id}/decisions": {
       post: {
+        operationId: "decideVideoProduction",
         parameters: [pathParam, productionPathParam],
         requestBody: {
           required: true,
@@ -326,6 +356,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/video-productions/{production_id}/preview-url": {
       get: {
+        operationId: "getVideoProductionPreviewUrl",
         parameters: [pathParam, productionPathParam],
         responses: {
           "200": {
@@ -346,6 +377,7 @@ const openapi = {
     },
     "/conversations/{conversation_id}/video-productions/{production_id}/shots/{shot_id}/takes/{take_id}/preview-url": {
       get: {
+        operationId: "getVideoTakePreviewUrl",
         parameters: [pathParam, productionPathParam, shotPathParam, takePathParam],
         responses: {
           "200": {
@@ -366,6 +398,7 @@ const openapi = {
     },
     "/memories": {
       get: {
+        operationId: "listActiveMemories",
         responses: {
           "200": jsonResponse("list active user memories", ref("UserMemoryList")),
         },
@@ -373,6 +406,7 @@ const openapi = {
     },
     "/memories/candidates": {
       get: {
+        operationId: "listMemoryCandidates",
         responses: {
           "200": jsonResponse("list pending memory candidates", ref("MemoryCandidateList")),
         },
@@ -380,6 +414,7 @@ const openapi = {
     },
     "/memories/candidates/{id}/approve": {
       post: {
+        operationId: "approveMemoryCandidate",
         parameters: [memoryIdPathParam],
         responses: {
           "200": jsonResponse("approve a memory candidate into active memory", ref("ApprovedMemory")),
@@ -388,6 +423,7 @@ const openapi = {
     },
     "/memories/candidates/{id}/reject": {
       post: {
+        operationId: "rejectMemoryCandidate",
         parameters: [memoryIdPathParam],
         responses: {
           "200": jsonResponse("reject a memory candidate", ref("RejectedMemory")),
@@ -396,6 +432,7 @@ const openapi = {
     },
     "/memories/candidates/{id}": {
       patch: {
+        operationId: "updateMemoryCandidate",
         parameters: [memoryIdPathParam],
         requestBody: {
           required: true,
@@ -408,6 +445,7 @@ const openapi = {
     },
     "/memories/{id}": {
       delete: {
+        operationId: "deleteMemory",
         parameters: [memoryIdPathParam],
         responses: {
           "200": jsonResponse("delete (deactivate) a stored memory", ref("DeletedMemory")),
@@ -433,6 +471,54 @@ const openapi = {
           id: { type: "string" },
           project_id: { type: "string" },
           canvas_id: { type: "string" },
+        },
+      },
+      CreateConversationInput: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 200 },
+          provider_id: { type: "string", maxLength: 32, nullable: true },
+        },
+      },
+      UpdateConversationInput: {
+        type: "object",
+        additionalProperties: false,
+        properties: { title: { type: "string", minLength: 1, maxLength: 200 } },
+      },
+      Conversation: {
+        type: "object",
+        required: [
+          "id",
+          "user_id",
+          "tenant_id",
+          "workspace_id",
+          "title",
+          "model",
+          "provider_id",
+          "active_plan_file_id",
+          "project_id",
+          "canvas_id",
+          "created_at",
+          "updated_at",
+          "revision",
+          "selected_message_id",
+        ],
+        properties: {
+          id: { type: "string" },
+          user_id: { type: "string" },
+          tenant_id: { type: "string" },
+          workspace_id: { type: "string" },
+          title: { type: "string" },
+          model: { type: "string" },
+          provider_id: { type: "string" },
+          active_plan_file_id: { type: "string", nullable: true },
+          project_id: { type: "string", nullable: true },
+          canvas_id: { type: "string", nullable: true },
+          created_at: { type: "string", format: "date-time" },
+          updated_at: { type: "string", format: "date-time" },
+          revision: { type: "integer", minimum: 0 },
+          selected_message_id: { type: "string", nullable: true },
         },
       },
       AgentRunRequest: {
@@ -508,16 +594,68 @@ const openapi = {
           candidates: { type: "array", items: ref("MessageBranchCandidate") },
         },
       },
-      ConversationDocumentSummary: {
+      ConversationDocument: {
         type: "object",
-        additionalProperties: true,
-        required: ["id", "conversation_id", "title", "filename", "mime_type"],
+        required: [
+          "id",
+          "conversation_id",
+          "kind",
+          "editable_source",
+          "title",
+          "filename",
+          "mime_type",
+          "source_size",
+          "source_mime_type",
+          "asset_id",
+          "source_revision_id",
+          "source_sha256",
+          "source_filename",
+          "ingest_status",
+          "ingest_progress",
+          "ingest_error",
+          "created_at",
+          "updated_at",
+        ],
         properties: {
           id: { type: "string" },
           conversation_id: { type: "string" },
+          kind: { type: "string", enum: ["source", "artifact"] },
+          editable_source: { type: "boolean" },
           title: { type: "string" },
           filename: { type: "string" },
           mime_type: { type: "string" },
+          source_size: { type: "integer", minimum: 0 },
+          source_mime_type: { type: "string", nullable: true },
+          asset_id: { type: "string", nullable: true },
+          source_revision_id: { type: "string", nullable: true },
+          source_sha256: { type: "string", nullable: true },
+          source_filename: { type: "string", nullable: true },
+          ingest_status: {
+            type: "string",
+            enum: ["uploading", "processing", "completed", "failed", "cancelled", "pending"],
+          },
+          ingest_progress: { type: "integer", minimum: 0, maximum: 100 },
+          ingest_error: { type: "string", nullable: true },
+          created_at: { type: "string", format: "date-time" },
+          updated_at: { type: "string", format: "date-time" },
+        },
+      },
+      ConversationDocumentDetail: {
+        allOf: [
+          ref("ConversationDocument"),
+          {
+            type: "object",
+            required: ["content_md"],
+            properties: { content_md: { type: "string" } },
+          },
+        ],
+      },
+      UpdateConversationDocumentInput: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string", minLength: 1, maxLength: 200 },
+          content_md: { type: "string" },
         },
       },
       ConversationDetail: {
@@ -557,7 +695,7 @@ const openapi = {
           selected_message_id: { type: "string", nullable: true },
           messages: { type: "array", items: ref("ConversationMessage") },
           branches: { type: "array", items: ref("MessageBranchGroup") },
-          documents: { type: "array", items: ref("ConversationDocumentSummary") },
+          documents: { type: "array", items: ref("ConversationDocument") },
           active_run_id: { type: "string", nullable: true },
           latest_run_id: { type: "string", nullable: true },
         },
@@ -730,11 +868,20 @@ const openapi = {
           },
           toolCalls: {
             type: "array",
-            items: {
-              type: "object",
-              additionalProperties: true,
-            },
+            items: ref("AgentTraceToolCall"),
           },
+        },
+      },
+      AgentTraceToolCall: {
+        type: "object",
+        required: ["id", "stepIndex", "toolName", "status", "durationMs", "error"],
+        properties: {
+          id: { type: "string" },
+          stepIndex: { type: "integer", nullable: true },
+          toolName: { type: "string" },
+          status: { type: "string", enum: ["running", "completed", "failed"] },
+          durationMs: { type: "integer", nullable: true },
+          error: { type: "string", nullable: true },
         },
       },
       ConversationContextCategory: {

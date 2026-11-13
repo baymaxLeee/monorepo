@@ -1,11 +1,11 @@
+import { authFetch } from "@repo/api";
 import {
   attachSkillAsset,
   createSkillNode,
   deleteSkillNode,
-  executeStorageUploadPlan,
-  fetchSkill,
-  fetchSkillFile,
-  fetchSkillWorkspace,
+  getSkill,
+  getSkillFile,
+  getSkillWorkspace,
   moveSkillNode,
   importSkillArchive,
   publishSkill,
@@ -17,7 +17,7 @@ import {
   type SkillValidationResult,
   updateSkillFileContent,
   validateSkill,
-} from "@repo/api";
+} from "@repo/api/admin";
 import {
   Alert,
   AlertDescription,
@@ -77,7 +77,7 @@ export function SkillWorkspacePage() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [detail, workspace] = await Promise.all([fetchSkill(id), fetchSkillWorkspace(id)]);
+      const [detail, workspace] = await Promise.all([getSkill(id), getSkillWorkspace(id)]);
       const etags = new Map<string, string>();
       const collectEtags = (nodes: SkillFileNode[]) => {
         for (const node of nodes) {
@@ -115,7 +115,7 @@ export function SkillWorkspacePage() {
 
   const handleLoadContent = useCallback(
     async (nodeId: string) => {
-      const file = await fetchSkillFile(id, nodeId);
+      const file = await getSkillFile(id, nodeId);
       etagsRef.current.set(nodeId, file.etag);
       if (file.storage_kind === "asset") {
         return [
@@ -154,7 +154,7 @@ export function SkillWorkspacePage() {
     setWorkspaceSeq(nextWorkspaceSeq);
     workspaceRef.current?.resetBaseline();
     setDirty(false);
-    setSkill(await fetchSkill(id));
+    setSkill(await getSkill(id));
     if (!options?.silent) {
       toast.add({ type: "success", title: "工作区已保存" });
     }
@@ -180,13 +180,13 @@ export function SkillWorkspacePage() {
           ...(change.content === undefined ? {} : { content: change.content }),
         });
       case ChangeAction.UPDATE:
-        return updateSkillFileContent(id, change.id, etag(change.id), change.content);
+        return updateSkillFileContent(id, change.id, { base_etag: etag(change.id), content: change.content });
       case ChangeAction.RENAME:
-        return renameSkillNode(id, change.id, etag(change.id), change.name);
+        return renameSkillNode(id, change.id, { base_etag: etag(change.id), name: change.name });
       case ChangeAction.MOVE:
-        return moveSkillNode(id, change.id, etag(change.id), change.parent_id);
+        return moveSkillNode(id, change.id, { base_etag: etag(change.id), parent_id: change.parent_id });
       case ChangeAction.DELETE:
-        return deleteSkillNode(id, change.id, etag(change.id));
+        return deleteSkillNode(id, change.id, { base_etag: etag(change.id) });
     }
     const unsupported: never = change;
     throw new Error(`不支持的文件变更：${JSON.stringify(unsupported)}`);
@@ -217,14 +217,23 @@ export function SkillWorkspacePage() {
         }
         const clientRef = randomId();
         const plan = await prepareSkillUpload(id, {
-          clientRef,
+          client_ref: clientRef,
           purpose: "skill-archive",
           filename: file.name,
-          mediaType: file.type || "application/zip",
-          sizeBytes: file.size,
+          media_type: file.type || "application/zip",
+          size_bytes: file.size,
         });
-        await executeStorageUploadPlan(plan, file);
-        const result = await importSkillArchive(id, clientRef, plan.uploadSessionId, workspaceSeq);
+        const upload = await authFetch(plan.upload_url, {
+          method: "PUT",
+          headers: { "Content-Type": file.type || "application/zip" },
+          body: file,
+        });
+        if (!upload.ok) throw new Error(`upload failed: ${upload.status}`);
+        const result = await importSkillArchive(id, {
+          client_ref: clientRef,
+          upload_session_id: plan.upload_session_id,
+          base_workspace_seq: workspaceSeq,
+        });
         await load();
         toast.add({ type: "success", title: `已导入 ${result.imported_files} 个文件` });
       });
@@ -244,19 +253,24 @@ export function SkillWorkspacePage() {
         }
         const nodeId = randomId().replaceAll("-", "");
         const plan = await prepareSkillUpload(id, {
-          clientRef: nodeId,
+          client_ref: nodeId,
           purpose: "skill-attachment",
           filename: file.name,
-          mediaType: file.type || "application/octet-stream",
-          sizeBytes: file.size,
+          media_type: file.type || "application/octet-stream",
+          size_bytes: file.size,
         });
-        await executeStorageUploadPlan(plan, file);
+        const upload = await authFetch(plan.upload_url, {
+          method: "PUT",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file,
+        });
+        if (!upload.ok) throw new Error(`upload failed: ${upload.status}`);
         await attachSkillAsset(id, {
           id: nodeId,
           client_ref: nodeId,
           parent_id: null,
           name: file.name,
-          upload_session_id: plan.uploadSessionId,
+          upload_session_id: plan.upload_session_id,
         });
         await load();
         toast.add({ type: "success", title: `已上传附件 ${file.name}` });
@@ -327,7 +341,7 @@ export function SkillWorkspacePage() {
             onClick={() =>
               void run(async () => {
                 const seq = await save();
-                const result = await publishSkill(id, seq);
+                const result = await publishSkill(id, { base_workspace_seq: seq });
                 setSkill(result.skill);
                 if (!result.validation.ok) {
                   notifyValidationResult(result.validation);

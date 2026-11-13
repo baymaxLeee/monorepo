@@ -1,17 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type CreateModelProviderInput,
-  createModelProvider,
-  deleteModelProvider,
-  fetchModelProviders,
+  createProvider,
+  deleteProvider,
+  listProviders,
   type ModelProvider,
-  type ProviderKind,
-  type ResponsesDialect,
-  setDefaultModelProvider,
+  type ModelProviderProviderKind,
+  type ModelProviderResponsesDialect,
+  setDefaultProvider,
   type TestModelProviderResult,
-  testModelProvider,
-  updateModelProvider,
-} from "@repo/api";
+  testProvider,
+  updateProvider,
+} from "@repo/api/admin";
 import {
   Alert,
   AlertDescription,
@@ -120,7 +120,7 @@ type ProviderValues = z.infer<typeof providerSchema>;
 
 const ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 
-const kindPresets: Record<ProviderKind, Pick<ProviderValues, "base_url" | "model" | "extra_body">> = {
+const kindPresets: Record<ModelProviderProviderKind, Pick<ProviderValues, "base_url" | "model" | "extra_body">> = {
   chat: {
     base_url: ARK_BASE_URL,
     model: "deepseek-v4-pro-260425",
@@ -149,7 +149,7 @@ const kindPresets: Record<ProviderKind, Pick<ProviderValues, "base_url" | "model
   },
 };
 
-const kindLabels: Record<ProviderKind, string> = {
+const kindLabels: Record<ModelProviderProviderKind, string> = {
   chat: "对话",
   image: "图片生成",
   video: "视频生成",
@@ -157,7 +157,7 @@ const kindLabels: Record<ProviderKind, string> = {
   rerank: "重排",
 };
 
-const dialectLabels: Record<ResponsesDialect, string> = {
+const dialectLabels: Record<Exclude<ModelProviderResponsesDialect, null>, string> = {
   openai_responses: "OpenAI Responses",
   ark_responses: "火山 Ark Responses",
   deepseek_responses: "DeepSeek Responses",
@@ -201,7 +201,7 @@ function stringifyExtraBody(value: Record<string, unknown>): string {
   return JSON.stringify(value, null, 2);
 }
 
-function resolveIsDefault(providerKind: ProviderKind, isDefault: boolean): boolean {
+function resolveIsDefault(providerKind: ModelProviderProviderKind, isDefault: boolean): boolean {
   return providerKind === "chat" && isDefault;
 }
 
@@ -235,7 +235,7 @@ export function ProvidersPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchModelProviders({ skipErrorNotify: true })
+    listProviders({ skipErrorNotify: true })
       .then(setProviders)
       .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
@@ -284,7 +284,7 @@ export function ProvidersPage() {
             }
           : null;
       if (editing) {
-        const patch: Parameters<typeof updateModelProvider>[1] = {
+        const patch: Parameters<typeof updateProvider>[1] = {
           name: values.name,
           provider_kind: values.provider_kind,
           responses_dialect: values.responses_dialect,
@@ -301,7 +301,7 @@ export function ProvidersPage() {
         if (values.api_key.trim()) {
           patch.api_key = values.api_key.trim();
         }
-        await updateModelProvider(editing.id, patch);
+        await updateProvider(editing.id, patch);
         toast.add({ type: "success", title: "模型已更新" });
         setEditing(null);
       } else {
@@ -324,7 +324,7 @@ export function ProvidersPage() {
           is_default: resolveIsDefault(values.provider_kind, values.is_default),
           is_enabled: values.is_enabled,
         };
-        await createModelProvider(payload);
+        await createProvider(payload);
         toast.add({ type: "success", title: "模型已创建" });
         setCreateOpen(false);
       }
@@ -337,14 +337,14 @@ export function ProvidersPage() {
     if (!window.confirm(`确认删除「${provider.name}」？`)) {
       return;
     }
-    await deleteModelProvider(provider.id);
+    await deleteProvider(provider.id);
     toast.add({ type: "success", title: "已删除" });
     load();
   }
 
   async function markDefault(provider: ModelProvider) {
     try {
-      await setDefaultModelProvider(provider.id);
+      await setDefaultProvider(provider.id);
       toast.add({ type: "success", title: `「${provider.name}」已设为默认` });
       load();
     } catch {}
@@ -354,7 +354,7 @@ export function ProvidersPage() {
     setTestingId(provider.id);
     setTestResult(null);
     try {
-      const result = await testModelProvider(provider.id, {});
+      const result = await testProvider(provider.id, {});
       setTestResult({ provider, result });
       if (result.ok) {
         toast.add({ type: "success", title: `连通成功（${result.latency_ms ?? "?"} ms）` });
@@ -554,7 +554,7 @@ function ProviderFormDialog({
     name: "provider_kind",
   });
 
-  function applyKindPreset(kind: ProviderKind) {
+  function applyKindPreset(kind: ModelProviderProviderKind) {
     const preset = kindPresets[kind];
     form.setValue("base_url", preset.base_url);
     form.setValue("model", preset.model);

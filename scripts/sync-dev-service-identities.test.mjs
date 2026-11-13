@@ -44,6 +44,27 @@ test("fix preserves valid default files and is idempotent", (t) => {
   assert.equal(readFileSync(env("knowledge"), "utf8"), before);
 });
 
+test("fix removes retired Canvas and Executor caller relationships", (t) => {
+  const { env, set, run } = fixture(t);
+  set(
+    "canvas",
+    "INTERNAL_SERVICE_TOKENS",
+    JSON.stringify({ chat: "dev-chat-internal-token", executor: "dev-executor-internal-token" }),
+  );
+  set(
+    "executor",
+    "INTERNAL_SERVICE_TOKENS",
+    JSON.stringify({
+      chat: "dev-chat-internal-token",
+      knowledge: "dev-knowledge-internal-token",
+    }),
+  );
+  const result = run("--fix");
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(readFileSync(env("canvas"), "utf8"), /INTERNAL_SERVICE_TOKENS=\{"chat":"dev-chat-internal-token"\}/);
+  assert.match(readFileSync(env("executor"), "utf8"), /INTERNAL_SERVICE_TOKENS=\{"chat":"dev-chat-internal-token"\}/);
+});
+
 for (const [name, map] of [
   ["custom credentials", JSON.stringify({ chat: "custom-chat", executor: "dev-executor-internal-token" })],
   ["invalid JSON", "invalid"],

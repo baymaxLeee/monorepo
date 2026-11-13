@@ -1,4 +1,4 @@
-import type { CanvasNode, CanvasPatchEvent } from "@repo/api";
+import { type CanvasNode, type CanvasPatchEvent } from "@repo/api/canvas";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import type { ReactNode } from "react";

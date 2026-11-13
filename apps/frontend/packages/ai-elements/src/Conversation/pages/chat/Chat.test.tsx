@@ -59,10 +59,10 @@ vi.mock("../../hooks/useConversationChat", async (importOriginal) => {
 });
 vi.mock("@repo/api", () => ({
   authFetch: vi.fn(),
+}));
+vi.mock("@repo/api/chat", () => ({
   cancelConversationAgentRun: state.cancel,
-  fetchBotSkills: vi.fn(),
-  ingestConversationDocuments: vi.fn(),
-  fetchConversation: async () => ({
+  getConversation: async () => ({
     id: "conversation",
     title: "Test",
     revision: 0,
@@ -75,6 +75,8 @@ vi.mock("@repo/api", () => ({
     })),
   }),
 }));
+vi.mock("@repo/api/admin", () => ({ listBotSkills: vi.fn() }));
+vi.mock("@repo/api/knowledge", () => ({ ingestDocuments: vi.fn(), prepareIngest: vi.fn() }));
 vi.mock("../../lib/transport", () => ({ createConversationTransport: vi.fn(() => ({})) }));
 vi.mock("../../store/useChatStore", () => {
   const store = {

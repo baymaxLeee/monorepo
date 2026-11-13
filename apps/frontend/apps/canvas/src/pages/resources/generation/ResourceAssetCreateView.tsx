@@ -1,4 +1,4 @@
-import { fetchCanvasSettings } from "@repo/api";
+import { getCanvasSettings } from "@repo/api/admin";
 import { toast } from "@repo/design-system";
 import { useEffect, useRef, useState } from "react";
 
@@ -144,7 +144,7 @@ export function ResourceAssetCreateView({
     setModelsLoading(true);
     Promise.all([
       listImageGenerationModels(projectId),
-      fetchCanvasSettings().catch(() => {
+      getCanvasSettings().catch(() => {
         if (active) {
           toast.add({
             type: "warning",

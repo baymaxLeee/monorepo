@@ -1,4 +1,4 @@
-import { type Bot, fetchBot } from "@repo/api";
+import { type Bot, getBot } from "@repo/api/admin";
 import {
   Badge,
   buttonVariants,
@@ -29,7 +29,7 @@ export function BotDetailPage() {
     }
     let alive = true;
     setLoading(true);
-    fetchBot(id, { skipErrorNotify: true })
+    getBot(id, { skipErrorNotify: true })
       .then((data) => alive && setBot(data))
       .catch((e) => alive && setError(getErrorMessage(e)))
       .finally(() => alive && setLoading(false));

@@ -1,9 +1,4 @@
-import {
-  fetchTelemetryErrors,
-  fetchTelemetryPerformance,
-  type TelemetryErrorEvent,
-  type TelemetryPerformanceEvent,
-} from "@repo/api";
+import { listErrorEvents, listPerformanceEvents, type ErrorEvent, type PerformanceEvent } from "@repo/api/telemetry";
 import {
   Alert,
   AlertDescription,
@@ -25,8 +20,8 @@ import { buildDashboardData, buildVitalSummaries } from "./dashboardData";
 
 export function DashboardPage() {
   const user = usePlatformStore((state) => state.user);
-  const [items, setItems] = useState<TelemetryErrorEvent[]>([]);
-  const [performanceItems, setPerformanceItems] = useState<TelemetryPerformanceEvent[]>([]);
+  const [items, setItems] = useState<ErrorEvent[]>([]);
+  const [performanceItems, setPerformanceItems] = useState<PerformanceEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -34,8 +29,8 @@ export function DashboardPage() {
     setLoading(true);
     setError(null);
     Promise.all([
-      fetchTelemetryErrors(200, { skipErrorNotify: true }),
-      fetchTelemetryPerformance(500, { skipErrorNotify: true }),
+      listErrorEvents({ limit: 200 }, { skipErrorNotify: true }),
+      listPerformanceEvents({ limit: 500 }, { skipErrorNotify: true }),
     ])
       .then(([errors, performance]) => {
         setItems(errors.items);

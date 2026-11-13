@@ -4,7 +4,7 @@ import {
   CanvasAssetMediaType as AssetMediaType,
   CanvasAssetOwnerType as AssetOwnerType,
   CanvasAssetReviewStatus as AssetReviewStatus,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 export { AssetMediaType, AssetOwnerType, AssetReviewStatus };
 

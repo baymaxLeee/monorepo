@@ -1,5 +1,5 @@
 import { ArtifactPreview, type ArtifactPreviewProps, resolveArtifactPreviewKind } from "@repo/ai-elements";
-import type { StorageDeliveryRef } from "@repo/api";
+import { type StorageDeliveryRef } from "@repo/api";
 import { Button } from "@repo/design-system";
 import { CodeEditor } from "@repo/editors/code-editor";
 import { MarkdownEditor } from "@repo/editors/markdown-editor";

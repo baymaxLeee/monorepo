@@ -1,4 +1,4 @@
-import { canvasAdminGetProject, canvasAdminUpdateProject, canvasCreateProject } from "@repo/api";
+import { canvasAdminGetProject, canvasAdminUpdateProject, canvasCreateProject } from "@repo/api/canvas";
 
 import type { project } from "@/domain";
 

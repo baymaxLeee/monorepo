@@ -10,6 +10,6 @@ router = APIRouter(prefix="/rum", tags=["rum"])
 
 
 @router.post("/batch", status_code=status.HTTP_204_NO_CONTENT)
-async def batch(payload: RumBatch, session: DbSession, current_user: OptionalUser) -> Response:
+async def ingest_rum_batch(payload: RumBatch, session: DbSession, current_user: OptionalUser) -> Response:
     await ingest_batch(session, payload, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

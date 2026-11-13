@@ -4,7 +4,7 @@ import {
   CanvasBenefitPackageScopeType,
   canvasListAvailableBenefitPackages,
   type CanvasAssetReview,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import type { asset, benefit_package } from "@/domain";
 

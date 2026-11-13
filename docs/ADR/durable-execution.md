@@ -17,9 +17,10 @@ run completion 与进度 stream 独立收口，stream EOF 不能推断业务成�
 不新增浏览器进度协议或通用消息 broker。业务真相保留在各服务自己的表。
 
 注册种类以[registry](../../apps/backend/services/executor/src/application/tasks/registry.ts)
-为准，当前包括文件批次、Knowledge 文档处理、视频生成、Canvas 归档和视频拆帧。
-Canvas 普通文本/图片/视频生成的当前执行入口以 Canvas application 为准，
-不能从旧方案推断 Executor 仍注册了这些 task type。
+为准，当前仅包括图片生成和视频生成。Canvas 的生成、删除、归档、
+视频拆帧和其他定制异步任务由 Canvas Worker 从 Canvas 数据库领取；Executor
+不注册 Canvas task type，也不回调 Canvas worker HTTP 路由。Knowledge 文档转换与
+索引在 Knowledge 请求内同步完成，不经过 Executor。
 
 ## 工作流与外部副作用
 
@@ -32,12 +33,20 @@ Workflow 编译再由 Hono/tsx 托管；生产由 Nitro 构建。两者使用 Wo
 必须持久化，长调用观察取消，task type 注册补偿；取消先落库，再清理，清理失败
 不复活任务。`WorkflowRunCancelledError` 与普通失败区别处理。
 
-## 视频业务
+## 媒体生成业务
+
+Chat 的图片和视频工具只负责提交 durable task；`POST /tasks` 返回后 tool execution
+立即完成，不订阅任务 SSE、不等待 provider、分镜、审批或最终媒体。这里的“工具完成”
+表示 Executor 已受理，不表示生成成功。任务状态与结果由 Executor API 和业务工作台
+独立读取；用户停止当前 Chat run 不取消已经受理的后台任务。
+
+图片批次由 Executor Workflow 串行调用 provider，并将成功结果写入 Storage/Knowledge。
+付费图片调用不自动重试，避免在响应丢失时重复扣费；批次进度与最终结果写入 task。
 
 Chat 提交完整创作规划；Executor 管理分镜/预算投影、审批、付费生成、Take 审核、
 合成、确定性 QA、暂存与发布。审批绑定投影版本，修改使旧审批失效，Workflow
-Hook 恢复同一耐久 run。创建工具在初始规划持久化后返回 production ID，
-不等待完整视频生命周期，因此后续交付物可以继续。
+Hook 恢复同一耐久 run。创建工具在任务受理后立即返回稳定的 task/production ID，
+不等待初始规划或完整视频生命周期，因此 Agent tool-loop 可以继续。
 
 付费 create 不自动重试：响应丢失可能意味着 provider 已创建任务。记录 reservation
 与 provider 标识，只有有幂等/查询契约时才安全恢复。确定性 QA 不等于语义质量

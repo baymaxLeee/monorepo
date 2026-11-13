@@ -52,14 +52,16 @@ ownership and failure semantics. No service-to-service source imports.
 
 - Ordinary file authoring is not an Executor task. The primary Chat Agent writes
   and validates files in its run Sandbox, then explicitly publishes them to Storage.
-- Knowledge processing calls Knowledge-owned convert/index commands; no foreign
-  DB access. Canvas archive/frame workflows preserve Canvas domain ownership.
+- Knowledge document processing runs synchronously inside Knowledge; Canvas-owned
+  asynchronous work runs in the Canvas worker. Do not restore either task type here.
+- Image and video tools are submit-only: Chat returns after `POST /tasks` and never
+  holds its tool loop open for Workflow progress or completion. Image batches and
+  video production are the only Executor task kinds.
 - Video approval binds to projection version. Paid create calls must not retry
   blindly after an ambiguous provider response. Persist provider IDs for cleanup.
 - Stream large media through scratch files and Asset upload; don't buffer whole
   videos. ffmpeg is a deployment/local executable dependency.
-- Task kinds are defined by the registry, not by old docs describing removed
-  Canvas text/image/video task types.
+- Task kinds are defined by the registry; do not restore Canvas- or Knowledge-owned task types.
 
 ## Verification
 

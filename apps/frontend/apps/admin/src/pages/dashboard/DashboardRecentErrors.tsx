@@ -1,9 +1,9 @@
-import type { TelemetryErrorEvent } from "@repo/api";
+import { type ErrorEvent } from "@repo/api/telemetry";
 import { Badge, InlineCode, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@repo/design-system";
 
 import { formatTime, shortId } from "./dashboardData";
 
-export function RecentErrors({ items }: { items: TelemetryErrorEvent[] }) {
+export function RecentErrors({ items }: { items: ErrorEvent[] }) {
   if (items.length === 0) {
     return <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">暂无错误数据</div>;
   }

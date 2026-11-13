@@ -1,4 +1,4 @@
-import { canvasDeleteProject, CanvasSortDirection } from "@repo/api";
+import { canvasDeleteProject, CanvasSortDirection } from "@repo/api/canvas";
 import { Button } from "@repo/design-system";
 import { useDebounce, useInfiniteScroll } from "ahooks";
 import {

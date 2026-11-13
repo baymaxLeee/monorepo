@@ -1,4 +1,4 @@
-import { fetchObservabilityTrace, fetchObservabilityTraces, type TraceSummary } from "@repo/api";
+import { recentTraces, traceDetail, type TraceSummary } from "@repo/api/telemetry";
 import {
   Badge,
   Button,
@@ -26,13 +26,13 @@ export function TraceExplorer() {
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const tracesQuery = useQuery({
     queryKey: ["telemetry", "traces", 50, 60],
-    queryFn: () => fetchObservabilityTraces({ limit: 50, minutes: 60 }, { skipErrorNotify: true }),
+    queryFn: () => recentTraces({ limit: 50, minutes: 60 }, { skipErrorNotify: true }),
     refetchInterval: 30_000,
   });
   const selected = selectedTraceId ?? tracesQuery.data?.items[0]?.trace_id ?? null;
   const detailQuery = useQuery({
     queryKey: ["telemetry", "trace", selected],
-    queryFn: () => fetchObservabilityTrace(selected ?? "", { skipErrorNotify: true }),
+    queryFn: () => traceDetail(selected ?? "", { skipErrorNotify: true }),
     enabled: Boolean(selected),
   });
 

@@ -1,4 +1,5 @@
-import { canvasGetGraph, observeCanvasReceipts, subscribeCanvasEvents } from "@repo/api";
+import { observeCanvasReceipts, subscribeCanvasEvents } from "@repo/api";
+import { canvasGetGraph } from "@repo/api/canvas";
 import { toast } from "@repo/design-system";
 import { useStore } from "jotai";
 import { useCallback, useEffect, useRef } from "react";

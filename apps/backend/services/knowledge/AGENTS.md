@@ -36,8 +36,8 @@ User-owned semantic document knowledge base: parsing, MarkItDown conversion, ind
 - Documents are user-scoped; `conversation_id` is an optional tag only (no FK).
 - Ordinary code, Markdown, HTML, JSON, archives, and other downloadable files bypass Knowledge. They are authored in Sandbox, stored as immutable Storage revisions, and registered as Chat conversation files.
 - Deleting a chat conversation asynchronously removes generated `artifact` documents, artifact-generation blocks, and staged media through Chat's transactional outbox. User-uploaded `source` documents remain independently owned Knowledge content.
-- Both **convert and indexing are async and decoupled from ingest progress** Durable intent is the document row's `received`/`pending` state. A bounded dispatcher submits the idempotent `knowledge-document-process` task to Executor Workflow, which calls back into Knowledge for convert then index. Knowledge retains all document state and DB access; Executor only supplies replay, retry, and recovery.
-- Reading a not-yet-converted file: the internal `/documents/{id}/slice` endpoint takes `wait_ms` and returns `state: ready|processing|failed`; chat document preview long-polls it so a just-uploaded file becomes readable as soon as convert ends.
+- Source ingest synchronously converts the immutable Storage revision to Markdown and builds its RAG index before returning. Conversion and indexing remain idempotent and use cluster-wide advisory locks; do not restore an Executor workflow or a document-processing worker without a demonstrated product need.
+- The internal `/documents/{id}/slice` endpoint retains `wait_ms` and `state: ready|processing|failed` for concurrent reads and compatibility, although ordinary ingest now returns after processing converges.
 - RAG index is kept fresh: re-index on document change; `document_chunks` has an `ON DELETE CASCADE` FK so deleting a document removes its chunks.
 - Embedding model and the `vector(N)` column dimension must agree; changing the model requires altering the column + re-indexing.
 - Errors via `kernel.errors.*`, NEVER raw HTTPException.

@@ -1,9 +1,9 @@
 import { registerRemotes } from "@module-federation/enhanced/runtime";
-import { type AppEntry, fetchApps } from "@repo/api";
+import { type App, listApps } from "@repo/api/admin";
 
-export type { AppEntry } from "@repo/api";
+export type { App } from "@repo/api/admin";
 
-let loadPromise: Promise<AppEntry[]> | null = null;
+let loadPromise: Promise<App[]> | null = null;
 
 function remoteEntry(entry: string): string {
   const url = new URL(entry, globalThis.location.origin);
@@ -13,12 +13,12 @@ function remoteEntry(entry: string): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function loadApps(): Promise<AppEntry[]> {
+export function loadApps(): Promise<App[]> {
   if (loadPromise) {
     return loadPromise;
   }
 
-  const request = fetchApps({ skipErrorNotify: true })
+  const request = listApps({ skipErrorNotify: true })
     .then((apps) => {
       registerRemotes(
         apps.map((app) => ({
@@ -38,7 +38,7 @@ export function loadApps(): Promise<AppEntry[]> {
   return request;
 }
 
-export function remoteModuleId(app: AppEntry): string {
+export function remoteModuleId(app: App): string {
   const expose = app.expose_key.replace(/^\.\//, "") || "routes";
   return `${app.remote_name}/${expose}`;
 }

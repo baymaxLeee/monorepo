@@ -12,3 +12,15 @@ func TestCanvasTextGenerationUsesLocalScheduler(t *testing.T) {
 		t.Fatalf("text generation backend = %q, %v; want %q, true", backend, ok, ExecutionBackendLocalScheduled)
 	}
 }
+
+func TestCanvasMediaUtilitiesUseLocalAsyncWorker(t *testing.T) {
+	for _, runType := range []domaintask.RunType{
+		domaintask.RunTypeCanvasVideoArchiveExport,
+		domaintask.RunTypeCanvasNodeVideoFirstLastFrameExtraction,
+	} {
+		backend, ok := ExecutionBackendForRunType(runType)
+		if !ok || backend != ExecutionBackendLocalAsync {
+			t.Fatalf("%s backend = %q, %v; want %q, true", runType, backend, ok, ExecutionBackendLocalAsync)
+		}
+	}
+}

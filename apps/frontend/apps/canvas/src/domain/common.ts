@@ -1,6 +1,6 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-import { CanvasSortDirection as SortDirection } from "@repo/api";
+import { CanvasSortDirection as SortDirection } from "@repo/api/canvas";
 
 export { SortDirection };
 

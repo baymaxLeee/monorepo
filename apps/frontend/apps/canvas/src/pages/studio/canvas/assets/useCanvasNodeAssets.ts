@@ -1,4 +1,4 @@
-import { canvasMaterializeAssetReference, canvasMaterializeResourceReference } from "@repo/api";
+import { canvasMaterializeAssetReference, canvasMaterializeResourceReference } from "@repo/api/canvas";
 import { toast } from "@repo/design-system";
 import { useCallback, type RefObject } from "react";
 

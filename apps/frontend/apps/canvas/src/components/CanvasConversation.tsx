@@ -1,5 +1,5 @@
 import { ChatSession, ChatWorkspacePanel } from "@repo/ai-elements/conversation";
-import { createCanvasConversation } from "@repo/api";
+import { createCanvasConversation } from "@repo/api/chat";
 import { Button } from "@repo/design-system";
 import { useEffect, useState } from "react";
 export function CanvasConversation({
@@ -20,7 +20,7 @@ export function CanvasConversation({
     setLoading(true);
     setFailed(false);
     setConversationId(null);
-    void createCanvasConversation(projectId, canvasId)
+    void createCanvasConversation({ project_id: projectId, canvas_id: canvasId })
       .then((conversation) => {
         if (active) setConversationId(conversation.id);
       })

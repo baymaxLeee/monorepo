@@ -1,11 +1,11 @@
 import { MessageResponse } from "@repo/ai-elements";
 import {
   decideVideoProduction,
-  fetchVideoProduction,
-  fetchVideoProductionPreview,
+  getVideoProduction,
+  getVideoProductionPreviewUrl,
   type VideoProductionDetail,
   type VideoShotPlan,
-} from "@repo/api";
+} from "@repo/api/chat";
 import { Badge, Button, ScrollArea, Separator, toast } from "@repo/design-system";
 import { getErrorMessage, randomId } from "@repo/shared";
 import { Loader2Icon, RefreshCwIcon, XIcon } from "lucide-react";
@@ -55,7 +55,7 @@ export function VideoProductionWorkspace({
 
   const load = useCallback(async () => {
     try {
-      setDetail(await fetchVideoProduction(conversationId, productionId));
+      setDetail(await getVideoProduction(conversationId, productionId));
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
@@ -76,21 +76,16 @@ export function VideoProductionWorkspace({
       return;
     }
     let active = true;
-    let url: string | null = null;
-    void fetchVideoProductionPreview(conversationId, productionId)
-      .then((blob) => {
+    void getVideoProductionPreviewUrl(conversationId, productionId)
+      .then((preview) => {
         if (!active) {
           return;
         }
-        url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
+        setPreviewUrl(preview.url);
       })
       .catch(() => setPreviewUrl(null));
     return () => {
       active = false;
-      if (url) {
-        URL.revokeObjectURL(url);
-      }
     };
   }, [conversationId, detail?.production.stagedMediaId, productionId]);
 

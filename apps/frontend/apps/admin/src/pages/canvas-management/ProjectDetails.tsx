@@ -2,10 +2,9 @@ import {
   canvasAdminGetProject,
   canvasAdminUpdateProject,
   canvasDownloadProjectUsage,
-  listWorkspaceMembers,
   type CanvasProjectDetail,
-  type WorkspaceMemberView,
-} from "@repo/api";
+} from "@repo/api/canvas";
+import { listWorkspaceMembers, type WorkspaceMemberView } from "@repo/api/iam";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Skeleton, toast } from "@repo/design-system";
 import { useEffect, useState } from "react";
 
@@ -31,7 +30,7 @@ export function ProjectDetails({
     let active = true;
     setProject(null);
     setFailed(false);
-    void Promise.all([canvasAdminGetProject(projectId), listWorkspaceMembers(workspaceId, "active")])
+    void Promise.all([canvasAdminGetProject(projectId), listWorkspaceMembers(workspaceId, { status: "active" })])
       .then(([response, directory]) => {
         if (!active) return;
         setProject(response.project);

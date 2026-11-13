@@ -20,8 +20,8 @@ from application.contracts.document import (
     SourceUploadIntentInput,
     SourceUploadPlan,
 )
+from application.document_processing import process_document
 from application.documents import document_to_schema
-from application.executor_client import dispatch_document_now
 from application.storage_client import ensure_document_claim_active, get_storage_client
 
 
@@ -149,8 +149,13 @@ async def ingest_assets(
                         asset_id=asset.asset_id,
                         revision_id=asset.revision_id,
                     )
-            await dispatch_document_now(row.id, updated_at=row.updated_at, provider_id=provider_id)
-            return IngestReceipt(index=index, client_ref=item.client_ref, document=document_to_schema(row))
+            async with semaphore:
+                await process_document(row.id, provider_id=provider_id)
+            async with factory() as session:
+                processed = await document_crud.get_document_by_id(session, row.id)
+            if processed is None:
+                raise ValueError("document was deleted during processing")
+            return IngestReceipt(index=index, client_ref=item.client_ref, document=document_to_schema(processed))
         except Exception as exc:
             return IngestFailure(
                 index=index,

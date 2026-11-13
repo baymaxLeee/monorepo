@@ -6,7 +6,7 @@ import {
   type Membership,
   type WorkspaceSummary,
   switchActiveWorkspace,
-} from "@repo/api";
+} from "@repo/api/iam";
 import {
   Badge,
   Button,
@@ -59,7 +59,7 @@ function PendingPage() {
       }
       const active = activeMemberships(me);
       if (active.length === 1) {
-        const session = await switchActiveWorkspace(active[0].workspaceId);
+        const session = await switchActiveWorkspace({ workspaceId: active[0].workspaceId });
         setUser(session.user);
         window.location.assign("/platform/chat");
       } else if (active.length > 1) {

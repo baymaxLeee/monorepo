@@ -1,6 +1,6 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-import { CanvasBenefitPackageScopeType as BenefitPackageScopeType } from "@repo/api";
+import { CanvasBenefitPackageScopeType as BenefitPackageScopeType } from "@repo/api/canvas";
 
 export { BenefitPackageScopeType };
 

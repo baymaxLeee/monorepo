@@ -1,7 +1,6 @@
-import { canvasArchiveInputSchema } from "../../../workflows/canvas-archive.js";
-import { canvasVideoFramesInputSchema } from "../../../workflows/canvas-video-frames.js";
-import { knowledgeDocumentProcessInputSchema } from "../../../workflows/knowledge-document-process.js";
+import { imageGenerationInputSchema } from "../../../workflows/image-generation.js";
 import { videoGenerationInputSchema } from "../../../workflows/video-generation.js";
+import { cancelImageGeneration } from "../image/cancel.js";
 import { cancelVideoGeneration } from "../video/cancel.js";
 import type { TaskTypeDefinition } from "./types.js";
 
@@ -19,10 +18,10 @@ export function getTaskType(name: string): TaskTypeDefinition | undefined {
 }
 
 registerTaskType({
-  name: "knowledge-document-process",
-  inputSchema: knowledgeDocumentProcessInputSchema,
-  workflow: { workflowId: "workflow//./workflows/knowledge-document-process//knowledgeDocumentProcessWorkflow" },
-  retryFailedOnCreate: true,
+  name: "image-generation",
+  inputSchema: imageGenerationInputSchema,
+  workflow: { workflowId: "workflow//./workflows/image-generation//imageGenerationWorkflow" },
+  cancel: cancelImageGeneration,
 });
 
 registerTaskType({
@@ -30,16 +29,4 @@ registerTaskType({
   inputSchema: videoGenerationInputSchema,
   workflow: { workflowId: "workflow//./workflows/video-generation//videoGenerationWorkflow" },
   cancel: cancelVideoGeneration,
-});
-
-registerTaskType({
-  name: "canvas-archive",
-  inputSchema: canvasArchiveInputSchema,
-  workflow: { workflowId: "workflow//./workflows/canvas-archive//canvasArchiveWorkflow" },
-});
-
-registerTaskType({
-  name: "canvas-video-frames",
-  inputSchema: canvasVideoFramesInputSchema,
-  workflow: { workflowId: "workflow//./workflows/canvas-video-frames//canvasVideoFramesWorkflow" },
 });

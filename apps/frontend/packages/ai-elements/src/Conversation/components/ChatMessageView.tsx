@@ -12,7 +12,7 @@ import {
   MessageToolbar,
   type SourceItem,
 } from "@repo/ai-elements";
-import type { ConversationDocument, MessageBranchGroup } from "@repo/api";
+import { type ConversationDocument, type MessageBranchGroup } from "@repo/api/chat";
 import { Button, Spinner } from "@repo/design-system";
 import { cn } from "@repo/shared";
 import { isFileUIPart, isReasoningFileUIPart, isToolUIPart } from "ai";

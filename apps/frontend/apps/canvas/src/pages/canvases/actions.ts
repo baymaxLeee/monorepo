@@ -1,4 +1,4 @@
-import { canvasCreateCanvas, canvasDeleteCanvas, canvasGetCanvas, canvasUpdateCanvas } from "@repo/api";
+import { canvasCreateCanvas, canvasDeleteCanvas, canvasGetCanvas, canvasUpdateCanvas } from "@repo/api/canvas";
 
 import type { canvas } from "@/domain";
 

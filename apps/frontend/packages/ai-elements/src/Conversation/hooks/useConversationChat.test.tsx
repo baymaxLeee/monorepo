@@ -18,11 +18,11 @@ const mocks = vi.hoisted(() => ({
   pending: null as { body: Record<string, unknown>; messages: ChatUIMessage[] } | null,
   retry: vi.fn(),
 }));
-vi.mock("@repo/api", () => ({
-  fetchConversation: mocks.fetch,
+vi.mock("@repo/api", () => ({ authFetch: vi.fn() }));
+vi.mock("@repo/api/chat", () => ({
+  getConversation: mocks.fetch,
   selectConversationHistory: mocks.select,
   cancelConversationAgentRun: mocks.cancel,
-  authFetch: vi.fn(),
 }));
 vi.mock("@repo/design-system", () => ({ toast: { add: vi.fn() } }));
 vi.mock("../lib/transport", () => ({

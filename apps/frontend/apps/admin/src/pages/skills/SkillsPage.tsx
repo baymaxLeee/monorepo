@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createSkill, deleteSkill, fetchSkills, type SkillSummary } from "@repo/api";
+import { createSkill, deleteSkill, listSkills, type SkillSummary } from "@repo/api/admin";
 import {
   Alert,
   AlertDescription,
@@ -83,7 +83,7 @@ export function SkillsPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetchSkills({ skipErrorNotify: true })
+    listSkills({ skipErrorNotify: true })
       .then(setSkills)
       .catch((reason: unknown) => setError(getErrorMessage(reason)))
       .finally(() => setLoading(false));

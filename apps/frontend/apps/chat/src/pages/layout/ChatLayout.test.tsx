@@ -12,7 +12,7 @@ const mediaListeners = new Set<() => void>();
 const renders = vi.hoisted(() => ({ sidebar: vi.fn(), content: vi.fn(), preview: vi.fn() }));
 vi.mock("@repo/api", async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
-  fetchConversations: async () => [],
+  listConversations: async () => [],
 }));
 vi.mock("../../components/ChatConversationSidebar", () => ({
   ChatConversationSidebar: () => {

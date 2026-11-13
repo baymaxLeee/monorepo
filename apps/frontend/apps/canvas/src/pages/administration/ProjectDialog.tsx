@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { canvasUpdateProject, listWorkspaceMembers, type WorkspaceMemberView } from "@repo/api";
+import { canvasUpdateProject } from "@repo/api/canvas";
+import { listWorkspaceMembers, type WorkspaceMemberView } from "@repo/api/iam";
 import {
   Button as DialogButton,
   Checkbox,
@@ -117,7 +118,7 @@ export function ProjectDialog({ state, memberOnlyEdit = false, onClose, onSucces
       return;
     }
     setMembersLoading(true);
-    void listWorkspaceMembers(workspaceId, "active", { skipErrorNotify: true })
+    void listWorkspaceMembers(workspaceId, { status: "active" }, { skipErrorNotify: true })
       .then((items) => {
         if (active) setDirectory(items);
       })

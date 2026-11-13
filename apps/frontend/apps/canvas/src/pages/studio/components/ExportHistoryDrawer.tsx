@@ -1,8 +1,5 @@
-import {
-  CanvasVideoArchiveExportStatus,
-  fetchCanvasArchiveContent,
-  type CanvasProjectCanvasVideoArchiveExport,
-} from "@repo/api";
+import { API_BASE_URL, authFetch } from "@repo/api";
+import { CanvasVideoArchiveExportStatus, type CanvasProjectCanvasVideoArchiveExport } from "@repo/api/canvas";
 import {
   Sheet,
   SheetContent,
@@ -106,7 +103,12 @@ function ExportStatusAction({ item, canvasId, projectId }: { item: ExportItem; c
               if (!item.path) {
                 return;
               }
-              void fetchCanvasArchiveContent(projectId, canvasId, item.task_run_id)
+              const path = `/api/canvas-server/projects/${encodeURIComponent(projectId)}/canvases/${encodeURIComponent(canvasId)}/archives/${encodeURIComponent(item.task_run_id)}/content`;
+              void authFetch(`${API_BASE_URL}${path}`)
+                .then(async (response) => {
+                  if (!response.ok) throw new Error(`archive download failed: ${response.status}`);
+                  return response.blob();
+                })
                 .then((blob) => saveBlob(blob, item.output_filename))
                 .catch(() => undefined);
             }}

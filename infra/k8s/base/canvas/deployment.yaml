@@ -26,6 +26,7 @@ spec:
         - name: canvas
           image: ghcr.io/example/canvas:latest
           imagePullPolicy: IfNotPresent
+          command: ["/canvas-server"]
           ports:
             - { name: http, containerPort: 8012 }
           envFrom:

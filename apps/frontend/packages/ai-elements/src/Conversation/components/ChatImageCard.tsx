@@ -13,6 +13,7 @@ export type GeneratedImageRef = {
 export type GenerateImageOutput = {
   ok: boolean;
   status: string;
+  taskId?: string;
   images: GeneratedImageRef[];
   error?: string;
   count?: number;
@@ -58,6 +59,7 @@ export function parseGenerateImageOutput(output: unknown): GenerateImageOutput |
             ? "completed"
             : "generating",
     images,
+    taskId: typeof raw.task_id === "string" ? raw.task_id : undefined,
     error: outcome.ok === false ? outcome.error.message : undefined,
     count: typeof raw.count === "number" ? raw.count : undefined,
     failed: typeof raw.failed === "number" ? raw.failed : undefined,
@@ -101,6 +103,20 @@ export function ChatImageCard({
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
         {errorText?.trim() || parsed?.error?.trim() || "图片生成失败。"}
+      </div>
+    );
+  }
+
+  if (parsed?.taskId) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-lg border bg-background px-4 py-3 shadow-sm">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          <ImageIcon className="size-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-foreground">图片生成任务</span>
+          <span className="block truncate text-sm text-muted-foreground">任务已提交，正在后台生成</span>
+        </span>
       </div>
     );
   }

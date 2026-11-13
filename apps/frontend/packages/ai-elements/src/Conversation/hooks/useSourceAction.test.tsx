@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { useSourceAction } from "./useSourceAction";
 
 const delivery = vi.hoisted(() => vi.fn());
-vi.mock("@repo/api", () => ({ fetchConversationSourceDelivery: delivery }));
+vi.mock("@repo/api/chat", () => ({ authorizeConversationSourceDelivery: delivery }));
 const source = {
   type: "source-document" as const,
   sourceId: "doc",

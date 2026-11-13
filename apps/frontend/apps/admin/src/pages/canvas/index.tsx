@@ -1,10 +1,10 @@
 import {
-  fetchCanvasSettings,
-  saveCanvasSettings,
-  fetchModelProviders,
   type CanvasSettings,
+  getCanvasSettings,
+  listProviders,
   type ModelProvider,
-} from "@repo/api";
+  updateCanvasSettings,
+} from "@repo/api/admin";
 import {
   Button,
   Card,
@@ -47,7 +47,7 @@ export function Component() {
     let active = true;
     setSettings(null);
     setFailed(false);
-    void Promise.all([fetchCanvasSettings(), fetchModelProviders()])
+    void Promise.all([getCanvasSettings(), listProviders()])
       .then(([config, models]) => {
         if (active) {
           setSettings(config);
@@ -101,7 +101,7 @@ function SettingsForm({
       className="max-w-4xl space-y-6"
       onSubmit={form.handleSubmit(async (defaults) => {
         try {
-          const next = await saveCanvasSettings({ expected_revision: settings.revision, defaults });
+          const next = await updateCanvasSettings({ expected_revision: settings.revision, defaults });
           onSaved(next);
           toast.add({ type: "success", title: "创作设置已保存" });
         } catch {

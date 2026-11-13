@@ -5,7 +5,7 @@ import {
   ReasoningTrigger,
   type SourceItem,
 } from "@repo/ai-elements";
-import type { ConversationDocument } from "@repo/api";
+import { type ConversationDocument } from "@repo/api/chat";
 import { Badge, Spinner } from "@repo/design-system";
 import { isFileUIPart, isReasoningFileUIPart, isToolUIPart } from "ai";
 import { SparklesIcon } from "lucide-react";

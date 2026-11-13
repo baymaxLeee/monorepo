@@ -1,13 +1,13 @@
+import { authFetch, createStorageDownloadUrl, downloadAssetUrl } from "@repo/api";
 import {
-  batchDeleteKnowledgeDocuments,
-  deleteKnowledgeDocument,
-  createStorageDownloadUrl,
-  downloadAssetUrl,
-  ingestKnowledgeDocuments,
-  type KnowledgeDocument,
-  listKnowledgeDocuments,
-  reindexKnowledgeDocument,
-} from "@repo/api";
+  batchDeleteMyDocuments,
+  deleteMyDocument,
+  type Document,
+  ingestDocuments,
+  listMyDocuments,
+  prepareIngest,
+  reindexMyDocument,
+} from "@repo/api/knowledge";
 import {
   Alert,
   AlertDescription,
@@ -55,7 +55,7 @@ function formatBytes(size: number): string {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function statusBadge(doc: KnowledgeDocument) {
+function statusBadge(doc: Document) {
   const status = doc.ingest_status ?? "ready";
   if (status === "failed") {
     return <Badge variant="destructive">失败</Badge>;
@@ -66,7 +66,7 @@ function statusBadge(doc: KnowledgeDocument) {
   return <Badge variant="secondary">处理中</Badge>;
 }
 
-function indexBadge(doc: KnowledgeDocument) {
+function indexBadge(doc: Document) {
   const status = doc.index_status ?? "skipped";
   if (status === "pending" || status === "indexing") {
     return <Badge variant="secondary">索引中</Badge>;
@@ -80,13 +80,13 @@ function indexBadge(doc: KnowledgeDocument) {
   return null;
 }
 
-function isIndexInFlight(doc: KnowledgeDocument): boolean {
+function isIndexInFlight(doc: Document): boolean {
   const status = doc.index_status ?? "skipped";
   return status === "pending" || status === "indexing";
 }
 
 export function KnowledgeBasePage() {
-  const [docs, setDocs] = useState<KnowledgeDocument[] | null>(null);
+  const [docs, setDocs] = useState<Document[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -97,7 +97,7 @@ export function KnowledgeBasePage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    listKnowledgeDocuments({ kind: "source" }, { skipErrorNotify: true })
+    listMyDocuments({ kind: "source" }, { skipErrorNotify: true })
       .then((rows) => {
         setDocs(rows);
         setSelected(new Set());
@@ -130,8 +130,33 @@ export function KnowledgeBasePage() {
     }));
     setUploading(true);
     try {
-      const result = await ingestKnowledgeDocuments(files);
-      for (const failure of result.failed) {
+      const prepared = await prepareIngest({
+        files: files.map(({ clientRef, file }) => ({
+          client_ref: clientRef,
+          filename: file.name,
+          media_type: file.type || "application/octet-stream",
+          size_bytes: file.size,
+        })),
+      });
+      await Promise.all(
+        prepared.uploads.map(async (plan) => {
+          const file = files.find((candidate) => candidate.clientRef === plan.client_ref)?.file;
+          if (!file) throw new Error(`missing upload source: ${plan.client_ref}`);
+          const response = await authFetch(plan.upload_url, {
+            method: "PUT",
+            headers: { "Content-Type": file.type || "application/octet-stream" },
+            body: file,
+          });
+          if (!response.ok) throw new Error(`upload failed: ${response.status}`);
+        }),
+      );
+      const result = await ingestDocuments({
+        uploads: prepared.uploads.map((plan) => ({
+          client_ref: plan.client_ref,
+          upload_session_id: plan.upload_session_id,
+        })),
+      });
+      for (const failure of result.failed ?? []) {
         toast.add({ type: "error", title: `导入失败：${failure.error}` });
       }
       if (result.documents.length > 0) {
@@ -145,7 +170,7 @@ export function KnowledgeBasePage() {
     }
   }
 
-  async function download(doc: KnowledgeDocument) {
+  async function download(doc: Document) {
     try {
       if (!doc.asset_id || !doc.source_revision_id) throw new Error("文件缺少存储版本信息");
       const capability = await createStorageDownloadUrl({
@@ -157,9 +182,9 @@ export function KnowledgeBasePage() {
     } catch {}
   }
 
-  async function retryIndex(doc: KnowledgeDocument) {
+  async function retryIndex(doc: Document) {
     try {
-      await reindexKnowledgeDocument(doc.id);
+      await reindexMyDocument(doc.id);
       toast.add({ type: "success", title: "已重新提交索引" });
       load();
     } catch (e) {
@@ -167,12 +192,12 @@ export function KnowledgeBasePage() {
     }
   }
 
-  async function remove(doc: KnowledgeDocument) {
+  async function remove(doc: Document) {
     if (!window.confirm(`确认删除「${doc.title}」？`)) {
       return;
     }
     try {
-      await deleteKnowledgeDocument(doc.id);
+      await deleteMyDocument(doc.id);
       toast.add({ type: "success", title: "已删除" });
       load();
     } catch {}
@@ -187,7 +212,7 @@ export function KnowledgeBasePage() {
       return;
     }
     try {
-      const res = await batchDeleteKnowledgeDocuments(ids);
+      const res = await batchDeleteMyDocuments({ ids });
       toast.add({ type: "success", title: `已删除 ${res.deleted} 个文档` });
       load();
     } catch {}
@@ -294,7 +319,7 @@ export function KnowledgeBasePage() {
                     </TableCell>
                     <TableCell className="font-medium">{doc.title}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{doc.filename}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatBytes(doc.source_size)}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatBytes(doc.source_size ?? 0)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
                         {statusBadge(doc)}

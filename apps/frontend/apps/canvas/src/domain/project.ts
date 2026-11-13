@@ -1,6 +1,6 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-import { CanvasProjectSortField as ProjectSortField } from "@repo/api";
+import { CanvasProjectSortField as ProjectSortField } from "@repo/api/canvas";
 
 import type * as common from "./common";
 import type * as modelTypes from "./modelTypes";

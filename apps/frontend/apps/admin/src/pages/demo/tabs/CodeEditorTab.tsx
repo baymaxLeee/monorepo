@@ -3,15 +3,15 @@ import { useState } from "react";
 
 import { DemoCard } from "../DemoCard";
 
-const demoCode = `import { apiHttp } from "@repo/api";
+const demoCode = `import { getBot } from "@repo/api/admin";
 
 export async function loadBotMetrics(botId: string) {
-  const { data } = await apiHttp.get(\`/api/admin-server/bot/\${botId}/metrics\`);
+  const bot = await getBot(botId);
 
   return {
-    successRate: data.success_rate ?? 0,
-    averageLatency: data.avg_latency_ms ?? 0,
-    totalSessions: data.total_sessions ?? 0,
+    id: bot.id,
+    name: bot.name,
+    enabled: bot.is_enabled,
   };
 }
 `;

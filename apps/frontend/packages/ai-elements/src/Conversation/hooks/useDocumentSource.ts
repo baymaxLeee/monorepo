@@ -1,5 +1,4 @@
-import type { ConversationDocumentDetail } from "@repo/api";
-import { fetchConversationDocumentSource } from "@repo/api";
+import { authorizeConversationDocumentDelivery, type ConversationDocumentDetail } from "@repo/api/chat";
 import { useEffect, useState } from "react";
 
 const MAX_CACHED_DOCUMENTS = 8;
@@ -49,12 +48,20 @@ export function fetchCachedDocumentSource(
     }
   }
 
-  const request = fetchConversationDocumentSource(conversationId, documentId, {
-    maxDim,
-  }).catch((error) => {
-    sourceCache.delete(key);
-    throw error;
-  });
+  const request = authorizeConversationDocumentDelivery(
+    conversationId,
+    documentId,
+    maxDim ? { max_dim: maxDim } : undefined,
+  )
+    .then(async (capability) => {
+      const response = await fetch(capability.url, { credentials: "omit", referrerPolicy: "no-referrer" });
+      if (!response.ok) throw new Error(`document download failed: ${response.status}`);
+      return response.blob();
+    })
+    .catch((error) => {
+      sourceCache.delete(key);
+      throw error;
+    });
   sourceCache.set(key, request);
   while (sourceCache.size > MAX_CACHED_DOCUMENTS) {
     const oldest = sourceCache.keys().next().value;

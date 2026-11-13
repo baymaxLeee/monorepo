@@ -1,3 +1,4 @@
+import { type ApiRequestConfig } from "@repo/api";
 import {
   canvasBatchDeleteNodes,
   canvasConnectNodes,
@@ -8,9 +9,8 @@ import {
   canvasReorderStoryboard,
   canvasUpdateNode,
   canvasUpdateNodePositions,
-  type ApiRequestConfig,
   type CanvasNode as CanvasNodeDTO,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import type { canvasnode as view } from "@/domain";
 

@@ -1,7 +1,7 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-import type { CanvasNodeDraftSession as CanvasNodeDraftSessionDTO } from "@repo/api";
 import {
+  type CanvasNodeDraftSession as CanvasNodeDraftSessionDTO,
   CanvasGenerationStatus,
   CanvasNodeAspectRatio,
   CanvasNodeDraftStatus,
@@ -15,7 +15,7 @@ import {
   CanvasNodeVideoProviderStatus,
   CanvasPort,
   CanvasVideoInputMode,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import type * as asset from "./asset";
 import type * as resource from "./resource";

@@ -1,33 +1,33 @@
-# api — Unified Frontend API Package
+# api — OpenAPI-generated frontend clients
 
-Owns all frontend-to-backend HTTP access.
+Ordinary HTTP APIs in this package are generated. Never hand-edit `index.ts` or
+`src/*-server.ts`; change the backend contract and run root `just sync`.
 
-## Architecture
+## Final structure
 
-- Runtime HTTP client: `src/http.ts` (axios instance, same-origin base URL,
-  credentials, auth header injection, 401 refresh retry)
-- Auth/session APIs: `src/session.ts`
-- Domain wrappers: `src/<service-name>.ts` (for hand-written demo wrappers)
-- Generated SDKs: `generated/<service-name>/` (produced from OpenAPI; do not
-  hand-edit generated files)
-- Codegen config: `orval.config.ts`
+- `src/<service>-server.ts`: one Orval `axios-functions` output per service,
+  containing that service's operations, interfaces and enums.
+- `index.ts`: generated service namespaces plus the explicit runtime exports.
+- `http.ts`, `orval-mutator.ts`, `auth-fetch.ts`: the single Axios/auth/error
+  transport used by every generated operation.
+- `chat-stream.ts`, `canvas-stream.ts`, `storage-runtime.ts`, `session.ts`:
+  narrowly scoped runtime code for SSE, redirects/blobs/signed URLs and session
+  lifecycle that OpenAPI clients do not replace.
 
-## Contract Flow
+There are no API templates and no handwritten REST facades. Do not add a DTO,
+enum, endpoint URL, compatibility alias, request wrapper or response reshaper.
+For an ordinary request, improve OpenAPI/`operationId` and regenerate. For an
+actual stream or byte transfer, use `fetch` and the gateway URL directly.
 
-Source of truth is local monorepo contracts:
+## Imports
 
-1. Backend exports OpenAPI JSON to `schemas/openapi/<service-name>.json`
-2. `cd apps/frontend && just gen-client`
-3. Orval generates typed clients under `packages/api/generated/`
+- Import generated APIs from `@repo/api/admin`, `/canvas`, `/chat`, `/iam`,
+  `/knowledge`, `/storage` or `/telemetry`.
+- Import only runtime transport helpers from `@repo/api`.
+- Never import another service through a handwritten aggregator.
 
-Do not make frontend codegen depend on a live Swagger server. Swagger UI is for
-humans; local OpenAPI files are for reproducible code generation.
+## Generation
 
-## Rules
-
-- All app/MFE API calls go through `@repo/api`.
-- `@repo/api` is the finest-grained public import path. Re-export every
-  public API from `index.ts`; do not add `api/<module>` imports.
-- Use gateway-facing paths (`/api/<service-name>/*`), not internal service
-  paths.
-- Reuse `apiHttp` / `apiMutator`; do not create another axios instance in apps.
+`just sync` exports local OpenAPI files, deletes each prior `*-server.ts`, runs
+Orval, and regenerates `index.ts`. `just sync-check` rejects drift. Generation
+never contacts a live Swagger server.

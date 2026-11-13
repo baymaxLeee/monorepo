@@ -15,7 +15,7 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
 @router.post(":prepare", response_model=PrepareSourceUploadsResult)
-async def prepare(payload: PrepareSourceUploadsInput, current_user: CurrentUser) -> PrepareSourceUploadsResult:
+async def prepare_ingest(payload: PrepareSourceUploadsInput, current_user: CurrentUser) -> PrepareSourceUploadsResult:
     """Authorize file metadata and create resumable Asset upload capabilities."""
     return await prepare_source_uploads(
         current_user=current_user,
@@ -25,7 +25,7 @@ async def prepare(payload: PrepareSourceUploadsInput, current_user: CurrentUser)
 
 
 @router.post("", response_model=IngestResult)
-async def ingest(payload: CreateSourceDocumentsInput, current_user: CurrentUser) -> IngestResult:
+async def ingest_documents(payload: CreateSourceDocumentsInput, current_user: CurrentUser) -> IngestResult:
     """Attach already-uploaded immutable Asset revisions to Knowledge."""
     return await ingest_assets(
         current_user=current_user,

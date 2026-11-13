@@ -297,6 +297,7 @@ services:
   canvas:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/canvas:${IMAGE_TAG:-main}
     container_name: monorepo-canvas
+    entrypoint: ["/canvas-server"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -306,7 +307,6 @@ services:
       OTEL_SERVICE_NAME: canvas
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      EXECUTOR_SERVICE_URL: http://executor:8011
       ADMIN_SERVICE_URL: http://admin:8001
       STORAGE_SERVICE_URL: http://storage:8013
       PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
@@ -319,7 +319,34 @@ services:
       POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
       INTERNAL_API_TOKEN: ${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}"}'
+    <<: *restart_policy
+
+  canvas-worker:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/canvas:${IMAGE_TAG:-main}
+    container_name: monorepo-canvas-worker
+    entrypoint: ["/canvas-worker"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: canvas-worker
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      ADMIN_SERVICE_URL: http://admin:8001
+      STORAGE_SERVICE_URL: http://storage:8013
+      PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
+      PORT: "8012"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: canvas
+      POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: canvas
+      POSTGRES_SSLMODE: disable
+      REDIS_URL: redis://redis:6379/3
+      INTERNAL_API_TOKEN: ${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}
     <<: *restart_policy
 
   chat:
@@ -428,11 +455,10 @@ services:
       WORKFLOW_POSTGRES_MAX_POOL_SIZE: "24"
       FILE_TASK_CONCURRENCY: "8"
       INTERNAL_API_TOKEN: ${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}"}'
       # Provider calls (SSRF-guarded); knowledge owns the published document.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
-      CANVAS_SERVICE_URL: http://canvas:8012
       STORAGE_SERVICE_URL: http://storage:8013
     <<: *restart_policy
 
@@ -452,7 +478,6 @@ services:
       POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: knowledge
       ADMIN_SERVICE_URL: http://admin:8001
-      EXECUTOR_SERVICE_URL: http://executor:8011
       STORAGE_SERVICE_URL: http://storage:8013
       INTERNAL_API_TOKEN: ${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}
       INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}"}'

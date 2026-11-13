@@ -1,4 +1,4 @@
-import type { CanvasGetCanvasGraphResponse, CanvasPatchEvent } from "@repo/api";
+import { type CanvasGetCanvasGraphResponse, type CanvasPatchEvent } from "@repo/api/canvas";
 import { describe, expect, it } from "vitest";
 
 import { applyCanvasPatch, projectionFromSnapshot } from "./streamProjection";

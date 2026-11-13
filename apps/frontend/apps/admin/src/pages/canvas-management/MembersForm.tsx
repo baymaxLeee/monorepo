@@ -1,4 +1,5 @@
-import { canvasAdminUpdateProject, type CanvasProjectDetail, type WorkspaceMemberView } from "@repo/api";
+import { canvasAdminUpdateProject, type CanvasProjectDetail } from "@repo/api/canvas";
+import { type WorkspaceMemberView } from "@repo/api/iam";
 import { Button, Card, CardContent, CardHeader, CardTitle, Checkbox, toast } from "@repo/design-system";
 import { useState } from "react";
 

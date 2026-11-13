@@ -1,4 +1,9 @@
-import { fetchVideoTakePreview, type VideoProductionShotReviewsItem, type VideoShot, type VideoTake } from "@repo/api";
+import {
+  getVideoTakePreviewUrl,
+  type VideoProductionShotReviewsItem,
+  type VideoShot,
+  type VideoTake,
+} from "@repo/api/chat";
 import { Badge, Button } from "@repo/design-system";
 import { CheckIcon, Loader2Icon, RotateCcwIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -20,21 +25,16 @@ function TakePreview({
       return;
     }
     let active = true;
-    let objectUrl: string | null = null;
-    void fetchVideoTakePreview(conversationId, productionId, shotId, take.id)
-      .then((blob) => {
+    void getVideoTakePreviewUrl(conversationId, productionId, shotId, take.id)
+      .then((preview) => {
         if (!active) {
           return;
         }
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
+        setUrl(preview.url);
       })
       .catch(() => setUrl(null));
     return () => {
       active = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
     };
   }, [conversationId, productionId, shotId, take.id, take.stagedMediaId]);
   if (!url) {

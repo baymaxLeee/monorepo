@@ -26,6 +26,7 @@ from infrastructure.persistence.database import close_db, seed_demo_apps
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
 from kernel.observability import configure_opentelemetry
+from kernel.openapi import operation_id_from_route_name
 from kernel.tracing import TraceIDMiddleware
 
 
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description="智能体管理微服务",
         lifespan=lifespan,
+        generate_unique_id_function=operation_id_from_route_name,
         # Swagger/OpenAPI HTTP routes are docs UI only — `gen-openapi` calls
         # app.openapi() in-process, so hiding these in prod doesn't affect
         # codegen. Internal routers still ship real secrets in examples/docs,

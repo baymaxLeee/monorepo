@@ -1,4 +1,4 @@
-import { canvasListCanvases } from "@repo/api";
+import { canvasListCanvases } from "@repo/api/canvas";
 import { Button } from "@repo/design-system";
 import { useInfiniteScroll } from "ahooks";
 import {

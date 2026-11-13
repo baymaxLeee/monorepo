@@ -12,7 +12,7 @@
           "health"
         ],
         "summary": "Livez",
-        "operationId": "livez_livez_get",
+        "operationId": "livez",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -23,7 +23,7 @@
                     "type": "string"
                   },
                   "type": "object",
-                  "title": "Response Livez Livez Get"
+                  "title": "Response Livez"
                 }
               }
             }
@@ -37,7 +37,7 @@
           "health"
         ],
         "summary": "Readyz",
-        "operationId": "readyz_readyz_get",
+        "operationId": "readyz",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -46,7 +46,7 @@
                 "schema": {
                   "additionalProperties": true,
                   "type": "object",
-                  "title": "Response Readyz Readyz Get"
+                  "title": "Response Readyz"
                 }
               }
             }
@@ -60,7 +60,7 @@
           "health"
         ],
         "summary": "Healthz",
-        "operationId": "healthz_healthz_get",
+        "operationId": "healthz",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -69,7 +69,7 @@
                 "schema": {
                   "additionalProperties": true,
                   "type": "object",
-                  "title": "Response Healthz Healthz Get"
+                  "title": "Response Healthz"
                 }
               }
             }
@@ -82,8 +82,8 @@
         "tags": [
           "rum"
         ],
-        "summary": "Batch",
-        "operationId": "batch_rum_batch_post",
+        "summary": "Ingest Rum Batch",
+        "operationId": "ingest_rum_batch",
         "parameters": [
           {
             "name": "X-Auth-User-ID",
@@ -183,7 +183,7 @@
           "errors"
         ],
         "summary": "List Error Events",
-        "operationId": "list_error_events_errors_get",
+        "operationId": "list_error_events",
         "parameters": [
           {
             "name": "limit",
@@ -292,7 +292,7 @@
           "performance"
         ],
         "summary": "List Performance Events",
-        "operationId": "list_performance_events_performance_get",
+        "operationId": "list_performance_events",
         "parameters": [
           {
             "name": "limit",
@@ -401,7 +401,7 @@
           "ops"
         ],
         "summary": "Observability Status",
-        "operationId": "observability_status_ops_observability_get",
+        "operationId": "observability_status",
         "parameters": [
           {
             "name": "X-Auth-User-ID",
@@ -498,7 +498,7 @@
           "ops"
         ],
         "summary": "Recent Traces",
-        "operationId": "recent_traces_ops_traces_get",
+        "operationId": "recent_traces",
         "parameters": [
           {
             "name": "limit",
@@ -619,7 +619,7 @@
           "ops"
         ],
         "summary": "Trace Detail",
-        "operationId": "trace_detail_ops_traces__trace_id__get",
+        "operationId": "trace_detail",
         "parameters": [
           {
             "name": "trace_id",

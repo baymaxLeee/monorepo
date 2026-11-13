@@ -1,4 +1,4 @@
-import { type Bot, fetchBots } from "@repo/api";
+import { type Bot, listBots } from "@repo/api/admin";
 import { getErrorMessage } from "@repo/shared";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -98,7 +98,7 @@ export const useChatStore = create<ChatUIState>()(
         }
         set({ isLoadingAgents: true, agentsError: null });
         try {
-          const list = await fetchBots({ skipErrorNotify: true });
+          const list = await listBots({ skipErrorNotify: true });
           const selected = get().selectedAgentId;
           const stillExists = selected ? list.some((a) => a.id === selected) : false;
           set({

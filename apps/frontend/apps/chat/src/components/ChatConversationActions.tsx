@@ -1,4 +1,4 @@
-import type { Conversation } from "@repo/api";
+import { type Conversation } from "@repo/api/chat";
 import {
   AlertDialog,
   AlertDialogAction,

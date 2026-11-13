@@ -1,11 +1,11 @@
 import { Chat } from "@ai-sdk/react";
+import { authFetch } from "@repo/api";
 import {
-  authFetch,
   type ConversationDetail,
   cancelConversationAgentRun,
-  fetchConversation,
+  getConversation,
   selectConversationHistory,
-} from "@repo/api";
+} from "@repo/api/chat";
 import { getErrorMessage } from "@repo/shared";
 import { lastAssistantMessageIsCompleteWithApprovalResponses, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -133,7 +133,7 @@ export function useConversationChat(id: string) {
             // Fetch only the authoritative run/revision. Keep the partial reply
             // and any unsent client result available for recovery.
             const snapshot = messagesSnapshotKey(chat.messages);
-            void fetchConversation(id, { skipErrorNotify: true })
+            void getConversation(id, { skipErrorNotify: true })
               .then((next) => {
                 if (connectedChatRef.current !== chat || messagesSnapshotKey(chat.messages) !== snapshot) return;
                 if (next.revision < (historyRevisionRef.current ?? 0)) return;
@@ -156,7 +156,7 @@ export function useConversationChat(id: string) {
           // reads it, dropping the answer. Skip the resync while an answer is pending.
           const preserveClientTool = responseReady || hasPendingClientTool(chat.messages);
           const finishedMessagesKey = messagesSnapshotKey(chat.messages);
-          void fetchConversation(id, { skipErrorNotify: true })
+          void getConversation(id, { skipErrorNotify: true })
             .then(async (next) => {
               const messages = await validateConversationMessages(next.messages);
               if (connectedChatRef.current !== chat || messagesSnapshotKey(chat.messages) !== finishedMessagesKey)
@@ -200,7 +200,7 @@ export function useConversationChat(id: string) {
     historySelectionPendingRef.current = false;
     retryRequestPendingRef.current = false;
     clearTraceRun();
-    fetchConversation(id, { skipErrorNotify: true })
+    getConversation(id, { skipErrorNotify: true })
       .then(async (next) => {
         const messages = await validateConversationMessages(next.messages);
         if (!active) {
@@ -234,7 +234,7 @@ export function useConversationChat(id: string) {
 
   const refresh = useCallback(async () => {
     const snapshot = messagesSnapshotKey(chat.messages);
-    const next = await fetchConversation(id, { skipErrorNotify: true });
+    const next = await getConversation(id, { skipErrorNotify: true });
     const messages = await validateConversationMessages(next.messages);
     if (connectedChatRef.current !== chat || messagesSnapshotKey(chat.messages) !== snapshot || isRunning(chat.status))
       return;
@@ -285,7 +285,7 @@ export function useConversationChat(id: string) {
     retryRequestPendingRef.current = true;
     setHistoryMutationPending(true);
     try {
-      const next = await fetchConversation(id, { skipErrorNotify: true });
+      const next = await getConversation(id, { skipErrorNotify: true });
       if (connectedChatRef.current !== chat) return;
       if (next.active_run_id || next.revision !== pending.body.expected_revision) {
         await recover();
@@ -308,7 +308,7 @@ export function useConversationChat(id: string) {
   const stopRun = useCallback(async () => {
     await chat.stop();
     try {
-      const authoritative = await fetchConversation(id, { skipErrorNotify: true });
+      const authoritative = await getConversation(id, { skipErrorNotify: true });
       const runId = authoritative.active_run_id ?? detail?.active_run_id ?? useChatStore.getState().traceRunId;
       if (runId) {
         const result = await cancelConversationAgentRun(id, runId, { skipErrorNotify: true });

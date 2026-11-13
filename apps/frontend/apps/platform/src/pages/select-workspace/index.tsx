@@ -1,4 +1,4 @@
-import { logout, switchActiveWorkspace } from "@repo/api";
+import { logout, switchActiveWorkspace } from "@repo/api/iam";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/design-system";
 import { clearUser as clearObservabilityUser } from "@repo/observability";
 import { usePlatformStore } from "@repo/runtime";
@@ -22,7 +22,7 @@ function SelectWorkspacePage() {
   async function handlePick(workspaceId: string) {
     setSwitching(workspaceId);
     try {
-      const session = await switchActiveWorkspace(workspaceId);
+      const session = await switchActiveWorkspace({ workspaceId });
       // Persist the rescoped identity before the reload so the shell boots
       // cleanly bound to the chosen workspace.
       setUser(session.user);

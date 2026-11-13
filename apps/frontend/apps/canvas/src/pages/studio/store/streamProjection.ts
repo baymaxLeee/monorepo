@@ -1,11 +1,11 @@
+import { CanvasResyncRequired } from "@repo/api";
 import {
-  CanvasResyncRequired,
   type CanvasGetCanvasGraphResponse,
   type CanvasNode,
   type CanvasPatchEvent,
   type CanvasStreamTask,
   type CanvasTextCheckpoint,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 export type CanvasProjection = {
   cursor: number;

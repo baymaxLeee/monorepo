@@ -10,6 +10,7 @@ from infrastructure.persistence.database import close_db
 from kernel.errors import register_exception_handlers
 from kernel.logging import RequestLoggingMiddleware, configure_logging
 from kernel.observability import configure_opentelemetry
+from kernel.openapi import operation_id_from_route_name
 from kernel.tracing import TraceIDMiddleware
 
 
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description="自托管前端 RUM 采集与查询服务(PostgreSQL 后端)",
         lifespan=lifespan,
+        generate_unique_id_function=operation_id_from_route_name,
         docs_url=None if settings.is_production else "/docs",
         redoc_url=None if settings.is_production else "/redoc",
         openapi_url=None if settings.is_production else "/openapi.json",

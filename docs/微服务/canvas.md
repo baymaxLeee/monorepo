@@ -1,19 +1,25 @@
 # Canvas
 
 Canvas 是 Go 服务，监听 `8012`，拥有项目、画布、节点、素材、生成任务和用量记录；
-业务元数据归 `canvas` PostgreSQL 数据库所有。媒体 bytes 由 `asset` 持久化，
-durable 工作流交给 `executor`，模型与运营配置从 `admin` 获取，服务之间只走声明过的
-HTTP binding。
+业务元数据归 `canvas` PostgreSQL 数据库所有。媒体 bytes 由 Storage 持久化，
+Canvas 自有的 durable 任务由同一镜像的 `worker` 进程领取，模型与运营配置从
+`admin` 获取，服务之间只走声明过的 HTTP binding。
 
 ## 运行配置
 
 本地配置源是 `apps/backend/services/canvas/.env.example`。`staging`、`single-vps`
-和 `production` 不允许使用本地默认值，必须显式提供数据库、Redis、内部令牌、三个
+和 `production` 不允许使用本地默认值，必须显式提供数据库、Redis、内部令牌、两个
 服务 binding 以及 `PUBLIC_GATEWAY_URL`。后者必须是浏览器可访问的 Gateway origin；
 不能写容器内部地址或 `localhost`。`production` 要求 HTTPS。
 
 Canvas 的 `/livez` 只表示进程存活；`/readyz` 和 `/healthz` 同时检查 PostgreSQL 与
 Redis。K8s 的 readiness probe 必须使用 `/readyz`。
+
+同一 Canvas 镜像包含 `/canvas-server` 与 `/canvas-worker` 两个独立二进制入口。
+`canvas-server` 只处理 HTTP、同步事务和 durable intent 写入；`canvas-worker` 处理本地
+poll schedules、async dispatches、deletion jobs、Asset claim relay、配额收敛与定时清理。
+两者复用 domain、application 和 infrastructure，且共享 Canvas 数据库，但使用独立的
+Deployment、容器入口、资源、探针和扩缩容生命周期。
 
 ## 媒体链路
 

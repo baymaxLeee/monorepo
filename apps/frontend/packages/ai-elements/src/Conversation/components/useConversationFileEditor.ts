@@ -1,11 +1,5 @@
-import {
-  ApiError,
-  createStorageDownloadUrl,
-  fetchAssetText,
-  fetchConversationFile,
-  updateConversationFileContent,
-  type ConversationFileDetail,
-} from "@repo/api";
+import { ApiError, createStorageDownloadUrl, fetchAssetText } from "@repo/api";
+import { getConversationFile, type ConversationFile, updateConversationFileContent } from "@repo/api/chat";
 import { getErrorMessage, randomId } from "@repo/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -19,7 +13,7 @@ export function useConversationFileEditor(
   open: boolean,
   token: number,
 ) {
-  const [file, setFile] = useState<ConversationFileDetail | null>(null);
+  const [file, setFile] = useState<ConversationFile | null>(null);
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
@@ -27,7 +21,7 @@ export function useConversationFileEditor(
   const [error, setError] = useState<string | null>(null);
   const [confirmingNavigation, setConfirmingNavigation] = useState(false);
   const [reload, setReload] = useState(0);
-  const state = useRef({ file: null as ConversationFileDetail | null, draft: "", saved: null as string | null });
+  const state = useRef({ file: null as ConversationFile | null, draft: "", saved: null as string | null });
   const epoch = useRef(0);
   const operation = useRef<{ content: string; etag: string; id: string } | null>(null);
   const pending = useRef<Promise<boolean> | null>(null);
@@ -46,7 +40,7 @@ export function useConversationFileEditor(
     setError(null);
     if (!open || !conversationId || !fileId) return;
     setLoading(true);
-    void fetchConversationFile(conversationId, fileId, { signal: controller.signal })
+    void getConversationFile(conversationId, fileId, { signal: controller.signal })
       .then((metadata) => {
         if (epoch.current !== generation) return;
         state.current.file = metadata;
@@ -74,7 +68,7 @@ export function useConversationFileEditor(
     setLoading(true);
     setError(null);
     try {
-      const metadata = await fetchConversationFile(conversationId, fileId);
+      const metadata = await getConversationFile(conversationId, fileId);
       if (!metadata.editable) throw new Error("此文件不支持编辑或超过文本编辑大小限制");
       const capability = await createStorageDownloadUrl({
         assetId: metadata.asset_id,

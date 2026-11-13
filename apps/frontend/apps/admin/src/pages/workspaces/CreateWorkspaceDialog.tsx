@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type CreateWorkspaceInput, createWorkspace } from "@repo/api";
+import { type CreateWorkspaceInput, createWorkspace } from "@repo/api/iam";
 import {
   Button,
   Dialog,

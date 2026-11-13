@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Bot, createBot, deleteBot, fetchBots, fetchModelProviders, type ModelProvider } from "@repo/api";
+import { type Bot, createBot, deleteBot, listBots, listProviders, type ModelProvider } from "@repo/api/admin";
 import {
   Alert,
   AlertDescription,
@@ -99,7 +99,7 @@ export function BotListPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchBots({ skipErrorNotify: true }), fetchModelProviders({ skipErrorNotify: true }).catch(() => [])])
+    Promise.all([listBots({ skipErrorNotify: true }), listProviders({ skipErrorNotify: true }).catch(() => [])])
       .then(([botList, providerList]) => {
         setBots(botList);
         setProviders(providerList);
@@ -246,9 +246,13 @@ export function BotListPage() {
                 {bots.map((b) => (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{providerLabel(b.text_provider_id)}</TableCell>
-                    <TableCell className="text-muted-foreground">{providerLabel(b.image_provider_id)}</TableCell>
-                    <TableCell className="text-muted-foreground">{providerLabel(b.video_provider_id)}</TableCell>
+                    <TableCell className="text-muted-foreground">{providerLabel(b.text_provider_id ?? null)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {providerLabel(b.image_provider_id ?? null)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {providerLabel(b.video_provider_id ?? null)}
+                    </TableCell>
                     <TableCell>{statusBadge(b.status)}</TableCell>
                     <TableCell className="space-x-2 text-right">
                       <Button variant="outline" size="sm" onClick={() => setEditing(b)}>

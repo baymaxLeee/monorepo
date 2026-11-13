@@ -12,7 +12,7 @@ export interface paths {
             cookie?: never;
         };
         /** Livez */
-        get: operations["livez_livez_get"];
+        get: operations["livez"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
             cookie?: never;
         };
         /** Readyz */
-        get: operations["readyz_readyz_get"];
+        get: operations["readyz"];
         put?: never;
         post?: never;
         delete?: never;
@@ -46,7 +46,7 @@ export interface paths {
             cookie?: never;
         };
         /** Healthz */
-        get: operations["healthz_healthz_get"];
+        get: operations["healthz"];
         put?: never;
         post?: never;
         delete?: never;
@@ -63,10 +63,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Bots */
-        get: operations["list_bots_bot_get"];
+        get: operations["list_bots"];
         put?: never;
         /** Create Bot */
-        post: operations["create_bot_bot_post"];
+        post: operations["create_bot"];
         delete?: never;
         options?: never;
         head?: never;
@@ -81,15 +81,15 @@ export interface paths {
             cookie?: never;
         };
         /** Get Bot */
-        get: operations["get_bot_bot__bot_id__get"];
+        get: operations["get_bot"];
         put?: never;
         post?: never;
         /** Delete Bot */
-        delete: operations["delete_bot_bot__bot_id__delete"];
+        delete: operations["delete_bot"];
         options?: never;
         head?: never;
         /** Update Bot */
-        patch: operations["update_bot_bot__bot_id__patch"];
+        patch: operations["update_bot"];
         trace?: never;
     };
     "/bot/{bot_id}/skills": {
@@ -100,10 +100,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Bot Skills */
-        get: operations["list_bot_skills_bot__bot_id__skills_get"];
+        get: operations["list_bot_skills"];
         put?: never;
         /** Attach Bot Skill */
-        post: operations["attach_bot_skill_bot__bot_id__skills_post"];
+        post: operations["attach_bot_skill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -121,7 +121,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Detach Bot Skill */
-        delete: operations["detach_bot_skill_bot__bot_id__skills__skill_id__delete"];
+        delete: operations["detach_bot_skill"];
         options?: never;
         head?: never;
         patch?: never;
@@ -222,7 +222,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Benefit Package Internal */
-        get: operations["get_benefit_package_internal_internal_canvas_benefit_packages__package_id__get"];
+        get: operations["get_benefit_package_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -377,10 +377,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Skills */
-        get: operations["list_skills_skills_get"];
+        get: operations["list_skills"];
         put?: never;
         /** Create Skill */
-        post: operations["create_skill_skills_post"];
+        post: operations["create_skill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -395,15 +395,15 @@ export interface paths {
             cookie?: never;
         };
         /** Get Skill */
-        get: operations["get_skill_skills__skill_id__get"];
+        get: operations["get_skill"];
         put?: never;
         post?: never;
         /** Delete Skill */
-        delete: operations["delete_skill_skills__skill_id__delete"];
+        delete: operations["delete_skill"];
         options?: never;
         head?: never;
         /** Update Skill */
-        patch: operations["update_skill_skills__skill_id__patch"];
+        patch: operations["update_skill"];
         trace?: never;
     };
     "/skills/{skill_id}/workspace": {
@@ -414,7 +414,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Skill Workspace */
-        get: operations["get_skill_workspace_skills__skill_id__workspace_get"];
+        get: operations["get_skill_workspace"];
         put?: never;
         post?: never;
         delete?: never;
@@ -431,7 +431,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Skill File */
-        get: operations["get_skill_file_skills__skill_id__workspace_files__node_id__get"];
+        get: operations["get_skill_file"];
         put?: never;
         post?: never;
         delete?: never;
@@ -450,7 +450,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Create Skill Node */
-        post: operations["create_skill_node_skills__skill_id__workspace_nodes_post"];
+        post: operations["create_skill_node"];
         delete?: never;
         options?: never;
         head?: never;
@@ -467,7 +467,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Attach Skill Asset */
-        post: operations["attach_skill_asset_skills__skill_id__workspace_assets_post"];
+        post: operations["attach_skill_asset"];
         delete?: never;
         options?: never;
         head?: never;
@@ -484,7 +484,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Prepare Skill Upload */
-        post: operations["prepare_skill_upload_skills__skill_id__uploads_prepare_post"];
+        post: operations["prepare_skill_upload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -501,7 +501,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Import Skill Archive */
-        post: operations["import_skill_archive_skills__skill_id__workspace_import_archive_post"];
+        post: operations["import_skill_archive"];
         delete?: never;
         options?: never;
         head?: never;
@@ -517,7 +517,7 @@ export interface paths {
         };
         get?: never;
         /** Update Skill File Content */
-        put: operations["update_skill_file_content_skills__skill_id__workspace_nodes__node_id__content_put"];
+        put: operations["update_skill_file_content"];
         post?: never;
         delete?: never;
         options?: never;
@@ -534,7 +534,7 @@ export interface paths {
         };
         get?: never;
         /** Rename Skill Node */
-        put: operations["rename_skill_node_skills__skill_id__workspace_nodes__node_id__name_put"];
+        put: operations["rename_skill_node"];
         post?: never;
         delete?: never;
         options?: never;
@@ -551,7 +551,7 @@ export interface paths {
         };
         get?: never;
         /** Move Skill Node */
-        put: operations["move_skill_node_skills__skill_id__workspace_nodes__node_id__parent_put"];
+        put: operations["move_skill_node"];
         post?: never;
         delete?: never;
         options?: never;
@@ -570,7 +570,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Skill Node */
-        delete: operations["delete_skill_node_skills__skill_id__workspace_nodes__node_id__delete"];
+        delete: operations["delete_skill_node"];
         options?: never;
         head?: never;
         patch?: never;
@@ -586,7 +586,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Validate Skill */
-        post: operations["validate_skill_skills__skill_id__validate_post"];
+        post: operations["validate_skill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -603,7 +603,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Publish Skill */
-        post: operations["publish_skill_skills__skill_id__publish_post"];
+        post: operations["publish_skill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -620,7 +620,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Bulk Delete Skills */
-        post: operations["bulk_delete_skills_skills_bulk_delete_post"];
+        post: operations["bulk_delete_skills"];
         delete?: never;
         options?: never;
         head?: never;
@@ -635,7 +635,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Skill File Internal */
-        get: operations["get_skill_file_internal_internal_skills__skill_id__files_get"];
+        get: operations["get_skill_file_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -652,7 +652,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Skill Internal */
-        get: operations["get_skill_internal_internal_skills__skill_id__get"];
+        get: operations["get_skill_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -669,10 +669,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Providers */
-        get: operations["list_providers_providers_get"];
+        get: operations["list_providers"];
         put?: never;
         /** Create Provider */
-        post: operations["create_provider_providers_post"];
+        post: operations["create_provider"];
         delete?: never;
         options?: never;
         head?: never;
@@ -687,15 +687,15 @@ export interface paths {
             cookie?: never;
         };
         /** Get Provider */
-        get: operations["get_provider_providers__provider_id__get"];
+        get: operations["get_provider"];
         put?: never;
         post?: never;
         /** Delete Provider */
-        delete: operations["delete_provider_providers__provider_id__delete"];
+        delete: operations["delete_provider"];
         options?: never;
         head?: never;
         /** Update Provider */
-        patch: operations["update_provider_providers__provider_id__patch"];
+        patch: operations["update_provider"];
         trace?: never;
     };
     "/providers/bulk-delete": {
@@ -708,7 +708,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Bulk Delete Providers */
-        post: operations["bulk_delete_providers_providers_bulk_delete_post"];
+        post: operations["bulk_delete_providers"];
         delete?: never;
         options?: never;
         head?: never;
@@ -725,7 +725,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Set Default Provider */
-        post: operations["set_default_provider_providers__provider_id__set_default_post"];
+        post: operations["set_default_provider"];
         delete?: never;
         options?: never;
         head?: never;
@@ -742,7 +742,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Test Provider */
-        post: operations["test_provider_providers__provider_id__test_post"];
+        post: operations["test_provider"];
         delete?: never;
         options?: never;
         head?: never;
@@ -757,7 +757,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Provider Catalog Internal */
-        get: operations["list_provider_catalog_internal_internal_providers_get"];
+        get: operations["list_provider_catalog_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -774,7 +774,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Default Provider Internal */
-        get: operations["get_default_provider_internal_internal_providers_default_get"];
+        get: operations["get_default_provider_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -797,7 +797,7 @@ export interface paths {
          *     Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
          *     kinds have no default flag, so this returns the newest enabled one.
          */
-        get: operations["get_provider_by_kind_internal_internal_providers_by_kind__kind__get"];
+        get: operations["get_provider_by_kind_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -814,7 +814,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Provider Internal */
-        get: operations["get_provider_internal_internal_providers__provider_id__get"];
+        get: operations["get_provider_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -831,7 +831,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Task Provider Internal */
-        get: operations["get_task_provider_internal_internal_providers__provider_id__task_credentials_get"];
+        get: operations["get_task_provider_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -848,7 +848,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Resolved Agent Internal */
-        get: operations["get_resolved_agent_internal_internal_agents__agent_id__get"];
+        get: operations["get_resolved_agent_internal"];
         put?: never;
         post?: never;
         delete?: never;
@@ -865,10 +865,10 @@ export interface paths {
             cookie?: never;
         };
         /** List Apps */
-        get: operations["list_apps_apps_get"];
+        get: operations["list_apps"];
         put?: never;
         /** Create App */
-        post: operations["create_app_apps_post"];
+        post: operations["create_app"];
         delete?: never;
         options?: never;
         head?: never;
@@ -883,15 +883,15 @@ export interface paths {
             cookie?: never;
         };
         /** Get App */
-        get: operations["get_app_apps__app_id__get"];
+        get: operations["get_app"];
         put?: never;
         post?: never;
         /** Delete App */
-        delete: operations["delete_app_apps__app_id__delete"];
+        delete: operations["delete_app"];
         options?: never;
         head?: never;
         /** Update App */
-        patch: operations["update_app_apps__app_id__patch"];
+        patch: operations["update_app"];
         trace?: never;
     };
 }
@@ -1105,8 +1105,8 @@ export interface components {
             /** Ids */
             ids: string[];
         };
-        /** BulkDeleteSkillsResult */
-        BulkDeleteSkillsResult: {
+        /** BulkDeleteSkillsResponse */
+        BulkDeleteSkillsResponse: {
             /** Deleted */
             deleted: number;
         };
@@ -1302,8 +1302,8 @@ export interface components {
             /** Base Workspace Seq */
             base_workspace_seq: number;
         };
-        /** ImportSkillArchiveResult */
-        ImportSkillArchiveResult: {
+        /** ImportSkillArchiveResponse */
+        ImportSkillArchiveResponse: {
             skill: components["schemas"]["Skill"];
             workspace: components["schemas"]["SkillWorkspace"];
             /** Imported Files */
@@ -1520,8 +1520,8 @@ export interface components {
             /** Base Workspace Seq */
             base_workspace_seq: number;
         };
-        /** PublishSkillResult */
-        PublishSkillResult: {
+        /** PublishSkillResponse */
+        PublishSkillResponse: {
             skill: components["schemas"]["Skill"];
             validation: components["schemas"]["SkillValidationResult"];
         };
@@ -1945,7 +1945,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    livez_livez_get: {
+    livez: {
         parameters: {
             query?: never;
             header?: never;
@@ -1967,7 +1967,7 @@ export interface operations {
             };
         };
     };
-    readyz_readyz_get: {
+    readyz: {
         parameters: {
             query?: never;
             header?: never;
@@ -1989,7 +1989,7 @@ export interface operations {
             };
         };
     };
-    healthz_healthz_get: {
+    healthz: {
         parameters: {
             query?: never;
             header?: never;
@@ -2011,7 +2011,7 @@ export interface operations {
             };
         };
     };
-    list_bots_bot_get: {
+    list_bots: {
         parameters: {
             query?: never;
             header?: {
@@ -2048,7 +2048,7 @@ export interface operations {
             };
         };
     };
-    create_bot_bot_post: {
+    create_bot: {
         parameters: {
             query?: never;
             header?: {
@@ -2089,7 +2089,7 @@ export interface operations {
             };
         };
     };
-    get_bot_bot__bot_id__get: {
+    get_bot: {
         parameters: {
             query?: never;
             header?: {
@@ -2128,7 +2128,7 @@ export interface operations {
             };
         };
     };
-    delete_bot_bot__bot_id__delete: {
+    delete_bot: {
         parameters: {
             query?: never;
             header?: {
@@ -2165,7 +2165,7 @@ export interface operations {
             };
         };
     };
-    update_bot_bot__bot_id__patch: {
+    update_bot: {
         parameters: {
             query?: never;
             header?: {
@@ -2208,7 +2208,7 @@ export interface operations {
             };
         };
     };
-    list_bot_skills_bot__bot_id__skills_get: {
+    list_bot_skills: {
         parameters: {
             query?: never;
             header?: {
@@ -2247,7 +2247,7 @@ export interface operations {
             };
         };
     };
-    attach_bot_skill_bot__bot_id__skills_post: {
+    attach_bot_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -2290,7 +2290,7 @@ export interface operations {
             };
         };
     };
-    detach_bot_skill_bot__bot_id__skills__skill_id__delete: {
+    detach_bot_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -2603,7 +2603,7 @@ export interface operations {
             };
         };
     };
-    get_benefit_package_internal_internal_canvas_benefit_packages__package_id__get: {
+    get_benefit_package_internal: {
         parameters: {
             query: {
                 workspace_id: string;
@@ -3029,7 +3029,7 @@ export interface operations {
             };
         };
     };
-    list_skills_skills_get: {
+    list_skills: {
         parameters: {
             query?: never;
             header?: {
@@ -3066,7 +3066,7 @@ export interface operations {
             };
         };
     };
-    create_skill_skills_post: {
+    create_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -3107,7 +3107,7 @@ export interface operations {
             };
         };
     };
-    get_skill_skills__skill_id__get: {
+    get_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -3146,7 +3146,7 @@ export interface operations {
             };
         };
     };
-    delete_skill_skills__skill_id__delete: {
+    delete_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -3183,7 +3183,7 @@ export interface operations {
             };
         };
     };
-    update_skill_skills__skill_id__patch: {
+    update_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -3226,7 +3226,7 @@ export interface operations {
             };
         };
     };
-    get_skill_workspace_skills__skill_id__workspace_get: {
+    get_skill_workspace: {
         parameters: {
             query?: never;
             header?: {
@@ -3265,7 +3265,7 @@ export interface operations {
             };
         };
     };
-    get_skill_file_skills__skill_id__workspace_files__node_id__get: {
+    get_skill_file: {
         parameters: {
             query?: never;
             header?: {
@@ -3305,7 +3305,7 @@ export interface operations {
             };
         };
     };
-    create_skill_node_skills__skill_id__workspace_nodes_post: {
+    create_skill_node: {
         parameters: {
             query?: never;
             header?: {
@@ -3348,7 +3348,7 @@ export interface operations {
             };
         };
     };
-    attach_skill_asset_skills__skill_id__workspace_assets_post: {
+    attach_skill_asset: {
         parameters: {
             query?: never;
             header?: {
@@ -3391,7 +3391,7 @@ export interface operations {
             };
         };
     };
-    prepare_skill_upload_skills__skill_id__uploads_prepare_post: {
+    prepare_skill_upload: {
         parameters: {
             query?: never;
             header?: {
@@ -3434,7 +3434,7 @@ export interface operations {
             };
         };
     };
-    import_skill_archive_skills__skill_id__workspace_import_archive_post: {
+    import_skill_archive: {
         parameters: {
             query?: never;
             header?: {
@@ -3463,7 +3463,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ImportSkillArchiveResult"];
+                    "application/json": components["schemas"]["ImportSkillArchiveResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3477,7 +3477,7 @@ export interface operations {
             };
         };
     };
-    update_skill_file_content_skills__skill_id__workspace_nodes__node_id__content_put: {
+    update_skill_file_content: {
         parameters: {
             query?: never;
             header?: {
@@ -3521,7 +3521,7 @@ export interface operations {
             };
         };
     };
-    rename_skill_node_skills__skill_id__workspace_nodes__node_id__name_put: {
+    rename_skill_node: {
         parameters: {
             query?: never;
             header?: {
@@ -3565,7 +3565,7 @@ export interface operations {
             };
         };
     };
-    move_skill_node_skills__skill_id__workspace_nodes__node_id__parent_put: {
+    move_skill_node: {
         parameters: {
             query?: never;
             header?: {
@@ -3609,7 +3609,7 @@ export interface operations {
             };
         };
     };
-    delete_skill_node_skills__skill_id__workspace_nodes__node_id__delete: {
+    delete_skill_node: {
         parameters: {
             query: {
                 base_etag: string;
@@ -3651,7 +3651,7 @@ export interface operations {
             };
         };
     };
-    validate_skill_skills__skill_id__validate_post: {
+    validate_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -3690,7 +3690,7 @@ export interface operations {
             };
         };
     };
-    publish_skill_skills__skill_id__publish_post: {
+    publish_skill: {
         parameters: {
             query?: never;
             header?: {
@@ -3719,7 +3719,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PublishSkillResult"];
+                    "application/json": components["schemas"]["PublishSkillResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3733,7 +3733,7 @@ export interface operations {
             };
         };
     };
-    bulk_delete_skills_skills_bulk_delete_post: {
+    bulk_delete_skills: {
         parameters: {
             query?: never;
             header?: {
@@ -3760,7 +3760,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BulkDeleteSkillsResult"];
+                    "application/json": components["schemas"]["BulkDeleteSkillsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3774,7 +3774,7 @@ export interface operations {
             };
         };
     };
-    get_skill_file_internal_internal_skills__skill_id__files_get: {
+    get_skill_file_internal: {
         parameters: {
             query: {
                 path: string;
@@ -3814,7 +3814,7 @@ export interface operations {
             };
         };
     };
-    get_skill_internal_internal_skills__skill_id__get: {
+    get_skill_internal: {
         parameters: {
             query: {
                 /** @description Team that owns the skill */
@@ -3853,7 +3853,7 @@ export interface operations {
             };
         };
     };
-    list_providers_providers_get: {
+    list_providers: {
         parameters: {
             query?: never;
             header?: {
@@ -3890,7 +3890,7 @@ export interface operations {
             };
         };
     };
-    create_provider_providers_post: {
+    create_provider: {
         parameters: {
             query?: never;
             header?: {
@@ -3931,7 +3931,7 @@ export interface operations {
             };
         };
     };
-    get_provider_providers__provider_id__get: {
+    get_provider: {
         parameters: {
             query?: never;
             header?: {
@@ -3970,7 +3970,7 @@ export interface operations {
             };
         };
     };
-    delete_provider_providers__provider_id__delete: {
+    delete_provider: {
         parameters: {
             query?: never;
             header?: {
@@ -4007,7 +4007,7 @@ export interface operations {
             };
         };
     };
-    update_provider_providers__provider_id__patch: {
+    update_provider: {
         parameters: {
             query?: never;
             header?: {
@@ -4050,7 +4050,7 @@ export interface operations {
             };
         };
     };
-    bulk_delete_providers_providers_bulk_delete_post: {
+    bulk_delete_providers: {
         parameters: {
             query?: never;
             header?: {
@@ -4091,7 +4091,7 @@ export interface operations {
             };
         };
     };
-    set_default_provider_providers__provider_id__set_default_post: {
+    set_default_provider: {
         parameters: {
             query?: never;
             header?: {
@@ -4130,7 +4130,7 @@ export interface operations {
             };
         };
     };
-    test_provider_providers__provider_id__test_post: {
+    test_provider: {
         parameters: {
             query?: never;
             header?: {
@@ -4173,7 +4173,7 @@ export interface operations {
             };
         };
     };
-    list_provider_catalog_internal_internal_providers_get: {
+    list_provider_catalog_internal: {
         parameters: {
             query: {
                 /** @description Team that owns the provider */
@@ -4210,7 +4210,7 @@ export interface operations {
             };
         };
     };
-    get_default_provider_internal_internal_providers_default_get: {
+    get_default_provider_internal: {
         parameters: {
             query: {
                 /** @description Team that owns the provider */
@@ -4247,7 +4247,7 @@ export interface operations {
             };
         };
     };
-    get_provider_by_kind_internal_internal_providers_by_kind__kind__get: {
+    get_provider_by_kind_internal: {
         parameters: {
             query: {
                 /** @description Team that owns the provider */
@@ -4286,7 +4286,7 @@ export interface operations {
             };
         };
     };
-    get_provider_internal_internal_providers__provider_id__get: {
+    get_provider_internal: {
         parameters: {
             query: {
                 /** @description Team that owns the provider */
@@ -4325,7 +4325,7 @@ export interface operations {
             };
         };
     };
-    get_task_provider_internal_internal_providers__provider_id__task_credentials_get: {
+    get_task_provider_internal: {
         parameters: {
             query: {
                 workspace_id: string;
@@ -4362,7 +4362,7 @@ export interface operations {
             };
         };
     };
-    get_resolved_agent_internal_internal_agents__agent_id__get: {
+    get_resolved_agent_internal: {
         parameters: {
             query: {
                 /** @description Requesting user */
@@ -4403,7 +4403,7 @@ export interface operations {
             };
         };
     };
-    list_apps_apps_get: {
+    list_apps: {
         parameters: {
             query?: never;
             header?: {
@@ -4440,7 +4440,7 @@ export interface operations {
             };
         };
     };
-    create_app_apps_post: {
+    create_app: {
         parameters: {
             query?: never;
             header?: {
@@ -4481,7 +4481,7 @@ export interface operations {
             };
         };
     };
-    get_app_apps__app_id__get: {
+    get_app: {
         parameters: {
             query?: never;
             header?: {
@@ -4520,7 +4520,7 @@ export interface operations {
             };
         };
     };
-    delete_app_apps__app_id__delete: {
+    delete_app: {
         parameters: {
             query?: never;
             header?: {
@@ -4557,7 +4557,7 @@ export interface operations {
             };
         };
     };
-    update_app_apps__app_id__patch: {
+    update_app: {
         parameters: {
             query?: never;
             header?: {

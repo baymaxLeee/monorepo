@@ -5,7 +5,7 @@ import {
   CanvasProjectCanvasVideoArchiveExportSortField as ProjectCanvasVideoArchiveExportSortField,
   CanvasVideoArchiveExportStatus,
   CanvasViewMode,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import type * as common from "./common";
 

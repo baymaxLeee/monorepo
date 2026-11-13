@@ -58,28 +58,12 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @constant */
-                        type: "canvas-archive";
+                        type: "image-generation";
                         /** @description calling service, e.g. chat */
                         owner_service: string;
                         /** @description idempotency key scoped to owner_service */
                         owner_ref: string;
-                        payload: components["schemas"]["CanvasArchivePayload"];
-                    } | {
-                        /** @constant */
-                        type: "canvas-video-frames";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: components["schemas"]["CanvasVideoFramesPayload"];
-                    } | {
-                        /** @constant */
-                        type: "knowledge-document-process";
-                        /** @description calling service, e.g. chat */
-                        owner_service: string;
-                        /** @description idempotency key scoped to owner_service */
-                        owner_ref: string;
-                        payload: components["schemas"]["KnowledgeDocumentProcessPayload"];
+                        payload: components["schemas"]["ImageGenerationTaskPayload"];
                     } | {
                         /** @constant */
                         type: "video-generation";
@@ -562,28 +546,12 @@ export interface components {
         };
         CreateTaskInput: {
             /** @constant */
-            type: "canvas-archive";
+            type: "image-generation";
             /** @description calling service, e.g. chat */
             owner_service: string;
             /** @description idempotency key scoped to owner_service */
             owner_ref: string;
-            payload: components["schemas"]["CanvasArchivePayload"];
-        } | {
-            /** @constant */
-            type: "canvas-video-frames";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: components["schemas"]["CanvasVideoFramesPayload"];
-        } | {
-            /** @constant */
-            type: "knowledge-document-process";
-            /** @description calling service, e.g. chat */
-            owner_service: string;
-            /** @description idempotency key scoped to owner_service */
-            owner_ref: string;
-            payload: components["schemas"]["KnowledgeDocumentProcessPayload"];
+            payload: components["schemas"]["ImageGenerationTaskPayload"];
         } | {
             /** @constant */
             type: "video-generation";
@@ -593,15 +561,14 @@ export interface components {
             owner_ref: string;
             payload: components["schemas"]["VideoGenerationTaskPayload"];
         };
-        CanvasArchivePayload: {
-            taskRunId: string;
-        };
-        CanvasVideoFramesPayload: {
-            taskRunId: string;
-        };
-        KnowledgeDocumentProcessPayload: {
-            documentId: string;
-            providerId?: string;
+        ImageGenerationTaskPayload: {
+            tenantId: string;
+            workspaceId: string;
+            userId: string;
+            conversationId?: string;
+            providerId: string;
+            prompts: string[];
+            idempotencyKey: string;
         };
         VideoGenerationTaskPayload: {
             tenantId: string;

@@ -1,9 +1,10 @@
-import { type AuthUser, bootstrapSession } from "@repo/api";
+import { bootstrapSession } from "@repo/api";
+import { type AuthUser } from "@repo/api/iam";
 import { usePlatformStore } from "@repo/runtime";
 import { createContext, type MiddlewareFunction, redirect } from "react-router-dom";
 
 import { activeMemberships, canEnterPlatform, isSuperAdmin, landingPath } from "../onboarding";
-import type { AppEntry } from "./app-registry";
+import type { App } from "./app-registry";
 
 export const platformUserContext = createContext<AuthUser | null>(null);
 
@@ -74,7 +75,7 @@ export async function canDiscoverPlatformRoutes(signal: AbortSignal): Promise<bo
   return !!user && canEnterPlatform(user);
 }
 
-export function createAppAccessMiddleware(app: AppEntry): MiddlewareFunction {
+export function createAppAccessMiddleware(app: App): MiddlewareFunction {
   return async ({ context }) => {
     const user = context.get(platformUserContext);
     if (!user) {

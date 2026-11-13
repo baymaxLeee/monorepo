@@ -1,4 +1,5 @@
-import { executeStorageUploadPlan, prepareCanvasUpload, type StorageRevisionRef } from "@repo/api";
+import { authFetch, type StorageRevisionRef } from "@repo/api";
+import { canvasPrepareUpload } from "@repo/api/canvas";
 import { Spinner, toast, Button } from "@repo/design-system";
 import { randomId } from "@repo/shared";
 import { ImagePlus, X } from "lucide-react";
@@ -100,12 +101,25 @@ export function CoverImageUploader({
     setUploading(true);
     onUploadingChange?.(true);
     const clientRef = randomId();
-    void prepareCanvasUpload({ clientRef, purpose: "cover", file })
+    const request = {
+      client_ref: clientRef,
+      purpose: "cover",
+      filename: file.name,
+      media_type: file.type || "application/octet-stream",
+      size_bytes: file.size,
+    };
+    void canvasPrepareUpload(request)
       .then(async (plan) => {
-        await executeStorageUploadPlan(plan, file, controller.signal);
-        const completed = await prepareCanvasUpload({ clientRef, purpose: "cover", file });
-        if (!completed.assetId || !completed.revisionId) throw new Error("completed upload is missing its revision");
-        return { assetId: completed.assetId, revisionId: completed.revisionId };
+        const response = await authFetch(plan.upload_url, {
+          method: "PUT",
+          headers: { "Content-Type": request.media_type },
+          body: file,
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`upload failed: ${response.status}`);
+        const completed = await canvasPrepareUpload(request);
+        if (!completed.asset_id || !completed.revision_id) throw new Error("completed upload is missing its revision");
+        return { assetId: completed.asset_id, revisionId: completed.revision_id };
       })
       .then((result) => {
         if (controller.signal.aborted) return;

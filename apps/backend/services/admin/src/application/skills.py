@@ -40,13 +40,13 @@ from application.contracts.skill import (
     CreateSkillInput,
     CreateSkillNodeInput,
     ImportSkillArchiveInput,
-    ImportSkillArchiveResult,
+    ImportSkillArchiveResponse,
     InternalSkill,
     InternalSkillFile,
     MoveSkillNodeInput,
     PrepareSkillUploadInput,
     PublishSkillInput,
-    PublishSkillResult,
+    PublishSkillResponse,
     RenameSkillNodeInput,
     Skill,
     SkillFileContent,
@@ -290,7 +290,7 @@ class SkillService:
             await self._finish_draft_mutation(row)
         return SkillNodeMutationResult(workspace_seq=row.workspace_seq, node_id=node.id, etag=node_etag(node))
 
-    async def import_archive(self, skill_id: str, payload: ImportSkillArchiveInput) -> ImportSkillArchiveResult:
+    async def import_archive(self, skill_id: str, payload: ImportSkillArchiveInput) -> ImportSkillArchiveResponse:
         storage_client = get_storage_client()
         revision = await self._resolve_user_upload(
             skill_id=skill_id,
@@ -345,7 +345,7 @@ class SkillService:
             workspace = SkillWorkspace(
                 skill_id=skill_id, workspace_seq=row.workspace_seq, tree=_build_tree(nodes, include_content=False)
             )
-            return ImportSkillArchiveResult(
+            return ImportSkillArchiveResponse(
                 skill=to_schema(row),
                 workspace=workspace,
                 imported_files=len(files),
@@ -488,7 +488,7 @@ class SkillService:
         nodes = await node_crud.list_workspace_nodes(self._session, skill_id)
         return self._validation_result(nodes)
 
-    async def publish(self, skill_id: str, payload: PublishSkillInput) -> PublishSkillResult:
+    async def publish(self, skill_id: str, payload: PublishSkillInput) -> PublishSkillResponse:
         async with write_tx(self._session):
             row = await self._get_locked_row(skill_id)
             self._assert_workspace_seq(row, payload.base_workspace_seq)
@@ -522,7 +522,7 @@ class SkillService:
             row.published_description = row.description
             row.updated_at = row.published_at
             await self._session.flush()
-        return PublishSkillResult(skill=to_schema(row), validation=validation)
+        return PublishSkillResponse(skill=to_schema(row), validation=validation)
 
     async def delete(self, skill_id: str) -> None:
         async with write_tx(self._session):

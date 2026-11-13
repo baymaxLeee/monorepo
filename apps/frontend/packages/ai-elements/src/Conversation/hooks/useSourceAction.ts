@@ -1,5 +1,5 @@
 import type { SourceItem } from "@repo/ai-elements";
-import { fetchConversationSourceDelivery } from "@repo/api";
+import { authorizeConversationSourceDelivery } from "@repo/api/chat";
 import { useCallback } from "react";
 
 export function useSourceAction(conversationId: string) {
@@ -20,7 +20,7 @@ export function useSourceAction(conversationId: string) {
         if (!tab) throw new Error("请允许浏览器打开新标签页后重试。");
         tab.opener = null;
         try {
-          const delivery = await fetchConversationSourceDelivery(conversationId, id);
+          const delivery = await authorizeConversationSourceDelivery(conversationId, id);
           const url = new URL(delivery.url, window.location.origin);
           if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("文档访问链接无效。");
           tab.location.replace(url.href);

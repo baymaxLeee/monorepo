@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { login } from "@repo/api";
+import { login } from "@repo/api/iam";
 import {
   Button,
   Card,

@@ -4,9 +4,9 @@ import {
   type Conversation,
   createConversation,
   deleteConversation,
-  fetchConversation,
-  fetchConversations,
-} from "@repo/api";
+  getConversation,
+  listConversations,
+} from "@repo/api/chat";
 import { getErrorMessage } from "@repo/shared";
 import type { UIMessage } from "ai";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -30,7 +30,7 @@ export function useConversationHistory() {
     const requestRevision = ++revision.current;
     setError(null);
     try {
-      const list = await fetchConversations();
+      const list = await listConversations();
       if (mounted.current && revision.current === requestRevision) {
         const update = useChatStore.getState().conversationTitleUpdate;
         setConversations(
@@ -87,7 +87,7 @@ export function useConversationHistory() {
     [navigate],
   );
   const download = useCallback(async (id: string) => {
-    const detail = await fetchConversation(id);
+    const detail = await getConversation(id);
     const messages: UIMessage[] = detail.messages.map((message) => ({
       id: message.id,
       role: message.role,

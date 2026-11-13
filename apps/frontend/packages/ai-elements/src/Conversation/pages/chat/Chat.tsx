@@ -1,6 +1,7 @@
 import { type ConversationScrollHandle } from "@repo/ai-elements";
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
-import { type ConversationDocument, fetchBotSkills } from "@repo/api";
+import { listBotSkills } from "@repo/api/admin";
+import { type ConversationDocument } from "@repo/api/chat";
 import { randomId } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -99,7 +100,7 @@ export function ChatSession({
       if (!request || request.agentId !== agentId) {
         request?.controller.abort();
         const controller = new AbortController();
-        const promise = fetchBotSkills(agentId, {
+        const promise = listBotSkills(agentId, {
           signal: controller.signal,
           skipErrorNotify: true,
         })

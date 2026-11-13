@@ -6,7 +6,14 @@
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./admin": "./src/admin-server.ts",
+    "./canvas": "./src/canvas-server.ts",
+    "./chat": "./src/chat-server.ts",
+    "./iam": "./src/iam-server.ts",
+    "./knowledge": "./src/knowledge-server.ts",
+    "./storage": "./src/storage-server.ts",
+    "./telemetry": "./src/telemetry-server.ts"
   },
   "scripts": {
     "codegen": "bash scripts/codegen.sh",

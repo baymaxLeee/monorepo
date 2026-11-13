@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { checkAccountAvailability, fetchPublicWorkspaces, type WorkspaceSummary, register } from "@repo/api";
+import { checkAccountAvailability, fetchPublicWorkspaces, type WorkspaceSummary, register } from "@repo/api/iam";
 import {
   Button,
   Card,
@@ -96,7 +96,7 @@ function RegisterPage() {
     }
 
     try {
-      const result = await checkAccountAvailability(normalized);
+      const result = await checkAccountAvailability({ account: normalized });
       lastCheckedName.current = normalized;
       if (!result.available) {
         form.setError("name", { message: "名称已被使用" });

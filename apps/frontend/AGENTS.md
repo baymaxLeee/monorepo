@@ -179,7 +179,7 @@ Remotes consume these from the host with `import: false`; they must not bundle f
 
 ## Forbidden zones for agents
 
-- `packages/api/generated/**` — codegen output
+- `packages/api/index.ts` and `packages/api/src/*-server.ts` — codegen output
 - `dist/`, `.rspack/`, `node_modules/`
 
 ## Done checklist

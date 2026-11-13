@@ -1,4 +1,4 @@
-import { apiHttp } from "@repo/api";
+import { authFetch } from "@repo/api";
 import { toast, Tooltip, TooltipContent, TooltipTrigger, Button } from "@repo/design-system";
 import {
   History as IconAgentHistory,
@@ -160,7 +160,11 @@ export function PreviewPanel({
     }
     setDownloading(true);
     try {
-      const blob = (await apiHttp.get<Blob>(videoUrl, { responseType: "blob" })).data;
+      const response = await authFetch(videoUrl);
+      if (!response.ok) {
+        throw new Error(`Video download failed (${response.status})`);
+      }
+      const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;

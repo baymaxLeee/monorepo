@@ -1,12 +1,12 @@
+import { type ApiRequestConfig } from "@repo/api";
 import {
   canvasCancelNodeGeneration,
   canvasListNodeHistories,
   canvasSelectNodeHistory,
   canvasStartGeneration,
   canvasStartNodeGeneration,
-  type ApiRequestConfig,
   type CanvasNodeHistory,
-} from "@repo/api";
+} from "@repo/api/canvas";
 
 import type { canvasnode } from "@/domain";
 

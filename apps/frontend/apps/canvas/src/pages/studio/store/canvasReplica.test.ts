@@ -1,4 +1,5 @@
-import { ApiError, CanvasResyncRequired, type CanvasGetCanvasGraphResponse, type CanvasPatchEvent } from "@repo/api";
+import { ApiError, CanvasResyncRequired } from "@repo/api";
+import { type CanvasGetCanvasGraphResponse, type CanvasPatchEvent } from "@repo/api/canvas";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CanvasReplica } from "./canvasReplica";

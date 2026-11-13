@@ -1,5 +1,5 @@
 import { Artifact, ArtifactContent, ArtifactDescription, ArtifactHeader, ArtifactTitle } from "@repo/ai-elements";
-import type { ConversationDocument } from "@repo/api";
+import { type ConversationDocument } from "@repo/api/chat";
 import { Button } from "@repo/design-system";
 import { FileTextIcon } from "lucide-react";
 

@@ -3,7 +3,7 @@
   "info": {
     "title": "Executor Service",
     "version": "0.1.0",
-    "description": "Durable task executor (Brain=chat's ToolLoopAgent, Hands+Session=this service). See docs/ADR and apps/backend/services/executor/AGENTS.md."
+    "description": "Durable image and video generation workflows. See docs/ADR and Executor AGENTS.md."
   },
   "paths": {
     "/healthz": {
@@ -28,7 +28,7 @@
                     "type": "object",
                     "properties": {
                       "type": {
-                        "const": "canvas-archive"
+                        "const": "image-generation"
                       },
                       "owner_service": {
                         "type": "string",
@@ -39,57 +39,7 @@
                         "description": "idempotency key scoped to owner_service"
                       },
                       "payload": {
-                        "$ref": "#/components/schemas/CanvasArchivePayload"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "owner_service",
-                      "owner_ref",
-                      "payload"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "const": "canvas-video-frames"
-                      },
-                      "owner_service": {
-                        "type": "string",
-                        "description": "calling service, e.g. chat"
-                      },
-                      "owner_ref": {
-                        "type": "string",
-                        "description": "idempotency key scoped to owner_service"
-                      },
-                      "payload": {
-                        "$ref": "#/components/schemas/CanvasVideoFramesPayload"
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "owner_service",
-                      "owner_ref",
-                      "payload"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "const": "knowledge-document-process"
-                      },
-                      "owner_service": {
-                        "type": "string",
-                        "description": "calling service, e.g. chat"
-                      },
-                      "owner_ref": {
-                        "type": "string",
-                        "description": "idempotency key scoped to owner_service"
-                      },
-                      "payload": {
-                        "$ref": "#/components/schemas/KnowledgeDocumentProcessPayload"
+                        "$ref": "#/components/schemas/ImageGenerationTaskPayload"
                       }
                     },
                     "required": [
@@ -1032,7 +982,7 @@
             "type": "object",
             "properties": {
               "type": {
-                "const": "canvas-archive"
+                "const": "image-generation"
               },
               "owner_service": {
                 "type": "string",
@@ -1043,57 +993,7 @@
                 "description": "idempotency key scoped to owner_service"
               },
               "payload": {
-                "$ref": "#/components/schemas/CanvasArchivePayload"
-              }
-            },
-            "required": [
-              "type",
-              "owner_service",
-              "owner_ref",
-              "payload"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "const": "canvas-video-frames"
-              },
-              "owner_service": {
-                "type": "string",
-                "description": "calling service, e.g. chat"
-              },
-              "owner_ref": {
-                "type": "string",
-                "description": "idempotency key scoped to owner_service"
-              },
-              "payload": {
-                "$ref": "#/components/schemas/CanvasVideoFramesPayload"
-              }
-            },
-            "required": [
-              "type",
-              "owner_service",
-              "owner_ref",
-              "payload"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "const": "knowledge-document-process"
-              },
-              "owner_service": {
-                "type": "string",
-                "description": "calling service, e.g. chat"
-              },
-              "owner_ref": {
-                "type": "string",
-                "description": "idempotency key scoped to owner_service"
-              },
-              "payload": {
-                "$ref": "#/components/schemas/KnowledgeDocumentProcessPayload"
+                "$ref": "#/components/schemas/ImageGenerationTaskPayload"
               }
             },
             "required": [
@@ -1133,42 +1033,44 @@
           "propertyName": "type"
         }
       },
-      "CanvasArchivePayload": {
+      "ImageGenerationTaskPayload": {
         "type": "object",
         "properties": {
-          "taskRunId": {
-            "type": "string",
-            "pattern": "^[a-f0-9]{32}$"
-          }
-        },
-        "required": [
-          "taskRunId"
-        ]
-      },
-      "CanvasVideoFramesPayload": {
-        "type": "object",
-        "properties": {
-          "taskRunId": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        },
-        "required": [
-          "taskRunId"
-        ]
-      },
-      "KnowledgeDocumentProcessPayload": {
-        "type": "object",
-        "properties": {
-          "documentId": {
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "conversationId": {
             "type": "string"
           },
           "providerId": {
             "type": "string"
+          },
+          "prompts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "items": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          },
+          "idempotencyKey": {
+            "type": "string"
           }
         },
         "required": [
-          "documentId"
+          "tenantId",
+          "workspaceId",
+          "userId",
+          "providerId",
+          "prompts",
+          "idempotencyKey"
         ]
       },
       "VideoGenerationTaskPayload": {

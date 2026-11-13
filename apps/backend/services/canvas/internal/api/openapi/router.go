@@ -2,7 +2,6 @@ package openapi
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -33,32 +32,25 @@ import (
 const apiVersion = "2026-07-31"
 
 type Router struct {
-	projects       *maturehttp.ProjectHandler
-	projectUsage   *maturehttp.ProjectUsageHandler
-	canvases       *maturehttp.CanvasHandler
-	nodes          *maturehttp.CanvasNodeHandler
-	resources      *maturehttp.ResourceHandler
-	assets         *maturehttp.AssetHandler
-	archives       *maturehttp.CanvasArchiveHandler
-	executeArchive func(context.Context, string) (any, error)
-	executeFrames  func(context.Context, string) (any, error)
-	readiness      func(context.Context) error
-	access         applicationprojectaccess.Checker
+	projects     *maturehttp.ProjectHandler
+	projectUsage *maturehttp.ProjectUsageHandler
+	canvases     *maturehttp.CanvasHandler
+	nodes        *maturehttp.CanvasNodeHandler
+	resources    *maturehttp.ResourceHandler
+	assets       *maturehttp.AssetHandler
+	archives     *maturehttp.CanvasArchiveHandler
+	readiness    func(context.Context) error
+	access       applicationprojectaccess.Checker
 }
 
-func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, executeArchive func(context.Context, string) (any, error), executeFrames func(context.Context, string) (any, error), readiness func(context.Context) error, access applicationprojectaccess.Checker) http.Handler {
-	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, executeArchive: executeArchive, executeFrames: executeFrames, readiness: readiness, access: access}
+func NewRouter(projects *maturehttp.ProjectHandler, projectUsage *maturehttp.ProjectUsageHandler, canvases *maturehttp.CanvasHandler, nodes *maturehttp.CanvasNodeHandler, resources *maturehttp.ResourceHandler, assets *maturehttp.AssetHandler, archives *maturehttp.CanvasArchiveHandler, readiness func(context.Context) error, access applicationprojectaccess.Checker) http.Handler {
+	transport := &Router{projects: projects, projectUsage: projectUsage, canvases: canvases, nodes: nodes, resources: resources, assets: assets, archives: archives, readiness: readiness, access: access}
 	router := chi.NewRouter()
 	router.Get("/livez", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	router.Get("/readyz", transport.readinessRoute())
 	router.Get("/healthz", transport.readinessRoute())
-	router.Group(func(r chi.Router) {
-		r.Use(serviceAuthentication(internalServiceTokens))
-		r.Post("/internal/worker/archives/{archiveId}/execute", transport.internalArchiveRoute())
-		r.Post("/internal/worker/video-generations/{taskRunId}/extract-frames", transport.internalFrameRoute())
-	})
 	router.Get("/admin/projects", transport.workspaceAdminRoute("ListProjects", func(ctx context.Context, request *http.Request) (any, error) {
 		workspace := metadataWorkspace(request)
 		pageSize, err := requiredPositiveInt32Query(request, "page_size")
@@ -764,21 +756,6 @@ func NewRouter(internalServiceTokens map[string]string, projects *maturehttp.Pro
 	return router
 }
 
-func serviceAuthentication(expectedTokens map[string]string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			token := request.Header.Get("X-Internal-Token")
-			caller := strings.TrimSpace(request.Header.Get("X-Caller-Service"))
-			expectedToken, knownCaller := expectedTokens[caller]
-			if !knownCaller || token == "" || len(token) != len(expectedToken) || subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
-				writeProblem(w, errno.New(errno.ErrForbidden))
-				return
-			}
-			next.ServeHTTP(w, request)
-		})
-	}
-}
-
 func (transport *Router) readinessRoute() http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
 		ctx, cancel := context.WithTimeout(request.Context(), 3*time.Second)
@@ -788,36 +765,6 @@ func (transport *Router) readinessRoute() http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	}
-}
-
-func (transport *Router) internalArchiveRoute() http.HandlerFunc {
-	return func(w http.ResponseWriter, request *http.Request) {
-		if strings.TrimSpace(request.Header.Get("X-Caller-Service")) != "executor" || transport.executeArchive == nil {
-			writeProblem(w, errno.New(errno.ErrForbidden))
-			return
-		}
-		value, err := transport.executeArchive(request.Context(), chi.URLParam(request, "archiveId"))
-		if err != nil {
-			writeProblem(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, toSnakeJSON(value))
-	}
-}
-
-func (transport *Router) internalFrameRoute() http.HandlerFunc {
-	return func(w http.ResponseWriter, request *http.Request) {
-		if strings.TrimSpace(request.Header.Get("X-Caller-Service")) != "executor" || transport.executeFrames == nil {
-			writeProblem(w, errno.New(errno.ErrForbidden))
-			return
-		}
-		value, err := transport.executeFrames(request.Context(), chi.URLParam(request, "taskRunId"))
-		if err != nil {
-			writeProblem(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, toSnakeJSON(value))
 	}
 }
 

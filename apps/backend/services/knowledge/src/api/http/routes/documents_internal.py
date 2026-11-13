@@ -1,6 +1,7 @@
 """Internal document API for chat and other services."""
 
 import asyncio
+import logging
 import time
 from datetime import datetime
 from hashlib import sha256
@@ -16,9 +17,8 @@ from application.contracts.document import (
 )
 from application.conversation_cleanup import assert_conversation_accepts_artifacts
 from application.document_edits import apply_document_edit
+from application.document_processing import needs_processing, process_document
 from application.documents import document_to_schema
-from application.indexer import index_document_by_id
-from application.processor import convert_document
 from application.storage_client import (
     ensure_document_claim_active,
     ensure_staged_media_claim_active,
@@ -33,38 +33,12 @@ from infrastructure.persistence.models.staged_media import StagedMediaRow
 from infrastructure.persistence.repositories import documents as document_crud
 from infrastructure.persistence.repositories import staged_media as staged_media_crud
 from kernel.errors import ConflictError, NotFoundError, RequestError
-from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
-from api.http.dependencies import DbSession, require_executor_caller, require_internal_token
+from api.http.dependencies import DbSession, require_internal_token
 
 router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[Depends(require_internal_token)])
-
-
-class DocumentProcessResult(BaseModel):
-    state: str
-
-
-class ProcessDocumentInput(BaseModel):
-    provider_id: str | None = None
-
-
-@router.post(
-    "/documents/{document_id}/process",
-    response_model=DocumentProcessResult,
-    dependencies=[Depends(require_executor_caller)],
-)
-async def process_document(document_id: str, payload: ProcessDocumentInput) -> DocumentProcessResult:
-    return DocumentProcessResult(state=await convert_document(document_id, provider_id=payload.provider_id))
-
-
-@router.post(
-    "/documents/{document_id}/index",
-    response_model=DocumentProcessResult,
-    dependencies=[Depends(require_executor_caller)],
-)
-async def index_document(document_id: str) -> DocumentProcessResult:
-    return DocumentProcessResult(state=await index_document_by_id(document_id))
+logger = logging.getLogger("knowledge.documents.internal")
 
 
 def staged_media_to_schema(row: StagedMediaRow) -> StagedMedia:
@@ -179,17 +153,26 @@ async def get_document_slice(
     max_chars: int = Query(default=4000, ge=1, le=8000),
     wait_ms: int = Query(default=0, ge=0, le=_SLICE_WAIT_MAX_MS),
 ) -> DocumentSlice:
-    """Read a bounded slice of the converted markdown. When the document is still
-    converting in the background, ``wait_ms`` long-polls until it is ``ready`` (or
-    ``failed``/timeout) so a caller that just uploaded can read as soon as convert
-    finishes instead of getting an empty body. ``state`` distinguishes the outcome:
-    ``ready`` (real content), ``processing`` (retry later), ``failed`` (see error).
+    """Read a bounded slice of the converted markdown. Legacy pending documents
+    are processed synchronously on first read; ``wait_ms`` remains available for
+    a concurrent request already holding the document advisory lock. ``state``
+    distinguishes ``ready`` content, in-progress work, and persisted failure.
     """
     deadline = time.monotonic() + wait_ms / 1000
+    processing_attempted = False
     while True:
         row = await document_crud.get_document(session, document_id, user_id)
         if row is None:
             raise NotFoundError(f"document {document_id} not found")
+        if needs_processing(row) and not processing_attempted:
+            processing_attempted = True
+            await session.rollback()
+            try:
+                await process_document(row.id, provider_id=row.conversion_provider_id)
+            except Exception:
+                logger.exception("synchronous document processing failed for %s", document_id)
+            await session.rollback()
+            continue
         if row.content_md or row.ingest_status == "ready":
             return _ready_slice(row, start, max_chars)
         if row.ingest_status == "failed":

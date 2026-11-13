@@ -1,5 +1,5 @@
 import { ContextUsage } from "@repo/ai-elements";
-import { type ConversationContextView, fetchConversationContext } from "@repo/api";
+import { type ConversationContextView, getConversationContext } from "@repo/api/chat";
 import { useEffect, useState } from "react";
 
 export function ChatContextUsage({
@@ -26,7 +26,7 @@ export function ChatContextUsage({
     }
     const controller = new AbortController();
     setLoading(true);
-    void fetchConversationContext(conversationId, {
+    void getConversationContext(conversationId, {
       signal: controller.signal,
       skipErrorNotify: true,
     })

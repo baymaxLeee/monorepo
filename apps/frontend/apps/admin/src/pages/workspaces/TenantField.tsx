@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createTenant, listTenants, type Tenant } from "@repo/api";
+import { createTenant, listTenants, type Tenant } from "@repo/api/iam";
 import {
   Button,
   Dialog,

@@ -6,9 +6,7 @@ import { streamSSE } from "hono/streaming";
 import { getRun } from "workflow/api";
 import { z } from "zod";
 
-import { canvasArchiveInputSchema } from "../../../../workflows/canvas-archive.js";
-import { canvasVideoFramesInputSchema } from "../../../../workflows/canvas-video-frames.js";
-import { knowledgeDocumentProcessInputSchema } from "../../../../workflows/knowledge-document-process.js";
+import { imageGenerationInputSchema } from "../../../../workflows/image-generation.js";
 import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
 import { RequestError } from "../../../application/errors.js";
 import {
@@ -44,13 +42,7 @@ const createTaskEnvelope = {
 };
 
 const createTaskSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("canvas-archive"), payload: canvasArchiveInputSchema, ...createTaskEnvelope }),
-  z.object({ type: z.literal("canvas-video-frames"), payload: canvasVideoFramesInputSchema, ...createTaskEnvelope }),
-  z.object({
-    type: z.literal("knowledge-document-process"),
-    payload: knowledgeDocumentProcessInputSchema,
-    ...createTaskEnvelope,
-  }),
+  z.object({ type: z.literal("image-generation"), payload: imageGenerationInputSchema, ...createTaskEnvelope }),
   z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
 ]);
 
@@ -77,12 +69,6 @@ tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
   const body = c.req.valid("json");
   if (body.owner_service !== caller) {
     throw new RequestError("owner_service must match X-Caller-Service");
-  }
-  if (["canvas-archive", "canvas-video-frames"].includes(body.type) && caller !== "canvas") {
-    throw new RequestError("Canvas tasks require the Canvas caller");
-  }
-  if (body.type === "knowledge-document-process" && caller !== "knowledge") {
-    throw new RequestError("Knowledge document tasks require the Knowledge caller");
   }
   const task = await createTask({
     type: body.type,

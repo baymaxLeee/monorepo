@@ -14,7 +14,7 @@ import {
   platformAccessMiddleware,
   selectWorkspaceAccessMiddleware,
 } from "./access";
-import { type AppEntry, loadApps, remoteModuleId } from "./app-registry";
+import { type App, loadApps, remoteModuleId } from "./app-registry";
 import { RouteErrorFallback } from "./RouteErrorFallback";
 import { RouteLoading } from "./RouteLoading";
 
@@ -25,11 +25,11 @@ const PLATFORM_PREFIX = "/platform/";
 const patchedRemoteIds = new Set<string>();
 const remoteRoutePromises = new Map<string, Promise<RouteObject[]>>();
 
-function normalizedBasePath(app: AppEntry): string {
+function normalizedBasePath(app: App): string {
   return app.base_path.replace(/\/+$/, "");
 }
 
-function relativeAppPath(app: AppEntry): string {
+function relativeAppPath(app: App): string {
   const basePath = normalizedBasePath(app);
   if (!basePath.startsWith(PLATFORM_PREFIX)) {
     throw new Error(`App "${app.id}" base path must start with ${PLATFORM_PREFIX}`);
@@ -41,7 +41,7 @@ function relativeAppPath(app: AppEntry): string {
   return relativePath;
 }
 
-function findAppForPath(apps: AppEntry[], path: string): AppEntry | undefined {
+function findAppForPath(apps: App[], path: string): App | undefined {
   return apps
     .filter((app) => app.is_enabled)
     .filter((app) => {
@@ -51,7 +51,7 @@ function findAppForPath(apps: AppEntry[], path: string): AppEntry | undefined {
     .sort((left, right) => normalizedBasePath(right).length - normalizedBasePath(left).length)[0];
 }
 
-function loadRemoteRoutes(app: AppEntry): Promise<RouteObject[]> {
+function loadRemoteRoutes(app: App): Promise<RouteObject[]> {
   const cached = remoteRoutePromises.get(app.id);
   if (cached) {
     return cached;

@@ -1,4 +1,5 @@
-import { executeStorageUploadPlan, prepareCanvasUpload } from "@repo/api";
+import { authFetch } from "@repo/api";
+import { canvasPrepareUpload } from "@repo/api/canvas";
 import { randomId } from "@repo/shared";
 
 export interface UploadAssetResult {
@@ -21,12 +22,25 @@ export interface UseUploadAsset {
 export function stageUpload(options: UploadOptions) {
   const controller = new AbortController();
   const clientRef = randomId();
-  void prepareCanvasUpload({ clientRef, purpose: "source", file: options.file })
+  const request = {
+    client_ref: clientRef,
+    purpose: "source",
+    filename: options.file.name,
+    media_type: options.file.type || "application/octet-stream",
+    size_bytes: options.file.size,
+  };
+  void canvasPrepareUpload(request)
     .then(async (plan) => {
-      await executeStorageUploadPlan(plan, options.file, controller.signal);
-      const completed = await prepareCanvasUpload({ clientRef, purpose: "source", file: options.file });
-      if (!completed.assetId || !completed.revisionId) throw new Error("completed upload is missing its revision");
-      return { assetId: completed.assetId, revisionId: completed.revisionId };
+      const response = await authFetch(plan.upload_url, {
+        method: "PUT",
+        headers: { "Content-Type": request.media_type },
+        body: options.file,
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`upload failed: ${response.status}`);
+      const completed = await canvasPrepareUpload(request);
+      if (!completed.asset_id || !completed.revision_id) throw new Error("completed upload is missing its revision");
+      return { assetId: completed.asset_id, revisionId: completed.revision_id };
     })
     .then((result) => {
       options.onProgress(100);

@@ -15,15 +15,12 @@ export interface Settings {
   adminServiceUrl: string;
   storageServiceUrl: string;
   knowledgeServiceUrl: string;
-  canvasServiceUrl: string;
   ffmpegPath: string;
   videoSegmentConcurrency: number;
 }
 
 const DEV_INTERNAL_SERVICE_TOKENS = {
-  canvas: "dev-canvas-internal-token",
   chat: "dev-chat-internal-token",
-  knowledge: "dev-knowledge-internal-token",
 } as const;
 
 function internalServiceTokens(environment: Environment): Readonly<Record<string, string>> {
@@ -38,8 +35,8 @@ function internalServiceTokens(environment: Environment): Readonly<Record<string
     throw new Error("INTERNAL_SERVICE_TOKENS must be a JSON object");
   }
   const tokens = parsed as Record<string, unknown>;
-  if (Object.keys(tokens).sort().join(",") !== "canvas,chat,knowledge") {
-    throw new Error("INTERNAL_SERVICE_TOKENS must define exactly canvas, chat, and knowledge");
+  if (Object.keys(tokens).join(",") !== "chat") {
+    throw new Error("INTERNAL_SERVICE_TOKENS must define exactly chat");
   }
   for (const token of Object.values(tokens)) {
     if (
@@ -101,7 +98,6 @@ export function getSettings(): Settings {
     internalServiceTokens: internalServiceTokens(environment as Environment),
     adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
     storageServiceUrl: envOr("STORAGE_SERVICE_URL", "http://localhost:8013"),
-    canvasServiceUrl: envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
     knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
     ffmpegPath: envOr("FFMPEG_PATH", "ffmpeg"),
     videoSegmentConcurrency: envIntClamped("VIDEO_SEGMENT_CONCURRENCY", 12, 1, 12),

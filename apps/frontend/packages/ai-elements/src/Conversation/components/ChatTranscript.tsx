@@ -1,5 +1,5 @@
 import { ConversationEmptyState } from "@repo/ai-elements";
-import type { ConversationDocument } from "@repo/api";
+import { type ConversationDocument } from "@repo/api/chat";
 import { Button, MessageScrollerItem, Spinner } from "@repo/design-system";
 import { memo, useEffect, useMemo, useState } from "react";
 

@@ -1,0 +1,2694 @@
+{
+  "components": {
+    "schemas": {
+      "AccountAvailability": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account",
+          "available"
+        ],
+        "type": "object"
+      },
+      "AssignUserRoleInput": {
+        "additionalProperties": false,
+        "properties": {
+          "roleId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "roleId"
+        ],
+        "type": "object"
+      },
+      "AuthSession": {
+        "additionalProperties": false,
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          }
+        },
+        "required": [
+          "accessToken",
+          "expiresAt",
+          "user"
+        ],
+        "type": "object"
+      },
+      "AuthUser": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "activeWorkspace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Membership"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "avatarUrl": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "marketingOptIn": {
+            "type": "boolean"
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/Membership"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "theme": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "account",
+          "email",
+          "displayName",
+          "avatarUrl",
+          "locale",
+          "timezone",
+          "theme",
+          "marketingOptIn",
+          "emailVerified",
+          "roles",
+          "activeWorkspace",
+          "memberships"
+        ],
+        "type": "object"
+      },
+      "CreateTenantInput": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "CreateWorkspaceAdminInput": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "CreateWorkspaceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ownerAccount": {
+            "type": "string"
+          },
+          "ownerDisplayName": {
+            "type": "string"
+          },
+          "ownerEmail": {
+            "type": "string"
+          },
+          "ownerPassword": {
+            "type": "string"
+          },
+          "ownerUserId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenantId",
+          "name",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "HealthStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "LoginInput": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "password"
+        ],
+        "type": "object"
+      },
+      "Membership": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "workspace_admin",
+              "member"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenantId",
+          "workspaceId",
+          "workspaceName",
+          "role",
+          "status"
+        ],
+        "type": "object"
+      },
+      "PlatformRole": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "Problem": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
+      "RegisterInput": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "RejectMemberInput": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SetMemberRoleInput": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "workspace_admin",
+              "member"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
+      "SwitchWorkspaceInput": {
+        "additionalProperties": false,
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "type": "object"
+      },
+      "Tenant": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "TransferWorkspaceOwnerInput": {
+        "additionalProperties": false,
+        "properties": {
+          "newOwnerUserId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "newOwnerUserId"
+        ],
+        "type": "object"
+      },
+      "WorkspaceAdminView": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "joinPolicy": {
+            "enum": [
+              "open",
+              "approval"
+            ],
+            "type": "string"
+          },
+          "memberCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ownerUserId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "systemManaged": {
+            "type": "boolean"
+          },
+          "tenantId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenantId",
+          "id",
+          "name",
+          "slug",
+          "ownerUserId",
+          "systemManaged",
+          "joinPolicy",
+          "memberCount",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "WorkspaceMemberView": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "rejectionReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "enum": [
+              "workspace_admin",
+              "member"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "account",
+          "displayName",
+          "email",
+          "role",
+          "status",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "WorkspaceSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenantId",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Identity, session, workspace membership, and platform role control plane.",
+    "title": "IAM Server API",
+    "version": "2026-11-12"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/account-availability": {
+      "get": {
+        "operationId": "checkAccountAvailability",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountAvailability"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "iamHealthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/livez": {
+      "get": {
+        "operationId": "iamLivez",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/logout": {
+      "post": {
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "fetchMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthUser"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/me/memberships": {
+      "get": {
+        "operationId": "fetchMemberships",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Membership"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/me/memberships/{workspaceID}/apply": {
+      "post": {
+        "operationId": "applyToWorkspace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "iamReadyz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/refresh": {
+      "post": {
+        "operationId": "refreshSession",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/register": {
+      "post": {
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/roles": {
+      "get": {
+        "operationId": "listPlatformRoles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlatformRole"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/session/active-workspace": {
+      "post": {
+        "operationId": "switchActiveWorkspace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchWorkspaceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/tenants": {
+      "get": {
+        "operationId": "listTenants",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Tenant"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      },
+      "post": {
+        "operationId": "createTenant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tenant"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/users/{userID}/roles": {
+      "get": {
+        "operationId": "listUserPlatformRoles",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlatformRole"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      },
+      "post": {
+        "operationId": "assignUserRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignUserRoleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/users/{userID}/roles/{roleID}": {
+      "delete": {
+        "operationId": "removeUserRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "roleID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces": {
+      "get": {
+        "operationId": "fetchPublicWorkspaces",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceSummary"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      },
+      "post": {
+        "operationId": "createWorkspace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceAdminView"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces/admin": {
+      "get": {
+        "operationId": "listWorkspacesForAdmin",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceAdminView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces/{workspaceID}/admins": {
+      "post": {
+        "operationId": "createWorkspaceAdmin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceAdminInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceMemberView"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces/{workspaceID}/members": {
+      "get": {
+        "operationId": "listWorkspaceMembers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "active",
+                "rejected"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceMemberView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces/{workspaceID}/members/{userID}/approve": {
+      "post": {
+        "operationId": "approveMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces/{workspaceID}/members/{userID}/reject": {
+      "post": {
+        "operationId": "rejectMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectMemberInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces/{workspaceID}/members/{userID}/role": {
+      "put": {
+        "operationId": "setMemberRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMemberRoleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    },
+    "/workspaces/{workspaceID}/owner": {
+      "put": {
+        "operationId": "transferWorkspaceOwner",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferWorkspaceOwnerInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "tags": [
+          "iam"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/iam-server"
+    }
+  ]
+}

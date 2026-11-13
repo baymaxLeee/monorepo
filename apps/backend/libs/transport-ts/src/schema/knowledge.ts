@@ -12,7 +12,7 @@ export interface paths {
             cookie?: never;
         };
         /** Livez */
-        get: operations["livez_livez_get"];
+        get: operations["livez"];
         put?: never;
         post?: never;
         delete?: never;
@@ -29,7 +29,7 @@ export interface paths {
             cookie?: never;
         };
         /** Readyz */
-        get: operations["readyz_readyz_get"];
+        get: operations["readyz"];
         put?: never;
         post?: never;
         delete?: never;
@@ -46,7 +46,7 @@ export interface paths {
             cookie?: never;
         };
         /** Healthz */
-        get: operations["healthz_healthz_get"];
+        get: operations["healthz"];
         put?: never;
         post?: never;
         delete?: never;
@@ -65,10 +65,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Prepare
+         * Prepare Ingest
          * @description Authorize file metadata and create resumable Asset upload capabilities.
          */
-        post: operations["prepare_ingest_prepare_post"];
+        post: operations["prepare_ingest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -85,10 +85,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Ingest
+         * Ingest Documents
          * @description Attach already-uploaded immutable Asset revisions to Knowledge.
          */
-        post: operations["ingest_ingest_post"];
+        post: operations["ingest_documents"];
         delete?: never;
         options?: never;
         head?: never;
@@ -103,7 +103,7 @@ export interface paths {
             cookie?: never;
         };
         /** List My Documents */
-        get: operations["list_my_documents_documents_get"];
+        get: operations["list_my_documents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -132,7 +132,7 @@ export interface paths {
          *     Storage references are released transactionally and RAG `document_chunks` drop via
          *     the FK `ON DELETE CASCADE`.
          */
-        post: operations["batch_delete_my_documents_documents_batch_delete_post"];
+        post: operations["batch_delete_my_documents"];
         delete?: never;
         options?: never;
         head?: never;
@@ -147,15 +147,15 @@ export interface paths {
             cookie?: never;
         };
         /** Get My Document */
-        get: operations["get_my_document_documents__document_id__get"];
+        get: operations["get_my_document"];
         put?: never;
         post?: never;
         /** Delete My Document */
-        delete: operations["delete_my_document_documents__document_id__delete"];
+        delete: operations["delete_my_document"];
         options?: never;
         head?: never;
         /** Update My Document */
-        patch: operations["update_my_document_documents__document_id__patch"];
+        patch: operations["update_my_document"];
         trace?: never;
     };
     "/documents/{document_id}/reindex": {
@@ -169,10 +169,9 @@ export interface paths {
         put?: never;
         /**
          * Reindex My Document
-         * @description Re-queue a document for background RAG indexing (retry a skipped/failed
-         *     index, or rebuild after provider changes).
+         * @description Synchronously rebuild a document's RAG index.
          */
-        post: operations["reindex_my_document_documents__document_id__reindex_post"];
+        post: operations["reindex_my_document"];
         delete?: never;
         options?: never;
         head?: never;
@@ -189,41 +188,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Authorize Document Delivery */
-        post: operations["authorize_document_delivery_documents__document_id__delivery_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/documents/{document_id}/process": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Process Document */
-        post: operations["process_document_internal_documents__document_id__process_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/documents/{document_id}/index": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Index Document */
-        post: operations["index_document_internal_documents__document_id__index_post"];
+        post: operations["authorize_document_delivery"];
         delete?: never;
         options?: never;
         head?: never;
@@ -238,7 +203,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Documents */
-        get: operations["list_documents_internal_documents_get"];
+        get: operations["list_documents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -255,15 +220,15 @@ export interface paths {
             cookie?: never;
         };
         /** Get Document */
-        get: operations["get_document_internal_documents__document_id__get"];
+        get: operations["get_document"];
         put?: never;
         post?: never;
         /** Delete Document */
-        delete: operations["delete_document_internal_documents__document_id__delete"];
+        delete: operations["delete_document"];
         options?: never;
         head?: never;
         /** Update Artifact */
-        patch: operations["update_artifact_internal_documents__document_id__patch"];
+        patch: operations["update_artifact"];
         trace?: never;
     };
     "/internal/workspaces/{workspace_id}/documents/{document_id}": {
@@ -280,7 +245,7 @@ export interface paths {
          *     Chat separately proves that the source id occurs in the selected journal;
          *     this endpoint only answers the owning service's tenant/workspace question.
          */
-        get: operations["get_workspace_document_internal_workspaces__workspace_id__documents__document_id__get"];
+        get: operations["get_workspace_document"];
         put?: never;
         post?: never;
         delete?: never;
@@ -298,13 +263,12 @@ export interface paths {
         };
         /**
          * Get Document Slice
-         * @description Read a bounded slice of the converted markdown. When the document is still
-         *     converting in the background, ``wait_ms`` long-polls until it is ``ready`` (or
-         *     ``failed``/timeout) so a caller that just uploaded can read as soon as convert
-         *     finishes instead of getting an empty body. ``state`` distinguishes the outcome:
-         *     ``ready`` (real content), ``processing`` (retry later), ``failed`` (see error).
+         * @description Read a bounded slice of the converted markdown. Legacy pending documents
+         *     are processed synchronously on first read; ``wait_ms`` remains available for
+         *     a concurrent request already holding the document advisory lock. ``state``
+         *     distinguishes ``ready`` content, in-progress work, and persisted failure.
          */
-        get: operations["get_document_slice_internal_documents__document_id__slice_get"];
+        get: operations["get_document_slice"];
         put?: never;
         post?: never;
         delete?: never;
@@ -326,7 +290,7 @@ export interface paths {
          * Create Media Document
          * @description Register agent-generated media already persisted by Asset.
          */
-        post: operations["create_media_document_internal_media_documents_post"];
+        post: operations["create_media_document"];
         delete?: never;
         options?: never;
         head?: never;
@@ -343,7 +307,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Create Staged Media */
-        post: operations["create_staged_media_internal_staged_media_post"];
+        post: operations["create_staged_media"];
         delete?: never;
         options?: never;
         head?: never;
@@ -358,7 +322,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Staged Media */
-        get: operations["get_staged_media_internal_staged_media__staged_id__get"];
+        get: operations["get_staged_media"];
         put?: never;
         post?: never;
         delete?: never;
@@ -377,7 +341,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Publish Staged Media */
-        post: operations["publish_staged_media_internal_staged_media__staged_id__publish_post"];
+        post: operations["publish_staged_media"];
         delete?: never;
         options?: never;
         head?: never;
@@ -394,7 +358,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Discard Staged Media */
-        post: operations["discard_staged_media_internal_staged_media__staged_id__discard_post"];
+        post: operations["discard_staged_media"];
         delete?: never;
         options?: never;
         head?: never;
@@ -411,7 +375,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Cleanup Conversation Artifacts Route */
-        post: operations["cleanup_conversation_artifacts_route_internal_conversation_artifact_cleanups_post"];
+        post: operations["cleanup_conversation_artifacts_route"];
         delete?: never;
         options?: never;
         head?: never;
@@ -428,7 +392,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Fork Documents */
-        post: operations["fork_documents_internal_conversation_forks_post"];
+        post: operations["fork_documents"];
         delete?: never;
         options?: never;
         head?: never;
@@ -445,7 +409,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Retrieve Chunks */
-        post: operations["retrieve_chunks_internal_retrieve_post"];
+        post: operations["retrieve_chunks"];
         delete?: never;
         options?: never;
         head?: never;
@@ -616,11 +580,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
-        /** DocumentProcessResult */
-        DocumentProcessResult: {
-            /** State */
-            state: string;
-        };
         /** DocumentSlice */
         DocumentSlice: {
             /** Id */
@@ -715,11 +674,6 @@ export interface components {
         PrepareSourceUploadsResult: {
             /** Uploads */
             uploads: components["schemas"]["SourceUploadPlan"][];
-        };
-        /** ProcessDocumentInput */
-        ProcessDocumentInput: {
-            /** Provider Id */
-            provider_id?: string | null;
         };
         /** RetrieveInput */
         RetrieveInput: {
@@ -911,7 +865,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    livez_livez_get: {
+    livez: {
         parameters: {
             query?: never;
             header?: never;
@@ -933,7 +887,7 @@ export interface operations {
             };
         };
     };
-    readyz_readyz_get: {
+    readyz: {
         parameters: {
             query?: never;
             header?: never;
@@ -955,7 +909,7 @@ export interface operations {
             };
         };
     };
-    healthz_healthz_get: {
+    healthz: {
         parameters: {
             query?: never;
             header?: never;
@@ -977,7 +931,7 @@ export interface operations {
             };
         };
     };
-    prepare_ingest_prepare_post: {
+    prepare_ingest: {
         parameters: {
             query?: never;
             header?: {
@@ -1017,7 +971,7 @@ export interface operations {
             };
         };
     };
-    ingest_ingest_post: {
+    ingest_documents: {
         parameters: {
             query?: never;
             header?: {
@@ -1057,7 +1011,7 @@ export interface operations {
             };
         };
     };
-    list_my_documents_documents_get: {
+    list_my_documents: {
         parameters: {
             query?: {
                 kind?: string | null;
@@ -1095,7 +1049,7 @@ export interface operations {
             };
         };
     };
-    batch_delete_my_documents_documents_batch_delete_post: {
+    batch_delete_my_documents: {
         parameters: {
             query?: never;
             header?: {
@@ -1135,7 +1089,7 @@ export interface operations {
             };
         };
     };
-    get_my_document_documents__document_id__get: {
+    get_my_document: {
         parameters: {
             query?: never;
             header?: {
@@ -1173,7 +1127,7 @@ export interface operations {
             };
         };
     };
-    delete_my_document_documents__document_id__delete: {
+    delete_my_document: {
         parameters: {
             query?: never;
             header?: {
@@ -1209,7 +1163,7 @@ export interface operations {
             };
         };
     };
-    update_my_document_documents__document_id__patch: {
+    update_my_document: {
         parameters: {
             query?: never;
             header?: {
@@ -1251,7 +1205,7 @@ export interface operations {
             };
         };
     };
-    reindex_my_document_documents__document_id__reindex_post: {
+    reindex_my_document: {
         parameters: {
             query?: never;
             header?: {
@@ -1289,7 +1243,7 @@ export interface operations {
             };
         };
     };
-    authorize_document_delivery_documents__document_id__delivery_post: {
+    authorize_document_delivery: {
         parameters: {
             query?: never;
             header?: {
@@ -1327,79 +1281,7 @@ export interface operations {
             };
         };
     };
-    process_document_internal_documents__document_id__process_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessDocumentInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentProcessResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    index_document_internal_documents__document_id__index_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Internal-Token"?: string | null;
-                "X-Caller-Service"?: string | null;
-            };
-            path: {
-                document_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentProcessResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_documents_internal_documents_get: {
+    list_documents: {
         parameters: {
             query: {
                 user_id: string;
@@ -1435,7 +1317,7 @@ export interface operations {
             };
         };
     };
-    get_document_internal_documents__document_id__get: {
+    get_document: {
         parameters: {
             query: {
                 user_id: string;
@@ -1472,7 +1354,7 @@ export interface operations {
             };
         };
     };
-    delete_document_internal_documents__document_id__delete: {
+    delete_document: {
         parameters: {
             query: {
                 user_id: string;
@@ -1506,7 +1388,7 @@ export interface operations {
             };
         };
     };
-    update_artifact_internal_documents__document_id__patch: {
+    update_artifact: {
         parameters: {
             query?: never;
             header?: {
@@ -1544,7 +1426,7 @@ export interface operations {
             };
         };
     };
-    get_workspace_document_internal_workspaces__workspace_id__documents__document_id__get: {
+    get_workspace_document: {
         parameters: {
             query: {
                 tenant_id: string;
@@ -1582,7 +1464,7 @@ export interface operations {
             };
         };
     };
-    get_document_slice_internal_documents__document_id__slice_get: {
+    get_document_slice: {
         parameters: {
             query: {
                 user_id: string;
@@ -1621,7 +1503,7 @@ export interface operations {
             };
         };
     };
-    create_media_document_internal_media_documents_post: {
+    create_media_document: {
         parameters: {
             query?: never;
             header?: {
@@ -1657,7 +1539,7 @@ export interface operations {
             };
         };
     };
-    create_staged_media_internal_staged_media_post: {
+    create_staged_media: {
         parameters: {
             query?: never;
             header?: {
@@ -1693,7 +1575,7 @@ export interface operations {
             };
         };
     };
-    get_staged_media_internal_staged_media__staged_id__get: {
+    get_staged_media: {
         parameters: {
             query: {
                 user_id: string;
@@ -1729,7 +1611,7 @@ export interface operations {
             };
         };
     };
-    publish_staged_media_internal_staged_media__staged_id__publish_post: {
+    publish_staged_media: {
         parameters: {
             query?: never;
             header?: {
@@ -1767,7 +1649,7 @@ export interface operations {
             };
         };
     };
-    discard_staged_media_internal_staged_media__staged_id__discard_post: {
+    discard_staged_media: {
         parameters: {
             query?: never;
             header?: {
@@ -1805,7 +1687,7 @@ export interface operations {
             };
         };
     };
-    cleanup_conversation_artifacts_route_internal_conversation_artifact_cleanups_post: {
+    cleanup_conversation_artifacts_route: {
         parameters: {
             query?: never;
             header?: {
@@ -1841,7 +1723,7 @@ export interface operations {
             };
         };
     };
-    fork_documents_internal_conversation_forks_post: {
+    fork_documents: {
         parameters: {
             query?: never;
             header?: {
@@ -1877,7 +1759,7 @@ export interface operations {
             };
         };
     };
-    retrieve_chunks_internal_retrieve_post: {
+    retrieve_chunks: {
         parameters: {
             query?: never;
             header?: {

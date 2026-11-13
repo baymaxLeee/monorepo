@@ -3,8 +3,8 @@
 from application.auth import AuthContext
 from application.contracts.document import Document
 from application.document_edits import apply_document_edit
+from application.document_processing import needs_processing, process_document
 from application.documents import document_to_schema
-from application.executor_client import dispatch_document_now
 from application.storage_client import StorageDelivery, get_storage_client, mark_document_claim_released
 from fastapi import APIRouter, Query
 from infrastructure.persistence.database import write_tx
@@ -85,6 +85,15 @@ async def get_my_document(document_id: str, current_user: CurrentUser, session: 
     )
     if row is None:
         raise NotFoundError(f"document {document_id} not found")
+    if needs_processing(row):
+        await session.rollback()
+        await process_document(row.id, provider_id=row.conversion_provider_id)
+        await session.rollback()
+        row = await document_crud.get_workspace_document(
+            session, document_id, current_user.workspace_id, current_user.tenant_id
+        )
+        if row is None:
+            raise NotFoundError(f"document {document_id} not found")
     return document_to_schema(row, include_content=True)
 
 
@@ -106,21 +115,21 @@ async def update_my_document(
             values["index_status"] = "pending"
             values["ingest_status"] = "ready"
             values["ingest_error"] = None
-            values["processing_dispatched_at"] = None
     if values:
         row = await apply_document_edit(session, row, values)
     if values and content_changed:
-        await dispatch_document_now(
-            row.id,
-            updated_at=row.updated_at,
+        await process_document(row.id, provider_id=row.conversion_provider_id)
+        refreshed = await document_crud.get_workspace_document(
+            session, document_id, current_user.workspace_id, current_user.tenant_id
         )
+        assert refreshed is not None
+        row = refreshed
     return document_to_schema(row, include_content=True)
 
 
 @router.post("/{document_id}/reindex", response_model=Document)
 async def reindex_my_document(document_id: str, current_user: CurrentUser, session: DbSession) -> Document:
-    """Re-queue a document for background RAG indexing (retry a skipped/failed
-    index, or rebuild after provider changes)."""
+    """Synchronously rebuild a document's RAG index."""
     async with write_tx(session):
         row = await document_crud.get_workspace_document(
             session, document_id, current_user.workspace_id, current_user.tenant_id
@@ -132,12 +141,9 @@ async def reindex_my_document(document_id: str, current_user: CurrentUser, sessi
         row = await document_crud.update_document(
             session,
             row,
-            {"index_status": "pending", "index_error": None, "processing_dispatched_at": None},
+            {"index_status": "pending", "index_error": None},
         )
-    await dispatch_document_now(
-        row.id,
-        updated_at=row.updated_at,
-    )
+    await process_document(row.id, provider_id=row.conversion_provider_id)
     row = await document_crud.get_workspace_document(
         session, document_id, current_user.workspace_id, current_user.tenant_id
     )

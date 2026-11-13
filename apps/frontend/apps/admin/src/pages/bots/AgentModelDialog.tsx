@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Bot, type BotStatus, type BotTone, type ModelProvider, updateBot } from "@repo/api";
+import { type Bot, type BotStatus, type BotTone, type ModelProvider, updateBot } from "@repo/api/admin";
 import {
   Button,
   Dialog,
@@ -158,9 +158,9 @@ export function AgentModelDialog({
       tone: bot.tone ?? "professional",
       welcome_message: bot.welcome_message ?? "",
       suggested_questions: questionsToText(bot.suggested_questions ?? []),
-      text_provider_id: fromId(bot.text_provider_id),
-      image_provider_id: fromId(bot.image_provider_id),
-      video_provider_id: fromId(bot.video_provider_id),
+      text_provider_id: fromId(bot.text_provider_id ?? null),
+      image_provider_id: fromId(bot.image_provider_id ?? null),
+      video_provider_id: fromId(bot.video_provider_id ?? null),
     });
   }, [bot, form]);
 

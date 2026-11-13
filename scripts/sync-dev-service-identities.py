@@ -26,11 +26,15 @@ DEFAULT_CALLER_TOKENS = {
 }
 RECEIVER_CALLERS = {
     "admin": ("canvas", "chat", "executor", "knowledge"),
-    "canvas": ("chat", "executor"),
-    "executor": ("canvas", "chat", "knowledge"),
+    "canvas": ("chat",),
+    "executor": ("chat",),
     "knowledge": ("chat", "executor"),
     "storage": ("admin", "canvas", "chat", "executor", "knowledge"),
     "sandbox": ("chat",),
+}
+RETIRED_RECEIVER_CALLERS = {
+    "canvas": ("executor",),
+    "executor": ("canvas", "knowledge"),
 }
 ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 
@@ -124,6 +128,14 @@ def sync_receiver_maps(paths: dict[str, Path], caller_tokens: dict[str, str], fi
             actual = json.loads(raw)
         except json.JSONDecodeError:
             errors.append(f"{path.relative_to(ROOT)} has invalid INTERNAL_SERVICE_TOKENS JSON")
+            continue
+        retired = {
+            caller: caller_tokens[caller] for caller in RETIRED_RECEIVER_CALLERS.get(receiver, ()) if caller in actual
+        }
+        if fix and retired and actual == {**expected, **retired}:
+            set_value(lines, "INTERNAL_SERVICE_TOKENS", json.dumps(expected, separators=(",", ":")))
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            print(f"  removed retired callers from {path.relative_to(ROOT)}")
             continue
         if actual != expected:
             errors.append(f"{path.relative_to(ROOT)} INTERNAL_SERVICE_TOKENS does not match current caller credentials")

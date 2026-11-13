@@ -1,36 +1,12 @@
-/** One workspace membership from the caller's own point of view. */
-export type Membership = {
-  tenantId: string;
-  workspaceId: string;
-  workspaceName: string;
-  role: "workspace_admin" | "member";
-  status: "pending" | "active" | "rejected";
-};
-
-export type AuthUser = {
+export interface StoredAuthUser {
   id: string;
-  account: string;
-  email: string;
-  displayName: string;
-  avatarUrl: string;
-  locale: string;
-  timezone: string;
-  theme: "system" | "light" | "dark" | string;
-  marketingOptIn: boolean;
-  emailVerified: boolean;
-  /** Platform roles (e.g. "super_admin"); orthogonal to workspace roles. */
-  roles: string[];
-  /** The single workspace this session is bound to, or null when unscoped. */
-  activeWorkspace: Membership | null;
-  /** Every workspace the user belongs to, in any status. */
-  memberships: Membership[];
-};
+}
 
-export type AuthSession = {
+export interface StoredAuthSession {
   accessToken: string;
   expiresAt: string;
-  user: AuthUser;
-};
+  user: StoredAuthUser;
+}
 
 const LEGACY_ACCESS_TOKEN_KEY = "platform.access_token";
 const LEGACY_EXPIRES_AT_KEY = "platform.access_token_expires_at";
@@ -39,7 +15,7 @@ const USER_KEY = "platform.user";
 let accessToken: string | null = null;
 let expiresAt: string | null = null;
 let currentUserStorage = readStorage(USER_KEY);
-let currentUser = parseJSON<AuthUser>(currentUserStorage);
+let currentUser = parseJSON<StoredAuthUser>(currentUserStorage);
 
 export function syncSessionFromStorage(): void {
   purgeLegacyTokenKeys();
@@ -48,15 +24,15 @@ export function syncSessionFromStorage(): void {
     return;
   }
   currentUserStorage = storedUser;
-  currentUser = parseJSON<AuthUser>(storedUser);
+  currentUser = parseJSON<StoredAuthUser>(storedUser);
 }
 
 export function getToken(): string | null {
   return accessToken;
 }
 
-export function getCurrentUser(): AuthUser | null {
-  return currentUser;
+export function getCurrentUser<T extends StoredAuthUser = StoredAuthUser>(): T | null {
+  return currentUser as T | null;
 }
 
 export function isAccessTokenValid(): boolean {
@@ -68,22 +44,22 @@ export function isAccessTokenValid(): boolean {
 
 const SESSION_EVENT = "api:session";
 
-function notifySessionChange(user: AuthUser | null): void {
+function notifySessionChange(user: StoredAuthUser | null): void {
   try {
     globalThis.dispatchEvent(new CustomEvent(SESSION_EVENT, { detail: { user } }));
   } catch {}
 }
 
-export function onSessionChange(handler: (user: AuthUser | null) => void): () => void {
+export function onSessionChange(handler: (user: StoredAuthUser | null) => void): () => void {
   const listener = (event: Event) => {
-    const user = (event as CustomEvent<{ user: AuthUser | null }>).detail?.user ?? null;
+    const user = (event as CustomEvent<{ user: StoredAuthUser | null }>).detail?.user ?? null;
     handler(user);
   };
   globalThis.addEventListener(SESSION_EVENT, listener);
   return () => globalThis.removeEventListener(SESSION_EVENT, listener);
 }
 
-export function commitSession(session: AuthSession): AuthSession {
+export function commitSession<T extends StoredAuthSession>(session: T): T {
   accessToken = session.accessToken;
   expiresAt = session.expiresAt;
   currentUser = session.user;

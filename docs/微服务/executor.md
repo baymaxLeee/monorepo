@@ -8,16 +8,18 @@ Chat 负责交互意图与创作规划，Executor 负责任务、执行投影、
 `POST /tasks` 按 owner identity 幂等启动，`GET /tasks/:id` 返回快照，
 `GET /tasks/:id/stream` 提供鉴权后的内部状态 SSE，cancel 路由请求取消。
 状态 stream 每次连接先返回当前快照，再用 Workflow durable stream 唤醒并重读
-业务表；Chat 重连此 stream，不用额外 polling fallback 或浏览器第二条流。
+业务表；需要持续状态的业务工作台可独立订阅，模型侧工具不会用它阻塞 tool-loop。
 
 当前 task type 以
 [registry](../../apps/backend/services/executor/src/application/tasks/registry.ts)
-为准：knowledge-document-process、video-generation、canvas-archive、
-canvas-video-frames。类型/schema 与 workflow 实现在同一注册点连接；通用文件生成不经过 Executor，
+为准：当前有 image-generation 和 video-generation。类型/schema 与 workflow 实现在同一注册点连接；
+Canvas 领域异步任务、Knowledge 文档处理和通用文件生成不经过 Executor，
 不要从旧计划恢复已删除任务。
 
-视频制片通过 projection 和带版本的 decisions 管理审批；Workflow Hook 恢复原 run。
-创建工具在初始分镜/预算持久化后返回 production ID，后续付费生成、Take 审核、
+Chat 的图片/视频工具只提交任务并立即返回 task ID，不在 tool-loop 内等待 Workflow。
+图片 Workflow 负责 provider 调用和 Storage/Knowledge 落盘。视频制片通过 projection
+和带版本的 decisions 管理审批；Workflow Hook 恢复原 run。创建工具直接将 task ID
+作为 production ID 返回，后续分镜/预算、付费生成、Take 审核、
 合成与发布在 Workflow 中继续。业务细节与取消边界见
 [耐久执行决策](../ADR/durable-execution.md)。
 

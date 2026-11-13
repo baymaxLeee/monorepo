@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -15,16 +14,14 @@ import (
 )
 
 type Config struct {
-	Environment           string
-	Port                  string
-	InternalToken         string
-	InternalServiceTokens map[string]string
-	DatabaseURL           string
-	RedisURL              string
-	PublicGatewayURL      string
-	AdminServiceURL       string
-	StorageServiceURL     string
-	ExecutorServiceURL    string
+	Environment       string
+	Port              string
+	InternalToken     string
+	DatabaseURL       string
+	RedisURL          string
+	PublicGatewayURL  string
+	AdminServiceURL   string
+	StorageServiceURL string
 }
 
 func Env(key, fallback string) string {
@@ -77,10 +74,6 @@ func Load() (Config, error) {
 	if deployed && (len(token) < 32 || strings.HasPrefix(token, "dev-") || password == "canvas") {
 		return Config{}, fmt.Errorf("deployed environments require non-development database credentials and internal token")
 	}
-	serviceTokens, err := parseInternalServiceTokens(environment)
-	if err != nil {
-		return Config{}, err
-	}
 	postgresHost, err := requiredEnv("POSTGRES_HOST", deployed, "localhost")
 	if err != nil {
 		return Config{}, err
@@ -112,46 +105,16 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	executorServiceURL, err := serviceURL("EXECUTOR_SERVICE_URL", deployed, "http://localhost:8011")
-	if err != nil {
-		return Config{}, err
-	}
 	return Config{
-		Environment:           environment,
-		Port:                  Env("PORT", "8012"),
-		InternalToken:         token,
-		InternalServiceTokens: serviceTokens,
-		PublicGatewayURL:      publicGatewayURL,
-		RedisURL:              redisURL,
-		AdminServiceURL:       adminServiceURL,
-		StorageServiceURL:     storageServiceURL,
-		ExecutorServiceURL:    executorServiceURL,
-		DatabaseURL:           fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", postgresHost, Env("POSTGRES_PORT", "5432"), postgresUser, password, postgresDatabase, Env("POSTGRES_SSLMODE", "disable")),
+		Environment:       environment,
+		Port:              Env("PORT", "8012"),
+		InternalToken:     token,
+		PublicGatewayURL:  publicGatewayURL,
+		RedisURL:          redisURL,
+		AdminServiceURL:   adminServiceURL,
+		StorageServiceURL: storageServiceURL,
+		DatabaseURL:       fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", postgresHost, Env("POSTGRES_PORT", "5432"), postgresUser, password, postgresDatabase, Env("POSTGRES_SSLMODE", "disable")),
 	}, nil
-}
-
-func parseInternalServiceTokens(environment string) (map[string]string, error) {
-	raw := Env("INTERNAL_SERVICE_TOKENS", "{\"chat\":\"dev-chat-internal-token\",\"executor\":\"dev-executor-internal-token\"}")
-	var tokens map[string]string
-	if err := json.Unmarshal([]byte(raw), &tokens); err != nil {
-		return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS must be a JSON object: %w", err)
-	}
-	if len(tokens) != 2 || tokens["chat"] == "" || tokens["executor"] == "" {
-		return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS must define exactly chat and executor")
-	}
-	if environment != "development" {
-		seen := make(map[string]struct{}, len(tokens))
-		for _, token := range tokens {
-			if len(token) < 32 || strings.HasPrefix(token, "dev-") {
-				return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS contains an invalid credential")
-			}
-			seen[token] = struct{}{}
-		}
-		if len(seen) != len(tokens) {
-			return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS credentials must be unique")
-		}
-	}
-	return tokens, nil
 }
 func Connect(cfg Config) (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})

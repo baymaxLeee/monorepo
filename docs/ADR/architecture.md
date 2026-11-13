@@ -6,7 +6,7 @@
 
 仓库是多语言、独立部署的产品组合。后端 deployable 在 `apps/backend/services/`，共享基础设施在 `apps/backend/libs/`；前端 deployable 在 `apps/frontend/apps/`，共享能力在 `apps/frontend/packages/`。保留 pnpm、uv、Go 原生 workspace，由根 just CLI 统一入口；不把业务服务合并成共享大内核。
 
-[services.yaml](../../services.yaml) 是后端 runtime、端口、公开路径、binding、数据库和 OpenAPI 产物的唯一组合声明。目录发现只能发现代码项目，不能推导服务权限或网络连接。`check-services.py` 验证本地与部署面一致，不生成第二套部署配置。
+[services.yaml](../../services.yaml) 是后端 runtime、端口、公开路径、binding、数据库和 OpenAPI 产物的唯一组合声明。公开业务服务必须声明可离线重建的 OpenAPI artifact；IAM 也属于该契约链，不再由前端复制身份 DTO。目录发现只能发现代码项目，不能推导服务权限或网络连接。`check-services.py` 验证本地与部署面一致，不生成第二套部署配置。
 
 Gateway 是唯一公共 API 边缘，承担认证、CORS、限流、反向代理与 trace 传播，不承担业务聚合。Executor 保持内部访问。Platform 是唯一浏览器业务入口，通过 Module Federation 加载 remote。独立部署不等于可以任意改变共享契约。
 

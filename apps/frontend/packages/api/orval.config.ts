@@ -3,12 +3,22 @@ import { defineConfig } from "orval";
 const schemasRoot = "../../../../schemas/openapi";
 
 export default defineConfig({
+  "iam-server": {
+    input: `${schemasRoot}/iam-server.json`,
+    output: {
+      mode: "single",
+      target: "src/iam-server.ts",
+      client: "axios-functions",
+      baseUrl: "/api/iam-server",
+      override: { mutator: { path: "./src/orval-mutator.ts", name: "apiMutator" } },
+    },
+  },
   "storage-server": {
     input: `${schemasRoot}/storage-server.json`,
     output: {
       mode: "single",
-      target: "generated/storage-server/index.ts",
-      client: "axios",
+      target: "src/storage-server.ts",
+      client: "axios-functions",
       baseUrl: "/api/storage-server",
       override: { mutator: { path: "./src/orval-mutator.ts", name: "apiMutator" } },
     },
@@ -17,8 +27,8 @@ export default defineConfig({
     input: `${schemasRoot}/canvas-server.json`,
     output: {
       mode: "single",
-      target: "generated/canvas-server/index.ts",
-      client: "axios",
+      target: "src/canvas-server.ts",
+      client: "axios-functions",
       baseUrl: "/api/canvas-server",
       override: { mutator: { path: "./src/orval-mutator.ts", name: "apiMutator" } },
     },
@@ -27,8 +37,9 @@ export default defineConfig({
     input: `${schemasRoot}/admin-server.json`,
     output: {
       mode: "single",
-      target: "generated/admin-server/index.ts",
-      client: "axios",
+      target: "src/admin-server.ts",
+      client: "axios-functions",
+      baseUrl: "/api/admin-server",
       override: {
         mutator: {
           path: "./src/orval-mutator.ts",
@@ -41,8 +52,9 @@ export default defineConfig({
     input: `${schemasRoot}/chat-server.json`,
     output: {
       mode: "single",
-      target: "generated/chat-server/index.ts",
-      client: "axios",
+      target: "src/chat-server.ts",
+      client: "axios-functions",
+      baseUrl: "/api/chat-server",
       override: {
         mutator: {
           path: "./src/orval-mutator.ts",
@@ -55,8 +67,9 @@ export default defineConfig({
     input: `${schemasRoot}/knowledge-server.json`,
     output: {
       mode: "single",
-      target: "generated/knowledge-server/index.ts",
-      client: "axios",
+      target: "src/knowledge-server.ts",
+      client: "axios-functions",
+      baseUrl: "/api/knowledge-server",
       override: {
         mutator: {
           path: "./src/orval-mutator.ts",
@@ -69,8 +82,9 @@ export default defineConfig({
     input: `${schemasRoot}/telemetry-server.json`,
     output: {
       mode: "single",
-      target: "generated/telemetry-server/index.ts",
-      client: "axios",
+      target: "src/telemetry-server.ts",
+      client: "axios-functions",
+      baseUrl: "/api/telemetry-server",
       override: {
         mutator: {
           path: "./src/orval-mutator.ts",

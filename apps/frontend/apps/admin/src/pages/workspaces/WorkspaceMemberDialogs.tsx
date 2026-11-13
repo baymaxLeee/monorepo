@@ -1,4 +1,4 @@
-import { createWorkspaceAdmin, type WorkspaceAdminView, transferWorkspaceOwner } from "@repo/api";
+import { createWorkspaceAdmin, type WorkspaceAdminView, transferWorkspaceOwner } from "@repo/api/iam";
 import {
   Button,
   Dialog,
@@ -125,7 +125,7 @@ export function TransferOwnerDialog({ onClose, onDone, workspace }: DialogProps)
     }
     setBusy(true);
     try {
-      await transferWorkspaceOwner(workspace.id, newOwnerUserId.trim());
+      await transferWorkspaceOwner(workspace.id, { newOwnerUserId: newOwnerUserId.trim() });
       toast.add({ type: "success", title: "负责人已转让" });
       onClose();
       onDone();

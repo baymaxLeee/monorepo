@@ -1,6 +1,6 @@
 // Source presentation model retained for the imported UI. Network calls use @repo/api OpenAPI clients.
 
-import { CanvasThinkingModes as ThinkingModes } from "@repo/api";
+import { CanvasThinkingModes as ThinkingModes } from "@repo/api/canvas";
 
 export { ThinkingModes };
 

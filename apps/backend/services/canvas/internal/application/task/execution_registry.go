@@ -13,7 +13,7 @@ type ExecutionBackend string
 
 const (
 	ExecutionBackendLocalScheduled ExecutionBackend = "LOCAL_SCHEDULED"
-	ExecutionBackendWorkerMQ       ExecutionBackend = "WORKER_MQ"
+	ExecutionBackendLocalAsync     ExecutionBackend = "LOCAL_ASYNC"
 )
 
 type ExecutionRegistration struct {
@@ -37,8 +37,8 @@ var executionBackends = []struct {
 	{domaintask.RunTypeImageGeneration, ExecutionBackendLocalScheduled},
 	{domaintask.RunTypeCanvasNodeAssetsMatch, ExecutionBackendLocalScheduled},
 	{domaintask.RunTypeAssetReview, ExecutionBackendLocalScheduled},
-	{domaintask.RunTypeCanvasVideoArchiveExport, ExecutionBackendWorkerMQ},
-	{domaintask.RunTypeCanvasNodeVideoFirstLastFrameExtraction, ExecutionBackendWorkerMQ},
+	{domaintask.RunTypeCanvasVideoArchiveExport, ExecutionBackendLocalAsync},
+	{domaintask.RunTypeCanvasNodeVideoFirstLastFrameExtraction, ExecutionBackendLocalAsync},
 }
 
 func ExecutionBackendForRunType(runType domaintask.RunType) (ExecutionBackend, bool) {
@@ -76,7 +76,7 @@ func NewExecutionRegistry(processors []PollProcessor, starters []AsyncExecutionS
 		}
 		runType := starter.RunType()
 		entry, ok := entries[runType]
-		if !ok || entry.Backend != ExecutionBackendWorkerMQ {
+		if !ok || entry.Backend != ExecutionBackendLocalAsync {
 			return nil, fmt.Errorf("async execution starter has unsupported execution backend for %s", runType)
 		}
 		if entry.AsyncStarter != nil {
@@ -90,7 +90,7 @@ func NewExecutionRegistry(processors []PollProcessor, starters []AsyncExecutionS
 		if entry.Backend == ExecutionBackendLocalScheduled && entry.PollProcessor == nil {
 			return nil, fmt.Errorf("poll processor is not configured for %s", entry.RunType)
 		}
-		if entry.Backend == ExecutionBackendWorkerMQ && entry.AsyncStarter == nil {
+		if entry.Backend == ExecutionBackendLocalAsync && entry.AsyncStarter == nil {
 			return nil, fmt.Errorf("async execution starter is not configured for %s", entry.RunType)
 		}
 	}

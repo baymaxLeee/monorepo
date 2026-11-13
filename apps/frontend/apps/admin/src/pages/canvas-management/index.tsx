@@ -4,7 +4,7 @@ import {
   canvasAdminListProjects,
   type CanvasProjectDetail,
   type CanvasProjectSummary,
-} from "@repo/api";
+} from "@repo/api/canvas";
 import {
   AlertDialog,
   AlertDialogAction,

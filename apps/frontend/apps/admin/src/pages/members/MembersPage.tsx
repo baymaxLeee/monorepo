@@ -6,7 +6,7 @@ import {
   type WorkspaceMemberView,
   rejectMember,
   setMemberRole,
-} from "@repo/api";
+} from "@repo/api/iam";
 import {
   Alert,
   AlertDescription,
@@ -101,7 +101,7 @@ export function MembersPage() {
     }
     setLoading(true);
     setError(null);
-    listWorkspaceMembers(workspaceId, status || undefined, { skipErrorNotify: true })
+    listWorkspaceMembers(workspaceId, status ? { status } : undefined, { skipErrorNotify: true })
       .then(setMembers)
       .catch((e) => setError(getErrorMessage(e)))
       .finally(() => setLoading(false));
@@ -157,7 +157,7 @@ export function MembersPage() {
     if (reason === null) {
       return;
     }
-    void run(m.userId, () => rejectMember(workspaceId, m.userId, reason), "已拒绝申请");
+    void run(m.userId, () => rejectMember(workspaceId, m.userId, { reason }), "已拒绝申请");
   }
 
   function changeRole(m: WorkspaceMemberView, role: WorkspaceMemberView["role"]) {
@@ -166,7 +166,7 @@ export function MembersPage() {
     }
     void run(
       m.userId,
-      () => setMemberRole(workspaceId, m.userId, role),
+      () => setMemberRole(workspaceId, m.userId, { role }),
       role === "workspace_admin" ? "已设为管理员" : "已设为成员",
     );
   }

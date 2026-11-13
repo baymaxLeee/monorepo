@@ -1,9 +1,9 @@
-import type { Message } from "@repo/api";
+import { type ConversationMessage } from "@repo/api/chat";
 import { isToolUIPart, validateUIMessages } from "ai";
 
 import { chatDataPartSchemas, chatMessageMetadataSchema, type ChatUIMessage } from "./chat-message";
 
-export function validateConversationMessages(messages: Message[]): Promise<ChatUIMessage[]> {
+export function validateConversationMessages(messages: ConversationMessage[]): Promise<ChatUIMessage[]> {
   if (messages.length === 0) return Promise.resolve([]);
   return validateUIMessages<ChatUIMessage>({
     messages: messages.map((message) => ({

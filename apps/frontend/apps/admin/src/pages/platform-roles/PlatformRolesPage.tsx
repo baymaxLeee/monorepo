@@ -1,4 +1,10 @@
-import { assignUserRole, listPlatformRoles, listUserPlatformRoles, type PlatformRole, removeUserRole } from "@repo/api";
+import {
+  assignUserRole,
+  listPlatformRoles,
+  listUserPlatformRoles,
+  type PlatformRole,
+  removeUserRole,
+} from "@repo/api/iam";
 import {
   Alert,
   AlertDescription,
@@ -95,7 +101,7 @@ export function PlatformRolesPage() {
         await removeUserRole(queried, superRole.id);
         toast.add({ type: "success", title: "已撤销 super_admin" });
       } else {
-        await assignUserRole(queried, superRole.id);
+        await assignUserRole(queried, { roleId: superRole.id });
         toast.add({ type: "success", title: "已授予 super_admin" });
       }
       setUserRoles(await listUserPlatformRoles(queried));

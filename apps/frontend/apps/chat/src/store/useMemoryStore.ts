@@ -1,14 +1,14 @@
 import {
   approveMemoryCandidate,
   deleteMemory as deleteMemoryApi,
-  fetchActiveMemories,
-  fetchMemoryCandidates,
+  listActiveMemories,
+  listMemoryCandidates,
   type MemoryCandidate,
   type MemoryCategory,
   rejectMemoryCandidate,
   type UserMemory,
   updateMemoryCandidate,
-} from "@repo/api";
+} from "@repo/api/chat";
 import { getErrorMessage } from "@repo/shared";
 import { create } from "zustand";
 
@@ -36,7 +36,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   async refresh() {
     set({ loading: true, error: null });
     try {
-      const [candidatesRes, memoriesRes] = await Promise.all([fetchMemoryCandidates(), fetchActiveMemories()]);
+      const [candidatesRes, memoriesRes] = await Promise.all([listMemoryCandidates(), listActiveMemories()]);
       set({
         candidates: candidatesRes.candidates,
         memories: memoriesRes.memories,
@@ -51,7 +51,7 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
 
   async refreshCandidates() {
     try {
-      const { candidates } = await fetchMemoryCandidates();
+      const { candidates } = await listMemoryCandidates();
       set({ candidates });
     } catch (error) {
       set({ error: getErrorMessage(error) });

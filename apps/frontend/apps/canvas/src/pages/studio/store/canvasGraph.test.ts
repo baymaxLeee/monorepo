@@ -1,4 +1,4 @@
-import { CanvasGenerationStatus, CanvasNodeStatus, CanvasNodeTaskType, type CanvasNode } from "@repo/api";
+import { CanvasGenerationStatus, CanvasNodeStatus, CanvasNodeTaskType, type CanvasNode } from "@repo/api/canvas";
 import { createStore } from "jotai";
 import { expect, it } from "vitest";
 

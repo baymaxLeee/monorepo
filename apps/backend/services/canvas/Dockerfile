@@ -3,11 +3,13 @@ WORKDIR /src
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/canvas-server ./cmd/server && \
+    CGO_ENABLED=0 GOOS=linux go build -o /out/canvas-worker ./cmd/worker
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
 USER 65532:65532
-COPY --from=builder /out/server /server
+COPY --from=builder /out/canvas-server /canvas-server
+COPY --from=builder /out/canvas-worker /canvas-worker
 EXPOSE 8012
-ENTRYPOINT ["/server"]
+ENTRYPOINT ["/canvas-server"]

@@ -8,6 +8,5 @@ data:
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "knowledge"
   ADMIN_SERVICE_URL: "http://admin:8001"
-  EXECUTOR_SERVICE_URL: "http://executor:8011"
   STORAGE_SERVICE_URL: "http://storage:8013"
   EMBEDDING_DIM: "2048"

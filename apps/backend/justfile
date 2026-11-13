@@ -170,7 +170,7 @@ gen-openapi service:
     echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:
-    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} canvas storage; do just gen-openapi $s; done
+    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} iam canvas storage; do just gen-openapi $s; done
 
 gen-transport-ts:
     cd libs/transport-ts && pnpm install && pnpm run codegen

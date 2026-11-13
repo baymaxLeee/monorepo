@@ -1,4 +1,4 @@
-import { fetchKnowledgeDocument, updateKnowledgeDocument } from "@repo/api";
+import { getMyDocument, updateMyDocument } from "@repo/api/knowledge";
 import {
   Button,
   Dialog,
@@ -38,7 +38,7 @@ export function KnowledgeDocumentDialog({ documentId, onOpenChange, onSaved }: K
     }
     let cancelled = false;
     setLoading(true);
-    fetchKnowledgeDocument(documentId)
+    getMyDocument(documentId)
       .then((doc) => {
         if (cancelled) {
           return;
@@ -64,7 +64,7 @@ export function KnowledgeDocumentDialog({ documentId, onOpenChange, onSaved }: K
     }
     setSaving(true);
     try {
-      await updateKnowledgeDocument(documentId, {
+      await updateMyDocument(documentId, {
         title: title.trim() || filename,
         content_md: content,
       });

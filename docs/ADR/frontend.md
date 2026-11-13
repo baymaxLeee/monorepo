@@ -27,8 +27,12 @@ Host 提供 React、Router 与需要跨 MFE 身份一致的运行时单例；rem
 [mf-shared](../../apps/frontend/packages/shared/config/mf-shared.mjs) 为准。
 
 普通 API 经 `@repo/api` 的 axios 单例执行认证、refresh/retry 和错误通知；流式
-请求经 authFetch。业务层不重复全局错误 toast。UI primitives 不反向依赖 API
-或 runtime，业务 orchestration 放 feature/app。
+请求经 authFetch。根 `just sync` 从各服务 OpenAPI 直接生成
+`packages/api/src/<service>-server.ts`（每服务一个文件，包含 operation、interface 和
+enum）以及根入口，不经过模板或手写 facade。应用从 `@repo/api/<service>` 消费生成
+API；只有认证刷新、SSE、blob、redirect/signed URL 等 OpenAPI 客户端不能替代的传输
+行为保留显式运行时代码。业务层不重复全局错误 toast。UI primitives 不反向依赖
+API 或 runtime，业务 orchestration 放 feature/app。
 
 ## 设计与 AI UI
 

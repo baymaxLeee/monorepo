@@ -1,4 +1,4 @@
-import type { TelemetryErrorEvent } from "@repo/api";
+import { type ErrorEvent } from "@repo/api/telemetry";
 import {
   Badge,
   Card,
@@ -32,7 +32,7 @@ use([BarChart, CanvasRenderer, GridComponent, LegendComponent, LineChart, PieCha
 
 type DashboardContentProps = {
   data: DashboardData;
-  items: TelemetryErrorEvent[];
+  items: ErrorEvent[];
   loading: boolean;
   vitals: VitalSummary[];
 };

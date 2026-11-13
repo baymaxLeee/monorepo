@@ -1,4 +1,4 @@
-import type { TraceSpan } from "@repo/api";
+import { type TraceSpan } from "@repo/api/telemetry";
 import { Badge, InlineCode, Skeleton } from "@repo/design-system";
 import { useMemo } from "react";
 

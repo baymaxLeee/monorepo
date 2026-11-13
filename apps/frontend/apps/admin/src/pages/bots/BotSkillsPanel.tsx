@@ -1,4 +1,4 @@
-import { attachBotSkill, detachBotSkill, fetchBotSkills, fetchSkills, type SkillSummary } from "@repo/api";
+import { attachBotSkill, detachBotSkill, listBotSkills, listSkills, type SkillSummary } from "@repo/api/admin";
 import { Badge, buttonVariants, Skeleton, Switch, toast } from "@repo/design-system";
 import { cn } from "@repo/shared";
 import { useEffect, useMemo, useState } from "react";
@@ -22,7 +22,7 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
     let alive = true;
     setAttached(null);
     setAll(null);
-    Promise.all([fetchBotSkills(botId), fetchSkills()])
+    Promise.all([listBotSkills(botId), listSkills()])
       .then(([bound, every]) => {
         if (!alive) {
           return;
@@ -47,7 +47,7 @@ export function BotSkillsPanel({ botId }: { botId: string }) {
   async function toggle(skill: SkillSummary, next: boolean) {
     setBusyId(skill.id);
     try {
-      const list = next ? await attachBotSkill(botId, skill.id) : await detachBotSkill(botId, skill.id);
+      const list = next ? await attachBotSkill(botId, { skill_id: skill.id }) : await detachBotSkill(botId, skill.id);
       setAttached(list);
       toast.add({ type: "success", title: next ? "已挂载技能" : "已移除技能" });
     } catch {

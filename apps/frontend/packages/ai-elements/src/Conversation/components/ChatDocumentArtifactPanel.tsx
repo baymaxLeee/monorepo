@@ -1,12 +1,6 @@
 import { ArtifactAction, resolveArtifactPreviewKind } from "@repo/ai-elements";
-import type { ConversationDocumentDetail } from "@repo/api";
-import {
-  createStorageDownloadUrl,
-  downloadAssetUrl,
-  fetchAssetText,
-  fetchConversationDocument,
-  updateConversationDocument,
-} from "@repo/api";
+import { createStorageDownloadUrl, downloadAssetUrl, fetchAssetText } from "@repo/api";
+import { type ConversationDocumentDetail, getConversationDocument, updateConversationDocument } from "@repo/api/chat";
 import { Button, toast } from "@repo/design-system";
 import { MarkdownEditor } from "@repo/editors/markdown-editor";
 import { getErrorMessage } from "@repo/shared";
@@ -67,7 +61,7 @@ export function ChatDocumentArtifactPanel({ onClose }: { onClose?: () => void })
     setLoading(true);
     setArtifact(null);
     setSaveState("idle");
-    void fetchConversationDocument(conversationId, documentId, { includeContent: false, signal: controller.signal })
+    void getConversationDocument(conversationId, documentId, { include_content: false }, { signal: controller.signal })
       .then(async (metadata) => {
         let document = metadata;
         if (isEditableMarkdown(metadata) && metadata.asset_id && metadata.source_revision_id) {

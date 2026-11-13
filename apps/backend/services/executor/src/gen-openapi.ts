@@ -53,30 +53,18 @@ const taskSchema = {
   ],
 };
 
-const canvasArchivePayloadSchema = {
-  type: "object",
-  properties: { taskRunId: { type: "string", pattern: "^[a-f0-9]{32}$" } },
-  required: ["taskRunId"],
-};
-
-const canvasVideoFramesPayloadSchema = {
+const imageGenerationTaskPayloadSchema = {
   type: "object",
   properties: {
-    taskRunId: {
-      type: "string",
-      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-    },
-  },
-  required: ["taskRunId"],
-};
-
-const knowledgeDocumentProcessPayloadSchema = {
-  type: "object",
-  properties: {
-    documentId: { type: "string" },
+    tenantId: { type: "string" },
+    workspaceId: { type: "string" },
+    userId: { type: "string" },
+    conversationId: { type: "string" },
     providerId: { type: "string" },
+    prompts: { type: "array", minItems: 1, maxItems: 6, items: { type: "string", maxLength: 4_000 } },
+    idempotencyKey: { type: "string" },
   },
-  required: ["documentId"],
+  required: ["tenantId", "workspaceId", "userId", "providerId", "prompts", "idempotencyKey"],
 };
 
 const videoGenerationTaskPayloadSchema = {
@@ -166,9 +154,7 @@ const taskEnvelope = (type: string, payload: object) => ({
 
 const createTaskInputSchema = {
   oneOf: [
-    taskEnvelope("canvas-archive", ref("CanvasArchivePayload")),
-    taskEnvelope("canvas-video-frames", ref("CanvasVideoFramesPayload")),
-    taskEnvelope("knowledge-document-process", ref("KnowledgeDocumentProcessPayload")),
+    taskEnvelope("image-generation", ref("ImageGenerationTaskPayload")),
     taskEnvelope("video-generation", ref("VideoGenerationTaskPayload")),
   ],
   discriminator: { propertyName: "type" },
@@ -413,8 +399,7 @@ const openapi = {
   info: {
     title: "Executor Service",
     version: "0.1.0",
-    description:
-      "Durable task executor (Brain=chat's ToolLoopAgent, Hands+Session=this service). See docs/ADR and apps/backend/services/executor/AGENTS.md.",
+    description: "Durable image and video generation workflows. See docs/ADR and Executor AGENTS.md.",
   },
   paths: {
     "/healthz": { get: { responses: { "200": { description: "ok" } } } },
@@ -560,9 +545,7 @@ const openapi = {
       Task: taskSchema,
       TaskWatchFrame: taskWatchFrameSchema,
       CreateTaskInput: createTaskInputSchema,
-      CanvasArchivePayload: canvasArchivePayloadSchema,
-      CanvasVideoFramesPayload: canvasVideoFramesPayloadSchema,
-      KnowledgeDocumentProcessPayload: knowledgeDocumentProcessPayloadSchema,
+      ImageGenerationTaskPayload: imageGenerationTaskPayloadSchema,
       VideoGenerationTaskPayload: videoGenerationTaskPayloadSchema,
       ReferenceAsset: referenceAssetSchema,
       ShotSpec: shotSpecSchema,

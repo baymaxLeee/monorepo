@@ -12,7 +12,7 @@
           "meta"
         ],
         "summary": "Livez",
-        "operationId": "livez_livez_get",
+        "operationId": "livez",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -23,7 +23,7 @@
                     "type": "string"
                   },
                   "type": "object",
-                  "title": "Response Livez Livez Get"
+                  "title": "Response Livez"
                 }
               }
             }
@@ -37,7 +37,7 @@
           "meta"
         ],
         "summary": "Readyz",
-        "operationId": "readyz_readyz_get",
+        "operationId": "readyz",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -48,7 +48,7 @@
                     "type": "string"
                   },
                   "type": "object",
-                  "title": "Response Readyz Readyz Get"
+                  "title": "Response Readyz"
                 }
               }
             }
@@ -62,7 +62,7 @@
           "meta"
         ],
         "summary": "Healthz",
-        "operationId": "healthz_healthz_get",
+        "operationId": "healthz",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -73,7 +73,7 @@
                     "type": "string"
                   },
                   "type": "object",
-                  "title": "Response Healthz Healthz Get"
+                  "title": "Response Healthz"
                 }
               }
             }
@@ -86,9 +86,9 @@
         "tags": [
           "ingest"
         ],
-        "summary": "Prepare",
+        "summary": "Prepare Ingest",
         "description": "Authorize file metadata and create resumable Asset upload capabilities.",
-        "operationId": "prepare_ingest_prepare_post",
+        "operationId": "prepare_ingest",
         "parameters": [
           {
             "name": "X-Auth-Name",
@@ -226,9 +226,9 @@
         "tags": [
           "ingest"
         ],
-        "summary": "Ingest",
+        "summary": "Ingest Documents",
         "description": "Attach already-uploaded immutable Asset revisions to Knowledge.",
-        "operationId": "ingest_ingest_post",
+        "operationId": "ingest_documents",
         "parameters": [
           {
             "name": "X-Auth-Name",
@@ -367,7 +367,7 @@
           "documents"
         ],
         "summary": "List My Documents",
-        "operationId": "list_my_documents_documents_get",
+        "operationId": "list_my_documents",
         "parameters": [
           {
             "name": "kind",
@@ -492,7 +492,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Document"
                   },
-                  "title": "Response List My Documents Documents Get"
+                  "title": "Response List My Documents"
                 }
               }
             }
@@ -517,7 +517,7 @@
         ],
         "summary": "Batch Delete My Documents",
         "description": "Delete several documents in one transaction.\n\nSame policy as single delete: an workspace_admin may delete any of the workspace's\ndocuments; a member may delete only their own uploads. If ANY requested id\nis outside the workspace or not deletable by the caller, the whole batch is\nrejected with 403 — no silent partial success that would mislead the caller.\nStorage references are released transactionally and RAG `document_chunks` drop via\nthe FK `ON DELETE CASCADE`.",
-        "operationId": "batch_delete_my_documents_documents_batch_delete_post",
+        "operationId": "batch_delete_my_documents",
         "parameters": [
           {
             "name": "X-Auth-Name",
@@ -656,7 +656,7 @@
           "documents"
         ],
         "summary": "Get My Document",
-        "operationId": "get_my_document_documents__document_id__get",
+        "operationId": "get_my_document",
         "parameters": [
           {
             "name": "document_id",
@@ -792,7 +792,7 @@
           "documents"
         ],
         "summary": "Update My Document",
-        "operationId": "update_my_document_documents__document_id__patch",
+        "operationId": "update_my_document",
         "parameters": [
           {
             "name": "document_id",
@@ -938,7 +938,7 @@
           "documents"
         ],
         "summary": "Delete My Document",
-        "operationId": "delete_my_document_documents__document_id__delete",
+        "operationId": "delete_my_document",
         "parameters": [
           {
             "name": "document_id",
@@ -1069,8 +1069,8 @@
           "documents"
         ],
         "summary": "Reindex My Document",
-        "description": "Re-queue a document for background RAG indexing (retry a skipped/failed\nindex, or rebuild after provider changes).",
-        "operationId": "reindex_my_document_documents__document_id__reindex_post",
+        "description": "Synchronously rebuild a document's RAG index.",
+        "operationId": "reindex_my_document",
         "parameters": [
           {
             "name": "document_id",
@@ -1208,7 +1208,7 @@
           "documents"
         ],
         "summary": "Authorize Document Delivery",
-        "operationId": "authorize_document_delivery_documents__document_id__delivery_post",
+        "operationId": "authorize_document_delivery",
         "parameters": [
           {
             "name": "document_id",
@@ -1340,171 +1340,13 @@
         }
       }
     },
-    "/internal/documents/{document_id}/process": {
-      "post": {
-        "tags": [
-          "internal"
-        ],
-        "summary": "Process Document",
-        "operationId": "process_document_internal_documents__document_id__process_post",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessDocumentInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentProcessResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/documents/{document_id}/index": {
-      "post": {
-        "tags": [
-          "internal"
-        ],
-        "summary": "Index Document",
-        "operationId": "index_document_internal_documents__document_id__index_post",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "X-Internal-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Internal-Token"
-            }
-          },
-          {
-            "name": "X-Caller-Service",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Caller-Service"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentProcessResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/internal/documents": {
       "get": {
         "tags": [
           "internal"
         ],
         "summary": "List Documents",
-        "operationId": "list_documents_internal_documents_get",
+        "operationId": "list_documents",
         "parameters": [
           {
             "name": "user_id",
@@ -1590,7 +1432,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Document"
                   },
-                  "title": "Response List Documents Internal Documents Get"
+                  "title": "Response List Documents"
                 }
               }
             }
@@ -1614,7 +1456,7 @@
           "internal"
         ],
         "summary": "Get Document",
-        "operationId": "get_document_internal_documents__document_id__get",
+        "operationId": "get_document",
         "parameters": [
           {
             "name": "document_id",
@@ -1705,7 +1547,7 @@
           "internal"
         ],
         "summary": "Update Artifact",
-        "operationId": "update_artifact_internal_documents__document_id__patch",
+        "operationId": "update_artifact",
         "parameters": [
           {
             "name": "document_id",
@@ -1787,7 +1629,7 @@
           "internal"
         ],
         "summary": "Delete Document",
-        "operationId": "delete_document_internal_documents__document_id__delete",
+        "operationId": "delete_document",
         "parameters": [
           {
             "name": "document_id",
@@ -1864,7 +1706,7 @@
         ],
         "summary": "Get Workspace Document",
         "description": "Resolve a retrieval source under the authoritative workspace ACL.\n\nChat separately proves that the source id occurs in the selected journal;\nthis endpoint only answers the owning service's tenant/workspace question.",
-        "operationId": "get_workspace_document_internal_workspaces__workspace_id__documents__document_id__get",
+        "operationId": "get_workspace_document",
         "parameters": [
           {
             "name": "workspace_id",
@@ -1968,8 +1810,8 @@
           "internal"
         ],
         "summary": "Get Document Slice",
-        "description": "Read a bounded slice of the converted markdown. When the document is still\nconverting in the background, ``wait_ms`` long-polls until it is ``ready`` (or\n``failed``/timeout) so a caller that just uploaded can read as soon as convert\nfinishes instead of getting an empty body. ``state`` distinguishes the outcome:\n``ready`` (real content), ``processing`` (retry later), ``failed`` (see error).",
-        "operationId": "get_document_slice_internal_documents__document_id__slice_get",
+        "description": "Read a bounded slice of the converted markdown. Legacy pending documents\nare processed synchronously on first read; ``wait_ms`` remains available for\na concurrent request already holding the document advisory lock. ``state``\ndistinguishes ``ready`` content, in-progress work, and persisted failure.",
+        "operationId": "get_document_slice",
         "parameters": [
           {
             "name": "document_id",
@@ -2088,7 +1930,7 @@
         ],
         "summary": "Create Media Document",
         "description": "Register agent-generated media already persisted by Asset.",
-        "operationId": "create_media_document_internal_media_documents_post",
+        "operationId": "create_media_document",
         "parameters": [
           {
             "name": "X-Internal-Token",
@@ -2163,7 +2005,7 @@
           "internal"
         ],
         "summary": "Create Staged Media",
-        "operationId": "create_staged_media_internal_staged_media_post",
+        "operationId": "create_staged_media",
         "parameters": [
           {
             "name": "X-Internal-Token",
@@ -2238,7 +2080,7 @@
           "internal"
         ],
         "summary": "Get Staged Media",
-        "operationId": "get_staged_media_internal_staged_media__staged_id__get",
+        "operationId": "get_staged_media",
         "parameters": [
           {
             "name": "staged_id",
@@ -2321,7 +2163,7 @@
           "internal"
         ],
         "summary": "Publish Staged Media",
-        "operationId": "publish_staged_media_internal_staged_media__staged_id__publish_post",
+        "operationId": "publish_staged_media",
         "parameters": [
           {
             "name": "staged_id",
@@ -2405,7 +2247,7 @@
           "internal"
         ],
         "summary": "Discard Staged Media",
-        "operationId": "discard_staged_media_internal_staged_media__staged_id__discard_post",
+        "operationId": "discard_staged_media",
         "parameters": [
           {
             "name": "staged_id",
@@ -2489,7 +2331,7 @@
           "internal"
         ],
         "summary": "Cleanup Conversation Artifacts Route",
-        "operationId": "cleanup_conversation_artifacts_route_internal_conversation_artifact_cleanups_post",
+        "operationId": "cleanup_conversation_artifacts_route",
         "parameters": [
           {
             "name": "X-Internal-Token",
@@ -2564,7 +2406,7 @@
           "internal"
         ],
         "summary": "Fork Documents",
-        "operationId": "fork_documents_internal_conversation_forks_post",
+        "operationId": "fork_documents",
         "parameters": [
           {
             "name": "X-Internal-Token",
@@ -2639,7 +2481,7 @@
           "internal-retrieval"
         ],
         "summary": "Retrieve Chunks",
-        "operationId": "retrieve_chunks_internal_retrieve_post",
+        "operationId": "retrieve_chunks",
         "parameters": [
           {
             "name": "X-Internal-Token",
@@ -3216,19 +3058,6 @@
         ],
         "title": "Document"
       },
-      "DocumentProcessResult": {
-        "properties": {
-          "state": {
-            "type": "string",
-            "title": "State"
-          }
-        },
-        "type": "object",
-        "required": [
-          "state"
-        ],
-        "title": "DocumentProcessResult"
-      },
       "DocumentSlice": {
         "properties": {
           "id": {
@@ -3511,23 +3340,6 @@
           "uploads"
         ],
         "title": "PrepareSourceUploadsResult"
-      },
-      "ProcessDocumentInput": {
-        "properties": {
-          "provider_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider Id"
-          }
-        },
-        "type": "object",
-        "title": "ProcessDocumentInput"
       },
       "RetrieveInput": {
         "properties": {

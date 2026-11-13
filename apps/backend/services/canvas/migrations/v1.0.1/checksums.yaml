@@ -6,3 +6,8 @@ steps:
       files:
         v1.0.1.0.down.sql: 9d1991e6cea032aec9fd380531be34e08c94d09cb62be58f1a00cd59b4e24fc1
         v1.0.1.0.up.sql: c96b98b8995c2da66558c2b28d480247c245bc093dea7e3d1406e0880104151d
+    - version: v1.0.1.1
+      checksum: 7dfad1ac5b576babc62ee89eba0be4fd2b3f9c2dc5d6312115c6556a19f0043e
+      files:
+        v1.0.1.1.down.sql: f5ecc431f37f271c7e764d1ce5f6307730ee83db5fed113cbe3824c69f43fa42
+        v1.0.1.1.up.sql: 0494c0de52b43db20b6629730ef46054da440d60695da5b483f085a866cbebba

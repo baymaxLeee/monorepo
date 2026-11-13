@@ -11,10 +11,10 @@ import {
 } from "@repo/ai-elements";
 import {
   type AgentRunTrace,
-  type AgentTraceStep,
+  type AgentRunTraceStepsItem,
   type AgentTraceToolCall,
-  fetchConversationAgentTrace,
-} from "@repo/api";
+  getConversationAgentTrace,
+} from "@repo/api/chat";
 import { useEffect, useState } from "react";
 
 export interface ChatTracePanelProps {
@@ -46,7 +46,7 @@ export function ChatTracePanel({ conversationId, runId, refreshKey }: ChatTraceP
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchConversationAgentTrace(conversationId, runId)
+    getConversationAgentTrace(conversationId, runId)
       .then((next) => {
         if (active) {
           setTrace(next);
@@ -63,7 +63,7 @@ export function ChatTracePanel({ conversationId, runId, refreshKey }: ChatTraceP
     };
   }, [conversationId, runId, refreshKey]);
 
-  const renderStep = (step: AgentTraceStep) => (
+  const renderStep = (step: AgentRunTraceStepsItem) => (
     <Task key={step.id} status={toWorkflowStatus(step.status)}>
       <TaskTitle>
         步骤 {step.stepIndex + 1} · {step.kind}

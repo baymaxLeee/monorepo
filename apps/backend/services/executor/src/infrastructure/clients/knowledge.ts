@@ -1,6 +1,6 @@
 import {
-  InternalHttpClient,
   KnowledgeInternalClient,
+  TransportError,
   type KnowledgeDocument,
   type StagedMedia,
 } from "@backend/transport-ts";
@@ -21,6 +21,15 @@ function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
 
 export async function getDocument(userId: string, documentId: string): Promise<KnowledgeDocument> {
   return knowledgeClient().getDocument({ userId, documentId });
+}
+
+export async function deleteDocument(userId: string, documentId: string): Promise<void> {
+  try {
+    await knowledgeClient().deleteDocument({ userId, documentId });
+  } catch (error) {
+    if (error instanceof TransportError && error.status === 404) return;
+    throw error;
+  }
 }
 
 export function createMediaDocument(input: {
@@ -65,30 +74,4 @@ export function discardStagedMedia(input: {
   stagedId: string;
 }): Promise<StagedMedia> {
   return knowledgeClient(180_000).discardStagedMedia(input);
-}
-
-function knowledgeHttp(timeoutMs: number): InternalHttpClient {
-  const settings = getSettings();
-  return new InternalHttpClient({
-    baseUrl: settings.knowledgeServiceUrl,
-    internalToken: settings.internalApiToken,
-    callerService: "executor",
-    service: "knowledge",
-    timeoutMs,
-  });
-}
-
-export function processKnowledgeDocument(documentId: string, providerId?: string): Promise<{ state: string }> {
-  return knowledgeHttp(10 * 60_000).requestJson({
-    method: "POST",
-    path: `/internal/documents/${encodeURIComponent(documentId)}/process`,
-    body: { provider_id: providerId },
-  });
-}
-
-export function indexKnowledgeDocument(documentId: string): Promise<{ state: string }> {
-  return knowledgeHttp(15 * 60_000).requestJson({
-    method: "POST",
-    path: `/internal/documents/${encodeURIComponent(documentId)}/index`,
-  });
 }

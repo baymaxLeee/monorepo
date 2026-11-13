@@ -6,8 +6,6 @@ export type CanvasGraph = components["schemas"]["CanvasGetCanvasGraphResponse"];
 export type CanvasNodePatch = operations["canvasUpdateNode"]["requestBody"]["content"]["application/json"];
 export type CanvasStoryboardDraftInput =
   operations["canvasStartStoryboardDrafts"]["requestBody"]["content"]["application/json"];
-export type CanvasArchiveExecution =
-  operations["canvasExecuteArchive"]["responses"][200]["content"]["application/json"];
 
 export interface CanvasActor {
   userId: string;
@@ -32,27 +30,6 @@ export class CanvasInternalClient {
       service: "canvas",
     };
     this.client = createInternalOpenApiClient<paths>(clientOptions);
-  }
-
-  async executeArchive(archiveId: string, signal?: AbortSignal): Promise<CanvasArchiveExecution> {
-    const { data, error, response } = await this.client.POST("/internal/worker/archives/{archiveId}/execute", {
-      params: { path: { archiveId } },
-      signal,
-    });
-    if (data) return data;
-    return this.failure(response, "archive execution", error);
-  }
-
-  async extractVideoFrames(taskRunId: string, signal?: AbortSignal): Promise<void> {
-    const { error, response } = await this.client.POST(
-      "/internal/worker/video-generations/{taskRunId}/extract-frames",
-      {
-        params: { path: { taskRunId } },
-        signal,
-      },
-    );
-    if (response.ok) return;
-    return this.failure(response, "video frame extraction", error);
   }
 
   private headers(actor: CanvasActor) {

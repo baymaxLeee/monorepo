@@ -1,4 +1,4 @@
-import type { Message } from "@repo/api";
+import { type ConversationMessage } from "@repo/api/chat";
 import { expect, test } from "vitest";
 
 import type { ChatUIMessage } from "./chat-message";
@@ -6,7 +6,11 @@ import { hasCompletedClientTool, hasPendingClientTool, validateConversationMessa
 
 test("hydration accepts empty history and native user messages without metadata", async () => {
   expect(await validateConversationMessages([])).toEqual([]);
-  const stored = { id: "user", role: "user", content: { parts: [{ type: "text", text: "hello" }] } } as Message;
+  const stored = {
+    id: "user",
+    role: "user",
+    content: { parts: [{ type: "text", text: "hello" }] },
+  } as unknown as ConversationMessage;
   expect(await validateConversationMessages([stored])).toMatchObject([
     { id: "user", role: "user", parts: stored.content.parts },
   ]);
@@ -17,7 +21,7 @@ test("hydration rejects malformed native parts and unregistered business data", 
     { type: "text", text: 42 },
     { type: "data-unknown", data: {} },
   ]) {
-    const stored = { id: "user", role: "user", content: { parts: [part] } } as Message;
+    const stored = { id: "user", role: "user", content: { parts: [part] } } as unknown as ConversationMessage;
     await expect(validateConversationMessages([stored])).rejects.toThrow();
   }
 });

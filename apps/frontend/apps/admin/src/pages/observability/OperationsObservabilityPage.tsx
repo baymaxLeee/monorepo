@@ -1,9 +1,9 @@
 import {
-  fetchObservabilityStatus,
-  fetchTelemetryErrors,
-  type ObservabilityStatus,
-  type TelemetryErrorEvent,
-} from "@repo/api";
+  observabilityStatus,
+  listErrorEvents,
+  type ObservabilityStatusResponse,
+  type ErrorEvent,
+} from "@repo/api/telemetry";
 import {
   Alert,
   AlertDescription,
@@ -56,11 +56,11 @@ function shortId(value: string | null) {
 export function OperationsObservabilityPage() {
   const errorsQuery = useQuery({
     queryKey: ["telemetry", "errors", 200],
-    queryFn: () => fetchTelemetryErrors(200, { skipErrorNotify: true }),
+    queryFn: () => listErrorEvents({ limit: 200 }, { skipErrorNotify: true }),
   });
   const statusQuery = useQuery({
     queryKey: ["telemetry", "observability-status"],
-    queryFn: () => fetchObservabilityStatus({ skipErrorNotify: true }),
+    queryFn: () => observabilityStatus({ skipErrorNotify: true }),
     refetchInterval: 30_000,
   });
   const items = errorsQuery.data?.items ?? [];
@@ -156,7 +156,7 @@ export function OperationsObservabilityPage() {
   );
 }
 
-function ObservabilityStatusPanel({ status, loading }: { status?: ObservabilityStatus; loading: boolean }) {
+function ObservabilityStatusPanel({ status, loading }: { status?: ObservabilityStatusResponse; loading: boolean }) {
   if (loading && !status) {
     return (
       <Card>
@@ -222,7 +222,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function OpsTable({ items }: { items: TelemetryErrorEvent[] }) {
+function OpsTable({ items }: { items: ErrorEvent[] }) {
   if (items.length === 0) {
     return <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">暂无错误数据</div>;
   }

@@ -38,7 +38,7 @@ Storage 不提供仅依赖工作区身份的公开签发或原件读取接口。
 
 ChatArtifactPreview 统一处理 URL 获取、文本下载、请求取消、失败展示与续签；HTML 使用沙箱 iframe 的 src，图片、音视频和 PDF 直接使用 URL，音视频使用 HTTP Range。Markdown 只读快照使用 Streamdown，其他文本/代码使用只读 CodeEditor，保持原始文本而不将 JSON 转换为对象。原件下载直接交给浏览器并使用 attachment disposition。Chat 会话文件透传 asset_id/revision_id，由 Chat 验证会话权限后请求 Storage 签发；editable_source 标记的 Knowledge Markdown 从 Storage 加载原文交给 MarkdownEditor，编辑提交仍由 Knowledge 的文档接口负责。
 
-删除会话在 Chat 本地事务中释放 `conversation_file` Claim intent，并通过 outbox 请求 Knowledge 幂等清理该会话的生成文档/暂存媒体；用户独立上传的 source 保留。Knowledge conversation tombstone 拒绝迟到写入。Knowledge 的转换/索引意图持久化，由 Executor `knowledge-document-process` 驱动服务本地幂等操作。检索使用 PostgreSQL/pgvector 与文本检索，模型配置从 Admin 获取。
+删除会话在 Chat 本地事务中释放 `conversation_file` Claim intent，并通过 outbox 请求 Knowledge 幂等清理该会话的生成文档/暂存媒体；用户独立上传的 source 保留。Knowledge conversation tombstone 拒绝迟到写入。Knowledge 在 source ingest 请求内同步完成转换与索引，服务本地操作保持幂等并使用数据库 advisory lock 串行化同一文档。检索使用 PostgreSQL/pgvector 与文本检索，模型配置从 Admin 获取。
 
 会话分支通过 Knowledge 的内部快照接口复制语义文档，通过 Chat 发布事务复制
 `conversation_files`；两者都创建独立 owner/Claim、共享精确 Asset/revision，不复制字节。

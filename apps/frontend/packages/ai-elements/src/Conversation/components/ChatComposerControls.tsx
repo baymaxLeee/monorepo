@@ -9,7 +9,7 @@ import {
   ModelSelectorName,
   ModelSelectorTrigger,
 } from "@repo/ai-elements";
-import type { Bot } from "@repo/api";
+import { type Bot } from "@repo/api/admin";
 import { Badge, Button } from "@repo/design-system";
 import { BotIcon, ListChecksIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useState } from "react";
