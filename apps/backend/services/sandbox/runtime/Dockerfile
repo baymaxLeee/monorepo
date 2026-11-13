@@ -1,6 +1,7 @@
 FROM node:24-bookworm-slim AS node
 FROM python:3.14-slim-bookworm
-RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+ARG DEBIAN_MIRROR=deb.debian.org
+RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|http://|https://|g" /etc/apt/sources.list.d/debian.sources \
     && apt-get update && apt-get install -y --no-install-recommends \
       bash curl ca-certificates jq git ripgrep file unzip zip poppler-utils ffmpeg socat \
     && rm -rf /var/lib/apt/lists/* \

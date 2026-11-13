@@ -1,4 +1,5 @@
 FROM node:24.18.0-slim
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable

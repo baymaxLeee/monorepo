@@ -257,6 +257,8 @@ image is present. Pass explicit service names to resume a known subset. Never
 place registry passwords in the command, repository, shell history, or CI logs.
 Push the matching commit afterward and track `build-images`, `mirror-images`, and
 `deploy-single-vps`; local publication alone is not deployment success.
+The command uses domestic dependency mirrors for local builds; CI retains the
+official Dockerfile defaults. See the tooling guide for override variables.
 
 ### 3. One-time `docker login` on the VPS
 

@@ -36,7 +36,17 @@ test("local publish builds exact HEAD and delays aliases until every immutable i
   const firstAlias = calls.findIndex((call) => call.includes("registry.example.com/team/chat:main"));
   const lastBuild = Math.max(...builds.map((build) => calls.indexOf(build)));
   assert.equal(builds.length, 2);
-  assert.ok(builds.every((call) => call.includes("linux/amd64") && call.includes("--push")));
+  assert.ok(
+    builds.every(
+      (call) =>
+        call.includes("linux/amd64") &&
+        call.includes("--push") &&
+        call.includes("GOPROXY=https://proxy.golang.com.cn") &&
+        call.includes("GOSUMDB=sum.golang.google.cn") &&
+        call.includes("DEBIAN_MIRROR=repo.huaweicloud.com") &&
+        call.includes("NPM_CONFIG_REGISTRY=https://registry.npmmirror.com"),
+    ),
+  );
   assert.ok(firstAlias > lastBuild);
 });
 

@@ -1,4 +1,5 @@
 FROM node:24.18.0-slim AS build
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
@@ -17,12 +18,14 @@ WORKDIR /app/apps/backend/services/executor
 RUN pnpm run build
 
 FROM node:24.18.0-slim AS runtime
+ARG DEBIAN_MIRROR=deb.debian.org
 WORKDIR /app
 ENV NODE_ENV=production
 # ffmpeg is required by the video-generation workflow to normalize + concat
 # per-scene clips into one reel. OS binary (not ffmpeg-static) to avoid Nitro/nft
 # native-binary bundling issues; FFMPEG_PATH defaults to `ffmpeg` on PATH.
-RUN apt-get update \
+RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+  && apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/apps/backend/services/executor/.output ./.output

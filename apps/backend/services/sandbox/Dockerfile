@@ -1,6 +1,7 @@
 FROM docker:29-cli AS docker
 FROM registry.k8s.io/kubectl:v1.35.0 AS kubectl
 FROM node:24.18.0-slim
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable

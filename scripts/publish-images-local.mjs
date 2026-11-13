@@ -85,6 +85,10 @@ export function publishImages(options, run = command) {
     .replace(/^git@github\.com:/, "https://github.com/")
     .replace(/\.git$/, "");
   const created = output("git", ["show", "-s", "--format=%aI", "HEAD"], run);
+  const goProxy = process.env.LOCAL_IMAGE_GOPROXY ?? "https://proxy.golang.com.cn";
+  const goSumDb = process.env.LOCAL_IMAGE_GOSUMDB ?? "sum.golang.google.cn";
+  const debianMirror = process.env.LOCAL_IMAGE_DEBIAN_MIRROR ?? "repo.huaweicloud.com";
+  const npmRegistry = process.env.LOCAL_IMAGE_NPM_REGISTRY ?? "https://registry.npmmirror.com";
   const published = new Map();
 
   for (const service of options.services) {
@@ -103,8 +107,20 @@ export function publishImages(options, run = command) {
       [
         "buildx",
         "build",
+        "--progress",
+        "plain",
+        "--network",
+        "host",
         "--platform",
         "linux/amd64",
+        "--build-arg",
+        `GOPROXY=${goProxy}`,
+        "--build-arg",
+        `GOSUMDB=${goSumDb}`,
+        "--build-arg",
+        `DEBIAN_MIRROR=${debianMirror}`,
+        "--build-arg",
+        `NPM_CONFIG_REGISTRY=${npmRegistry}`,
         "--file",
         image.dockerfile,
         "--tag",

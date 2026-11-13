@@ -206,6 +206,12 @@ existing Docker credentials and never accepts credentials as arguments. Push the
 matching commit afterward and observe the GitHub build, mirror and deploy workflows;
 local publication alone is not deployment success.
 
+For reliable builds from mainland China, the local command supplies domestic Go,
+Debian and npm mirrors while every Dockerfile keeps its official default for CI.
+Override them when needed with `LOCAL_IMAGE_GOPROXY`, `LOCAL_IMAGE_GOSUMDB`,
+`LOCAL_IMAGE_DEBIAN_MIRROR`, and `LOCAL_IMAGE_NPM_REGISTRY`; these variables must
+contain repository endpoints, never credentials.
+
 The design applies [OpenAI Codex testing and review guidance](https://learn.chatgpt.com/guides/best-practices#improve-reliability-with-testing-and-review)
 and [Claude Code's distinction between instructions and enforced checks](https://code.claude.com/docs/en/best-practices).
 Acceptance-driven iteration and resumable evidence follow

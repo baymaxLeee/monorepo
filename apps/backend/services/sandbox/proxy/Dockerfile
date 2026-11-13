@@ -1,5 +1,7 @@
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends squid socat tini ca-certificates \
+ARG DEBIAN_MIRROR=deb.debian.org
+RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends squid socat tini ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY apps/backend/services/sandbox/proxy/squid.conf /etc/squid/squid.conf
 COPY apps/backend/services/sandbox/proxy/allowed-domains.txt /etc/squid/allowed-domains.txt
