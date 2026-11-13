@@ -93,6 +93,9 @@ interface Workspace {
   scratch: string;
   watcher: FSWatcher;
   changed: Map<string, number>;
+  pendingChanges: Set<string>;
+  changeTimer: ReturnType<typeof setTimeout> | null;
+  flushChanges(): void;
   queue: Promise<unknown>;
   epoch: number;
 }
@@ -179,25 +182,38 @@ export class LocalSessionHost {
           scratch,
           watcher: null as unknown as FSWatcher,
           changed: new Map(),
+          pendingChanges: new Set(),
+          changeTimer: null,
+          flushChanges: () => {},
           queue: Promise.resolve(),
           epoch: 0,
         };
-        state.watcher = watch(thread.workspace, { recursive: true }, (_event, filename) => {
-          const name = filename?.toString() ?? ".";
+        const flushChanges = () => {
+          if (state.changeTimer) clearTimeout(state.changeTimer);
+          state.changeTimer = null;
+          const paths = [...state.pendingChanges].sort();
+          state.pendingChanges.clear();
+          if (paths.length === 0) return;
           state.epoch++;
-          if (state.changed.size < 1000) state.changed.set(name, state.epoch);
-          else {
+          if (state.changed.size + paths.length <= 1000) {
+            for (const path of paths) state.changed.set(path, state.epoch);
+          } else {
             state.changed.clear();
             state.changed.set(".", state.epoch);
           }
           for (const item of this.journal.list())
-            if (item.workspace === thread.workspace)
-              this.options.emit({ type: "files", threadId: item.id, paths: [name] });
+            if (item.workspace === thread.workspace) this.options.emit({ type: "files", threadId: item.id, paths });
+        };
+        state.flushChanges = flushChanges;
+        const scheduleChange = (path: string) => {
+          state.pendingChanges.add(path);
+          if (state.changeTimer) clearTimeout(state.changeTimer);
+          state.changeTimer = setTimeout(flushChanges, 50);
+        };
+        state.watcher = watch(thread.workspace, { recursive: true }, (_event, filename) => {
+          scheduleChange(filename?.toString() ?? ".");
         });
-        state.watcher.on("error", () => {
-          state.epoch++;
-          state.changed.set(".", state.epoch);
-        });
+        state.watcher.on("error", () => scheduleChange("."));
         return state;
       } catch (error) {
         await rm(scratch, { recursive: true, force: true });
@@ -352,6 +368,7 @@ export class LocalSessionHost {
             await new Promise<void>((resolve) => {
               setImmediate(resolve);
             });
+            w.flushChanges();
             return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
           }),
         ),
@@ -365,6 +382,7 @@ export class LocalSessionHost {
         instructions: `${config.instructions}\n<workspace_environment>${JSON.stringify({ root: thread.workspace, storage: "local disk", network: "disabled", isolation: "Seatbelt", upload: "unavailable" })}</workspace_environment>`,
         workspace: {
           consumeChanges: () => {
+            workspace!.flushChanges();
             modelEpoch = workspace!.epoch;
             const observed = this.observedWorkspaceEpochs.get(thread.id) ?? 0;
             const changes = [...workspace!.changed].filter(([, epoch]) => epoch > observed).map(([path]) => path);
@@ -392,6 +410,7 @@ export class LocalSessionHost {
         new TransformStream<UIMessageChunk, UIMessageChunk>({
           transform: async (chunk, controller) => {
             if (chunk.type === "finish") {
+              runWorkspace.flushChanges();
               const changed = [...runWorkspace.changed]
                 .filter(([, epoch]) => epoch > artifactEpoch)
                 .map(([path]) => path)
@@ -537,6 +556,7 @@ export class LocalSessionHost {
     if (!workspace) return;
     workspace.sandbox.cancel();
     await workspace.queue;
+    if (workspace.changeTimer) clearTimeout(workspace.changeTimer);
     workspace.watcher.close();
     await rm(workspace.scratch, { recursive: true, force: true });
   }

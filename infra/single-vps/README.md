@@ -235,6 +235,29 @@ GitHub repo → Settings → Secrets and variables → Actions:
 The next `build-images` run publishes GHCR first; `mirror-images` then transfers
 only rebuilt components and retags unchanged component digests in TCR.
 
+### Recover a failed cross-region mirror
+
+Cross-region transfers to a domestic registry can fail on authentication resets,
+HTTP/2 protocol errors, or interrupted blob copies. Inspect the failing job, then
+use the repository command documented in
+[`scripts/README.md`](../../scripts/README.md#registry-mirror-recovery) from a
+machine whose Docker client is already logged in to the target registry:
+
+```bash
+just publish-images-local \
+  <domestic-registry>/<namespace> \
+  sha-<current-HEAD8> \
+  --alias main
+```
+
+This requires a clean worktree, verifies that the tag names current HEAD, builds
+the official image definitions locally as `linux/amd64`, pushes them directly to
+the domestic registry, and updates `main` only after every requested immutable
+image is present. Pass explicit service names to resume a known subset. Never
+place registry passwords in the command, repository, shell history, or CI logs.
+Push the matching commit afterward and track `build-images`, `mirror-images`, and
+`deploy-single-vps`; local publication alone is not deployment success.
+
 ### 3. One-time `docker login` on the VPS
 
 TCR Personal Edition images are private (you can't make them public). Each VPS that pulls from TCR needs to authenticate **once** — the credential is then cached in `~/.docker/config.json` and all future pulls work without re-login:

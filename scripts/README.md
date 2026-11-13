@@ -178,6 +178,34 @@ CLI. Local checks cannot prove registry credentials, mirror connectivity or
 production deployment success. Remote CI remains authoritative for those steps;
 service-specific end-to-end checks must also follow their owning routes.
 
+### Registry mirror recovery
+
+`mirror-images` normally copies only rebuilt immutable images and retags reused
+digests. If cross-region registry access makes that unreliable, publish the exact
+clean local commit directly to the domestic registry instead of downloading
+images from GHCR.
+
+Commit and verify the intended change first. After confirming Docker is
+authenticated to the target registry, run:
+
+```bash
+just publish-images-local \
+  <domestic-registry>/<namespace> \
+  sha-<current-HEAD8> \
+  [service ...] \
+  --alias main
+```
+
+The command rejects dirty worktrees and tags that do not identify current HEAD.
+It uses the same contexts and Dockerfiles as `build-images`, builds `linux/amd64`
+locally, pushes immutable images directly to the target with bounded retries, and
+verifies each published digest. It publishes aliases only after the whole requested
+immutable set verifies, using an in-registry retag so layers are not uploaded
+twice. Re-running is resumable: existing immutable tags are skipped. It reads
+existing Docker credentials and never accepts credentials as arguments. Push the
+matching commit afterward and observe the GitHub build, mirror and deploy workflows;
+local publication alone is not deployment success.
+
 The design applies [OpenAI Codex testing and review guidance](https://learn.chatgpt.com/guides/best-practices#improve-reliability-with-testing-and-review)
 and [Claude Code's distinction between instructions and enforced checks](https://code.claude.com/docs/en/best-practices).
 Acceptance-driven iteration and resumable evidence follow

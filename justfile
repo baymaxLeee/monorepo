@@ -117,6 +117,10 @@ build-backend:
 build-images registry="local" tag="latest":
     cd apps/backend && just build-images {{ registry }} {{ tag }}
 
+[positional-arguments]
+publish-images-local target tag *args:
+    node scripts/publish-images-local.mjs "$@"
+
 # Build the ephemeral sandbox execution image used by Docker and Kubernetes.
 build-sandbox-runtime registry="local" tag="latest":
     docker build -t {{ registry }}/sandbox-runtime:{{ tag }} -f apps/backend/services/sandbox/runtime/Dockerfile .
