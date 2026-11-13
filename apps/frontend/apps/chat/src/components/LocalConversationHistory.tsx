@@ -1,9 +1,11 @@
-import { Button, SidebarMenu, SidebarMenuItem, buttonVariants } from "@repo/design-system";
+import { Button } from "@repo/design-system";
 import { getDesktopBridge, type LocalThread } from "@repo/runtime/desktop";
-import { cn, getErrorMessage } from "@repo/shared";
+import { getErrorMessage } from "@repo/shared";
 import { MonitorIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import { ConversationHistoryList } from "./ConversationHistoryList";
 
 export function LocalConversationHistory({ onSelect }: { onSelect: () => void }) {
   const bridge = getDesktopBridge();
@@ -38,23 +40,18 @@ export function LocalConversationHistory({ onSelect }: { onSelect: () => void })
       <p role={error ? "alert" : undefined} className="text-xs text-destructive">
         {error}
       </p>
-      <SidebarMenu aria-label="本地会话列表">
-        {threads.slice(0, limit).map((thread) => {
+      <ConversationHistoryList
+        label="本地会话列表"
+        onSelect={onSelect}
+        items={threads.slice(0, limit).map((thread) => {
           const active = pathname === `/platform/chat/local/${thread.id}`;
-          return (
-            <SidebarMenuItem key={thread.id}>
-              <Link
-                to={`/platform/chat/local/${thread.id}`}
-                aria-current={active ? "page" : undefined}
-                onClick={onSelect}
-                className={cn(
-                  buttonVariants({ variant: active ? "secondary" : "ghost" }),
-                  "h-9 w-full min-w-0 justify-start gap-2 pr-9 text-sm font-normal",
-                )}
-              >
-                <MonitorIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">{thread.title}</span>
-              </Link>
+          return {
+            key: thread.id,
+            href: `/platform/chat/local/${thread.id}`,
+            title: thread.title,
+            active,
+            icon: <MonitorIcon className="size-4 shrink-0 text-muted-foreground" />,
+            actions: (
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -72,17 +69,12 @@ export function LocalConversationHistory({ onSelect }: { onSelect: () => void })
               >
                 <Trash2Icon />
               </Button>
-            </SidebarMenuItem>
-          );
+            ),
+          };
         })}
-        {threads.length > limit ? (
-          <SidebarMenuItem>
-            <Button variant="ghost" onClick={() => setLimit((n) => n + 40)}>
-              显示更早的本地会话
-            </Button>
-          </SidebarMenuItem>
-        ) : null}
-      </SidebarMenu>
+        onLoadMore={threads.length > limit ? () => setLimit((n) => n + 40) : undefined}
+        loadMoreLabel="显示更早的本地会话"
+      />
     </>
   );
 }

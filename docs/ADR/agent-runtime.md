@@ -2,19 +2,22 @@
 
 主循环唯一实现为 `@backend/agent-runtime-ts`，由 Chat 服务与 Electron 宿主共同调用。
 固定提示词组装、step 控制、tool manifest/outcome、Bash 定义和审批策略共享；
+审批响应、待审批判断和未完成工具的取消/中断终态也由共享 lifecycle 实现。
 两端只注入模型、工作区、存储及观测适配器。不得另建本地 Agent-loop 或按执行位置
 复制 UI 工具协议。环境差异见 [执行模式](sandbox-execution-modes.md)。
 
 
 状态：当前。以 Chat 的 Agent factory、run、context 和 tool catalog 为实现入口。
 
-本地/云端执行与文件生命周期的目标重构见 [Sandbox 双模式提案](sandbox-execution-modes.md)；尚未实现，本文继续描述当前运行时。
+本地/云端执行与文件生命周期见 [Sandbox 双模式决策](sandbox-execution-modes.md)；其中标记为部分实现或 TODO 的边界仍须按该文档完成，本文不另建兼容模型。
 
 ## 执行与传输
 
 Chat 使用 AI SDK 7 的 `Agent` interface 和一个主 `ToolLoopAgent`；normal/plan 是行为配置，不是互相交接的独立角色。主 agent 持有用户意图、计划、交付顺序和最终综合权。 `subagents` 可作为普通 tool 并行创建 1–3 个短时、只读、独立 context 的 child `ToolLoopAgent`，但 child 不继承父会话或 response lineage，也不成为第二个规划权威。SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、显式 Plan 引用、取消、上下文与持久化。主模型在同一个 ReAct loop 中根据工具描述自行决定直接回答、调用普通工具或委派 child；harness 不增加意图分类器、难度分级、router、planner 或预先任务拆解。
 
 ToolLoopAgent 使用 50 个 model step 的安全上限，并保留最后一步做禁止工具调用的真实结果总结；这高于 SDK 的 20 步保守默认值，适配长任务，同时仍有明确成本边界。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 把 `load_skill` 作为屏障并保持 `ask_user` 独占，独立读取可在同一步并行，生成和有依赖的副作用继续串行。
+
+生成期间 composer 保持可编辑并可提交补充。每个活跃 run 创建一个 AI SDK `experimental_createSteering()` 通道；composer 的补充固定调用 `steer()`，在当前 tool 完成后的下一个 step 边界加入同一 run；`queue()` 仅供明确要求“当前任务终答后再做下一项”的调用方使用，不能作为补充上下文的默认路径。工具执行中途不被打断。SDK 是投递、顺序和去重语义的唯一所有者，并通过官方 `steering-message` UIMessage part 把已投递内容放回其真实步骤位置；宿主不得手工插入第二条用户消息或建立平行 loop。任何 `prepareStep` message override 都必须保留 SDK 提供的当前 steering messages，stored-response continuation 也不能只保留 tool result 而删除用户补充。Desktop 在本地 journal 记录 admission，Chat 在 PostgreSQL 记录 admission 并由持有 run lease 的进程投递，使任意服务实例都可接收请求。前端只在 admission 确认后清空原草稿，待投递项显示在 editor 上方；`delivered` 后由 transcript 中的官方 part 接管。`not_delivered` 与 `unconfirmed` 都保留为可见状态，不得自动创建下一 turn 或盲目重发，由用户明确决定是否作为新消息再次发送。client message id 与精确 run/turn、正文和 delivery 绑定，重试只允许完全相同的输入。
 
 PostgreSQL UIMessage 是语义会话记录；Redis 只在 run 活跃期间保存有界的原生 UIMessage SSE replay buffer，负责浏览器断网后的 transport resume；Executor Workflow 负责跨进程的 execution resume。三者不可混同。Redis 的租约、容量、超限和终态删除由 [Chat 活跃流恢复决策](chat-stream-resumption.md) 统一拥有。断开浏览器只释放 subscriber；显式 Stop 才传播用户取消，收口未完成工具为官方 error 状态、取消未完成 todo，并等待 run finalizer。
 
@@ -46,7 +49,7 @@ Plan 是 Chat 注册的稳定 conversation file，已保存内容指向精确 As
 
 ## 取舍与事实源
 
-薄 harness 减少重复调度与状态机，但持久任务、授权和取消仍需要明确代码边界。不得把传输重连声称为主 agent 的进程崩溃恢复，也不增加隐藏 repair model。
+薄 harness 减少重复调度与状态机，但持久任务、授权、steering admission 和取消仍需要明确代码边界。不得把传输重连声称为主 agent 的进程崩溃恢复，也不增加隐藏 repair model。Steering 是 AI SDK 7 的实验能力；版本升级必须用真实 SDK producer/consumer 测试确认 outcome、`steering-message` 流和 `convertToModelMessages` 回放仍保持同一顺序。
 
 这一边界采用 OpenAI Agents SDK 的 [LLM orchestration 与 agents-as-tools](https://openai.github.io/openai-agents-python/multi_agent/) 模式：manager 保留最终回答和综合权，模型自主决定是否为有界子任务调用 specialist。它也采用 Anthropic [fold subagents into the main loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop) 的当前建议：优先一个开放式 tool loop 与渐进工具披露，只在可测的上下文膨胀、真正并行或隔离边界需要时保留 subagent。这些来源证明的是设计取舍，不规定本项目的任务数、工具集或传输上限；具体安全边界仍由本 ADR、实现和测试拥有。
 

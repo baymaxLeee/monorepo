@@ -20,7 +20,6 @@ import { parseToolOutcome } from "../lib/tool-outcome";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
 import { ArtifactDocumentCard, parseArtifactOutput } from "./ChatArtifactCard";
-import { ArtifactFileCard } from "./ChatFileArtifactCard";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatSubagents } from "./ChatSubagents";
 import { ChatTerminalTool } from "./ChatTerminalTool";
@@ -39,25 +38,17 @@ export function ChatToolPart({
   latestTodoCallId,
   deliverableCompletion,
   onOpenArtifact,
-  onOpenFile,
   onAnswerClientTool,
   onToolApproval,
-  onExecutePlan,
-  planExecutedIds,
-  planBusy,
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   conversationId: string;
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
-  onOpenArtifact: (documentId: string) => void;
-  onOpenFile: (fileId: string) => void;
-  onAnswerClientTool: (toolName: string, toolCallId: string, output: unknown) => void;
-  onToolApproval: (approvalId: string, approved: boolean) => void;
-  onExecutePlan: (documentId: string) => void;
-  planExecutedIds: ReadonlySet<string>;
-  planBusy: boolean;
+  onOpenArtifact?: (documentId: string) => void;
+  onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
 }) {
   const toolName = getToolName(part);
   const kind = toolUiKind(part);
@@ -85,6 +76,8 @@ export function ChatToolPart({
           <ToolJsonBlock value={input} />
           {part.approval.isAutomatic ? (
             <div className="text-xs text-muted-foreground">正在检查工具授权策略…</div>
+          ) : !onToolApproval ? (
+            <div className="text-xs text-muted-foreground">当前客户端不能处理此工具授权。</div>
           ) : (
             <Confirmation approval={part.approval} state={part.state}>
               <ConfirmationRequest>
@@ -129,7 +122,7 @@ export function ChatToolPart({
     );
   }
 
-  if (kind === "image-gallery") {
+  if (kind === "image-gallery" && onOpenArtifact) {
     return <ChatImageCard conversationId={conversationId} output={output} state={part.state} errorText={errorText} />;
   }
 
@@ -156,7 +149,7 @@ export function ChatToolPart({
       </Tool>
     );
   }
-  if (kind === "video") {
+  if (kind === "video" && onOpenArtifact) {
     return (
       <ChatVideoCard
         conversationId={conversationId}
@@ -191,7 +184,7 @@ export function ChatToolPart({
       : null;
   const todoList = kind === "todo-list" ? parseTodoListOutput(output) : null;
 
-  if (artifact?.documentId) {
+  if (artifact?.documentId && onOpenArtifact) {
     const documentId = artifact.documentId;
     return (
       <ArtifactDocumentCard
@@ -199,19 +192,6 @@ export function ChatToolPart({
         documentId={documentId}
         fallback={artifact}
         onOpen={() => onOpenArtifact(documentId)}
-      />
-    );
-  }
-
-  if (artifact?.fileId) {
-    const fileId = artifact.fileId;
-    return (
-      <ArtifactFileCard
-        artifact={{ ...artifact, fileId }}
-        planExecuted={planExecutedIds.has(fileId)}
-        planBusy={planBusy}
-        onOpen={() => onOpenFile(fileId)}
-        onExecutePlan={() => onExecutePlan(fileId)}
       />
     );
   }
@@ -231,7 +211,7 @@ export function ChatToolPart({
         state={hasError ? "output-error" : part.state}
       />
       <ToolContent>
-        {part.state === "input-available" && askUserInput ? (
+        {part.state === "input-available" && askUserInput && onAnswerClientTool ? (
           <AskUserToolCard
             input={askUserInput}
             onSubmit={(answer) => onAnswerClientTool(toolName, part.toolCallId, answer)}

@@ -33,7 +33,7 @@ const request = () => ({
     maxOutputTokens: 100,
   },
 });
-function fixture(parts: LanguageModelV4StreamPart[] = [finish]) {
+function fixture(parts: LanguageModelV4StreamPart[] = [finish], contextWindow = 10_000) {
   const charges: (number | null)[] = [],
     calls: LanguageModelV4CallOptions[] = [],
     reserved: number[] = [];
@@ -46,7 +46,7 @@ function fixture(parts: LanguageModelV4StreamPart[] = [finish]) {
         instructions: "",
         model: "authorized",
         maxOutputTokens: 100,
-        contextWindow: 10_000,
+        contextWindow,
       },
       model: {
         specificationVersion: "v4",
@@ -83,6 +83,16 @@ function fixture(parts: LanguageModelV4StreamPart[] = [finish]) {
   };
   return { deps, charges, calls, reserved, cancelled: () => cancelled };
 }
+test("relay compares estimated input tokens with the context window instead of JSON bytes", async () => {
+  const f = fixture([finish], 3_000);
+  const payload = request();
+  payload.options.prompt[0]!.content[0]!.text = "本".repeat(2_000);
+
+  const response = await inferenceResponse(auth, payload, new AbortController().signal, f.deps);
+
+  assert.equal(response.status, 200);
+  await response.body?.cancel();
+});
 test("relay emits native provider parts, meters once and strips provider persistence/diagnostics", async () => {
   const f = fixture([
     { type: "response-metadata", id: "opaque-secret" },

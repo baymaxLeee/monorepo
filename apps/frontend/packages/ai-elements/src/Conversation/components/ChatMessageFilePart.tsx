@@ -28,14 +28,15 @@ export function ChatMessageFilePart({
   part: FileUIPart | ReasoningFileUIPart;
   conversationId: string;
   partIndex: number;
-  onOpenArtifact: (documentId: string) => void;
-  onOpenFile: (fileId: string) => void;
-  onOpenImage: (partIndex: number) => void;
+  onOpenArtifact?: (documentId: string) => void;
+  onOpenFile?: (fileId: string) => void;
+  onOpenImage?: (partIndex: number) => void;
   variant?: "user" | "assistant";
 }) {
   const documentId = documentIdFromFilePart(part);
   const fileId = conversationFileIdFromFilePart(part);
   const isImage = part.mediaType.startsWith("image/");
+  const canOpen = fileId ? Boolean(onOpenFile) : isImage ? Boolean(onOpenImage) : Boolean(onOpenArtifact);
   const thumbRef = useRef<HTMLSpanElement>(null);
   const inView = useInView(thumbRef);
   const { blobUrl, loading } = useDocumentBlobUrl(
@@ -65,15 +66,16 @@ export function ChatMessageFilePart({
       render={
         <button
           type="button"
+          disabled={!canOpen}
           title={`预览 ${"filename" in part ? part.filename || part.mediaType : part.mediaType}`}
           className={cn(
             "max-w-[min(100%,20rem)] transition-colors hover:bg-muted/60",
             variant === "user" && "bg-background/90 shadow-sm",
           )}
           onClick={() => {
-            if (fileId) onOpenFile(fileId);
-            else if (isImage) onOpenImage(partIndex);
-            else onOpenArtifact(documentId!);
+            if (fileId) onOpenFile?.(fileId);
+            else if (isImage) onOpenImage?.(partIndex);
+            else onOpenArtifact?.(documentId!);
           }}
         />
       }

@@ -21,8 +21,8 @@ Sandbox 是内部执行控制服务。Chat 拥有 run、附件授权与发布；
 - run finalizer 先停止所有写进程并取得按 path/size/SHA-256 排序的完整业务文件清单，再自动提交新增、
   修改和删除。修改追加同一 Asset 的不可变 revision；删除写 tombstone 并推进路径 generation；同路径
   重建产生新文件身份。watcher 不是完整性依据。
-- `save_sandbox_file` 只把已经位于稳定工作区的完成文件显示为成果；不再承担草稿持久化边界。
-- Plan mode 同样用 Bash 创建完整 `*-plan.md` 并通过 `save_sandbox_file` 发布；Chat 以 file id 标记 Plan。
+- `upload_artifacts` 一次批量发布已经位于稳定工作区的完成文件；不承担草稿持久化边界。
+- Plan mode 同样用 Bash 创建完整 `*-plan.md` 并在 `upload_artifacts` 批次中发布；Chat 以 file id 标记 Plan。
 
 正常结束、异常、Stop 都调用幂等销毁。Chat 在创建前把执行责任登记为 `restoring`，恢复完成
 转为 `active`，收尾进入 `finalizing`，持久化成功才转为 `releasing`；只有销毁成功才删除责任记录。

@@ -13,22 +13,25 @@ import {
 import { CodeEditor } from "@repo/editors/code-editor";
 import type { DesktopBridge, LocalDirectoryEntry, LocalFile } from "@repo/runtime/desktop";
 import { getErrorMessage } from "@repo/shared";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useBlocker } from "react-router-dom";
 
 export function LocalFiles({
   bridge,
   id,
+  initialPath,
   onDirtyChange,
 }: {
   bridge: DesktopBridge;
   id: string;
+  initialPath?: string | null;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [directory, setDirectory] = useState(".");
   const [entries, setEntries] = useState<LocalDirectoryEntry[] | null>(null);
   const [selected, setSelected] = useState<{ path: string; file: LocalFile; draft: string } | null>(null);
   const latest = useRef(selected);
+  const openedInitialPath = useRef<string | null>(null);
   latest.current = selected;
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
@@ -70,16 +73,26 @@ export function LocalFiles({
     globalThis.addEventListener("beforeunload", warn);
     return () => globalThis.removeEventListener("beforeunload", warn);
   }, []);
-  async function open(path: string) {
-    setError(null);
-    try {
-      const file = await bridge.readFile(id, path);
-      setSelected({ path, file, draft: file.content });
-      setChanged(false);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  }
+  const open = useCallback(
+    async (path: string) => {
+      setError(null);
+      try {
+        const file = await bridge.readFile(id, path);
+        setSelected({ path, file, draft: file.content });
+        setChanged(false);
+      } catch (err) {
+        setError(getErrorMessage(err));
+      }
+    },
+    [bridge, id],
+  );
+  useEffect(() => {
+    if (!initialPath || dirty || openedInitialPath.current === initialPath) return;
+    openedInitialPath.current = initialPath;
+    const parent = initialPath.split("/").slice(0, -1).join("/") || ".";
+    setDirectory(parent);
+    void open(initialPath);
+  }, [dirty, initialPath, open]);
   async function save() {
     if (!selected || saving) return;
     setSaving(true);

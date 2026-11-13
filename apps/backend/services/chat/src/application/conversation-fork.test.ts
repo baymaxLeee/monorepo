@@ -122,10 +122,10 @@ test("file references remap while completed results remain history and unfinishe
         url: "/api/chat-server/conversations/source/documents/doc/content?document_id=doc",
       },
       {
-        type: "tool-save_sandbox_file",
+        type: "tool-upload_artifacts",
         state: "output-available",
         toolCallId: "done",
-        output: { file_id: "file", filename: "report.md" },
+        output: { files: [{ file_id: "file", filename: "report.md" }] },
       },
       {
         type: "tool-bash",
@@ -146,7 +146,7 @@ test("file references remap while completed results remain history and unfinishe
   });
   const parts = clone.parts as Record<string, unknown>[];
   assert.equal(parts[0].url, "/api/chat-server/conversations/branch/documents/copy/content?document_id=copy");
-  assert.deepEqual(parts[1].output, { file_id: "file-copy", filename: "report.md" });
+  assert.deepEqual(parts[1].output, { files: [{ file_id: "file-copy", filename: "report.md" }] });
   assert.equal(parts[1].state, "output-available");
   assert.equal(parts[2].state, "output-error");
   assert.equal(parts[2].approval, undefined);

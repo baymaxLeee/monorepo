@@ -1,6 +1,15 @@
 // Generated from schemas/desktop/bridge.ts by just sync. Do not edit.
 import type { UIMessage, UIMessageChunk } from "ai";
 
+export interface LocalPendingInput {
+  id: string;
+  turnId: string;
+  text: string;
+  delivery: "steer" | "queue";
+  state: "accepted" | "delivered" | "not_delivered" | "unconfirmed";
+  stepNumber?: number;
+  reason?: string;
+}
 export interface LocalThread {
   id: string;
   mode: "local";
@@ -11,6 +20,7 @@ export interface LocalThread {
   turnId: string | null;
   error: string | null;
   updatedAt: string;
+  pendingInputs: LocalPendingInput[];
   messages: UIMessage[];
 }
 export interface LocalFile {
@@ -45,6 +55,13 @@ export interface DesktopBridge {
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
   send(id: string, text: string, messageId: string): Promise<void>;
+  steer(
+    id: string,
+    expectedTurnId: string,
+    text: string,
+    messageId: string,
+    delivery: "steer" | "queue",
+  ): Promise<{ admission: "accepted" | "duplicate"; turnId: string }>;
   approve(id: string, approvalId: string, approved: boolean): Promise<void>;
   stop(id: string): Promise<void>;
   removeThread(id: string): Promise<void>;

@@ -74,7 +74,7 @@
 
 `apps/backend/libs/agent-runtime-ts` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。Chat `createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议。
 
-两端文件操作共用 `createBashTool` 的 schema、说明、manifest、审批策略与 `ToolOutcome`，以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染。本地没有独立的 `list_files/read_file/write_file` 模型工具；原生文件 helper 仅用于文件编辑器受限 I/O。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
+两端文件操作共用 `createBashTool` 的 schema、说明、manifest、审批策略与 `ToolOutcome`，以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染。本地没有独立的 `list_files/read_file/write_file` 模型工具；原生文件 helper 仅用于文件编辑器受限 I/O。云端必须通过共享 `createUploadArtifactsTool` 一次批量把完成文件发布为 Chat/Storage 身份，并把成功结果逐文件投影为 `data-file`。本地磁盘已经是持久化边界，因此不向模型暴露上传工具；本地 runtime 在 turn 的 `finish` 前验证本轮真实变更文件，直接生成同构 `data-file`。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
 
 固定提示词组装器共用核心策略和执行协议；工作区路径、网络与文件持久化/发布能力是环境事实。变更提示仅作为一次性临时上下文，不写成新用户请求。普通能力问答直接回答，不因工具存在或目录监听而启动检查循环。
 
@@ -98,13 +98,16 @@ Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MF
 ### 当前本地实现与边界
 
 Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息渲染和 `ChatPrompt` 富文本输入框。
-新建会话先在输入框工具栏选择「云端 / 本地电脑」，发送时创建对应会话；本地模式随后请求原生目录授权，取消不创建云端会话。
-已有会话只显示固定执行位置；浏览器禁用本地选项。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。
+两种 controller 共同渲染唯一 `ConversationSessionView` 会话骨架；标题栏、消息区、问题区和 composer 布局不按 runtime 复制。可选能力用回调/adapter 显式注入，缺失时不渲染对应动作，不传空函数伪装支持。
+只有 Electron 新建会话时在输入框工具栏选择「云端 / 本地电脑」，发送时创建对应会话；本地模式随后请求原生目录授权，取消不创建云端会话。
+Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。
 
 - `apps/frontend/apps/desktop/electron` 的 main 管理身份与原生授权，utility process
   调用共享 `@backend/agent-runtime-ts` harness，管理 SQLite journal。Chat MFE `/local/:id?` 通过
   `useChat` 与 IPC `ChatTransport` 消费 SDK 原生 UIMessageChunk；重连从原始消息及
   当前流片段重放，仅取消订阅不会 Stop。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
+- 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/sessions.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
+- 从旧 Electron 目录切换时，一次性导入已知开发版和打包版 journal，Thread ID 冲突按 `updatedAt` 选择较新的整份历史。导入与来源标记在同一事务提交，旧库保留用于回滚；已导入来源不重复读取，避免用户删除的会话被旧数据复活。SQLite 是本项目的 journal 实现细节，不作为 renderer、CLI 或云端数据库的共享契约。
 - 原生目录授权由 main 显示确认；工具审批沿用共享 manifest/policy 与 SDK 原生审批状态；账户/租户/工作区和 origin 分区保存
   journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。
 - macOS Seatbelt 同时约束 Bash 和文件 helper，目录身份在每次调用前复核；默认断网，
@@ -125,6 +128,7 @@ Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息�
   本地与云端共用 IAM/Admin 授权规则，不设置本地专属日额度或默认关闭开关；既有用量表
   保留用于 accounting，不承担独立配额准入。不保存 prompt、工具结果或文件。上游五分钟硬限时、8 MiB 输出上限，不自动重试。
 - 工作区创建不产生虚假变更提示。真实 watcher 变更按会话和版本仅通知一次，作为当前模型步骤的临时系统上下文，不追加用户消息；普通问候和能力介绍不要求读取目录。
+- 运行中 composer 保持可编辑；补充内容经带 `expectedTurnId` 的受限 IPC admission 调用 `steer()`，进入该 turn 唯一的 AI SDK steering 通道，并在 editor 上方显示到 SDK 确认于下一个 step 投递。`not_delivered` 保留为可见失败状态，不自动成为下一 turn；应用崩溃前仅确认 admission、未确认模型接收的输入标记 `unconfirmed`，同样不自动重放。已投递内容由官方 `steering-message` part 进入本地 journal，不能再复制一条用户消息。
 - 窗口重载/关闭保留 utility 任务（macOS 应用仍在后台）；退出应用停止执行。
   崩溃恢复仅恢复 journal，并将运行中工作标记 interrupted，不重放未完成工具。
   实现验证含真实 Electron + mock provider 集成和真实 macOS 沙箱测试；不代表真实
@@ -195,6 +199,7 @@ approval 与 sandbox 独立：用户同意动作仍须在当前 OS 策略中执�
 ### 文件、进程与恢复
 
 - Agent 直接操作授权目录，例如用户目录下的 `demo.js`；编辑器打开同一文件，不要求上传 Storage 或维护一份云端副本。
+- 本地 file tag 的 `file_id` 是会话内稳定引用，正文 part 仅保存授权工作区相对路径和 ETag；点击后仍通过受限文件 helper 读取。云端 file tag 使用 Chat 文件身份，不暴露 sandbox 临时路径。两者共享 `data-file` 显示契约，但不共享文件字节或文件 ID 命名空间。
 - 本地运行时保存会话、工具结果和必要执行记录；控制数据放在应用受保护目录，避免被 Agent 作为普通工作文件修改。
 - run 结束清理其拥有的命令和子进程，不删除用户目录，也不要求退出整个本地 Agent 服务。用户自行启动的其他进程不属于清理对象。
 - 显式 Stop 取消本次执行并清理受管理的子孙进程；窗口关闭、应用退出和后台运行的产品行为须明确，不能让脱离父进程的任务成为无主进程。
@@ -376,6 +381,7 @@ Storage 不决定业务文件的“当前内容”。跨服务不假设数据库
 - [Codex Cloud 保存状态](https://learn.chatgpt.com/docs/environments/cloud-environments#reuse-and-update-saved-state)区分可复用预置环境与任务自身文件；没有公开“每次 run 结束立即销毁实例”的策略。本项目选择按 run 回收，是自身成本与恢复取舍。
 - [Codex Legacy 容器缓存](https://learn.chatgpt.com/docs/environments/cloud-environment#container-caching)说明最多 12 小时的状态缓存，不等于运行实例保温 12 小时，也不是当前云端策略的依据。
 - [Codex App Server](https://learn.chatgpt.com/docs/app-server)提供独立运行时与富客户端的集成边界；本项目借鉴职责分离，继续采用自己的 AI SDK Agent 核心，不假定可复制未公开的 Codex Cloud 调度器。
+- [Codex Windows App](https://learn.chatgpt.com/docs/windows/windows-app#share-config-auth-and-sessions-with-wsl)明确 App 与 native CLI 使用同一 Codex home，而 WSL 默认 home 不同便不会自动共享 session history；本项目据此采用稳定 runtime home，而不是按 Desktop 应用名分配会话目录。Codex 公开 App Server 文档描述 rollout/log 与 sessions 目录，并未规定本项目必须采用相同落盘格式。
 - [Codex Sandboxing](https://learn.chatgpt.com/docs/sandboxing#prerequisites)明确 macOS 使用 Seatbelt、Linux/WSL2 使用 bubblewrap、Windows 原生执行使用 Windows sandbox；[Permission modes](https://learn.chatgpt.com/docs/permissions)区分权限、sandbox 与审批。本项目首发只交付 macOS，其他平台拒绝本地执行；这是发布决策，不能把供应商支持矩阵当成本项目已经具备的能力。
 - [Anthropic sessions](https://code.claude.com/docs/en/agent-sdk/sessions)区分会话与文件系统；[文件 checkpoint](https://code.claude.com/docs/en/agent-sdk/file-checkpointing)有 Bash 修改覆盖边界，因此不能只追踪编辑工具来保证工作区恢复。
 - [Electron sandbox](https://www.electronjs.org/docs/latest/tutorial/sandbox)说明 renderer 的权限边界；[utilityProcess](https://www.electronjs.org/docs/latest/api/utility-process)是进程承载能力，不是任意 Agent shell 的文件隔离证明。
@@ -396,6 +402,7 @@ Storage 不决定业务文件的“当前内容”。跨服务不假设数据库
 | 本地文件统一上传再编辑 | 违背本地资源闭环与无同步边界；不采用 |
 | 将 Admin provider secret 下发桌面 | 扩大凭据泄露边界；采用服务端受约束的单次推理 relay |
 | 由 Chat 运行本地会话的 Agent 循环 | 云端成为会话与工具调度 owner；采用本地循环及本地历史 |
+| 把本地 journal 放在 Electron `userData` | 开发版、正式版和未来 CLI 因应用名产生孤岛；采用稳定 runtime home，并保留身份分区 |
 | 要求本地用户自行配置 API key | 引入另一套配置与付费模型；本决策沿用集中 provider 管理，不引入 BYOK |
 | 用 Node 路径检查覆盖所有本地 OS | 无法约束任意命令和子进程；按平台实现并验收 OS 强制机制 |
 | 旧同名文件覆盖或合并 | 改变既有文件身份及内容；采用确定性独立路径迁移 |
@@ -406,7 +413,7 @@ Storage 不决定业务文件的“当前内容”。跨服务不假设数据库
 
 现有 [ToolLoop](../../apps/backend/services/chat/src/application/agent/agents/tool-loop.ts) 创建 [RunSandbox](../../apps/backend/services/chat/src/application/agent/tools/builtins/sandbox-session.ts)，结束时销毁；[Engine](../../apps/backend/services/sandbox/src/engine.ts) 已有隔离资源、期限和回收。按 run 回收本身可以保留。
 
-云端代码已具备：不可变 `execution_mode` 字段、确定性旧路径回填与全量 Storage 校验任务、最终非空/存活路径唯一约束迁移、稳定路径恢复、静止文件清单、新增/修改/删除自动提交、内容与路径 generation fencing，以及 `restoring → active → finalizing → releasing` 的崩溃重试与实例回收。旧 `sources/saved + checkout` 工具链已从运行时移除；`save_sandbox_file` 只承担成果展示。目标环境尚未实际执行停写回填，因此不能把代码就绪当成已部署切换。
+云端代码已具备：不可变 `execution_mode` 字段、确定性旧路径回填与全量 Storage 校验任务、最终非空/存活路径唯一约束迁移、稳定路径恢复、静止文件清单、新增/修改/删除自动提交、内容与路径 generation fencing，以及 `restoring → active → finalizing → releasing` 的崩溃重试与实例回收。旧 `sources/saved + checkout` 工具链已从运行时移除；`upload_artifacts` 只承担完成文件的批量发布与正文引用。目标环境尚未实际执行停写回填，因此不能把代码就绪当成已部署切换。
 
 活跃 run 的在线编辑也已进入代码：Sandbox guest 先阻止新命令并短暂等待已准入命令结束，再授予带操作 token 的工作区写屏障；Chat 在屏障内核对磁盘摘要与编辑器 etag，将新字节原子替换到同一路径，再提交 Storage revision 和 Chat 当前引用。业务提交失败时恢复原字节；无法恢复时保留屏障，使用同一幂等操作重试，不能开放分叉工作区。等待预算耗尽、恢复/收尾状态或其他编辑仍返回 `workspace_busy`，前端保留草稿后重试。每个受控模型 step 对账文件 etag，把用户已提交的变更路径作为重读指令注入；通知不是事实源，磁盘和 Chat 内容对账仍是兜底。
 

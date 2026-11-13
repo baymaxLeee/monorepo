@@ -34,6 +34,7 @@ type ChatTranscriptProps = Pick<
   | "conversationId"
   | "onOpenArtifact"
   | "onOpenFile"
+  | "onOpenWorkspaceFile"
   | "resolveSourceHref"
   | "resolveSourceAction"
   | "onSelectBranch"
@@ -75,7 +76,7 @@ function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
     if (part.type === "text" || part.type === "reasoning") {
       return !part.text.trim();
     }
-    return part.type === "step-start";
+    return part.type === "step-start" || part.type === "steering-message";
   });
 }
 
@@ -88,6 +89,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   branches,
   onOpenArtifact,
   onOpenFile,
+  onOpenWorkspaceFile,
   resolveSourceHref,
   resolveSourceAction,
   onSelectBranch,
@@ -160,6 +162,7 @@ export const ChatTranscript = memo(function ChatTranscript({
               deliverableCompletion={deliverableCompletion}
               onOpenArtifact={onOpenArtifact}
               onOpenFile={onOpenFile}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
               resolveSourceHref={resolveSourceHref}
               resolveSourceAction={resolveSourceAction}
               branch={branchBySelectedMessage.get(message.id)}

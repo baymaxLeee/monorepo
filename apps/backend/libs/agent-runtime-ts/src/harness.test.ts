@@ -9,6 +9,7 @@ import { createAgentHarness } from "./harness.js";
 import { assembleInstructions } from "./instructions/index.js";
 import { manifestsToTools } from "./manifest.js";
 import { createToolApprovalPolicy } from "./policy.js";
+import { createAgentSteering } from "./steering.js";
 
 const finish: LanguageModelV4StreamPart = {
   type: "finish",
@@ -158,3 +159,109 @@ for (const approved of [false, true]) {
     assert.equal(calls, 2);
   });
 }
+
+test("SDK steering is delivered, streamed as an official part, and replayed into model history", async () => {
+  const steering = createAgentSteering();
+  const outcomePromise = steering.steer("改成巴黎德州。", { id: "steer-client-message" });
+  const agent = createAgentHarness({
+    mode: "normal",
+    tools: {},
+    model: model((options) => {
+      assert.deepEqual(
+        options.prompt
+          .filter((message) => message.role === "user")
+          .map((message) => message.content)
+          .map((content) =>
+            typeof content === "string"
+              ? content
+              : content.map((part) => (part.type === "text" ? part.text : "")).join(""),
+          ),
+        ["能帮我干啥", "改成巴黎德州。"],
+      );
+      return text;
+    }),
+  });
+  const result = await agent.stream({
+    messages: await convertToModelMessages(request),
+    experimental_steering: steering,
+  });
+  let answer: UIMessage | undefined;
+  for await (const item of readUIMessageStream({
+    stream: toUIMessageStream({ stream: result.stream, tools: agent.tools, originalMessages: request }),
+    terminateOnError: true,
+  }))
+    answer = item;
+
+  assert.ok(answer);
+  assert.deepEqual(await outcomePromise, {
+    type: "delivered",
+    id: "steer-client-message",
+    message: { role: "user", content: "改成巴黎德州。" },
+    stepNumber: 0,
+  });
+  assert.deepEqual(answer.parts[0], {
+    type: "steering-message",
+    id: "steer-client-message",
+    parts: [{ type: "text", text: "改成巴黎德州。" }],
+  });
+  assert.equal(JSON.stringify(await convertToModelMessages([...request, answer])).includes("改成巴黎德州。"), true);
+});
+
+test("stored-response continuation keeps steering sent during a tool in the next step", async () => {
+  let releaseTool: () => void = () => {};
+  let markToolStarted: () => void = () => {};
+  const toolStarted = new Promise<void>((resolve) => {
+    markToolStarted = resolve;
+  });
+  const toolRelease = new Promise<void>((resolve) => {
+    releaseTool = resolve;
+  });
+  const tools = manifestsToTools([
+    createBashTool(async () => {
+      markToolStarted();
+      await toolRelease;
+      return { exitCode: 0, stdout: "done", stderr: "" };
+    }),
+  ]);
+  let calls = 0;
+  const steering = createAgentSteering();
+  const agent = createAgentHarness({
+    mode: "normal",
+    tools,
+    model: model((options) => {
+      calls++;
+      if (calls === 1) {
+        return [{ type: "tool-call", toolCallId: "bash", toolName: "bash", input: '{"command":"echo done"}' }];
+      }
+      assert.match(JSON.stringify(options.prompt), /继续检查日志/);
+      return text;
+    }),
+    continuation: ({ steps, messages }) => ({
+      providerOptions: { openai: { previousResponseId: "response-1" } },
+      messages:
+        steps.length > 0
+          ? (steps.at(-1)?.response.messages.filter((message) => message.role === "tool") ?? [])
+          : messages,
+    }),
+  });
+  const result = await agent.stream({
+    messages: await convertToModelMessages(request),
+    experimental_steering: steering,
+  });
+  const consumed = (async () => {
+    for await (const _ of result.fullStream) {
+      // Consuming drives the model/tool loop.
+    }
+  })();
+  await toolStarted;
+  const outcomePromise = steering.steer("继续检查日志", { id: "mid-tool-steer" });
+  releaseTool();
+  await consumed;
+  assert.deepEqual(await outcomePromise, {
+    type: "delivered",
+    id: "mid-tool-steer",
+    message: { role: "user", content: "继续检查日志" },
+    stepNumber: 1,
+  });
+  assert.equal(calls, 2);
+});

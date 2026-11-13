@@ -1,9 +1,8 @@
+import { finalizeInterruptedParts, hasNonTerminalOutput } from "@backend/agent-runtime-ts/lifecycle";
 import { isToolOutcome, toolOutcomeData } from "@backend/agent-runtime-ts/outcome";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
-
-const NON_TERMINAL_OUTPUT_STATUSES = new Set(["generating", "pending", "queued", "running", "submitted"]);
 
 export function cancelTodoOutput(output: unknown): unknown {
   if (!isToolOutcome(output) || output.status !== "completed") {
@@ -33,7 +32,7 @@ export function cancelTodoOutput(output: unknown): unknown {
 }
 
 export function finalizeCancelledParts(parts: AnyUIMessage["parts"]): AnyUIMessage["parts"] {
-  return parts.map((part) => {
+  const domainFinalized = parts.map((part) => {
     if (!isToolUIPart(part)) {
       return part;
     }
@@ -43,36 +42,9 @@ export function finalizeCancelledParts(parts: AnyUIMessage["parts"]): AnyUIMessa
       next = { ...next, output: cancelTodoOutput(part.output) };
     }
 
-    if (next.state === "output-error" || next.state === "output-denied") {
-      return next as AnyUIMessage["parts"][number];
-    }
-    if (next.state === "output-available" && next.preliminary !== true && !hasNonTerminalOutput(next.output)) {
-      return next as AnyUIMessage["parts"][number];
-    }
-
-    const { output: _output, preliminary: _preliminary, approval, ...terminal } = next;
-    // output-error accepts only a granted approval in the native SDK schema.
-    // A pending or denied request is not a granted execution after cancellation.
-    const granted =
-      approval && typeof approval === "object" && "approved" in approval && approval.approved === true
-        ? approval
-        : undefined;
-    return {
-      ...terminal,
-      ...(granted ? { approval: granted } : {}),
-      state: "output-error",
-      errorText: "已取消。",
-    } as AnyUIMessage["parts"][number];
+    return next as AnyUIMessage["parts"][number];
   });
+  return finalizeInterruptedParts(domainFinalized, "已取消。");
 }
 
-export function hasNonTerminalOutput(output: unknown): boolean {
-  if (isToolOutcome(output)) {
-    return output.status === "running";
-  }
-  if (!output || typeof output !== "object") {
-    return false;
-  }
-  const status = (output as { status?: unknown }).status;
-  return typeof status === "string" && NON_TERMINAL_OUTPUT_STATUSES.has(status);
-}
+export { hasNonTerminalOutput };

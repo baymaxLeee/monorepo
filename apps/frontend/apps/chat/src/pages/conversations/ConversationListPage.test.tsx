@@ -84,15 +84,18 @@ test("cancelling the directory chooser does not create a cloud conversation or s
   expect(mocks.navigate).not.toHaveBeenCalled();
 });
 
-test("Web disables local execution without a desktop bridge", async () => {
+test("Web omits execution selection and submits to cloud", async () => {
   mocks.desktop = false;
   render(
     <MemoryRouter>
       <ConversationListPage />
     </MemoryRouter>,
   );
-  fireEvent.click(screen.getByRole("combobox", { name: "执行位置" }));
-  expect((await screen.findByRole("option", { name: "本地电脑" })).getAttribute("aria-disabled")).toBe("true");
+  expect(screen.queryByRole("combobox", { name: "执行位置" })).toBeNull();
+  expect(screen.queryByText("使用桌面应用可选择本地电脑")).toBeNull();
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+  expect(mocks.local).not.toHaveBeenCalled();
 });
 
 test("repeated submit while creating cannot create duplicate conversations", async () => {

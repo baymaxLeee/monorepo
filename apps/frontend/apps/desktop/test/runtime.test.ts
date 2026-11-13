@@ -46,7 +46,7 @@ async function fixture(call: SessionHostOptions["call"]) {
   await mkdir(workspace);
   const options: SessionHostOptions = {
     directory: join(directory, "state"),
-    controlDirectory: join(directory, "state"),
+    controlDirectories: [join(directory, "state")],
     supervisor: resolve(import.meta.dirname, "../dist/supervisor"),
     executable: process.execPath,
     fileWorker: resolve(import.meta.dirname, "../dist/file-worker.cjs"),
@@ -181,6 +181,85 @@ describe.skipIf(process.platform !== "darwin")("local Agent owns execution and r
     expect(calls).toBe(2);
   });
 
+  it("publishes a local workspace file as the shared inline artifact part", async () => {
+    let calls = 0;
+    const requests: InferenceRequest[] = [];
+    const f = await fixture(async (request) => {
+      requests.push(request);
+      calls += 1;
+      if (calls === 1) {
+        return reply([
+          {
+            type: "tool-call",
+            toolCallId: "write",
+            toolName: "bash",
+            input: JSON.stringify({ command: "printf 'export default 1' > demo.js" }),
+          },
+        ]);
+      }
+      return reply(text());
+    });
+    f.runtime.send(f.thread.id, "create", randomUUID());
+    const completed = await done(f.runtime, f.thread.id);
+    expect(completed.status).toBe("idle");
+    expect(calls).toBe(2);
+    expect(JSON.stringify(requests[0]?.options.tools)).not.toContain("upload_artifacts");
+    expect(
+      completed.messages.flatMap((message) => message.parts).find((part) => part.type === "data-file"),
+    ).toMatchObject({
+      type: "data-file",
+      data: {
+        file_id: expect.stringMatching(/^[a-f0-9]{32}$/),
+        filename: "demo.js",
+        title: "demo.js",
+        media_type: "text/javascript",
+        kind: "artifact",
+        etag: expect.stringMatching(/^"[a-f0-9]{32}"$/),
+        updated: false,
+        workspace_path: "demo.js",
+      },
+    });
+  });
+
+  it("admits a running supplement into the next SDK step and persists the official part", async () => {
+    const requests: InferenceRequest[] = [];
+    const f = await fixture(async (request) => {
+      requests.push(request);
+      return reply(
+        requests.length === 1
+          ? [
+              {
+                type: "tool-call",
+                toolCallId: "pause",
+                toolName: "bash",
+                input: JSON.stringify({ command: "sleep 0.2" }),
+              },
+            ]
+          : text(),
+      );
+    });
+    f.runtime.send(f.thread.id, "start", randomUUID());
+    await expect.poll(() => requests.length).toBe(1);
+    const active = f.runtime.get(f.thread.id);
+    expect(active.turnId).toBeTruthy();
+    const messageId = randomUUID();
+    expect(f.runtime.steer(f.thread.id, active.turnId!, "use the updated requirement", messageId, "steer")).toEqual({
+      admission: "accepted",
+      turnId: active.turnId,
+    });
+
+    const completed = await done(f.runtime, f.thread.id);
+    expect(JSON.stringify(requests[1]?.options.prompt)).toContain("use the updated requirement");
+    expect(
+      completed.messages.flatMap((message) => message.parts).find((part) => part.type === "steering-message"),
+    ).toMatchObject({
+      type: "steering-message",
+      id: messageId,
+      parts: [{ type: "text", text: "use the updated requirement" }],
+    });
+    expect(completed.pendingInputs).toEqual([]);
+  });
+
   it("stops a pending inference and reopens interrupted history without replaying tools", async () => {
     const f = await fixture(
       async (_request, signal) =>
@@ -192,9 +271,16 @@ describe.skipIf(process.platform !== "darwin")("local Agent owns execution and r
     );
     f.runtime.send(f.thread.id, "wait", randomUUID());
     await expect.poll(() => f.runtime.openStream(f.thread.id).segment).not.toBe(null);
+    const active = f.runtime.get(f.thread.id);
+    const supplementId = randomUUID();
+    f.runtime.steer(f.thread.id, active.turnId!, "do not replay me as a new turn", supplementId, "steer");
     await f.runtime.stop(f.thread.id);
     expect(f.runtime.get(f.thread.id).status).toBe("cancelled");
     const interrupted = f.runtime.get(f.thread.id);
+    expect(interrupted.pendingInputs).toContainEqual(
+      expect.objectContaining({ id: supplementId, state: "not_delivered", reason: "aborted" }),
+    );
+    expect(interrupted.messages.filter((message) => message.role === "user")).toHaveLength(1);
     interrupted.status = "running";
     f.runtime.journal.save(interrupted);
     await f.runtime.close();

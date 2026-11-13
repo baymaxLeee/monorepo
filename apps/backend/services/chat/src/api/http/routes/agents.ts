@@ -10,6 +10,9 @@ import {
   cancelRun,
   activeAgentStreamRunId,
   createAgentReplayResponse,
+  acceptAgentSteeringInput,
+  getAgentSteeringInput,
+  listAgentSteeringInputs,
   isRunActive,
 } from "../../../application/agent/index.js";
 import { getConversationRow } from "../../../application/conversations.js";
@@ -39,6 +42,17 @@ const runSchema = z.object({
   agent_id: z.string().max(32).optional().nullable(),
   // Ephemeral per-run behavior selector (ADR-0035); not persisted.
   mode: z.enum(["normal", "plan"]).optional(),
+});
+
+const steeringSchema = z.object({
+  expected_run_id: z.string().min(1).max(32),
+  client_message_id: z
+    .string()
+    .min(8)
+    .max(64)
+    .regex(/^[a-zA-Z0-9_-]+$/),
+  text: z.string().trim().min(1).max(64_000),
+  delivery: z.enum(["steer", "queue"]).default("steer"),
 });
 
 agentsRoutes.post(
@@ -105,6 +119,44 @@ agentsRoutes.get("/:conversationId/agents/run/stream", async (c) => {
 agentsRoutes.get("/:conversationId/agents/runs/:runId/trace", async (c) => {
   const trace = await getAgentRunTrace(getAuth(c), c.req.param("conversationId"), c.req.param("runId"));
   return c.json(trace);
+});
+
+agentsRoutes.post("/:conversationId/agents/runs/:runId/steer", zValidator("json", steeringSchema), async (c) => {
+  const auth = getAuth(c);
+  const conversationId = c.req.param("conversationId");
+  const runId = c.req.param("runId");
+  const payload = c.req.valid("json");
+  if (payload.expected_run_id !== runId) throw new RequestError("expected agent run does not match route");
+  const input = await acceptAgentSteeringInput({
+    conversationId,
+    runId,
+    userId: auth.userId,
+    clientMessageId: payload.client_message_id,
+    delivery: payload.delivery,
+    text: payload.text,
+  });
+  return c.json(input, 202);
+});
+
+agentsRoutes.get("/:conversationId/agents/runs/:runId/steering-inputs", async (c) => {
+  const auth = getAuth(c);
+  const inputs = await listAgentSteeringInputs({
+    conversationId: c.req.param("conversationId"),
+    runId: c.req.param("runId"),
+    userId: auth.userId,
+  });
+  return c.json(inputs);
+});
+
+agentsRoutes.get("/:conversationId/agents/runs/:runId/steering-inputs/:clientMessageId", async (c) => {
+  const auth = getAuth(c);
+  const input = await getAgentSteeringInput({
+    conversationId: c.req.param("conversationId"),
+    runId: c.req.param("runId"),
+    userId: auth.userId,
+    clientMessageId: c.req.param("clientMessageId"),
+  });
+  return c.json(input);
 });
 
 agentsRoutes.post("/:conversationId/agents/runs/:runId/cancel", async (c) => {

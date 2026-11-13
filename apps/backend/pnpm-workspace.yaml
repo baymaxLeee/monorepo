@@ -9,11 +9,11 @@ packages:
 catalogMode: strict
 
 catalog:
-  ai: ^7.0.155
+  ai: ^7.0.172
   "@typescript/native": npm:typescript@7.0.2
-  "@ai-sdk/openai": ^4.0.104
-  "@ai-sdk/provider": ^4.0.34
-  "@ai-sdk/provider-utils": ^5.0.70
+  "@ai-sdk/openai": ^4.0.117
+  "@ai-sdk/provider": ^4.0.38
+  "@ai-sdk/provider-utils": ^5.0.81
   "@hono/node-server": ^2.1.1
   "@hono/zod-validator": ^0.9.1
   "@workflow/builders": ^5.0.6
@@ -22,8 +22,8 @@ catalog:
   nitro: 3.0.260903-beta
   workflow: ^5.2.3
   zod: ^4.6.5
-  "@ai-sdk/code-mode": 1.0.112
-  "@ai-sdk/tool-web-fetch": 1.0.5
+  "@ai-sdk/code-mode": 1.0.129
+  "@ai-sdk/tool-web-fetch": 1.0.22
 
 # These packages ship usable prebuilt/JS fallbacks; no install scripts needed.
 allowBuilds:
@@ -35,13 +35,14 @@ allowBuilds:
   node-liblzma: false
 
 minimumReleaseAgeExclude:
-  - "@ai-sdk/gateway@4.0.128"
-  - ai@7.0.155
-  - "@ai-sdk/openai@4.0.104"
-  - "@ai-sdk/provider-utils@5.0.70"
-  - "@ai-sdk/code-mode@1.0.112"
-  - "@ai-sdk/harness@1.0.166"
-  - "@ai-sdk/tool-web-fetch@1.0.5"
+  - "@ai-sdk/gateway@4.0.145"
+  - ai@7.0.172
+  - "@ai-sdk/openai@4.0.117"
+  - "@ai-sdk/provider-utils@5.0.81"
+  - "@ai-sdk/code-mode@1.0.129"
+  - "@ai-sdk/harness@1.0.183"
+  - "@ai-sdk/tool-web-fetch@1.0.22"
+  - '@ai-sdk/provider@4.0.38'
 
 overrides:
   zod: "catalog:"

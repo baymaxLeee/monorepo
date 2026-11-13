@@ -418,6 +418,74 @@ export class RunSandbox implements Experimental_SandboxSession {
     await this.writeBinaryFile({ ...options, content: new TextEncoder().encode(options.content) });
   }
 
+  async stat(options: {
+    path: string;
+    abortSignal?: AbortSignal;
+  }): Promise<{ type: "file" | "directory" | "other"; size: number } | null> {
+    const absolute = `/workspace/${sandboxRelativePath(options.path)}`;
+    const result = await this.run({
+      command: `if [ ! -e ${shellQuote(absolute)} ]; then exit 44; fi
+if [ -f ${shellQuote(absolute)} ]; then kind=file
+elif [ -d ${shellQuote(absolute)} ]; then kind=directory
+else kind=other
+fi
+printf '%s\\n' "$kind"
+stat -Lc '%s' -- ${shellQuote(absolute)}`,
+      workingDirectory: "/workspace/work",
+      abortSignal: options.abortSignal,
+    });
+    if (result.exitCode === 44) return null;
+    if (result.exitCode !== 0) throw new Error(result.stderr || `Could not inspect sandbox path ${absolute}.`);
+    const [type, sizeText] = result.stdout.trimEnd().split("\n");
+    const size = Number(sizeText);
+    if ((type !== "file" && type !== "directory" && type !== "other") || !Number.isSafeInteger(size) || size < 0) {
+      throw new Error(`Sandbox returned invalid stat data for ${absolute}.`);
+    }
+    return { type, size };
+  }
+
+  async listDirectory(options: { path: string; abortSignal?: AbortSignal }) {
+    const absolute = `/workspace/${sandboxRelativePath(options.path)}`;
+    const result = await this.run({
+      command: `if [ ! -e ${shellQuote(absolute)} ]; then exit 44; fi
+if [ ! -d ${shellQuote(absolute)} ]; then exit 45; fi
+find -H ${shellQuote(absolute)} -mindepth 1 -maxdepth 1 -printf '%f\\0%y\\0'`,
+      workingDirectory: "/workspace/work",
+      abortSignal: options.abortSignal,
+    });
+    if (result.exitCode === 44) return null;
+    if (result.exitCode === 45) throw new Error(`Sandbox path is not a directory: ${absolute}.`);
+    if (result.exitCode !== 0) throw new Error(result.stderr || `Could not list sandbox directory ${absolute}.`);
+    const fields = result.stdout.split("\0");
+    if (fields.at(-1) === "") fields.pop();
+    if (fields.length % 2 !== 0) throw new Error(`Sandbox returned an invalid directory listing for ${absolute}.`);
+    const entries: Array<{ name: string; type: "file" | "directory" | "symlink" | "other" }> = [];
+    for (let index = 0; index < fields.length; index += 2) {
+      const name = fields[index]!;
+      const kind = fields[index + 1]!;
+      entries.push({
+        name,
+        type: kind === "f" ? "file" : kind === "d" ? "directory" : kind === "l" ? "symlink" : "other",
+      });
+    }
+    return entries;
+  }
+
+  async deleteFile(options: { path: string; abortSignal?: AbortSignal }) {
+    const absolute = `/workspace/${writableSandboxPath(options.path)}`;
+    const result = await this.run({
+      command: `if [ -d ${shellQuote(absolute)} ] && [ ! -L ${shellQuote(absolute)} ]; then exit 45; fi
+if [ ! -e ${shellQuote(absolute)} ] && [ ! -L ${shellQuote(absolute)} ]; then exit 44; fi
+rm -- ${shellQuote(absolute)}`,
+      workingDirectory: "/workspace/work",
+      abortSignal: options.abortSignal,
+    });
+    if (result.exitCode === 44) return false;
+    if (result.exitCode === 45) throw new Error(`Sandbox path is a directory: ${absolute}.`);
+    if (result.exitCode !== 0) throw new Error(result.stderr || `Could not delete sandbox file ${absolute}.`);
+    return true;
+  }
+
   async stagePublishedFile(path: string, content: Uint8Array, signal?: AbortSignal): Promise<boolean> {
     if (!this.session) return false;
     const workspacePath = path.startsWith("/workspace/") ? path : `/workspace/${path}`;

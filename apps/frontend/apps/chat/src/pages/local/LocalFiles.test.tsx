@@ -45,3 +45,21 @@ it("preserves an edited draft after a stale-save rejection and blocks accidental
   expect((screen.getByRole("textbox", { name: "文件内容" }) as HTMLTextAreaElement).value).toBe("my draft");
   expect(router.state.location.pathname).toBe("/");
 });
+
+it("opens a published workspace path directly", async () => {
+  const readFile = vi.fn(async () => ({ content: "export default 1", hash: "hash" }));
+  const bridge = {
+    listFiles: async () => [{ name: "demo.js", directory: false, symlink: false }],
+    readFile,
+    writeFile: vi.fn(),
+    subscribe: () => () => {},
+  } as unknown as DesktopBridge;
+  const router = createMemoryRouter([
+    { path: "/", element: <LocalFiles bridge={bridge} id="thread" initialPath="src/demo.js" /> },
+  ]);
+  render(<RouterProvider router={router} />);
+  expect(((await screen.findByRole("textbox", { name: "文件内容" })) as HTMLTextAreaElement).value).toBe(
+    "export default 1",
+  );
+  expect(readFile).toHaveBeenCalledWith("thread", "src/demo.js");
+});

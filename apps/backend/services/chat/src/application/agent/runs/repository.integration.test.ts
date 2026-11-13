@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { getDb, getSql } from "../../../infrastructure/persistence/index.js";
 import {
   agentRuns,
+  agentSteeringInputs,
   agentSteps,
   agentToolCalls,
   conversations,
@@ -22,6 +23,7 @@ import {
   interruptRuns,
   requestAgentRunCancellation,
 } from "./repository.js";
+import { acceptAgentSteeringInput, listAgentSteeringInputs } from "./steering.js";
 
 const enabled = process.env.CHAT_POSTGRES_INTEGRATION === "1";
 
@@ -699,6 +701,43 @@ test("orphan reconciliation rechecks a renewed lease before interrupting", { ski
     await interruptRuns([claim.runId]);
     [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
     assert.equal(run?.status, "interrupted");
+  } finally {
+    await cleanup(conversationId);
+  }
+});
+
+test("steering admission is idempotent, payload-bound, recoverable, and terminalized", { skip: !enabled }, async () => {
+  const { conversationId, userId } = await createConversation();
+  try {
+    const claim = await claimSubmit(conversationId, userId);
+    const clientMessageId = identifier("steer");
+    const input = {
+      conversationId,
+      runId: claim.runId,
+      userId,
+      clientMessageId,
+      delivery: "steer" as const,
+      text: "use the other city",
+    };
+    const accepted = await acceptAgentSteeringInput(input);
+    assert.equal(accepted.state, "accepted");
+    assert.deepEqual(await acceptAgentSteeringInput(input), accepted);
+    await assert.rejects(
+      acceptAgentSteeringInput({ ...input, text: "changed payload" }),
+      (error: unknown) => error instanceof ConflictError && error.code === "steering_input_id_conflict",
+    );
+    assert.deepEqual(await listAgentSteeringInputs({ conversationId, runId: claim.runId, userId }), [accepted]);
+
+    await finishAgentRun({ runId: claim.runId, status: "completed" });
+    const [settled] = await getDb()
+      .select()
+      .from(agentSteeringInputs)
+      .where(eq(agentSteeringInputs.clientMessageId, clientMessageId));
+    assert.equal(settled?.state, "not_delivered");
+    assert.equal(settled?.reason, "finished");
+    const retried = await acceptAgentSteeringInput(input);
+    assert.equal(retried.state, "not_delivered");
+    assert.equal(retried.reason, "finished");
   } finally {
     await cleanup(conversationId);
   }

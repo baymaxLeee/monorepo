@@ -1,4 +1,5 @@
 import type { LanguageModelV4, LanguageModelV4StreamPart } from "@ai-sdk/provider";
+import { estimateTextTokens } from "@backend/agent-runtime-ts/context-budget";
 
 import type { AuthContext } from "../../api/http/middleware/auth.js";
 import { AppError, ForbiddenError, RequestError } from "../errors.js";
@@ -39,7 +40,7 @@ export async function inferenceResponse(
   // Reserve the whole allowed context, rather than treating a tokenizer estimate
   // as an authorization boundary. Unknown provider outcomes retain reservation.
   const reserved = provider.config.contextWindow + request.options.maxOutputTokens;
-  if (Buffer.byteLength(JSON.stringify(request.options)) > provider.config.contextWindow)
+  if (estimateTextTokens(JSON.stringify(request.options)) > provider.config.contextWindow)
     throw new RequestError("Local context is too large; start a new conversation or reduce context");
   signal.throwIfAborted();
   const operation = await deps.reserve(auth, request.requestId, request.model, reserved);

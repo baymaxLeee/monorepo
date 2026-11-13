@@ -110,6 +110,20 @@ test("composer has a name, retains draft during generation and offers stop", asy
   expect(input.textContent).toBe("草稿");
 });
 
+test("steering mode keeps independent Stop and Send actions during generation", async () => {
+  const stop = vi.fn();
+  const submit = vi.fn();
+  render(<Editor defaultValue="补充要求" loading submitWhileLoading onStop={stop} onSubmit={submit} />);
+  const input = await screen.findByRole("textbox", { name: "消息" });
+  expect(input.getAttribute("contenteditable")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "停止生成" }));
+  expect(stop).toHaveBeenCalledOnce();
+  expect(submit).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "补充当前任务" }));
+  expect(submit).toHaveBeenCalledOnce();
+  expect(input.textContent).toBe("补充要求");
+});
+
 test("IME confirmation does not send, plain Enter sends once", async () => {
   const submit = vi.fn();
   render(<Editor defaultValue="中文" onSubmit={submit} />);

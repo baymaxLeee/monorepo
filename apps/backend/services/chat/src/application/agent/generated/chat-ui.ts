@@ -44,6 +44,18 @@ export const chatDataPartSchemas = {
   "plan-execution": z.object({ file_id: z.string().length(32) }).strict(),
   "conversation-title": z.object({ title: z.string().trim().min(1).max(200) }).strict(),
   "skill-activation": z.object({ name: z.string().min(1).max(120) }).strict(),
+  file: z
+    .object({
+      file_id: z.string().length(32),
+      filename: z.string().min(1).max(255),
+      title: z.string().min(1).max(255),
+      media_type: z.string().min(1).max(255),
+      kind: z.string().min(1).max(32),
+      etag: z.string().regex(/^"[a-f0-9]{32}"$/),
+      updated: z.boolean(),
+      workspace_path: z.string().min(1).max(4096).optional(),
+    })
+    .strict(),
 };
 
 export type ChatMessageMetadata = z.infer<typeof chatMessageMetadataSchema>;

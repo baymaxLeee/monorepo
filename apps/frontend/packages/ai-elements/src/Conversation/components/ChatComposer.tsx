@@ -10,7 +10,7 @@ import { memo, type RefObject } from "react";
 import { ChatComposerControls } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatPrompt } from "./ChatPrompt";
-import { ExecutionLocation } from "./ExecutionLocation";
+import type { PendingAgentInput } from "./PendingInputStack";
 
 type ChatComposerProps = {
   id: string;
@@ -20,6 +20,8 @@ type ChatComposerProps = {
   selectedAgentId: string | null;
   setSelectedAgentId: (id: string | null) => void;
   busy: boolean;
+  runActive: boolean;
+  pendingInputs: readonly PendingAgentInput[];
   mode: "normal" | "plan";
   activatedSkillName: string | null;
   setActivatedSkillName: (name: string | null) => void;
@@ -38,6 +40,8 @@ export const ChatComposer = memo(function ChatComposer({
   selectedAgentId,
   setSelectedAgentId,
   busy,
+  runActive,
+  pendingInputs,
   mode,
   activatedSkillName,
   setActivatedSkillName,
@@ -52,7 +56,15 @@ export const ChatComposer = memo(function ChatComposer({
       ref={promptRef}
       disabled={false}
       loading={busy}
-      placeholder={mode === "plan" ? "描述要规划的任务，/ 引用技能，@ 添加上下文" : "要求后续变更"}
+      submitWhileLoading={runActive}
+      pendingInputs={pendingInputs}
+      placeholder={
+        runActive
+          ? "补充当前任务…"
+          : mode === "plan"
+            ? "描述要规划的任务，/ 引用技能，@ 添加上下文"
+            : "发送消息或创建任务…"
+      }
       maxFiles={8}
       maxFileSize={10 * 1024 * 1024}
       onError={(message) => toast.add({ type: "error", title: message })}
@@ -132,7 +144,11 @@ export const ChatComposer = memo(function ChatComposer({
             toast.add({ type: "error", title: message });
           });
       }}
-      onSubmit={(value) => void onSubmit(value).catch(() => {})}
+      onSubmit={(value) =>
+        void onSubmit(value).catch((error: unknown) => {
+          toast.add({ type: "error", title: getErrorMessage(error) });
+        })
+      }
       mentionSource={(query) => {
         const q = query.trim().toLowerCase();
         return documents
@@ -158,7 +174,6 @@ export const ChatComposer = memo(function ChatComposer({
       }}
       footerRender={() => (
         <>
-          <ExecutionLocation value="cloud" localAvailable={false} />
           <ChatComposerControls
             agents={agents ?? []}
             selectedAgentId={selectedAgentId}
@@ -167,7 +182,7 @@ export const ChatComposer = memo(function ChatComposer({
             onClearSkill={() => setActivatedSkillName(null)}
             mode={mode}
             onModeChange={onModeChange}
-            disabled={busy}
+            disabled={busy && !runActive}
           />
           <ChatContextUsage conversationId={id ?? ""} refreshKey={traceRefreshKey} running={busy} />
         </>

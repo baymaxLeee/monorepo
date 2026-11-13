@@ -10,11 +10,15 @@ just desktop-dev --platform-url=https://platform.example.com
 # 仅用于验证 HTTP VPS；该连接没有传输加密，不用于正式分发。
 just desktop-dev --platform-url=http://vps.example.com --allow-http
 DESKTOP_PLATFORM_URL=https://platform.example.com just desktop-package
+# 可选：让 App 和未来同机 CLI 使用指定的稳定本地运行时目录
+MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just desktop-dev
 ```
 
 开发和打包都需要 macOS、Xcode Command Line Tools 与 `just install`。打包产物位于 `release/Monorepo-darwin-<arch>/Monorepo.app`，可直接从应用入口打开。URL 必须是 Platform 根地址，不能是单个 MFE；其网关必须提供同源 `/api/` 和 MFE 资源。默认值为 `http://localhost:3000`。不提供浏览器通用文件或命令接口。
 
-登录后，在 Chat 新建会话的执行位置选择“本地电脑”，通过原生目录选择器授权目录。文件直接在该目录读写，不上传 Storage；本地 SQLite 保存会话，按 Platform origin、用户、租户和组织工作区隔离。模型推理所需上下文会发送给平台配置的 provider。服务端不保存本地会话/文件；只保存推理请求的授权和用量元数据。
+登录后，只有 Desktop App 在 Chat 新建会话时渲染执行位置选择器；选择“本地电脑”后通过原生目录选择器授权目录。Web 不渲染该选择器并固定创建云端会话。云端会话由 Chat 持久化，可在 App 与 Web 继续；本地会话只属于当前本地主机，不上传或同步到 Web。文件直接在授权目录读写，不上传 Storage；本地 SQLite 保存会话，按 Platform origin、用户、租户和组织工作区隔离。模型推理所需上下文会发送给平台配置的 provider。服务端不保存本地会话/文件；只保存推理请求的授权和用量元数据。
+
+本地 journal 不归属于某个 Electron 应用名。默认 runtime home 是 `~/.monorepo-agent`，会话数据库位于 `sessions/<identity-scope>/sessions.sqlite`；可通过绝对路径环境变量 `MONOREPO_AGENT_HOME` 覆盖，供同机 Desktop 与未来 CLI 指向同一 authority。首次打开身份分区时会一次性导入旧 Electron `userData/local/<scope>` 下开发版和打包版数据库，冲突保留 `updatedAt` 较新的完整会话；旧数据库暂不删除，已导入来源不会重复导入，因此删除的会话不会被旧库复活。runtime home 和 Electron `userData` 都属于 Agent 禁止访问的控制目录。
 
 Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 Admin 模型授权，不需要本地专属额度配置。接纳请求记录预留用量，完成后按 usage 结算；取消、崩溃或未知结果保留预留用量用于 accounting，不以独立日配额拒绝本地请求。重复请求与并发请求仍受准入保护，没有自动重试模型请求。
 
@@ -22,7 +26,7 @@ Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 
 
 关闭/重载页面只断开订阅；“停止”会取消执行；退出应用会清理任务。异常退出后展示已持久化内容并终止未完成工具，不自动重放副作用。目录监听提示 Agent 重读变更；文件每次读写仍受 OS 边界和内容 hash 保护。本地与云端会话创建后模式固定，不迁移、不同步。
 
-Agent 核心与云端共用 `@backend/agent-runtime-ts`。`electron/session-host.ts` 只管理本地 journal、工作区和流订阅；文件操作使用同一个 Bash manifest、ToolOutcome 与终端 UI，不维护本地专属文件工具。
+Agent 核心与云端共用 `@backend/agent-runtime-ts`。`electron/session-host.ts` 只管理本地 journal、工作区和流订阅；文件操作使用同一个 Bash manifest、ToolOutcome 与终端 UI，不维护本地专属文件工具。审批响应、待审批判断及取消/异常退出后的工具终态复用共享 lifecycle；本地 IPC 与云端 SSE 只是 transport adapter，不产生第二套 Agent 协议。
 
 ## 正式版本 TODO
 

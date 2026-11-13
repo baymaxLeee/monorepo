@@ -5,14 +5,10 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
   Skeleton,
-  buttonVariants,
   useSidebar,
 } from "@repo/design-system";
 import { getDesktopBridge } from "@repo/runtime/desktop";
-import { cn } from "@repo/shared";
 import { BoxesIcon, MessageSquareIcon, PanelLeftCloseIcon, PlusIcon } from "lucide-react";
 import { memo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -20,6 +16,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useConversationHistory } from "../hooks/useConversationHistory";
 import { ChatConversationActions } from "./ChatConversationActions";
 import { ChatUserMenu } from "./ChatUserMenu";
+import { ConversationHistoryList } from "./ConversationHistoryList";
 import { LocalConversationHistory } from "./LocalConversationHistory";
 
 const HISTORY_PAGE_SIZE = 40;
@@ -77,44 +74,30 @@ export const ChatConversationSidebar = memo(function ChatConversationSidebar() {
         ) : history.conversations.length === 0 ? (
           <p className="p-2 text-xs text-muted-foreground">暂无会话</p>
         ) : (
-          <SidebarMenu aria-label="会话列表">
-            {history.conversations.slice(0, visible).map((item) => {
-              const active = history.pathname.endsWith(`/${item.id}`);
-              return (
-                <SidebarMenuItem key={item.id}>
-                  <Link
-                    to={`/platform/chat/conversations/${item.id}`}
-                    aria-current={active ? "page" : undefined}
-                    onClick={closeMobile}
-                    className={cn(
-                      buttonVariants({ variant: active ? "secondary" : "ghost" }),
-                      "h-9 w-full min-w-0 justify-start gap-2 pr-9 text-sm font-normal",
-                    )}
-                  >
-                    <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="truncate">{item.title}</span>
-                  </Link>
-                  <ChatConversationActions
-                    conversation={item}
-                    onDelete={history.remove}
-                    onExport={history.download}
-                    onOpenTrace={openTrace}
-                  />
-                </SidebarMenuItem>
-              );
-            })}
-            {history.conversations.length > visible ? (
-              <SidebarMenuItem>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => setVisible((count) => count + HISTORY_PAGE_SIZE)}
-                >
-                  显示更早的会话
-                </Button>
-              </SidebarMenuItem>
-            ) : null}
-          </SidebarMenu>
+          <ConversationHistoryList
+            label="会话列表"
+            onSelect={closeMobile}
+            items={history.conversations.slice(0, visible).map((item) => ({
+              key: item.id,
+              href: `/platform/chat/conversations/${item.id}`,
+              title: item.title,
+              active: history.pathname.endsWith(`/${item.id}`),
+              icon: <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />,
+              actions: (
+                <ChatConversationActions
+                  conversation={item}
+                  onDelete={history.remove}
+                  onExport={history.download}
+                  onOpenTrace={openTrace}
+                />
+              ),
+            }))}
+            onLoadMore={
+              history.conversations.length > visible
+                ? () => setVisible((count) => count + HISTORY_PAGE_SIZE)
+                : undefined
+            }
+          />
         )}
       </SidebarContent>
       <SidebarFooter>

@@ -40,6 +40,13 @@ const runPathParam = {
   schema: { type: "string" },
 };
 
+const clientMessagePathParam = {
+  name: "client_message_id",
+  in: "path",
+  required: true,
+  schema: { type: "string", minLength: 8, maxLength: 64 },
+};
+
 const memoryIdPathParam = {
   name: "id",
   in: "path",
@@ -359,6 +366,43 @@ const openapi = {
         parameters: [pathParam, runPathParam],
         responses: {
           "200": jsonResponse("agent run step/tool-call trace", ref("AgentRunTrace")),
+        },
+      },
+    },
+    "/conversations/{conversation_id}/agents/runs/{run_id}/steer": {
+      post: {
+        operationId: "steerConversationAgentRun",
+        parameters: [pathParam, runPathParam],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: ref("AgentSteeringInput") } },
+        },
+        responses: {
+          "202": jsonResponse("steering input admitted for the active run", ref("AgentSteeringInputStatus")),
+          "409": { description: "the expected run is no longer active" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/agents/runs/{run_id}/steering-inputs/{client_message_id}": {
+      get: {
+        operationId: "getConversationAgentSteeringInput",
+        parameters: [pathParam, runPathParam, clientMessagePathParam],
+        responses: {
+          "200": jsonResponse("durable steering delivery status", ref("AgentSteeringInputStatus")),
+          "404": { description: "steering input not found in the caller scope" },
+        },
+      },
+    },
+    "/conversations/{conversation_id}/agents/runs/{run_id}/steering-inputs": {
+      get: {
+        operationId: "listConversationAgentSteeringInputs",
+        parameters: [pathParam, runPathParam],
+        responses: {
+          "200": jsonResponse("durable steering inputs for recovery", {
+            type: "array",
+            items: ref("AgentSteeringInputStatus"),
+          }),
+          "404": { description: "agent run not found in the caller scope" },
         },
       },
     },
@@ -747,6 +791,38 @@ const openapi = {
         properties: {
           cancelled: { type: "boolean" },
           status: { type: "string" },
+        },
+      },
+      AgentSteeringInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["expected_run_id", "client_message_id", "text", "delivery"],
+        properties: {
+          expected_run_id: { type: "string", minLength: 1, maxLength: 32 },
+          client_message_id: {
+            type: "string",
+            minLength: 8,
+            maxLength: 64,
+            pattern: "^[a-zA-Z0-9_-]+$",
+          },
+          text: { type: "string", minLength: 1, maxLength: 64000 },
+          delivery: { type: "string", enum: ["steer", "queue"] },
+        },
+      },
+      AgentSteeringInputStatus: {
+        type: "object",
+        required: ["clientMessageId", "runId", "delivery", "text", "state", "stepNumber", "reason"],
+        properties: {
+          clientMessageId: { type: "string" },
+          runId: { type: "string" },
+          delivery: { type: "string", enum: ["steer", "queue"] },
+          text: { type: "string" },
+          state: {
+            type: "string",
+            enum: ["accepted", "dispatching", "delivered", "not_delivered", "unconfirmed"],
+          },
+          stepNumber: { type: "integer", nullable: true },
+          reason: { type: "string", nullable: true },
         },
       },
       StorageDelivery: {

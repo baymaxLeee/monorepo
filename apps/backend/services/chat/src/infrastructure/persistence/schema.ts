@@ -246,6 +246,28 @@ export const agentRuns = pgTable(
   ],
 );
 
+export const agentSteeringInputs = pgTable(
+  "agent_steering_inputs",
+  {
+    runId: varchar("run_id", { length: 32 })
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: "cascade" }),
+    clientMessageId: varchar("client_message_id", { length: 64 }).notNull(),
+    conversationId: varchar("conversation_id", { length: 32 }).notNull(),
+    delivery: varchar("delivery", { length: 20 }).notNull(),
+    text: text("text").notNull(),
+    state: varchar("state", { length: 20 }).notNull(),
+    stepNumber: integer("step_number"),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.runId, t.clientMessageId] }),
+    index("ix_agent_steering_inputs_pending").on(t.runId, t.state, t.createdAt),
+  ],
+);
+
 export const sandboxExecutions = pgTable(
   "sandbox_executions",
   {

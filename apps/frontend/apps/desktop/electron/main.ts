@@ -9,6 +9,7 @@ import type { LocalThread } from "../contracts/bridge.generated";
 import { DesktopAuth } from "./auth";
 import { RuntimeHost } from "./host-runtime";
 import { platformUrl } from "./platform-url";
+import { legacySessionDirectories, resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
 
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 if (argument("user-data")) app.setPath("userData", argument("user-data")!);
@@ -27,6 +28,7 @@ async function start() {
     argument("platform-url") ?? packaged?.url ?? "http://localhost:3000",
     process.argv.includes("--allow-http"),
   );
+  const runtimeHome = resolveRuntimeHome();
   if (!app.requestSingleInstanceLock({ origin: url.origin })) {
     app.quit();
     return;
@@ -44,8 +46,9 @@ async function start() {
     signedIn = false;
     if (scope) {
       await runtime!.call("open", {
-        directory: join(app.getPath("userData"), "local", scope),
-        controlDirectory: app.getPath("userData"),
+        directory: scopedSessionDirectory(runtimeHome, scope),
+        legacyDirectories: legacySessionDirectories(app.getPath("appData"), app.getPath("userData"), scope),
+        controlDirectories: [runtimeHome, app.getPath("userData")],
         supervisor: join(directory, "supervisor"),
         executable: process.execPath,
         fileWorker: join(directory, "file-worker.cjs"),
@@ -133,6 +136,19 @@ async function start() {
         return scopedCall(
           "send",
           z.strictObject({ id, messageId: id, text: z.string().trim().min(1).max(64_000) }).parse(payload),
+        );
+      case "steer":
+        return scopedCall(
+          "steer",
+          z
+            .strictObject({
+              id,
+              expectedTurnId: id,
+              messageId: id,
+              text: z.string().trim().min(1).max(64_000),
+              delivery: z.enum(["steer", "queue"]),
+            })
+            .parse(payload),
         );
       case "approve": {
         const p = z.strictObject({ id, approvalId: z.string().max(200), approved: z.boolean() }).parse(payload);

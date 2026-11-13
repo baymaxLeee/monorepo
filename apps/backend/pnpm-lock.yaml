@@ -165,20 +165,20 @@ settings:
 catalogs:
   default:
     '@ai-sdk/code-mode':
-      specifier: 1.0.112
-      version: 1.0.112
+      specifier: 1.0.129
+      version: 1.0.129
     '@ai-sdk/openai':
-      specifier: ^4.0.104
-      version: 4.0.104
+      specifier: ^4.0.117
+      version: 4.0.117
     '@ai-sdk/provider':
-      specifier: ^4.0.34
-      version: 4.0.34
+      specifier: ^4.0.38
+      version: 4.0.38
     '@ai-sdk/provider-utils':
-      specifier: ^5.0.70
-      version: 5.0.70
+      specifier: ^5.0.81
+      version: 5.0.81
     '@ai-sdk/tool-web-fetch':
-      specifier: 1.0.5
-      version: 1.0.5
+      specifier: 1.0.22
+      version: 1.0.22
     '@hono/node-server':
       specifier: ^2.1.1
       version: 2.1.1
@@ -195,8 +195,8 @@ catalogs:
       specifier: ^5.0.5
       version: 5.0.5
     ai:
-      specifier: ^7.0.155
-      version: 7.0.155
+      specifier: ^7.0.172
+      version: 7.0.172
     hono:
       specifier: ^4.13.8
       version: 4.13.8
@@ -217,14 +217,14 @@ importers:
   libs/agent-runtime-ts:
     dependencies:
       '@ai-sdk/provider':
-        specifier: ^4.0.34
-        version: 4.0.34
+        specifier: ^4.0.38
+        version: 4.0.38
       '@ai-sdk/provider-utils':
-        specifier: ^5.0.70
-        version: 5.0.70(zod@4.6.5)
+        specifier: ^5.0.81
+        version: 5.0.81(zod@4.6.5)
       ai:
-        specifier: ^7.0.155
-        version: 7.0.155(zod@4.6.5)
+        specifier: ^7.0.172
+        version: 7.0.172(zod@4.6.5)
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -280,13 +280,13 @@ importers:
     dependencies:
       '@ai-sdk/openai':
         specifier: 'catalog:'
-        version: 4.0.104(zod@4.6.5)
+        version: 4.0.117(zod@4.6.5)
       '@ai-sdk/provider':
         specifier: 'catalog:'
-        version: 4.0.34
+        version: 4.0.38
       ai:
         specifier: 'catalog:'
-        version: 7.0.155(zod@4.6.5)
+        version: 7.0.172(zod@4.6.5)
       eventsource-parser:
         specifier: 3.1.0
         version: 3.1.0
@@ -314,16 +314,16 @@ importers:
     dependencies:
       '@ai-sdk/code-mode':
         specifier: 'catalog:'
-        version: 1.0.112(ai@7.0.155(zod@4.6.5))(typescript@7.0.2)
+        version: 1.0.129(ai@7.0.172(zod@4.6.5))(typescript@7.0.2)
       '@ai-sdk/provider':
         specifier: 'catalog:'
-        version: 4.0.34
+        version: 4.0.38
       '@ai-sdk/provider-utils':
         specifier: 'catalog:'
-        version: 5.0.70(zod@4.6.5)
+        version: 5.0.81(zod@4.6.5)
       '@ai-sdk/tool-web-fetch':
         specifier: 'catalog:'
-        version: 1.0.5(ai@7.0.155(zod@4.6.5))
+        version: 1.0.22(ai@7.0.172(zod@4.6.5))
       '@backend/agent-runtime-ts':
         specifier: workspace:*
         version: link:../../libs/agent-runtime-ts
@@ -341,7 +341,7 @@ importers:
         version: 0.9.1(hono@4.13.8)(zod@4.6.5)
       ai:
         specifier: 'catalog:'
-        version: 7.0.155(zod@4.6.5)
+        version: 7.0.172(zod@4.6.5)
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@24.13.3))(pg@8.20.0)(postgres@3.4.9)(sql.js@1.15.1)
@@ -387,7 +387,7 @@ importers:
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@24.13.3))(postgres@3.4.9)(sql.js@1.15.1)(supports-color@8.1.1)(typescript@5.9.3)
       ai:
         specifier: 'catalog:'
-        version: 7.0.155(zod@4.6.5)
+        version: 7.0.172(zod@4.6.5)
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@24.13.3))(pg@8.20.0)(postgres@3.4.9)(sql.js@1.15.1)
@@ -459,39 +459,39 @@ packages:
   '@acemir/cssom@0.9.32':
     resolution: {integrity: sha512-OijrAUu7rrJhSIoHNg6LMPS5e344nwUHA+1EFYYjrh64D+GmytUsfBQjci45TjT+rd5Spsp8B5xsZDT+TgyXXQ==}
 
-  '@ai-sdk/code-mode@1.0.112':
-    resolution: {integrity: sha512-QRLxiHMpv1r0xNkIEXFL6/8YAErUVs1Z3BKvaZpTIiLmkd8lhLWWbuKRld8D+u4BFIrHWE9SSGb4XvepertM7w==}
+  '@ai-sdk/code-mode@1.0.129':
+    resolution: {integrity: sha512-7aFSKqqPSTjlpVf9EI273HC5D5GYKcvF1Isbg++TR511ItuEqQ+CnC1VATejMqkomJy39M2mCuj1+qJMpJIRVA==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
-      ai: 7.0.155
+      ai: 7.0.172
 
-  '@ai-sdk/gateway@4.0.128':
-    resolution: {integrity: sha512-vAEUQPql1k+wyU3JUEosUupdwnwFD7Sts05EcxAYifY4Z1+dl+rD88y4gz8QZOnOidxzYZe2gPSBsWlo/ZahOw==}
+  '@ai-sdk/gateway@4.0.145':
+    resolution: {integrity: sha512-vquqCrEut1jlWshy2lWaOrBvyrpVjhLWoR/EVpb+m7JKtHtmpy0vpl9rtpB6xNFiumjT9e2s70MZmRth/hH9tw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^4.6.5
 
-  '@ai-sdk/openai@4.0.104':
-    resolution: {integrity: sha512-8oPwGh/zAdFrgyeGjTHlJMRm+DBwby3GkdGzN3vcNv4OwVtc1767mcM+7B2+gOxtloasZH+03gl+HPngQyQTMg==}
+  '@ai-sdk/openai@4.0.117':
+    resolution: {integrity: sha512-iRa4elI5AtKfzeOsuFwMS71Oga9MMOP1A15IYFBQL0dC3q+hvMxp02ytNOBZvk+E9zh7IvHyr0rLmC8uISDVig==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^4.6.5
 
-  '@ai-sdk/provider-utils@5.0.70':
-    resolution: {integrity: sha512-nU213UNVHWDoEKIZ5Hm3uGPmfW7EBHC2GkIJJEDKh4HLQWgh/eizrW2jmY4efxWf7Tf/yTzKD0t6sd4kVUKlyQ==}
+  '@ai-sdk/provider-utils@5.0.81':
+    resolution: {integrity: sha512-pfvvdQ3d1WxdBuug/mnGEP6E48cPokwD8dMBnsFeeAUp0/rb/H2aj0f3mwOiY62gu/Cu5GO44e+SE5nDHyBWMA==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^4.6.5
 
-  '@ai-sdk/provider@4.0.34':
-    resolution: {integrity: sha512-Ip7ZQBq/FiGpM1mmOVseTtX9PBjnzo0bLC41WTgBSBBRUBz6LhNFGbYaNUzI6hPm6ll1oNSPOAZc/q/z+3QZEQ==}
+  '@ai-sdk/provider@4.0.38':
+    resolution: {integrity: sha512-GElz70UUCuDFFyD6m6aQJFgRY0HEABQzB5otzgkrisYaF5mnss7o0upAmbBTSD6KWiM9h7lZm1ls2c7xzHR8CA==}
     engines: {node: '>=22'}
 
-  '@ai-sdk/tool-web-fetch@1.0.5':
-    resolution: {integrity: sha512-grsfose68mt7lMi618W5jRhL0UYbQJcTAN4GKHSVKxmL9p5ajfSIYxS8DTtTirXtKMm1JD6tFxa6i+Hgq9INgQ==}
+  '@ai-sdk/tool-web-fetch@1.0.22':
+    resolution: {integrity: sha512-VURBoa7IwRH+mwqqj0TcWkU/Edpy6GIGHE3XsyoCQO9NL6Cw9e+vnuK3lnX9LUCEXQ9BbZuOn+vxhJiGXKvCXQ==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
-      ai: ^7.0.155
+      ai: ^7.0.172
 
   '@aws-sdk/core@3.974.25':
     resolution: {integrity: sha512-fJFkx6u6wCqGMV/v6EAxiwa2UzEukbvr1hNPv4MrD3yj4IFz011jZg42/eSTOP/u5kJ0tlILqEjCWtT8GiKZvA==}
@@ -1748,8 +1748,8 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  ai@7.0.155:
-    resolution: {integrity: sha512-df/UwKgOix8Vc+dj684bQlHCClNojrG5T7Jr5aJvFyz+PlBo7gEgMALPzP7LdeD12Gxc6i0pzpboEszDh9V1wA==}
+  ai@7.0.172:
+    resolution: {integrity: sha512-FDY7I0I/BE6mqa+hoeWwECO5fbnpXl9vYdvm7n5pNjru1mjrBhX1ZQrYOZOtYledTp0c0vCP/eGYPD5P3bLl3Q==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^4.6.5
@@ -3606,43 +3606,42 @@ snapshots:
 
   '@acemir/cssom@0.9.32': {}
 
-  '@ai-sdk/code-mode@1.0.112(ai@7.0.155(zod@4.6.5))(typescript@7.0.2)':
+  '@ai-sdk/code-mode@1.0.129(ai@7.0.172(zod@4.6.5))(typescript@7.0.2)':
     dependencies:
-      ai: 7.0.155(zod@4.6.5)
+      ai: 7.0.172(zod@4.6.5)
       run: 2.1.10(typescript@7.0.2)
     transitivePeerDependencies:
       - typescript
 
-  '@ai-sdk/gateway@4.0.128(zod@4.6.5)':
+  '@ai-sdk/gateway@4.0.145(zod@4.6.5)':
     dependencies:
-      '@ai-sdk/provider': 4.0.34
-      '@ai-sdk/provider-utils': 5.0.70(zod@4.6.5)
+      '@ai-sdk/provider': 4.0.38
+      '@ai-sdk/provider-utils': 5.0.81(zod@4.6.5)
       '@vercel/oidc': 3.2.0
       zod: 4.6.5
 
-  '@ai-sdk/openai@4.0.104(zod@4.6.5)':
+  '@ai-sdk/openai@4.0.117(zod@4.6.5)':
     dependencies:
-      '@ai-sdk/provider': 4.0.34
-      '@ai-sdk/provider-utils': 5.0.70(zod@4.6.5)
+      '@ai-sdk/provider': 4.0.38
+      '@ai-sdk/provider-utils': 5.0.81(zod@4.6.5)
       zod: 4.6.5
 
-  '@ai-sdk/provider-utils@5.0.70(zod@4.6.5)':
+  '@ai-sdk/provider-utils@5.0.81(zod@4.6.5)':
     dependencies:
-      '@ai-sdk/provider': 4.0.34
+      '@ai-sdk/provider': 4.0.38
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
-      undici: 7.30.0
       zod: 4.6.5
 
-  '@ai-sdk/provider@4.0.34':
+  '@ai-sdk/provider@4.0.38':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/tool-web-fetch@1.0.5(ai@7.0.155(zod@4.6.5))':
+  '@ai-sdk/tool-web-fetch@1.0.22(ai@7.0.172(zod@4.6.5))':
     dependencies:
-      '@ai-sdk/provider-utils': 5.0.70(zod@4.6.5)
-      ai: 7.0.155(zod@4.6.5)
+      '@ai-sdk/provider-utils': 5.0.81(zod@4.6.5)
+      ai: 7.0.172(zod@4.6.5)
       defuddle: 0.19.5
       linkedom: 0.18.14
       zod: 4.6.5
@@ -4932,11 +4931,11 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@7.0.155(zod@4.6.5):
+  ai@7.0.172(zod@4.6.5):
     dependencies:
-      '@ai-sdk/gateway': 4.0.128(zod@4.6.5)
-      '@ai-sdk/provider': 4.0.34
-      '@ai-sdk/provider-utils': 5.0.70(zod@4.6.5)
+      '@ai-sdk/gateway': 4.0.145(zod@4.6.5)
+      '@ai-sdk/provider': 4.0.38
+      '@ai-sdk/provider-utils': 5.0.81(zod@4.6.5)
       zod: 4.6.5
 
   ansi-align@3.0.1:

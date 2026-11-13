@@ -1,13 +1,12 @@
-import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Skeleton } from "@repo/design-system";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, Skeleton } from "@repo/design-system";
 import { getDesktopBridge } from "@repo/runtime/desktop";
 import type { LocalThread } from "@repo/runtime/desktop";
 import { getErrorMessage } from "@repo/shared";
-import { FolderIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 
 import { LocalFiles } from "./LocalFiles";
-import { LocalMessages } from "./LocalMessages";
+import { LocalSession } from "./LocalSession";
 import { LocalChatTransport } from "./transport";
 
 export function Component() {
@@ -16,6 +15,7 @@ export function Component() {
   const [loaded, setLoaded] = useState<{ thread: LocalThread; transport: LocalChatTransport } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [files, setFiles] = useState(false);
+  const [filePath, setFilePath] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [closeBlocked, setCloseBlocked] = useState(false);
   useEffect(() => {
@@ -25,6 +25,7 @@ export function Component() {
     setLoaded(null);
     setError(null);
     setFiles(false);
+    setFilePath(null);
     setDirty(false);
     setCloseBlocked(false);
     void transport
@@ -50,18 +51,30 @@ export function Component() {
     );
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center justify-center gap-2 px-14">
-        <h1 className="max-w-full truncate text-sm font-medium">{loaded?.thread.title ?? "本地会话"}</h1>
-        <Button variant="ghost" size="icon-sm" aria-label="查看本地文件" onClick={() => setFiles(true)}>
-          <FolderIcon />
-        </Button>
-      </header>
       {error ? (
         <p role="alert" className="p-4 text-sm text-destructive">
           {error}
         </p>
       ) : loaded?.thread.id === id ? (
-        <LocalMessages key={id} bridge={bridge} initial={loaded.thread} transport={loaded.transport} />
+        <LocalSession
+          key={id}
+          bridge={bridge}
+          initial={loaded.thread}
+          transport={loaded.transport}
+          onOpenFiles={() => {
+            setFilePath(null);
+            setFiles(true);
+          }}
+          onOpenFile={(path) => {
+            if (dirty) {
+              setCloseBlocked(true);
+              setFiles(true);
+              return;
+            }
+            setFilePath(path);
+            setFiles(true);
+          }}
+        />
       ) : (
         <Skeleton className="m-6 h-32" />
       )}
@@ -85,7 +98,9 @@ export function Component() {
               请先保存或撤销草稿，再关闭文件面板。
             </p>
           ) : null}
-          {files ? <LocalFiles key={id} bridge={bridge} id={id} onDirtyChange={setDirty} /> : null}
+          {files ? (
+            <LocalFiles key={id} bridge={bridge} id={id} initialPath={filePath} onDirtyChange={setDirty} />
+          ) : null}
         </SheetContent>
       </Sheet>
     </div>

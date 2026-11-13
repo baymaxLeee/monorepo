@@ -32,7 +32,7 @@ void test("tool catalog exposes the current inline research and sandbox workflow
     const subagents = resolved.manifests.find((manifest) => manifest.name === "subagents");
     assert.equal(subagents?.policy.uiKind, "subagent");
     assert.equal(subagents?.policy.execution, "inline");
-    for (const name of ["bash", "refresh_conversation_sources", "save_sandbox_file", "subagents"]) {
+    for (const name of ["bash", "refresh_conversation_sources", "upload_artifacts", "subagents"]) {
       assert.ok(resolved.activeTools.includes(name), `${name} should be active`);
     }
     assert.deepEqual([...resolved.codeModeTools].sort(), ["web_fetch", "web_search"]);

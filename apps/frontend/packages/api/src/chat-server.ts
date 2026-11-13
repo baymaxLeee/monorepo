@@ -315,6 +315,64 @@ export interface RunCancellation {
   status?: string;
 }
 
+export type AgentSteeringInputDelivery = (typeof AgentSteeringInputDelivery)[keyof typeof AgentSteeringInputDelivery];
+
+export const AgentSteeringInputDelivery = {
+  steer: "steer",
+  queue: "queue",
+} as const;
+
+export interface AgentSteeringInput {
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  expected_run_id: string;
+  /**
+   * @minLength 8
+   * @maxLength 64
+   * @pattern ^[a-zA-Z0-9_-]+$
+   */
+  client_message_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 64000
+   */
+  text: string;
+  delivery: AgentSteeringInputDelivery;
+}
+
+export type AgentSteeringInputStatusDelivery =
+  (typeof AgentSteeringInputStatusDelivery)[keyof typeof AgentSteeringInputStatusDelivery];
+
+export const AgentSteeringInputStatusDelivery = {
+  steer: "steer",
+  queue: "queue",
+} as const;
+
+export type AgentSteeringInputStatusState =
+  (typeof AgentSteeringInputStatusState)[keyof typeof AgentSteeringInputStatusState];
+
+export const AgentSteeringInputStatusState = {
+  accepted: "accepted",
+  dispatching: "dispatching",
+  delivered: "delivered",
+  not_delivered: "not_delivered",
+  unconfirmed: "unconfirmed",
+} as const;
+
+export interface AgentSteeringInputStatus {
+  clientMessageId: string;
+  runId: string;
+  delivery: AgentSteeringInputStatusDelivery;
+  text: string;
+  state: AgentSteeringInputStatusState;
+  /** @nullable */
+  stepNumber: number | null;
+  /** @nullable */
+  reason: string | null;
+}
+
 export interface StorageDelivery {
   asset_id: string;
   revision_id: string;
@@ -1331,6 +1389,49 @@ export const getConversationAgentTrace = (
   );
 };
 
+export const steerConversationAgentRun = (
+  conversationId: string,
+  runId: string,
+  agentSteeringInput: AgentSteeringInput,
+  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
+) => {
+  return apiMutator<AgentSteeringInputStatus>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steer`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: agentSteeringInput,
+    },
+    options,
+  );
+};
+
+export const getConversationAgentSteeringInput = (
+  conversationId: string,
+  runId: string,
+  clientMessageId: string,
+  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
+) => {
+  return apiMutator<AgentSteeringInputStatus>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs/${clientMessageId}`,
+      method: "GET",
+    },
+    options,
+  );
+};
+
+export const listConversationAgentSteeringInputs = (
+  conversationId: string,
+  runId: string,
+  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus[]>>,
+) => {
+  return apiMutator<AgentSteeringInputStatus[]>(
+    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs`, method: "GET" },
+    options,
+  );
+};
+
 export const cancelConversationAgentRun = (
   conversationId: string,
   runId: string,
@@ -1480,6 +1581,13 @@ export type AuthorizeConversationSourceDeliveryResult = NonNullable<
 >;
 export type GetConversationFileResult = NonNullable<Awaited<ReturnType<typeof getConversationFile>>>;
 export type GetConversationAgentTraceResult = NonNullable<Awaited<ReturnType<typeof getConversationAgentTrace>>>;
+export type SteerConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof steerConversationAgentRun>>>;
+export type GetConversationAgentSteeringInputResult = NonNullable<
+  Awaited<ReturnType<typeof getConversationAgentSteeringInput>>
+>;
+export type ListConversationAgentSteeringInputsResult = NonNullable<
+  Awaited<ReturnType<typeof listConversationAgentSteeringInputs>>
+>;
 export type CancelConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof cancelConversationAgentRun>>>;
 export type GetVideoProductionResult = NonNullable<Awaited<ReturnType<typeof getVideoProduction>>>;
 export type DecideVideoProductionResult = NonNullable<Awaited<ReturnType<typeof decideVideoProduction>>>;

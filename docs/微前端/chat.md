@@ -23,13 +23,13 @@
   重试按钮。失败回调不得从持久化历史覆盖尚未写入服务端的回答。
 - POST 与恢复 GET 都返回 `x-agent-run-id`，用于 Stop 和执行轨迹查询；stream 内容
   仍完全遵循 AI SDK UIMessage 协议。
-- Plan 作为 `tool-save_sandbox_file` 的原生结果随消息持久化，结果携带稳定 Chat `file_id`；
+- Plan 由云端 `tool-upload_artifacts` 批量结果或本地真实文件变更投影成 `data-file`，携带稳定的运行时文件引用；
   后续 run 从服务端会话历史和 conversation-file registry 恢复。
 - “执行计划”发送严格的持久化 `data-plan-execution { file_id }` 引用；正文不由浏览器复制。
   后端把该不可变 Plan 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求先用
   Bash 完整读取。执行结束后按钮变为“再次执行”而不是永久禁用，后续点击仍携带稳定 id，
   不依赖长对话里的旧计划内容。
-- `save_sandbox_file` 的官方 tool output 直接携带 file id、文件名与资源元数据，并按
+- `upload_artifacts` 的官方批量 tool output 携带 `files[]`；流层逐文件生成 `data-file`，并按
   `uiKind: artifact` 渲染 Artifact 卡；它不会被复制成原生 `file` part。原生 model
   `file`/`reasoning-file` 仍按文件 part 呈现，两类产物保持不同协议语义。
 - HTML artifact 使用独立右侧普通 iframe，按浏览器原生语义开放脚本、模块、表单、

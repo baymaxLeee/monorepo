@@ -161,6 +161,52 @@ test("real SDK stream projects completed search results and keeps the native too
   assert.deepEqual(tool.output, outcome);
 });
 
+test("real SDK stream projects a published file result into a persistent artifact data part", async () => {
+  const file = {
+    file_id: "a".repeat(32),
+    filename: "demo.js",
+    title: "demo.js",
+    media_type: "text/javascript",
+    kind: "artifact",
+    etag: `"${"b".repeat(32)}"`,
+    updated: false,
+  };
+  const input = { artifacts: [{ operation: "create" }] };
+  const parts = createPublishedAgentPartStream({
+    modelStream: modelStream([
+      { type: "start" },
+      { type: "tool-call", toolCallId: "save", toolName: "upload_artifacts", input, dynamic: true },
+      {
+        type: "tool-result",
+        toolCallId: "save",
+        toolName: "upload_artifacts",
+        input,
+        output: { ok: true, status: "completed", data: { files: [file] } },
+        toolMetadata: { agent: { uiKind: "artifact" } },
+        dynamic: true,
+      },
+      finishPart(),
+    ]),
+    tools: {},
+    originalMessages: [userMessage],
+    assistantMessageId: "assistant",
+    publicationContext,
+    onError: () => "failed",
+    dependencies: dependencies(),
+  });
+
+  const chunks = await collect(parts.stream);
+  await parts.end;
+  assert.deepEqual(
+    chunks.find((chunk) => chunk.type === "data-file"),
+    {
+      type: "data-file",
+      id: file.file_id,
+      data: file,
+    },
+  );
+});
+
 test("real SDK file and reasoning-file parts are published before persistence", async () => {
   const uploads: Array<{ category: string; bytes: number[] }> = [];
   const deps = dependencies({

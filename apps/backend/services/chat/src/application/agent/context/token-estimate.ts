@@ -1,16 +1,6 @@
-export function estimateTextTokens(value: string): number {
-  // CJK and surrogate pairs can approach one or more tokens per code unit; ASCII / 2 is conservative for JSON and code.
-  let asciiChars = 0;
-  let nonAsciiCodeUnits = 0;
-  for (const character of value) {
-    if (character.charCodeAt(0) <= 0x7f) {
-      asciiChars += 1;
-    } else {
-      nonAsciiCodeUnits += character.length;
-    }
-  }
-  return Math.ceil(asciiChars / 2) + nonAsciiCodeUnits;
-}
+import { estimateTextTokens } from "@backend/agent-runtime-ts/context-budget";
+
+export { estimateTextTokens };
 
 export function truncateToTokenBudget(value: string, tokenBudget: number): string {
   if (estimateTextTokens(value) <= tokenBudget) {

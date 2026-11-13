@@ -22,6 +22,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { ChatUIMessage } from "../lib/chat-message";
 import { documentIdFromFilePart } from "../lib/file-parts";
 import { useChatStore } from "../store/useChatStore";
+import { parseArtifactOutputs } from "./ChatArtifactCard";
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { Sources } from "./ChatCitedResponse";
 import { ChatMessagePart } from "./ChatMessagePart";
@@ -35,17 +36,18 @@ export interface ChatMessageViewProps {
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
-  onOpenArtifact: (documentId: string) => void;
-  onOpenFile: (fileId: string) => void;
+  onOpenArtifact?: (documentId: string) => void;
+  onOpenFile?: (fileId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   resolveSourceHref?: (source: SourceItem) => string | undefined;
   resolveSourceAction?: (source: SourceItem) => (() => Promise<void>) | undefined;
   branch?: MessageBranchGroup;
   onSelectBranch?: (leafMessageId: string) => Promise<void>;
   onEditMessage?: (messageId: string, parts: ChatUIMessage["parts"]) => Promise<void>;
   onRegenerate?: (messageId: string) => Promise<void>;
-  onAnswerClientTool: (toolName: string, toolCallId: string, output: unknown) => void;
-  onToolApproval: (approvalId: string, approved: boolean) => void;
-  onExecutePlan: (fileId: string) => void;
+  onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
+  onExecutePlan?: (fileId: string) => void;
   planExecutedIds: ReadonlySet<string>;
   planBusy: boolean;
 }
@@ -60,6 +62,7 @@ export function ChatMessageView({
   deliverableCompletion,
   onOpenArtifact,
   onOpenFile,
+  onOpenWorkspaceFile,
   resolveSourceHref,
   resolveSourceAction,
   branch,
@@ -88,6 +91,15 @@ export function ChatMessageView({
     () => message.parts.filter((part) => part.type === "source-url" || part.type === "source-document"),
     [message.parts],
   );
+  const projectedArtifactIds = useMemo(
+    () =>
+      new Set(
+        message.parts.flatMap((part) =>
+          part.type === "data-file" && typeof part.data.file_id === "string" ? [part.data.file_id] : [],
+        ),
+      ),
+    [message.parts],
+  );
   const openImagePreview = useChatStore((s) => s.openImagePreview);
   const imageRefs = useMemo(
     () =>
@@ -113,30 +125,49 @@ export function ChatMessageView({
       <MessageContent
         className={cn(isUser ? "flex flex-wrap items-center gap-x-1 gap-y-2 leading-relaxed" : "w-full space-y-3")}
       >
-        {message.parts.map((part, index) => (
-          <ChatMessagePart
-            key={partKey(message.id, part, index)}
-            part={part}
-            sources={sources}
-            partIndex={index}
-            conversationId={conversationId}
-            streaming={streaming}
-            variant={variant}
-            documents={documents}
-            latestTodoCallId={latestTodoCallId}
-            deliverableCompletion={deliverableCompletion}
-            onOpenArtifact={onOpenArtifact}
-            onOpenFile={onOpenFile}
-            resolveSourceHref={resolveSourceHref}
-            resolveSourceAction={resolveSourceAction}
-            onOpenImage={onOpenImage}
-            onAnswerClientTool={onAnswerClientTool}
-            onToolApproval={onToolApproval}
-            onExecutePlan={onExecutePlan}
-            planExecutedIds={planExecutedIds}
-            planBusy={planBusy}
-          />
-        ))}
+        {message.parts.map((part, index) => {
+          const toolFileIds = isToolUIPart(part)
+            ? parseArtifactOutputs("output" in part ? part.output : null).flatMap((artifact) =>
+                artifact.fileId ? [artifact.fileId] : [],
+              )
+            : [];
+          const agent = isToolUIPart(part) ? part.toolMetadata?.agent : null;
+          if (
+            streaming &&
+            agent &&
+            typeof agent === "object" &&
+            !Array.isArray(agent) &&
+            (agent as Record<string, unknown>).uiKind === "artifact"
+          ) {
+            return null;
+          }
+          if (toolFileIds.length > 0 && toolFileIds.every((fileId) => projectedArtifactIds.has(fileId))) return null;
+          return (
+            <ChatMessagePart
+              key={partKey(message.id, part, index)}
+              part={part}
+              sources={sources}
+              partIndex={index}
+              conversationId={conversationId}
+              streaming={streaming}
+              variant={variant}
+              documents={documents}
+              latestTodoCallId={latestTodoCallId}
+              deliverableCompletion={deliverableCompletion}
+              onOpenArtifact={onOpenArtifact}
+              onOpenFile={onOpenFile}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              resolveSourceHref={resolveSourceHref}
+              resolveSourceAction={resolveSourceAction}
+              onOpenImage={onOpenImage}
+              onAnswerClientTool={onAnswerClientTool}
+              onToolApproval={onToolApproval}
+              onExecutePlan={onExecutePlan}
+              planExecutedIds={planExecutedIds}
+              planBusy={planBusy}
+            />
+          );
+        })}
         {!isUser && (
           <Sources sources={sources} resolveSourceHref={resolveSourceHref} resolveSourceAction={resolveSourceAction} />
         )}

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import type { BotProfileSnapshot } from "@backend/agent-runtime-ts/instructions/index";
+import { createAgentSteering } from "@backend/agent-runtime-ts/steering";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import {
   consumeStream,
@@ -72,6 +73,7 @@ import {
   type AgentRunOperation,
   type AgentRunTrace,
 } from "./repository.js";
+import { startAgentSteeringInbox } from "./steering.js";
 import { terminalStreamError } from "./stream-outcome.js";
 
 export interface RunAgentInput {
@@ -329,6 +331,7 @@ export async function createAgentRunResponse(
   }
 
   let disposeAgentResources: (() => Promise<void>) | null = null;
+  let steeringInbox: Awaited<ReturnType<typeof startAgentSteeringInbox>> | null = null;
   let contextUsage: UsageTokens = EMPTY_USAGE;
   try {
     const mode = input.mode === "plan" ? "plan" : "normal";
@@ -463,10 +466,13 @@ export async function createAgentRunResponse(
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;
+    const steering = createAgentSteering();
+    steeringInbox = startAgentSteeringInbox(runId, steering);
     const result = await agent.stream({
       messages: modelMessages,
       abortSignal: runSignal,
       experimental_sandbox: agentInstance.sandbox,
+      experimental_steering: steering,
     });
     logger.info(
       { conversationId: conversation.id, runId, setupMs: Math.round(performance.now() - startedAt) },
@@ -584,6 +590,8 @@ export async function createAgentRunResponse(
           } finally {
             disposeAgentResources = null;
           }
+          await steeringInbox?.close();
+          steeringInbox = null;
           const finalized = await finalizeAgentRunJournal({
             runId,
             parts,
@@ -649,6 +657,8 @@ export async function createAgentRunResponse(
       },
     });
   } catch (error) {
+    await steeringInbox?.close().catch(() => undefined);
+    steeringInbox = null;
     await disposeAgentResources?.();
     if (resumable) {
       await deactivateAgentStream(conversation.id, runId).catch((streamError) =>

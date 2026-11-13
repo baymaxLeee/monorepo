@@ -8,13 +8,14 @@ export function PromptInputActions({
   api,
   disabled,
   loading,
+  submitWhileLoading,
   attachmentsUploading,
   submitLabel,
   onStop,
   footerRender,
   onAttach,
   attachmentsEnabled = true,
-}: Pick<PromptInputProps, "disabled" | "loading" | "submitLabel" | "onStop" | "footerRender"> & {
+}: Pick<PromptInputProps, "disabled" | "loading" | "submitWhileLoading" | "submitLabel" | "onStop" | "footerRender"> & {
   api: PromptInputApi;
   attachmentsUploading: boolean;
   onAttach: () => void;
@@ -38,23 +39,45 @@ export function PromptInputActions({
         ) : null}
         {footerRender?.(api)}
       </div>
-      <Button
-        type={loading && onStop ? "button" : "submit"}
-        size="icon-xs"
-        className="rounded-full mr-2 cursor-pointer"
-        disabled={loading ? !onStop : disabled || attachmentsUploading}
-        aria-label={loading && onStop ? "停止生成" : attachmentsUploading ? "附件上传中" : "发送消息"}
-        onClick={loading ? onStop : undefined}
-      >
-        {submitLabel ??
-          (loading ? (
+      <div className="mr-2 flex items-center gap-1">
+        {loading && submitWhileLoading && onStop ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="rounded-full"
+            aria-label="停止生成"
+            onClick={onStop}
+          >
             <Square className="size-3" />
-          ) : attachmentsUploading ? (
-            <Loader2 className="size-3 motion-safe:animate-spin" />
-          ) : (
-            <ArrowUp className="size-3" />
-          ))}
-      </Button>
+          </Button>
+        ) : null}
+        <Button
+          type={loading && !submitWhileLoading && onStop ? "button" : "submit"}
+          size="icon-xs"
+          className="rounded-full cursor-pointer"
+          disabled={loading && !submitWhileLoading ? !onStop : disabled || attachmentsUploading}
+          aria-label={
+            loading && !submitWhileLoading && onStop
+              ? "停止生成"
+              : attachmentsUploading
+                ? "附件上传中"
+                : loading
+                  ? "补充当前任务"
+                  : "发送消息"
+          }
+          onClick={loading && !submitWhileLoading ? onStop : undefined}
+        >
+          {submitLabel ??
+            (loading && !submitWhileLoading ? (
+              <Square className="size-3" />
+            ) : attachmentsUploading ? (
+              <Loader2 className="size-3 motion-safe:animate-spin" />
+            ) : (
+              <ArrowUp className="size-3" />
+            ))}
+        </Button>
+      </div>
     </InputGroupAddon>
   );
 }

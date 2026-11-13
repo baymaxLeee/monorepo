@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, readFile, realpath, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -39,6 +40,25 @@ async function run(input: {
   if (input.operation === "stat") {
     const info = await lstat(path);
     return { size: info.size, directory: info.isDirectory(), symlink: info.isSymbolicLink() };
+  }
+  if (input.operation === "inspect") {
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.nlink !== 1) throw new Error("仅支持普通文件，拒绝符号链接和硬链接");
+      const digest = createHash("sha256");
+      const buffer = Buffer.allocUnsafe(64 * 1024);
+      let position = 0;
+      for (;;) {
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
+        if (bytesRead === 0) break;
+        digest.update(buffer.subarray(0, bytesRead));
+        position += bytesRead;
+      }
+      return { size: info.size, etag: `"${digest.digest("hex").slice(0, 32)}"` };
+    } finally {
+      await handle.close();
+    }
   }
   let original: Buffer | null;
   let mode = 0o600;

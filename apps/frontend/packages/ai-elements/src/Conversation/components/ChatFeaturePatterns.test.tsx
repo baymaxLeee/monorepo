@@ -182,7 +182,7 @@ test.each(["completed", "running", "failed"] as const)(
         parts: [
           { type: "tool-update_todos", toolCallId: "todo", state: "output-available", input: {}, output: {} },
           {
-            type: "tool-save_sandbox_file",
+            type: "tool-upload_artifacts",
             toolCallId: "save",
             state: "output-available",
             input: {},
@@ -192,7 +192,7 @@ test.each(["completed", "running", "failed"] as const)(
                 ? { ok: false, status, error: { code: "failed", message: "failed", retryable: false } }
                 : status === "running"
                   ? { ok: true, status, progress: { done: 1, total: 2 } }
-                  : { ok: true, status, data: { file_id: "file", filename: "report.md" } },
+                  : { ok: true, status, data: { files: [{ file_id: "file", filename: "report.md" }] } },
           },
         ],
       },

@@ -1,4 +1,5 @@
 import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/tool-web-fetch";
+import { createUploadArtifactsTool } from "@backend/agent-runtime-ts/artifact";
 import { createBashTool } from "@backend/agent-runtime-ts/bash";
 import { defineAgentTool, transformToolPreservingCaller } from "@backend/agent-runtime-ts/manifest";
 import { toolCompleted, toolFailed } from "@backend/agent-runtime-ts/outcome";
@@ -66,74 +67,10 @@ export async function createRuntimeTools() {
       { ...readPolicy, capability: "files", effect: "read", modes: ["normal"] },
       { summary: "Import conversation sources added by another tool after the sandbox was initialized." },
     ),
-    defineAgentTool(
-      "save_sandbox_file",
-      tool({
-        description:
-          "Display one completed workspace file as a deliverable. File bytes already persist automatically. Use operation=create for a file first created in this run. Use update with the restored file_id and ETag when publishing an edited existing file; its authoritative path is already writable in /workspace. Never turn a conflict into create automatically.",
-        inputSchema: z.object({
-          operation: z.enum(["create", "update"]),
-          path: z.string().min(1).describe("Completed file path under /workspace/work or /workspace/outputs."),
-          filename: z
-            .string()
-            .min(1)
-            .max(255)
-            .regex(/^[^/\\\x00-\x1f]+$/)
-            .nullable()
-            .describe("Required for create; null for update."),
-          media_type: z.string().min(1).max(255).nullable().describe("Required for create; null for update."),
-          title: z.string().min(1).max(255).nullable().describe("Required for create; null for update."),
-          file_id: z.string().length(32).nullable().describe("Required for update; null for create."),
-          etag: z
-            .string()
-            .regex(/^"[a-f0-9]{32}"$/)
-            .nullable()
-            .describe("Read baseline for update; null for create."),
-        }),
-        contextSchema: artifactToolContextSchema,
-        execute: async (input, options) => {
-          const sandbox = requireRunSandbox(options.experimental_sandbox);
-          if (input.operation === "create") {
-            if (!input.filename || !input.media_type || !input.title || input.file_id !== null || input.etag !== null) {
-              throw new Error("Create requires filename, media_type and title; file_id and etag must be null.");
-            }
-            return sandbox.save(
-              {
-                operation: "create",
-                path: input.path,
-                filename: input.filename,
-                media_type: input.media_type,
-                title: input.title,
-              },
-              options.toolCallId,
-              options.abortSignal,
-            );
-          }
-          if (
-            !input.file_id ||
-            !input.etag ||
-            input.filename !== null ||
-            input.media_type !== null ||
-            input.title !== null
-          ) {
-            throw new Error("Update requires file_id and etag; filename, media_type and title must be null.");
-          }
-          return sandbox.save(
-            { operation: "update", path: input.path, file_id: input.file_id, etag: input.etag },
-            options.toolCallId,
-            options.abortSignal,
-          );
-        },
-      }),
-      {
-        ...readPolicy,
-        capability: "files",
-        effect: "add",
-        trust: "closed",
-        modes: ["normal", "plan"],
-        uiKind: "artifact",
-      },
-      { summary: "Create a conversation artifact or update an imported editable text file with CAS." },
+    createUploadArtifactsTool(
+      (input, options) =>
+        requireRunSandbox(options.experimental_sandbox).save(input, options.toolCallId, options.abortSignal),
+      { contextSchema: artifactToolContextSchema },
     ),
     defineAgentTool("code_mode", code, readPolicy, {
       summary: "Use JavaScript to search and fetch public sources concurrently, then filter or combine their results.",

@@ -30,18 +30,18 @@ Chat 升级依次应用追加迁移 `v1.0.0.1` 至 `v1.0.0.5` （`just migrate-u
 - `ask_user` 没有服务端 execute；一次调用以稳定语义 ID 批量携带当前所有独立问题，客户端一次性回填结构化 `answers` 后由 `addToolOutput` 发起下一次 run；依赖前序答案的问题才使用后续 continuation。Middleware 将 `ask_user` 保持为独占调用，并把 `load_skill` 作为 batch barrier；独立只读工具仍可同 step 并发。Markdown、HTML、图片和视频生成调用按计划顺序串行，不存在通用 delegated-file 批次旁路。
 - assistant UIMessage 在 stream end（包括 abort 的部分输出）持久化；工具终态、消息、run 状态、selected leaf 和 lease 删除在同一个幂等数据库事务收口。关键持久化失败使响应失败且事务整体回滚；独立 trace 写入失败不影响用户流。
 - 主动 Stop 会在落库前把所有未终态/preliminary tool part 收口为官方 `output-error`，并把未完成 todo 改为 `cancelled`；取消接口等待本地 run finalizer，因而重新进入会话不会把已取消卡片恢复成 loading。
-- Plan mode 用 Bash 创建完整 `*-plan.md`，再通过 `save_sandbox_file` 发布；Chat 将其登记为 `kind=plan` 并更新 `active_plan_file_id`。
+- Plan mode 用 Bash 创建完整 `*-plan.md`，再在一次 `upload_artifacts` 批次中发布；Chat 将其登记为 `kind=plan` 并更新 `active_plan_file_id`。
 
 ## Files
 
 - Bash 操作真实的 run 工作区，支持普通文件与二进制文件的创建、读取、修改、删除、转换和验证。底层 SandboxSession 支持进程生命周期与增量输出，但模型侧只暴露一个等待终态并响应 Stop 的 `bash` 工具。
-- `save_sandbox_file` 的 create 模式创建新 file/Asset；update 模式用已导入 ETag 把工作副本保存为同一 file/Asset 的新 revision。保存前的工作文件仅存在于沙箱；run 结束后销毁。后续 run 导入 Chat 当前精确 revision。
+- `upload_artifacts` 接受 `artifacts[]`：create 项创建新 file/Asset，update 项用已导入 ETag 把工作副本保存为同一 file/Asset 的新 revision。发布前的工作文件仅存在于沙箱；run 结束后销毁。后续 run 导入 Chat 当前精确 revision。
 - user `file` 只接受当前会话的稳定 Knowledge 文档引用，不接受客户端提供的 `providerReference`；providerReference 仅保留服务端/provider 产生的 assistant 语义。模型新产生的 `file/reasoning-file` 先上传 Storage，再登记为 Chat conversation file。图片进入模型上下文时经受权 Storage 派生最长边 1536 的输入，journal 不改写为 base64。
 - 首次 Bash 自动将原始文档附件与 Chat-owned 会话文件/Plan 导入只读 `sources/`。本轮其他工具新增或更新会话资源后，`refresh_conversation_sources` 只导入并返回变化的路径；发现和读取统一使用 Bash。
-- 普通文件全部由主 Agent 通过 Bash 编写、验证后逐个 `save_sandbox_file` 发布。HTML 是完整浏览器文件，不经过 compiler/block/verification 状态机。
+- 普通文件全部由主 Agent 通过 Bash 编写、验证后在一个 `upload_artifacts` 调用中批量发布。HTML 是完整浏览器文件，不经过 compiler/block/verification 状态机。
 - 运行隔离、出口策略、回收与部署见 [Sandbox](sandbox.md)。
 - HTML 类型与生成规模正交。报告、动态 Dashboard、H5 游戏、模拟器和互动课件均可使用完整 JavaScript/DOM/Canvas/SVG/WebGL/媒体能力。前端使用普通 iframe 预览，不通过 sandbox allow-list、Executor sanitizer 或格式白名单裁剪能力。
-- `save_sandbox_file` 只有 create/另存为创建新 file id；编辑旧产物时先导入、通过 `checkout_conversation_file` 复制到 work 并绑定 ETag、修改和验证，再以 update 意图保存原 file id。主 Agent 按顺序逐个启动 Markdown、HTML、图片和视频交付物。
+- `upload_artifacts` 中只有 create/另存为项创建新 file id；编辑旧产物时先导入、通过 `checkout_conversation_file` 复制到 work 并绑定 ETag、修改和验证，再以 update 项保存原 file id。主 Agent 按顺序生成 Markdown、HTML、图片和视频交付物，完成的普通文件合并为一次上传批次。
 - `create_video_production` 的产品语义是“创建视频制片任务”，不是同步生成最终视频。初步分镜与成本投影持久化并派发给 Executor Workflow 后，工具携带 `production_id` 完成，对应 video todo 也立即完成。此后由同一个 Workflow 独立等待审批并推进生成、Take 审核、合成与发布；后续串行的 HTML/图片无需等待完整视频生命周期。返回边界依据持久化 stage，而不是可能在两次轮询间被快速审批跨过的瞬时 `awaiting_approval` 状态。
 - 用户取消 chat run 会通过 tool AbortSignal 取消当前前台等待的视频 Executor task；进程故障不会自动取消 durable task。Sandbox 中未发布的临时文件随 run 回收，已发布的不可变快照不受影响。
 
@@ -51,7 +51,7 @@ Chat 升级依次应用追加迁移 `v1.0.0.1` 至 `v1.0.0.5` （`just migrate-u
 
 - `tools/builtins/` 按 search/files/planning/interaction/media/memory 分类，提供给模型的 ToolSet 仍为扁平结构。
 - `manifest.ts` 统一生成 mode availability、审批策略、Plan capability projection 和前端 `toolMetadata.agent.uiKind`。
-- Plan mode 可用只读研究/Skill 工具和 Sandbox Bash；首次 Bash 已自动导入当前会话 source。唯一允许的写入是用 `save_sandbox_file` 发布完整 Plan，同时获得正常执行能力摘要但不能提前执行最终产物。
+- Plan mode 可用只读研究/Skill 工具和 Sandbox Bash；首次 Bash 已自动导入当前会话 source。唯一允许的写入是用 `upload_artifacts` 发布完整 Plan，同时获得正常执行能力摘要但不能提前执行最终产物。
 - 用户从 Plan 卡片执行时，`data-plan-execution` 携带稳定 `file_id`；首次 Bash 将该次解析到的精确 Plan revision 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求完整读取后再开始 todo 或生成。用户仅用自然语言要求执行 Plan 时，由模型用 Bash 发现 `*-plan.md`；多个 Plan 时通过 `ask_user` 提问，不增加专用 Plan 读取 Tool、Harness 选择器或动态候选注入。
 - 每个 run 解析本轮使用的权威引用：显式 Plan `file_id` 绑定 Chat 中选中的不可变 Asset revision；激活的 Skill（含 client-tool continuation）从 Admin 读取最新发布版本，其他 instruction/config 引用从其 owner 读取。历史 search tool 结果属于证据，默认复用；只有用户明确要求重新检索或最新信息且旧证据不足时才再次搜索。
 - Admin Skill 只广告已发布快照的名称与描述；`load_skill` 读取已发布 `SKILL.md`，`read_skill_file` 再按需读取该快照列出的 references/templates/ scripts 等文本资源，草稿树永不进入运行时。

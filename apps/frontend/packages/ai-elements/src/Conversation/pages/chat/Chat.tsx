@@ -2,6 +2,7 @@ import { type ConversationScrollHandle } from "@repo/ai-elements";
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
 import { listBotSkills } from "@repo/api/admin";
 import { type ConversationDocument } from "@repo/api/chat";
+import { toast } from "@repo/design-system";
 import { randomId } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -9,7 +10,8 @@ import { useShallow } from "zustand/react/shallow";
 import { ChatComposer } from "../../components/ChatComposer";
 import { ChatImagePreview } from "../../components/ChatImagePreview";
 import { ChatSessionIssue } from "../../components/ChatSessionIssue";
-import { ChatStream } from "../../components/ChatStream";
+import { ConversationSessionView } from "../../components/ConversationSessionView";
+import { useAgentSteering } from "../../hooks/useAgentSteering";
 import { useConversationChat } from "../../hooks/useConversationChat";
 import { useForkConversation } from "../../hooks/useForkConversation";
 import { useSourceAction } from "../../hooks/useSourceAction";
@@ -142,6 +144,7 @@ export function ChatSession({
     loading,
     historyReady,
     historyMutationPending,
+    activeRunId,
     issue,
     canRetry,
     canStartHistoryMutation,
@@ -153,12 +156,9 @@ export function ChatSession({
   } = useConversationChat(id);
   const { sendMessage, regenerate, addToolOutput, addToolApprovalResponse } = chat;
   const [status, setStatus] = useState<typeof chat.status>(chat.status);
+  const runActive = status === "streaming" || status === "submitted";
   const busy =
-    !historyReady ||
-    historyMutationPending ||
-    status === "streaming" ||
-    status === "submitted" ||
-    (issue !== null && Boolean(detail?.active_run_id));
+    !historyReady || historyMutationPending || runActive || (issue !== null && Boolean(detail?.active_run_id));
   useEffect(() => {
     void useChatStore.getState().loadAgents();
   }, []);
@@ -192,12 +192,17 @@ export function ChatSession({
     closeImagePreview();
   }, [id, closeArtifactPreview, closeImagePreview]);
 
+  const { admit: admitSteering, pendingInputs } = useAgentSteering({
+    conversationId: id,
+    activeRunId,
+    recoveryRunId: activeRunId ?? detail?.latest_run_id ?? null,
+  });
+
   const submit = useCallback(
     async (value: PromptInputValue) => {
-      if (!id || !canStartHistoryMutation()) {
+      if (!id) {
         return;
       }
-      pendingClientContinuationRef.current = false;
       const hasReadyFile = value.tokens.some((token) => typeof token.meta?.artifactId === "string");
       // `value.text` embeds `[[tokenId]]` placeholders for tokens; derive the real
       // typed text from text segments so an attachment-only send falls back to the
@@ -211,6 +216,21 @@ export function ChatSession({
       if (!text) {
         return;
       }
+      if (runActive) {
+        if (value.tokens.length > 0) {
+          toast.add({ type: "error", title: "生成期间的补充暂不支持附件，请等待当前任务结束后发送。" });
+          return;
+        }
+        if (activatedSkillName) {
+          toast.add({ type: "error", title: "生成期间的补充不能切换技能，请等待当前任务结束后发送。" });
+          return;
+        }
+        await admitSteering(text, "steer");
+        if (promptRef.current?.getValue().text === value.text) promptRef.current.clear();
+        return;
+      }
+      if (!canStartHistoryMutation()) return;
+      pendingClientContinuationRef.current = false;
       const parts = value.segments.flatMap((segment): ChatUIMessage["parts"][number][] => {
         if (segment.type === "text") {
           return segment.text ? [{ type: "text" as const, text: segment.text }] : [];
@@ -257,7 +277,7 @@ export function ChatSession({
         throw error;
       }
     },
-    [activatedSkillName, canStartHistoryMutation, id, requestBody, sendMessage],
+    [activatedSkillName, admitSteering, canStartHistoryMutation, id, requestBody, runActive, sendMessage],
   );
 
   const changeMode = useCallback(
@@ -360,59 +380,59 @@ export function ChatSession({
   const handleExecutePlan = useCallback((fileId: string) => void executePlan(fileId).catch(() => {}), [executePlan]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center justify-center px-14">
-        <h1 className="max-w-full truncate text-sm font-medium text-foreground">{detail?.title ?? "新对话"}</h1>
-      </header>
-
-      <ChatStream
-        onFork={forkConversation}
-        chat={chat}
-        resume={!loading && detail?.id === id && Boolean(detail.active_run_id)}
-        conversationId={id}
-        loading={loading}
-        conversationDocuments={detail?.documents ?? EMPTY_DOCUMENTS}
-        branches={detail?.branches ?? []}
-        scrollRef={conversationScrollRef}
-        onStatusChange={setStatus}
-        onCanvasChange={onCanvasChange}
-        onOpenArtifact={openArtifact}
-        onOpenFile={openFile}
-        resolveSourceAction={resolveSourceAction}
-        onSelectBranch={selectHistory}
-        onEditMessage={editMessage}
-        onRegenerate={regenerateMessage}
-        onAnswerClientTool={answerClientTool}
-        onToolApproval={approveTool}
-        onExecutePlan={handleExecutePlan}
-      />
-
-      {issue && (
-        <ChatSessionIssue
-          issue={issue}
-          onRecover={recover}
-          onRetry={canRetry ? retryRequest : undefined}
+    <ConversationSessionView
+      title={detail?.title ?? "新对话"}
+      onFork={forkConversation}
+      chat={chat}
+      resume={!loading && detail?.id === id && Boolean(detail.active_run_id)}
+      conversationId={id}
+      loading={loading}
+      conversationDocuments={detail?.documents ?? EMPTY_DOCUMENTS}
+      branches={detail?.branches ?? []}
+      scrollRef={conversationScrollRef}
+      onStatusChange={setStatus}
+      onCanvasChange={onCanvasChange}
+      onOpenArtifact={openArtifact}
+      onOpenFile={openFile}
+      resolveSourceAction={resolveSourceAction}
+      onSelectBranch={selectHistory}
+      onEditMessage={editMessage}
+      onRegenerate={regenerateMessage}
+      onAnswerClientTool={answerClientTool}
+      onToolApproval={approveTool}
+      onExecutePlan={handleExecutePlan}
+      issue={
+        issue ? (
+          <ChatSessionIssue
+            issue={issue}
+            onRecover={recover}
+            onRetry={canRetry ? retryRequest : undefined}
+            onStop={stopRun}
+          />
+        ) : null
+      }
+      composer={
+        <ChatComposer
+          id={id}
+          promptRef={promptRef}
+          documents={detail?.documents ?? EMPTY_DOCUMENTS}
+          agents={agents}
+          selectedAgentId={selectedAgentId}
+          setSelectedAgentId={setSelectedAgentId}
+          busy={busy}
+          runActive={runActive}
+          pendingInputs={pendingInputs}
+          mode={mode}
+          activatedSkillName={activatedSkillName}
+          setActivatedSkillName={setActivatedSkillName}
+          traceRefreshKey={traceRefreshKey}
+          loadSkills={loadSkills}
+          onSubmit={submit}
           onStop={stopRun}
+          onModeChange={changeMode}
         />
-      )}
-      <ChatComposer
-        id={id}
-        promptRef={promptRef}
-        documents={detail?.documents ?? EMPTY_DOCUMENTS}
-        agents={agents}
-        selectedAgentId={selectedAgentId}
-        setSelectedAgentId={setSelectedAgentId}
-        busy={busy}
-        mode={mode}
-        activatedSkillName={activatedSkillName}
-        setActivatedSkillName={setActivatedSkillName}
-        traceRefreshKey={traceRefreshKey}
-        loadSkills={loadSkills}
-        onSubmit={submit}
-        onStop={stopRun}
-        onModeChange={changeMode}
-      />
-      <ChatImagePreview />
-    </div>
+      }
+      overlay={<ChatImagePreview />}
+    />
   );
 }

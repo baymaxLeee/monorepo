@@ -1,13 +1,20 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 import { createAgentHarness } from "@backend/agent-runtime-ts";
+import type { PublishedWorkspaceFile } from "@backend/agent-runtime-ts/artifact";
 import { createBashTool } from "@backend/agent-runtime-ts/bash";
+import {
+  applyToolApprovalResponse,
+  finalizeInterruptedMessages,
+  hasPendingToolApprovals,
+} from "@backend/agent-runtime-ts/lifecycle";
 import { manifestsToTools } from "@backend/agent-runtime-ts/manifest";
 import { createToolApprovalPolicy } from "@backend/agent-runtime-ts/policy";
+import { createAgentSteering, type AgentSteering } from "@backend/agent-runtime-ts/steering";
 import {
   convertToModelMessages,
   isToolUIPart,
@@ -17,16 +24,63 @@ import {
   type UIMessageChunk,
 } from "ai";
 
-import type { DesktopEvent, LocalThread } from "../contracts/bridge.generated";
+import type { DesktopEvent, LocalPendingInput, LocalThread } from "../contracts/bridge.generated";
 import type { InferenceConfig } from "../contracts/inference.generated";
-import { terminalize } from "./interrupted";
 import { LocalJournal } from "./journal";
 import { relayModel, type RelayCall } from "./relay-model";
 import { LocalSandbox, type SandboxOptions } from "./sandbox";
 
+function localWorkspacePath(root: string, value: string): string {
+  const absolute = isAbsolute(value) ? resolve(value) : resolve(root, value);
+  const path = relative(root, absolute);
+  if (!path || path === ".." || path.startsWith("../") || isAbsolute(path)) {
+    throw new Error("发布文件必须位于授权工作目录内");
+  }
+  return path;
+}
+
+function publishedArtifacts(messages: UIMessage[]): Map<string, PublishedWorkspaceFile> {
+  const artifacts = new Map<string, PublishedWorkspaceFile>();
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== "data-file" || !part.data || typeof part.data !== "object") continue;
+      const value = part.data as unknown as PublishedWorkspaceFile;
+      if (typeof value.file_id === "string" && typeof value.workspace_path === "string") {
+        artifacts.set(value.file_id, value);
+      }
+    }
+  }
+  return artifacts;
+}
+
+function mediaType(path: string): string {
+  const extension = path.split(".").at(-1)?.toLowerCase();
+  return (
+    {
+      css: "text/css",
+      csv: "text/csv",
+      html: "text/html",
+      js: "text/javascript",
+      json: "application/json",
+      jsx: "text/jsx",
+      md: "text/markdown",
+      pdf: "application/pdf",
+      png: "image/png",
+      svg: "image/svg+xml",
+      ts: "text/typescript",
+      tsx: "text/tsx",
+      txt: "text/plain",
+      webp: "image/webp",
+      yaml: "application/yaml",
+      yml: "application/yaml",
+    }[extension ?? ""] ?? "application/octet-stream"
+  );
+}
+
 export interface SessionHostOptions {
   directory: string;
-  controlDirectory: string;
+  legacyDirectories?: string[];
+  controlDirectories: string[];
   supervisor: string;
   executable: string;
   fileWorker: string;
@@ -42,23 +96,35 @@ interface Workspace {
   queue: Promise<unknown>;
   epoch: number;
 }
+interface ActiveRun {
+  abort: AbortController;
+  done: Promise<void>;
+  steering: AgentSteering;
+  settlements: Set<Promise<void>>;
+  turnId: string;
+}
 
 export class LocalSessionHost {
   readonly journal: LocalJournal;
   private workspaces = new Map<string, Promise<Workspace>>();
-  private active = new Map<string, { abort: AbortController; done: Promise<void> }>();
+  private active = new Map<string, ActiveRun>();
   private closed = false;
   private segments = new Map<string, { id: string; messages: UIMessage[]; chunks: UIMessageChunk[]; done: boolean }>();
   private current = new Map<string, LocalThread>();
   private observedWorkspaceEpochs = new Map<string, number>();
   constructor(private readonly options: SessionHostOptions) {
-    this.journal = new LocalJournal(options.directory);
+    this.journal = new LocalJournal(options.directory, options.legacyDirectories);
     for (const metadata of this.journal.list())
       if (metadata.status === "running") {
         const thread = this.journal.get(metadata.id);
         thread.status = "interrupted";
         thread.error = "应用上次异常退出；未完成的工具不会自动重放";
-        thread.messages = terminalize(thread.messages, thread.error);
+        thread.pendingInputs = thread.pendingInputs.map((input) =>
+          input.state === "accepted"
+            ? { ...input, state: "unconfirmed", reason: "应用退出前未确认模型是否收到这条补充" }
+            : input,
+        );
+        thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
         this.journal.save(thread);
       }
   }
@@ -85,6 +151,7 @@ export class LocalSessionHost {
       turnId: null,
       error: null,
       updatedAt: new Date().toISOString(),
+      pendingInputs: [],
       messages: [],
     };
     await this.workspace(thread);
@@ -103,7 +170,7 @@ export class LocalSessionHost {
           ...this.options,
           root: thread.workspace,
           scratch,
-          protectedPaths: [this.options.controlDirectory],
+          protectedPaths: this.options.controlDirectories,
         };
         const sandbox = new LocalSandbox(settings);
         await sandbox.initialize();
@@ -168,27 +235,59 @@ export class LocalSessionHost {
     thread.messages.push({ id: messageId, role: "user", parts: [{ type: "text", text }] });
     this.start(thread);
   }
+  steer(id: string, expectedTurnId: string, text: string, messageId: string, delivery: LocalPendingInput["delivery"]) {
+    if (this.closed) throw new Error("本地运行时正在关闭");
+    const thread = this.get(id);
+    const existing = thread.pendingInputs.find((input) => input.id === messageId);
+    if (existing) {
+      if (existing.turnId !== expectedTurnId || existing.text !== text || existing.delivery !== delivery) {
+        throw new Error("补充消息标识已绑定到不同的内容或轮次");
+      }
+      return { admission: "duplicate" as const, turnId: existing.turnId };
+    }
+    const active = this.active.get(id);
+    if (!active || thread.status !== "running") throw new Error("当前轮次已经结束，请作为新消息发送");
+    if (active.turnId !== expectedTurnId || thread.turnId !== expectedTurnId) {
+      throw new Error("当前轮次已经变化，请刷新后重试");
+    }
+    const pending: LocalPendingInput = {
+      id: messageId,
+      turnId: expectedTurnId,
+      text,
+      delivery,
+      state: "accepted",
+    };
+    thread.pendingInputs.push(pending);
+    this.save(thread);
+    const outcome = (
+      delivery === "queue"
+        ? active.steering.queue(text, { id: messageId })
+        : active.steering.steer(text, { id: messageId })
+    )
+      .then((result) => {
+        const current = thread.pendingInputs.find((input) => input.id === result.id);
+        if (!current) return;
+        if (result.type === "delivered") {
+          current.state = "delivered";
+          current.stepNumber = result.stepNumber;
+          current.reason = undefined;
+        } else {
+          current.state = "not_delivered";
+          current.reason = result.reason;
+        }
+        this.save(thread);
+      })
+      .finally(() => active.settlements.delete(outcome));
+    active.settlements.add(outcome);
+    return { admission: "accepted" as const, turnId: expectedTurnId };
+  }
   approve(id: string, approvalId: string, approved: boolean) {
     if (this.active.has(id)) throw new Error("会话仍在执行");
     const thread = this.get(id);
     if (thread.status !== "waiting") throw new Error("审批已过期");
-    let found = false;
-    thread.messages = thread.messages.map((message) => ({
-      ...message,
-      parts: message.parts.map((part) => {
-        if (!isToolUIPart(part) || part.state !== "approval-requested" || part.approval.id !== approvalId) return part;
-        found = true;
-        return { ...part, state: "approval-responded" as const, approval: { ...part.approval, approved } };
-      }),
-    }));
-    if (!found) throw new Error("审批不存在或已处理");
+    thread.messages = applyToolApprovalResponse(thread.messages, { approvalId, approved });
     this.save(thread);
-    if (
-      !thread.messages.some((message) =>
-        message.parts.some((part) => isToolUIPart(part) && part.state === "approval-requested"),
-      )
-    )
-      this.start(thread);
+    if (!hasPendingToolApprovals(thread.messages)) this.start(thread);
   }
   private start(thread: LocalThread) {
     if (this.closed) throw new Error("本地运行时正在关闭");
@@ -205,8 +304,12 @@ export class LocalSessionHost {
     this.current.set(thread.id, thread);
     this.save(thread);
     const abort = new AbortController();
-    const done = Promise.resolve().then(() => this.run(thread, abort.signal));
-    this.active.set(thread.id, { abort, done });
+    const steering = createAgentSteering();
+    const turnId = thread.turnId;
+    if (!turnId) throw new Error("本地轮次缺少标识");
+    const settlements = new Set<Promise<void>>();
+    const done = Promise.resolve().then(() => this.run(thread, abort.signal, steering, settlements));
+    this.active.set(thread.id, { abort, done, steering, settlements, turnId });
     void done
       .finally(() => {
         this.active.delete(thread.id);
@@ -214,12 +317,20 @@ export class LocalSessionHost {
       })
       .catch(() => undefined);
   }
-  private async run(thread: LocalThread, signal: AbortSignal) {
+  private async run(
+    thread: LocalThread,
+    signal: AbortSignal,
+    steering: AgentSteering,
+    settlements: Set<Promise<void>>,
+  ) {
     let workspace: Workspace | undefined;
     try {
       workspace = await this.workspace(thread);
+      const runWorkspace = workspace;
       const config = await this.options.config(thread.agentId, signal);
-      let modelEpoch = workspace.epoch;
+      let modelEpoch = runWorkspace.epoch;
+      const artifactEpoch = runWorkspace.epoch;
+      const artifacts = publishedArtifacts(thread.messages);
       const tools = manifestsToTools([
         createBashTool((input, options) =>
           this.access(thread, async (w) => {
@@ -238,6 +349,9 @@ export class LocalSessionHost {
               undefined,
               options.abortSignal,
             );
+            await new Promise<void>((resolve) => {
+              setImmediate(resolve);
+            });
             return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
           }),
         ),
@@ -260,7 +374,11 @@ export class LocalSessionHost {
         },
       });
       const original = structuredClone(thread.messages);
-      const result = await agent.stream({ messages: await convertToModelMessages(original), abortSignal: signal });
+      const result = await agent.stream({
+        messages: await convertToModelMessages(original),
+        abortSignal: signal,
+        experimental_steering: steering,
+      });
       const stream = toUIMessageStream({
         stream: result.stream,
         tools,
@@ -272,7 +390,56 @@ export class LocalSessionHost {
       let bytes = 0;
       const observed = stream.pipeThrough(
         new TransformStream<UIMessageChunk, UIMessageChunk>({
-          transform: (chunk, controller) => {
+          transform: async (chunk, controller) => {
+            if (chunk.type === "finish") {
+              const changed = [...runWorkspace.changed]
+                .filter(([, epoch]) => epoch > artifactEpoch)
+                .map(([path]) => path)
+                .filter((path) => path !== ".")
+                .sort();
+              for (const candidate of changed) {
+                const path = localWorkspacePath(thread.workspace, candidate);
+                const inspection = await this.access(thread, (current) =>
+                  current.sandbox.file({ operation: "inspect", path }, signal),
+                ).catch(() => null);
+                if (
+                  !inspection ||
+                  typeof inspection !== "object" ||
+                  !("size" in inspection) ||
+                  !Number.isSafeInteger(inspection.size) ||
+                  !("etag" in inspection) ||
+                  typeof inspection.etag !== "string" ||
+                  !/^"[a-f0-9]{32}"$/.test(inspection.etag)
+                ) {
+                  continue;
+                }
+                const fileId = createHash("sha256").update(`${thread.id}\0${path}`).digest("hex").slice(0, 32);
+                const previous = artifacts.get(fileId);
+                const data: PublishedWorkspaceFile = {
+                  file_id: fileId,
+                  filename: previous?.filename ?? basename(path),
+                  title: previous?.title ?? basename(path),
+                  media_type: previous?.media_type ?? mediaType(path),
+                  kind: previous?.kind ?? (path.toLowerCase().endsWith("-plan.md") ? "plan" : "artifact"),
+                  etag: inspection.etag,
+                  updated: Boolean(previous),
+                  workspace_path: path,
+                };
+                artifacts.set(fileId, data);
+                const file = { type: "data-file", id: fileId, data } as UIMessageChunk;
+                bytes += Buffer.byteLength(JSON.stringify(file));
+                if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
+                segment.chunks.push(file);
+                this.options.emit({
+                  type: "stream",
+                  threadId: thread.id,
+                  segmentId: segment.id,
+                  index: segment.chunks.length - 1,
+                  chunk: file,
+                });
+                controller.enqueue(file);
+              }
+            }
             bytes += Buffer.byteLength(JSON.stringify(chunk));
             if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
             segment.chunks.push(chunk);
@@ -315,11 +482,13 @@ export class LocalSessionHost {
         : error instanceof Error
           ? error.message
           : "本地运行失败";
-      thread.messages = terminalize(thread.messages, thread.error);
+      thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
     } finally {
       this.active.get(thread.id)?.abort.abort();
       workspace?.sandbox.cancel();
       if (workspace) await workspace.queue;
+      await Promise.allSettled([...settlements]);
+      thread.pendingInputs = thread.pendingInputs.filter((input) => input.state !== "delivered");
       try {
         this.save(thread);
       } catch {
@@ -350,7 +519,7 @@ export class LocalSessionHost {
     if (thread.status === "waiting") {
       thread.status = "cancelled";
       thread.error = "用户停止了待审批轮次";
-      thread.messages = terminalize(thread.messages, thread.error);
+      thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
       this.save(thread);
     }
   }

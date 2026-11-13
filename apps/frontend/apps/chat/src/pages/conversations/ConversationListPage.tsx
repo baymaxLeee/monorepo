@@ -59,11 +59,12 @@ export function ConversationListPage() {
         maxFiles={0}
         onError={setError}
         onSubmit={(value) => void submit(value)}
-        footerRender={() => (
-          <ExecutionLocation value={location} onChange={setLocation} localAvailable={Boolean(bridge)} disabled={busy} />
-        )}
+        footerRender={
+          bridge
+            ? () => <ExecutionLocation value={location} onChange={setLocation} localAvailable disabled={busy} />
+            : undefined
+        }
       />
-      {!bridge ? <p className="pb-3 text-center text-xs text-muted-foreground">使用桌面应用可选择本地电脑</p> : null}
     </div>
   );
 }

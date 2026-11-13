@@ -21,6 +21,7 @@ const props: Omit<ChatMessageViewProps, "message"> = {
   deliverableCompletion: { artifact: [], image: [], video: [] },
   onOpenArtifact: vi.fn(),
   onOpenFile: vi.fn(),
+  onOpenWorkspaceFile: vi.fn(),
   onAnswerClientTool: vi.fn(),
   onToolApproval: vi.fn(),
   onExecutePlan: vi.fn(),
@@ -89,6 +90,92 @@ test("structured tool failures drive the native header state", async () => {
   expect(await screen.findByText("上游服务失败")).toBeTruthy();
   expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
   expect(screen.queryByRole("button", { name: /fetch\s*已完成/ })).toBeNull();
+});
+
+test("persistent file data replaces the cloud upload tool and opens a local workspace file", () => {
+  const fileId = "a".repeat(32);
+  render(
+    <ChatMessageView
+      {...props}
+      message={{
+        id: "message",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-upload_artifacts",
+            toolCallId: "save",
+            state: "output-available",
+            input: {},
+            toolMetadata: { agent: { uiKind: "artifact" } },
+            output: {
+              ok: true,
+              status: "completed",
+              data: {
+                files: [
+                  {
+                    file_id: fileId,
+                    filename: "demo.js",
+                    title: "demo.js",
+                    media_type: "text/javascript",
+                    kind: "artifact",
+                    etag: `"${"b".repeat(32)}"`,
+                    updated: false,
+                  },
+                ],
+              },
+            },
+          },
+          {
+            type: "data-file",
+            id: fileId,
+            data: {
+              file_id: fileId,
+              filename: "demo.js",
+              title: "demo.js",
+              media_type: "text/javascript",
+              kind: "artifact",
+              etag: `"${"b".repeat(32)}"`,
+              updated: false,
+              workspace_path: "src/demo.js",
+            },
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getAllByText("demo.js")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "打开文件 demo.js" }));
+  expect(props.onOpenWorkspaceFile).toHaveBeenCalledWith("src/demo.js");
+});
+
+test("cloud file data opens the durable conversation file", () => {
+  const fileId = "c".repeat(32);
+  render(
+    <ChatMessageView
+      {...props}
+      message={{
+        id: "message",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-file",
+            id: fileId,
+            data: {
+              file_id: fileId,
+              filename: "report.md",
+              title: "Report",
+              media_type: "text/markdown",
+              kind: "artifact",
+              etag: `"${"d".repeat(32)}"`,
+              updated: false,
+            },
+          },
+        ],
+      }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "打开文件 Report" }));
+  expect(props.onOpenFile).toHaveBeenCalledWith(fileId);
 });
 
 test("reasoning files stay in a separate disclosure instead of becoming final attachments", () => {

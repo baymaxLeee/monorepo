@@ -69,6 +69,8 @@ export interface PromptInputProps {
   label?: string;
   disabled?: boolean;
   loading?: boolean;
+  /** Keep submission available while an agent run is active (for steering or queued follow-ups). */
+  submitWhileLoading?: boolean;
   className?: string;
   style?: CSSProperties;
   submitLabel?: ReactNode;

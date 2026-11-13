@@ -33,6 +33,7 @@ export function useConversationChat(id: string) {
   const [loading, setLoading] = useState(true);
   const [historyReady, setHistoryReady] = useState(false);
   const [historyMutationPending, setHistoryMutationPending] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [issue, setIssue] = useState<{ kind: "connection" | "history" | "cancel"; message: string } | null>(null);
   const refreshRef = useRef<(() => Promise<void>) | null>(null);
   const titleRafRef = useRef<number | null>(null);
@@ -60,6 +61,7 @@ export function useConversationChat(id: string) {
           if (init?.method === "GET" && response.status === 204) await refreshRef.current?.();
           const runId = response.headers.get("x-agent-run-id");
           if (runId && id) {
+            setActiveRunId(runId);
             setTraceRun(id, runId);
           }
           return response;
@@ -138,6 +140,7 @@ export function useConversationChat(id: string) {
                 if (connectedChatRef.current !== chat || messagesSnapshotKey(chat.messages) !== snapshot) return;
                 if (next.revision < (historyRevisionRef.current ?? 0)) return;
                 historyRevisionRef.current = next.revision;
+                setActiveRunId(next.active_run_id);
                 setDetail(next);
               })
               .catch(() => {});
@@ -164,6 +167,7 @@ export function useConversationChat(id: string) {
               if (next.revision < (historyRevisionRef.current ?? 0)) return;
               historyRevisionRef.current = next.revision;
               setHistoryReady(true);
+              setActiveRunId(next.active_run_id);
               setDetail(next);
               if (!preserveClientTool && !next.active_run_id) chat.messages = messages;
             })
@@ -193,6 +197,7 @@ export function useConversationChat(id: string) {
     setLoading(true);
     setHistoryReady(false);
     setHistoryMutationPending(false);
+    setActiveRunId(null);
     setDetail(null);
     setIssue(null);
     historyRevisionRef.current = undefined;
@@ -207,6 +212,7 @@ export function useConversationChat(id: string) {
           return;
         }
         setDetail(next);
+        setActiveRunId(next.active_run_id);
         historyRevisionRef.current = next.revision;
         setHistoryReady(true);
         chat.messages = messages;
@@ -241,6 +247,7 @@ export function useConversationChat(id: string) {
     if (next.revision < (historyRevisionRef.current ?? 0)) return;
     historyRevisionRef.current = next.revision;
     setHistoryReady(true);
+    setActiveRunId(next.active_run_id);
     setDetail(next);
     const pending = transport.getPendingRequest?.();
     // An unchanged revision proves the POST was never claimed. Keep its exact
@@ -368,6 +375,7 @@ export function useConversationChat(id: string) {
     loading,
     historyReady,
     historyMutationPending,
+    activeRunId,
     issue,
     canRetry: transport.getPendingRequest?.() != null && !retryRequestPendingRef.current,
     canStartHistoryMutation,

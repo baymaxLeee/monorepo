@@ -9,6 +9,12 @@ export { cancelRun, reconcileOrphanedRuns, startOrphanRunReconciler } from "./ru
 export { reconcileSandboxExecutions, startSandboxExecutionReconciler } from "./runs/sandbox-executions.js";
 export { isRunActive } from "./runs/repository.js";
 export {
+  acceptAgentSteeringInput,
+  getAgentSteeringInput,
+  listAgentSteeringInputs,
+  type AgentSteeringInputView,
+} from "./runs/steering.js";
+export {
   activeAgentStreamRunId,
   createAgentReplayResponse,
   replayAgentSseStream,

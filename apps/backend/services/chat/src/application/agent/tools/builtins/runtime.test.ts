@@ -23,10 +23,10 @@ function staticDescription(definition: { description?: unknown } | undefined): s
 
 const options = { toolCallId: "runtime-test", messages: [], context: undefined };
 
-test("save schema has a strict-provider-compatible object root", async () => {
+test("upload schema has a strict-provider-compatible object root", async () => {
   const runtime = await createRuntimeTools();
   try {
-    const definition = runtime.manifests.find((entry) => entry.name === "save_sandbox_file")!.tool;
+    const definition = runtime.manifests.find((entry) => entry.name === "upload_artifacts")!.tool;
     assert.ok(definition && definition.inputSchema);
     const schema = await asSchema(definition.inputSchema).jsonSchema;
     assert.equal(schema.type, "object");
@@ -42,7 +42,7 @@ test("runtime tools are base tools available without discovery", async () => {
   try {
     assert.deepEqual(
       runtime.manifests.map((manifest) => manifest.name),
-      ["web_fetch", "bash", "refresh_conversation_sources", "save_sandbox_file", "code_mode"],
+      ["web_fetch", "bash", "refresh_conversation_sources", "upload_artifacts", "code_mode"],
     );
     assert.ok(runtime.manifests.every((manifest) => manifest.tool?.deferLoading !== true));
   } finally {

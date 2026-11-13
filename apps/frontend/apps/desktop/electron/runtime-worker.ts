@@ -50,7 +50,8 @@ async function dispatch(method: string, payload: unknown) {
     const settings = z
       .object({
         directory: z.string(),
-        controlDirectory: z.string(),
+        legacyDirectories: z.array(z.string()),
+        controlDirectories: z.array(z.string()).min(1),
         supervisor: z.string(),
         executable: z.string(),
         fileWorker: z.string(),
@@ -114,6 +115,18 @@ async function dispatch(method: string, payload: unknown) {
         .parse(payload);
       runtime.send(p.id, p.text, p.messageId);
       return null;
+    }
+    case "steer": {
+      const p = z
+        .object({
+          id: idSchema,
+          expectedTurnId: idSchema,
+          messageId: idSchema,
+          text: z.string().trim().min(1).max(64_000),
+          delivery: z.enum(["steer", "queue"]),
+        })
+        .parse(payload);
+      return runtime.steer(p.id, p.expectedTurnId, p.text, p.messageId, p.delivery);
     }
     case "approve": {
       const p = z.object({ id: idSchema, approvalId: z.string().max(200), approved: z.boolean() }).parse(payload);

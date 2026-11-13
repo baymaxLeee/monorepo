@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { ToolSet } from "@ai-sdk/provider-utils";
+import { fileDataChunks } from "@backend/agent-runtime-ts/artifact";
 import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
 import {
   getToolName,
@@ -122,6 +123,7 @@ export function createPublishedAgentPartStream<TOOLS extends ToolSet>(input: {
               controller.enqueue(published!);
             } else {
               controller.enqueue(chunk);
+              for (const file of fileDataChunks(chunk)) controller.enqueue(file);
             }
             return;
           }

@@ -18,6 +18,8 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
     getThread: (id) => call("get", id),
     openStream: (id) => call("openStream", id),
     send: (id, text, messageId) => call("send", { id, text, messageId }),
+    steer: (id, expectedTurnId, text, messageId, delivery) =>
+      call("steer", { id, expectedTurnId, text, messageId, delivery }),
     approve: (id, approvalId, approved) => call("approve", { id, approvalId, approved }),
     stop: (id) => call("stop", id),
     removeThread: (id) => call("remove", id),

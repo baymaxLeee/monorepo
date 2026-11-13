@@ -36,6 +36,7 @@ function snapshot(): LocalStream {
       turnId: "turn",
       error: null,
       updatedAt: "",
+      pendingInputs: [],
       messages: [],
     },
     segment: { id: "s", messages: [], chunks: [{ type: "start", messageId: "assistant" }], done: false },

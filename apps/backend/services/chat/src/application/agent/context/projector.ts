@@ -25,7 +25,7 @@ type AnyUIMessage = UIMessage<unknown, any, any>;
 
 const COMPACTION_MESSAGE_RESERVE_TOKENS = 6_000;
 
-const HISTORICAL_FILE_MUTATIONS = new Set(["save_sandbox_file"]);
+const HISTORICAL_FILE_MUTATIONS = new Set(["upload_artifacts"]);
 
 function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
   return messages.map((message) => ({
@@ -48,12 +48,24 @@ function compactHistoricalToolInputs(messages: AnyUIMessage[]): AnyUIMessage[] {
         const outcome = isToolOutcome(part.output) ? part.output : null;
         const data = toolOutcomeData(part.output);
         const value = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+        const files = Array.isArray(value.files)
+          ? value.files.flatMap((file) => {
+              if (!file || typeof file !== "object" || Array.isArray(file)) return [];
+              const item = file as Record<string, unknown>;
+              return [
+                {
+                  file_id: item.file_id,
+                  filename: item.filename,
+                  media_type: item.media_type,
+                  etag: item.etag,
+                  updated: item.updated,
+                },
+              ];
+            })
+          : [];
         const summary = {
           status: outcome?.status ?? "completed",
-          file_id: value.file_id,
-          sha256: value.sha256,
-          filename: value.filename,
-          media_type: value.media_type,
+          files,
           error: outcome?.ok === false ? outcome.error : undefined,
         };
         return [

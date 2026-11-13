@@ -53,7 +53,7 @@ SDK API 与协议机制属于官方能力。下文的权限校验、文件发布
 | 权威历史与分支 | PostgreSQL 保存 UIMessage journal、父子分支、selected leaf 与单调 history revision；编辑、重新生成、工具续跑和历史选择是不同操作。 |
 | schema 与续跑权限 | [共享 metadata/data schema](../../schemas/streaming/chat-ui.ts) 经 `just sync` 生成双端校验器，与 SDK `validateUIMessages` 校验结构；[continuation](../../apps/backend/services/chat/src/application/agent/runs/continuation.ts) 只允许等待中的客户端结果或审批决定，调用身份不可变。 |
 | 来源与引用 | 搜索 ToolOutcome 保留给模型并投影原生 source part；正文消费原生 citations。文档来源只通过 workspace ACL resolver 和 journal 关系生成可打开链接。 |
-| 文件与产物 | 原生 `file`/`reasoning-file` 发布为受权会话资源；`save_sandbox_file` 保持原生工具结果并显示 Artifact 卡，不复制成同义 file part。任意远程 URL 不由 Chat 代取。 |
+| 文件与产物 | 原生 `file`/`reasoning-file` 发布为受权会话资源；云端 `upload_artifacts` 批量结果逐文件投影为持久 `data-file`，本地从真实文件变更生成同构 part，正文统一显示 file tag。任意远程 URL 不由 Chat 代取。 |
 | 工具生命周期 | static/dynamic、preliminary、provider-executed、审批和 client tool 使用 SDK 原生状态；业务 ToolOutcome 只承载业务成功/失败数据。内联 `subagents` 的 1–3 条紧凑有界 nested progress 作为 preliminary payload，完整 message 只进入 final tool payload，不增加平行 data part。 |
 | 并发与持久化 | `(conversation_id, request_id)` 和完整请求指纹绑定逻辑操作；claim 锁定 revision。工具终态、assistant 消息、run、selected leaf 和 lease 由同一个幂等 finalizer 事务提交。 |
 | 恢复与取消 | Redis 只在 run 活跃期间保存可重放 transport stream 和 active pointer；短滑动租约回收崩溃遗留，字节/entry budget 防止运行期无界增长，journal 终态提交并排空流后立即删除。subscriber 断开不取消 run，显式 Stop 才传播用户取消并由同一 finalizer 收口。 |
@@ -197,7 +197,7 @@ Chat 的存储层保留消息父子关系和当前选中路径；客户端仍只
 
 应用 ToolOutcome 继续承载 domain data、partial/blocked/failed 等业务事实； `toModelOutput` 控制给模型的表示。不能用 ToolOutcome 吞掉 Abort、审批拒绝或原生输入错误，也不能把 SDK `toolSearch` 的原生协议结果套入业务 envelope。
 
-内联 `subagents` 遵循同一规则：外层仍是一个官方 `tool-subagents` part；preliminary ToolOutcome 的 `subagents[]` 携带 1–3 条 child 的紧凑有界进度，终态才为每条 child 保留完整 message、结果、usage 或结构化失败。这样保留官方 preliminary/final tool 语义，同时禁止逐 token 重复累计全文造成 O(n²) SSE；具体更新边界归 [Chat 活跃流恢复决策](chat-stream-resumption.md)。前端用 `uiKind: subagent` 分别展示委派任务；主模型通过 `toModelOutput` 只接收压缩后的各任务结果。普通文件由主 Agent 在 run sandbox 中生成，`save_sandbox_file` 的原生工具结果以 `uiKind: artifact` 呈现；没有另一条 Executor 文件批次 UI 语义。
+内联 `subagents` 遵循同一规则：外层仍是一个官方 `tool-subagents` part；preliminary ToolOutcome 的 `subagents[]` 携带 1–3 条 child 的紧凑有界进度，终态才为每条 child 保留完整 message、结果、usage 或结构化失败。这样保留官方 preliminary/final tool 语义，同时禁止逐 token 重复累计全文造成 O(n²) SSE；具体更新边界归 [Chat 活跃流恢复决策](chat-stream-resumption.md)。前端用 `uiKind: subagent` 分别展示委派任务；主模型通过 `toModelOutput` 只接收压缩后的各任务结果。普通文件由主 Agent 在 run sandbox 中生成，云端 `upload_artifacts` 保留一个 `uiKind: artifact` 批量工具结果并投影为逐文件 `data-file`；没有另一条 Executor 文件批次 UI 语义。
 
 ### 7.2 客户端工具
 
@@ -249,9 +249,9 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 | --- | --- | --- |
 | 用户上传附件 | user `file` part | 上传/授权成功后发送稳定引用，由 projector 决定模型读取方式 |
 | 模型直接输出图片/文件 | assistant `file` part | 文件发布后展示预览/下载卡，保留 MIME、filename 和原生 metadata |
-| `save_sandbox_file` 等工具发布产物 | 对应 `tool-*` 的终态 output | 以 Artifact 卡展示结果，同时保留调用、审批、失败与执行记录 |
+| 云端 `upload_artifacts` 发布产物 | 一个批量 `tool-*` 终态 output + 每文件一个 `data-file` | 工具结果保留调用、审批、失败与执行记录；成功文件在正文显示紧凑 file tag |
 
-`save_sandbox_file → tool-save_sandbox_file.output → Artifact card` 是正确的生成式 UI；不把工具结果改写成 file，也不为同一产物额外造一个重复附件卡。 `file` 与工具结果只在同一次内容确实同时承担不同语义时并存。
+`upload_artifacts → tool-upload_artifacts.output.files[] → data-file → ChatFileTag` 是文件发布的生成式 UI。工具 part 保留在消息历史供 harness 连续性、审批和错误诊断使用；当对应 `data-file` 已存在时前端隐藏成功工具卡，避免重复。这里的 `data-file` 是持久、有类型的 AI SDK data part，不是模型生成的 HTML/XML 标记，也不冒充原生附件 `file` part。本地不制造上传 tool part，而是在 `finish` 前从已验证的真实文件变更生成同一终态 `data-file`。
 
 ### 9.2 文件发布与访问
 

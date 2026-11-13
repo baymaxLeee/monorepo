@@ -98,6 +98,7 @@ async function run() {
     server.listen(0, "127.0.0.1", resolve);
   });
   const port = server.address().port;
+  process.env.MONOREPO_AGENT_HOME = join(directory, "agent-home");
   process.argv.push(`--platform-url=http://127.0.0.1:${port}`, `--user-data=${join(directory, "state")}`);
   dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspace] });
   dialog.showMessageBox = async (_window, options) => {

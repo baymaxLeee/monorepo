@@ -301,6 +301,41 @@ test("official SDK file methods preserve bytes and keep source snapshots read-on
   await run.dispose();
 });
 
+test("AI SDK 7 stat, directory listing, and deletion use the same sandbox boundary", async () => {
+  const f = fixture();
+  const responses = [
+    { stdout: "file\n5\n", exitCode: 0 },
+    { stdout: "entry.txt\0f\0folder\0d\0shortcut\0l\0", exitCode: 0 },
+    { stdout: "", exitCode: 0 },
+    { stdout: "", exitCode: 44 },
+  ];
+  f.client.start = async () => {
+    const response = responses.shift();
+    assert.ok(response);
+    return {
+      session_id: "process",
+      stdout: response.stdout,
+      stderr: "",
+      exitCode: response.exitCode,
+      stdout_offset: response.stdout.length,
+      stderr_offset: 0,
+      truncated: false,
+      timed_out: false,
+    };
+  };
+  const run = new RunSandbox(context, f.deps);
+  assert.deepEqual(await run.stat({ path: "/workspace/work/entry.txt" }), { type: "file", size: 5 });
+  assert.deepEqual(await run.listDirectory({ path: "/workspace/work" }), [
+    { name: "entry.txt", type: "file" },
+    { name: "folder", type: "directory" },
+    { name: "shortcut", type: "symlink" },
+  ]);
+  assert.equal(await run.deleteFile({ path: "/workspace/work/entry.txt" }), true);
+  assert.equal(await run.stat({ path: "/workspace/work/missing.txt" }), null);
+  await assert.rejects(run.deleteFile({ path: "/workspace/sources/entry.txt" }), /cannot target/);
+  await run.dispose();
+});
+
 test("refresh imports and reports only conversation sources added or updated after initial Bash hydration", async () => {
   const f = fixture();
   let documents = [document];

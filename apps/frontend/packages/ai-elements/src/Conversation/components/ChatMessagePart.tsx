@@ -13,6 +13,7 @@ import { lazy, Suspense } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatCitedResponse } from "./ChatCitedResponse";
+import { ChatFileTag } from "./ChatFileTag";
 import { ChatMessageFilePart } from "./ChatMessageFilePart";
 import type { DeliverableCompletion } from "./ChatTodoListCard";
 const ToolPartView = lazy(() => import("./ChatToolPart").then((m) => ({ default: m.ChatToolPart })));
@@ -29,6 +30,7 @@ export function ChatMessagePart({
   deliverableCompletion,
   onOpenArtifact,
   onOpenFile,
+  onOpenWorkspaceFile,
   resolveSourceHref,
   resolveSourceAction,
   onOpenImage,
@@ -47,14 +49,15 @@ export function ChatMessagePart({
   documents: Map<string, ConversationDocument>;
   latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
-  onOpenArtifact: (documentId: string) => void;
-  onOpenFile: (fileId: string) => void;
+  onOpenArtifact?: (documentId: string) => void;
+  onOpenFile?: (fileId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   resolveSourceHref?: (source: SourceItem) => string | undefined;
   resolveSourceAction?: (source: SourceItem) => (() => Promise<void>) | undefined;
   onOpenImage: (partIndex: number) => void;
-  onAnswerClientTool: (toolName: string, toolCallId: string, output: unknown) => void;
-  onToolApproval: (approvalId: string, approved: boolean) => void;
-  onExecutePlan: (fileId: string) => void;
+  onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
+  onToolApproval?: (approvalId: string, approved: boolean) => void;
+  onExecutePlan?: (fileId: string) => void;
   planExecutedIds: ReadonlySet<string>;
   planBusy: boolean;
 }) {
@@ -87,6 +90,25 @@ export function ChatMessagePart({
     );
   }
 
+  if (part.type === "steering-message") {
+    return (
+      <aside className="rounded-xl border border-dashed bg-muted/50 px-3 py-2 text-sm" aria-label="用户补充">
+        <span className="mr-2 text-xs font-medium text-muted-foreground">补充</span>
+        {part.parts.map((item, index) =>
+          item.type === "text" ? (
+            <span key={`${part.id}-${index}`} className="whitespace-pre-wrap break-words">
+              {item.text}
+            </span>
+          ) : (
+            <span key={`${part.id}-${index}`} className="text-muted-foreground">
+              {item.filename ?? "附件"}
+            </span>
+          ),
+        )}
+      </aside>
+    );
+  }
+
   if (part.type === "data-skill-activation") {
     const name = (part.data as { name?: unknown } | undefined)?.name;
     if (typeof name !== "string" || !name) {
@@ -100,6 +122,27 @@ export function ChatMessagePart({
     );
   }
 
+  if (part.type === "data-file") {
+    const artifact = part.data;
+    const open = artifact.workspace_path
+      ? onOpenWorkspaceFile
+        ? () => onOpenWorkspaceFile(artifact.workspace_path!)
+        : undefined
+      : onOpenFile
+        ? () => onOpenFile(artifact.file_id)
+        : undefined;
+    return (
+      <ChatFileTag
+        filename={artifact.filename}
+        title={artifact.title}
+        onOpen={open}
+        onExecute={artifact.kind === "plan" && onExecutePlan ? () => onExecutePlan(artifact.file_id) : undefined}
+        executed={planExecutedIds.has(artifact.file_id)}
+        busy={planBusy}
+      />
+    );
+  }
+
   if (isFileUIPart(part)) {
     return (
       <ChatMessageFilePart
@@ -109,7 +152,7 @@ export function ChatMessagePart({
         variant={variant}
         onOpenArtifact={onOpenArtifact}
         onOpenFile={onOpenFile}
-        onOpenImage={onOpenImage}
+        onOpenImage={onOpenArtifact ? onOpenImage : undefined}
       />
     );
   }
@@ -126,7 +169,7 @@ export function ChatMessagePart({
             variant={variant}
             onOpenArtifact={onOpenArtifact}
             onOpenFile={onOpenFile}
-            onOpenImage={onOpenImage}
+            onOpenImage={onOpenArtifact ? onOpenImage : undefined}
           />
         </ReasoningAttachmentContent>
       </Reasoning>
@@ -150,12 +193,8 @@ export function ChatMessagePart({
           latestTodoCallId={latestTodoCallId}
           deliverableCompletion={deliverableCompletion}
           onOpenArtifact={onOpenArtifact}
-          onOpenFile={onOpenFile}
           onAnswerClientTool={onAnswerClientTool}
           onToolApproval={onToolApproval}
-          onExecutePlan={onExecutePlan}
-          planExecutedIds={planExecutedIds}
-          planBusy={planBusy}
         />
       </Suspense>
     );

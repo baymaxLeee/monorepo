@@ -111,7 +111,7 @@ Claim intent 的 generation 随内容切换递增并绑定同 Asset 的新精确
 
 保留现有目录和生命周期：`sources/` 导入原始附件及已发布文件，只读；Agent 复制到 `work/` 或 `outputs/` 后编辑，使用保存工具明确提交。业务上的“原地修改”表示更新同一 file_id，不要求原地修改 sources inode，也不要求覆盖 Storage 字节。
 
-`save_sandbox_file` 增加明确的“更新已有文件”和“创建文件”两种互斥意图。具体 schema 放在工具所属代码与生成契约中，遵循当前 SDK 严格 schema 支持方式。语义要求：
+`upload_artifacts` 的每个批次项具有明确的“更新已有文件”和“创建文件”两种互斥意图。具体 schema 放在工具所属代码与生成契约中，遵循当前 SDK 严格 schema 支持方式。语义要求：
 
 - 创建用于首次发布或另存为，沿用 path/filename/title/media_type；返回新 file_id。
 - 更新必须指定已存在 file_id 和本次读取对应的基准，内容来自明确 sandbox path；返回原 file_id。禁止文件不存在时退化创建。

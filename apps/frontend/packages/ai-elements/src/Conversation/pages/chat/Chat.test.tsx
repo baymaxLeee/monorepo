@@ -23,11 +23,16 @@ const state = vi.hoisted(() => ({
   addToolOutput: vi.fn(),
   addToolApprovalResponse: vi.fn(),
   cancel: vi.fn(),
+  steer: vi.fn(),
+  getSteering: vi.fn(),
+  listSteering: vi.fn(),
+  promptClear: vi.fn(),
   action: vi.fn(),
   loadAgents: vi.fn(),
   documents: [] as unknown[],
   suspendedText: null as string | null,
   pendingRender: new Promise<void>(() => {}),
+  serverActiveRunId: "run" as string | null,
 }));
 
 vi.mock("@ai-sdk/react", async () => {
@@ -62,11 +67,15 @@ vi.mock("@repo/api", () => ({
 }));
 vi.mock("@repo/api/chat", () => ({
   cancelConversationAgentRun: state.cancel,
+  steerConversationAgentRun: state.steer,
+  getConversationAgentSteeringInput: state.getSteering,
+  listConversationAgentSteeringInputs: state.listSteering,
   getConversation: async () => ({
     id: "conversation",
     title: "Test",
     revision: 0,
-    active_run_id: "run",
+    active_run_id: state.serverActiveRunId,
+    latest_run_id: "run",
     documents: state.documents,
     messages: state.messages.map((message) => ({
       id: message.id,
@@ -113,7 +122,6 @@ vi.mock("@repo/design-system", () => ({
   Spinner: () => null,
   toast: { add: vi.fn() },
 }));
-vi.mock("../../components/ExecutionLocation", () => ({ ExecutionLocation: () => <span>云端</span> }));
 vi.mock("../../components/ChatTodoListCard", () => ({
   findLatestUpdateTodosCallId: () => null,
   collectDeliverableCompletion: () => ({ artifact: [], image: [], video: [] }),
@@ -155,18 +163,47 @@ vi.mock("../../components/ChatComposerControls", () => ({
 vi.mock("../../components/ChatContextUsage", () => ({ ChatContextUsage: () => null }));
 vi.mock("@repo/ai-elements/prompt-input", () => ({
   PromptInput: ({
+    ref,
     onStop,
+    onSubmit,
     loading,
+    submitWhileLoading,
     footerRender,
   }: {
+    ref?: { current: unknown };
     onStop: () => void;
+    onSubmit: (value: {
+      text: string;
+      segments: Array<{ type: "text"; text: string }>;
+      tokens: [];
+      files: Record<string, File>;
+    }) => void;
     loading: boolean;
+    submitWhileLoading?: boolean;
     footerRender: () => ReactNode;
   }) => {
     state.composerRenders++;
+    if (ref)
+      ref.current = {
+        clear: state.promptClear,
+        setValue: vi.fn(),
+        getValue: () => ({ text: "补充输入", segments: [], tokens: [], files: {} }),
+      };
     return (
       <>
-        <input aria-label="下一条消息" data-loading={loading} />
+        <input aria-label="下一条消息" data-loading={loading} data-submit-while-loading={submitWhileLoading} />
+        <button
+          onClick={() =>
+            onSubmit({
+              text: "补充输入",
+              segments: [{ type: "text", text: "补充输入" }],
+              tokens: [],
+              files: {},
+            })
+          }
+        >
+          发送补充
+        </button>
         <button onClick={onStop}>停止</button>
         {footerRender()}
       </>
@@ -181,6 +218,14 @@ beforeEach(() => {
   state.messageRenders = [];
   state.suspendedText = null;
   state.editMessage = undefined;
+  state.steer.mockReset();
+  state.getSteering.mockReset();
+  state.listSteering.mockReset();
+  state.listSteering.mockResolvedValue([]);
+  state.promptClear.mockReset();
+  state.sendMessage.mockReset();
+  state.sendMessage.mockResolvedValue(undefined);
+  state.serverActiveRunId = "run";
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -228,6 +273,73 @@ test("text deltas do not rerender the composer, and typing/stop remain available
   expect(state.cancel).toHaveBeenCalledWith("conversation", "run", { skipErrorNotify: true });
 });
 
+test("a running submission clears only after durable admission and renders above the editor", async () => {
+  let admit: (value: unknown) => void = () => {};
+  state.steer.mockReturnValue(
+    new Promise((resolve) => {
+      admit = resolve;
+    }),
+  );
+  state.getSteering.mockResolvedValue({
+    clientMessageId: "client-message",
+    runId: "run",
+    delivery: "steer",
+    text: "补充输入",
+    state: "accepted",
+    stepNumber: null,
+    reason: null,
+  });
+  await mount();
+  expect(screen.getByRole("button", { name: "切换模式" }).hasAttribute("disabled")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "发送补充" }));
+  await waitFor(() => expect(state.steer).toHaveBeenCalledOnce());
+  expect(state.promptClear).not.toHaveBeenCalled();
+  admit({
+    clientMessageId: "client-message",
+    runId: "run",
+    delivery: "steer",
+    text: "补充输入",
+    state: "accepted",
+    stepNumber: null,
+    reason: null,
+  });
+  await waitFor(() => expect(state.promptClear).toHaveBeenCalledOnce());
+  expect(screen.getByLabelText("待发送消息").textContent).toContain("补充输入");
+  expect(screen.getByLabelText("待发送消息").textContent).toContain("引导当前任务");
+  expect(screen.getByRole("textbox").getAttribute("data-submit-while-loading")).toBe("true");
+  expect(state.steer).toHaveBeenCalledWith(
+    "conversation",
+    "run",
+    {
+      expected_run_id: "run",
+      client_message_id: expect.stringMatching(/^[0-9a-f]{32}$/),
+      text: "补充输入",
+      delivery: "steer",
+    },
+    { skipErrorNotify: true },
+  );
+});
+
+test("a recovered not-delivered supplement stays visible and never starts another turn automatically", async () => {
+  state.status = "ready";
+  state.serverActiveRunId = null;
+  state.listSteering.mockResolvedValue([
+    {
+      clientMessageId: "client-message",
+      runId: "run",
+      delivery: "steer",
+      text: "恢复后的补充",
+      state: "not_delivered",
+      stepNumber: null,
+      reason: "finished",
+    },
+  ]);
+  await mount();
+  await waitFor(() => expect(screen.getByLabelText("待发送消息").textContent).toContain("恢复后的补充"));
+  expect(screen.getByLabelText("待发送消息").textContent).toContain("未加入当前任务");
+  expect(state.sendMessage).not.toHaveBeenCalled();
+});
+
 test("a live text delta does not render unchanged historical messages", async () => {
   const history: UIMessage[] = Array.from({ length: 30 }, (_, i) => ({
     id: `history-${i}`,
@@ -247,6 +359,7 @@ test("a live text delta does not render unchanged historical messages", async ()
 
 test("ready status and changed request options reach memoized controls and tool actions", async () => {
   await mount();
+  expect(screen.queryByText("云端")).toBeNull();
   expect(screen.getByRole("textbox").getAttribute("data-loading")).toBe("true");
   state.status = "ready";
   await publish();

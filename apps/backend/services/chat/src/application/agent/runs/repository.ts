@@ -7,6 +7,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import {
   agentRuns,
+  agentSteeringInputs,
   agentSteps,
   agentToolCalls,
   conversations,
@@ -388,6 +389,14 @@ export async function finishAgentRun(input: {
         finishedAt: now,
       })
       .where(eq(agentRuns.id, input.runId));
+    await tx
+      .update(agentSteeringInputs)
+      .set({ state: "not_delivered", reason: "finished", updatedAt: now })
+      .where(and(eq(agentSteeringInputs.runId, input.runId), eq(agentSteeringInputs.state, "accepted")));
+    await tx
+      .update(agentSteeringInputs)
+      .set({ state: "unconfirmed", reason: "run ended before delivery was confirmed", updatedAt: now })
+      .where(and(eq(agentSteeringInputs.runId, input.runId), eq(agentSteeringInputs.state, "dispatching")));
     await tx.delete(conversationRunLeases).where(eq(conversationRunLeases.runId, input.runId));
   });
 }
@@ -603,24 +612,36 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
   if (runIds.length === 0) {
     return [];
   }
-  const db = getDb();
-  const now = new Date();
-  return db
-    .update(agentRuns)
-    .set({ status: "interrupted", finishedAt: now })
-    .where(
-      and(
-        inArray(agentRuns.id, runIds),
-        inArray(agentRuns.status, ["running", "cancel_requested"]),
-        notExists(
-          db
-            .select({ runId: conversationRunLeases.runId })
-            .from(conversationRunLeases)
-            .where(and(eq(conversationRunLeases.runId, agentRuns.id), gt(conversationRunLeases.expiresAt, now))),
+  return getDb().transaction(async (tx) => {
+    const now = new Date();
+    const interrupted = await tx
+      .update(agentRuns)
+      .set({ status: "interrupted", finishedAt: now })
+      .where(
+        and(
+          inArray(agentRuns.id, runIds),
+          inArray(agentRuns.status, ["running", "cancel_requested"]),
+          notExists(
+            tx
+              .select({ runId: conversationRunLeases.runId })
+              .from(conversationRunLeases)
+              .where(and(eq(conversationRunLeases.runId, agentRuns.id), gt(conversationRunLeases.expiresAt, now))),
+          ),
         ),
-      ),
-    )
-    .returning({ id: agentRuns.id, conversationId: agentRuns.conversationId });
+      )
+      .returning({ id: agentRuns.id, conversationId: agentRuns.conversationId });
+    const interruptedIds = interrupted.map((run) => run.id);
+    if (interruptedIds.length === 0) return interrupted;
+    await tx
+      .update(agentSteeringInputs)
+      .set({ state: "not_delivered", reason: "finished", updatedAt: now })
+      .where(and(inArray(agentSteeringInputs.runId, interruptedIds), eq(agentSteeringInputs.state, "accepted")));
+    await tx
+      .update(agentSteeringInputs)
+      .set({ state: "unconfirmed", reason: "run ownership was lost before delivery was confirmed", updatedAt: now })
+      .where(and(inArray(agentSteeringInputs.runId, interruptedIds), eq(agentSteeringInputs.state, "dispatching")));
+    return interrupted;
+  });
 }
 
 export interface AgentTraceStep {

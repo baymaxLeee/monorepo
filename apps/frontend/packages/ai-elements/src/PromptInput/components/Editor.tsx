@@ -20,6 +20,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
     label = "消息",
     disabled = false,
     loading = false,
+    submitWhileLoading = false,
     className,
     style,
     submitLabel,
@@ -151,7 +152,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (disabled || loading) {
+    if (disabled || (loading && !submitWhileLoading)) {
       return;
     }
     const value = api.getValue();
@@ -194,6 +195,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
           api={api}
           disabled={disabled}
           loading={loading}
+          submitWhileLoading={submitWhileLoading}
           attachmentsUploading={attachmentsUploading}
           attachmentsEnabled={props.maxFiles !== 0}
           submitLabel={submitLabel}
