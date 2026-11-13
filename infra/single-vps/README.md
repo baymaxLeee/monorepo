@@ -200,6 +200,18 @@ unchanged components only receive the new release tag inside the target registry
 Tencent TCR is the documented example, but `TCR_HOST` may point at another
 OCI-compatible registry such as an Aliyun regional registry.
 
+The Python images (`admin`, `knowledge`, `telemetry`) export each service's locked
+third-party requirements before installing dependencies. The export omits workspace
+packages and annotations, so changes to unrelated workspace dependencies do not
+invalidate the installed dependency layer when the exported requirements stay the
+same. Runtime images copy that dependency environment first, install a separately
+built `kernel` wheel in a small subsequent layer, and copy service code last.
+Source-only changes therefore preserve the large dependency blob. Keep these layers
+separate: copying a complete environment containing both dependencies and `kernel`
+from a final builder stage would couple them again. A dependency or base-image update
+can still require transferring the large layer; the first release with this new
+layout also needs to upload it once.
+
 ### 1. Create TCR namespace (Tencent Cloud console, one-time, free)
 
 1. 登录腾讯云 → 搜 "容器镜像服务" → 进 TCR
