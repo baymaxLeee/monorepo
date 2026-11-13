@@ -113,11 +113,9 @@ test("ordinary project changes scope lint, format, types, tests and builds to ow
     "apps/frontend/packages/ai-elements/src/Conversation/index.ts",
   ]);
   assert.ok(steps.some((step) => step[0] === "frontend-types"));
-  assert.ok(
-    steps
-      .find((step) => step[0] === "frontend-ui-contracts")
-      .includes("apps/frontend/packages/ai-elements/src/Conversation/index.ts"),
-  );
+  const uiContracts = steps.find((step) => step[0] === "frontend-ui-contracts");
+  assert.ok(uiContracts.includes("apps/frontend/packages/ai-elements"));
+  assert.ok(!uiContracts.includes("apps/frontend/packages/ai-elements/src/Conversation/index.ts"));
   assert.ok(steps.find((step) => step[0] === "frontend-boundaries").includes("@repo/ai-elements"));
   assert.ok(steps.find((step) => step[0] === "frontend-tests").includes("@repo/ai-elements"));
   assert.ok(steps.some((step) => step[0] === "build-frontend/chat"));

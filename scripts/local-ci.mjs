@@ -176,7 +176,8 @@ export function codePlan(base, files, root = ROOT) {
       "typecheck",
       ...frontend.flatMap(({ packageName }) => ["--filter", packageName]),
     ]);
-    if (uiFiles.length) steps.push(["frontend-ui-contracts", "pnpm", "lint:ui-contracts", ...uiFiles]);
+    if (uiFiles.length)
+      steps.push(["frontend-ui-contracts", "pnpm", "lint:ui-contracts", ...frontend.map(({ path }) => path)]);
     steps.push([
       "frontend-boundaries",
       "pnpm",
