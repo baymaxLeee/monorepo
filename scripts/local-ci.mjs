@@ -94,7 +94,10 @@ function toolingCodePlan(files) {
   const executable = files.filter((path) => !isDocumentation(path));
   const lintFiles = executable.filter((path) => /\.[cm]?[jt]sx?$/.test(path));
   const formatFiles = executable.filter((path) => /\.(?:jsonc?|[cm]?[jt]sx?)$/.test(path));
-  const steps = [["repository", "just", "check-repo"]];
+  const steps = [
+    ["repository", "just", "check-repo"],
+    ["frontend-dependencies", "pnpm", "--dir", "apps/frontend", "install", "--frozen-lockfile"],
+  ];
   if (lintFiles.length || formatFiles.length) steps.push(["root-dependencies", "pnpm", "install", "--frozen-lockfile"]);
   if (lintFiles.length) steps.push(["tooling-lint", "pnpm", "lint:ts", ...lintFiles]);
   if (formatFiles.length) steps.push(["tooling-format", "pnpm", "exec", "oxfmt", "--check", ...formatFiles]);

@@ -92,7 +92,10 @@ test("invalid bases fail closed instead of selecting no tests", async (t) => {
 });
 test("tooling changes run tooling checks without application tests or builds", () => {
   const steps = codePlan("base-sha", ["scripts/test.mjs", "scripts/README.md"]);
-  assert.ok(steps.some((step) => step[0] === "tooling-tests"));
+  const frontendDependencies = steps.findIndex((step) => step[0] === "frontend-dependencies");
+  const toolingTests = steps.findIndex((step) => step[0] === "tooling-tests");
+  assert.ok(frontendDependencies >= 0);
+  assert.ok(toolingTests > frontendDependencies);
   assert.ok(!steps.some((step) => step[0] === "all-tests" || step[0] === "build"));
 });
 test("an explicit all base produces a complete gate without a fake breaking-change comparison", () => {
