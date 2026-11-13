@@ -9,6 +9,20 @@ import { images } from "./image-plan.mjs";
 const knownImages = new Map(images.map((image) => [image.service, image]));
 const referencePattern = /^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/;
 const tagPattern = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
+const defaultTargetPrefix = "crpi-zfr29e2f63qt8nyh.cn-hangzhou.personal.cr.aliyuncs.com/baymaxlee";
+const defaultSourcePrefix = "ghcr.io/baymaxleee/monorepo";
+
+export function defaultPublishArgs(revision, args = []) {
+  return [
+    defaultTargetPrefix,
+    `sha-${revision.slice(0, 8)}`,
+    ...args,
+    "--from",
+    defaultSourcePrefix,
+    "--alias",
+    "main",
+  ];
+}
 
 export function parsePublishArgs(args) {
   const aliases = [];
@@ -129,6 +143,8 @@ function printDryRun(options, revision) {
 
 function syncExactImages(options, run) {
   const published = new Map();
+  let skipped = 0;
+  let synced = 0;
 
   for (const service of options.services) {
     const source = `${options.sourcePrefix}/${service}:${options.tag}`;
@@ -143,7 +159,11 @@ function syncExactImages(options, run) {
         ["buildx", "imagetools", "create", "--prefer-index=false", "--tag", target, source],
         run,
       );
-    } else process.stdout.write(`✓ ${service}:${options.tag} already matches ${sourceDigest}\n`);
+      synced++;
+    } else {
+      process.stdout.write(`↷ skipping ${service}:${options.tag}; already matches ${sourceDigest}\n`);
+      skipped++;
+    }
 
     const targetDigest = digest(target, run);
     if (targetDigest !== sourceDigest)
@@ -155,6 +175,7 @@ function syncExactImages(options, run) {
   }
 
   publishAliases(options, published, run);
+  process.stdout.write(`✓ exact image set verified: ${synced} synced, ${skipped} skipped, ${published.size} total\n`);
 }
 
 function buildLocalImages(options, revision, run) {
@@ -238,7 +259,10 @@ export function publishImages(options, run = command) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    publishImages(parsePublishArgs(process.argv.slice(2)));
+    const args = process.argv.slice(2);
+    const publishArgs =
+      args[0] === "--default" ? defaultPublishArgs(output("git", ["rev-parse", "HEAD"], command), args.slice(1)) : args;
+    publishImages(parsePublishArgs(publishArgs));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

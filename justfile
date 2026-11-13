@@ -118,6 +118,10 @@ build-images registry="local" tag="latest":
     cd apps/backend && just build-images {{ registry }} {{ tag }}
 
 [positional-arguments]
+publish-images *args:
+    node scripts/publish-images-local.mjs --default "$@"
+
+[positional-arguments]
 publish-images-local target tag *args:
     node scripts/publish-images-local.mjs "$@"
 

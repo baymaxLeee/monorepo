@@ -244,17 +244,15 @@ use the repository command documented in
 machine whose Docker client is already logged in to the target registry:
 
 ```bash
-just publish-images-local \
-  <domestic-registry>/<namespace> \
-  sha-<current-HEAD8> \
-  --from ghcr.io/<owner>/<repository> \
-  --alias main
+just publish-images
 ```
 
 This requires a clean worktree, verifies that the tag names current HEAD, compares
 the immutable GHCR and domestic-registry digests, and updates `main` only after
 every requested image matches exactly. The matching `build-images` run must finish
-before this command. Pass explicit service names to resume a known subset. Never
+before this command. The project GHCR and Aliyun repository prefixes are fixed by
+the command; Docker's credential store still owns authentication. Pass explicit
+service names to resume a known subset. Never
 place registry passwords in the command, repository, shell history, or CI logs.
 Push the matching commit afterward and track `build-images`, `mirror-images`, and
 `deploy-single-vps`; registry publication alone is not deployment success. A local

@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parsePublishArgs, publishImages } from "./publish-images-local.mjs";
+import { defaultPublishArgs, parsePublishArgs, publishImages } from "./publish-images-local.mjs";
+
+test("default publish profile pins the repository registries and current immutable tag", () => {
+  const options = parsePublishArgs(defaultPublishArgs("cafebabe" + "1".repeat(32), ["canvas", "--dry-run"]));
+
+  assert.equal(options.targetPrefix, "crpi-zfr29e2f63qt8nyh.cn-hangzhou.personal.cr.aliyuncs.com/baymaxlee");
+  assert.equal(options.sourcePrefix, "ghcr.io/baymaxleee/monorepo");
+  assert.equal(options.tag, "sha-cafebabe");
+  assert.deepEqual(options.services, ["canvas"]);
+  assert.deepEqual(options.aliases, ["main"]);
+  assert.equal(options.dryRun, true);
+});
 
 test("local publish builds exact HEAD and delays aliases until every immutable image", () => {
   const revision = "deadbeef" + "1".repeat(32);

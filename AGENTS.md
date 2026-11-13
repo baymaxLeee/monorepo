@@ -74,7 +74,8 @@ authorization, concurrency and retry changes need failure/cleanup coverage.
 | `just pre-commit [--all-files]` | Read-only staged checks / all tracked files |
 | `just ci-plan [base]` / `just ci [base]` | Preview / execute local CI with logs; includes committed changes |
 | `just push [remote] [branch]` | Verify clean HEAD against fresh remote main, then push the verified SHA |
-| `just publish-images-local <target> <sha-tag> [services...] [--from <source>] [--alias main]` | Build locally or sync exact immutable digests into a registry, then verify every image |
+| `just publish-images [services...] [--dry-run]` | Compare the current immutable GHCR release with Aliyun, sync mismatches and verify the complete image set |
+| `just publish-images-local <target> <sha-tag> [services...] [--from <source>] [--alias main]` | Advanced local build or exact registry-sync interface |
 | `just status` / `just doctor` | Repository/environment health |
 
 After code changes, run affected-target tests and builds. Test infrastructure
@@ -105,7 +106,7 @@ Do not weaken tests or suppress missing suites to obtain a pass. Inspect remote
 CI for the pushed SHA; local success does not establish deployment success.
 This workflow does not itself authorize a commit or push.
 
-When `mirror-images` fails on cross-region blob transfer, inspect the failed job first. For a guaranteed cache hit, use `just publish-images-local --from` to sync the exact immutable `sha-<HEAD8>` release from GHCR into the configured domestic registry; a local rebuild of the same source may produce different layer digests and is only a fallback publication path. The command must compare source and target digests and move `main` only after every requested immutable image verifies. Never use mutable source tags or embed credentials in commands/files. Registry recovery is not proof of deployment; observe build, mirror and deploy afterward.
+When `mirror-images` fails on cross-region blob transfer, inspect the failed job first. After `build-images` publishes the current HEAD, use `just publish-images` to compare and sync the exact immutable GHCR release into the configured Aliyun registry; its repository endpoints are intentionally fixed for this project. A local rebuild of the same source may produce different layer digests and is only a fallback through the advanced `publish-images-local` command. The command must move `main` only after every requested immutable image verifies. Never use mutable source tags or embed credentials in commands/files. Registry recovery is not proof of deployment; observe mirror and deploy afterward.
 
 ## Editing and context discipline
 

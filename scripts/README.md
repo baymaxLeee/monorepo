@@ -188,16 +188,18 @@ can change layer digests, so it cannot guarantee that the later mirror transfer
 will hit every blob.
 
 Commit and verify the intended change first. Wait for `build-images` to publish
-the matching GHCR tag, log Docker in to both registries, and run:
+the matching GHCR tag, log Docker in to both registries, and run the project
+default. It processes every image when no service names are supplied:
 
 ```bash
-just publish-images-local \
-  <domestic-registry>/<namespace> \
-  sha-<current-HEAD8> \
-  --from ghcr.io/<owner>/<repository> \
-  [service ...] \
-  --alias main
+just publish-images
 ```
+
+The default fixes this repository's GHCR source, Aliyun target, current
+`sha-<HEAD8>` tag and `main` alias. Pass service names only to resume a subset,
+or `--dry-run` to print the full plan without contacting Docker or either
+registry. Credentials remain in Docker's credential store and are never fixed in
+the repository.
 
 The command rejects dirty worktrees and tags that do not identify current HEAD.
 In `--from` mode it compares every source and target manifest digest, transfers
@@ -206,8 +208,12 @@ aliases only after the whole requested immutable set verifies. Re-running is
 resumable because matching digests are skipped. This is the cache-guaranteeing
 path: the later mirror job references the same immutable GHCR manifests and finds
 their blobs in the target registry. It reads existing Docker credentials and never
-accepts credentials as arguments. Use `--dry-run` to inspect the complete service
-set without contacting Docker or either registry.
+accepts credentials as arguments. The advanced equivalent is:
+
+```bash
+just publish-images-local <target-prefix> sha-<HEAD8> \
+  --from <source-prefix> --alias main
+```
 
 To build and publish all image definitions from the clean local checkout instead,
 use the same command without `--from`; add `--rebuild` to replace already-present
