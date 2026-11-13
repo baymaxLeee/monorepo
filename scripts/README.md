@@ -181,32 +181,42 @@ service-specific end-to-end checks must also follow their owning routes.
 ### Registry mirror recovery
 
 `mirror-images` normally copies only rebuilt immutable images and retags reused
-digests. If cross-region registry access makes that unreliable, publish the exact
-clean local commit directly to the domestic registry instead of downloading
-images from GHCR.
+digests. If cross-region registry access makes that unreliable, prewarm the
+domestic registry from the exact immutable GHCR release. Rebuilding the same
+source locally is useful as a fallback, but package-manager and builder metadata
+can change layer digests, so it cannot guarantee that the later mirror transfer
+will hit every blob.
 
-Commit and verify the intended change first. After confirming Docker is
-authenticated to the target registry, run:
+Commit and verify the intended change first. Wait for `build-images` to publish
+the matching GHCR tag, log Docker in to both registries, and run:
 
 ```bash
 just publish-images-local \
   <domestic-registry>/<namespace> \
   sha-<current-HEAD8> \
+  --from ghcr.io/<owner>/<repository> \
   [service ...] \
   --alias main
 ```
 
 The command rejects dirty worktrees and tags that do not identify current HEAD.
-It uses the same contexts and Dockerfiles as `build-images`, builds `linux/amd64`
-locally, pushes immutable images directly to the target with bounded retries, and
-verifies each published digest. It publishes aliases only after the whole requested
-immutable set verifies, using an in-registry retag so layers are not uploaded
-twice. Re-running is resumable: existing immutable tags are skipped. It reads
-existing Docker credentials and never accepts credentials as arguments. Push the
-matching commit afterward and observe the GitHub build, mirror and deploy workflows;
-local publication alone is not deployment success.
+In `--from` mode it compares every source and target manifest digest, transfers
+only mismatches with bounded retries, verifies exact equality, and publishes
+aliases only after the whole requested immutable set verifies. Re-running is
+resumable because matching digests are skipped. This is the cache-guaranteeing
+path: the later mirror job references the same immutable GHCR manifests and finds
+their blobs in the target registry. It reads existing Docker credentials and never
+accepts credentials as arguments. Use `--dry-run` to inspect the complete service
+set without contacting Docker or either registry.
 
-For reliable builds from mainland China, the local command supplies domestic Go
+To build and publish all image definitions from the clean local checkout instead,
+use the same command without `--from`; add `--rebuild` to replace already-present
+immutable tags. This builds `linux/amd64` with the same contexts and Dockerfiles as
+CI, but its output is not asserted to have GHCR-identical digests. Push the matching
+commit and observe the GitHub build, mirror and deploy workflows; registry
+publication alone is not deployment success.
+
+For reliable local builds from mainland China, the command supplies domestic Go
 and Debian mirrors while every Dockerfile keeps its official default for CI.
 Override them when needed with `LOCAL_IMAGE_GOPROXY`, `LOCAL_IMAGE_GOSUMDB`,
 `LOCAL_IMAGE_DEBIAN_MIRROR`, `LOCAL_IMAGE_NPM_REGISTRY`, and

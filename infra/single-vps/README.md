@@ -247,18 +247,20 @@ machine whose Docker client is already logged in to the target registry:
 just publish-images-local \
   <domestic-registry>/<namespace> \
   sha-<current-HEAD8> \
+  --from ghcr.io/<owner>/<repository> \
   --alias main
 ```
 
-This requires a clean worktree, verifies that the tag names current HEAD, builds
-the official image definitions locally as `linux/amd64`, pushes them directly to
-the domestic registry, and updates `main` only after every requested immutable
-image is present. Pass explicit service names to resume a known subset. Never
+This requires a clean worktree, verifies that the tag names current HEAD, compares
+the immutable GHCR and domestic-registry digests, and updates `main` only after
+every requested image matches exactly. The matching `build-images` run must finish
+before this command. Pass explicit service names to resume a known subset. Never
 place registry passwords in the command, repository, shell history, or CI logs.
 Push the matching commit afterward and track `build-images`, `mirror-images`, and
-`deploy-single-vps`; local publication alone is not deployment success.
-The command uses domestic dependency mirrors for local builds; CI retains the
-official Dockerfile defaults. See the tooling guide for override variables.
+`deploy-single-vps`; registry publication alone is not deployment success. A local
+`linux/amd64` build without `--from` remains available as a fallback, but it cannot
+guarantee GHCR-identical layer digests. See the tooling guide for build mirror
+overrides and `--dry-run` usage.
 
 ### 3. One-time `docker login` on the VPS
 

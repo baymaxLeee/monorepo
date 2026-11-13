@@ -74,7 +74,7 @@ authorization, concurrency and retry changes need failure/cleanup coverage.
 | `just pre-commit [--all-files]` | Read-only staged checks / all tracked files |
 | `just ci-plan [base]` / `just ci [base]` | Preview / execute local CI with logs; includes committed changes |
 | `just push [remote] [branch]` | Verify clean HEAD against fresh remote main, then push the verified SHA |
-| `just publish-images-local <target> <sha-tag> [services...] [--alias main]` | Build the clean local HEAD as `linux/amd64`, push directly to a registry and verify every image |
+| `just publish-images-local <target> <sha-tag> [services...] [--from <source>] [--alias main]` | Build locally or sync exact immutable digests into a registry, then verify every image |
 | `just status` / `just doctor` | Repository/environment health |
 
 After code changes, run affected-target tests and builds. Test infrastructure
@@ -105,7 +105,7 @@ Do not weaken tests or suppress missing suites to obtain a pass. Inspect remote
 CI for the pushed SHA; local success does not establish deployment success.
 This workflow does not itself authorize a commit or push.
 
-When `mirror-images` fails on cross-region blob transfer, inspect the failed job first. Build the clean local HEAD with `just publish-images-local` and push it directly to the configured domestic registry; do not download release images from GHCR as a recovery path. The command must use the exact `sha-<HEAD8>` tag, build `linux/amd64`, and move `main` only after every requested immutable image verifies. Never embed credentials in commands/files. Local publication is registry recovery, not proof of deployment; push the matching commit and observe build, mirror and deploy afterward.
+When `mirror-images` fails on cross-region blob transfer, inspect the failed job first. For a guaranteed cache hit, use `just publish-images-local --from` to sync the exact immutable `sha-<HEAD8>` release from GHCR into the configured domestic registry; a local rebuild of the same source may produce different layer digests and is only a fallback publication path. The command must compare source and target digests and move `main` only after every requested immutable image verifies. Never use mutable source tags or embed credentials in commands/files. Registry recovery is not proof of deployment; observe build, mirror and deploy afterward.
 
 ## Editing and context discipline
 

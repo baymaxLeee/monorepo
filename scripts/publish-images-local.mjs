@@ -13,17 +13,29 @@ const tagPattern = /^[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}$/;
 export function parsePublishArgs(args) {
   const aliases = [];
   const positional = [];
+  let sourcePrefix = null;
+  let dryRun = false;
+  let rebuild = false;
   for (let index = 0; index < args.length; index++) {
     if (args[index] === "--alias") {
       const alias = args[++index];
       if (!alias || !tagPattern.test(alias)) throw new Error("--alias requires a valid OCI tag");
       aliases.push(alias);
-    } else positional.push(args[index]);
+    } else if (args[index] === "--from") {
+      sourcePrefix = args[++index];
+      if (!sourcePrefix || !referencePattern.test(sourcePrefix))
+        throw new Error("--from requires an OCI source prefix without credentials or shell syntax");
+    } else if (args[index] === "--dry-run") dryRun = true;
+    else if (args[index] === "--rebuild") rebuild = true;
+    else if (args[index].startsWith("--")) throw new Error(`Unknown option: ${args[index]}`);
+    else positional.push(args[index]);
   }
 
   const [targetPrefix, tag, ...requested] = positional;
   if (!targetPrefix || !tag)
-    throw new Error("Usage: just publish-images-local <target-prefix> <sha-tag> [services...] [--alias <tag>]");
+    throw new Error(
+      "Usage: just publish-images-local <target-prefix> <sha-tag> [services...] [--from <source-prefix>] [--alias <tag>] [--rebuild] [--dry-run]",
+    );
   if (!referencePattern.test(targetPrefix))
     throw new Error("Target prefix must be an OCI reference without credentials or shell syntax");
   if (!tagPattern.test(tag) || !/^sha-[a-f0-9]{8}$/.test(tag))
@@ -32,11 +44,16 @@ export function parsePublishArgs(args) {
   const services = requested.length > 0 ? requested : images.map(({ service }) => service);
   const unknown = services.filter((service) => !knownImages.has(service));
   if (unknown.length > 0) throw new Error(`Unknown image service(s): ${unknown.join(", ")}`);
+  if (sourcePrefix && rebuild)
+    throw new Error("--rebuild applies only to local builds and cannot be combined with --from");
   return {
     targetPrefix: targetPrefix.replace(/\/$/, ""),
+    sourcePrefix: sourcePrefix?.replace(/\/$/, "") ?? null,
     tag,
     services: [...new Set(services)],
     aliases: [...new Set(aliases)].filter((alias) => alias !== tag),
+    dryRun,
+    rebuild,
   };
 }
 
@@ -73,7 +90,7 @@ function runWithRetries(program, args, run, attempts = 3) {
   }
 }
 
-export function publishImages(options, run = command) {
+function validateRepository(options, run) {
   const revision = output("git", ["rev-parse", "HEAD"], run);
   const expectedTag = `sha-${revision.slice(0, 8)}`;
   if (options.tag !== expectedTag)
@@ -81,6 +98,66 @@ export function publishImages(options, run = command) {
   if (output("git", ["status", "--porcelain"], run))
     throw new Error("Working tree must be clean so the image tag identifies its exact source");
 
+  return revision;
+}
+
+function publishAliases(options, published, run) {
+  for (const alias of options.aliases) {
+    process.stdout.write(`→ publishing alias ${alias} after immutable set verification\n`);
+    for (const [service, image] of published) {
+      const targetAlias = `${options.targetPrefix}/${service}:${alias}`;
+      if (digest(targetAlias, run) === image.digest) continue;
+      runWithRetries(
+        "docker",
+        ["buildx", "imagetools", "create", "--prefer-index=false", "--tag", targetAlias, image.target],
+        run,
+      );
+      if (digest(targetAlias, run) !== image.digest) throw new Error(`Alias digest mismatch for ${targetAlias}`);
+    }
+  }
+}
+
+function printDryRun(options, revision) {
+  const action = options.sourcePrefix ? "sync exact digest" : options.rebuild ? "rebuild" : "build if absent";
+  process.stdout.write(`dry-run: ${action} for ${options.tag} at HEAD ${revision.slice(0, 8)}\n`);
+  for (const service of options.services) {
+    const source = options.sourcePrefix ? `${options.sourcePrefix}/${service}:${options.tag} -> ` : "";
+    process.stdout.write(`  ${source}${options.targetPrefix}/${service}:${options.tag}\n`);
+  }
+  for (const alias of options.aliases) process.stdout.write(`  alias after verification: ${alias}\n`);
+}
+
+function syncExactImages(options, run) {
+  const published = new Map();
+
+  for (const service of options.services) {
+    const source = `${options.sourcePrefix}/${service}:${options.tag}`;
+    const target = `${options.targetPrefix}/${service}:${options.tag}`;
+    const sourceDigest = digest(source, run);
+    if (!sourceDigest) throw new Error(`Source image is unavailable: ${source}`);
+
+    if (digest(target, run) !== sourceDigest) {
+      process.stdout.write(`→ syncing ${service}:${options.tag} as exact digest ${sourceDigest}\n`);
+      runWithRetries(
+        "docker",
+        ["buildx", "imagetools", "create", "--prefer-index=false", "--tag", target, source],
+        run,
+      );
+    } else process.stdout.write(`✓ ${service}:${options.tag} already matches ${sourceDigest}\n`);
+
+    const targetDigest = digest(target, run);
+    if (targetDigest !== sourceDigest)
+      throw new Error(
+        `Digest mismatch for ${target}: expected ${sourceDigest}, received ${targetDigest ?? "unavailable"}`,
+      );
+    process.stdout.write(`✓ ${service}:${options.tag} verified ${targetDigest}\n`);
+    published.set(service, { target, digest: targetDigest });
+  }
+
+  publishAliases(options, published, run);
+}
+
+function buildLocalImages(options, revision, run) {
   const repository = output("git", ["config", "--get", "remote.origin.url"], run)
     .replace(/^git@github\.com:/, "https://github.com/")
     .replace(/\.git$/, "");
@@ -96,7 +173,7 @@ export function publishImages(options, run = command) {
     const image = knownImages.get(service);
     const target = `${options.targetPrefix}/${service}:${options.tag}`;
     const existing = digest(target, run);
-    if (existing) {
+    if (existing && !options.rebuild) {
       process.stdout.write(`✓ ${service}:${options.tag} already exists as ${existing}\n`);
       published.set(service, { target, digest: existing });
       continue;
@@ -146,19 +223,17 @@ export function publishImages(options, run = command) {
     published.set(service, { target, digest: targetDigest });
   }
 
-  for (const alias of options.aliases) {
-    process.stdout.write(`→ publishing alias ${alias} after immutable set verification\n`);
-    for (const [service, image] of published) {
-      const targetAlias = `${options.targetPrefix}/${service}:${alias}`;
-      if (digest(targetAlias, run) === image.digest) continue;
-      runWithRetries(
-        "docker",
-        ["buildx", "imagetools", "create", "--prefer-index=false", "--tag", targetAlias, image.target],
-        run,
-      );
-      if (digest(targetAlias, run) !== image.digest) throw new Error(`Alias digest mismatch for ${targetAlias}`);
-    }
+  publishAliases(options, published, run);
+}
+
+export function publishImages(options, run = command) {
+  const revision = validateRepository(options, run);
+  if (options.dryRun) {
+    printDryRun(options, revision);
+    return;
   }
+  if (options.sourcePrefix) syncExactImages(options, run);
+  else buildLocalImages(options, revision, run);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
