@@ -21,6 +21,7 @@ export function Component() {
   useEffect(() => {
     if (!bridge || !id) return;
     let mounted = true;
+    let activeLoaded = false;
     const transport = new LocalChatTransport(bridge, id);
     setLoaded(null);
     setError(null);
@@ -28,17 +29,26 @@ export function Component() {
     setFilePath(null);
     setDirty(false);
     setCloseBlocked(false);
-    void transport
-      .load()
-      .then((thread) => {
-        if (mounted) setLoaded({ thread, transport });
-        else transport.dispose();
-      })
-      .catch((cause) => {
-        if (mounted) setError(getErrorMessage(cause));
-      });
+    const load = () =>
+      void transport
+        .load()
+        .then((thread) => {
+          if (mounted) {
+            activeLoaded = true;
+            setError(null);
+            setLoaded({ thread, transport });
+          } else transport.dispose();
+        })
+        .catch((cause) => {
+          if (mounted) setError(getErrorMessage(cause));
+        });
+    load();
+    const off = bridge.subscribe((event) => {
+      if (event.type === "runtime-ready" && !activeLoaded) load();
+    });
     return () => {
       mounted = false;
+      off();
       transport.dispose();
     };
   }, [bridge, id]);

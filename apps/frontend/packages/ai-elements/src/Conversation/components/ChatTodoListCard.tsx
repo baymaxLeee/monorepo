@@ -1,8 +1,8 @@
 import { Plan, PlanContent, PlanHeader, Task, TaskTitle } from "@repo/ai-elements";
 import { isToolUIPart, type UIMessage } from "ai";
 
+import { parseArtifactOutput } from "../lib/artifact-output";
 import { parseToolOutcome, toolOutcomePayload } from "../lib/tool-outcome";
-import { parseArtifactOutput } from "./ChatArtifactCard";
 import { parseGenerateImageOutput } from "./ChatImageCard";
 import { parseCreateVideoProductionOutput } from "./ChatVideoCard";
 

@@ -11,7 +11,6 @@ import {
   ToolHeader,
   ToolJsonBlock,
 } from "@repo/ai-elements";
-import { type ConversationDocument } from "@repo/api/chat";
 import { getToolName, type UIMessage } from "ai";
 
 import { parseAskUserInput } from "../lib/ask-user";
@@ -19,7 +18,6 @@ import { isClientTool } from "../lib/conversation-messages";
 import { parseToolOutcome } from "../lib/tool-outcome";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
-import { ArtifactDocumentCard, parseArtifactOutput } from "./ChatArtifactCard";
 import { ChatImageCard } from "./ChatImageCard";
 import { ChatSubagents } from "./ChatSubagents";
 import { ChatTerminalTool } from "./ChatTerminalTool";
@@ -34,8 +32,6 @@ import { ChatVideoCard } from "./ChatVideoCard";
 export function ChatToolPart({
   part,
   conversationId,
-  documents,
-  latestTodoCallId,
   deliverableCompletion,
   onOpenArtifact,
   onAnswerClientTool,
@@ -43,8 +39,6 @@ export function ChatToolPart({
 }: {
   part: Extract<UIMessage["parts"][number], { toolCallId: string }>;
   conversationId: string;
-  documents: Map<string, ConversationDocument>;
-  latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
   onOpenArtifact?: (documentId: string) => void;
   onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
@@ -52,12 +46,6 @@ export function ChatToolPart({
 }) {
   const toolName = getToolName(part);
   const kind = toolUiKind(part);
-  if (toolIsInternal(part)) {
-    return null;
-  }
-  if (kind === "todo-list" && part.toolCallId !== latestTodoCallId) {
-    return null;
-  }
   const input = "input" in part ? part.input : undefined;
   const rawInput = "rawInput" in part ? compactRawInput(part.rawInput) : undefined;
   const output = "output" in part ? part.output : undefined;
@@ -177,24 +165,11 @@ export function ChatToolPart({
   }
 
   const outputErrorReason = parseToolOutputError(output);
-  const artifact = kind === "artifact" ? parseArtifactOutput(output) : null;
   const askUserInput =
     kind === "ask-user" && toolName === "ask_user" && !part.providerExecuted && isClientTool(part)
       ? parseAskUserInput(input)
       : null;
   const todoList = kind === "todo-list" ? parseTodoListOutput(output) : null;
-
-  if (artifact?.documentId && onOpenArtifact) {
-    const documentId = artifact.documentId;
-    return (
-      <ArtifactDocumentCard
-        document={documents.get(documentId)}
-        documentId={documentId}
-        fallback={artifact}
-        onOpen={() => onOpenArtifact(documentId)}
-      />
-    );
-  }
 
   const hasError = part.state === "output-error" || outputErrorReason != null;
   const todoSettled = todoList != null && isTodoListSettled(todoList.todos, deliverableCompletion);
@@ -251,17 +226,6 @@ function toolUiKind(part: Extract<UIMessage["parts"][number], { toolCallId: stri
   }
   const value = agent as Record<string, unknown>;
   return typeof value.uiKind === "string" ? value.uiKind : null;
-}
-
-function toolIsInternal(part: Extract<UIMessage["parts"][number], { toolCallId: string }>): boolean {
-  if (!("toolMetadata" in part) || !part.toolMetadata) {
-    return false;
-  }
-  const agent = part.toolMetadata.agent;
-  if (!agent || typeof agent !== "object" || Array.isArray(agent)) {
-    return false;
-  }
-  return (agent as Record<string, unknown>).visibility === "internal";
 }
 
 function parseToolOutputError(output: unknown): string | null {

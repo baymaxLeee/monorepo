@@ -27,7 +27,6 @@ export interface AgentToolPolicy {
   modes: AgentMode[];
   source: ToolSource;
   uiKind?: "artifact" | "ask-user" | "image-gallery" | "todo-list" | "video" | "terminal" | "subagent";
-  visibility?: "visible" | "internal";
 }
 
 export interface AgentToolPlanning {

@@ -40,6 +40,7 @@ export type DesktopEvent =
   | { type: "stream"; threadId: string; segmentId: string; index: number; chunk: UIMessageChunk | null }
   | { type: "thread"; thread: LocalThread }
   | { type: "files"; threadId: string; paths: string[] }
+  | { type: "runtime-ready" }
   | { type: "runtime-error"; message: string };
 
 // Only these capabilities cross preload. No arbitrary channel, path grant,

@@ -27,6 +27,6 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 - `packages/ai-elements/src/Conversation/components/ConversationSessionView.tsx` — the single cloud/local session frame; controllers inject issue, composer and optional header actions
 - Route entry modules export the named `Component` expected by `route.lazy`
 - `packages/ai-elements/src/Conversation/components/ChatMessageView.tsx` — native message-part rendering
-- `packages/ai-elements/src/Conversation/components/ChatArtifactCard.tsx` — persisted plan / artifact card UI
+- `packages/ai-elements/src/Conversation/lib/artifact-output.ts` — artifact tool-output parsing for derived todo status
 - `src/components/ChatTracePanel.tsx` — run observability
 - `@repo/ai-elements/conversation/store/useChatStore` — shared conversation UI implementation; each remote keeps its own bundle instance

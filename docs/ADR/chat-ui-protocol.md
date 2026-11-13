@@ -251,7 +251,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 | 模型直接输出图片/文件 | assistant `file` part | 文件发布后展示预览/下载卡，保留 MIME、filename 和原生 metadata |
 | 云端 `upload_artifacts` 发布产物 | 一个批量 `tool-*` 终态 output + 每文件一个 `data-file` | 工具结果保留调用、审批、失败与执行记录；成功文件在正文显示紧凑 file tag |
 
-`upload_artifacts → tool-upload_artifacts.output.files[] → data-file → ChatFileTag` 是文件发布的生成式 UI。工具 part 保留在消息历史供 harness 连续性、审批和错误诊断使用；当对应 `data-file` 已存在时前端隐藏成功工具卡，避免重复。这里的 `data-file` 是持久、有类型的 AI SDK data part，不是模型生成的 HTML/XML 标记，也不冒充原生附件 `file` part。本地不制造上传 tool part，而是在 `finish` 前从已验证的真实文件变更生成同一终态 `data-file`。
+`upload_artifacts → tool-upload_artifacts.output.files[] → data-file → ChatFileTag` 是文件发布的生成式 UI。工具 part 按通用规则始终可观测，展示调用、审批、进度、成功或错误，但不再渲染专用预览卡；`data-file` 另行表达可访问的正文文件终态。这里的 `data-file` 是持久、有类型的 AI SDK data part，不是模型生成的 HTML/XML 标记，也不冒充原生附件 `file` part。本地不制造上传 tool part，而是在 `finish` 前从已验证的真实文件变更生成同一终态 `data-file`。
 
 ### 9.2 文件发布与访问
 

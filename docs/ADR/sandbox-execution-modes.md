@@ -131,6 +131,9 @@ Web 不渲染执行位置选择器并固定创建云端会话；已有会话的�
 - 运行中 composer 保持可编辑；补充内容经带 `expectedTurnId` 的受限 IPC admission 调用 `steer()`，进入该 turn 唯一的 AI SDK steering 通道，并在 editor 上方显示到 SDK 确认于下一个 step 投递。`not_delivered` 保留为可见失败状态，不自动成为下一 turn；应用崩溃前仅确认 admission、未确认模型接收的输入标记 `unconfirmed`，同样不自动重放。已投递内容由官方 `steering-message` part 进入本地 journal，不能再复制一条用户消息。
 - 窗口重载/关闭保留 utility 任务（macOS 应用仍在后台）；退出应用停止执行。
   崩溃恢复仅恢复 journal，并将运行中工作标记 interrupted，不重放未完成工具。
+- utility 进程意外退出后，Electron main 只允许一次替代进程恢复同一 scope journal；
+  原 IPC 调用失败且不重放，`runtime-ready` 后客户端重新读取权威 thread。替代进程再次退出则
+  fail closed 并要求重启，不能形成无限崩溃循环。
   实现验证含真实 Electron + mock provider 集成和真实 macOS 沙箱测试；不代表真实
   provider、分发签名或所有 macOS 版本验收。
 

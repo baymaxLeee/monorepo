@@ -55,6 +55,23 @@ export function LocalSession({
   useEffect(() => {
     const off = bridge.subscribe((event) => {
       if (event.type === "runtime-error") setError(event.message);
+      if (event.type === "runtime-ready") {
+        setError(null);
+        void transport
+          .load()
+          .then(async (thread) => {
+            chat.messages = thread.messages as ChatUIMessage[];
+            setState({
+              title: thread.title,
+              status: thread.status,
+              turnId: thread.turnId,
+              error: thread.error,
+              pendingInputs: thread.pendingInputs,
+            });
+            await chat.resumeStream();
+          })
+          .catch((cause) => setError(getErrorMessage(cause)));
+      }
       if (event.type === "thread" && event.thread.id === initial.id) {
         setState({
           title: event.thread.title,
@@ -105,7 +122,6 @@ export function LocalSession({
       onStatusChange={setStatus}
       conversationId={initial.id}
       loading={false}
-      conversationDocuments={[]}
       branches={[]}
       onToolApproval={(id, accepted) => void approve(id, accepted)}
       onOpenWorkspaceFile={onOpenFile}

@@ -1,5 +1,4 @@
 import { ConversationEmptyState } from "@repo/ai-elements";
-import { type ConversationDocument } from "@repo/api/chat";
 import { Button, MessageScrollerItem, Spinner } from "@repo/design-system";
 import { memo, useEffect, useMemo, useState } from "react";
 
@@ -48,7 +47,6 @@ type ChatTranscriptProps = Pick<
   messages: ChatUIMessage[];
   status: "submitted" | "streaming" | "ready" | "error";
   loading: boolean;
-  conversationDocuments: ConversationDocument[];
   branches: NonNullable<ChatMessageViewProps["branch"]>[];
 };
 
@@ -85,7 +83,6 @@ export const ChatTranscript = memo(function ChatTranscript({
   messages,
   status,
   loading,
-  conversationDocuments,
   branches,
   onOpenArtifact,
   onOpenFile,
@@ -111,13 +108,6 @@ export const ChatTranscript = memo(function ChatTranscript({
   const busy = status === "streaming" || status === "submitted";
   const showThinkingPlaceholder =
     status === "submitted" || (status === "streaming" && isPendingAssistantMessage(messages.at(-1)));
-  const documents = useMemo(() => {
-    const map = new Map<string, ConversationDocument>();
-    for (const document of conversationDocuments) {
-      map.set(document.id, document);
-    }
-    return map;
-  }, [conversationDocuments]);
   const latestTodoCallId = useMemo(() => findLatestUpdateTodosCallId(messages), [messages]);
   const deliverableCompletion = useMemo(
     () => collectDeliverableCompletion(messages, latestTodoCallId),
@@ -157,8 +147,6 @@ export const ChatTranscript = memo(function ChatTranscript({
               message={message}
               conversationId={conversationId}
               streaming={busy && message === messages.at(-1)}
-              documents={documents}
-              latestTodoCallId={latestTodoCallId}
               deliverableCompletion={deliverableCompletion}
               onOpenArtifact={onOpenArtifact}
               onOpenFile={onOpenFile}

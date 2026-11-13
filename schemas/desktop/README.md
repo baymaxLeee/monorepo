@@ -13,6 +13,12 @@ and deduplicates subsequent segment/index envelopes. A null chunk ends only the
 subscription. Stop is a separate command. Reload never re-executes tools; after
 process loss the SQLite journal marks incomplete work interrupted.
 
+If the Electron utility process exits unexpectedly, the trusted host starts one
+replacement, reopens the same scoped journal, and emits `runtime-ready` after
+recovery. The interrupted IPC call is rejected and is never replayed; consumers
+reload authoritative thread state before accepting another action. A replacement
+that also exits fails closed and requires an application restart.
+
 `inference.ts` is the authoritative runtime validator for the separate
 LanguageModelV4 inference relay. Desktop and Chat compile identical generated
 validators. The only endpoints are IAM-scoped Chat `/local-inference/config`

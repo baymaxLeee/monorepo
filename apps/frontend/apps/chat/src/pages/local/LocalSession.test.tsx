@@ -1,6 +1,6 @@
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
-import type { DesktopBridge, LocalThread } from "@repo/runtime/desktop";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { DesktopBridge, DesktopEvent, LocalThread } from "@repo/runtime/desktop";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode, Ref } from "react";
 import { expect, test, vi } from "vitest";
 
@@ -88,8 +88,12 @@ function fixture() {
     messages: [],
   };
   const off = vi.fn();
+  let listener: ((event: DesktopEvent) => void) | null = null;
   const bridge = {
-    subscribe: vi.fn(() => off),
+    subscribe: vi.fn((next) => {
+      listener = next;
+      return off;
+    }),
     approve: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
     send: vi.fn(async () => {}),
@@ -97,7 +101,7 @@ function fixture() {
     openStream: vi.fn(async () => ({ thread, segment: null })),
   } as unknown as DesktopBridge;
   const transport = new LocalChatTransport(bridge, thread.id);
-  return { thread, bridge, transport, off };
+  return { thread, bridge, transport, off, emit: (event: DesktopEvent) => listener?.(event) };
 }
 
 test("clears a submitted local prompt immediately and uses the task-oriented placeholder", async () => {
@@ -177,4 +181,16 @@ test("navigation detaches the local subscriber; only explicit Stop stops the run
   render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />);
   fireEvent.click(screen.getByText("停止测试"));
   await waitFor(() => expect(f.bridge.stop).toHaveBeenCalledWith("local"));
+});
+
+test("reloads the persisted journal when the native runtime recovers", async () => {
+  const f = fixture();
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />);
+
+  act(() => f.emit({ type: "runtime-error", message: "正在恢复" }));
+  expect(screen.getByRole("alert").textContent).toContain("正在恢复");
+  act(() => f.emit({ type: "runtime-ready" }));
+
+  await waitFor(() => expect(f.bridge.openStream).toHaveBeenCalledWith("local"));
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
 });

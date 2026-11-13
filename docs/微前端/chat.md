@@ -29,8 +29,8 @@
   后端把该不可变 Plan 导入 `/workspace/sources/saved/<file_id>/`，runtime contract 要求先用
   Bash 完整读取。执行结束后按钮变为“再次执行”而不是永久禁用，后续点击仍携带稳定 id，
   不依赖长对话里的旧计划内容。
-- `upload_artifacts` 的官方批量 tool output 携带 `files[]`；流层逐文件生成 `data-file`，并按
-  `uiKind: artifact` 渲染 Artifact 卡；它不会被复制成原生 `file` part。原生 model
+- `upload_artifacts` 的官方批量 tool output 携带 `files[]`；tool part 按通用工具 UI 保持可观测，
+  不使用专用预览卡；流层另逐文件生成 `data-file` 正文 file tag，且不复制成原生 `file` part。原生 model
   `file`/`reasoning-file` 仍按文件 part 呈现，两类产物保持不同协议语义。
 - HTML artifact 使用独立右侧普通 iframe，按浏览器原生语义开放脚本、模块、表单、
   存储、导航、Canvas/WebGL、Worker、媒体和交互能力，不维护 sandbox allow-list。

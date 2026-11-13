@@ -5,7 +5,6 @@ import {
   ReasoningTrigger,
   type SourceItem,
 } from "@repo/ai-elements";
-import { type ConversationDocument } from "@repo/api/chat";
 import { Badge, Spinner } from "@repo/design-system";
 import { isFileUIPart, isReasoningFileUIPart, isToolUIPart } from "ai";
 import { SparklesIcon } from "lucide-react";
@@ -25,8 +24,6 @@ export function ChatMessagePart({
   conversationId,
   streaming,
   variant,
-  documents,
-  latestTodoCallId,
   deliverableCompletion,
   onOpenArtifact,
   onOpenFile,
@@ -46,8 +43,6 @@ export function ChatMessagePart({
   conversationId: string;
   streaming: boolean;
   variant: "user" | "assistant";
-  documents: Map<string, ConversationDocument>;
-  latestTodoCallId: string | null;
   deliverableCompletion: DeliverableCompletion;
   onOpenArtifact?: (documentId: string) => void;
   onOpenFile?: (fileId: string) => void;
@@ -189,8 +184,6 @@ export function ChatMessagePart({
         <ToolPartView
           part={part}
           conversationId={conversationId}
-          documents={documents}
-          latestTodoCallId={latestTodoCallId}
           deliverableCompletion={deliverableCompletion}
           onOpenArtifact={onOpenArtifact}
           onAnswerClientTool={onAnswerClientTool}

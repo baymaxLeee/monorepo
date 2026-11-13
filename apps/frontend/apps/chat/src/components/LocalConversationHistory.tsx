@@ -21,7 +21,10 @@ export function LocalConversationHistory({ onSelect }: { onSelect: () => void })
       void bridge
         .listThreads()
         .then((items) => {
-          if (mounted) setThreads(items);
+          if (mounted) {
+            setError(null);
+            setThreads(items);
+          }
         })
         .catch((cause) => {
           if (mounted) setError(getErrorMessage(cause));
@@ -29,6 +32,8 @@ export function LocalConversationHistory({ onSelect }: { onSelect: () => void })
     load();
     const off = bridge.subscribe((event) => {
       if (event.type === "thread") load();
+      if (event.type === "runtime-ready") load();
+      if (event.type === "runtime-error") setError(event.message);
     });
     return () => {
       mounted = false;

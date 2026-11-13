@@ -16,8 +16,6 @@ vi.stubGlobal(
 const props: Omit<ChatMessageViewProps, "message"> = {
   conversationId: "conversation",
   streaming: true,
-  documents: new Map(),
-  latestTodoCallId: null,
   deliverableCompletion: { artifact: [], image: [], video: [] },
   onOpenArtifact: vi.fn(),
   onOpenFile: vi.fn(),
@@ -75,6 +73,56 @@ test("tool failure surfaces its reason without an extra click", async () => {
   expect(screen.getByRole("button", { name: /fetch\s*失败/ }).getAttribute("aria-expanded")).toBe("true");
 });
 
+test("tool metadata cannot hide a tool call", async () => {
+  render(
+    message({
+      ...running,
+      toolName: "previously_internal",
+      toolMetadata: { agent: { visibility: "internal" } },
+    }),
+  );
+  expect(await screen.findByRole("button", { name: /previously_internal\s*执行中/ })).toBeTruthy();
+});
+
+test("superseded todo tool calls remain observable", async () => {
+  render(
+    <ChatMessageView
+      {...props}
+      message={{
+        id: "message",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-update_todos",
+            toolCallId: "older-todo",
+            state: "output-available",
+            input: {},
+            toolMetadata: { agent: { uiKind: "todo-list" } },
+            output: {
+              ok: true,
+              status: "completed",
+              data: { todos: [{ id: "task", content: "旧计划", status: "completed" }] },
+            },
+          },
+          {
+            type: "tool-update_todos",
+            toolCallId: "newer-todo",
+            state: "output-available",
+            input: {},
+            toolMetadata: { agent: { uiKind: "todo-list" } },
+            output: {
+              ok: true,
+              status: "completed",
+              data: { todos: [{ id: "task", content: "新计划", status: "completed" }] },
+            },
+          },
+        ],
+      }}
+    />,
+  );
+  expect(await screen.findAllByRole("button", { name: /update_todos\s*已完成/ })).toHaveLength(2);
+});
+
 test("structured tool failures drive the native header state", async () => {
   render(
     message({
@@ -92,7 +140,7 @@ test("structured tool failures drive the native header state", async () => {
   expect(screen.queryByRole("button", { name: /fetch\s*已完成/ })).toBeNull();
 });
 
-test("persistent file data replaces the cloud upload tool and opens a local workspace file", () => {
+test("cloud upload stays observable beside the persistent local file tag", () => {
   const fileId = "a".repeat(32);
   render(
     <ChatMessageView
@@ -143,9 +191,28 @@ test("persistent file data replaces the cloud upload tool and opens a local work
       }}
     />,
   );
+  expect(screen.getByRole("button", { name: /upload_artifacts\s*已完成/ })).toBeTruthy();
   expect(screen.getAllByText("demo.js")).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: "打开文件 demo.js" }));
   expect(props.onOpenWorkspaceFile).toHaveBeenCalledWith("src/demo.js");
+});
+
+test("artifact metadata never replaces the observable tool shell with a preview card", () => {
+  render(
+    message({
+      ...running,
+      toolName: "publish_artifact",
+      state: "output-available",
+      toolMetadata: { agent: { uiKind: "artifact" } },
+      output: {
+        ok: true,
+        status: "completed",
+        data: { document_id: "document", filename: "report.md", title: "Report" },
+      },
+    }),
+  );
+  expect(screen.getByRole("button", { name: /publish_artifact\s*已完成/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "预览" })).toBeNull();
 });
 
 test("cloud file data opens the durable conversation file", () => {

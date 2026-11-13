@@ -387,7 +387,6 @@ export function ChatSession({
       resume={!loading && detail?.id === id && Boolean(detail.active_run_id)}
       conversationId={id}
       loading={loading}
-      conversationDocuments={detail?.documents ?? EMPTY_DOCUMENTS}
       branches={detail?.branches ?? []}
       scrollRef={conversationScrollRef}
       onStatusChange={setStatus}
