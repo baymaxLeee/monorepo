@@ -1,5 +1,7 @@
 FROM node:24.18.0-slim
 ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+ARG COREPACK_NPM_REGISTRY=https://registry.npmjs.org
+ENV npm_config_registry=${NPM_CONFIG_REGISTRY}
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
@@ -13,7 +15,8 @@ WORKDIR /app/apps/backend
 # @backend/transport-ts is a source-only workspace dep; it pulls openapi-fetch
 # at runtime. Install chat plus that workspace dep with a hoisted layout so
 # openapi-fetch sits at the top level where the source import resolves it.
-RUN pnpm install --filter chat... --prod --frozen-lockfile --config.node-linker=hoisted
+RUN pnpm install --filter chat... --prod --frozen-lockfile --config.node-linker=hoisted \
+    --config.registry=${NPM_CONFIG_REGISTRY}
 COPY apps/backend/libs/agent-runtime-ts ./libs/agent-runtime-ts
 COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
 COPY apps/backend/libs/transport-ts ./libs/transport-ts

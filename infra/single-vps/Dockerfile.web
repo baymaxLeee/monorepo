@@ -16,6 +16,8 @@
 
 FROM node:24.18.0-alpine AS builder
 ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+ARG COREPACK_NPM_REGISTRY=https://registry.npmjs.org
+ENV npm_config_registry=${NPM_CONFIG_REGISTRY}
 
 # Corepack reads the repository root packageManager declaration.
 RUN corepack enable
@@ -38,7 +40,8 @@ COPY apps/backend/libs/agent-runtime-ts ./apps/backend/libs/agent-runtime-ts
 WORKDIR /app/apps/frontend
 
 # The Web image never launches Electron or needs its platform binary.
-RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install --frozen-lockfile
+RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install --frozen-lockfile \
+    --config.registry=${NPM_CONFIG_REGISTRY}
 
 # Build-time configuration. Empty API_BASE_URL → same-origin (nginx proxy).
 # MFE remote entries use path-only URLs so they resolve to whatever origin

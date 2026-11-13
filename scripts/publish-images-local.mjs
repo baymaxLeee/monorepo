@@ -88,7 +88,8 @@ export function publishImages(options, run = command) {
   const goProxy = process.env.LOCAL_IMAGE_GOPROXY ?? "https://proxy.golang.com.cn";
   const goSumDb = process.env.LOCAL_IMAGE_GOSUMDB ?? "sum.golang.google.cn";
   const debianMirror = process.env.LOCAL_IMAGE_DEBIAN_MIRROR ?? "repo.huaweicloud.com";
-  const npmRegistry = process.env.LOCAL_IMAGE_NPM_REGISTRY ?? "https://registry.npmmirror.com";
+  const npmRegistry = process.env.LOCAL_IMAGE_NPM_REGISTRY ?? "https://registry.npmjs.org";
+  const corepackRegistry = process.env.LOCAL_IMAGE_COREPACK_NPM_REGISTRY ?? "https://registry.npmjs.org";
   const published = new Map();
 
   for (const service of options.services) {
@@ -121,6 +122,8 @@ export function publishImages(options, run = command) {
         `DEBIAN_MIRROR=${debianMirror}`,
         "--build-arg",
         `NPM_CONFIG_REGISTRY=${npmRegistry}`,
+        "--build-arg",
+        `COREPACK_NPM_REGISTRY=${corepackRegistry}`,
         "--file",
         image.dockerfile,
         "--tag",

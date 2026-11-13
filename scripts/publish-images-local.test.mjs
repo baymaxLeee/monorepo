@@ -44,7 +44,8 @@ test("local publish builds exact HEAD and delays aliases until every immutable i
         call.includes("GOPROXY=https://proxy.golang.com.cn") &&
         call.includes("GOSUMDB=sum.golang.google.cn") &&
         call.includes("DEBIAN_MIRROR=repo.huaweicloud.com") &&
-        call.includes("NPM_CONFIG_REGISTRY=https://registry.npmmirror.com"),
+        call.includes("NPM_CONFIG_REGISTRY=https://registry.npmjs.org") &&
+        call.includes("COREPACK_NPM_REGISTRY=https://registry.npmjs.org"),
     ),
   );
   assert.ok(firstAlias > lastBuild);

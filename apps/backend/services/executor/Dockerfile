@@ -1,5 +1,7 @@
 FROM node:24.18.0-slim AS build
 ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+ARG COREPACK_NPM_REGISTRY=https://registry.npmjs.org
+ENV npm_config_registry=${NPM_CONFIG_REGISTRY}
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
@@ -10,7 +12,7 @@ COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-t
 COPY apps/backend/services/executor/package.json ./apps/backend/services/executor/package.json
 WORKDIR /app/apps/backend
 # Full install (incl. devDeps: nitro/rollup are needed to build).
-RUN pnpm install --filter executor... --frozen-lockfile
+RUN pnpm install --filter executor... --frozen-lockfile --config.registry=${NPM_CONFIG_REGISTRY}
 COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
 COPY apps/backend/libs/transport-ts ./libs/transport-ts
 COPY apps/backend/services/executor ./services/executor

@@ -2,6 +2,8 @@ FROM docker:29-cli AS docker
 FROM registry.k8s.io/kubectl:v1.35.0 AS kubectl
 FROM node:24.18.0-slim
 ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+ARG COREPACK_NPM_REGISTRY=https://registry.npmjs.org
+ENV npm_config_registry=${NPM_CONFIG_REGISTRY}
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
@@ -12,7 +14,8 @@ COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnp
 COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
 COPY apps/backend/services/sandbox/package.json ./apps/backend/services/sandbox/package.json
 WORKDIR /app/apps/backend
-RUN pnpm install --filter sandbox... --prod --frozen-lockfile --config.node-linker=hoisted
+RUN pnpm install --filter sandbox... --prod --frozen-lockfile --config.node-linker=hoisted \
+    --config.registry=${NPM_CONFIG_REGISTRY}
 COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
 COPY apps/backend/services/sandbox/src ./services/sandbox/src
 WORKDIR /app/apps/backend/services/sandbox
