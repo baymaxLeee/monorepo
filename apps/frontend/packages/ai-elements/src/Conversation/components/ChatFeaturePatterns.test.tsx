@@ -4,7 +4,16 @@ import { expect, test, vi } from "vitest";
 
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { ChatCitedResponse } from "./ChatCitedResponse";
+import { ChatComposerControls } from "./ChatComposerControls";
 import { collectDeliverableCompletion } from "./ChatTodoListCard";
+
+test("shared composer controls keep a non-interactive local agent visually aligned", () => {
+  render(<ChatComposerControls agents={[{ id: "local", name: "baymax" }]} selectedAgentId="local" mode="normal" />);
+
+  expect(screen.getByText("Agent")).toBeTruthy();
+  expect(screen.getByText("baymax")).toBeTruthy();
+  expect(screen.queryByRole("button")).toBeNull();
+});
 
 for (const [text, startIndex, endIndex] of [
   ["First.\n\nSecond paragraph.", 0, 5],

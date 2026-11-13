@@ -1,11 +1,17 @@
 import { Chat } from "@ai-sdk/react";
-import type { ConversationScrollHandle } from "@repo/ai-elements";
-import { ChatPrompt, ConversationSessionView, type ChatUIMessage } from "@repo/ai-elements/conversation";
+import { ContextUsage, type ConversationScrollHandle } from "@repo/ai-elements";
+import {
+  ChatComposerControls,
+  ChatPrompt,
+  ConversationSessionView,
+  type ChatUIMessage,
+} from "@repo/ai-elements/conversation";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
+import { getLocalInferenceConfig, type GetLocalInferenceConfig200 } from "@repo/api/chat";
 import { Button } from "@repo/design-system";
 import type { DesktopBridge, LocalThread } from "@repo/runtime/desktop";
 import { randomId, getErrorMessage } from "@repo/shared";
-import { FolderIcon } from "lucide-react";
+import { FolderIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { LocalChatTransport } from "./transport";
@@ -24,6 +30,7 @@ export function LocalSession({
   onOpenFile?: (path: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [inferenceConfig, setInferenceConfig] = useState<GetLocalInferenceConfig200 | null>(null);
   const promptRef = useRef<PromptInputRef>(null);
   const pendingPrompt = useRef<PromptInputValue | null>(null);
   const pendingSteers = useRef(new Map<string, PromptInputValue>());
@@ -52,6 +59,18 @@ export function LocalSession({
   });
   const approving = useRef(false);
   const scrollRef = useRef<ConversationScrollHandle>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void getLocalInferenceConfig(initial.agentId ? { agent_id: initial.agentId } : undefined, {
+      signal: controller.signal,
+      skipErrorNotify: true,
+    })
+      .then((config) => {
+        if (!controller.signal.aborted) setInferenceConfig(config);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [initial.agentId]);
   useEffect(() => {
     const off = bridge.subscribe((event) => {
       if (event.type === "runtime-error") setError(event.message);
@@ -187,9 +206,36 @@ export function LocalSession({
               });
           }}
           footerRender={() => (
-            <span className="max-w-48 truncate text-xs text-muted-foreground" title={initial.workspace}>
-              {initial.workspace.split("/").at(-1)}
-            </span>
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="rounded-full"
+                aria-label="浏览工作区文件"
+                onClick={onOpenFiles}
+              >
+                <PlusIcon />
+              </Button>
+              <ChatComposerControls
+                agents={[
+                  {
+                    id: inferenceConfig?.agentId ?? "local-default",
+                    name: inferenceConfig?.agentName ?? "默认 Agent",
+                  },
+                ]}
+                selectedAgentId={inferenceConfig?.agentId ?? "local-default"}
+                mode="normal"
+              />
+              <span
+                className="flex h-8 max-w-48 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground"
+                title={initial.workspace}
+              >
+                <FolderIcon className="size-3.5 shrink-0" />
+                <span className="truncate">{initial.workspace.split("/").at(-1)}</span>
+              </span>
+              <ContextUsage value={null} loading={busy} />
+            </>
           )}
         />
       }

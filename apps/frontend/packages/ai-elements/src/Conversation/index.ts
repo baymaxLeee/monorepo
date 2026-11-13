@@ -5,6 +5,7 @@ export { ChatWorkspacePanel } from "./components/ChatWorkspacePanel";
 
 export { ChatStream } from "./components/ChatStream";
 export { ChatPrompt } from "./components/ChatPrompt";
+export { ChatComposerControls } from "./components/ChatComposerControls";
 export { ConversationSessionView } from "./components/ConversationSessionView";
 export type { PendingAgentInput } from "./components/PendingInputStack";
 export { ExecutionLocation } from "./components/ExecutionLocation";

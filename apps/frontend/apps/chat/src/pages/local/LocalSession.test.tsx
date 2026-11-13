@@ -17,6 +17,19 @@ const promptApi = vi.hoisted(() => ({
     files: {},
   })),
 }));
+vi.mock("@repo/ai-elements", () => ({
+  ContextUsage: () => <span data-testid="local-context-usage" />,
+}));
+vi.mock("@repo/api/chat", () => ({
+  getLocalInferenceConfig: vi.fn(async () => ({
+    agentId: null,
+    agentName: "baymax",
+    model: "test-model",
+    contextWindow: 100_000,
+    maxOutputTokens: 4000,
+    instructions: "",
+  })),
+}));
 vi.mock("@repo/ai-elements/conversation", () => ({
   ConversationSessionView: ({
     composer,
@@ -72,6 +85,9 @@ vi.mock("@repo/ai-elements/conversation", () => ({
       </div>
     );
   },
+  ChatComposerControls: ({ agents }: { agents: Array<{ name: string }> }) => (
+    <span>Agent {agents[0]?.name ?? "默认 Agent"}</span>
+  ),
 }));
 function fixture() {
   const thread: LocalThread = {
@@ -114,6 +130,10 @@ test("clears a submitted local prompt immediately and uses the task-oriented pla
 
   expect(screen.getByText("发送消息或创建任务…")).toBeTruthy();
   expect(screen.queryByText("本地电脑")).toBeNull();
+  await screen.findByText(/Agent baymax/);
+  expect(screen.getByText("project")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "浏览工作区文件" })).toBeTruthy();
+  expect(screen.getByTestId("local-context-usage")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
 
   expect(promptApi.clear).toHaveBeenCalledOnce();

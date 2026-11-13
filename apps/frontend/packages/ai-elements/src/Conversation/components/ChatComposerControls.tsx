@@ -9,20 +9,19 @@ import {
   ModelSelectorName,
   ModelSelectorTrigger,
 } from "@repo/ai-elements";
-import { type Bot } from "@repo/api/admin";
 import { Badge, Button } from "@repo/design-system";
 import { BotIcon, ListChecksIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
 export interface ChatComposerControlsProps {
-  agents: Bot[];
+  agents: ReadonlyArray<{ id: string; name: string }>;
   selectedAgentId: string | null;
-  onSelectAgent: (id: string) => void;
+  onSelectAgent?: (id: string) => void;
   activatedSkillName?: string | null;
   onClearSkill?: () => void;
   disabled?: boolean;
   mode: "normal" | "plan";
-  onModeChange: (mode: "normal" | "plan") => void;
+  onModeChange?: (mode: "normal" | "plan") => void;
 }
 
 export function ChatComposerControls({
@@ -40,57 +39,74 @@ export function ChatComposerControls({
     id: agent.id,
     label: agent.name,
   }));
+  const selectedLabel = options.find((option) => option.id === selectedAgentId)?.label ?? "选择智能体";
+  const modeLabel = mode === "plan" ? "Plan" : "Agent";
+  const modeContent = (
+    <>
+      {mode === "plan" ? <ListChecksIcon className="size-3.5" /> : <BotIcon className="size-3.5" />}
+      {modeLabel}
+    </>
+  );
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-8 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
-        disabled={disabled}
-        onClick={() => onModeChange(mode === "plan" ? "normal" : "plan")}
-      >
-        {mode === "plan" ? <ListChecksIcon className="size-3.5" /> : <BotIcon className="size-3.5" />}
-        {mode === "plan" ? "Plan" : "Agent"}
-      </Button>
-      <ModelSelector open={selectorOpen} onOpenChange={setSelectorOpen}>
-        <ModelSelectorTrigger
-          render={
-            <Button
-              className="h-8 max-w-72 justify-between gap-2 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              disabled={options.length === 0 || disabled}
-              type="button"
-              variant="ghost"
-            />
-          }
+      {onModeChange ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          disabled={disabled}
+          onClick={() => onModeChange(mode === "plan" ? "normal" : "plan")}
         >
-          <span className="min-w-0 truncate">
-            {options.find((option) => option.id === selectedAgentId)?.label ?? "选择智能体"}
-          </span>
-        </ModelSelectorTrigger>
-        <ModelSelectorContent title="选择智能体">
-          <ModelSelectorInput placeholder="搜索智能体…" />
-          <ModelSelectorList>
-            <ModelSelectorEmpty>没有匹配的智能体</ModelSelectorEmpty>
-            <ModelSelectorGroup>
-              {options.map((option) => (
-                <ModelSelectorItem
-                  key={option.id}
-                  value={`${option.label} ${option.id}`}
-                  data-checked={option.id === selectedAgentId}
-                  onSelect={() => {
-                    onSelectAgent(option.id);
-                    setSelectorOpen(false);
-                  }}
-                >
-                  <ModelSelectorName>{option.label}</ModelSelectorName>
-                </ModelSelectorItem>
-              ))}
-            </ModelSelectorGroup>
-          </ModelSelectorList>
-        </ModelSelectorContent>
-      </ModelSelector>
+          {modeContent}
+        </Button>
+      ) : (
+        <span className="flex h-8 items-center gap-2 rounded-full px-2.5 text-xs text-muted-foreground">
+          {modeContent}
+        </span>
+      )}
+      {onSelectAgent ? (
+        <ModelSelector open={selectorOpen} onOpenChange={setSelectorOpen}>
+          <ModelSelectorTrigger
+            render={
+              <Button
+                className="h-8 max-w-72 justify-between gap-2 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                disabled={options.length === 0 || disabled}
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <span className="min-w-0 truncate">{selectedLabel}</span>
+          </ModelSelectorTrigger>
+          <ModelSelectorContent title="选择智能体">
+            <ModelSelectorInput placeholder="搜索智能体…" />
+            <ModelSelectorList>
+              <ModelSelectorEmpty>没有匹配的智能体</ModelSelectorEmpty>
+              <ModelSelectorGroup>
+                {options.map((option) => (
+                  <ModelSelectorItem
+                    key={option.id}
+                    value={`${option.label} ${option.id}`}
+                    data-checked={option.id === selectedAgentId}
+                    onSelect={() => {
+                      onSelectAgent(option.id);
+                      setSelectorOpen(false);
+                    }}
+                  >
+                    <ModelSelectorName>{option.label}</ModelSelectorName>
+                  </ModelSelectorItem>
+                ))}
+              </ModelSelectorGroup>
+            </ModelSelectorList>
+          </ModelSelectorContent>
+        </ModelSelector>
+      ) : (
+        <span className="flex h-8 max-w-72 items-center rounded-full px-2.5 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate">{selectedLabel}</span>
+        </span>
+      )}
       {activatedSkillName ? (
         <Badge variant="secondary" className="h-8 gap-1 rounded-full pl-2.5 pr-1.5">
           <SparklesIcon className="size-3.5" />
