@@ -7,7 +7,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
 import type { Settings } from "./config.js";
-import { continueSchema, scopeSchema, startSchema } from "./contracts.js";
+import { continueSchema, scopeSchema, startSchema, workspaceEditSchema } from "./contracts.js";
 import { Engine, resourceName } from "./engine.js";
 
 export function createApp(config: Settings, engine = new Engine(config)) {
@@ -147,6 +147,7 @@ export function createApp(config: Settings, engine = new Engine(config)) {
       c.req.query("path") ?? "",
       c.req.raw.body,
       AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(config.ttlSeconds * 1000)]),
+      c.req.header("X-Sandbox-Workspace-Edit") || undefined,
     );
     return c.json({ saved: true });
   });
@@ -159,6 +160,20 @@ export function createApp(config: Settings, engine = new Engine(config)) {
       AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(config.ttlSeconds * 1000)]),
     );
     return new Response(result.body, { headers: { "Content-Type": "application/octet-stream" } });
+  });
+  app.post("/sessions/:id/snapshot", async (c) => {
+    const scope = headerScope(c.req.header("X-Sandbox-Scope"));
+    return c.json(await engine.snapshot(c.req.param("id"), scope));
+  });
+  app.post("/sessions/:id/workspace-edits", async (c) => {
+    const scope = headerScope(c.req.header("X-Sandbox-Scope"));
+    const token = c.req.header("X-Sandbox-Workspace-Edit") || undefined;
+    return c.json(await engine.acquireWorkspaceEdit(c.req.param("id"), scope, token), 201);
+  });
+  app.delete("/sessions/:id/workspace-edits", async (c) => {
+    const scope = headerScope(c.req.header("X-Sandbox-Scope"));
+    const { token } = workspaceEditSchema.parse(await c.req.json());
+    return c.json(await engine.releaseWorkspaceEdit(c.req.param("id"), scope, token));
   });
   app.delete("/sessions/:id", async (c) => {
     await engine.destroy(c.req.param("id"), headerScope(c.req.header("X-Sandbox-Scope")));

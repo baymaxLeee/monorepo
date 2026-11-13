@@ -5,6 +5,8 @@ packages:
 catalogMode: strict
 
 catalog:
+  "@ai-sdk/provider": ^4.0.34
+  "@ai-sdk/provider-utils": ^5.0.70
   vitest: 5.0.5
   vite: ^8.0.0
   "@vitejs/plugin-react": 6.1.2
@@ -88,6 +90,7 @@ overrides:
 
 # esbuild validates its platform binary; MSW's notice script is optional.
 allowBuilds:
+  electron: true
   "@swc/core": true
   esbuild: true
   msw: false

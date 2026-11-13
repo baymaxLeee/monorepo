@@ -1,10 +1,10 @@
+import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
+import { ToolBlockedError } from "@backend/agent-runtime-ts/outcome";
 import { tool } from "ai";
 import { z } from "zod";
 
 import { createMemoryCandidate, listActiveMemories } from "../../memory/repository.js";
 import { memoryToolContextSchema, type MemoryToolContext } from "../context.js";
-import { defineAgentTool } from "../manifest.js";
-import { ToolBlockedError } from "../outcome.js";
 
 type MemoryInput = {
   category: "preference" | "profile" | "project" | "instruction";

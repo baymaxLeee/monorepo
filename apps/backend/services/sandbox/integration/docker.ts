@@ -63,6 +63,23 @@ test(
       id = session.id;
       t.diagnostic(`warm-image allocation: ${Math.round(performance.now() - startAt)}ms; runtime=${config.runtime}`);
       assert.equal((await client.create(scope)).id, id);
+      const workspace = await start(
+        "stat -c '%u:%g:%a' /workspace; printf '# Test document\\n' > /workspace/test.md; printf '<!doctype html><title>Test</title>' > /workspace/test.html",
+      );
+      assert.equal(workspace.exitCode, 0, workspace.stderr);
+      assert.equal(workspace.stdout.trim(), "1000:1000:755");
+      const markdown = await client.download(id, scope, "test.md");
+      assert.equal(await new Response(markdown).text(), "# Test document\n");
+      const html = await client.download(id, scope, "test.html");
+      assert.equal(await new Response(html).text(), "<!doctype html><title>Test</title>");
+      const capabilities = await start("grep -E '^Cap(Eff|Prm|Amb):' /proc/self/status");
+      assert.equal(capabilities.exitCode, 0, capabilities.stderr);
+      assert.equal(capabilities.stdout.trim().split("\n").length, 3);
+      for (const line of capabilities.stdout.trim().split("\n")) assert.match(line, /:\s+0+$/);
+      await client.upload(id, scope, "nested/restored.md", new Blob(["restored"]).stream());
+      const restored = await start("cat /workspace/nested/restored.md; test -w /workspace/nested/restored.md");
+      assert.equal(restored.exitCode, 0, restored.stderr);
+      assert.equal(restored.stdout, "restored");
       const binary = Uint8Array.from([0, 255, 1, 128, 10, 13, 0]);
       await client.upload(id, scope, "sources/test.bin", new Blob([binary]).stream());
       const result = await start(
@@ -111,12 +128,21 @@ test(
       });
       assert.match(continued.stdout, /got:hello/);
       assert.equal(continued.exitCode, 0);
-      const allow = await start("curl -fsS --max-time 10 https://example.com | head -c 100");
+      const allow = await start(
+        "curl -fsS --max-time 8 https://example.com -o /tmp/egress.html && head -c 100 /tmp/egress.html",
+        {
+          yield_time_ms: 10000,
+        },
+      );
       assert.equal(allow.exitCode, 0, allow.stderr);
       assert.ok(allow.stdout.length > 0, allow.stderr);
-      const denied = await start("curl -fsS --max-time 5 http://169.254.169.254/latest/meta-data");
+      const denied = await start("curl -fsS --max-time 5 http://169.254.169.254/latest/meta-data", {
+        yield_time_ms: 10000,
+      });
+      assert.notEqual(denied.exitCode, null);
       assert.notEqual(denied.exitCode, 0);
-      const bypass = await start("curl --noproxy '*' -fsS --max-time 2 http://1.1.1.1");
+      const bypass = await start("curl --noproxy '*' -fsS --max-time 2 http://1.1.1.1", { yield_time_ms: 10000 });
+      assert.notEqual(bypass.exitCode, null);
       assert.notEqual(bypass.exitCode, 0);
       // A new controller has no in-memory session state; the same Pod/container
       // remains usable and has the expected original file bytes.

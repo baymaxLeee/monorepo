@@ -1,0 +1,25 @@
+{
+  "name": "@backend/agent-runtime-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/harness.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node --import tsx --test",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^4.0.34",
+    "@ai-sdk/provider-utils": "^5.0.70",
+    "ai": "^7.0.155",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@typescript/native": "catalog:",
+    "tsx": "^4.19.0"
+  }
+}

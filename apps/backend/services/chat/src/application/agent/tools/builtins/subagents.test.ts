@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { isToolOutcome, type ToolOutcome } from "@backend/agent-runtime-ts/outcome";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { asSchema, simulateReadableStream, tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
-import { isToolOutcome, type ToolOutcome } from "../outcome.js";
 import { createSubagentsManifest } from "./subagents.js";
 
 const provider: LanguageProviderSnapshot = {

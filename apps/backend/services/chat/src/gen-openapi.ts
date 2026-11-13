@@ -1,3 +1,17 @@
+import { z } from "zod";
+
+import { inferenceConfigSchema, inferenceRequestSchema } from "./application/inference/generated/inference.js";
+
+const inferenceJson = JSON.parse(
+  JSON.stringify(z.toJSONSchema(inferenceRequestSchema, { target: "openapi-3.0", cycles: "ref" }), (key, value) =>
+    key === "enum" && Array.isArray(value) && value.length === 1 && value[0] === null ? undefined : value,
+  ).replaceAll("#/definitions/", "#/components/schemas/LocalInference"),
+) as Record<string, unknown> & { definitions?: Record<string, object> };
+const inferenceDefinitions = Object.fromEntries(
+  Object.entries(inferenceJson.definitions ?? {}).map(([name, schema]) => [`LocalInference${name}`, schema]),
+);
+delete inferenceJson.definitions;
+
 const pathParam = {
   name: "conversation_id",
   in: "path",
@@ -71,6 +85,32 @@ const openapi = {
   openapi: "3.0.3",
   info: { title: "Chat Service", version: "0.1.0", description: "对话 / Agent 微服务 (TypeScript)" },
   paths: {
+    "/local-inference/config": {
+      get: {
+        operationId: "getLocalInferenceConfig",
+        parameters: [{ name: "agent_id", in: "query", schema: { type: "string" } }],
+        responses: {
+          "200": jsonResponse(
+            "Authorized local model configuration, without provider secrets",
+            z.toJSONSchema(inferenceConfigSchema, { target: "openapi-3.0" }),
+          ),
+        },
+      },
+    },
+    "/local-inference/stream": {
+      post: {
+        operationId: "streamLocalInference",
+        description:
+          "Constrained AI SDK LanguageModelV4 inference relay. Native provider stream parts as NDJSON; no tool execution or conversation persistence. See schemas/desktop/README.md.",
+        requestBody: { required: true, content: { "application/json": { schema: inferenceJson } } },
+        responses: {
+          "200": {
+            description: "AI SDK LanguageModelV4StreamPart NDJSON",
+            content: { "application/x-ndjson": { schema: { type: "string" } } },
+          },
+        },
+      },
+    },
     "/conversations/canvas": {
       post: {
         operationId: "createCanvasConversation",
@@ -455,6 +495,7 @@ const openapi = {
   },
   components: {
     schemas: {
+      ...inferenceDefinitions,
       CanvasConversationInput: {
         type: "object",
         required: ["project_id", "canvas_id"],

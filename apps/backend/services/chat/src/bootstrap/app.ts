@@ -5,6 +5,7 @@ import { authMiddleware } from "../api/http/middleware/auth.js";
 import { problemJson } from "../api/http/problem.js";
 import { agentsRoutes } from "../api/http/routes/agents.js";
 import { conversationsRoutes } from "../api/http/routes/conversations.js";
+import { localInferenceRoutes } from "../api/http/routes/local-inference.js";
 import { memoriesRoutes } from "../api/http/routes/memories.js";
 import { checkReadiness, currentBootState, isBootReady } from "../infrastructure/health/readiness.js";
 import { logger } from "../infrastructure/observability/logger.js";
@@ -49,6 +50,7 @@ export function createApp() {
   api.route("/conversations", conversationsRoutes);
   api.route("/conversations", agentsRoutes);
   api.route("/memories", memoriesRoutes);
+  api.route("/local-inference", localInferenceRoutes);
   app.route("/", api);
 
   return app;

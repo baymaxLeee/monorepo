@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
+    "backfill-workspace-paths": "tsx src/scripts/backfill-workspace-paths.ts",
     "start": "tsx src/index.ts",
     "lint": "pnpm --dir ../../../.. lint:ts apps/backend/services/chat && pnpm --dir ../../../.. exec oxfmt --check 'apps/backend/services/chat/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' && node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
     "gen-openapi": "tsx src/gen-openapi.ts",
@@ -17,6 +18,7 @@
     "@ai-sdk/provider": "catalog:",
     "@ai-sdk/provider-utils": "catalog:",
     "@ai-sdk/tool-web-fetch": "catalog:",
+    "@backend/agent-runtime-ts": "workspace:*",
     "@backend/kernel-ts": "workspace:*",
     "@backend/transport-ts": "workspace:*",
     "@hono/node-server": "catalog:",

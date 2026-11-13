@@ -113,6 +113,7 @@ vi.mock("@repo/design-system", () => ({
   Spinner: () => null,
   toast: { add: vi.fn() },
 }));
+vi.mock("../../components/ExecutionLocation", () => ({ ExecutionLocation: () => <span>云端</span> }));
 vi.mock("../../components/ChatTodoListCard", () => ({
   findLatestUpdateTodosCallId: () => null,
   collectDeliverableCompletion: () => ({ artifact: [], image: [], video: [] }),

@@ -61,6 +61,10 @@ test("Pod spec has no host mounts, service identity or writable root, and bounde
   assert.equal(pod.spec.runtimeClassName, "runsc");
   assert.equal(pod.spec.containers[0].securityContext.readOnlyRootFilesystem, true);
   assert.equal(pod.spec.containers[0].securityContext.allowPrivilegeEscalation, false);
+  assert.deepEqual(pod.spec.containers[0].securityContext.capabilities, {
+    drop: ["ALL"],
+    add: ["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"],
+  });
   assert.equal(pod.spec.activeDeadlineSeconds, config.ttlSeconds);
   assert.ok(pod.spec.volumes.every((v) => "emptyDir" in v));
 });
@@ -92,6 +96,58 @@ test("expired resource reaper preserves unexpired sandboxes", async () => {
   };
   await engine.reap();
   assert.deepEqual(deleted, ["old"]);
+});
+
+test("workspace edit uses a scoped runtime fence", async () => {
+  const controls: object[] = [];
+  const engine = new Engine(config);
+  engine.assertOwner = async () => {};
+  (engine as unknown as { control(id: string, input: object): Promise<unknown> }).control = async (_id, input) => {
+    controls.push(input);
+    if ((input as { op: string }).op === "begin_workspace_edit") {
+      return { token: (input as { token: string }).token };
+    }
+    return { released: true };
+  };
+  const acquired = await engine.acquireWorkspaceEdit("sandbox", scope, "edit-token");
+  assert.deepEqual(acquired, { token: "edit-token" });
+  assert.deepEqual(await engine.releaseWorkspaceEdit("sandbox", scope, acquired.token), { released: true });
+  assert.deepEqual(controls, [
+    { op: "begin_workspace_edit", token: "edit-token" },
+    { op: "end_workspace_edit", token: "edit-token" },
+  ]);
+});
+
+test("workspace edit API preserves the caller operation token", async () => {
+  const engine = new Engine(config);
+  let acquired = "";
+  let released = "";
+  engine.acquireWorkspaceEdit = async (_id, _scope, token) => {
+    acquired = token ?? "";
+    return { token: token ?? "generated" };
+  };
+  engine.releaseWorkspaceEdit = async (_id, _scope, token) => {
+    released = token;
+    return { released: true };
+  };
+  const app = createApp(config, engine);
+  const headers = {
+    "X-Caller-Service": "chat",
+    "X-Internal-Token": config.chatToken,
+    "X-Sandbox-Scope": JSON.stringify(scope),
+    "X-Sandbox-Workspace-Edit": "user-save-1",
+    "Content-Type": "application/json",
+  };
+  const begin = await app.request("/sessions/sandbox/workspace-edits", { method: "POST", headers });
+  assert.equal(begin.status, 201);
+  assert.equal(acquired, "user-save-1");
+  const end = await app.request("/sessions/sandbox/workspace-edits", {
+    method: "DELETE",
+    headers,
+    body: JSON.stringify({ token: "user-save-1" }),
+  });
+  assert.equal(end.status, 200);
+  assert.equal(released, "user-save-1");
 });
 
 test("provisioning failure removes only the resource created by that attempt", async () => {

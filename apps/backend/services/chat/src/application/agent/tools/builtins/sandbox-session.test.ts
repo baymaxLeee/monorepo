@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type { KnowledgeDocument, SandboxProcess } from "@backend/transport-ts";
 
+import type { ConversationFile } from "../../../conversation-files.js";
 import { RunSandbox, type SandboxDependencies } from "./sandbox-session.js";
 
 const context = { tenantId: "t", workspaceId: "w", userId: "u", conversationId: "c", runId: "r" };
@@ -22,6 +23,7 @@ const document = {
 } as KnowledgeDocument;
 function fixture() {
   const calls: string[] = [];
+  const executionStates: string[] = [];
   const imported: Uint8Array[] = [];
   const importedPaths: string[] = [];
   const process: SandboxProcess = {
@@ -43,6 +45,7 @@ function fixture() {
       calls.push("destroy");
       return { destroyed: true };
     },
+    snapshot: async () => ({ files: [] }),
     upload: async (_id, _scope, path, body) => {
       importedPaths.push(path);
       imported.push(new Uint8Array(await new Response(body).arrayBuffer()));
@@ -90,6 +93,9 @@ function fixture() {
         id: "saved",
         conversation_id: "c",
         filename: "output.bin",
+        workspace_path: "/workspace/output.bin",
+        workspace_state: "live" as const,
+        path_generation: 1,
         title: "Output",
         mime_type: "application/octet-stream",
         size: 5,
@@ -115,6 +121,9 @@ function fixture() {
           id: "file",
           conversation_id: "c",
           filename: "notes.md",
+          workspace_path: "/workspace/notes.md",
+          workspace_state: "live",
+          path_generation: 1,
           title: "Notes",
           mime_type: "text/markdown",
           size: 4,
@@ -136,6 +145,9 @@ function fixture() {
         id: "file",
         conversation_id: "c",
         filename: "notes.md",
+        workspace_path: "/workspace/notes.md",
+        workspace_state: "live" as const,
+        path_generation: 1,
         title: "Notes",
         mime_type: "text/markdown",
         size: candidate.sizeBytes,
@@ -151,8 +163,29 @@ function fixture() {
         updated_at: "later",
       };
     },
+    delete: async () => {},
+    execution: {
+      restoring: async () => {
+        executionStates.push("restoring");
+      },
+      active: async () => {
+        executionStates.push("active");
+      },
+      finalizing: async () => {
+        executionStates.push("finalizing");
+      },
+      finalizationFailed: async () => {
+        executionStates.push("finalization-failed");
+      },
+      releasing: async (_scope, error) => {
+        executionStates.push(error == null ? "releasing" : "release-failed");
+      },
+      released: async () => {
+        executionStates.push("released");
+      },
+    },
   };
-  return { deps, client, calls, imported, importedPaths };
+  return { deps, client, calls, executionStates, imported, importedPaths };
 }
 
 test("lazy run allocation is single-flight; original binary bytes survive import and explicit publication", async () => {
@@ -177,6 +210,46 @@ test("lazy run allocation is single-flight; original binary bytes survive import
   assert.deepEqual(f.calls.slice(-2), ["upload", "publish"]);
   await Promise.all([run.dispose(), run.dispose()]);
   assert.equal(f.calls.filter((c) => c === "destroy").length, 1);
+  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "releasing", "released"]);
+});
+
+test("user saves are reported once at the next controlled model step", async () => {
+  const f = fixture();
+  const base: ConversationFile = {
+    id: "file",
+    conversation_id: "c",
+    filename: "notes.md",
+    workspace_path: "/workspace/notes.md",
+    workspace_state: "live" as const,
+    path_generation: 1,
+    title: "Notes",
+    mime_type: "text/markdown",
+    size: 4,
+    asset_id: "asset",
+    revision_id: "revision",
+    sha256: "old",
+    kind: "artifact" as const,
+    editable: true,
+    edit_max_bytes: 2_097_152,
+    etag: '"11111111111111111111111111111111"',
+    last_writer: { type: "agent" as const, id: "old" },
+    created_at: "now",
+    updated_at: "now",
+  };
+  let files: ConversationFile[] = [base];
+  f.deps.files = async () => files;
+  const run = new RunSandbox(context, f.deps);
+  await run.observeWorkspaceBaseline();
+  files = [
+    {
+      ...base,
+      etag: '"22222222222222222222222222222222"',
+      last_writer: { type: "user" as const, id: "u" },
+      updated_at: "later",
+    },
+  ];
+  assert.deepEqual(await run.consumeExternalFileChanges(), [{ path: "/workspace/notes.md", writer: "u" }]);
+  assert.deepEqual(await run.consumeExternalFileChanges(), []);
 });
 
 test("Stop during provisioning waits for creation then deletes it without executing a command", async () => {
@@ -199,6 +272,7 @@ test("Stop during provisioning waits for creation then deletes it without execut
   await rejected;
   await run.dispose();
   assert.deepEqual(f.calls, ["create", "destroy"]);
+  assert.deepEqual(f.executionStates, ["restoring", "releasing", "released"]);
 });
 
 test("attachment scope failures destroy partial initialization; foreign process sessions never execute", async () => {
@@ -223,7 +297,7 @@ test("official SDK file methods preserve bytes and keep source snapshots read-on
   await run.writeBinaryFile({ path: "/workspace/work/data.bin", content: bytes });
   assert.deepEqual(f.imported.at(-1), bytes);
   assert.deepEqual(await run.readBinaryFile({ path: "/workspace/work/data.bin" }), bytes);
-  await assert.rejects(run.writeTextFile({ path: "/workspace/sources/data.txt", content: "blocked" }), /limited/);
+  await assert.rejects(run.writeTextFile({ path: "/workspace/sources/data.txt", content: "blocked" }), /cannot target/);
   await run.dispose();
 });
 
@@ -336,6 +410,9 @@ test("Chat-owned saved files import exact Storage bytes including trailing newli
       conversation_id: "c",
       title: "Notes",
       filename: "notes.md",
+      workspace_path: "/workspace/notes.md",
+      workspace_state: "live" as const,
+      path_generation: 1,
       mime_type: "text/markdown",
       size: 11,
       asset_id: "asset",
@@ -372,6 +449,9 @@ test("agent updates preserve file identity, validate UTF-8, and advance only tha
       conversation_id: "c",
       title: "Notes",
       filename: "notes.md",
+      workspace_path: "/workspace/notes.md",
+      workspace_state: "live" as const,
+      path_generation: 1,
       mime_type: "text/markdown",
       size: original.byteLength,
       asset_id: "asset",
@@ -407,15 +487,10 @@ test("agent updates preserve file identity, validate UTF-8, and advance only tha
   f.client.download = async () => new Blob([updated]).stream();
   const run = new RunSandbox(context, f.deps);
   await run.refresh();
-  await run.checkoutFile({
-    fileId: "file",
-    etag: '"11111111111111111111111111111111"',
-    path: "/workspace/work/notes.md",
-  });
   const saved = await run.save(
     {
       operation: "update",
-      path: "/workspace/work/notes.md",
+      path: "/workspace/notes.md",
       file_id: "file",
       etag: '"11111111111111111111111111111111"',
     },
@@ -427,7 +502,7 @@ test("agent updates preserve file identity, validate UTF-8, and advance only tha
     run.save(
       {
         operation: "update",
-        path: "/workspace/work/notes.md",
+        path: "/workspace/notes.md",
         file_id: "file",
         etag: '"11111111111111111111111111111111"',
       },
@@ -435,32 +510,68 @@ test("agent updates preserve file identity, validate UTF-8, and advance only tha
     ),
     /working copy/i,
   );
-  // A refresh alone must not grant a new baseline to an old working copy.
-  const originalFiles = f.deps.files;
-  f.deps.files = async (scope) =>
-    (await originalFiles(scope)).map((file) => ({
-      ...file,
-      etag: '"33333333333333333333333333333333"',
-      revision_id: "user-revision",
-    }));
-  await run.refresh();
-  await assert.rejects(
-    run.save(
-      {
-        operation: "update",
-        path: "/workspace/work/notes.md",
-        file_id: "file",
-        etag: '"33333333333333333333333333333333"',
-      },
-      "not-rebased",
-    ),
-    /working copy/i,
-  );
-  const checkout = await run.checkoutFile({
-    fileId: "file",
-    etag: '"33333333333333333333333333333333"',
-    path: "/workspace/work/notes.md",
-  });
-  assert.equal(checkout.etag, '"33333333333333333333333333333333"');
   await run.dispose();
+});
+
+test("run finalization automatically persists new workspace files before destroying compute", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  f.client.snapshot = async () => ({
+    files: [{ path: "draft.txt", size: bytes.byteLength, sha256: "a".repeat(64) }],
+  });
+  const run = new RunSandbox(context, f.deps);
+  await run.run({ command: "create draft" });
+  await run.dispose();
+  assert.ok(f.calls.indexOf("upload") < f.calls.indexOf("publish"));
+  assert.ok(f.calls.indexOf("publish") < f.calls.indexOf("destroy"));
+  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "releasing", "released"]);
+});
+
+test("run finalization records deletion tombstones before destroying compute", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  f.deps.files = async () => [
+    {
+      id: "file",
+      conversation_id: "c",
+      title: "Notes",
+      filename: "notes.md",
+      workspace_path: "/workspace/notes.md",
+      workspace_state: "live",
+      path_generation: 1,
+      mime_type: "text/markdown",
+      size: 4,
+      asset_id: "asset",
+      revision_id: "revision",
+      sha256: "old",
+      kind: "artifact",
+      editable: true,
+      edit_max_bytes: 2097152,
+      etag: '"11111111111111111111111111111111"',
+      last_writer: { type: "agent", id: "old" },
+      created_at: "now",
+      updated_at: "now",
+    },
+  ];
+  f.client.snapshot = async () => ({ files: [] });
+  f.deps.delete = async () => {
+    f.calls.push("delete");
+  };
+  const run = new RunSandbox(context, f.deps);
+  await run.run({ command: "delete notes" });
+  await run.dispose();
+  assert.ok(f.calls.indexOf("delete") < f.calls.indexOf("destroy"));
+});
+
+test("failed workspace persistence retains compute for durable finalization retry", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  f.client.snapshot = async () => {
+    throw new Error("Storage unavailable");
+  };
+  const run = new RunSandbox(context, f.deps);
+  await run.run({ command: "write draft" });
+  await assert.rejects(run.dispose(), /Storage unavailable/);
+  assert.ok(!f.calls.includes("destroy"));
+  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "finalization-failed"]);
 });

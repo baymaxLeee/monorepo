@@ -1,9 +1,8 @@
-import { refreshSession } from "./session";
-import { getToken, isAccessTokenValid } from "./storage";
+import { getPlatformAuth } from "@repo/runtime";
 
 function withAuth(init: RequestInit | undefined): RequestInit {
   const headers = new Headers(init?.headers);
-  const token = getToken();
+  const token = getPlatformAuth()?.getAccessToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   } else {
@@ -17,8 +16,8 @@ function withAuth(init: RequestInit | undefined): RequestInit {
  * axios instance (AI SDK `DefaultChatTransport`, blob source, multipart upload).
  *
  * It is the single place that mirrors the axios 401 policy for those calls:
- * proactive refresh-ahead + single-flight refresh (shared `refreshSession`
- * promise) + reactive refresh-and-retry-once. Without it, an expired short
+ * proactive refresh-ahead, Platform-owned single-flight refresh, and one retry
+ * after a 401. Without it, an expired short
  * token fails the request with no retry, because the SDK/raw fetch never sees
  * the interceptor.
  *
@@ -27,12 +26,12 @@ function withAuth(init: RequestInit | undefined): RequestInit {
  * consumed `Request`/stream body. Do not pass a `Request` with a one-shot body.
  */
 export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  if (!isAccessTokenValid()) {
-    await refreshSession();
+  if (!getPlatformAuth()?.isAccessTokenValid()) {
+    await getPlatformAuth()?.refreshAccessToken();
   }
   let response = await fetch(input, withAuth(init));
   if (response.status === 401) {
-    const refreshed = await refreshSession();
+    const refreshed = await getPlatformAuth()?.refreshAccessToken();
     if (refreshed) {
       response = await fetch(input, withAuth(init));
     }

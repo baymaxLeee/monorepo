@@ -72,6 +72,7 @@ export default defineConfig({
         "apps/frontend/packages/shared/config/**",
         "apps/frontend/**/*.config.*",
         "apps/frontend/**/scripts/**",
+        "apps/frontend/apps/desktop/electron/**",
       ],
       env: { browser: true, node: false },
       plugins: [...commonPlugins, "react", "react-perf", "jsx-a11y"],

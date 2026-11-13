@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-import { continueSchema, processSchema, scopeSchema, sessionSchema, startSchema } from "./contracts.js";
+import {
+  continueSchema,
+  processSchema,
+  scopeSchema,
+  sessionSchema,
+  startSchema,
+  workspaceEditSchema,
+  workspaceSnapshotSchema,
+} from "./contracts.js";
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const json = (schema: object) => ({ description: "success", content: { "application/json": { schema } } });
@@ -20,6 +28,8 @@ const schemas = {
   SandboxContinue: continueSchema,
   SandboxProcess: processSchema,
   SandboxSession: sessionSchema,
+  SandboxWorkspaceEdit: workspaceEditSchema,
+  SandboxWorkspaceSnapshot: workspaceSnapshotSchema,
 };
 process.stdout.write(
   JSON.stringify(
@@ -64,7 +74,10 @@ process.stdout.write(
         },
         "/sessions/{id}/files": {
           put: {
-            parameters: fileParams,
+            parameters: [
+              ...fileParams,
+              { name: "X-Sandbox-Workspace-Edit", in: "header", required: false, schema: { type: "string" } },
+            ],
             requestBody: {
               required: true,
               content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
@@ -80,6 +93,29 @@ process.stdout.write(
                 description: "original file bytes",
                 content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
               },
+            },
+          },
+        },
+        "/sessions/{id}/snapshot": {
+          post: {
+            parameters: [id, scope],
+            responses: { "200": json(ref("SandboxWorkspaceSnapshot")) },
+          },
+        },
+        "/sessions/{id}/workspace-edits": {
+          post: {
+            parameters: [
+              id,
+              scope,
+              { name: "X-Sandbox-Workspace-Edit", in: "header", required: false, schema: { type: "string" } },
+            ],
+            responses: { "201": json(ref("SandboxWorkspaceEdit")) },
+          },
+          delete: {
+            parameters: [id, scope],
+            requestBody: body("SandboxWorkspaceEdit"),
+            responses: {
+              "200": json({ type: "object", properties: { released: { type: "boolean" } }, required: ["released"] }),
             },
           },
         },

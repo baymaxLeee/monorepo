@@ -1,4 +1,4 @@
-import { globSync, readFileSync } from "node:fs";
+import { existsSync, globSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,6 +26,9 @@ export default defineConfig({
           name,
           environment: "jsdom",
           include: ["{src,test}/**/*.{test,spec}.{ts,tsx,js,jsx,mjs}"],
+          globalSetup: existsSync(path.join(projectRoot, "test/global-setup.ts"))
+            ? [path.join(projectRoot, "test/global-setup.ts")]
+            : [],
           setupFiles: [path.join(root, "test/setup.ts")],
           clearMocks: true,
           restoreMocks: true,

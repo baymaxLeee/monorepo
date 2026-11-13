@@ -1,4 +1,12 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
+import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
+import {
+  normalizeToolIssue,
+  shouldRethrowToolError,
+  toolCompleted,
+  toolIssueSchema,
+  toolRunning,
+} from "@backend/agent-runtime-ts/outcome";
 import { finishSpan, startSpan } from "@backend/kernel-ts";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
@@ -16,8 +24,6 @@ import { createSubagent } from "../../agents/subagents.js";
 import { contextCompactionThreshold } from "../../context/budget.js";
 import { extractUsageTokens } from "../../observability/lifecycle.js";
 import { subagentToolContextSchema, type SubagentToolContext } from "../context.js";
-import { defineAgentTool } from "../manifest.js";
-import { normalizeToolIssue, shouldRethrowToolError, toolCompleted, toolIssueSchema, toolRunning } from "../outcome.js";
 
 const MAX_SUBAGENTS = 3;
 const MAX_PROGRESS_UPDATES_PER_SUBAGENT = 64;

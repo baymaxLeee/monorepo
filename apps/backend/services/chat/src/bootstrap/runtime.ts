@@ -1,4 +1,9 @@
-import { reconcileOrphanedRuns, startOrphanRunReconciler } from "../application/agent/index.js";
+import {
+  reconcileOrphanedRuns,
+  reconcileSandboxExecutions,
+  startOrphanRunReconciler,
+  startSandboxExecutionReconciler,
+} from "../application/agent/index.js";
 import { startAssetClaimRelay } from "../application/asset-claim-relay.js";
 import { startConversationArtifactCleanupRelay } from "../application/conversation-artifact-cleanup.js";
 import { markBootFailed, markBootReady } from "../infrastructure/health/readiness.js";
@@ -9,7 +14,9 @@ export async function bootstrapChat(): Promise<void> {
   try {
     await getSql()`SELECT 1`;
     await reconcileOrphanedRuns();
+    await reconcileSandboxExecutions();
     startOrphanRunReconciler();
+    startSandboxExecutionReconciler();
     startAssetClaimRelay();
     startConversationArtifactCleanupRelay();
     markBootReady();

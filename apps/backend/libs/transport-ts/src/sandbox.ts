@@ -6,6 +6,7 @@ export type SandboxSession = components["schemas"]["SandboxSession"];
 export type SandboxProcess = components["schemas"]["SandboxProcess"];
 export type SandboxStart = components["schemas"]["SandboxStart"];
 export type SandboxContinue = components["schemas"]["SandboxContinue"];
+export type SandboxWorkspaceSnapshot = components["schemas"]["SandboxWorkspaceSnapshot"];
 
 export class SandboxInternalClient {
   private readonly http: InternalHttpClient;
@@ -45,6 +46,31 @@ export class SandboxInternalClient {
       headers: { "X-Sandbox-Scope": JSON.stringify(scope) },
     });
   }
+  snapshot(id: string, scope: SandboxScope): Promise<SandboxWorkspaceSnapshot> {
+    return this.http.requestJson({
+      method: "POST",
+      path: `/sessions/${encodeURIComponent(id)}/snapshot`,
+      headers: { "X-Sandbox-Scope": JSON.stringify(scope) },
+    });
+  }
+  acquireWorkspaceEdit(id: string, scope: SandboxScope, token?: string): Promise<{ token: string }> {
+    return this.http.requestJson({
+      method: "POST",
+      path: `/sessions/${encodeURIComponent(id)}/workspace-edits`,
+      headers: {
+        "X-Sandbox-Scope": JSON.stringify(scope),
+        ...(token ? { "X-Sandbox-Workspace-Edit": token } : {}),
+      },
+    });
+  }
+  releaseWorkspaceEdit(id: string, scope: SandboxScope, token: string): Promise<{ released: boolean }> {
+    return this.http.requestJson({
+      method: "DELETE",
+      path: `/sessions/${encodeURIComponent(id)}/workspace-edits`,
+      headers: { "X-Sandbox-Scope": JSON.stringify(scope) },
+      body: { token },
+    });
+  }
   private async file(
     method: "GET" | "PUT",
     id: string,
@@ -52,6 +78,7 @@ export class SandboxInternalClient {
     path: string,
     signal?: AbortSignal,
     body?: ReadableStream<Uint8Array>,
+    workspaceEditToken?: string,
   ) {
     const url = new URL(`/sessions/${encodeURIComponent(id)}/files`, this.options.baseUrl);
     url.searchParams.set("path", path);
@@ -65,6 +92,7 @@ export class SandboxInternalClient {
         "X-Internal-Token": this.options.internalToken,
         "X-Sandbox-Scope": JSON.stringify(scope),
         "Content-Type": "application/octet-stream",
+        ...(workspaceEditToken ? { "X-Sandbox-Workspace-Edit": workspaceEditToken } : {}),
       },
       signal: AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]),
     };
@@ -78,8 +106,15 @@ export class SandboxInternalClient {
       );
     return response;
   }
-  async upload(id: string, scope: SandboxScope, path: string, body: ReadableStream<Uint8Array>, signal?: AbortSignal) {
-    const response = await this.file("PUT", id, scope, path, signal, body);
+  async upload(
+    id: string,
+    scope: SandboxScope,
+    path: string,
+    body: ReadableStream<Uint8Array>,
+    signal?: AbortSignal,
+    workspaceEditToken?: string,
+  ) {
+    const response = await this.file("PUT", id, scope, path, signal, body, workspaceEditToken);
     await response.json();
   }
   async download(id: string, scope: SandboxScope, path: string, signal?: AbortSignal) {

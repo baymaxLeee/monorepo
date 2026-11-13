@@ -1,7 +1,8 @@
 # Cross-service & cross-stack contracts
 
-This is the ONLY allowed shared boundary between backend services and between
-backend and frontend.
+This owns every wire contract between backend services and between backend and frontend.
+Portable infrastructure implementations may be shared through declared library exports
+(for example the Agent harness consumed by Chat and Electron); never import service source.
 
 ## Layout
 
@@ -10,6 +11,7 @@ backend and frontend.
 - `events/*.cloudevents.json`  — async event schemas (CloudEvents 1.0)
 - `streaming/*.md`             — streamed wire contracts (SSE / UIMessage stream)
 - `streaming/chat-ui.ts`        — runtime schemas for Chat application metadata/data extensions
+- `desktop/`                   — Electron capabilities and constrained native SDK inference relay
 - `codegen/`                   — generators (TS, Python, Go)
 
 ## Streaming (AI SDK UIMessage stream) contract

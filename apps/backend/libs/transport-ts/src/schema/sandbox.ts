@@ -259,6 +259,7 @@ export interface paths {
                 header: {
                     /** @description JSON-encoded SandboxScope */
                     "X-Sandbox-Scope": string;
+                    "X-Sandbox-Workspace-Edit"?: string;
                 };
                 path: {
                     id: string;
@@ -286,6 +287,117 @@ export interface paths {
         };
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sessions/{id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description JSON-encoded SandboxScope */
+                    "X-Sandbox-Scope": string;
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SandboxWorkspaceSnapshot"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sessions/{id}/workspace-edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description JSON-encoded SandboxScope */
+                    "X-Sandbox-Scope": string;
+                    "X-Sandbox-Workspace-Edit"?: string;
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description success */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SandboxWorkspaceEdit"];
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description JSON-encoded SandboxScope */
+                    "X-Sandbox-Scope": string;
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SandboxWorkspaceEdit"];
+                };
+            };
+            responses: {
+                /** @description success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            released: boolean;
+                        };
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -356,6 +468,16 @@ export interface components {
             id: string;
             workdir: string;
             expires_at: string;
+        };
+        SandboxWorkspaceEdit: {
+            token: string;
+        };
+        SandboxWorkspaceSnapshot: {
+            files: {
+                path: string;
+                size: number;
+                sha256: string;
+            }[];
         };
     };
     responses: never;

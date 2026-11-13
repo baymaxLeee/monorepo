@@ -8,6 +8,7 @@ __pycache__/
 
 # Build artifacts
 dist/
+apps/frontend/apps/desktop/release/
 build/
 .rspack/
 .next/

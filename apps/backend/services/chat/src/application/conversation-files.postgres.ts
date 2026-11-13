@@ -9,6 +9,7 @@ import {
   assetClaimIntents,
   conversationFiles,
   conversationFileSaveOperations,
+  conversationRunLeases,
   conversations,
 } from "../infrastructure/persistence/schema.js";
 import { saveConversationFile, type ConversationFileSaveCandidate } from "./conversation-files.js";
@@ -70,6 +71,7 @@ test("conversation file save CAS, idempotency, no-op, and Claim switch", { timeo
         revisionId,
         title: "Notes",
         filename: "notes.md",
+        workspacePath: "/workspace/notes.md",
         mediaType: "text/markdown",
         sizeBytes: 4,
         sha256: sha("old\n"),
@@ -243,5 +245,38 @@ test("conversation file save CAS, idempotency, no-op, and Claim switch", { timeo
         ),
       );
     assert.deepEqual(operations.map((operation) => operation.status).sort(), ["conflict", "succeeded"]);
+  });
+
+  await t.test("the save primitive accepts a user commit after workspace coordination", async () => {
+    const seeded = await seed();
+    await getDb()
+      .insert(conversationRunLeases)
+      .values({
+        conversationId: seeded.conversationId,
+        runId: id(),
+        heartbeatAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+    let uploaded = false;
+    const saved = await saveConversationFile(
+      {
+        ...scope,
+        conversationId: seeded.conversationId,
+        fileId: seeded.fileId,
+        expectedEtag: etag("1"),
+        contentSha256: sha("user draft\n"),
+        operationId: "active-run-edit",
+        writerType: "user",
+        writerId: scope.userId,
+      },
+      async () => {
+        uploaded = true;
+        return candidate("user draft\n", seeded.assetId);
+      },
+    );
+    assert.equal(saved.sha256, sha("user draft\n"));
+    assert.equal(saved.last_writer.type, "user");
+    assert.equal(saved.last_writer.id, scope.userId);
+    assert.equal(uploaded, true);
   });
 });

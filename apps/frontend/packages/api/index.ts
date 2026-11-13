@@ -12,5 +12,4 @@ export * from "./src/auth-fetch";
 export * from "./src/canvas-stream";
 export * from "./src/chat-stream";
 export * from "./src/http";
-export * from "./src/session";
 export * from "./src/storage-runtime";

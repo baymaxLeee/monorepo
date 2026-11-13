@@ -13,25 +13,29 @@ export function PromptInputActions({
   onStop,
   footerRender,
   onAttach,
+  attachmentsEnabled = true,
 }: Pick<PromptInputProps, "disabled" | "loading" | "submitLabel" | "onStop" | "footerRender"> & {
   api: PromptInputApi;
   attachmentsUploading: boolean;
   onAttach: () => void;
+  attachmentsEnabled?: boolean;
 }) {
   return (
     <InputGroupAddon align="block-end" className="prompt-input-footer">
       <div className="prompt-input-tools">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="rounded-full"
-          disabled={disabled}
-          onClick={onAttach}
-          aria-label="添加附件"
-        >
-          <Plus className="size-4" />
-        </Button>
+        {attachmentsEnabled ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="rounded-full"
+            disabled={disabled}
+            onClick={onAttach}
+            aria-label="添加附件"
+          >
+            <Plus className="size-4" />
+          </Button>
+        ) : null}
         {footerRender?.(api)}
       </div>
       <Button

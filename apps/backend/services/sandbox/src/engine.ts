@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 import type { Settings } from "./config.js";
-import { filePath, processSchema, type Scope } from "./contracts.js";
+import { filePath, processSchema, workspaceSnapshotSchema, type Scope } from "./contracts.js";
 
 const LABEL = "monorepo.sandbox";
 const HELPER = ["python3", "/opt/sandbox/runner.py"];
@@ -172,7 +172,8 @@ export class Engine {
           "no-new-privileges",
           "--cap-drop",
           "ALL",
-          ...["SETUID", "SETGID", "CHOWN", "KILL"].flatMap((cap) => ["--cap-add", cap]),
+          // Trusted transfers must access guest-owned files; guest UID 1000 drops these capabilities.
+          ...["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"].flatMap((cap) => ["--cap-add", cap]),
           "--cpus",
           String(this.config.cpu),
           "--memory",
@@ -237,7 +238,7 @@ export class Engine {
               runAsUser: 0,
               allowPrivilegeEscalation: false,
               readOnlyRootFilesystem: true,
-              capabilities: { drop: ["ALL"], add: ["SETUID", "SETGID", "CHOWN", "KILL"] },
+              capabilities: { drop: ["ALL"], add: ["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"] },
               seccompProfile: { type: "RuntimeDefault" },
             },
             resources: {
@@ -276,6 +277,18 @@ export class Engine {
     // process group. A timed-out workspace is not reused by subsequent calls.
     if (result.timed_out) await this.remove(id);
     return result;
+  }
+  async snapshot(id: string, scope: Scope) {
+    await this.assertOwner(id, scope);
+    return workspaceSnapshotSchema.parse(await this.control(id, { op: "snapshot" }));
+  }
+  async acquireWorkspaceEdit(id: string, scope: Scope, token: string = randomUUID()) {
+    await this.assertOwner(id, scope);
+    return this.control(id, { op: "begin_workspace_edit", token }) as Promise<{ token: string }>;
+  }
+  async releaseWorkspaceEdit(id: string, scope: Scope, token: string) {
+    await this.assertOwner(id, scope);
+    return this.control(id, { op: "end_workspace_edit", token }) as Promise<{ released: boolean }>;
   }
   async remove(name: string) {
     try {
@@ -323,17 +336,35 @@ export class Engine {
     const results = await Promise.allSettled(expired.map((r) => this.remove(r.name)));
     for (const result of results) if (result.status === "rejected") throw result.reason;
   }
-  async upload(id: string, scope: Scope, path: string, body: ReadableStream<Uint8Array>, signal: AbortSignal) {
+  async upload(
+    id: string,
+    scope: Scope,
+    path: string,
+    body: ReadableStream<Uint8Array>,
+    signal: AbortSignal,
+    workspaceEditToken?: string,
+  ) {
     await this.assertOwner(id, scope);
     filePath(path);
-    if (!path.startsWith("sources/") && !path.startsWith("work/") && !path.startsWith("outputs/")) {
-      throw new Error("file writes must be under sources/, work/ or outputs/");
+    if (path === ".home" || path.startsWith(".home/")) {
+      throw new Error("file writes cannot target runtime state");
     }
-    const child = spawn(
-      this.executable,
-      [...this.prefix, ...this.execArgs(id, ["write", path, String(this.config.maxTransferBytes)], true)],
-      { stdio: ["pipe", "ignore", "pipe"], signal },
-    );
+    const edit = workspaceEditToken
+      ? await this.acquireWorkspaceEdit(id, scope, workspaceEditToken)
+      : await this.acquireWorkspaceEdit(id, scope);
+    const startUpload = () =>
+      spawn(
+        this.executable,
+        [...this.prefix, ...this.execArgs(id, ["write", path, String(this.config.maxTransferBytes)], true)],
+        { stdio: ["pipe", "ignore", "pipe"], signal },
+      );
+    let child: ReturnType<typeof startUpload>;
+    try {
+      child = startUpload();
+    } catch (error) {
+      if (!workspaceEditToken) await this.releaseWorkspaceEdit(id, scope, edit.token);
+      throw error;
+    }
     let stderr = "";
     child.stderr.on("data", (data: Buffer) => {
       stderr = (stderr + data.toString()).slice(-2000);
@@ -371,6 +402,8 @@ export class Engine {
       child.kill("SIGKILL");
       await Promise.allSettled([completion, transfer]);
       throw error;
+    } finally {
+      if (!workspaceEditToken) await this.releaseWorkspaceEdit(id, scope, edit.token);
     }
   }
   async download(id: string, scope: Scope, path: string, signal: AbortSignal) {

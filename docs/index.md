@@ -10,6 +10,7 @@
 | 服务组成、端口、binding、数据库 | [services.yaml](../services.yaml)，根 `just lint` 检查漂移 |
 | 后端分层与所有权 | [后端规则](../apps/backend/AGENTS.md)、[微服务](微服务/index.md) |
 | 前端边界与运行时 | [前端规则](../apps/frontend/AGENTS.md)、[微前端](微前端/index.md) |
+| Electron 本地入口与发行待办 | [桌面运行说明](../apps/frontend/apps/desktop/README.md)、[本地/云端执行模式](ADR/sandbox-execution-modes.md) |
 | UI 与交互设计 | [DESIGN.md](../DESIGN.md) |
 | API / 事件 / stream | [契约入口](../schemas/AGENTS.md) |
 | 业务资源归属 | [领域模型](领域模型/index.md) |

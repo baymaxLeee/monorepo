@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./desktop": "./src/desktop.ts"
   },
   "scripts": {
     "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit"
@@ -16,6 +17,8 @@
   },
   "devDependencies": {
     "@repo/shared": "workspace:*",
-    "@typescript/native": "catalog:"
+    "@typescript/native": "catalog:",
+    "ai": "catalog:",
+    "vitest": "catalog:"
   }
 }

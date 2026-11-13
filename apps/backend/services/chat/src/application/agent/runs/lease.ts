@@ -13,6 +13,7 @@ import {
   requestAgentRunCancellation,
   RUN_LEASE_MS,
 } from "./repository.js";
+import { markSandboxExecutionsReleasing, reconcileSandboxExecutions } from "./sandbox-executions.js";
 
 const controllers = new Map<string, AbortController>();
 const completions = new Map<string, { promise: Promise<void>; resolve: () => void }>();
@@ -161,6 +162,8 @@ export async function reconcileOrphanedRuns(): Promise<void> {
   const interrupted = await interruptRuns(orphaned.map((run) => run.id));
   if (interrupted.length === 0) return;
   const runIds = interrupted.map((run) => run.id);
+  await markSandboxExecutionsReleasing(runIds);
+  await reconcileSandboxExecutions();
   await Promise.all(
     interrupted.map((run) =>
       deactivateAgentStream(run.conversationId, run.id).catch((error) =>

@@ -1,8 +1,8 @@
+import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
 import { tool } from "ai";
 import { z } from "zod";
 
 import { canvasClient } from "../../../../infrastructure/clients/canvas.js";
-import { defineAgentTool } from "../manifest.js";
 
 const contextSchema = z.object({
   userId: z.string(),

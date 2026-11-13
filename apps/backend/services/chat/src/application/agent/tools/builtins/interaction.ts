@@ -1,9 +1,9 @@
+import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
+import { toolOutcomeSchema } from "@backend/agent-runtime-ts/outcome";
 import { tool } from "ai";
 import { z } from "zod";
 
 import type { AgentMode } from "../../agents/types.js";
-import { defineAgentTool } from "../manifest.js";
-import { toolOutcomeSchema } from "../outcome.js";
 
 const askUserQuestionSchema = z
   .object({

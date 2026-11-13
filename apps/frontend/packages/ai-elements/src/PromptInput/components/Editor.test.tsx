@@ -155,3 +155,8 @@ test("failed attachments block submit without destroying the draft", async () =>
   expect(submit).not.toHaveBeenCalled();
   expect(ref.current?.getValue().tokens).toHaveLength(1);
 });
+
+test("text-only composers hide attachment actions", () => {
+  render(<Editor maxFiles={0} />);
+  expect(screen.queryByRole("button", { name: "添加附件" })).toBeNull();
+});

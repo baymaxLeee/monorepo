@@ -12,12 +12,16 @@ import {
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "./errors.js";
 import { assertEditableFileSize, editableFileByteLimit } from "./file-edit-limits.js";
+import { isValidWorkspacePath } from "./workspace-paths.js";
 
 export interface ConversationFile {
   id: string;
   conversation_id: string;
   title: string;
   filename: string;
+  workspace_path: string;
+  workspace_state: "live" | "deleted";
+  path_generation: number;
   mime_type: string;
   size: number;
   asset_id: string;
@@ -47,6 +51,9 @@ function toConversationFile(row: typeof conversationFiles.$inferSelect): Convers
     conversation_id: row.conversationId,
     title: row.title,
     filename: row.filename,
+    workspace_path: row.workspacePath,
+    workspace_state: row.workspaceState as ConversationFile["workspace_state"],
+    path_generation: Number(row.pathGeneration),
     mime_type: row.mediaType,
     size: row.sizeBytes,
     asset_id: row.assetId,
@@ -119,7 +126,7 @@ export async function listConversationFiles(scope: FileScope): Promise<Conversat
     .select({ file: conversationFiles })
     .from(conversationFiles)
     .innerJoin(conversations, eq(conversations.id, conversationFiles.conversationId))
-    .where(scopeCondition(scope))
+    .where(and(scopeCondition(scope), eq(conversationFiles.workspaceState, "live")))
     .orderBy(asc(conversationFiles.createdAt), asc(conversationFiles.id));
   return rows.map(({ file }) => toConversationFile(file));
 }
@@ -156,9 +163,13 @@ export async function publishConversationFile(
     sizeBytes: number;
     sha256: string;
     idempotencyKey: string;
+    workspacePath: string;
+    writerType?: "user" | "agent";
+    writerId?: string;
   },
 ): Promise<ConversationFile> {
   const db = getDb();
+  if (!isValidWorkspacePath(input.workspacePath)) throw new RequestError("invalid conversation workspace path");
   return db.transaction(async (tx) => {
     const [conversation] = await tx
       .select({ id: conversations.id })
@@ -166,7 +177,6 @@ export async function publishConversationFile(
       .where(scopeCondition(input))
       .for("update");
     if (!conversation) throw new NotFoundError(`conversation ${input.conversationId} not found`);
-
     const [existing] = await tx
       .select()
       .from(conversationFiles)
@@ -187,7 +197,8 @@ export async function publishConversationFile(
         existing.filename !== input.filename ||
         existing.mediaType !== input.mediaType ||
         existing.sizeBytes !== input.sizeBytes ||
-        existing.sha256 !== input.sha256
+        existing.sha256 !== input.sha256 ||
+        existing.workspacePath !== input.workspacePath
       ) {
         throw new ConflictError("file idempotency key was already used for different content");
       }
@@ -208,6 +219,7 @@ export async function publishConversationFile(
         revisionId: input.revisionId,
         title: input.title,
         filename: input.filename,
+        workspacePath: input.workspacePath,
         mediaType: input.mediaType,
         sizeBytes: input.sizeBytes,
         sha256: input.sha256,
@@ -217,8 +229,8 @@ export async function publishConversationFile(
         updatedAt: now,
         contentGeneration: 1n,
         contentEtag: newContentEtag(),
-        lastWriterType: "agent",
-        lastWriterId: input.userId,
+        lastWriterType: input.writerType ?? "agent",
+        lastWriterId: input.writerId ?? input.userId,
       })
       .returning();
     if (!row) throw new Error("conversation file insert returned no row");
@@ -264,6 +276,8 @@ export type ConversationFileSaveInput = FileScope & {
   operationId: string;
   writerType: "user" | "agent";
   writerId: string;
+  workspacePath?: string;
+  expectedPathGeneration?: number;
 };
 
 type SavePreparation =
@@ -297,7 +311,10 @@ function operationMatches(
     operation.contentSha256 === input.contentSha256 &&
     operation.operationType === "update" &&
     operation.writerType === input.writerType &&
-    operation.writerId === input.writerId
+    operation.writerId === input.writerId &&
+    operation.workspacePath === (input.workspacePath ?? null) &&
+    operation.expectedPathGeneration ===
+      (input.expectedPathGeneration == null ? null : BigInt(input.expectedPathGeneration))
   );
 }
 
@@ -308,7 +325,10 @@ function assertSaveInput(input: ConversationFileSaveInput): void {
     input.operationId.length < 1 ||
     input.operationId.length > 80 ||
     input.writerId.length < 1 ||
-    input.writerId.length > 128
+    input.writerId.length > 128 ||
+    (input.workspacePath !== undefined && !isValidWorkspacePath(input.workspacePath)) ||
+    (input.expectedPathGeneration !== undefined &&
+      (!Number.isSafeInteger(input.expectedPathGeneration) || input.expectedPathGeneration < 1))
   ) {
     throw new RequestError("invalid conversation file save input");
   }
@@ -325,7 +345,6 @@ async function prepareConversationFileSave(input: ConversationFileSaveInput): Pr
       .where(scopeCondition(input))
       .for("update");
     if (!conversation) throw new NotFoundError(`conversation ${input.conversationId} not found`);
-
     const [row] = await tx
       .select()
       .from(conversationFiles)
@@ -340,10 +359,19 @@ async function prepareConversationFileSave(input: ConversationFileSaveInput): Pr
       )
       .for("update");
     if (!row) throw new NotFoundError(`file ${input.fileId} not found in conversation ${input.conversationId}`);
-    if (!isEditableConversationFile(row.filename, row.mediaType)) {
+    const workspacePersistence = input.workspacePath !== undefined && input.expectedPathGeneration !== undefined;
+    if (!workspacePersistence && !isEditableConversationFile(row.filename, row.mediaType)) {
       throw new RequestError("conversation file is not editable text");
     }
-    assertEditableFileSize(row.sizeBytes);
+    if (!workspacePersistence) assertEditableFileSize(row.sizeBytes);
+    if (
+      workspacePersistence &&
+      (row.workspaceState !== "live" ||
+        row.workspacePath !== input.workspacePath ||
+        row.pathGeneration !== BigInt(input.expectedPathGeneration!))
+    ) {
+      throw new ConflictError("workspace file path generation changed", "file_content_conflict");
+    }
 
     const [operation] = await tx
       .select()
@@ -379,6 +407,8 @@ async function prepareConversationFileSave(input: ConversationFileSaveInput): Pr
         expectedEtag: input.expectedEtag,
         contentSha256: input.contentSha256,
         operationType: "update",
+        workspacePath: input.workspacePath ?? null,
+        expectedPathGeneration: input.expectedPathGeneration == null ? null : BigInt(input.expectedPathGeneration),
         writerType: input.writerType,
         writerId: input.writerId,
         status: "pending",
@@ -462,14 +492,14 @@ export async function saveConversationFile(
     candidate.assetId !== preparation.file.asset_id ||
     !candidate.revisionId ||
     candidate.filename !== preparation.file.filename ||
-    !isEditableConversationFile(candidate.filename, candidate.mediaType) ||
+    (input.workspacePath === undefined && !isEditableConversationFile(candidate.filename, candidate.mediaType)) ||
     candidate.sizeBytes < 0 ||
     candidate.sha256 !== input.contentSha256
   ) {
     await releaseSaveOperationLease(input);
     throw new RequestError("storage returned invalid conversation file content metadata");
   }
-  assertEditableFileSize(candidate.sizeBytes);
+  if (input.workspacePath === undefined) assertEditableFileSize(candidate.sizeBytes);
 
   const outcome = await getDb().transaction(async (tx) => {
     const [conversation] = await tx
@@ -503,7 +533,14 @@ export async function saveConversationFile(
     if (operation.status === "succeeded" && operation.resultJson) {
       return { kind: "done" as const, file: operation.resultJson as unknown as ConversationFile };
     }
-    if (operation.status === "conflict" || formatContentEtag(row.contentEtag) !== input.expectedEtag) {
+    if (
+      operation.status === "conflict" ||
+      formatContentEtag(row.contentEtag) !== input.expectedEtag ||
+      (input.workspacePath !== undefined &&
+        (row.workspaceState !== "live" ||
+          row.workspacePath !== input.workspacePath ||
+          row.pathGeneration !== BigInt(input.expectedPathGeneration!)))
+    ) {
       await tx
         .update(conversationFileSaveOperations)
         .set({ status: "conflict", leaseUntil: null, updatedAt: new Date() })
@@ -563,6 +600,63 @@ export async function saveConversationFile(
   });
   if (outcome.kind === "conflict") throwPreparationFailure(outcome);
   return outcome.file;
+}
+
+export async function deleteWorkspaceConversationFile(
+  input: FileScope & {
+    fileId: string;
+    workspacePath: string;
+    expectedPathGeneration: number;
+    expectedEtag: string;
+    writerId: string;
+  },
+): Promise<void> {
+  if (!isValidWorkspacePath(input.workspacePath) || !Number.isSafeInteger(input.expectedPathGeneration)) {
+    throw new RequestError("invalid workspace deletion input");
+  }
+  await getDb().transaction(async (tx) => {
+    const [conversation] = await tx
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(scopeCondition(input))
+      .for("update");
+    if (!conversation) throw new NotFoundError(`conversation ${input.conversationId} not found`);
+    const [row] = await tx
+      .select()
+      .from(conversationFiles)
+      .where(
+        and(
+          eq(conversationFiles.id, input.fileId),
+          eq(conversationFiles.conversationId, input.conversationId),
+          eq(conversationFiles.userId, input.userId),
+          eq(conversationFiles.tenantId, input.tenantId),
+          eq(conversationFiles.workspaceId, input.workspaceId),
+        ),
+      )
+      .for("update");
+    if (!row) throw new NotFoundError(`file ${input.fileId} not found in conversation ${input.conversationId}`);
+    if (row.workspaceState === "deleted" && row.pathGeneration > BigInt(input.expectedPathGeneration)) return;
+    if (
+      row.workspaceState !== "live" ||
+      row.workspacePath !== input.workspacePath ||
+      row.pathGeneration !== BigInt(input.expectedPathGeneration) ||
+      formatContentEtag(row.contentEtag) !== input.expectedEtag
+    ) {
+      throw new ConflictError("workspace file changed before deletion", "file_content_conflict");
+    }
+    const now = new Date();
+    await tx
+      .update(conversationFiles)
+      .set({
+        workspaceState: "deleted",
+        pathGeneration: row.pathGeneration + 1n,
+        updatedAt: now,
+        lastWriterType: "agent",
+        lastWriterId: input.writerId,
+      })
+      .where(eq(conversationFiles.id, input.fileId));
+    await tx.update(conversations).set({ updatedAt: now }).where(eq(conversations.id, input.conversationId));
+  });
 }
 
 export async function releaseConversationFileClaims(tx: ChatTransaction, scope: FileScope): Promise<void> {
@@ -639,6 +733,9 @@ export async function forkConversationFileRows(
       revisionId: file.revisionId,
       title: file.title,
       filename: file.filename,
+      workspacePath: file.workspacePath,
+      workspaceState: file.workspaceState,
+      pathGeneration: file.pathGeneration,
       mediaType: file.mediaType,
       sizeBytes: file.sizeBytes,
       sha256: file.sha256,

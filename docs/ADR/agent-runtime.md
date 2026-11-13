@@ -1,6 +1,14 @@
 # 当前决策：交互 Agent 与上下文
 
+主循环唯一实现为 `@backend/agent-runtime-ts`，由 Chat 服务与 Electron 宿主共同调用。
+固定提示词组装、step 控制、tool manifest/outcome、Bash 定义和审批策略共享；
+两端只注入模型、工作区、存储及观测适配器。不得另建本地 Agent-loop 或按执行位置
+复制 UI 工具协议。环境差异见 [执行模式](sandbox-execution-modes.md)。
+
+
 状态：当前。以 Chat 的 Agent factory、run、context 和 tool catalog 为实现入口。
+
+本地/云端执行与文件生命周期的目标重构见 [Sandbox 双模式提案](sandbox-execution-modes.md)；尚未实现，本文继续描述当前运行时。
 
 ## 执行与传输
 

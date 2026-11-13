@@ -47,6 +47,17 @@ export const processSchema = z.object({
   truncated: z.boolean(),
 });
 export const sessionSchema = z.object({ id: z.string(), workdir: z.string(), expires_at: z.string() });
+export const workspaceSnapshotSchema = z.object({
+  files: z.array(
+    z.object({
+      path: z.string().min(1).max(1024),
+      size: z.number().int().nonnegative(),
+      sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    }),
+  ),
+});
+export const workspaceEditSchema = z.object({ token: identity });
+export type WorkspaceEdit = z.infer<typeof workspaceEditSchema>;
 export type ProcessResult = z.infer<typeof processSchema>;
 
 export function filePath(value: string): string {

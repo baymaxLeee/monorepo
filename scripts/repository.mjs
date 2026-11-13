@@ -43,7 +43,11 @@ export function discoverProjects(root) {
     const declarations = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
     for (const field of declarations) {
       for (const [name, version] of Object.entries(project.manifest?.[field] ?? {})) {
-        const candidates = projects.filter((p) => p.area === project.area && p.packageName === name);
+        const candidates = projects.filter(
+          (p) =>
+            p.packageName === name &&
+            (p.area === project.area || (name.startsWith("@") && ["libs", "packages"].includes(p.kind))),
+        );
         const local = /^(workspace:|file:|link:)/.test(version);
         if (candidates.length === 1) project.dependencies.push(candidates[0].id);
         else if (local || candidates.length > 1)

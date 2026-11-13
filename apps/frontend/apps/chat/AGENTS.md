@@ -4,7 +4,7 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 ## Boundaries
 
-- Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage parts. Reconnection replays that same protocol; do not add a parallel one.
+- Cloud Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage parts. Electron local Chat uses the same `useChat` with the capability IPC `ChatTransport` in `src/pages/local/transport.ts`; its bridge contract lives in `schemas/desktop/`. Reconnection replays that same protocol; do not add a parallel one.
 - The UIMessage stream is a cross-stack contract. Before adding a custom `data-*` part / `onData` field, read `schemas/streaming/chat-uimessage-stream.md` and register it there. Reuse official parts first (`text`/`reasoning`/`tool-*`/ `file`/`source-*`, message `metadata`); custom `ChatUIDataTypes` entries are only for data no official part covers.
 - After persisted messages load, call `resumeStream()` once per conversation. Refresh and route changes disconnect only the subscriber. Stop calls both `useChat.stop()` and the server run cancellation endpoint.
 - Do not add sessionStorage message/stream state; Redis is the replay buffer.
@@ -16,6 +16,7 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 ## Layout
 
 - `src/router/index.tsx` — relative route tree exposed as `./routes`
+- Cloud and local routes share `ChatLayout`, `ChatStream` and `ChatPrompt`; do not add a separate local sidebar, transcript or textarea. The new-conversation composer chooses execution location before creation; existing conversations cannot change execution mode.
 - `src/pages/chat/Chat.tsx` — route wrapper for `@repo/ai-elements/conversation` ChatSession
 - `src/pages/layout/ChatLayout.tsx` — three-region composition only; no message, list or preview-content subscriptions
 - `src/components/ChatPanels.tsx` — shadcn Sidebar/Resizable layout; only visibility changes may cross region boundaries

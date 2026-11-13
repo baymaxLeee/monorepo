@@ -1,9 +1,9 @@
+import type { InstructionInput } from "@backend/agent-runtime-ts/instructions/index";
+import type { OrchestrationState } from "@backend/agent-runtime-ts/orchestration";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import type { ModelMessage } from "ai";
 
 import type { AgentSkillRef, ProviderSnapshot, SkillFileResource } from "../../../infrastructure/clients/admin.js";
-import type { InstructionInput } from "../context/instructions/index.js";
-import type { OrchestrationState } from "./orchestration.js";
 
 export type AgentMode = "normal" | "plan";
 

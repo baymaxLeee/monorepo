@@ -42,6 +42,7 @@ function setup() {
         projectId: null,
         canvasId: null,
         activePlanFileId: null,
+        executionMode: "cloud",
         runRevision: 0n,
         historyRevision: 0n,
         selectedMessageId: "2",

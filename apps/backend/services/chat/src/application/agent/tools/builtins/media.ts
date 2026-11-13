@@ -1,3 +1,5 @@
+import { defineAgentTool, defineUnavailableCapability } from "@backend/agent-runtime-ts/manifest";
+import { toolCompleted, type ToolEmission } from "@backend/agent-runtime-ts/outcome";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -6,8 +8,6 @@ import { getDocument } from "../../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
 import { startExecutorTask } from "../../tasks/executor-task.js";
 import { mediaToolContextSchema, type MediaToolContext } from "../context.js";
-import { defineAgentTool, defineUnavailableCapability } from "../manifest.js";
-import { toolCompleted, type ToolEmission } from "../outcome.js";
 
 const imageOutputSchema = z.object({
   kind: z.literal("image"),

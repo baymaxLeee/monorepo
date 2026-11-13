@@ -354,7 +354,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | [continuation](../../apps/backend/services/chat/src/application/agent/runs/continuation.ts) | 不可变调用身份、输出/审批 schema、响应去重和状态转换 |
 | [model file tests](../../apps/backend/services/chat/src/application/agent/context/model-files.test.ts)、[projector](../../apps/backend/services/chat/src/application/agent/context/projector.ts) | journal 与模型表示分离、数据引用、多模态输入 |
 | [stream service](../../apps/backend/services/chat/src/application/agent/streams/service.ts) | 原生 SSE 重放、取消 subscriber、active pointer 一致性 |
-| [tool manifest](../../apps/backend/services/chat/src/application/agent/tools/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
+| [tool manifest](../../apps/backend/libs/agent-runtime-ts/src/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
 | [frontend transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) | 精简但完整的操作语义、认证、原生 replay 配置 |
 | [useConversationChat](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.ts) | 实例生命周期、完整 hydration、错误恢复、过期响应拒绝 |
 | [ChatStream](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatStream.tsx) | 单一订阅与恢复入口，消息/状态快照和性能 |

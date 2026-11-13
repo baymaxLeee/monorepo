@@ -6,6 +6,38 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from "./orval-mutator";
+export type LocalInferenceSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | (LocalInferenceSchema0 | null)[]
+  | { [key: string]: LocalInferenceSchema0 | null };
+
+export type LocalInferenceSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | (LocalInferenceSchema1 | null)[]
+  | { [key: string]: LocalInferenceSchema1 | null };
+
+export type LocalInferenceSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | (LocalInferenceSchema2 | null)[]
+  | { [key: string]: LocalInferenceSchema2 | null };
+
+export type LocalInferenceSchema3 =
+  | string
+  | number
+  | boolean
+  | null
+  | (LocalInferenceSchema3 | null)[]
+  | { [key: string]: LocalInferenceSchema3 | null };
+
 export interface CanvasConversationInput {
   /**
    * @minLength 1
@@ -688,6 +720,282 @@ export interface DeletedMemory {
   deleted: boolean;
 }
 
+export type GetLocalInferenceConfigParams = {
+  agent_id?: string;
+};
+
+export type GetLocalInferenceConfig200 = {
+  /** @nullable */
+  agentId: string | null;
+  agentName: string;
+  model: string;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  contextWindow: number;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  maxOutputTokens: number;
+  instructions: string;
+};
+
+export type StreamLocalInferenceBodyOptionsPromptItem =
+  | {
+      role: "system";
+      content: string;
+    }
+  | {
+      role: "user";
+      content: (
+        | {
+            type: "text";
+            text: string;
+          }
+        | {
+            type: "file";
+            /** @maxLength 200 */
+            mediaType: string;
+            /** @maxLength 255 */
+            filename?: string;
+            data:
+              | {
+                  type: "data";
+                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                  data: string;
+                }
+              | {
+                  type: "text";
+                  text: string;
+                };
+          }
+      )[];
+    }
+  | {
+      role: "assistant";
+      content: (
+        | {
+            type: "text";
+            text: string;
+          }
+        | {
+            type: "reasoning";
+            text: string;
+          }
+        | {
+            type: "file";
+            /** @maxLength 200 */
+            mediaType: string;
+            /** @maxLength 255 */
+            filename?: string;
+            data:
+              | {
+                  type: "data";
+                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                  data: string;
+                }
+              | {
+                  type: "text";
+                  text: string;
+                };
+          }
+        | {
+            type: "tool-call";
+            toolCallId: string;
+            toolName: string;
+            input: LocalInferenceSchema0 | null;
+            providerExecuted?: false;
+          }
+        | {
+            type: "tool-result";
+            toolCallId: string;
+            toolName: string;
+            output:
+              | {
+                  type: "text" | "error-text";
+                  value: string;
+                }
+              | {
+                  type: "json" | "error-json";
+                  value: LocalInferenceSchema1 | null;
+                }
+              | {
+                  type: "execution-denied";
+                  reason?: string;
+                }
+              | {
+                  type: "content";
+                  value: (
+                    | {
+                        type: "text";
+                        text: string;
+                      }
+                    | {
+                        type: "file";
+                        /** @maxLength 200 */
+                        mediaType: string;
+                        /** @maxLength 255 */
+                        filename?: string;
+                        data:
+                          | {
+                              type: "data";
+                              /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                              data: string;
+                            }
+                          | {
+                              type: "text";
+                              text: string;
+                            };
+                      }
+                  )[];
+                };
+          }
+      )[];
+    }
+  | {
+      role: "tool";
+      content: {
+        type: "tool-result";
+        toolCallId: string;
+        toolName: string;
+        output:
+          | {
+              type: "text" | "error-text";
+              value: string;
+            }
+          | {
+              type: "json" | "error-json";
+              value: LocalInferenceSchema1 | null;
+            }
+          | {
+              type: "execution-denied";
+              reason?: string;
+            }
+          | {
+              type: "content";
+              value: (
+                | {
+                    type: "text";
+                    text: string;
+                  }
+                | {
+                    type: "file";
+                    /** @maxLength 200 */
+                    mediaType: string;
+                    /** @maxLength 255 */
+                    filename?: string;
+                    data:
+                      | {
+                          type: "data";
+                          /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                          data: string;
+                        }
+                      | {
+                          type: "text";
+                          text: string;
+                        };
+                  }
+              )[];
+            };
+      }[];
+    };
+
+export type StreamLocalInferenceBodyOptionsReasoning =
+  (typeof StreamLocalInferenceBodyOptionsReasoning)[keyof typeof StreamLocalInferenceBodyOptionsReasoning];
+
+export const StreamLocalInferenceBodyOptionsReasoning = {
+  "provider-default": "provider-default",
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export type StreamLocalInferenceBodyOptionsToolsItemType =
+  (typeof StreamLocalInferenceBodyOptionsToolsItemType)[keyof typeof StreamLocalInferenceBodyOptionsToolsItemType];
+
+export const StreamLocalInferenceBodyOptionsToolsItemType = {
+  function: "function",
+} as const;
+
+export type StreamLocalInferenceBodyOptionsToolsItemInputSchema = { [key: string]: LocalInferenceSchema2 | null };
+
+export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput = {
+  [key: string]: LocalInferenceSchema3 | null;
+};
+
+export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem = {
+  input: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput;
+};
+
+export type StreamLocalInferenceBodyOptionsToolsItem = {
+  type: StreamLocalInferenceBodyOptionsToolsItemType;
+  /**
+   * @maxLength 128
+   * @pattern ^[a-zA-Z0-9_-]+$
+   */
+  name: string;
+  description?: string;
+  inputSchema: StreamLocalInferenceBodyOptionsToolsItemInputSchema;
+  strict?: boolean;
+  inputExamples?: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem[];
+};
+
+export type StreamLocalInferenceBodyOptionsToolChoice =
+  | {
+      type: "auto" | "none" | "required";
+    }
+  | {
+      type: "tool";
+      toolName: string;
+    };
+
+export type StreamLocalInferenceBodyOptions = {
+  /** @minItems 1 */
+  prompt: StreamLocalInferenceBodyOptionsPromptItem[];
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  maxOutputTokens: number;
+  /**
+   * @minimum 0
+   * @maximum 2
+   */
+  temperature?: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  topP?: number;
+  reasoning?: StreamLocalInferenceBodyOptionsReasoning;
+  /** @maxItems 128 */
+  tools?: StreamLocalInferenceBodyOptionsToolsItem[];
+  toolChoice?: StreamLocalInferenceBodyOptionsToolChoice;
+};
+
+export type StreamLocalInferenceBody = {
+  /** @pattern ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$ */
+  requestId: string;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   * @nullable
+   */
+  agentId: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  model: string;
+  options: StreamLocalInferenceBodyOptions;
+};
+
 export type ForkConversationBody = {
   /**
    * @minLength 1
@@ -729,6 +1037,34 @@ export type GetVideoTakePreviewUrl200 = {
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+export const getLocalInferenceConfig = (
+  params?: GetLocalInferenceConfigParams,
+  options?: SecondParameter<typeof apiMutator<GetLocalInferenceConfig200>>,
+) => {
+  return apiMutator<GetLocalInferenceConfig200>(
+    { url: `/api/chat-server/local-inference/config`, method: "GET", params },
+    options,
+  );
+};
+
+/**
+ * Constrained AI SDK LanguageModelV4 inference relay. Native provider stream parts as NDJSON; no tool execution or conversation persistence. See schemas/desktop/README.md.
+ */
+export const streamLocalInference = (
+  streamLocalInferenceBody: StreamLocalInferenceBody,
+  options?: SecondParameter<typeof apiMutator<string>>,
+) => {
+  return apiMutator<string>(
+    {
+      url: `/api/chat-server/local-inference/stream`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: streamLocalInferenceBody,
+    },
+    options,
+  );
+};
 
 export const createCanvasConversation = (
   canvasConversationInput: CanvasConversationInput,
@@ -1106,6 +1442,8 @@ export const deleteMemory = (id: string, options?: SecondParameter<typeof apiMut
   return apiMutator<DeletedMemory>({ url: `/api/chat-server/memories/${id}`, method: "DELETE" }, options);
 };
 
+export type GetLocalInferenceConfigResult = NonNullable<Awaited<ReturnType<typeof getLocalInferenceConfig>>>;
+export type StreamLocalInferenceResult = NonNullable<Awaited<ReturnType<typeof streamLocalInference>>>;
 export type CreateCanvasConversationResult = NonNullable<Awaited<ReturnType<typeof createCanvasConversation>>>;
 export type ChatHealthzResult = NonNullable<Awaited<ReturnType<typeof chatHealthz>>>;
 export type ListConversationsResult = NonNullable<Awaited<ReturnType<typeof listConversations>>>;

@@ -1,9 +1,9 @@
+import type { BotProfileSnapshot } from "@backend/agent-runtime-ts/instructions/index";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import type { BotProfileSnapshot } from "../../../application/agent/context/instructions/index.js";
 import {
   createAgentRunResponse,
   getAgentRunTrace,

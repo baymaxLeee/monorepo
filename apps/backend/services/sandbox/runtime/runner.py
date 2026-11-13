@@ -1,5 +1,6 @@
 """Trusted, root-owned supervisor inside an ephemeral sandbox, never on the host."""
 
+import hashlib
 import json
 import os
 import pathlib
@@ -215,13 +216,26 @@ class Process:
 
 
 class Runtime:
-    def __init__(self, root, *, uid=1000, gid=1000, output_limit=65536, max_timeout=1800000, max_processes=64, pids=0):
+    def __init__(
+        self,
+        root,
+        *,
+        uid=1000,
+        gid=1000,
+        output_limit=65536,
+        max_timeout=1800000,
+        max_processes=64,
+        pids=0,
+        workspace_edit_wait=10,
+    ):
         self.root = pathlib.Path(root)
         self.uid, self.gid = uid, gid
         self.output_limit, self.max_timeout, self.max_processes = output_limit, max_timeout, max_processes
         self.processes, self.requests = {}, {}
         self.lock = threading.Lock()
         self.closed = False
+        self.workspace_edit = None
+        self.workspace_edit_wait = workspace_edit_wait
         self.pids = pids
         (self.root / ".home").mkdir(exist_ok=True)
         if os.getuid() == 0:
@@ -231,10 +245,40 @@ class Runtime:
         op = request["op"]
         if op == "health":
             return {"ready": not self.closed}
+        if op == "snapshot":
+            self.close(reject_workspace_edit=True)
+            return {"files": workspace_files(self.root)}
+        if op == "begin_workspace_edit":
+            with self.lock:
+                if self.closed:
+                    raise ValueError("sandbox is closing")
+                token = request["token"]
+                if self.workspace_edit not in (None, token):
+                    raise ValueError("workspace edit already in progress")
+                self.workspace_edit = token
+            deadline = time.monotonic() + self.workspace_edit_wait
+            while True:
+                with self.lock:
+                    if not any(process.exit_code is None for process in self.processes.values()):
+                        return {"token": token}
+                    if time.monotonic() >= deadline:
+                        if self.workspace_edit == token:
+                            self.workspace_edit = None
+                        raise ValueError("workspace has an active process")
+                time.sleep(0.05)
+        if op == "end_workspace_edit":
+            with self.lock:
+                token = request["token"]
+                if self.workspace_edit not in (None, token):
+                    raise ValueError("workspace edit token mismatch")
+                self.workspace_edit = None
+            return {"released": True}
         if op == "start":
             with self.lock:
                 if self.closed:
                     raise ValueError("sandbox is closing")
+                if self.workspace_edit is not None:
+                    raise ValueError("workspace edit in progress")
                 key = request["request_id"]
                 if key in self.requests:
                     process = self.processes[self.requests[key]]
@@ -267,8 +311,10 @@ class Runtime:
                 raise ValueError("unsupported operation")
         return process.snapshot(request)
 
-    def close(self):
+    def close(self, *, reject_workspace_edit=False):
         with self.lock:
+            if reject_workspace_edit and self.workspace_edit is not None:
+                raise ValueError("workspace edit in progress")
             self.closed = True
             processes = list(self.processes.values())
         for process in processes:
@@ -297,19 +343,47 @@ class Runtime:
                 os._exit(124)
 
 
+def workspace_files(root):
+    """Return a stable business-file manifest after all writers have stopped."""
+    root = pathlib.Path(root)
+    result = []
+    for directory, names, filenames in os.walk(root, topdown=True, followlinks=False):
+        current = pathlib.Path(directory)
+        if current == root:
+            names[:] = [name for name in names if name not in {".home", "sources"}]
+        for name in [*names, *filenames]:
+            info = (current / name).lstat()
+            if stat.S_ISLNK(info.st_mode) or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+                raise ValueError("workspace contains a symlink or special file")
+            if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+                raise ValueError("workspace contains a multiply-linked file")
+        for name in filenames:
+            path = current / name
+            digest = hashlib.sha256()
+            size = 0
+            with path.open("rb") as file:
+                while chunk := file.read(65536):
+                    size += len(chunk)
+                    digest.update(chunk)
+            result.append({"path": path.relative_to(root).as_posix(), "size": size, "sha256": digest.hexdigest()})
+    result.sort(key=lambda item: item["path"].encode("utf-8"))
+    return result
+
+
 SOCKET = "/run/control/runner.sock"
 
 
 def serve():
     root = pathlib.Path("/workspace")
     root.mkdir(exist_ok=True)
-    os.chown(root, 0, 0)
+    # Set permissions while root still owns the directory: the runtime drops CAP_FOWNER.
     os.chmod(root, 0o755)
+    os.chown(root, 1000, 1000)
     for directory in (root / "work", root / "outputs"):
         directory.mkdir(exist_ok=True)
         os.chown(directory, 1000, 1000)
-    # Source attachments are imported by the trusted transfer helper, read-only
-    # for generated commands. Only work/, outputs/ and .home/ are writable.
+    # Source attachments are imported by the trusted transfer helper and remain
+    # read-only. The rest of /workspace is the stable writable business tree.
     (root / "sources").mkdir(exist_ok=True)
     runtime = Runtime(
         root,
@@ -380,12 +454,12 @@ def main():
         operation, name, limit = sys.argv[1:4]
         limit = int(limit)
         root = pathlib.Path("/workspace")
-        if operation == "write" and not name.startswith(("sources/", "work/", "outputs/")):
-            raise ValueError("imports must be placed under sources/, work/ or outputs/")
+        if operation == "write" and (name == ".home" or name.startswith(".home/")):
+            raise ValueError("imports cannot target runtime state")
         temporary = (
             str(pathlib.PurePosixPath(name).with_name(".upload-" + uuid.uuid4().hex)) if operation == "write" else None
         )
-        writable_guest_file = name.startswith(("work/", "outputs/"))
+        writable_guest_file = not name.startswith("sources/")
         fd = safe_open(
             root,
             temporary or name,

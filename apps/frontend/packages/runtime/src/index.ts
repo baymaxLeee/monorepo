@@ -8,6 +8,7 @@ export {
   type PlatformUser,
   usePlatformStore,
 } from "./store/usePlatformStore";
+export { getPlatformAuth, registerPlatformAuth, type PlatformAuth } from "./auth-session";
 
 type Handler<T = unknown> = (payload: T) => void;
 

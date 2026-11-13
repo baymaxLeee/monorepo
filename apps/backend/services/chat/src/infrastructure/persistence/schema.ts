@@ -32,6 +32,7 @@ export const conversations = pgTable(
     projectId: varchar("project_id", { length: 36 }),
     canvasId: varchar("canvas_id", { length: 36 }),
     activePlanFileId: varchar("active_plan_file_id", { length: 32 }),
+    executionMode: varchar("execution_mode", { length: 20 }).notNull().default("cloud"),
     runRevision: bigint("run_revision", { mode: "bigint" }).notNull().default(0n),
     historyRevision: bigint("history_revision", { mode: "bigint" }).notNull().default(0n),
     selectedMessageId: varchar("selected_message_id", { length: 32 }),
@@ -59,6 +60,9 @@ export const conversationFiles = pgTable(
     revisionId: uuid("revision_id").notNull(),
     title: varchar("title", { length: 255 }).notNull(),
     filename: varchar("filename", { length: 255 }).notNull(),
+    workspacePath: varchar("workspace_path", { length: 1024 }).notNull(),
+    workspaceState: varchar("workspace_state", { length: 20 }).notNull().default("live"),
+    pathGeneration: bigint("path_generation", { mode: "bigint" }).notNull().default(1n),
     mediaType: varchar("media_type", { length: 255 }).notNull(),
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
     sha256: varchar("sha256", { length: 64 }).notNull(),
@@ -81,6 +85,9 @@ export const conversationFiles = pgTable(
       t.conversationId,
       t.idempotencyKey,
     ),
+    uniqueIndex("ux_conversation_files_live_workspace_path")
+      .on(t.tenantId, t.workspaceId, t.conversationId, t.workspacePath)
+      .where(sql`${t.workspaceState} = 'live'`),
   ],
 );
 
@@ -100,6 +107,8 @@ export const conversationFileSaveOperations = pgTable(
     expectedEtag: varchar("expected_etag", { length: 34 }).notNull(),
     contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
     operationType: varchar("operation_type", { length: 20 }).notNull(),
+    workspacePath: varchar("workspace_path", { length: 1024 }),
+    expectedPathGeneration: bigint("expected_path_generation", { mode: "bigint" }),
     writerType: varchar("writer_type", { length: 20 }).notNull(),
     writerId: varchar("writer_id", { length: 128 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
@@ -235,6 +244,26 @@ export const agentRuns = pgTable(
     index("ix_agent_runs_history_message_id").on(t.historyMessageId),
     uniqueIndex("ux_agent_runs_conversation_request").on(t.conversationId, t.requestId),
   ],
+);
+
+export const sandboxExecutions = pgTable(
+  "sandbox_executions",
+  {
+    runId: varchar("run_id", { length: 32 })
+      .primaryKey()
+      .references(() => agentRuns.id, { onDelete: "cascade" }),
+    conversationId: varchar("conversation_id", { length: 32 }).notNull(),
+    userId: varchar("user_id", { length: 26 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 26 }).notNull(),
+    workspaceId: varchar("workspace_id", { length: 26 }).notNull(),
+    state: varchar("state", { length: 20 }).notNull(),
+    sandboxId: varchar("sandbox_id", { length: 128 }),
+    expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true, precision: 6 }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true, precision: 6 }).notNull(),
+  },
+  (t) => [index("ix_sandbox_executions_releasing").on(t.state, t.updatedAt)],
 );
 
 export const agentSteps = pgTable(

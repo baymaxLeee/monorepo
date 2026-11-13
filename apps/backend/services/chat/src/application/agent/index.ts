@@ -6,6 +6,7 @@ export {
   type RunAgentInput,
 } from "./runs/run.js";
 export { cancelRun, reconcileOrphanedRuns, startOrphanRunReconciler } from "./runs/lease.js";
+export { reconcileSandboxExecutions, startSandboxExecutionReconciler } from "./runs/sandbox-executions.js";
 export { isRunActive } from "./runs/repository.js";
 export {
   activeAgentStreamRunId,

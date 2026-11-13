@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 
+import type { BotProfileSnapshot } from "@backend/agent-runtime-ts/instructions/index";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import {
   consumeStream,
@@ -35,7 +36,6 @@ import {
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
-import type { BotProfileSnapshot } from "../context/instructions/index.js";
 import { projectModelContext } from "../context/projector.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
 import {
@@ -484,6 +484,7 @@ export async function createAgentRunResponse(
         tenantId: auth.tenantId,
         workspaceId: auth.workspaceId,
         signal: runSignal,
+        stageWorkspaceFile: (path, content, signal) => agentInstance.sandbox.stagePublishedFile(path, content, signal),
       },
       onError: (error) => {
         logger.error({ err: error }, "stream failed");
@@ -575,6 +576,14 @@ export async function createAgentRunResponse(
             usage: tokens,
             historyRevision: claim.historyRevision,
           };
+          // Sandbox disposal is the run finalizer boundary. It must finish (or
+          // leave durable release responsibility for the reconciler) before the
+          // journal becomes terminal and before the conversation lease is freed.
+          try {
+            await agentInstance.dispose();
+          } finally {
+            disposeAgentResources = null;
+          }
           const finalized = await finalizeAgentRunJournal({
             runId,
             parts,
@@ -611,9 +620,6 @@ export async function createAgentRunResponse(
           );
           await releaseRun(runId).catch(() => undefined);
           throw error;
-        } finally {
-          await agentInstance.dispose();
-          disposeAgentResources = null;
         }
       },
     });

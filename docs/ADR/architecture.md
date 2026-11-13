@@ -36,3 +36,15 @@ Gateway 是唯一公共 API 边缘，承担认证、CORS、限流、反向代理
 | 进程监督/文件传输     | Sandbox runtime                | 服务私有，不抽取通用业务库                         |
 
 Sandbox 单独持有容器/Pod 控制权限，Chat 只持内部调用凭据，Executor 无此权限。这隔开了模型/业务凭据与高权限执行控制面；部署与故障语义见 [Sandbox](../微服务/sandbox.md)。
+
+## Agent harness 的共享判断
+
+| 能力 | 真实消费者 | 决策 |
+| --- | --- | --- |
+| SDK 主循环、固定提示词组装、step 策略 | Chat 服务、Electron utility host | 共享 `apps/backend/libs/agent-runtime-ts` 实现，不维护本地专属循环 |
+| Tool manifest、ToolOutcome、Bash 定义、审批策略 | 同上，结果由同一 Chat UI 消费 | 共享实现；环境只注入命令执行适配器，UI 不按执行位置分支 |
+| IAM、模型凭据与转发 | Chat 模型访问层、Electron relay transport | Chat 持有凭据，Electron 仅消费受限推理协议；不将身份/数据库抽进 harness |
+| 工作区与消息持久化 | 云端 Storage/PostgreSQL、本地磁盘/SQLite | 各宿主负责 I/O 和清理，保留文件与会话；不复制 Agent 决策策略 |
+
+共享包由 backend workspace 管理；Electron 通过声明的 `file:` 包依赖消费，避免 Turbo workspace 越界；只依赖 SDK 和 schema 基础设施，不引用服务、Electron 或数据库。
+库的消费者必须通过声明依赖进入 affected checks 和镜像构建计划。

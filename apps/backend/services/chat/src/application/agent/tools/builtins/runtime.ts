@@ -1,23 +1,15 @@
 import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/tool-web-fetch";
+import { createBashTool } from "@backend/agent-runtime-ts/bash";
+import { defineAgentTool, transformToolPreservingCaller } from "@backend/agent-runtime-ts/manifest";
+import { toolCompleted, toolFailed } from "@backend/agent-runtime-ts/outcome";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
 import { artifactToolContextSchema } from "../context.js";
-import { defineAgentTool, transformToolPreservingCaller } from "../manifest.js";
-import { toolCompleted, toolFailed, toolPartial } from "../outcome.js";
 import { createAgentCodeModeTool } from "./code-mode.js";
 import { requireRunSandbox } from "./sandbox-session.js";
 
 export async function createRuntimeTools() {
-  const commandResult = (result: { exitCode: number; stdout: string; stderr: string }) =>
-    result.exitCode === 0
-      ? toolCompleted(result)
-      : toolPartial(result, {
-          code: "COMMAND_FAILED",
-          message: result.stderr || `Command exited with code ${result.exitCode}`,
-          retryable: false,
-          source: "bash",
-        });
   const webFetchBase = createWebFetchTool();
   const webFetch = transformToolPreservingCaller(
     webFetchBase,
@@ -53,45 +45,14 @@ export async function createRuntimeTools() {
       { ...readPolicy, callableByCodeMode: true },
       { summary: "Read a public web page or text URL as Markdown.", parallelizable: true },
     ),
-    defineAgentTool(
-      "bash",
-      tool({
-        description:
-          "Run real Bash through this run's AI SDK sandbox session for file, CLI, raw-response, or program execution work. Do not use Bash for ordinary public web discovery or page reading: use web_search for one query, web_fetch for one known URL, and code_mode for multiple public reads with programmatic aggregation. Bash supports curl only through the configured egress proxy, plus Python, Node, CLI programs and file create/read/edit/delete. The initial working directory is /workspace/work; /workspace/outputs is writable; /workspace/sources contains read-only original conversation attachments and saved files. Copy a source into work before editing. State and files persist across commands in this run; shell variables/cwd do not. Use save_sandbox_file for every deliverable before the run ends. No host mounts, service credentials, sudo or unsandboxed fallback.",
-        inputSchema: z.object({
-          command: z
-            .string()
-            .min(1)
-            .max(65536)
-            .describe("Bash command or script. Prefer explicit paths and quoted heredocs for file content."),
-          workdir: z.string().default("/workspace/work").describe("Existing absolute workspace directory."),
-        }),
-        contextSchema: artifactToolContextSchema,
-        execute: async (input, options) => {
-          options.abortSignal?.throwIfAborted();
-          const sandbox = requireRunSandbox(options.experimental_sandbox);
-          return commandResult(
-            await sandbox.run({
-              command: input.command,
-              workingDirectory: input.workdir,
-              abortSignal: options.abortSignal,
-            }),
-          );
-        },
-      }),
-      {
-        ...readPolicy,
-        capability: "files",
-        effect: "write",
-        trust: "private-untrusted",
-        modes: ["normal", "plan"],
-        uiKind: "terminal",
-      },
-      {
-        summary: "Execute CLI programs and manipulate real files in a run-scoped Linux sandbox.",
-        constraints: ["Temporary files disappear when the run ends. Save deliverables explicitly."],
-      },
-    ),
+    createBashTool(async (input, options) => {
+      options.abortSignal?.throwIfAborted();
+      return requireRunSandbox(options.experimental_sandbox).run({
+        command: input.command,
+        workingDirectory: input.workdir ?? "/workspace/work",
+        abortSignal: options.abortSignal,
+      });
+    }),
     defineAgentTool(
       "refresh_conversation_sources",
       tool({
@@ -106,33 +67,10 @@ export async function createRuntimeTools() {
       { summary: "Import conversation sources added by another tool after the sandbox was initialized." },
     ),
     defineAgentTool(
-      "checkout_conversation_file",
-      tool({
-        description:
-          "Create or replace a writable working copy from an exact imported conversation-file revision. Use this before editing an existing saved file and again after refresh when rebasing onto a newer ETag. This copies the source bytes and binds that work path to the supplied file_id and ETag; refresh alone never upgrades an existing working copy.",
-        inputSchema: z.object({
-          file_id: z.string().length(32).describe("Stable file id from sources/saved/manifest.json."),
-          etag: z
-            .string()
-            .regex(/^\"[a-f0-9]{32}\"$/)
-            .describe("Exact ETag from sources/saved/manifest.json."),
-          path: z.string().min(1).describe("Destination under /workspace/work or /workspace/outputs."),
-        }),
-        contextSchema: artifactToolContextSchema,
-        execute: async (input, options) =>
-          requireRunSandbox(options.experimental_sandbox).checkoutFile(
-            { fileId: input.file_id, etag: input.etag, path: input.path },
-            options.abortSignal,
-          ),
-      }),
-      { ...readPolicy, capability: "files", effect: "write", trust: "private-untrusted", modes: ["normal", "plan"] },
-      { summary: "Create a fenced writable copy of an imported conversation file revision." },
-    ),
-    defineAgentTool(
       "save_sandbox_file",
       tool({
         description:
-          "Save one completed sandbox file. Use operation=create for a new artifact or intentional Save As. For update, first use checkout_conversation_file for the exact imported ETag, edit that bound working path, then save it with the same file_id and ETag. Update supports bounded UTF-8 text, preserves file identity, and returns a new ETag. Refresh alone never rebases a work copy; never turn a conflict into create automatically.",
+          "Display one completed workspace file as a deliverable. File bytes already persist automatically. Use operation=create for a file first created in this run. Use update with the restored file_id and ETag when publishing an edited existing file; its authoritative path is already writable in /workspace. Never turn a conflict into create automatically.",
         inputSchema: z.object({
           operation: z.enum(["create", "update"]),
           path: z.string().min(1).describe("Completed file path under /workspace/work or /workspace/outputs."),

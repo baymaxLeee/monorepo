@@ -1,6 +1,7 @@
+import type { BotProfileSnapshot, InstructionInput, MemoryDatum } from "@backend/agent-runtime-ts/instructions/index";
+
 import type { AgentMode } from "../agents/types.js";
 import { listActiveMemories } from "../memory/repository.js";
-import type { BotProfileSnapshot, InstructionInput, MemoryDatum } from "./instructions/index.js";
 
 export async function loadInstructionContext(params: {
   userId: string;

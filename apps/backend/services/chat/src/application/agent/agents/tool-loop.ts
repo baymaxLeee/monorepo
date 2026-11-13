@@ -1,23 +1,21 @@
 import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
+import { createAgentHarness } from "@backend/agent-runtime-ts";
+import { assembleInstructions } from "@backend/agent-runtime-ts/instructions/index";
+import { transformToolPreservingCaller } from "@backend/agent-runtime-ts/manifest";
+import { deriveOrchestrationState } from "@backend/agent-runtime-ts/orchestration";
+import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
+import { createToolApprovalPolicy } from "@backend/agent-runtime-ts/policy";
+import { newMessagesForStoredResponse } from "@backend/agent-runtime-ts/response-continuation";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
-import { createProviderModel } from "@backend/transport-ts/provider-model";
-import {
-  addToolInputExamplesMiddleware,
-  InvalidToolInputError,
-  isStepCount,
-  ToolLoopAgent,
-  wrapLanguageModel,
-} from "ai";
+import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
 
 import { getSettings } from "../../../bootstrap/config.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
-import { contextCompactionThreshold } from "../context/budget.js";
+import { createInferenceModel } from "../../inference/provider.js";
 import { estimateConversationContext, type ContextEstimate } from "../context/context-snapshot.js";
-import { assembleInstructions } from "../context/instructions/index.js";
-import { INSTRUCTION_SECTION_TAGS } from "../context/instructions/section-tags.js";
 import {
   captureModelStepContext,
   finishModelStep,
@@ -29,13 +27,6 @@ import {
 } from "../observability/lifecycle.js";
 import { RunSandbox } from "../tools/builtins/sandbox-session.js";
 import { ToolCatalog } from "../tools/catalog.js";
-import { transformToolPreservingCaller } from "../tools/manifest.js";
-import { isToolOutcome } from "../tools/outcome.js";
-import { createToolApprovalPolicy } from "../tools/policy.js";
-import { exactTextResponseModel } from "./exact-text-response-model.js";
-import { deriveOrchestrationState, MAX_AGENT_STEPS, resolveOrchestrationDirective } from "./orchestration.js";
-import { newMessagesForStoredResponse } from "./response-continuation.js";
-import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
@@ -150,6 +141,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   const instrumentedTools = withActiveToolSpans(tools, toolSpans);
 
   const sandbox = new RunSandbox(toolContext);
+  await sandbox.observeWorkspaceBaseline();
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
     userId: input.userId,
@@ -159,10 +151,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     orchestration: deriveOrchestrationState([]),
   };
   const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
-  const providerModel = createProviderModel(provider, {
-    parallelToolCalls: true,
-    contextCompactionThreshold: contextCompactionThreshold(provider),
-  });
+  const providerModel = createInferenceModel(provider);
   const toolSources = new Map(resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]));
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
@@ -184,24 +173,20 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       return params;
     },
   };
-  const defaultModel = wrapLanguageModel({
-    model: providerModel,
-    middleware: [
-      addToolInputExamplesMiddleware(),
-      contextCaptureMiddleware,
-      createToolBatchPolicyMiddleware(input.mode),
-    ],
-  });
   const toolApprovalSecret = getSettings().toolApprovalSecret;
   const codeModeToolCallers = Object.fromEntries(
     resolvedTools.codeModeTools.map((name) => [name, ["code_mode", DIRECT_TOOL_CALL] as const]),
   );
-  const loadSkillActiveTools = resolvedTools.activeTools.filter((name) => name !== "load_skill");
   // The provider may emit multiple calls per model response, and the AI SDK executes retained calls concurrently by
   // default because toolCallConcurrency is intentionally unset. The batch middleware only preserves semantic barriers.
-  const agent = new ToolLoopAgent<never, typeof tools, AgentRuntimeContext>({
+  const agent = createAgentHarness<AgentRuntimeContext>({
     id: "chat-agent",
-    model: defaultModel,
+    model: providerModel,
+    mode: input.mode,
+    middleware: [contextCaptureMiddleware],
+    workspace: {
+      consumeChanges: async () => (await sandbox.consumeExternalFileChanges()).map((change) => change.path),
+    },
     instructions,
     maxOutputTokens: provider.maxOutputTokens,
     timeout: { chunkMs: 120_000 },
@@ -211,7 +196,6 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: createToolApprovalPolicy(input.mode),
-    stopWhen: isStepCount(MAX_AGENT_STEPS),
     repairToolCall: async ({ toolCall, error }) => {
       await observe(
         "record rejected tool call",
@@ -228,12 +212,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       return null;
     },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
-    prepareStep: ({ runtimeContext: stepContext, steps, initialInstructions, messages }) => {
-      const orchestration = deriveOrchestrationState(steps);
-      const directive = resolveOrchestrationDirective(orchestration, steps.length);
-      const activeTools = orchestration.skillLoadedThisRun ? loadSkillActiveTools : resolvedTools.activeTools;
-      const nextContext = { ...stepContext, orchestration };
-      const baseInstructions = String(initialInstructions ?? instructions);
+    continuation: ({ steps, messages }) => {
       const toolResultMessages = steps.at(-1)?.response.messages.filter((message) => message.role === "tool") ?? [];
       const continuation =
         previousResponseId && (steps.length === 0 || toolResultMessages.length > 0)
@@ -242,29 +221,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
               messages: steps.length > 0 ? toolResultMessages : newMessagesForStoredResponse(messages),
             }
           : {};
-      if (directive.kind === "final") {
-        return {
-          ...continuation,
-          runtimeContext: nextContext,
-          model: wrapLanguageModel({
-            model: exactTextResponseModel(defaultModel, directive.instruction),
-            middleware: contextCaptureMiddleware,
-          }),
-          activeTools: [],
-          toolChoice: "none",
-          instructions: baseInstructions,
-        };
-      }
-      if (directive.kind === "final-summary") {
-        return {
-          ...continuation,
-          runtimeContext: nextContext,
-          activeTools: [],
-          toolChoice: "none",
-          instructions: `${baseInstructions}\n<${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>${directive.instruction}</${INSTRUCTION_SECTION_TAGS.orchestrationDirective}>`,
-        };
-      }
-      return { ...continuation, runtimeContext: nextContext, activeTools, instructions: initialInstructions };
+      return continuation;
     },
     // Generic ToolSet context requirements are conditional; the catalog still builds the inferred context map above.
     // oxlint-disable-next-line typescript/no-unnecessary-type-assertion

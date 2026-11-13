@@ -1,4 +1,3 @@
-import { logout, switchActiveWorkspace } from "@repo/api/iam";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/design-system";
 import { clearUser as clearObservabilityUser } from "@repo/observability";
 import { usePlatformStore } from "@repo/runtime";
@@ -7,6 +6,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 
+import { logout, switchActiveWorkspace } from "../../auth/session";
 import { activeMemberships } from "../../onboarding";
 
 function SelectWorkspacePage() {

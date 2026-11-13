@@ -92,3 +92,23 @@ test("public CLI emits parseable JSON and nonzero status for invalid input", () 
   const invalid = spawnSync(process.execPath, ["scripts/repo.mjs", "context", "backend/absent"], { encoding: "utf8" });
   assert.equal(invalid.status, 1);
 });
+
+test("native and service hosts resolve a shared infrastructure package across stacks", (t) => {
+  const { root, write } = fixture(t);
+  write("apps/backend/libs/agent-runtime-ts/package.json", { name: "@backend/agent-runtime-ts" });
+  write("apps/backend/services/chat/package.json", {
+    name: "chat",
+    dependencies: { "@backend/agent-runtime-ts": "workspace:*" },
+  });
+  write("apps/frontend/apps/desktop/package.json", {
+    name: "desktop",
+    dependencies: { "@backend/agent-runtime-ts": "workspace:*" },
+  });
+  const projects = discoverProjects(root);
+  assert.deepEqual(graphErrors(projects), []);
+  assert.deepEqual(consumersOf(projects, ["backend/agent-runtime-ts"]), [
+    "backend/agent-runtime-ts",
+    "backend/chat",
+    "frontend/desktop",
+  ]);
+});

@@ -1,5 +1,4 @@
 import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
-import { logout, switchActiveWorkspace } from "@repo/api/iam";
 import {
   Avatar,
   AvatarFallback,
@@ -14,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@repo/design-system";
 import { clearUser as clearObservabilityUser } from "@repo/observability";
-import { type PlatformMembership, usePlatformStore } from "@repo/runtime";
+import { getPlatformAuth, type PlatformMembership, usePlatformStore } from "@repo/runtime";
 import { BrainIcon, CheckIcon, ChevronsUpDownIcon, LogOutIcon, SettingsIcon, UserIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
@@ -40,7 +39,7 @@ export function ChatUserMenu() {
   const canSwitchWorkspace = workspaces.length > 1;
 
   async function handleLogout() {
-    await logout();
+    await getPlatformAuth()!.logout();
     setUser(null);
     clearObservabilityUser();
   }
@@ -50,10 +49,7 @@ export function ChatUserMenu() {
       return;
     }
     try {
-      const session = await switchActiveWorkspace({ workspaceId });
-      // Persist the rescoped identity before the reload so the shell rehydrates
-      // bound to the new workspace and drops all in-memory workspace-scoped state.
-      setUser(session.user);
+      await getPlatformAuth()!.switchWorkspace(workspaceId);
       window.location.assign("/platform/chat");
     } catch {}
   }

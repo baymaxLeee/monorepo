@@ -10,9 +10,9 @@ Ordinary HTTP APIs in this package are generated. Never hand-edit `index.ts` or
 - `index.ts`: generated service namespaces plus the explicit runtime exports.
 - `http.ts`, `orval-mutator.ts`, `auth-fetch.ts`: the single Axios/auth/error
   transport used by every generated operation.
-- `chat-stream.ts`, `canvas-stream.ts`, `storage-runtime.ts`, `session.ts`:
-  narrowly scoped runtime code for SSE, redirects/blobs/signed URLs and session
-  lifecycle that OpenAPI clients do not replace.
+- `chat-stream.ts`, `canvas-stream.ts`, `storage-runtime.ts`: narrowly scoped
+  runtime code for SSE, redirects/blobs/signed URLs. Session lifecycle and
+  credentials belong to Platform; transports consume its runtime capability.
 
 There are no API templates and no handwritten REST facades. Do not add a DTO,
 enum, endpoint URL, compatibility alias, request wrapper or response reshaper.

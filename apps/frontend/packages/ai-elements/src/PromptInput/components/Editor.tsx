@@ -195,6 +195,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
           disabled={disabled}
           loading={loading}
           attachmentsUploading={attachmentsUploading}
+          attachmentsEnabled={props.maxFiles !== 0}
           submitLabel={submitLabel}
           onStop={onStop}
           footerRender={footerRender}

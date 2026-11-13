@@ -25,3 +25,19 @@ steps:
       checksum: 9b6405b51a70f8ba8ee8dbc0dda39338b984f319b0e669fcc3c592d34ec012cf
       files:
         v1.0.0.5.up.sql: 65d75049681be9dad3f6dc69843bf21f9882b31339d2cb4c14d3d2189cd67de0
+    - version: v1.0.0.6
+      checksum: 77ccf9b332a5ae406f414d26ff433a4c80b7a0dd9c6195d880c317b77cf432dc
+      files:
+        v1.0.0.6.up.sql: 6d7963ea1fb6afefd2b9547fc6eec5a036b66ec22a61970c397ccd6120849629
+    - version: v1.0.0.7
+      checksum: 8ef88b3a877a843f7b02f087b57fc65f047d00f88452c544e7cbb1ee275585ca
+      files:
+        v1.0.0.7.up.sql: 6325315b82b4ad88e9e00fe3fd7050189f0352ee0a6ed1addc22626567a0baf3
+    - version: v1.0.0.8
+      checksum: 4b766a6d3b71c165109ebde0b0596659f029c71905e5a56c0cbc9a9b30089fd1
+      files:
+        v1.0.0.8.up.sql: 7f24f8da941663fe9b785843a079de8102a05fc39e4d2da602477b3956fbce22
+    - version: v1.0.0.9
+      checksum: d561f1570475b5804283b782321ea1724001ffe5e9514883aed051696168b30a
+      files:
+        v1.0.0.9.up.sql: 3651d9f463a81a4ddcd1a297b42fa391faa6a719c0d980c94e05110215201ed1

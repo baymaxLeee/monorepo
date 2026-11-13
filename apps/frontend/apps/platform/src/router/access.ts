@@ -1,8 +1,8 @@
-import { bootstrapSession } from "@repo/api";
 import { type AuthUser } from "@repo/api/iam";
 import { usePlatformStore } from "@repo/runtime";
 import { createContext, type MiddlewareFunction, redirect } from "react-router-dom";
 
+import { bootstrapSession } from "../auth/session";
 import { activeMemberships, canEnterPlatform, isSuperAdmin, landingPath } from "../onboarding";
 import type { App } from "./app-registry";
 

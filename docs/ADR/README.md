@@ -9,6 +9,7 @@
 |---|---|
 | 服务组成、分层、共享与事务边界 | [architecture](architecture.md) |
 | 主 Agent、上下文、工具与流 | [agent-runtime](agent-runtime.md) |
+| 参考 Codex 核心模型的本地/云端 Sandbox、文件与恢复（零兼容重构，实施与验收边界见正文） | [sandbox-execution-modes](sandbox-execution-modes.md) |
 | Chat UIMessage 协议、消息操作与呈现 | [chat-ui-protocol](chat-ui-protocol.md) |
 | Chat 活跃流恢复、Redis 生命周期与容量边界 | [chat-stream-resumption](chat-stream-resumption.md) |
 | Workflow、耐久任务、取消与审批 | [durable-execution](durable-execution.md) |

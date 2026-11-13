@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { asSchema, experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
+import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
 import type { Tool, ToolExecutionOptions } from "ai";
 
-import { isToolOutcome } from "../outcome.js";
 import { createRuntimeTools } from "./runtime.js";
 
 function executable(runtime: Awaited<ReturnType<typeof createRuntimeTools>>, name: string) {
@@ -42,14 +42,7 @@ test("runtime tools are base tools available without discovery", async () => {
   try {
     assert.deepEqual(
       runtime.manifests.map((manifest) => manifest.name),
-      [
-        "web_fetch",
-        "bash",
-        "refresh_conversation_sources",
-        "checkout_conversation_file",
-        "save_sandbox_file",
-        "code_mode",
-      ],
+      ["web_fetch", "bash", "refresh_conversation_sources", "save_sandbox_file", "code_mode"],
     );
     assert.ok(runtime.manifests.every((manifest) => manifest.tool?.deferLoading !== true));
   } finally {

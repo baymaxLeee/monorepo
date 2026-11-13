@@ -1,11 +1,11 @@
+import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
+import { ToolBlockedError } from "@backend/agent-runtime-ts/outcome";
 import { tool } from "ai";
 import { z } from "zod";
 
 import { getSettings } from "../../../../bootstrap/config.js";
 import { retrieveKnowledge } from "../../../../infrastructure/clients/knowledge.js";
 import { knowledgeSearchToolContextSchema, type KnowledgeSearchToolContext } from "../context.js";
-import { defineAgentTool } from "../manifest.js";
-import { ToolBlockedError } from "../outcome.js";
 
 const searchResultSchema = z.object({
   title: z.string(),

@@ -97,6 +97,15 @@ dev-urls:
 build target="":
     @./scripts/build-target.sh "{{ target }}"
 
+# Keep Web development independent; explicitly opt into the Electron host.
+[positional-arguments]
+desktop-dev *args:
+    pnpm --dir apps/frontend/apps/desktop launch "$@"
+
+[positional-arguments]
+desktop-package *args:
+    pnpm --dir apps/frontend/apps/desktop package "$@"
+
 build-frontend:
     @echo "Building frontend..."
     cd apps/frontend && just build
@@ -115,6 +124,7 @@ build-sandbox-runtime registry="local" tag="latest":
 # ─── Cross-stack ────────────────────────────────────────────
 sync:
     node schemas/codegen/generate-chat-ui.mjs
+    node schemas/codegen/generate-desktop.mjs
     cd apps/backend && just gen-openapi-all
     cd apps/frontend && just gen-client
     cd apps/backend && just gen-transport-ts
@@ -230,6 +240,7 @@ check:
 
 sync-check:
     node schemas/codegen/generate-chat-ui.mjs --check
+    node schemas/codegen/generate-desktop.mjs --check
     cd apps/backend && just gen-openapi-all
     cd apps/backend && just gen-transport-ts
     cd apps/frontend && just gen-client

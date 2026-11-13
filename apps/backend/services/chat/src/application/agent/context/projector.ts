@@ -1,3 +1,5 @@
+import { escapeXmlText } from "@backend/agent-runtime-ts/instructions/xml";
+import { isToolOutcome, toolOutcomeData } from "@backend/agent-runtime-ts/outcome";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import {
   convertToModelMessages,
@@ -13,11 +15,9 @@ import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { conversationContexts } from "../../../infrastructure/persistence/schema.js";
 import { EMPTY_USAGE, type UsageTokens } from "../observability/lifecycle.js";
-import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 import { effectiveModelInputWindow } from "./budget.js";
 import { parseCompactionState, type CompactionState } from "./compaction-state.js";
 import { compactConversationPrefix } from "./compactor.js";
-import { escapeXmlText } from "./instructions/xml.js";
 import { transformFilePartsForModel } from "./model-files.js";
 import { estimateTextTokens } from "./token-estimate.js";
 
@@ -278,7 +278,7 @@ export async function projectModelContext(input: {
         }
         return {
           type: "text",
-          text: `<plan_execution_request file_id="${escapeXmlText(fileId)}">The selected immutable Plan is imported under /workspace/sources/saved/${escapeXmlText(fileId)}/. Read the file completely with bash before using update_todos or any generation tool.</plan_execution_request>`,
+          text: `<plan_execution_request file_id="${escapeXmlText(fileId)}">Resolve the selected Plan's authoritative path from /workspace/sources/workspace-manifest.json, then read it completely with bash before using update_todos or any generation tool.</plan_execution_request>`,
         };
       }
       return undefined;

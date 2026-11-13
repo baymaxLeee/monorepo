@@ -6,14 +6,14 @@ import tempfile
 import time
 import unittest
 
-from runner import Runtime, safe_open
+from runner import Runtime, safe_open, workspace_files
 
 
 class RuntimeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self.temp.name)
-        self.runtime = Runtime(self.root, uid=os.getuid(), gid=os.getgid(), output_limit=128)
+        self.runtime = Runtime(self.root, uid=os.getuid(), gid=os.getgid(), output_limit=128, workspace_edit_wait=0)
 
     def tearDown(self):
         self.runtime.close()
@@ -79,6 +79,65 @@ class RuntimeTests(unittest.TestCase):
         self.runtime.close()
         result = self.runtime.request({"op": "poll", "session_id": first["session_id"]})
         self.assertIsNotNone(result["exitCode"])
+
+    def test_workspace_edit_fences_processes_and_is_idempotent(self):
+        token = "edit-1"
+        self.assertEqual(self.runtime.request({"op": "begin_workspace_edit", "token": token}), {"token": token})
+        self.assertEqual(self.runtime.request({"op": "begin_workspace_edit", "token": token}), {"token": token})
+        with self.assertRaisesRegex(ValueError, "workspace edit in progress"):
+            self.start("true")
+        with self.assertRaisesRegex(ValueError, "token mismatch"):
+            self.runtime.request({"op": "end_workspace_edit", "token": "other"})
+        self.assertEqual(self.runtime.request({"op": "end_workspace_edit", "token": token}), {"released": True})
+        self.assertEqual(self.start("printf resumed")["stdout"], "resumed")
+
+    def test_workspace_edit_rejects_an_active_process(self):
+        first = self.start("sleep 30", yield_time_ms=0)
+        with self.assertRaisesRegex(ValueError, "active process"):
+            self.runtime.request({"op": "begin_workspace_edit", "token": "edit-1"})
+        self.runtime.request({"op": "cancel", "session_id": first["session_id"]})
+
+    def test_workspace_edit_waits_for_an_admitted_process(self):
+        runtime = Runtime(self.root, uid=os.getuid(), gid=os.getgid(), output_limit=128, workspace_edit_wait=1)
+        try:
+            runtime.request(
+                {
+                    "op": "start",
+                    "request_id": "short",
+                    "command": "sleep 0.1",
+                    "yield_time_ms": 0,
+                }
+            )
+            self.assertEqual(
+                runtime.request({"op": "begin_workspace_edit", "token": "edit-1"}),
+                {"token": "edit-1"},
+            )
+            runtime.request({"op": "end_workspace_edit", "token": "edit-1"})
+        finally:
+            runtime.close()
+
+    def test_snapshot_waits_for_workspace_edit_release(self):
+        self.runtime.request({"op": "begin_workspace_edit", "token": "edit-1"})
+        with self.assertRaisesRegex(ValueError, "workspace edit in progress"):
+            self.runtime.request({"op": "snapshot"})
+        self.assertTrue(self.runtime.request({"op": "health"})["ready"])
+        self.runtime.request({"op": "end_workspace_edit", "token": "edit-1"})
+        self.assertEqual(self.runtime.request({"op": "snapshot"}), {"files": []})
+
+    def test_workspace_manifest_is_sorted_hashed_and_excludes_sources(self):
+        (self.root / "b.txt").write_bytes(b"two")
+        (self.root / "a.txt").write_bytes(b"one")
+        (self.root / "sources").mkdir()
+        (self.root / "sources" / "attachment.txt").write_text("external")
+        self.assertEqual([item["path"] for item in workspace_files(self.root)], ["a.txt", "b.txt"])
+        self.assertEqual(
+            workspace_files(self.root)[0]["sha256"], "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed"
+        )
+
+    def test_workspace_manifest_rejects_symlinks(self):
+        (self.root / "link").symlink_to("/etc/passwd")
+        with self.assertRaises(ValueError):
+            workspace_files(self.root)
 
 
 if __name__ == "__main__":

@@ -143,7 +143,7 @@ lint-node:
     @just typecheck-node
 
 typecheck-node:
-    @for p in libs/kernel-ts libs/transport-ts; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
+    @for p in libs/kernel-ts libs/transport-ts libs/agent-runtime-ts; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
     @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run typecheck) || exit 1; done
 
 typecheck-python:

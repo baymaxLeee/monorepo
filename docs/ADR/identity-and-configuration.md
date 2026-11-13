@@ -2,6 +2,8 @@
 
 状态：当前。以服务数据模型和路由为依据，不沿用旧 Org 命名或虚构审计服务。
 
+本地 Agent 的推理与凭据边界见 [Sandbox 执行模式](sandbox-execution-modes.md)：本地运行循环、Chat 提供受约束的 inference relay、provider secret 留在服务端；本地模式不改变 IAM/Admin 所有权。Relay 默认关闭，须配置显式推理配额。
+
 ## 身份边界
 
 IAM 拥有账号、凭据、tenant、workspace、成员关系、角色、登录会话和选中的
@@ -15,6 +17,17 @@ tenant/user/workspace/roles。服务必须检查作用域与资源权限，资�
 服务间使用显式 binding、`X-Caller-Service` 和每 caller 独立 credential，接收方
 使用自己的允许映射验证。Gateway 不公开代理 downstream `/internal/*`；
 Executor 没有公共 Gateway route。内部 API 的解密配置不能原样返回浏览器。
+
+浏览器认证生命周期统一由 Platform 的 `src/auth/` 拥有：登录、注册、刷新、
+退出、workspace 切换和桌面凭据绑定均在这里完成；access token 与刷新中的
+Promise 只保存在 Platform 模块内存。页面不得直接调用生成 IAM 登录/退出/切换
+操作而绕过会话提交或清理。普通身份查询仍使用生成客户端。
+
+`@repo/runtime` 只保存 Platform 注册的鉴权能力入口，不保存凭据、刷新任务或
+IAM 请求实现。按应用打包的 `@repo/api` 通过该入口获取请求凭证和请求刷新，
+Chat 用户菜单也通过它请求退出与切换 workspace，避免跨应用源码依赖。
+不得通过 localStorage/sessionStorage 持久化 token 来弥补模块隔离。
+回归测试见 [Platform session tests](../../apps/frontend/apps/platform/src/auth/session.test.ts)。
 
 ## Provider 与 Skill
 

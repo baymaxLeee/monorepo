@@ -1,26 +1,36 @@
 # Sandbox
 
+本文描述云端代码实现。本地模式的完整目标见
+[Sandbox 双模式 ADR](../ADR/sandbox-execution-modes.md)。稳定路径切换仍须在目标环境完成停写、
+备份、`v1.0.0.7` 路径回填与 Storage 全量校验后，才能应用最终约束迁移 `v1.0.0.8` 并上线。
+
 Sandbox 是内部执行控制服务。Chat 拥有 run、附件授权与发布；Sandbox 拥有临时
 容器/Pod、命令监督、配额和回收。Executor 仍负责 durable 业务任务。服务没有
 业务数据库、模型凭据或公网路由；契约由 `schemas/openapi/sandbox-server.json` 生成。
 
 ## 文件与工具
 
-首次 Bash/SDK sandbox 调用懒创建一个 run 沙箱，导入当前会话附件的原始字节。`sources/documents/`
-存 Knowledge 文档原件，`sources/saved/<file_id>/` 存 Chat-owned 会话文件/Plan 的不可变快照；两者只读。`work/`、
-`outputs/`、`.home/` 可写。文件操作使用真实 Bash/Python/Node/CLI；进程的 cwd 和
-环境变量不跨命令继承，文件在同一 run 内保留。
+首次 Bash/SDK sandbox 调用懒创建一个 run 沙箱。Chat-owned 会话文件/Plan 从精确 Storage revision
+恢复到各自权威 `/workspace/...` 路径并可直接编辑；`sources/documents/` 保存只读 Knowledge 原件，
+`sources/workspace-manifest.json` 仅提供 file id、路径和 ETag 映射。除 `.home` 和 `sources` 外的业务树
+可写。文件操作使用真实 Bash/Python/Node/CLI；进程的 cwd 和环境变量不跨命令继承，文件在同一 run 内保留。
 
 - `bash`：模型可见的 command/workdir 工具，通过当前 run 的官方 AI SDK `SandboxSession.run` 执行并等待终态，Stop 传播 AbortSignal。
-- SDK sandbox adapter 同时实现 binary/text read/write 和 `spawn`。SDK 写入只允许 `work/outputs`，对 `sources` 保持只读；当前 transport 不支持 writable spawn stdin，必须在启动前明确拒绝 `stdin: true`。
+- SDK sandbox adapter 同时实现 binary/text read/write 和 `spawn`。SDK 可写业务树但不能写 `.home/sources`；当前 transport 不支持 writable spawn stdin，必须在启动前明确拒绝 `stdin: true`。
 - 首次 Bash 自动导入当前会话 source；`refresh_conversation_sources` 只导入并返回本轮其他工具随后新增或更新的路径。
-- `save_sandbox_file`：create 模式流式上传并登记新的 `conversation_file`；update 模式要求已导入
-  文件的 `file_id + ETag`，从 `work/outputs` 提交到同一 Chat 文件和 Storage Asset 的新 revision。
-  两种模式都不覆盖旧 revision；本地未保存的编辑/删除不会修改已发布内容。
+- run finalizer 先停止所有写进程并取得按 path/size/SHA-256 排序的完整业务文件清单，再自动提交新增、
+  修改和删除。修改追加同一 Asset 的不可变 revision；删除写 tombstone 并推进路径 generation；同路径
+  重建产生新文件身份。watcher 不是完整性依据。
+- `save_sandbox_file` 只把已经位于稳定工作区的完成文件显示为成果；不再承担草稿持久化边界。
 - Plan mode 同样用 Bash 创建完整 `*-plan.md` 并通过 `save_sandbox_file` 发布；Chat 以 file id 标记 Plan。
 
-正常结束、异常、Stop 都调用幂等销毁。浏览器 SSE 断线只断订阅，不销毁仍执行的 run。
-下一 run 从持久资源重新导入；未显式保存的临时文件不恢复。历史 Chat files、文档、UIMessage
+正常结束、异常、Stop 都调用幂等销毁。Chat 在创建前把执行责任登记为 `restoring`，恢复完成
+转为 `active`，收尾进入 `finalizing`，持久化成功才转为 `releasing`；只有销毁成功才删除责任记录。
+创建响应丢失、Chat 崩溃、Storage 暂时失败或删除失败时，run orphan 收敛与独立 reconciler 按原
+scope 重试持久化或释放；到实例硬期限仍无法读取时保留最后已提交文件并释放资源。Sandbox finalizer
+完成或留下 durable finalizing/release 责任后，Chat 才提交 terminal
+journal 并释放会话 run lease。浏览器 SSE 断线只断订阅，不销毁仍执行的 run。
+下一 run 从持久资源按相同路径恢复；未确认提交的节点丢失写入不冒充成功。历史 Chat files、文档、UIMessage
 保持可读，未重写既有数据。Code Mode 不进入 Linux guest；它在隔离 QuickJS 中通过 AI SDK
 caller 仅编排 Chat 显式授权的公开 `web_search` / `web_fetch`，不获得 Bash、附件、私有 Knowledge、
 审批或业务写入能力。QuickJS 只提供普通 ECMAScript、Promise、JSON 与正则等本地计算能力；
@@ -34,6 +44,9 @@ caller 仅编排 Chat 显式授权的公开 `web_search` / `web_fetch`，不获�
 运营配置决定，模型不能指定 host mount、runtime、service account 或服务凭据。
 root supervisor 和控制 socket 不对 guest 开放；根文件系统只读、禁止提权、删除
 无关 capabilities，生产使用 gVisor `runsc`，配置错误不降级到 host/runc。
+可信 supervisor/文件传输 helper 保留 `DAC_OVERRIDE`，以恢复和读取 UID 1000 拥有的
+工作区文件；目录权限在移交所有权前设置，不授予 `FOWNER`。用户命令降权到 UID 1000，
+effective/permitted/ambient capabilities 均为空；真实 Docker 集成测试验证这一边界。
 
 命令 ID 在 guest 内去重；stdin 请求 ID 防止重复写入。有界 stdout/stderr 环形缓存
 返回 offset 和 truncated，避免无限日志占用内存。工具不自动重试命令。超时封闭该
@@ -44,6 +57,12 @@ activeDeadlineSeconds 与控制服务回收扫描共同处理 Chat/控制器进�
 文件桥拒绝穿越、symlink、hardlink 和特殊文件。导入以临时文件接收，只有完整提交帧
 到达才原子替换；中断不覆盖旧源文件。导出流完成前等待 helper 成功退出，变更中的
 文件拒绝发布。字节上限来自配置，不把二进制正文放进 LLM 上下文。
+
+用户在没有实例时通过 Chat CAS 保存并更新 Storage，不创建 Sandbox。活跃实例中的保存先向 guest
+申请带幂等 token 的工作区写屏障；先阻止新命令并短暂等待已准入命令结束，再在屏障内核对磁盘摘要与编辑器
+etag、原子替换同一路径、提交 Storage/Chat。提交失败恢复原字节；无法恢复时保留屏障等待同操作
+重试。等待预算耗尽、恢复/收尾或另一个编辑占用边界时返回 `workspace_busy`，前端保留草稿后重试。
+Chat 在每个后续受控模型 step 对账文件 etag，并通知 Agent 重读用户已提交的变更路径。
 
 Docker guest 使用 `--network none`，只挂只读 Unix socket 目录连接 Squid 出口。
 **这不是业务卷，也不能换成 Docker socket。** proxy 独占出网网络，默认只允许镜像内

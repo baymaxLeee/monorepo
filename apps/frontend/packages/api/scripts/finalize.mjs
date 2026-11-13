@@ -17,10 +17,8 @@ const runtimeFiles = [
   "chat-stream.ts",
   "http.ts",
   "orval-mutator.ts",
-  "session.ts",
   "storage-runtime.test.ts",
   "storage-runtime.ts",
-  "storage.ts",
 ];
 const allowedFiles = new Set([...services.map((service) => `${service}-server.ts`), ...runtimeFiles]);
 const unexpectedFiles = (await readdir(resolve(packageRoot, "src"))).filter((file) => !allowedFiles.has(file));
@@ -36,7 +34,6 @@ export * from "./src/auth-fetch";
 export * from "./src/canvas-stream";
 export * from "./src/chat-stream";
 export * from "./src/http";
-export * from "./src/session";
 export * from "./src/storage-runtime";
 `;
 await writeFile(resolve(packageRoot, "index.ts"), index);

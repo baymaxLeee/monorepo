@@ -275,6 +275,22 @@ test("native model file publication rejects arbitrary remote URLs", async () => 
   );
 });
 
+test("native model files join an already-active stable workspace before publication", async () => {
+  const staged: Array<{ path: string; bytes: number[] }> = [];
+  await publishNativeFileParts(
+    [{ type: "file", mediaType: "text/plain", filename: "result.txt", url: "data:text/plain;base64,aGk=" }],
+    {
+      ...publicationContext,
+      stageWorkspaceFile: async (path, content) => {
+        staged.push({ path, bytes: [...content] });
+        return true;
+      },
+    },
+    dependencies(),
+  );
+  assert.deepEqual(staged, [{ path: "/workspace/result.txt", bytes: [104, 105] }]);
+});
+
 test("the composed HTTP owner emits one start and one finish", async () => {
   const parts = createPublishedAgentPartStream({
     modelStream: modelStream([

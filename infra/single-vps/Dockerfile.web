@@ -32,10 +32,12 @@ COPY package.json ./package.json
 COPY apps/frontend/package.json apps/frontend/pnpm-lock.yaml apps/frontend/pnpm-workspace.yaml apps/frontend/.pnpmfile.mjs apps/frontend/tsconfig.base.json apps/frontend/turbo.json ./apps/frontend/
 COPY apps/frontend/apps ./apps/frontend/apps
 COPY apps/frontend/packages ./apps/frontend/packages
+COPY apps/backend/libs/agent-runtime-ts ./apps/backend/libs/agent-runtime-ts
 
 WORKDIR /app/apps/frontend
 
-RUN pnpm install --frozen-lockfile
+# The Web image never launches Electron or needs its platform binary.
+RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install --frozen-lockfile
 
 # Build-time configuration. Empty API_BASE_URL → same-origin (nginx proxy).
 # MFE remote entries use path-only URLs so they resolve to whatever origin

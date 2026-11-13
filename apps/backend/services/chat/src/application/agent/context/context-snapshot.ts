@@ -1,8 +1,8 @@
 import type { LanguageModelV4FunctionTool, LanguageModelV4Prompt, LanguageModelV4ProviderTool } from "@ai-sdk/provider";
+import { INSTRUCTION_SECTION_TAGS } from "@backend/agent-runtime-ts/instructions/section-tags";
+import type { ToolSource } from "@backend/agent-runtime-ts/tool-types";
 
 import type { UsageTokens } from "../observability/lifecycle.js";
-import type { ToolSource } from "../tools/types.js";
-import { INSTRUCTION_SECTION_TAGS } from "./instructions/section-tags.js";
 
 export const CONTEXT_CATEGORY_IDS = ["system", "tools", "rules", "skills", "mcp", "memory", "conversation"] as const;
 

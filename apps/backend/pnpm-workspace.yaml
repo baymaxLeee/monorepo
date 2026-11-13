@@ -1,4 +1,5 @@
 packages:
+  - "libs/agent-runtime-ts"
   - "libs/kernel-ts"
   - "libs/transport-ts"
   - "services/chat"

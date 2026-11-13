@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
+import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
 import type { UIMessage } from "ai";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 
@@ -15,7 +16,6 @@ import {
 import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, RequestError } from "../../errors.js";
 import { parseConversationContextSnapshot, type ConversationContextSnapshot } from "../context/context-snapshot.js";
-import { isToolOutcome } from "../tools/outcome.js";
 import { cancelTodoOutput, finalizeCancelledParts } from "./cancellation.js";
 import { mergeClientContinuation } from "./continuation.js";
 

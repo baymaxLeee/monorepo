@@ -1,6 +1,5 @@
+import { isToolOutcome, toolOutcomeData } from "@backend/agent-runtime-ts/outcome";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-
-import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 

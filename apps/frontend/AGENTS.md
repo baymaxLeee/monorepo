@@ -29,7 +29,9 @@ platform (host @ :3000)
 
 ## Internal package imports
 
-Every internal package is scoped `@repo/*` and is imported by its real pnpm workspace package name — that name is the single module identity:
+The Electron Node host also consumes the portable `@backend/agent-runtime-ts` library through its public exports. This is shared infrastructure, not an import of a backend service; browser MFEs do not import it.
+
+Browser-facing internal packages are scoped `@repo/*` and is imported by its real pnpm workspace package name — that name is the single module identity:
 
 | Package | Tag | Purpose |
 | --- | --- | --- |
@@ -208,6 +210,8 @@ with the PR/push base SHA to select the same test targets.
 - Rspack remains the build tool. Test configuration must not load federation
   plugins or replace workspace exports with unrelated source files. Vitest
   does not replace TS7 typechecking, Rspack builds or federation integration tests.
+- Projects may provide `test/global-setup.ts` for compiled/native test prerequisites;
+  the root runner discovers it before starting workers, avoiding per-suite build races.
 - `.pnpmfile.mjs` removes unused webpack peers from the Rspack loaders/plugins.
   Keep it in every install context, including Docker. After changing the hook or
   upgrading its consumers, regenerate the lockfile and run root `just build frontend`.

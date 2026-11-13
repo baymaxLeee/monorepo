@@ -1,0 +1,31 @@
+{
+  "name": "desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/package.mjs",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json && node node_modules/@typescript/native/bin/tsc -p tsconfig.node.json",
+    "test": "pnpm --dir ../.. test --project desktop",
+    "lint": "pnpm --dir ../../../.. lint:ts apps/frontend/apps/desktop && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/apps/desktop/**/*.{ts,tsx,mjs,json}'",
+    "launch": "node scripts/develop.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^4.0.34",
+    "@backend/agent-runtime-ts": "file:../../../backend/libs/agent-runtime-ts",
+    "@repo/shared": "workspace:*",
+    "ai": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "@rspack/core": "catalog:",
+    "@swc/helpers": "catalog:",
+    "@types/node": "^24.0.0",
+    "@typescript/native": "catalog:",
+    "electron": "45.3.1",
+    "vitest": "catalog:"
+  }
+}

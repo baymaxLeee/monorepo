@@ -20,6 +20,16 @@ MFE owns its visible shell. Do not add domain navigation or business UI here.
 - Remote route paths are relative to their registered `base_path`.
 - Shared dependencies must stay aligned through `@repo/shared/mf-shared`.
 
+## Authentication ownership
+
+- `src/auth/` owns credentials, session bootstrap, refresh single-flight, login,
+  registration, logout, workspace rotation and desktop session binding.
+- Auth pages use these local actions, never generated IAM lifecycle operations
+  directly. Read-only IAM queries remain ordinary generated client calls.
+- Platform registers the auth capability in `@repo/runtime`; remote requests and
+  user-menu actions consume it without importing Platform or holding credentials.
+- `@repo/api` owns transport only; runtime carries the capability binding only.
+
 ## URL layout
 
 - `/` — redirects to `/login`

@@ -2,10 +2,8 @@ import {
   applyToWorkspace,
   fetchMe,
   fetchPublicWorkspaces,
-  logout,
   type Membership,
   type WorkspaceSummary,
-  switchActiveWorkspace,
 } from "@repo/api/iam";
 import {
   Badge,
@@ -29,6 +27,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 
+import { logout, switchActiveWorkspace } from "../../auth/session";
 import { activeMemberships, isSuperAdmin } from "../../onboarding";
 
 const POLL_INTERVAL_MS = 5000;

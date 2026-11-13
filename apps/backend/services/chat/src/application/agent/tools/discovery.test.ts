@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { manifestsToTools } from "@backend/agent-runtime-ts/manifest";
 import { generateText, isStepCount, tool, type ToolSet } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
 import { createToolSearchManifest } from "./discovery.js";
-import { manifestsToTools } from "./manifest.js";
 
 test("native tool search discovers deferred tools without activating excluded tools", async () => {
   const deferred = tool({

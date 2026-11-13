@@ -1,3 +1,4 @@
+import type { BotProfileSnapshot } from "@backend/agent-runtime-ts/instructions/index";
 import { propagationHeaders } from "@backend/kernel-ts";
 import {
   AdminInternalClient,
@@ -8,7 +9,6 @@ import {
 import type { LanguageProviderSnapshot, ResponsesDialect } from "@backend/transport-ts/provider-model";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
-import type { BotProfileSnapshot } from "../../application/agent/context/instructions/index.js";
 import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../../application/errors.js";
 import { getSettings } from "../../bootstrap/config.js";
 import { getRedisClient } from "../redis/index.js";

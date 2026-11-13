@@ -1,9 +1,11 @@
+import type { InstructionContributions } from "@backend/agent-runtime-ts/instructions/index";
+import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@backend/agent-runtime-ts/manifest";
+import type { AgentToolManifest, ToolSource } from "@backend/agent-runtime-ts/tool-types";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import type { ToolSet } from "ai";
 
 import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import type { AgentMode } from "../agents/types.js";
-import type { InstructionContributions } from "../context/instructions/index.js";
 import { type AdminSkillSource, resolveSkills } from "../integrations/skills/provider.js";
 import type { AgentExtension, AgentExtensionContext } from "../integrations/types.js";
 import { createCanvasToolManifests } from "./builtins/canvas.js";
@@ -15,8 +17,6 @@ import { createRuntimeTools } from "./builtins/runtime.js";
 import { createSearchToolManifests } from "./builtins/search.js";
 import { createSubagentsManifest } from "./builtins/subagents.js";
 import { createToolSearchManifest } from "./discovery.js";
-import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "./manifest.js";
-import type { AgentToolManifest, ToolSource } from "./types.js";
 
 export interface AgentToolProviders {
   textProvider: LanguageProviderSnapshot;

@@ -2,6 +2,8 @@
 
 状态：当前。本文是 Chat 会话文件原内容编辑、同 Asset 多 Revision 保存与跨 run 恢复的现行决策；通用文件生命周期见 [files-and-assets](files-and-assets.md)。
 
+云端稳定路径、自动工作文件持久化和活跃 run 的同目录协调保存已进入代码，目标环境仍待停写回填切换。运行中保存先阻止新命令并短暂等待已准入命令结束，再取得工作区写屏障；等待预算耗尽或生命周期切换返回 `workspace_busy`，前端保留草稿后重试。完整边界见 [Sandbox 双模式 ADR](sandbox-execution-modes.md)。
+
 决策键：Chat 会话产物如何在保持文件身份的同时允许用户与 Agent 保存修改，并通过下一 run 的文件重载恢复最新内容。
 
 ## 目标与范围
@@ -71,7 +73,7 @@ Storage 完成只表示候选 revision 已耐久化；独立追加可以都成�
 
 原文件保存不修改 filename、title、kind 或归属。内容散列、大小、媒体类型由服务端验证并与新内容一致；用户不能借保存接口把文本文件替换为不支持的二进制。另存为可由 Agent 选择新标题、文件名和类型，仍走现有发布验证。
 
-Plan 同样是稳定文件。保存 Plan 保持 `active_plan_file_id`；首次发布/另存为 Plan 沿用已有选中逻辑。`data-plan-execution` 指向稳定 file_id，执行时解析当时当前 revision 并完整读取；历史消息中的旧 Plan 内容不能当作最新事实。一个已经开始的 run 使用其读取基准，不承诺用户中途修改能实时改变已开始的执行。
+Plan 同样是稳定文件。保存 Plan 保持 `active_plan_file_id`；首次发布/另存为 Plan 沿用已有选中逻辑。`data-plan-execution` 指向稳定 file_id，执行时解析当时当前 revision 并完整读取；历史消息中的旧 Plan 内容不能当作最新事实。模型推理中的上下文不会瞬时改变；活跃云端实例中的用户保存从安全命令边界写入同一路径，并在下一受控模型 step 通知 Agent 重读，已经完成的工具结果不被追溯改写。
 
 ## 保存事务与恢复
 

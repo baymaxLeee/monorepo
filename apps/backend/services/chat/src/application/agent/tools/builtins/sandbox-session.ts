@@ -14,20 +14,30 @@ import { listDocuments } from "../../../../infrastructure/clients/knowledge.js";
 import { sandboxClient } from "../../../../infrastructure/clients/sandbox.js";
 import { storageClient } from "../../../../infrastructure/clients/storage.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
-import { listConversationFiles, publishConversationFile, saveConversationFile } from "../../../conversation-files.js";
+import { persistCloudWorkspace } from "../../../cloud-workspace.js";
+import {
+  deleteWorkspaceConversationFile,
+  listConversationFiles,
+  publishConversationFile,
+  saveConversationFile,
+  type ConversationFile,
+} from "../../../conversation-files.js";
 import { assertEditableFileSize } from "../../../file-edit-limits.js";
+import { sandboxExecutionLifecycle, type SandboxExecutionLifecycle } from "../../runs/sandbox-executions.js";
 import type { ArtifactToolContext } from "../context.js";
 
 export interface SandboxDependencies {
   sandbox: () => Pick<
     SandboxInternalClient,
-    "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download"
+    "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download" | "snapshot"
   >;
   asset: () => Pick<StorageInternalClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
   documents: typeof listDocuments;
   files: typeof listConversationFiles;
   publish: typeof publishConversationFile;
   update: typeof saveConversationFile;
+  delete: typeof deleteWorkspaceConversationFile;
+  execution: SandboxExecutionLifecycle;
 }
 
 const defaults: SandboxDependencies = {
@@ -37,17 +47,14 @@ const defaults: SandboxDependencies = {
   files: listConversationFiles,
   publish: publishConversationFile,
   update: saveConversationFile,
+  delete: deleteWorkspaceConversationFile,
+  execution: sandboxExecutionLifecycle,
 };
 
 export function documentSandboxPath(document: Pick<KnowledgeDocument, "id" | "filename" | "source_filename">) {
   const name =
     (document.source_filename || document.filename).replace(/[^\p{L}\p{N}._-]/gu, "-").replace(/^\.+/, "") || "file";
   return `sources/documents/${encodeURIComponent(document.id)}/${name}`;
-}
-
-function savedFileSandboxPath(file: { id: string; filename: string }) {
-  const name = file.filename.replace(/[^\p{L}\p{N}._-]/gu, "-").replace(/^\.+/, "") || "file";
-  return `sources/saved/${encodeURIComponent(file.id)}/${name}`;
 }
 
 function appendProcessOutput(target: { stdout: string; stderr: string }, process: SandboxProcess) {
@@ -68,8 +75,13 @@ function sandboxRelativePath(path: string) {
 
 function writableSandboxPath(path: string) {
   const relative = sandboxRelativePath(path);
-  if (!relative.startsWith("work/") && !relative.startsWith("outputs/")) {
-    throw new Error("Sandbox writes are limited to /workspace/work and /workspace/outputs.");
+  if (
+    relative === ".home" ||
+    relative.startsWith(".home/") ||
+    relative === "sources" ||
+    relative.startsWith("sources/")
+  ) {
+    throw new Error("Sandbox writes cannot target runtime state or imported sources.");
   }
   return relative;
 }
@@ -82,14 +94,15 @@ function shellQuote(value: string) {
  * Run-scoped implementation of AI SDK 7's Experimental_SandboxSession.
  *
  * The installed SDK contract exposes command, file and process primitives.
- * File import and durable publication remain explicit Chat tools on this same
- * bound session; SDK writes can only target the temporary work/output trees.
+ * Chat restores and finalizes the stable business tree around the SDK-owned
+ * command/file primitives; deliverable publication remains a product action.
  */
 export class RunSandbox implements Experimental_SandboxSession {
   readonly description =
-    "A run-scoped Linux sandbox rooted at /workspace. Commands start in /workspace/work; /workspace/outputs is writable and /workspace/sources contains read-only conversation snapshots. Files persist only for this run unless save_sandbox_file publishes one.";
+    "A run-scoped Linux sandbox rooted at the conversation's stable /workspace tree. Business files are restored at their authoritative paths and automatically persisted before teardown; /workspace/sources contains read-only external attachments.";
 
   private initializing?: Promise<SandboxResource>;
+  private session?: SandboxResource;
   private refreshing?: Promise<Array<{ path: string; document_id?: string; file_id?: string }>>;
   private disposal?: Promise<void>;
   private closed = false;
@@ -99,8 +112,10 @@ export class RunSandbox implements Experimental_SandboxSession {
     string,
     { fingerprint: string; source: { path: string; document_id?: string; file_id?: string } }
   >();
-  private readonly importedFiles = new Map<string, { etag: string; path: string }>();
   private readonly workFileEtags = new Map<string, { fileId: string; etag: string }>();
+  private readonly workspaceBaseline = new Map<string, ConversationFile>();
+  private readonly observedFileEtags = new Map<string, string>();
+  private fileObservationInitialized = false;
   private sourceManifest = "";
   private readonly scope: SandboxScope;
 
@@ -119,9 +134,10 @@ export class RunSandbox implements Experimental_SandboxSession {
 
   private observeStop(signal?: AbortSignal) {
     signal?.throwIfAborted();
-    if (this.closed) throw new Error("This run's sandbox is closed; temporary files are no longer available.");
+    if (this.closed) throw new Error("This run's sandbox is closed; the workspace is no longer attached.");
     if (signal && !this.stopListeners.has(signal)) {
       const listener = () => {
+        this.abort.abort(signal.reason);
         void this.dispose().catch((error) => logger.error({ err: error }, "sandbox stop cleanup failed"));
       };
       signal.addEventListener("abort", listener, { once: true });
@@ -138,9 +154,12 @@ export class RunSandbox implements Experimental_SandboxSession {
     this.initializing ??= (async () => {
       // Provisioning is bounded by the transport timeout. Finish observing create
       // before DELETE so Stop cannot race a late successful resource creation.
+      await this.deps.execution.restoring(this.scope);
       const session = await this.deps.sandbox().create(this.scope);
       this.abort.signal.throwIfAborted();
       await this.hydrate(session.id);
+      await this.deps.execution.active(this.scope, session);
+      this.session = session;
       return session;
     })();
     try {
@@ -197,8 +216,8 @@ export class RunSandbox implements Experimental_SandboxSession {
     });
     for (const file of files) {
       signal.throwIfAborted();
-      const path = savedFileSandboxPath(file);
-      const source = { path: `/workspace/${path}`, file_id: file.id };
+      const path = sandboxRelativePath(file.workspace_path);
+      const source = { path: file.workspace_path, file_id: file.id };
       const key = `file:${file.id}`;
       const fingerprint = `${file.asset_id}:${file.revision_id}:${path}`;
       if (this.sources.get(key)?.fingerprint === fingerprint) continue;
@@ -215,7 +234,8 @@ export class RunSandbox implements Experimental_SandboxSession {
         if (!body.locked) await body.cancel().catch(() => {});
       }
       this.sources.set(key, { fingerprint, source });
-      this.importedFiles.set(file.id, { etag: file.etag, path });
+      this.workFileEtags.set(path, { fileId: file.id, etag: file.etag });
+      this.workspaceBaseline.set(file.workspace_path, file);
       imported.push(source);
     }
     const manifest = `${JSON.stringify(
@@ -223,7 +243,7 @@ export class RunSandbox implements Experimental_SandboxSession {
         version: 1,
         files: files.map((file) => ({
           file_id: file.id,
-          path: `/workspace/${savedFileSandboxPath(file)}`,
+          path: file.workspace_path,
           etag: file.etag,
           revision_id: file.revision_id,
           editable: file.editable,
@@ -233,7 +253,7 @@ export class RunSandbox implements Experimental_SandboxSession {
       2,
     )}\n`;
     if (files.length > 0 && manifest !== this.sourceManifest) {
-      await client.upload(id, this.scope, "sources/saved/manifest.json", new Blob([manifest]).stream(), signal);
+      await client.upload(id, this.scope, "sources/workspace-manifest.json", new Blob([manifest]).stream(), signal);
       this.sourceManifest = manifest;
     }
     return imported;
@@ -250,22 +270,40 @@ export class RunSandbox implements Experimental_SandboxSession {
     return { sources };
   }
 
-  async checkoutFile(input: { fileId: string; etag: string; path: string }, signal?: AbortSignal) {
-    const session = await this.ensure(signal);
-    const destination = writableSandboxPath(input.path);
-    const imported = this.importedFiles.get(input.fileId);
-    if (!imported || imported.etag !== input.etag) {
-      throw new Error("The requested file revision is not the current imported source. Refresh sources and retry.");
+  async observeWorkspaceBaseline(): Promise<void> {
+    const files = await this.deps.files({
+      userId: this.context.userId,
+      tenantId: this.context.tenantId,
+      workspaceId: this.context.workspaceId,
+      conversationId: this.context.conversationId,
+    });
+    this.observedFileEtags.clear();
+    for (const file of files) this.observedFileEtags.set(file.id, file.etag);
+    this.fileObservationInitialized = true;
+  }
+
+  async consumeExternalFileChanges(): Promise<Array<{ path: string; writer: string | null }>> {
+    const files = await this.deps.files({
+      userId: this.context.userId,
+      tenantId: this.context.tenantId,
+      workspaceId: this.context.workspaceId,
+      conversationId: this.context.conversationId,
+    });
+    if (!this.fileObservationInitialized) {
+      await this.observeWorkspaceBaseline();
+      return [];
     }
-    const client = this.deps.sandbox();
-    const body = await client.download(session.id, this.scope, imported.path, this.operationSignal(signal));
-    try {
-      await client.upload(session.id, this.scope, destination, body, this.operationSignal(signal));
-    } finally {
-      if (!body.locked) await body.cancel().catch(() => {});
-    }
-    this.workFileEtags.set(destination, { fileId: input.fileId, etag: input.etag });
-    return { path: `/workspace/${destination}`, file_id: input.fileId, etag: input.etag };
+    const changes = files
+      .filter(
+        (file) =>
+          this.observedFileEtags.get(file.id) !== file.etag &&
+          file.last_writer.type === "user" &&
+          file.last_writer.id !== this.context.runId,
+      )
+      .map((file) => ({ path: file.workspace_path, writer: file.last_writer.id }));
+    this.observedFileEtags.clear();
+    for (const file of files) this.observedFileEtags.set(file.id, file.etag);
+    return changes;
   }
 
   async run(options: {
@@ -378,6 +416,16 @@ export class RunSandbox implements Experimental_SandboxSession {
       throw new Error(`Sandbox text writes do not support ${options.encoding} encoding.`);
     }
     await this.writeBinaryFile({ ...options, content: new TextEncoder().encode(options.content) });
+  }
+
+  async stagePublishedFile(path: string, content: Uint8Array, signal?: AbortSignal): Promise<boolean> {
+    if (!this.session) return false;
+    const workspacePath = path.startsWith("/workspace/") ? path : `/workspace/${path}`;
+    if (this.workspaceBaseline.has(workspacePath)) {
+      throw new Error(`A workspace file already exists at ${workspacePath}.`);
+    }
+    await this.writeBinaryFile({ path: workspacePath, content, abortSignal: signal });
+    return true;
   }
 
   async spawn(options: {
@@ -498,9 +546,7 @@ export class RunSandbox implements Experimental_SandboxSession {
     }
     const path = sandboxRelativePath(input.path);
     if (input.operation === "update") {
-      if (!path.startsWith("work/") && !path.startsWith("outputs/")) {
-        throw new Error("Updated conversation files must be saved from work/ or outputs/.");
-      }
+      writableSandboxPath(input.path);
       const pathBaseline = this.workFileEtags.get(path);
       const baselineKnown = pathBaseline?.fileId === input.file_id && pathBaseline.etag === input.etag;
       if (!baselineKnown) {
@@ -577,6 +623,7 @@ export class RunSandbox implements Experimental_SandboxSession {
         },
       );
       this.workFileEtags.set(path, { fileId: file.id, etag: file.etag });
+      this.workspaceBaseline.set(`/workspace/${path}`, file);
       return {
         file_id: file.id,
         filename: file.filename,
@@ -612,7 +659,11 @@ export class RunSandbox implements Experimental_SandboxSession {
         sizeBytes: asset.sizeBytes,
         sha256: asset.sha256,
         idempotencyKey: `${this.context.runId}:${requestId}`,
+        workspacePath: input.path,
+        writerType: "agent",
+        writerId: this.context.runId,
       });
+      this.workspaceBaseline.set(input.path, file);
       return {
         file_id: file.id,
         filename: file.filename,
@@ -627,6 +678,10 @@ export class RunSandbox implements Experimental_SandboxSession {
     }
   }
 
+  private async persistWorkspace(session: SandboxResource): Promise<void> {
+    await persistCloudWorkspace(this.context, session.id, this.deps);
+  }
+
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal;
     this.closed = true;
@@ -635,7 +690,29 @@ export class RunSandbox implements Experimental_SandboxSession {
     this.stopListeners.clear();
     this.disposal = (async () => {
       await this.initializing?.catch(() => {});
-      if (this.initializing) await this.deps.sandbox().destroy(this.scope);
+      if (this.initializing) {
+        let persistenceError: unknown;
+        if (this.session) {
+          try {
+            await this.deps.execution.finalizing(this.scope);
+            await this.persistWorkspace(this.session);
+          } catch (error) {
+            persistenceError = error;
+          }
+        }
+        if (persistenceError) {
+          await this.deps.execution.finalizationFailed(this.scope, persistenceError).catch(() => {});
+          throw persistenceError;
+        }
+        await this.deps.execution.releasing(this.scope);
+        try {
+          await this.deps.sandbox().destroy(this.scope);
+          await this.deps.execution.released(this.scope);
+        } catch (error) {
+          await this.deps.execution.releasing(this.scope, error).catch(() => {});
+          throw error;
+        }
+      }
     })();
     return this.disposal;
   }

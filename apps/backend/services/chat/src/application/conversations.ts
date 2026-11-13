@@ -21,6 +21,7 @@ import {
   messages,
   type PersistedMessageContent,
 } from "../infrastructure/persistence/schema.js";
+import { coordinateCloudWorkspaceUserEdit } from "./cloud-workspace-edit.js";
 import { getConversationFile, releaseConversationFileClaims, saveConversationFile } from "./conversation-files.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 
@@ -36,44 +37,56 @@ export async function updateConversationFileContent(
   assertEditableFileSize(Buffer.byteLength(input.content, "utf8"));
   const bytes = new TextEncoder().encode(input.content);
   const contentSha256 = createHash("sha256").update(bytes).digest("hex");
-  return saveConversationFile(
+  return coordinateCloudWorkspaceUserEdit(
     {
       ...auth,
       conversationId,
       fileId,
       expectedEtag: input.expectedEtag,
-      contentSha256,
       operationId: input.operationId,
-      writerType: "user",
-      writerId: auth.userId,
+      content: bytes,
+      signal: input.signal,
     },
-    async (idempotencyKey, file, claim) => {
-      const client = storageClient();
-      const claimInput = {
-        tenantId: auth.tenantId,
-        workspaceId: auth.workspaceId,
-        ...claim,
-      };
-      await client.prepareClaim({
-        ...claimInput,
-        assetId: file.asset_id,
-        revisionId: file.revision_id,
-        kind: "strong",
-      });
-      await client.activateClaim(claimInput);
-      return client.appendRevision({
-        ...claimInput,
-        userId: auth.userId,
-        assetId: file.asset_id,
-        baseRevisionId: file.revision_id,
-        filename: file.filename,
-        mediaType: file.mime_type,
-        body: bytes,
-        contentLength: bytes.byteLength,
-        idempotencyKey,
-        signal: input.signal,
-      });
-    },
+    () =>
+      saveConversationFile(
+        {
+          ...auth,
+          conversationId,
+          fileId,
+          expectedEtag: input.expectedEtag,
+          contentSha256,
+          operationId: input.operationId,
+          writerType: "user",
+          writerId: auth.userId,
+        },
+        async (idempotencyKey, file, claim) => {
+          const client = storageClient();
+          const claimInput = {
+            tenantId: auth.tenantId,
+            workspaceId: auth.workspaceId,
+            ...claim,
+          };
+          await client.prepareClaim({
+            ...claimInput,
+            assetId: file.asset_id,
+            revisionId: file.revision_id,
+            kind: "strong",
+          });
+          await client.activateClaim(claimInput);
+          return client.appendRevision({
+            ...claimInput,
+            userId: auth.userId,
+            assetId: file.asset_id,
+            baseRevisionId: file.revision_id,
+            filename: file.filename,
+            mediaType: file.mime_type,
+            body: bytes,
+            contentLength: bytes.byteLength,
+            idempotencyKey,
+            signal: input.signal,
+          });
+        },
+      ),
   );
 }
 

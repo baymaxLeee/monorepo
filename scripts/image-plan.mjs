@@ -90,8 +90,9 @@ function affectedByFile(file) {
   else if (matches(file, "apps/backend/services/sandbox")) selected.add("sandbox");
 
   if (matches(file, "apps/backend/libs/kernel")) add(selected, pythonServices);
-  if (matches(file, "apps/backend/libs/kernel-ts")) add(selected, consumersOfBackendLibrary("backend/kernel-ts"));
-  if (matches(file, "apps/backend/libs/transport-ts")) add(selected, consumersOfBackendLibrary("backend/transport-ts"));
+  for (const project of projects.filter((p) => p.area === "backend" && p.kind === "libs" && p.runtime === "node")) {
+    if (matches(file, project.path)) add(selected, consumersOfBackendLibrary(project.id));
+  }
   if (["apps/backend/pyproject.toml", "apps/backend/uv.lock"].includes(file)) add(selected, pythonServices);
   if (file === "apps/backend/.dockerignore") add(selected, pythonServices);
   if (["apps/backend/package.json", "apps/backend/pnpm-lock.yaml", "apps/backend/pnpm-workspace.yaml"].includes(file)) {

@@ -1,3 +1,5 @@
+import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
+
 import { finalizeConversationContext, type ContextEstimate } from "../context/context-snapshot.js";
 import {
   finishAgentRun,
@@ -7,7 +9,6 @@ import {
   recordToolCallStart,
   startAgentStep,
 } from "../runs/repository.js";
-import { isToolOutcome } from "../tools/outcome.js";
 
 function stepId(runId: string, stepNumber: number): string {
   const compact = runId

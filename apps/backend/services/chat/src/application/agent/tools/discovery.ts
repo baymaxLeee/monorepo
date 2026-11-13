@@ -1,6 +1,5 @@
+import type { AgentToolManifest, AgentToolPolicy } from "@backend/agent-runtime-ts/tool-types";
 import { toolSearch } from "ai";
-
-import type { AgentToolManifest, AgentToolPolicy } from "./types.js";
 
 export function createToolSearchManifest(): AgentToolManifest {
   const policy: AgentToolPolicy = {

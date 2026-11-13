@@ -1,8 +1,6 @@
 import { attachAxios, type MinimalAxiosInstance } from "@repo/observability";
-import { emit, Events } from "@repo/runtime";
+import { getPlatformAuth, emit, Events } from "@repo/runtime";
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from "axios";
-
-import { getToken, isAccessTokenValid } from "./storage";
 
 declare const process: { env: { API_BASE_URL?: string } } | undefined;
 
@@ -30,12 +28,6 @@ export const apiHttp: AxiosInstance = axios.create({
 
 attachAxios(apiHttp as unknown as MinimalAxiosInstance);
 
-let refreshAccessToken: (() => Promise<boolean>) | null = null;
-
-export function setRefreshAccessToken(handler: () => Promise<boolean>): void {
-  refreshAccessToken = handler;
-}
-
 // 401 on these paths is an auth outcome (bad credentials / no session), not an
 // expired access token — refreshing would be a pointless extra round-trip.
 const NO_REFRESH_PATHS = [
@@ -47,13 +39,15 @@ const NO_REFRESH_PATHS = [
 
 apiHttp.interceptors.request.use(async (config) => {
   const skipProactiveRefresh = NO_REFRESH_PATHS.some((path) => config.url?.includes(path));
-  if (!skipProactiveRefresh && !isAccessTokenValid()) {
-    await refreshAccessToken?.();
+  if (!skipProactiveRefresh && !getPlatformAuth()?.isAccessTokenValid()) {
+    await getPlatformAuth()?.refreshAccessToken();
   }
 
-  const token = getToken();
+  const token = getPlatformAuth()?.getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    config.headers.delete("Authorization");
   }
   return config;
 });
@@ -71,7 +65,7 @@ apiHttp.interceptors.response.use(
 
     if (canRefresh && config) {
       config.__retried = true;
-      const refreshed = await refreshAccessToken?.();
+      const refreshed = await getPlatformAuth()?.refreshAccessToken();
       if (refreshed) {
         return apiHttp(config);
       }

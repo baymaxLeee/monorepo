@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { ToolSet } from "@ai-sdk/provider-utils";
+import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
 import {
   getToolName,
   isToolUIPart,
@@ -15,7 +16,6 @@ import { getDocument } from "../../../infrastructure/clients/knowledge.js";
 import { uploadAsset } from "../../../infrastructure/clients/storage.js";
 import { getConversationFile, publishConversationFile } from "../../conversation-files.js";
 import { RequestError } from "../../errors.js";
-import { isToolOutcome } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 type AgentStreamEndEvent = Parameters<UIMessageStreamOnEndCallback<AnyUIMessage>>[0];
@@ -46,6 +46,7 @@ export interface NativeFilePublicationContext {
   tenantId: string;
   workspaceId: string;
   signal: AbortSignal;
+  stageWorkspaceFile?: (path: string, content: Uint8Array, signal: AbortSignal) => Promise<boolean>;
 }
 
 /**
@@ -264,6 +265,7 @@ export async function publishNativeFileParts(
       idempotencyKey,
       signal: context.signal,
     });
+    await context.stageWorkspaceFile?.(`/workspace/${filename}`, bytes, context.signal);
     const file = await dependencies.publishConversationFile({
       userId: context.userId,
       tenantId: context.tenantId,
@@ -277,6 +279,9 @@ export async function publishNativeFileParts(
       sizeBytes: asset.sizeBytes,
       sha256: asset.sha256,
       idempotencyKey,
+      workspacePath: `/workspace/${filename}`,
+      writerType: "agent",
+      writerId: context.runId,
     });
     const url = `/api/chat-server/conversations/${encodeURIComponent(context.conversationId)}/files/${encodeURIComponent(file.id)}/content?file_id=${encodeURIComponent(file.id)}`;
     published.push({ ...part, url } as NativeFileChunk);

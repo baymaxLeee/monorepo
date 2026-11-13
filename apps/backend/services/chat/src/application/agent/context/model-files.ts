@@ -1,3 +1,4 @@
+import { escapeXmlText } from "@backend/agent-runtime-ts/instructions/xml";
 import { isFileUIPart, isReasoningFileUIPart, type UIMessage } from "ai";
 
 import { getDocumentSource } from "../../../infrastructure/clients/knowledge.js";
@@ -5,7 +6,6 @@ import { storageClient } from "../../../infrastructure/clients/storage.js";
 import { getConversationFile } from "../../conversation-files.js";
 import { RequestError } from "../../errors.js";
 import { conversationFileIdFromFilePart, documentIdFromFilePart, isImageMediaType } from "./file-parts.js";
-import { escapeXmlText } from "./instructions/xml.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 
