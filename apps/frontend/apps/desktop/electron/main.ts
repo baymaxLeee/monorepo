@@ -1,3 +1,4 @@
+import "./process-output";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
