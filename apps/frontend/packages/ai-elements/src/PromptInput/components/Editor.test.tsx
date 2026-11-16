@@ -174,3 +174,16 @@ test("text-only composers hide attachment actions", () => {
   render(<Editor maxFiles={0} />);
   expect(screen.queryByRole("button", { name: "添加附件" })).toBeNull();
 });
+
+test("composer keeps one resting surface size with or without custom controls", () => {
+  const { container, rerender } = render(<Editor maxFiles={0} />);
+  const surface = container.querySelector('[data-slot="input-group"]');
+  expect(surface?.classList.contains("min-h-24")).toBe(true);
+  expect(surface?.querySelector(".prompt-input-footer")?.classList.contains("min-h-10")).toBe(true);
+  expect(surface?.classList.contains("has-[[data-slot=input-group-control]:focus-visible]:ring-1")).toBe(true);
+  expect(surface?.classList.contains("has-[[data-slot=input-group-control]:focus-visible]:ring-3")).toBe(false);
+
+  rerender(<Editor footerRender={() => <span>会话控件</span>} />);
+  expect(surface?.classList.contains("min-h-24")).toBe(true);
+  expect(surface?.querySelector(".prompt-input-footer")?.classList.contains("min-h-10")).toBe(true);
+});

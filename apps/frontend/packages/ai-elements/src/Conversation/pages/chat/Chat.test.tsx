@@ -244,6 +244,25 @@ async function mount() {
   return view;
 }
 
+test("first request preserves composer parts and mode after conversation creation", async () => {
+  state.status = "ready";
+  state.serverActiveRunId = null;
+  const parts = [
+    { type: "file" as const, mediaType: "text/markdown", filename: "brief.md", url: "/brief.md" },
+    { type: "text" as const, text: "summarize" },
+  ];
+
+  render(
+    <MemoryRouter>
+      <ChatSession conversationId="conversation" externalRequest={{ id: "initial-request", parts, mode: "plan" }} />
+    </MemoryRouter>,
+  );
+
+  await waitFor(() =>
+    expect(state.sendMessage).toHaveBeenCalledWith({ parts }, { body: { agent_id: null, mode: "plan" } }),
+  );
+});
+
 test("editing a message on HTTP preserves its target and generates a new message id", async () => {
   vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
   state.status = "ready";

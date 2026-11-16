@@ -21,6 +21,14 @@ import { useChatStore } from "../../store/useChatStore";
 
 const EMPTY_DOCUMENTS: ConversationDocument[] = [];
 
+export type ExternalChatRequest =
+  | {
+      id: string;
+      parts: ChatUIMessage["parts"];
+      mode: "normal" | "plan";
+    }
+  | { id: string; text: string };
+
 export function ChatSession({
   conversationId: id,
   onCanvasChange,
@@ -28,10 +36,12 @@ export function ChatSession({
 }: {
   conversationId: string;
   onCanvasChange?: () => void;
-  externalRequest?: { id: string; text: string } | null;
+  externalRequest?: ExternalChatRequest | null;
 }) {
   const forkConversation = useForkConversation(id);
-  const [mode, setMode] = useState<"normal" | "plan">("normal");
+  const [mode, setMode] = useState<"normal" | "plan">(
+    externalRequest && "mode" in externalRequest ? externalRequest.mode : "normal",
+  );
   const [activatedSkillName, setActivatedSkillName] = useState<string | null>(null);
   const promptRef = useRef<PromptInputRef>(null);
   const conversationScrollRef = useRef<ConversationScrollHandle | null>(null);
@@ -177,10 +187,9 @@ export function ChatSession({
     }
     handledExternalRequestRef.current = externalRequest.id;
     pendingClientContinuationRef.current = false;
-    const sent = sendMessage(
-      { parts: [{ type: "text", text: externalRequest.text }] },
-      { body: { ...requestBody, mode: "normal" as const } },
-    );
+    const parts =
+      "parts" in externalRequest ? externalRequest.parts : [{ type: "text" as const, text: externalRequest.text }];
+    const sent = sendMessage({ parts }, { body: requestBody });
     conversationScrollRef.current?.scrollToEnd();
     void sent.catch(() => {
       handledExternalRequestRef.current = null;

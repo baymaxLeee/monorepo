@@ -1,4 +1,4 @@
-import { ChatSession } from "@repo/ai-elements/conversation";
+import { ChatSession, type ExternalChatRequest } from "@repo/ai-elements/conversation";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 export function Chat() {
@@ -8,7 +8,7 @@ export function Chat() {
 function CloudChat({ id }: { id: string }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [request] = useState<{ id: string; text: string } | undefined>(location.state?.externalRequest);
+  const [request] = useState<ExternalChatRequest | undefined>(location.state?.externalRequest);
   useEffect(() => {
     if (location.state?.externalRequest)
       void navigate(location.pathname, { replace: true, state: { refreshConversationHistory: true } });

@@ -4,6 +4,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@repo/design-system/sha
 import { cn } from "@repo/shared";
 import type { ComponentProps } from "react";
 
+import { composerControlClassName } from "../composer-control-styles";
+
 const RADIUS = 10;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
@@ -70,7 +72,7 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
             type="button"
             size="icon-sm"
             variant="ghost"
-            className="rounded-full"
+            className={`rounded-full ${composerControlClassName}`}
             aria-label={percent != null ? `上下文已使用 ${percent}%` : "查看上下文用量"}
           />
         }

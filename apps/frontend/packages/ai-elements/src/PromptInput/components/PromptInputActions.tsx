@@ -2,6 +2,7 @@ import { Button } from "@repo/design-system/shadcn/button";
 import { InputGroupAddon } from "@repo/design-system/shadcn/input-group";
 import { ArrowUp, Loader2, Plus, Square } from "lucide-react";
 
+import { composerControlClassName } from "../../composer-control-styles";
 import type { PromptInputApi, PromptInputProps } from "../interface";
 
 export function PromptInputActions({
@@ -22,14 +23,14 @@ export function PromptInputActions({
   attachmentsEnabled?: boolean;
 }) {
   return (
-    <InputGroupAddon align="block-end" className="prompt-input-footer">
+    <InputGroupAddon align="block-end" className="prompt-input-footer min-h-10">
       <div className="prompt-input-tools">
         {attachmentsEnabled ? (
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="rounded-full"
+            className={`rounded-full ${composerControlClassName}`}
             disabled={disabled}
             onClick={onAttach}
             aria-label="添加附件"
@@ -45,7 +46,7 @@ export function PromptInputActions({
             type="button"
             variant="ghost"
             size="icon-xs"
-            className="rounded-full"
+            className={`rounded-full ${composerControlClassName}`}
             aria-label="停止生成"
             onClick={onStop}
           >
@@ -55,7 +56,7 @@ export function PromptInputActions({
         <Button
           type={loading && !submitWhileLoading && onStop ? "button" : "submit"}
           size="icon-xs"
-          className="rounded-full cursor-pointer"
+          className={`cursor-pointer rounded-full ${composerControlClassName}`}
           disabled={loading && !submitWhileLoading ? !onStop : disabled || attachmentsUploading}
           aria-label={
             loading && !submitWhileLoading && onStop

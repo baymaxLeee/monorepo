@@ -90,7 +90,7 @@ Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MF
 
 ### 当前本地实现与边界
 
-Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息渲染和 `ChatPrompt` 富文本输入框。两种 controller 共同渲染唯一 `ConversationSessionView` 会话骨架；标题栏、消息区、问题区和 composer 布局不按 runtime 复制。可选能力用回调/adapter 显式注入，缺失时不渲染对应动作，不传空函数伪装支持。只有 Electron 新建会话时在输入框工具栏选择「云端 / 本地电脑」，发送时创建对应会话；本地模式随后请求原生目录授权，取消不创建云端会话。Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。
+Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息渲染和 `ChatPrompt` 富文本输入框。两种 controller 共同渲染唯一 `ConversationSessionView` 会话骨架；标题栏、消息区、问题区和 composer 布局不按 runtime 复制。可选能力用回调/adapter 显式注入，缺失时不渲染对应动作，不传空函数伪装支持。Electron 新建会话默认「此计算机」，并在输入框工具栏内先选择历史项目或通过原生目录选择新增项目；发送只在已选且已授权的项目中创建本地会话，不得再触发目录选择。切到云端后使用与云端会话一致的 composer 能力。Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。
 
 - `apps/frontend/apps/desktop/electron` 的 main 管理身份与原生授权，utility process 调用共享 `@repo/agent-runtime` harness，管理 SQLite journal。Chat MFE `/local/:id?` 通过 `useChat` 与 IPC `ChatTransport` 消费 SDK 原生 UIMessageChunk；重连从原始消息及当前流片段重放，仅取消订阅不会 Stop。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
 - 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/sessions.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。

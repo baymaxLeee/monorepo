@@ -13,6 +13,8 @@ import { Badge, Button } from "@repo/design-system";
 import { BotIcon, ListChecksIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
+import { composerControlClassName } from "../../composer-control-styles";
+
 export interface ChatComposerControlsProps {
   agents: ReadonlyArray<{ id: string; name: string }>;
   selectedAgentId: string | null;
@@ -55,7 +57,7 @@ export function ChatComposerControls({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          className={`h-8 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground ${composerControlClassName}`}
           disabled={disabled}
           onClick={() => onModeChange(mode === "plan" ? "normal" : "plan")}
         >
@@ -71,7 +73,7 @@ export function ChatComposerControls({
           <ModelSelectorTrigger
             render={
               <Button
-                className="h-8 max-w-72 justify-between gap-2 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                className={`h-8 max-w-72 justify-between gap-2 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground ${composerControlClassName}`}
                 disabled={options.length === 0 || disabled}
                 type="button"
                 variant="ghost"

@@ -3,7 +3,10 @@
 `bridge.ts` defines the versioned, capability-only preload interface. `just sync`
 generates the Electron and `@repo/runtime/desktop` consumers. Page code never
 receives Node, IPC channels, arbitrary HTTP access, a provider secret or an
-arbitrary directory grant. Native directory selection creates the local thread.
+arbitrary directory grant. The renderer can reuse projects from trusted local
+thread history. Adding a project invokes native directory selection and records a
+one-shot grant; local thread creation consumes that selected grant and never opens
+the directory picker as a side effect of sending.
 
 Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. Local
 Chat uses `useChat` with an IPC `ChatTransport`; it does not use cloud conversation

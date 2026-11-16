@@ -1,4 +1,4 @@
-export { ChatSession } from "./pages/chat/Chat";
+export { ChatSession, type ExternalChatRequest } from "./pages/chat/Chat";
 export { ChatArtifactPanel } from "./components/ChatArtifactPanel";
 export type { ChatUIMessage } from "./lib/chat-message";
 export { ChatWorkspacePanel } from "./components/ChatWorkspacePanel";
@@ -9,4 +9,5 @@ export { ChatComposerControls } from "./components/ChatComposerControls";
 export { ConversationSessionView } from "./components/ConversationSessionView";
 export type { PendingAgentInput } from "./components/PendingInputStack";
 export { ExecutionLocation } from "./components/ExecutionLocation";
+export { NewConversationEnvironment } from "./components/NewConversationEnvironment";
 export { ApprovalMode, type ApprovalModeValue } from "./components/ApprovalMode";

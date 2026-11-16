@@ -54,7 +54,8 @@ export interface DesktopBridge {
   clearSession(): Promise<void>;
   refreshSession(): Promise<unknown>;
   listThreads(): Promise<LocalThread[]>;
-  createThread(agentId: string | null, approvalMode: LocalApprovalMode): Promise<LocalThread | null>;
+  selectWorkspace(): Promise<string | null>;
+  createThread(workspace: string, agentId: string | null, approvalMode: LocalApprovalMode): Promise<LocalThread>;
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
   send(id: string, text: string, messageId: string): Promise<void>;

@@ -9,6 +9,7 @@ import { DesktopAuth } from "./auth";
 import { RuntimeHost } from "./host-runtime";
 import { platformUrl } from "./platform-url";
 import { legacySessionDirectories, resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
+import { WorkspaceGrants } from "./workspace-grants";
 
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 if (argument("user-data")) app.setPath("userData", argument("user-data")!);
@@ -41,8 +42,10 @@ async function start() {
         window.webContents.send("desktop:event", event);
     },
   );
+  const workspaceGrants = new WorkspaceGrants();
   const auth = new DesktopAuth(url.origin, async (scope) => {
     signedIn = false;
+    workspaceGrants.clear();
     if (scope) {
       await runtime!.call("open", {
         directory: scopedSessionDirectory(runtimeHome, scope),
@@ -96,13 +99,7 @@ async function start() {
     switch (method) {
       case "list":
         return scopedCall("list");
-      case "create": {
-        const p = z
-          .strictObject({
-            agentId: z.string().min(1).max(32).nullable(),
-            approvalMode: z.enum(["request", "auto", "full"]),
-          })
-          .parse(payload);
+      case "selectWorkspace": {
         const selected = await dialog.showOpenDialog(window, {
           title: "选择 Agent 可以修改的项目目录",
           properties: ["openDirectory", "createDirectory"],
@@ -113,12 +110,34 @@ async function start() {
           title: "授权本地工作目录",
           message: "允许 Agent 读取和修改此目录？",
           detail: `${selected.filePaths[0]}\n\n文件和会话保存在本机。用于推理的内容会发送给平台配置的模型；命令可以联网，但始终只能访问此授权目录。`,
-          buttons: ["取消", "允许并创建会话"],
+          buttons: ["取消", "允许使用此项目"],
           defaultId: 0,
           cancelId: 0,
         });
         if (permission.response !== 1) return null;
-        return scopedCall("create", { workspace: selected.filePaths[0], ...p });
+        await authReady;
+        if (!signedIn || auth.identity() !== scope) throw new Error("登录身份已改变，请重试");
+        workspaceGrants.grant(selected.filePaths[0]);
+        return selected.filePaths[0];
+      }
+      case "create": {
+        const p = z
+          .strictObject({
+            workspace: z.string().min(1).max(4096),
+            agentId: z.string().min(1).max(32).nullable(),
+            approvalMode: z.enum(["request", "auto", "full"]),
+          })
+          .parse(payload);
+        const threads = await scopedCall<{ workspace: string }[]>("list");
+        if (
+          !workspaceGrants.authorize(
+            p.workspace,
+            threads.map((thread) => thread.workspace),
+          )
+        ) {
+          throw new Error("项目未获得授权，请重新选择");
+        }
+        return scopedCall("create", p);
       }
       case "openStream":
       case "get":

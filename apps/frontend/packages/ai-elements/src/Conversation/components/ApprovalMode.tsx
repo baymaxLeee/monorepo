@@ -1,6 +1,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@repo/design-system";
 import { ShieldCheckIcon } from "lucide-react";
 
+import { composerControlClassName } from "../../composer-control-styles";
+
 export type ApprovalModeValue = "request" | "auto" | "full";
 
 const labels: Record<ApprovalModeValue, string> = {
@@ -26,7 +28,11 @@ export function ApprovalMode({
       }}
       disabled={disabled || !onChange}
     >
-      <SelectTrigger aria-label="本地授权策略" size="sm" className="border-0 bg-transparent shadow-none">
+      <SelectTrigger
+        aria-label="本地授权策略"
+        size="sm"
+        className={`border-0 bg-transparent shadow-none ${composerControlClassName}`}
+      >
         <ShieldCheckIcon className="size-4" />
         <SelectValue>{labels[value]}</SelectValue>
       </SelectTrigger>

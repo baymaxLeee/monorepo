@@ -4,6 +4,7 @@ import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { type FormEvent, forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 
+import { composerSurfaceClassName } from "../../composer-control-styles";
 import { mentionPluginKey } from "../extensions/mention";
 import { slashPluginKey } from "../extensions/slash";
 import type { PromptInputApi, PromptInputProps, PromptInputRef } from "../interface";
@@ -188,7 +189,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
           event.currentTarget.value = "";
         }}
       />
-      <InputGroup className="h-auto flex-col rounded-3xl">
+      <InputGroup className={`h-auto min-h-24 flex-col overflow-hidden rounded-3xl ${composerSurfaceClassName}`}>
         {toolbarRender?.(api)}
         <EditorContent editor={editor} data-slot="input-group-control" className="prompt-input-content w-full" />
         <PromptInputActions
