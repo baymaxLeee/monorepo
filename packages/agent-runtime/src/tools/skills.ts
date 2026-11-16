@@ -1,11 +1,22 @@
-import type { SkillListing } from "@repo/agent-runtime/instructions/index";
-import { defineAgentTool } from "@repo/agent-runtime/manifest";
-import { ToolBlockedError } from "@repo/agent-runtime/outcome";
-import type { AgentToolManifest } from "@repo/agent-runtime/tool-types";
 import { tool } from "ai";
 import { z } from "zod";
 
-import type { SkillFileResource } from "../../../../infrastructure/clients/admin.js";
+import type { SkillListing } from "../instructions/index.js";
+import { defineAgentTool } from "../manifest.js";
+import { ToolBlockedError } from "../outcome.js";
+import type { AgentToolManifest } from "../tool-types.js";
+
+export type SkillFileResource =
+  | { storageKind: "inline"; mimeType: string | null; content: string }
+  | {
+      storageKind: "asset";
+      mimeType: string | null;
+      assetId: string;
+      revisionId: string;
+      sizeBytes: number;
+      sha256: string;
+      url: string;
+    };
 
 /** Per-run admin (bot-bound) skill source: L1 listings + an on-demand body
  *  loader keyed by skill id. */

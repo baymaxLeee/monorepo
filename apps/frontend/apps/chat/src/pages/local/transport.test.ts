@@ -31,6 +31,7 @@ function snapshot(): LocalStream {
       mode: "local",
       title: "test",
       agentId: null,
+      approvalMode: "auto",
       workspace: "/test",
       status: "running",
       turnId: "turn",

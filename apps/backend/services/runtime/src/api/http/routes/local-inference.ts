@@ -1,6 +1,8 @@
+import { webSearchInputSchema } from "@repo/agent-runtime/tools/web";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
+import { webSearch } from "../../../application/agent/adapters/web-search.js";
 import { RequestError } from "../../../application/errors.js";
 import { inferenceResponse } from "../../../application/inference/policy.js";
 import { inferenceDependencies, resolveInferenceProvider } from "../../../application/inference/service.js";
@@ -22,4 +24,11 @@ localInferenceRoutes.post("/stream", async (c) => {
     throw new RequestError("Invalid JSON");
   }
   return inferenceResponse(getAuth(c), input, c.req.raw.signal, inferenceDependencies);
+});
+localInferenceRoutes.post("/web-search", async (c) => {
+  getAuth(c);
+  const input = webSearchInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!input.success) throw new RequestError("Invalid web search request");
+  c.header("Cache-Control", "no-store");
+  return c.json(await webSearch(input.data, { abortSignal: c.req.raw.signal }));
 });

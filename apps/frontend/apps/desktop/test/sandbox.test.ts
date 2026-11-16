@@ -69,7 +69,7 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
     expect(result.stdout).toContain("git version");
   });
 
-  it("denies command network access even to a reachable loopback service", async () => {
+  it("allows command network access while preserving the workspace boundary", async () => {
     let hits = 0;
     const server = createServer((_request, response) => {
       hits++;
@@ -84,8 +84,9 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
       const url = `http://127.0.0.1:${address.port}`;
       expect(await (await fetch(url)).text()).toBe("reachable");
       const result = await sandbox.execute("/usr/bin/curl", ["--max-time", "2", url]);
-      expect(result.code).not.toBe(0);
-      expect(hits).toBe(1);
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.stdout).toBe("reachable");
+      expect(hits).toBe(2);
     } finally {
       await new Promise<void>((resolve) => {
         server.close(() => resolve());

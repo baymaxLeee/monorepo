@@ -127,7 +127,7 @@ async function run() {
     await execute('desktop.bindSession("fixture-token", "2099-01-01T00:00:00Z")');
     await execute('fetch("/api/iam-server/test-login", { method: "POST", credentials: "include" })');
     assert.equal((await execute("desktop.refreshSession()")).accessToken, "fixture-token");
-    const thread = await execute("desktop.createThread(null)");
+    const thread = await execute('desktop.createThread(null, "auto")');
     assert.equal(thread.mode, "local");
     await execute(`desktop.send(${JSON.stringify(thread.id)}, "create file", ${JSON.stringify(randomUUID())})`);
     let state;

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
+import { webSearchOutputSchema } from "@repo/agent-runtime/tools/web";
 import { z } from "zod";
 
 import { inferenceConfigSchema } from "../contracts/inference.generated";
@@ -60,6 +61,8 @@ async function dispatch(method: string, payload: unknown) {
     runtime = new LocalSessionHost({
       ...settings,
       config: async (agentId, signal) => inferenceConfigSchema.parse(await request("config", { agentId }, signal)),
+      webSearch: async (input, signal) =>
+        webSearchOutputSchema.parse(await request("web-search", input, signal ?? AbortSignal.timeout(30_000))),
       call: async (body, signal) => {
         signal?.throwIfAborted();
         const id = body.requestId;
@@ -102,8 +105,14 @@ async function dispatch(method: string, payload: unknown) {
     case "list":
       return runtime.list();
     case "create": {
-      const p = z.object({ workspace: z.string(), agentId: z.string().nullable() }).parse(payload);
-      return runtime.create(p.workspace, p.agentId);
+      const p = z
+        .object({
+          workspace: z.string(),
+          agentId: z.string().nullable(),
+          approvalMode: z.enum(["request", "auto", "full"]),
+        })
+        .parse(payload);
+      return runtime.create(p.workspace, p.agentId, p.approvalMode);
     }
     case "openStream":
       return runtime.openStream(idSchema.parse(payload));
@@ -131,6 +140,11 @@ async function dispatch(method: string, payload: unknown) {
     case "approve": {
       const p = z.object({ id: idSchema, approvalId: z.string().max(200), approved: z.boolean() }).parse(payload);
       runtime.approve(p.id, p.approvalId, p.approved);
+      return null;
+    }
+    case "setApprovalMode": {
+      const p = z.object({ id: idSchema, approvalMode: z.enum(["request", "auto", "full"]) }).parse(payload);
+      runtime.setApprovalMode(p.id, p.approvalMode);
       return null;
     }
     case "stop":

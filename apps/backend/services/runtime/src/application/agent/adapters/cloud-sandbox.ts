@@ -8,22 +8,22 @@ import type {
 } from "@backend/transport-ts";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
-import { knowledgeDocumentSessionId, listDocuments } from "../../../../infrastructure/clients/knowledge.js";
-import { sandboxClient } from "../../../../infrastructure/clients/sandbox.js";
-import type { RuntimeSandboxAdapter, SandboxScope } from "../../../../infrastructure/clients/sandbox.js";
-import { storageClient } from "../../../../infrastructure/clients/storage.js";
-import { logger } from "../../../../infrastructure/observability/logger.js";
-import { persistCloudWorkspace } from "../../../cloud-workspace.js";
-import { assertEditableFileSize } from "../../../file-edit-limits.js";
+import { knowledgeDocumentSessionId, listDocuments } from "../../../infrastructure/clients/knowledge.js";
+import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
+import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
+import { storageClient } from "../../../infrastructure/clients/storage.js";
+import { logger } from "../../../infrastructure/observability/logger.js";
+import { persistCloudWorkspace } from "../../cloud-workspace.js";
+import { assertEditableFileSize } from "../../file-edit-limits.js";
 import {
   deleteWorkspaceSessionFile,
   listSessionFiles,
   publishSessionFile,
   saveSessionFile,
   type SessionFile,
-} from "../../../session-files.js";
-import { sandboxExecutionLifecycle, type SandboxExecutionLifecycle } from "../../runs/sandbox-executions.js";
-import type { ArtifactToolContext } from "../context.js";
+} from "../../session-files.js";
+import { sandboxExecutionLifecycle, type SandboxExecutionLifecycle } from "../runs/sandbox-executions.js";
+import type { ArtifactToolContext } from "../tools/context.js";
 
 export interface SandboxDependencies {
   sandbox: () => Pick<

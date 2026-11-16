@@ -101,7 +101,7 @@ export class DesktopAuth {
     await this.change(null, generation);
   }
   async fetch(path: string, init?: RequestInit) {
-    if (!/^\/api\/chat-server\/local-inference\/(config(?:\?agent_id=[^&]*)?|stream)$/.test(path))
+    if (!/^\/api\/chat-server\/local-inference\/(config(?:\?agent_id=[^&]*)?|stream|web-search)$/.test(path))
       throw new Error("未授权的模型地址");
     if (!this.token || !this.scope) throw new Error("请先登录并选择工作区");
     const scope = this.scope;

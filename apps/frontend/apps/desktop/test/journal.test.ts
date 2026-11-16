@@ -20,6 +20,7 @@ function thread(id: string, updatedAt: string, title: string): LocalThread {
     title,
     workspace: "/project",
     agentId: null,
+    approvalMode: "auto",
     status: "idle",
     turnId: null,
     error: null,

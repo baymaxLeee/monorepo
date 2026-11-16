@@ -1,11 +1,6 @@
 # 当前决策：交互 Agent 与上下文
 
-主循环唯一实现为 `@repo/agent-runtime`，由 Runtime server 与 Electron utility process 共同调用。
-固定提示词组装、step 控制、tool manifest/outcome、Bash 定义和审批策略共享；
-审批响应、待审批判断和未完成工具的取消/中断终态也由共享 lifecycle 实现。
-两端只注入模型、工作区、存储及观测适配器。不得另建本地 Agent-loop 或按执行位置
-复制 UI 工具协议。环境差异见 [执行模式](sandbox-execution-modes.md)。
-
+主循环唯一实现为 `@repo/agent-runtime`，由 Runtime server 与 Electron utility process 共同调用。固定提示词组装、step 控制、tool manifest/outcome、Bash 定义和审批策略共享；审批响应、待审批判断和未完成工具的取消/中断终态也由共享 lifecycle 实现。两端只注入模型、工作区、存储及观测适配器。不得另建本地 Agent-loop 或按执行位置复制 UI 工具协议。环境差异见 [执行模式](sandbox-execution-modes.md)。
 
 状态：当前。以 Runtime 的 Agent factory、run、context 和 tool catalog 为云端实现入口。
 
@@ -37,6 +32,8 @@ Plan 是 Chat 注册的稳定 conversation file，已保存内容指向精确 As
 
 ## 工具与模型
 
+`@repo/agent-runtime` 只拥有 tool 协议、manifest/outcome、agent-loop 可复用原子能力及其测试，不得依赖 Runtime 服务的领域 client。`createCoreToolManifests` 是云端与本地唯一的核心工具集合，统一提供 Web Fetch、Code Mode、Tool Search、Planning、Interaction、Skills 与 Subagents；宿主不得逐项复制或筛选这份名单，只注入模型、Web Search 执行器、上下文/观测及真实存在的宿主协议差异，再追加 Bash 和领域/MCP manifests。Canvas、Media、Knowledge、Memory 等当前直连领域系统的工具暂留 Runtime 领域边界。共享层不得反向导入这些具体实现。
+
 - `ask_user` 是无 server execute 的 client tool，批量询问已知独立问题，客户端 `addToolOutput` 后 continuation；依赖答案的后续问题再提出。
 - 应用工具使用 ToolOutcome；业务失败可在 UI/persistence 保留结构化结果，同时向模型投影为 error-json。Abort、审批拒绝、输入/协议错误保留原生控制流。 `toolSearch()` 保留原生结果以激活延迟工具。
 - Bash 使用 Runtime sandbox role 的真实 Linux 环境，按 run 懒创建并销毁。Runtime server 管理附件导入、明确发布和 finalizer；Runtime worker 只管理已声明的 durable 业务任务。AI SDK `SandboxSession` 的 `run`/file/spawn 接口映射到受限命令、文件与进程 API；模型可见 `bash` 负责普通命令，SDK 写入只能落在临时 `work/outputs`，`sources` 保持只读。权限由 OS/runtime 与出口代理执行，不能靠模型自律。Code Mode 使用 AI SDK local tool caller 与 `toolDiscovery: "conversation"`，仅编排 manifest 显式声明可进入 Code Mode 的公开 `web_search` / `web_fetch` 读取；两者同时保留 direct call。工具描述和静态执行指令给出互斥首选路径：一个查询直接 `web_search`、一个已知 URL 直接 `web_fetch`、多个公开读取或需要去重/过滤/合并时用 `code_mode`、需要 fresh reasoning context 的独立调查才用 `subagents`、文件/CLI/原始响应处理才用 Bash。该规则只约束模型选择，不引入隐藏 router；manifest policy 才是 Code Mode 的强制能力边界。Code Mode 墙钟预算为 90 秒，覆盖 45 秒 search 与 30 秒 fetch 的串行阶段并低于 120 秒 agent chunk；独立调用应使用 `Promise.all`，每个调用必须被 await。ToolOutcome、AbortSignal 与 active span 包装在 caller bind 后继续生效；超时、未等待调用和缺失 QuickJS global 会返回带纠正动作的结构化失败。Bash、私有 Knowledge、审批、client/durable 工具和业务写入不得进入 Code Mode。详见 [Sandbox](../微服务/sandbox.md) 与 AI SDK [Code Mode](https://ai-sdk.dev/docs/ai-sdk-core/code-mode)。
@@ -53,4 +50,4 @@ Plan 是 Chat 注册的稳定 conversation file，已保存内容指向精确 As
 
 这一边界采用 OpenAI Agents SDK 的 [LLM orchestration 与 agents-as-tools](https://openai.github.io/openai-agents-python/multi_agent/) 模式：manager 保留最终回答和综合权，模型自主决定是否为有界子任务调用 specialist。它也采用 Anthropic [fold subagents into the main loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop) 的当前建议：优先一个开放式 tool loop 与渐进工具披露，只在可测的上下文膨胀、真正并行或隔离边界需要时保留 subagent。这些来源证明的是设计取舍，不规定本项目的任务数、工具集或传输上限；具体安全边界仍由本 ADR、实现和测试拥有。
 
-实现：[run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、 [ToolLoop](../../apps/backend/services/runtime/src/application/agent/agents/tool-loop.ts)、 [projector](../../apps/backend/services/runtime/src/application/agent/context/projector.ts)、 [runtime tools](../../apps/backend/services/runtime/src/application/agent/tools/builtins/runtime.ts)。验证：`just test backend/runtime`、`just test frontend/@repo/ai-elements` 和受影响构建；流变更同时验证生产者与 UI。依赖版本以 workspace catalogs/lockfile 为准。
+实现：[run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、 [ToolLoop](../../apps/backend/services/runtime/src/application/agent/agents/tool-loop.ts)、 [projector](../../apps/backend/services/runtime/src/application/agent/context/projector.ts)、 [tool catalog](../../apps/backend/services/runtime/src/application/agent/tools/catalog.ts)、[共享工具](../../packages/agent-runtime/src/tools)。验证：`just test backend/runtime`、`just test shared/agent-runtime`、`just test frontend/@repo/ai-elements` 和受影响构建；流变更同时验证生产者与 UI。依赖版本以 workspace catalogs/lockfile 为准。

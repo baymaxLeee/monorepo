@@ -72,7 +72,7 @@
 
 ## 唯一 harness 与工具协议
 
-`packages/agent-runtime` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。Runtime server `createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议。
+`packages/agent-runtime` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。Bash 定义、网页读取、网页检索契约、Code Mode、tool search、Ask User、Todo、Skill loader 与 subagent 核心等非业务原子能力均归该包；其中 `createCoreToolManifests` 是所有宿主复用的唯一核心能力集合，宿主不能维护第二份工具名单。Runtime 只保留 Knowledge、Canvas、Memory、Media、Storage 发布及 provider 等服务适配。Runtime server `createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议；暂不支持 SDK client-tool continuation 的宿主必须显式声明该协议差异，而不是复制其余核心工具。
 
 两端文件操作共用 `createBashTool` 的 schema、说明、manifest、审批策略与 `ToolOutcome`，以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染。本地没有独立的 `list_files/read_file/write_file` 模型工具；原生文件 helper 仅用于文件编辑器受限 I/O。云端必须通过共享 `createUploadArtifactsTool` 一次批量把完成文件发布为 Chat/Storage 身份，并把成功结果逐文件投影为 `data-file`。本地磁盘已经是持久化边界，因此不向模型暴露上传工具；本地 runtime 在 turn 的 `finish` 前验证本轮真实变更文件，直接生成同构 `data-file`。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
 
@@ -84,58 +84,27 @@
 
 ### 桌面入口与资源加载
 
-Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MFE 提供。
-日常 `just dev` 仍启动 Web，不自动启动桌面；`just desktop-dev` 显式打开 Electron，
-`just desktop-package` 生成 macOS `.app`。当前按用户选择通过 URL 加载 localhost
-或 VPS 的 Platform 根地址，绑定精确 origin 和主 frame 的 preload 能力。
-远程 HTTP 只允许显式开发验证开关；renderer 不获得 Node 或通用 IPC。
+Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MFE 提供。日常 `just dev` 仍启动 Web，不自动启动桌面；`just desktop-dev` 显式打开 Electron， `just desktop-package` 生成 macOS `.app`。当前按用户选择通过 URL 加载 localhost 或 VPS 的 Platform 根地址，绑定精确 origin 和主 frame 的 preload 能力。远程 HTTP 只允许显式开发验证开关；renderer 不获得 Node 或通用 IPC。
 
-**TODO（正式版本发布前）：改为安装包内置 Platform 与 MFE 资源。**
-届时调整页面资源协议与网关配置，沿用相同能力契约和本地运行时，不创建第二套 UI。
-内置资源、离线历史、签名公证和版本完整性尚未验收，当前产物是开发验证包。
-具体命令和发行待办见 [Desktop README](../../apps/frontend/apps/desktop/README.md)。
+**TODO（正式版本发布前）：改为安装包内置 Platform 与 MFE 资源。** 届时调整页面资源协议与网关配置，沿用相同能力契约和本地运行时，不创建第二套 UI。内置资源、离线历史、签名公证和版本完整性尚未验收，当前产物是开发验证包。具体命令和发行待办见 [Desktop README](../../apps/frontend/apps/desktop/README.md)。
 
 ### 当前本地实现与边界
 
-Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息渲染和 `ChatPrompt` 富文本输入框。
-两种 controller 共同渲染唯一 `ConversationSessionView` 会话骨架；标题栏、消息区、问题区和 composer 布局不按 runtime 复制。可选能力用回调/adapter 显式注入，缺失时不渲染对应动作，不传空函数伪装支持。
-只有 Electron 新建会话时在输入框工具栏选择「云端 / 本地电脑」，发送时创建对应会话；本地模式随后请求原生目录授权，取消不创建云端会话。
-Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。
+Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息渲染和 `ChatPrompt` 富文本输入框。两种 controller 共同渲染唯一 `ConversationSessionView` 会话骨架；标题栏、消息区、问题区和 composer 布局不按 runtime 复制。可选能力用回调/adapter 显式注入，缺失时不渲染对应动作，不传空函数伪装支持。只有 Electron 新建会话时在输入框工具栏选择「云端 / 本地电脑」，发送时创建对应会话；本地模式随后请求原生目录授权，取消不创建云端会话。Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。
 
-- `apps/frontend/apps/desktop/electron` 的 main 管理身份与原生授权，utility process
-  调用共享 `@repo/agent-runtime` harness，管理 SQLite journal。Chat MFE `/local/:id?` 通过
-  `useChat` 与 IPC `ChatTransport` 消费 SDK 原生 UIMessageChunk；重连从原始消息及
-  当前流片段重放，仅取消订阅不会 Stop。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
+- `apps/frontend/apps/desktop/electron` 的 main 管理身份与原生授权，utility process 调用共享 `@repo/agent-runtime` harness，管理 SQLite journal。Chat MFE `/local/:id?` 通过 `useChat` 与 IPC `ChatTransport` 消费 SDK 原生 UIMessageChunk；重连从原始消息及当前流片段重放，仅取消订阅不会 Stop。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
 - 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/sessions.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
 - 从旧 Electron 目录切换时，一次性导入已知开发版和打包版 journal，Thread ID 冲突按 `updatedAt` 选择较新的整份历史。导入与来源标记在同一事务提交，旧库保留用于回滚；已导入来源不重复读取，避免用户删除的会话被旧数据复活。SQLite 是本项目的 journal 实现细节，不作为 renderer、CLI 或云端数据库的共享契约。
-- 原生目录授权由 main 显示确认；工具审批沿用共享 manifest/policy 与 SDK 原生审批状态；账户/租户/工作区和 origin 分区保存
-  journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。
-- macOS Seatbelt 同时约束 Bash 和文件 helper，目录身份在每次调用前复核；默认断网，
-  最小环境，应用控制目录被拒绝访问。native supervisor 通过继承的独立策略标记识别
-  后代、监测父进程死亡并清理 detached 子进程；依赖 macOS sandbox SPI，启动探测失败
-  即拒绝执行，需在每个支持的 OS 版本/架构上验证，不能等同于受支持的公共 Apple API。
-- 文件工具与用户保存按同一本地目录串行；同目录至多一个活跃 Agent。普通 UTF-8
-  文件编辑上限 2 MiB，hash 比较拒绝旧内容覆盖，保留文件执行权限。目录观察提供变更
-  提示，文件真实内容仍是权威来源；外部编辑器与 shell 不参与全局事务。
-- 首发固定工作区读写、系统运行依赖只读、命令网络关闭；不支持动态扩大权限、持久开发
-  服务或 Windows/Linux 本地执行。Node 由 Electron 提供，用户 shell 配置和 Homebrew
-  环境不会自动继承。每条命令默认 120 秒、输出 8 MiB；文件 helper 30 秒；模型循环沿用
-  项目 50 step 上限，单段 UI replay 16 MiB，超限失败并清理，均为本项目运行保护策略。
-- 本地模型不使用远端存储的 response lineage。上下文超过 relay 准入预算时明确拒绝并
-  保留历史，用户可新建会话；当前没有自动摘要压缩，不能声称无限长会话续接。
-- Chat relay 只做一次模型推理，验证 IAM scope、Admin 授权模型与生成参数；每用户/组织
-  工作区一个并发请求，PostgreSQL 事务记录预留与实际 usage，未知结果保留预留用量。
-  本地与云端共用 IAM/Admin 授权规则，不设置本地专属日额度或默认关闭开关；既有用量表
-  保留用于 accounting，不承担独立配额准入。不保存 prompt、工具结果或文件。上游五分钟硬限时、8 MiB 输出上限，不自动重试。
+- 原生目录授权由 main 显示确认；工具审批沿用共享 manifest/policy 与 SDK 原生审批状态；账户/租户/工作区和 origin 分区保存 journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。
+- macOS Seatbelt 同时约束 Bash 和文件 helper，目录身份在每次调用前复核；命令网络默认开放，但文件读写始终限制在用户授权目录及隔离的临时目录，应用控制目录被拒绝访问。native supervisor 通过继承的独立策略标记识别后代、监测父进程死亡并清理 detached 子进程；依赖 macOS sandbox SPI，启动探测失败即拒绝执行，需在每个支持的 OS 版本/架构上验证，不能等同于受支持的公共 Apple API。
+- 文件工具与用户保存按同一本地目录串行；同目录至多一个活跃 Agent。普通 UTF-8 文件编辑上限 2 MiB，hash 比较拒绝旧内容覆盖，保留文件执行权限。目录观察提供变更提示，文件真实内容仍是权威来源；外部编辑器与 shell 不参与全局事务。
+- 首发固定工作区读写、系统运行依赖只读、命令网络开放；不支持动态扩大目录权限、持久开发服务或 Windows/Linux 本地执行。Node 由 Electron 提供，用户 shell 配置和 Homebrew 环境不会自动继承。每条命令默认 120 秒、输出 8 MiB；文件 helper 30 秒；模型循环沿用项目 50 step 上限，单段 UI replay 16 MiB，超限失败并清理，均为本项目运行保护策略。
+- 本地模型不使用远端存储的 response lineage。上下文超过 relay 准入预算时明确拒绝并保留历史，用户可新建会话；当前没有自动摘要压缩，不能声称无限长会话续接。
+- Chat relay 只做一次模型推理，验证 IAM scope、Admin 授权模型与生成参数；每用户/组织工作区一个并发请求，PostgreSQL 事务记录预留与实际 usage，未知结果保留预留用量。本地与云端共用 IAM/Admin 授权规则，不设置本地专属日额度或默认关闭开关；既有用量表保留用于 accounting，不承担独立配额准入。不保存 prompt、工具结果或文件。上游五分钟硬限时、8 MiB 输出上限，不自动重试。
 - 工作区创建不产生虚假变更提示。真实 watcher 变更按会话和版本仅通知一次，作为当前模型步骤的临时系统上下文，不追加用户消息；普通问候和能力介绍不要求读取目录。
 - 运行中 composer 保持可编辑；补充内容经带 `expectedTurnId` 的受限 IPC admission 调用 `steer()`，进入该 turn 唯一的 AI SDK steering 通道，并在 editor 上方显示到 SDK 确认于下一个 step 投递。`not_delivered` 保留为可见失败状态，不自动成为下一 turn；应用崩溃前仅确认 admission、未确认模型接收的输入标记 `unconfirmed`，同样不自动重放。已投递内容由官方 `steering-message` part 进入本地 journal，不能再复制一条用户消息。
-- 窗口重载/关闭保留 utility 任务（macOS 应用仍在后台）；退出应用停止执行。
-  崩溃恢复仅恢复 journal，并将运行中工作标记 interrupted，不重放未完成工具。
-- utility 进程意外退出后，Electron main 只允许一次替代进程恢复同一 scope journal；
-  原 IPC 调用失败且不重放，`runtime-ready` 后客户端重新读取权威 thread。替代进程再次退出则
-  fail closed 并要求重启，不能形成无限崩溃循环。
-  实现验证含真实 Electron + mock provider 集成和真实 macOS 沙箱测试；不代表真实
-  provider、分发签名或所有 macOS 版本验收。
+- 窗口重载/关闭保留 utility 任务（macOS 应用仍在后台）；退出应用停止执行。崩溃恢复仅恢复 journal，并将运行中工作标记 interrupted，不重放未完成工具。
+- utility 进程意外退出后，Electron main 只允许一次替代进程恢复同一 scope journal；原 IPC 调用失败且不重放，`runtime-ready` 后客户端重新读取权威 thread。替代进程再次退出则 fail closed 并要求重启，不能形成无限崩溃循环。实现验证含真实 Electron + mock provider 集成和真实 macOS 沙箱测试；不代表真实 provider、分发签名或所有 macOS 版本验收。
 
 ### 运行时与权限
 
@@ -144,6 +113,12 @@ Electron renderer 负责会话和文件界面；main 负责目录选择、桌面
 本地运行时提供受限 IPC，不向 renderer 暴露任意宿主 shell 或任意文件访问。Electron renderer sandbox 与 Agent 命令的 OS sandbox 是不同边界；`cwd` 只决定命令起始目录，不能代替访问控制。
 
 用户指定的工作目录构成写入授权范围，读取范围、临时目录、运行时依赖和网络权限由有效策略明确决定。文件工具与命令都必须执行相应策略，覆盖路径穿越、符号链接和目录替换；不能仅凭字符串前缀判断安全。平台能力不足时明确失败，不隐式改为无约束执行。
+
+本地 composer 提供三档审批策略，审批只控制动作是否需要用户确认，不改变 Seatbelt 的目录边界：
+
+- 「请求批准」：网络命令、开放世界工具及敏感操作先询问。
+- 「帮我批准」：安全的读取、检索、构建及普通网络操作直接执行，仅敏感或破坏性操作询问。
+- 「完全访问权限」：不做逐工具询问，但命令仍在用户授权目录的 OS sandbox 内执行，不能访问其他本机文件。
 
 ### 本地推理与 provider 凭据
 
@@ -304,9 +279,7 @@ Storage 不决定业务文件的“当前内容”。跨服务不假设数据库
 
 ### Fresh baseline
 
-Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、Asset/revision
-引用与执行 fencing，不读取或回填旧 Chat/Sandbox 数据。路径必须从创建时即经过安全分量、长度和
-唯一性校验；同名文件不能静默覆盖。当前重构不保留旧 API、旧临时目录、旧数据库或双轨兼容层。
+Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、Asset/revision 引用与执行 fencing，不读取或回填旧 Chat/Sandbox 数据。路径必须从创建时即经过安全分量、长度和唯一性校验；同名文件不能静默覆盖。当前重构不保留旧 API、旧临时目录、旧数据库或双轨兼容层。
 
 ## 用户编辑与 Agent 感知
 
@@ -334,19 +307,19 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 
 ## 故障、取消与恢复
 
-| 情况 | 必须行为 |
-| --- | --- |
+| 情况                                | 必须行为                                                             |
+| ----------------------------------- | -------------------------------------------------------------------- |
 | 创建成功但响应丢失，或创建期间 Stop | 通过操作身份和资源标签确定结果；观察迟到创建并回收，不能留下无主实例 |
-| 内容恢复失败、缺文件或摘要错误 | 不开放执行，不静默启动空目录；回收部分实例并报告失败 |
-| 用户编辑与恢复/收尾竞争 | 按会话操作顺序处理；新实例必须包含已经确认保存的编辑 |
-| 上传失败或超配额 | 不推进对应文件引用；报告未保存内容，不默默排除大文件或截断 |
-| 引用已提交但响应丢失 | 同幂等键返回真实结果，不重复创建文件或重复追加内容 |
-| 用户显式 Stop | 停止进程写入，保存可稳定捕获的修改；取消不等于文件回滚 |
-| Chat 或控制器崩溃 | 独立回收器依据 run/租约与资源身份收敛；有界保存尝试后释放资源 |
-| 节点或实例直接丢失 | 标记执行中断，保留最后已提交文件；未确认写入可能丢失 |
-| 命令结果未知 | 不自动重放 shell 或外部副作用；记录未知结果并由新执行明确处理 |
-| 删除会话后旧执行者返回 | tombstone/代际校验拒绝重新发布；仅清理旧实例及其候选 |
-| 本地应用重启或用户移动目录 | 核对真实目录和授权；不使用旧快照自动覆盖，不转为云端执行 |
+| 内容恢复失败、缺文件或摘要错误      | 不开放执行，不静默启动空目录；回收部分实例并报告失败                 |
+| 用户编辑与恢复/收尾竞争             | 按会话操作顺序处理；新实例必须包含已经确认保存的编辑                 |
+| 上传失败或超配额                    | 不推进对应文件引用；报告未保存内容，不默默排除大文件或截断           |
+| 引用已提交但响应丢失                | 同幂等键返回真实结果，不重复创建文件或重复追加内容                   |
+| 用户显式 Stop                       | 停止进程写入，保存可稳定捕获的修改；取消不等于文件回滚               |
+| Chat 或控制器崩溃                   | 独立回收器依据 run/租约与资源身份收敛；有界保存尝试后释放资源        |
+| 节点或实例直接丢失                  | 标记执行中断，保留最后已提交文件；未确认写入可能丢失                 |
+| 命令结果未知                        | 不自动重放 shell 或外部副作用；记录未知结果并由新执行明确处理        |
+| 删除会话后旧执行者返回              | tombstone/代际校验拒绝重新发布；仅清理旧实例及其候选                 |
+| 本地应用重启或用户移动目录          | 核对真实目录和授权；不使用旧快照自动覆盖，不转为云端执行             |
 
 恢复语义是“恢复对话记录和已保存文件后开始新的执行”，不是恢复旧程序指令位置。SSE 重新订阅、会话加载、文件恢复与命令续跑必须分别报告。
 
@@ -400,27 +373,19 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 
 ## 当前差距、实施边界与验收
 
-云端 [ToolLoop](../../apps/backend/services/runtime/src/application/agent/agents/tool-loop.ts) 通过 [RunSandbox](../../apps/backend/services/runtime/src/application/agent/tools/builtins/sandbox-session.ts) 使用 [Runtime Sandbox Engine](../../apps/backend/services/runtime/src/sandbox/engine.ts)。controller 仍按 run 管理隔离资源、期限和回收。
+云端 [ToolLoop](../../apps/backend/services/runtime/src/application/agent/agents/tool-loop.ts) 通过 [RunSandbox adapter](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-sandbox.ts) 使用 [Runtime Sandbox Engine](../../apps/backend/services/runtime/src/sandbox/engine.ts)。controller 仍按 run 管理隔离资源、期限和回收。
 
-云端代码使用稳定路径恢复、静止文件清单、新增/修改/删除自动提交、内容与路径 generation
-fencing，以及 `restoring → active → finalizing → releasing` 的崩溃重试与实例回收。
-`upload_artifacts` 只承担完成文件的批量发布与正文引用。
+云端代码使用稳定路径恢复、静止文件清单、新增/修改/删除自动提交、内容与路径 generation fencing，以及 `restoring → active → finalizing → releasing` 的崩溃重试与实例回收。 `upload_artifacts` 只承担完成文件的批量发布与正文引用。
 
-活跃 run 的在线编辑中，Sandbox guest 先阻止新命令并短暂等待已准入命令结束，再授予带操作
-token 的工作区写屏障；Runtime 在屏障内核对磁盘摘要与编辑器 etag，将新字节原子替换到同一路径，
-再提交 Storage revision 和 Runtime 当前引用。业务提交失败时恢复原字节；无法恢复时保留屏障，
-使用同一幂等操作重试，不能开放分叉工作区。等待预算耗尽、恢复/收尾状态或其他编辑仍返回
-`workspace_busy`，前端保留草稿后重试。每个受控模型 step 对账文件 etag；通知不是事实源。
+活跃 run 的在线编辑中，Sandbox guest 先阻止新命令并短暂等待已准入命令结束，再授予带操作 token 的工作区写屏障；Runtime 在屏障内核对磁盘摘要与编辑器 etag，将新字节原子替换到同一路径，再提交 Storage revision 和 Runtime 当前引用。业务提交失败时恢复原字节；无法恢复时保留屏障，使用同一幂等操作重试，不能开放分叉工作区。等待预算耗尽、恢复/收尾状态或其他编辑仍返回 `workspace_busy`，前端保留草稿后重试。每个受控模型 step 对账文件 etag；通知不是事实源。
 
-云端还待生产验证真实 Docker/gVisor/K8s 的大目录恢复、Storage 故障、进程崩溃、TTL 丢失和
-节点缩容指标。当前 Docker 的 `/workspace` 使用 tmpfs，K8s 使用磁盘型 emptyDir；两者资源行为不能当作一致。
+云端还待生产验证真实 Docker/gVisor/K8s 的大目录恢复、Storage 故障、进程崩溃、TTL 丢失和节点缩容指标。当前 Docker 的 `/workspace` 使用 tmpfs，K8s 使用磁盘型 emptyDir；两者资源行为不能当作一致。
 
 本地侧仍包括 Electron 运行时、Seatbelt 执行边界、受约束 inference relay、本地 journal/进程生命周期及 UI 接入。当前 [Admin client](../../apps/backend/services/runtime/src/infrastructure/clients/admin.ts) 的内部 provider snapshot 包含 `apiKey`，不能直接复用为桌面配置契约。
 
 所有权落点：Runtime 负责云端 Session、消息、文件路径/引用、Agent loop、durable Job 与编辑协调；Admin 保留配置和 provider secret；Gateway 仅执行认证与路由；Storage 负责内容与保留；Runtime sandbox role 负责云端实例、进程及文件桥；本地运行时负责本地会话、Agent loop、工具及 OS 隔离。Chat 只保留 Web 产品投影。前端消费明确的文件和执行结果；新增流字段须遵守 [UIMessage 契约](../../schemas/streaming/chat-uimessage-stream.md)。
 
-本次整体重构不保留旧会话/run 划分、API、工具调用形式、临时目录布局、数据库或旧 sandbox
-状态，也不保留兼容层或过渡双轨。Runtime 和 Chat 各自只提供 `v1.0.0.0` fresh baseline。
+本次整体重构不保留旧会话/run 划分、API、工具调用形式、临时目录布局、数据库或旧 sandbox 状态，也不保留兼容层或过渡双轨。Runtime 和 Chat 各自只提供 `v1.0.0.0` fresh baseline。
 
 | 验收场景 | 应观察到的结果 |
 | --- | --- |
@@ -447,6 +412,6 @@ token 的工作区写屏障；Runtime 在屏障内核对磁盘摘要与编辑器
 | 旧 worker 迟到、删除会话、并发新 run | 旧写入和错误实例删除被拒绝 |
 | 配额、缓存和垃圾回收 | 不截断文件，不删有效引用，不保留无界实例或历史对象 |
 
-现有测试入口包括 [sandbox-session tests](../../apps/backend/services/runtime/src/application/agent/tools/builtins/sandbox-session.test.ts)、[Engine tests](../../apps/backend/services/runtime/src/sandbox/engine.test.ts)、[runtime tests](../../apps/backend/services/runtime/src/sandbox/runtime.test.ts) 和 [Docker integration](../../apps/backend/services/runtime/sandbox-assets/integration/docker.ts)。新增行为需增加能复现失败的测试，不能把已有 suite 当作目标能力已验证。
+现有测试入口包括 [cloud sandbox tests](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-sandbox.test.ts)、[Engine tests](../../apps/backend/services/runtime/src/sandbox/engine.test.ts)、[runtime tests](../../apps/backend/services/runtime/src/sandbox/runtime.test.ts) 和 [Docker integration](../../apps/backend/services/runtime/sandbox-assets/integration/docker.ts)。新增行为需增加能复现失败的测试，不能把已有 suite 当作目标能力已验证。
 
 实施时运行受影响的 Chat、Sandbox、Storage、Admin/Gateway 边界测试与构建，契约变化运行 `just sync` 并验证消费者；执行层需通过 `just test-sandbox-integration` 和目标生产隔离环境故障验证。relay 验证鉴权、参数约束、配额、取消、重试与无正文落盘；迁移在代表性旧数据上验证升级、幂等重跑、碰撞、失败恢复及首次工作区恢复。本地须在发布支持矩阵内的真实 macOS 签名包验证隔离、外部编辑和进程树清理，其他系统验证明确拒绝。单元测试不能替代这些检查。仅编写本 ADR 时运行链接、命令、内容一致性检查与 `just check-repo`，不据此声称运行时行为通过。

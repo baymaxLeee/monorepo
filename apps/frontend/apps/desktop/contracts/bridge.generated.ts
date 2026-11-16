@@ -1,6 +1,8 @@
 // Generated from schemas/desktop/bridge.ts by just sync. Do not edit.
 import type { UIMessage, UIMessageChunk } from "ai";
 
+export type LocalApprovalMode = "request" | "auto" | "full";
+
 export interface LocalPendingInput {
   id: string;
   turnId: string;
@@ -16,6 +18,7 @@ export interface LocalThread {
   title: string;
   workspace: string;
   agentId: string | null;
+  approvalMode: LocalApprovalMode;
   status: "idle" | "running" | "waiting" | "interrupted" | "cancelled" | "error";
   turnId: string | null;
   error: string | null;
@@ -52,7 +55,7 @@ export interface DesktopBridge {
   clearSession(): Promise<void>;
   refreshSession(): Promise<unknown>;
   listThreads(): Promise<LocalThread[]>;
-  createThread(agentId: string | null): Promise<LocalThread | null>;
+  createThread(agentId: string | null, approvalMode: LocalApprovalMode): Promise<LocalThread | null>;
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
   send(id: string, text: string, messageId: string): Promise<void>;
@@ -64,6 +67,7 @@ export interface DesktopBridge {
     delivery: "steer" | "queue",
   ): Promise<{ admission: "accepted" | "duplicate"; turnId: string }>;
   approve(id: string, approvalId: string, approved: boolean): Promise<void>;
+  setApprovalMode(id: string, approvalMode: LocalApprovalMode): Promise<void>;
   stop(id: string): Promise<void>;
   removeThread(id: string): Promise<void>;
   listFiles(id: string, path: string): Promise<LocalDirectoryEntry[]>;

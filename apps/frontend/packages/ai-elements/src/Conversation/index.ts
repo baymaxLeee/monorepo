@@ -9,3 +9,4 @@ export { ChatComposerControls } from "./components/ChatComposerControls";
 export { ConversationSessionView } from "./components/ConversationSessionView";
 export type { PendingAgentInput } from "./components/PendingInputStack";
 export { ExecutionLocation } from "./components/ExecutionLocation";
+export { ApprovalMode, type ApprovalModeValue } from "./components/ApprovalMode";

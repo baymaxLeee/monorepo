@@ -58,12 +58,13 @@ async function fixture(call: SessionHostOptions["call"]) {
       maxOutputTokens: 4000,
       instructions: "",
     }),
+    webSearch: async (input) => ({ query: input.query, untrusted: true, results: [] }),
     call,
     emit() {},
   };
   const runtime = new LocalSessionHost(options);
   runtimes.push(runtime);
-  const thread = await runtime.create(workspace, null);
+  const thread = await runtime.create(workspace, null, "auto");
   return { runtime, thread, options };
 }
 async function done(runtime: LocalSessionHost, id: string) {
@@ -81,6 +82,7 @@ describe.skipIf(process.platform !== "darwin")("local Agent owns execution and r
     f.runtime.send(f.thread.id, "你能帮我干啥？", randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(1);
+    expect(requests[0]!.options.tools?.map((candidate) => candidate.name)).toContain("subagents");
     expect(JSON.stringify(requests[0]!.options.prompt)).not.toContain("工作区内容已变化");
   });
 
@@ -203,7 +205,7 @@ describe.skipIf(process.platform !== "darwin")("local Agent owns execution and r
     const completed = await done(f.runtime, f.thread.id);
     expect(completed.status).toBe("idle");
     expect(calls).toBe(2);
-    expect(JSON.stringify(requests[0]?.options.tools)).not.toContain("upload_artifacts");
+    expect(requests[0]?.options.tools?.map((candidate) => candidate.name)).not.toContain("upload_artifacts");
     expect(
       completed.messages.flatMap((message) => message.parts).find((part) => part.type === "data-file"),
     ).toMatchObject({

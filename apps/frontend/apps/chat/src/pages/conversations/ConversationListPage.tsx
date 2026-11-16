@@ -1,4 +1,4 @@
-import { ExecutionLocation, ChatPrompt } from "@repo/ai-elements/conversation";
+import { ApprovalMode, ExecutionLocation, ChatPrompt, type ApprovalModeValue } from "@repo/ai-elements/conversation";
 import type { PromptInputValue } from "@repo/ai-elements/prompt-input";
 import { createConversation } from "@repo/api/chat";
 import { getDesktopBridge } from "@repo/runtime/desktop";
@@ -10,6 +10,7 @@ export function ConversationListPage() {
   const bridge = getDesktopBridge();
   const navigate = useNavigate();
   const [location, setLocation] = useState<"cloud" | "local">("cloud");
+  const [approvalMode, setApprovalMode] = useState<ApprovalModeValue>("auto");
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,7 @@ export function ConversationListPage() {
     try {
       if (location === "local") {
         if (!bridge) throw new Error("本地电脑需要桌面应用");
-        const thread = await bridge.createThread(null);
+        const thread = await bridge.createThread(null, approvalMode);
         if (!thread) return;
         // Navigate even if inference fails: the local journal retains the request and error.
         try {
@@ -61,7 +62,14 @@ export function ConversationListPage() {
         onSubmit={(value) => void submit(value)}
         footerRender={
           bridge
-            ? () => <ExecutionLocation value={location} onChange={setLocation} localAvailable disabled={busy} />
+            ? () => (
+                <>
+                  <ExecutionLocation value={location} onChange={setLocation} localAvailable disabled={busy} />
+                  {location === "local" ? (
+                    <ApprovalMode value={approvalMode} onChange={setApprovalMode} disabled={busy} />
+                  ) : null}
+                </>
+              )
             : undefined
         }
       />

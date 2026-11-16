@@ -39,13 +39,13 @@ flowchart LR
 
 ### 实现边界
 
-| 边界 | 实现 |
-| --- | --- |
-| Runtime | 稳定文件身份、保存操作幂等记录、内容 CAS 与 Claim intent |
+| 边界    | 实现                                                             |
+| ------- | ---------------------------------------------------------------- |
+| Runtime | 稳定文件身份、保存操作幂等记录、内容 CAS 与 Claim intent         |
 | Sandbox | 精确 revision 导入、显式 checkout 工作副本、保存后推进该副本基准 |
-| Storage | 同 Asset 追加不可变 Revision、上传尝试隔离与幂等重试 |
-| 前端 | 按需加载编辑内容、Markdown/代码编辑、保存与草稿保护 |
-| 恢复 | 保持新 run 从 Runtime 当前精确引用重新导入 |
+| Storage | 同 Asset 追加不可变 Revision、上传尝试隔离与幂等重试             |
+| 前端    | 按需加载编辑内容、Markdown/代码编辑、保存与草稿保护              |
+| 恢复    | 保持新 run 从 Runtime 当前精确引用重新导入                       |
 
 ## 身份、权限与数据职责
 
@@ -128,12 +128,12 @@ Claim intent 的 generation 随内容切换递增并绑定同 Asset 的新精确
 
 ## 前端编辑行为
 
-| 类型 | 编辑器 | 预览 |
-| --- | --- | --- |
-| Markdown | 复用 `MarkdownEditor`，提供 `CodeEditor` 源码回退 | 沿用现有 Markdown 展示 |
-| 文本/代码 | 复用 `CodeEditor`，按文件类型选择语言能力 | 沿用代码展示 |
-| HTML | `CodeEditor` 编辑原始 HTML | 现有 iframe，提供“预览/源码”切换 |
-| 不支持或不能无损解码的文件 | 无编辑入口，后端也拒绝 | 现有预览与下载 |
+| 类型                       | 编辑器                                            | 预览                             |
+| -------------------------- | ------------------------------------------------- | -------------------------------- |
+| Markdown                   | 复用 `MarkdownEditor`，提供 `CodeEditor` 源码回退 | 沿用现有 Markdown 展示           |
+| 文本/代码                  | 复用 `CodeEditor`，按文件类型选择语言能力         | 沿用代码展示                     |
+| HTML                       | `CodeEditor` 编辑原始 HTML                        | 现有 iframe，提供“预览/源码”切换 |
+| 不支持或不能无损解码的文件 | 无编辑入口，后端也拒绝                            | 现有预览与下载                   |
 
 复用组件，不复用 Knowledge 的资源归属和保存 API。Runtime-owned 文件仍由 Runtime 保存，禁止为编辑创建 Knowledge document 或复制一份脱离原 file_id 的资源。
 
@@ -157,8 +157,7 @@ CodeEditor 保存原始文本，不做 JSON parse/stringify 或默认格式化�
 
 ## Baseline 与兼容
 
-Runtime `v1.0.0.0` 直接包含文件引用、generation、ETag、保存操作和 Claim intent。当前重构不读取
-旧 Runtime 文件表，不提供双写、回填或旧进程混跑；Storage 自身的数据与追加 revision 契约不重置。
+Runtime `v1.0.0.0` 直接包含文件引用、generation、ETag、保存操作和 Claim intent。当前重构不读取旧 Runtime 文件表，不提供双写、回填或旧进程混跑；Storage 自身的数据与追加 revision 契约不重置。
 
 ## 实现入口与边界
 
@@ -166,7 +165,7 @@ Runtime `v1.0.0.0` 直接包含文件引用、generation、ETag、保存操作�
 | --- | --- |
 | Runtime 文件发布、读取、fork、Claim | [session-files.ts](../../apps/backend/services/runtime/src/application/session-files.ts)、[asset-claim-relay.ts](../../apps/backend/services/runtime/src/application/asset-claim-relay.ts)、[持久模型](../../apps/backend/services/runtime/src/infrastructure/persistence/schema.ts) |
 | Runtime HTTP 文件鉴权及保存 | [sessions.ts](../../apps/backend/services/runtime/src/api/http/routes/sessions.ts) 与现有 delivery 应用层 |
-| Sandbox 导入、基准与发布 | [sandbox-session.ts](../../apps/backend/services/runtime/src/application/agent/tools/builtins/sandbox-session.ts)、[runtime.ts](../../apps/backend/services/runtime/src/application/agent/tools/builtins/runtime.ts)、对应测试与指令 |
+| Sandbox 导入、基准与发布 | [cloud-sandbox.ts](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-sandbox.ts)、[cloud-tools.ts](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-tools.ts)、对应测试与指令 |
 | Storage 追加与事务 | [service.go](../../apps/backend/services/storage/internal/application/service.go)、[ports.go](../../apps/backend/services/storage/internal/application/ports.go)、[repository.go](../../apps/backend/services/storage/internal/infrastructure/persistence/repository.go)、HTTP/OpenAPI 与迁移 |
 | 服务间传输 | [storage.ts](../../apps/backend/libs/transport-ts/src/storage.ts) 与生成契约；禁止跨服务导入源码/查库 |
 | Runtime 编辑面板 | [ChatFileArtifactPanel.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatFileArtifactPanel.tsx)、[ChatArtifactPreview.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatArtifactPreview.tsx)、文件列表/卡片与查询缓存 |
@@ -176,24 +175,24 @@ Runtime `v1.0.0.0` 直接包含文件引用、generation、ETag、保存操作�
 
 ## 验收与验证边界
 
-| 场景 | 可观察断言 |
-| --- | --- |
-| 用户保存 md/js/py/go/rs/html | file_id/asset_id 不变，revision 更新，列表不新增，重新打开得到保存内容 |
-| Agent 修改已有文件 | 读取后在工作副本编辑并保存，原卡片/链接解析到当前文件 |
-| Agent 另存为 | 新 file_id/Asset，原文件内容与引用不变 |
-| 人无创建权限 | 不存在目标、伪造 ID、换归属或调用创建操作被后端拒绝 |
-| 下一 run 恢复 | 销毁旧 sandbox 后新建，导入用户/Agent 最近提交的精确 bytes，包括尾随换行 |
-| 同一 run 多次保存 | 正确工作副本可继续保存；旧副本/旧读取基准仍冲突 |
-| 人与 Agent/两个标签页并发 | 相同基准最多一个修改成功，另一份草稿保留且原内容不被覆盖 |
-| 重试与响应丢失 | 同键只追加一次/提交一次；已成功请求的旧基准不导致伪冲突 |
-| 上传成功但提交失败 | 文件仍指向旧内容；重试有确定结果；不能跟随 Storage head 提前展示 |
-| Claim 乱序/延迟 | 新 intent 不被旧回执确认或覆盖；当前文件字节可读 |
-| fork 后独立编辑 | 两分支共享初始 bytes，更新一方不改变另一方；删除一方不破坏另一方 |
-| 删除、Stop、回收竞态 | 无已删会话复活，无已提交内容因取消丢失，无共享 Blob 误删 |
-| HTML 源码与预览 | 预览展示保存内容；隔离保持；保存后换新 URL，草稿切换不隐式保存 |
-| Markdown/代码保真 | 未编辑不重写；特殊语法不静默丢失；非法编码不覆盖原件 |
-| 保存中继续输入 | 返回响应不覆盖后续输入，仍显示未保存状态 |
-| 升级兼容 | 旧文件无需改 ID/字节即可读取和编辑；非 Runtime 上传/读取仍通过 |
+| 场景                         | 可观察断言                                                               |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| 用户保存 md/js/py/go/rs/html | file_id/asset_id 不变，revision 更新，列表不新增，重新打开得到保存内容   |
+| Agent 修改已有文件           | 读取后在工作副本编辑并保存，原卡片/链接解析到当前文件                    |
+| Agent 另存为                 | 新 file_id/Asset，原文件内容与引用不变                                   |
+| 人无创建权限                 | 不存在目标、伪造 ID、换归属或调用创建操作被后端拒绝                      |
+| 下一 run 恢复                | 销毁旧 sandbox 后新建，导入用户/Agent 最近提交的精确 bytes，包括尾随换行 |
+| 同一 run 多次保存            | 正确工作副本可继续保存；旧副本/旧读取基准仍冲突                          |
+| 人与 Agent/两个标签页并发    | 相同基准最多一个修改成功，另一份草稿保留且原内容不被覆盖                 |
+| 重试与响应丢失               | 同键只追加一次/提交一次；已成功请求的旧基准不导致伪冲突                  |
+| 上传成功但提交失败           | 文件仍指向旧内容；重试有确定结果；不能跟随 Storage head 提前展示         |
+| Claim 乱序/延迟              | 新 intent 不被旧回执确认或覆盖；当前文件字节可读                         |
+| fork 后独立编辑              | 两分支共享初始 bytes，更新一方不改变另一方；删除一方不破坏另一方         |
+| 删除、Stop、回收竞态         | 无已删会话复活，无已提交内容因取消丢失，无共享 Blob 误删                 |
+| HTML 源码与预览              | 预览展示保存内容；隔离保持；保存后换新 URL，草稿切换不隐式保存           |
+| Markdown/代码保真            | 未编辑不重写；特殊语法不静默丢失；非法编码不覆盖原件                     |
+| 保存中继续输入               | 返回响应不覆盖后续输入，仍显示未保存状态                                 |
+| 升级兼容                     | 旧文件无需改 ID/字节即可读取和编辑；非 Runtime 上传/读取仍通过           |
 
 检查从根执行，以 `just test-list` 和 `just context` 确认实际 target：
 

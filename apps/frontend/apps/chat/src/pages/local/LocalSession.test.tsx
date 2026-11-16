@@ -31,6 +31,7 @@ vi.mock("@repo/api/chat", () => ({
   })),
 }));
 vi.mock("@repo/ai-elements/conversation", () => ({
+  ApprovalMode: ({ value }: { value: string }) => <span>授权 {value}</span>,
   ConversationSessionView: ({
     composer,
     issue,
@@ -50,6 +51,8 @@ vi.mock("@repo/ai-elements/conversation", () => ({
     ref,
     placeholder,
     onStop,
+    loading,
+    disabled,
     onSubmit,
     footerRender,
     pendingInputs = [],
@@ -58,6 +61,8 @@ vi.mock("@repo/ai-elements/conversation", () => ({
     ref: Ref<PromptInputRef>;
     placeholder: string;
     onStop: () => void;
+    loading?: boolean;
+    disabled?: boolean;
     onSubmit: (value: PromptInputValue) => void;
     footerRender: () => ReactNode;
     pendingInputs?: Array<{ id: string; text: string }>;
@@ -69,12 +74,14 @@ vi.mock("@repo/ai-elements/conversation", () => ({
     return (
       <div>
         <span>{placeholder}</span>
-        <span data-testid="submit-while-loading">{String(submitWhileLoading)}</span>
+        <span data-testid="composer-loading">{String(Boolean(loading))}</span>
+        <span data-testid="composer-disabled">{String(Boolean(disabled))}</span>
+        <span data-testid="submit-while-loading">{String(Boolean(submitWhileLoading))}</span>
         {pendingInputs.map((input) => (
           <span key={input.id}>{input.text}</span>
         ))}
         {footerRender()}
-        <button onClick={onStop}>停止测试</button>
+        {onStop ? <button onClick={onStop}>停止测试</button> : null}
         <button
           onClick={() =>
             onSubmit({ text: "创建文件", segments: [{ type: "text", text: "创建文件" }], tokens: [], files: {} })
@@ -96,6 +103,7 @@ function fixture() {
     title: "Local",
     workspace: "/project",
     agentId: null,
+    approvalMode: "auto",
     status: "waiting",
     error: null,
     turnId: null,
@@ -150,6 +158,17 @@ test("clears a submitted local prompt immediately and uses the task-oriented pla
   await waitFor(() => expect(f.bridge.send).toHaveBeenCalledWith("local", "创建文件", expect.any(String)));
 });
 
+test("keeps the local composer visually enabled while a turn is running", () => {
+  const f = fixture();
+  f.thread.status = "running";
+  f.thread.turnId = "turn";
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />);
+
+  expect(screen.getByTestId("composer-loading").textContent).toBe("false");
+  expect(screen.getByTestId("composer-disabled").textContent).toBe("false");
+  expect(screen.queryByText("停止测试")).toBeNull();
+});
+
 test("restores the submitted local prompt when sending fails", async () => {
   promptApi.clear.mockClear();
   promptApi.setValue.mockClear();
@@ -189,7 +208,7 @@ test("running input stays editable until Desktop admits it and then appears abov
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() => expect(f.bridge.steer).toHaveBeenCalledOnce());
   expect(promptApi.clear).not.toHaveBeenCalled();
-  expect(screen.getByTestId("submit-while-loading").textContent).toBe("true");
+  expect(screen.getByTestId("submit-while-loading").textContent).toBe("false");
   admit({ admission: "accepted", turnId: "turn" });
   await waitFor(() => expect(promptApi.clear).toHaveBeenCalledOnce());
 });
@@ -200,7 +219,7 @@ test("shared tool approval resumes the local journal without invoking cloud tran
   await waitFor(() => expect(f.bridge.approve).toHaveBeenCalledWith("local", "approval", true));
   await waitFor(() => expect(f.bridge.openStream).toHaveBeenCalledWith("local"));
 });
-test("navigation detaches the local subscriber; only explicit Stop stops the runtime", async () => {
+test("navigation detaches the local subscriber without stopping the runtime", () => {
   const f = fixture();
   const view = render(
     <LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />,
@@ -208,9 +227,6 @@ test("navigation detaches the local subscriber; only explicit Stop stops the run
   view.unmount();
   expect(f.off).toHaveBeenCalled();
   expect(f.bridge.stop).not.toHaveBeenCalled();
-  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />);
-  fireEvent.click(screen.getByText("停止测试"));
-  await waitFor(() => expect(f.bridge.stop).toHaveBeenCalledWith("local"));
 });
 
 test("reloads the persisted journal when the native runtime recovers", async () => {

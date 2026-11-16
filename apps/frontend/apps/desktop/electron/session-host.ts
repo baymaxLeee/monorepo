@@ -15,6 +15,9 @@ import {
 import { manifestsToTools } from "@repo/agent-runtime/manifest";
 import { createToolApprovalPolicy } from "@repo/agent-runtime/policy";
 import { createAgentSteering, type AgentSteering } from "@repo/agent-runtime/steering";
+import { DIRECT_TOOL_CALL } from "@repo/agent-runtime/tools/code-mode";
+import { createCoreToolManifests } from "@repo/agent-runtime/tools/core";
+import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
 import {
   convertToModelMessages,
   isToolUIPart,
@@ -24,7 +27,7 @@ import {
   type UIMessageChunk,
 } from "ai";
 
-import type { DesktopEvent, LocalPendingInput, LocalThread } from "../contracts/bridge.generated";
+import type { DesktopEvent, LocalApprovalMode, LocalPendingInput, LocalThread } from "../contracts/bridge.generated";
 import type { InferenceConfig } from "../contracts/inference.generated";
 import { LocalJournal } from "./journal";
 import { relayModel, type RelayCall } from "./relay-model";
@@ -85,6 +88,7 @@ export interface SessionHostOptions {
   executable: string;
   fileWorker: string;
   config(agentId: string | null, signal: AbortSignal): Promise<InferenceConfig>;
+  webSearch(input: WebSearchInput, signal?: AbortSignal): Promise<WebSearchOutput>;
   call: RelayCall;
   emit(event: DesktopEvent): void;
 }
@@ -142,7 +146,7 @@ export class LocalSessionHost {
     this.journal.save(thread);
     this.options.emit({ type: "thread", thread: structuredClone(thread) });
   }
-  async create(workspace: string, agentId: string | null) {
+  async create(workspace: string, agentId: string | null, approvalMode: LocalApprovalMode) {
     if (this.closed) throw new Error("本地运行时正在关闭");
     const thread: LocalThread = {
       id: randomUUID(),
@@ -150,6 +154,7 @@ export class LocalSessionHost {
       title: "本地会话",
       workspace: await realpath(workspace),
       agentId,
+      approvalMode,
       status: "idle",
       turnId: null,
       error: null,
@@ -305,6 +310,11 @@ export class LocalSessionHost {
     this.save(thread);
     if (!hasPendingToolApprovals(thread.messages)) this.start(thread);
   }
+  setApprovalMode(id: string, approvalMode: LocalApprovalMode) {
+    const thread = this.get(id);
+    thread.approvalMode = approvalMode;
+    this.save(thread);
+  }
   private start(thread: LocalThread) {
     if (this.closed) throw new Error("本地运行时正在关闭");
     for (const id of this.active.keys())
@@ -344,10 +354,24 @@ export class LocalSessionHost {
       workspace = await this.workspace(thread);
       const runWorkspace = workspace;
       const config = await this.options.config(thread.agentId, signal);
+      const model = relayModel(config, this.options.call);
       let modelEpoch = runWorkspace.epoch;
       const artifactEpoch = runWorkspace.epoch;
       const artifacts = publishedArtifacts(thread.messages);
-      const tools = manifestsToTools([
+      const core = createCoreToolManifests({
+        mode: "normal",
+        model: {
+          name: config.model,
+          model,
+          maxOutputTokens: config.maxOutputTokens,
+          supportsStoredContinuation: false,
+        },
+        webSearch: (input, options) => this.options.webSearch(input, options.abortSignal),
+        // Local transport does not yet accept SDK client-tool results. This is
+        // a host protocol gap, not a separately curated core tool list.
+        clientInteraction: false,
+      });
+      const manifests = [
         createBashTool((input, options) =>
           this.access(thread, async (w) => {
             if (w.epoch !== modelEpoch) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
@@ -372,14 +396,25 @@ export class LocalSessionHost {
             return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
           }),
         ),
-      ]);
+        ...core.manifests,
+      ];
+      const tools = manifestsToTools(manifests);
+      const activeTools = Object.keys(tools);
+      const codeModeToolCallers = Object.fromEntries(
+        manifests
+          .filter((manifest) => manifest.policy.callableByCodeMode)
+          .map((manifest) => [manifest.name, ["code_mode", DIRECT_TOOL_CALL] as const]),
+      );
       const agent = createAgentHarness({
-        model: relayModel(config, this.options.call),
+        model,
         mode: "normal",
         tools,
-        toolApproval: createToolApprovalPolicy("normal"),
+        toolApproval: createToolApprovalPolicy("normal", { getApprovalMode: () => thread.approvalMode }),
+        activeTools,
+        toolOrder: [...activeTools].sort(),
+        experimental_toolCallers: codeModeToolCallers as never,
         maxOutputTokens: config.maxOutputTokens,
-        instructions: `${config.instructions}\n<workspace_environment>${JSON.stringify({ root: thread.workspace, storage: "local disk", network: "disabled", isolation: "Seatbelt", upload: "unavailable" })}</workspace_environment>`,
+        instructions: `${config.instructions}\n<workspace_environment>${JSON.stringify({ root: thread.workspace, storage: "local disk", network: "enabled", isolation: "Seatbelt", approval_mode: thread.approvalMode, upload: "unavailable" })}</workspace_environment>`,
         workspace: {
           consumeChanges: () => {
             workspace!.flushChanges();

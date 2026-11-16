@@ -3,8 +3,8 @@ import test from "node:test";
 
 import type { KnowledgeDocument, SandboxProcess } from "@backend/transport-ts";
 
-import type { SessionFile } from "../../../session-files.js";
-import { RunSandbox, type SandboxDependencies } from "./sandbox-session.js";
+import type { SessionFile } from "../../session-files.js";
+import { RunSandbox, type SandboxDependencies } from "./cloud-sandbox.js";
 
 const context = { tenantId: "t", workspaceId: "w", userId: "u", sessionId: "c", runId: "r" };
 const bytes = Uint8Array.from([0, 255, 1, 128, 10]);

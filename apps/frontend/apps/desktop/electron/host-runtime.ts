@@ -71,11 +71,22 @@ export class RuntimeHost {
       else if (message.type === "request") {
         const abort = new AbortController();
         this.requests.set(id, abort);
-        const agentId = (message.payload as { agentId: string | null }).agentId;
-        void this.fetchApi(
-          `/api/chat-server/local-inference/config${agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ""}`,
-          { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15_000)]) },
-        )
+        const method = String(message.method);
+        const request =
+          method === "config"
+            ? this.fetchApi(
+                `/api/chat-server/local-inference/config${(message.payload as { agentId: string | null }).agentId ? `?agent_id=${encodeURIComponent((message.payload as { agentId: string }).agentId)}` : ""}`,
+                { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15_000)]) },
+              )
+            : method === "web-search"
+              ? this.fetchApi("/api/chat-server/local-inference/web-search", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(message.payload),
+                  signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30_000)]),
+                })
+              : Promise.reject(new Error("未知本地运行时请求"));
+        void request
           .then((response) => response.json())
           .then((result) => {
             if (this.child === child) child.postMessage({ type: "response", id, result });

@@ -2,11 +2,9 @@ import "./process-output";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { isToolUIPart } from "ai";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { z } from "zod";
 
-import type { LocalThread } from "../contracts/bridge.generated";
 import { DesktopAuth } from "./auth";
 import { RuntimeHost } from "./host-runtime";
 import { platformUrl } from "./platform-url";
@@ -99,7 +97,12 @@ async function start() {
       case "list":
         return scopedCall("list");
       case "create": {
-        const p = z.strictObject({ agentId: z.string().min(1).max(32).nullable() }).parse(payload);
+        const p = z
+          .strictObject({
+            agentId: z.string().min(1).max(32).nullable(),
+            approvalMode: z.enum(["request", "auto", "full"]),
+          })
+          .parse(payload);
         const selected = await dialog.showOpenDialog(window, {
           title: "选择 Agent 可以修改的项目目录",
           properties: ["openDirectory", "createDirectory"],
@@ -109,13 +112,13 @@ async function start() {
           type: "question",
           title: "授权本地工作目录",
           message: "允许 Agent 读取和修改此目录？",
-          detail: `${selected.filePaths[0]}\n\n文件和会话保存在本机。用于推理的内容会发送给平台配置的模型；命令默认不能联网。`,
+          detail: `${selected.filePaths[0]}\n\n文件和会话保存在本机。用于推理的内容会发送给平台配置的模型；命令可以联网，但始终只能访问此授权目录。`,
           buttons: ["取消", "允许并创建会话"],
           defaultId: 0,
           cancelId: 0,
         });
         if (permission.response !== 1) return null;
-        return scopedCall("create", { workspace: selected.filePaths[0], agentId: p.agentId });
+        return scopedCall("create", { workspace: selected.filePaths[0], ...p });
       }
       case "openStream":
       case "get":
@@ -153,27 +156,13 @@ async function start() {
         );
       case "approve": {
         const p = z.strictObject({ id, approvalId: z.string().max(200), approved: z.boolean() }).parse(payload);
-        if (p.approved) {
-          const thread = await scopedCall<LocalThread>("get", p.id);
-          const part = thread.messages
-            .flatMap((message) => message.parts)
-            .find(
-              (part) => isToolUIPart(part) && part.state === "approval-requested" && part.approval.id === p.approvalId,
-            );
-          if (!part || !isToolUIPart(part)) throw new Error("审批不存在或已过期");
-          const result = await dialog.showMessageBox(window, {
-            type: "question",
-            title: "允许执行本地命令",
-            message: `在 ${thread.workspace} 中执行此命令？`,
-            detail: JSON.stringify(part.input, null, 2),
-            buttons: ["拒绝", "允许本次执行"],
-            defaultId: 0,
-            cancelId: 0,
-          });
-          p.approved = result.response === 1;
-        }
         return scopedCall("approve", p);
       }
+      case "setApprovalMode":
+        return scopedCall(
+          "setApprovalMode",
+          z.strictObject({ id, approvalMode: z.enum(["request", "auto", "full"]) }).parse(payload),
+        );
       case "listFiles":
       case "readFile":
         return scopedCall(method, file.parse(payload));

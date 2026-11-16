@@ -1,10 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { toolOutcomeData } from "@repo/agent-runtime/outcome";
+import { askUserInputSchema, askUserOutcomeSchema } from "@repo/agent-runtime/tools/interaction";
 import { getToolName, isToolUIPart, type UIMessage, type UIMessagePart } from "ai";
 
 import { RequestError } from "../../errors.js";
-import { askUserInputSchema, askUserOutcomeSchema } from "../tools/builtins/interaction.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 

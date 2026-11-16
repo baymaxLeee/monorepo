@@ -1,29 +1,18 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
-import { finishSpan, startSpan } from "@backend/kernel-ts";
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
-import { createProviderModel } from "@backend/transport-ts/provider-model";
-import { defineAgentTool } from "@repo/agent-runtime/manifest";
-import {
-  normalizeToolIssue,
-  shouldRethrowToolError,
-  toolCompleted,
-  toolIssueSchema,
-  toolRunning,
-} from "@repo/agent-runtime/outcome";
 import {
   readUIMessageStream,
   toUIMessageStream,
   tool,
+  type FlexibleSchema,
   type ToolExecutionOptions,
   type ToolSet,
   type UIMessage,
 } from "ai";
 import { z } from "zod";
 
-import { createSubagent } from "../../agents/subagents.js";
-import { contextCompactionThreshold } from "../../context/budget.js";
-import { extractUsageTokens } from "../../observability/lifecycle.js";
-import { subagentToolContextSchema, type SubagentToolContext } from "../context.js";
+import { defineAgentTool } from "../manifest.js";
+import { normalizeToolIssue, shouldRethrowToolError, toolCompleted, toolIssueSchema, toolRunning } from "../outcome.js";
+import { createSubagent } from "./subagent-agent.js";
 
 const MAX_SUBAGENTS = 3;
 const MAX_PROGRESS_UPDATES_PER_SUBAGENT = 64;
@@ -107,6 +96,34 @@ type SubagentTask = z.infer<typeof subagentTaskSchema>;
 type SubagentState = z.infer<typeof subagentStateSchema>;
 type AssistantUIMessage = UIMessage & { role: "assistant" };
 
+export interface SubagentUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+  reasoningTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface SubagentObserver<CONTEXT extends Record<string, unknown>> {
+  start(input: { context: CONTEXT; toolCallId: string; taskId: string; model: string }): {
+    finish(input: { steps?: number; toolCalls?: number; usage?: SubagentUsage; error?: unknown }): void;
+  };
+}
+
+function extractUsageTokens(usage: unknown): SubagentUsage {
+  const source = usage && typeof usage === "object" ? (usage as Record<string, unknown>) : {};
+  const inputDetails = source.inputTokenDetails as { cacheReadTokens?: unknown } | undefined;
+  const outputDetails = source.outputTokenDetails as { reasoningTokens?: unknown } | undefined;
+  const token = (value: unknown) => (typeof value === "number" ? value : null);
+  return {
+    inputTokens: token(source.inputTokens),
+    outputTokens: token(source.outputTokens),
+    cachedInputTokens: token(inputDetails?.cacheReadTokens),
+    reasoningTokens: token(outputDetails?.reasoningTokens),
+    totalTokens: token(source.totalTokens),
+  };
+}
+
 function finalReport(message: AssistantUIMessage | undefined): string | null {
   if (!message) return null;
   for (let index = message.parts.length - 1; index >= 0; index--) {
@@ -185,30 +202,36 @@ type SubagentEvent =
   | { type: "completed" | "failed"; index: number; state: SubagentState }
   | { type: "fatal"; error: unknown };
 
-async function runSubagent({
-  provider,
+async function runSubagent<CONTEXT extends Record<string, unknown>>({
+  modelName,
   model,
+  maxOutputTokens,
+  supportsStoredContinuation,
   tools,
   task,
   index,
   options,
+  observer,
   publish,
 }: {
-  provider: LanguageProviderSnapshot;
+  modelName: string;
   model: LanguageModelV4;
+  maxOutputTokens?: number;
+  supportsStoredContinuation: boolean;
   tools: Pick<ToolSet, "web_search" | "web_fetch">;
   task: SubagentTask;
   index: number;
-  options: ToolExecutionOptions<SubagentToolContext>;
+  options: ToolExecutionOptions<CONTEXT>;
+  observer?: SubagentObserver<CONTEXT>;
   publish: (event: SubagentEvent) => void;
 }): Promise<void> {
-  const span = startSpan("agent.subagent", {
-    "agent.run_id": options.context.runId,
-    "agent.parent_tool_call_id": options.toolCallId,
-    "agent.subagent_id": task.id,
-    "gen_ai.request.model": provider.model,
+  const observation = observer?.start({
+    context: options.context,
+    toolCallId: options.toolCallId,
+    taskId: task.id,
+    model: modelName,
   });
-  let spanFinished = false;
+  let observationFinished = false;
   let message: AssistantUIMessage | undefined;
   let streamError: unknown;
   let progressUpdates = 0;
@@ -219,10 +242,10 @@ async function runSubagent({
       id: `subagent-${task.id}`,
       model,
       instructions: SUBAGENT_INSTRUCTIONS,
-      maxOutputTokens: provider.maxOutputTokens,
+      maxOutputTokens,
       tools,
       toolsContext: {},
-      supportsStoredContinuation: provider.responsesDialect !== "deepseek_responses",
+      supportsStoredContinuation,
     });
     const result = await child.stream({
       prompt: [
@@ -259,14 +282,8 @@ async function runSubagent({
     const [totalUsage, steps] = await Promise.all([result.totalUsage, result.steps]);
     const usage = extractUsageTokens(totalUsage);
     const toolCalls = steps.reduce((count, step) => count + step.toolCalls.length, 0);
-    finishSpan(span, {
-      "agent.subagent_steps": steps.length,
-      "agent.subagent_tool_call_count": toolCalls,
-      ...(usage.inputTokens !== null ? { "gen_ai.usage.input_tokens": usage.inputTokens } : {}),
-      ...(usage.outputTokens !== null ? { "gen_ai.usage.output_tokens": usage.outputTokens } : {}),
-      ...(usage.totalTokens !== null ? { "gen_ai.usage.total_tokens": usage.totalTokens } : {}),
-    });
-    spanFinished = true;
+    observation?.finish({ steps: steps.length, toolCalls, usage });
+    observationFinished = true;
     publish({
       type: "completed",
       index,
@@ -288,9 +305,9 @@ async function runSubagent({
       },
     });
   } catch (error) {
-    if (!spanFinished) {
-      finishSpan(span, {}, error);
-      spanFinished = true;
+    if (!observationFinished) {
+      observation?.finish({ error });
+      observationFinished = true;
     }
     if (shouldRethrowToolError(error, options.abortSignal)) {
       publish({ type: "fatal", error });
@@ -308,7 +325,9 @@ async function runSubagent({
       },
     });
   } finally {
-    if (!spanFinished) finishSpan(span, {}, new Error(`subagent ${task.id} ended without a terminal result`));
+    if (!observationFinished) {
+      observation?.finish({ error: new Error(`subagent ${task.id} ended without a terminal result`) });
+    }
   }
 }
 
@@ -322,31 +341,47 @@ function modelReport(payload: z.infer<typeof subagentsPayloadSchema>): string {
     .join("\n\n");
 }
 
-export function createSubagentsManifest({
-  provider,
+export function createSubagentsManifest<CONTEXT extends Record<string, unknown> = Record<string, never>>({
+  modelName,
   tools,
-  model = createProviderModel(provider, {
-    parallelToolCalls: true,
-    contextCompactionThreshold: contextCompactionThreshold(provider),
-  }),
+  model,
+  maxOutputTokens,
+  supportsStoredContinuation,
+  contextSchema,
+  observer,
 }: {
-  provider: LanguageProviderSnapshot;
+  modelName: string;
   tools: Pick<ToolSet, "web_search" | "web_fetch">;
-  model?: LanguageModelV4;
+  model: LanguageModelV4;
+  maxOutputTokens?: number;
+  supportsStoredContinuation: boolean;
+  contextSchema?: FlexibleSchema<CONTEXT>;
+  observer?: SubagentObserver<CONTEXT>;
 }) {
   const execute = async function* (
     { tasks }: z.infer<typeof subagentsInputSchema>,
-    options: ToolExecutionOptions<SubagentToolContext>,
+    options: ToolExecutionOptions<CONTEXT>,
   ) {
     options.abortSignal?.throwIfAborted();
     const states: SubagentState[] = tasks.map((task) => ({ id: task.id, task: task.task, status: "running" }));
     const queue = createEventQueue<SubagentEvent>();
     let remaining = tasks.length;
     const workers = tasks.map((task, index) =>
-      runSubagent({ provider, model, tools, task, index, options, publish: (event) => queue.push(event) }),
+      runSubagent({
+        modelName,
+        model,
+        maxOutputTokens,
+        supportsStoredContinuation,
+        tools,
+        task,
+        index,
+        options,
+        observer,
+        publish: (event) => queue.push(event),
+      }),
     );
 
-    yield toolRunning({ model: provider.model, subagents: structuredClone(states) });
+    yield toolRunning({ model: modelName, subagents: structuredClone(states) });
     while (remaining > 0) {
       const event = await queue.next();
       if (event.type === "fatal") {
@@ -358,10 +393,10 @@ export function createSubagentsManifest({
         states[event.index] = event.state;
         remaining--;
       }
-      if (remaining > 0) yield toolRunning({ model: provider.model, subagents: structuredClone(states) });
+      if (remaining > 0) yield toolRunning({ model: modelName, subagents: structuredClone(states) });
     }
     await Promise.all(workers);
-    yield toolCompleted({ model: provider.model, subagents: states });
+    yield toolCompleted({ model: modelName, subagents: states });
   };
 
   return defineAgentTool(
@@ -371,7 +406,7 @@ export function createSubagentsManifest({
         "Run 1-3 isolated read-only web-research subagents and return their results to the current primary agent. Delegate only when a bounded investigation benefits from a fresh disposable context with separate reasoning, or when 2-3 genuinely independent investigations can run in parallel. Use code_mode, not subagents, for deterministic batches of public searches/fetches that only need programmatic deduplication, filtering, or aggregation. Keep work in the primary loop when it is small, sequential, depends on shared context, or can be completed directly with web_search/web_fetch; a request for research or a report alone is not a reason to delegate. Preserve the user's scope. Multiple tasks must be independent, not an automatic decomposition.",
       inputSchema: subagentsInputSchema,
       outputSchema: subagentsPayloadSchema,
-      contextSchema: subagentToolContextSchema,
+      ...(contextSchema ? { contextSchema } : {}),
       execute: execute as never,
       toModelOutput: (({ output }: { output: z.infer<typeof subagentsPayloadSchema> }) => ({
         type: "text",

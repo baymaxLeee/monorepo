@@ -2,21 +2,19 @@ import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-mo
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
 import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@repo/agent-runtime/manifest";
 import type { AgentToolManifest, ToolSource } from "@repo/agent-runtime/tool-types";
+import { createCoreToolManifests } from "@repo/agent-runtime/tools/core";
+import type { AdminSkillSource } from "@repo/agent-runtime/tools/skills";
 import type { ToolSet } from "ai";
 
 import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
-import type { AgentMode } from "../agents/types.js";
-import { type AdminSkillSource, resolveSkills } from "../integrations/skills/provider.js";
+import { createCloudToolAdapters } from "../adapters/cloud-tools.js";
+import { createRuntimeCoreToolModel } from "../adapters/core-tools.js";
+import { webSearch } from "../adapters/web-search.js";
 import type { AgentExtension, AgentExtensionContext } from "../integrations/types.js";
 import { createCanvasToolManifests } from "./builtins/canvas.js";
-import { createInteractionToolManifests } from "./builtins/interaction.js";
+import { createKnowledgeToolManifests } from "./builtins/knowledge.js";
 import { createMediaToolManifests } from "./builtins/media.js";
 import { createMemoryToolManifests } from "./builtins/memory.js";
-import { createPlanningToolManifests } from "./builtins/planning.js";
-import { createRuntimeTools } from "./builtins/runtime.js";
-import { createSearchToolManifests } from "./builtins/search.js";
-import { createSubagentsManifest } from "./builtins/subagents.js";
-import { createToolSearchManifest } from "./discovery.js";
 
 export interface AgentToolProviders {
   textProvider: LanguageProviderSnapshot;
@@ -24,11 +22,9 @@ export interface AgentToolProviders {
   videoProviderId: string | null;
 }
 
-function builtinManifests(mode: AgentMode, providers: AgentToolProviders): AgentToolManifest[] {
+function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
   return [
-    ...createSearchToolManifests(),
-    ...createPlanningToolManifests(),
-    ...createInteractionToolManifests(mode),
+    ...createKnowledgeToolManifests(),
     ...createMediaToolManifests({
       imageProvider: providers.imageProvider,
       videoProviderId: providers.videoProviderId,
@@ -89,37 +85,27 @@ export class ToolCatalog {
     contributions: InstructionContributions;
     dispose: () => Promise<void>;
   }> {
-    const resolvedSkills = resolveSkills(skillSource);
-    const runtimeTools = await createRuntimeTools();
-    const disposers: Array<() => void | Promise<void>> = [runtimeTools.dispose];
+    const core = createCoreToolManifests({
+      mode: context.mode,
+      model: createRuntimeCoreToolModel(providers.textProvider),
+      webSearch,
+      skillSource,
+    });
+    const cloudAdapters = await createCloudToolAdapters();
+    const disposers: Array<() => void | Promise<void>> = [cloudAdapters.dispose];
     try {
       const manifests = [
-        ...builtinManifests(context.mode, providers),
-        ...runtimeTools.manifests,
-        createToolSearchManifest(),
+        ...core.manifests,
+        ...domainManifests(providers),
+        ...cloudAdapters.manifests,
         ...(context.projectId && context.canvasId
           ? createCanvasToolManifests({
               textProviderId: providers.textProvider.id,
               videoProviderId: providers.videoProviderId,
             })
           : []),
-        ...resolvedSkills.manifests,
       ];
-      const subagentTools = manifestsToTools(
-        manifests.filter((manifest) => manifest.name === "web_search" || manifest.name === "web_fetch"),
-      );
-      if (subagentTools.web_search && subagentTools.web_fetch) {
-        manifests.push(
-          createSubagentsManifest({
-            provider: providers.textProvider,
-            tools: {
-              web_search: subagentTools.web_search,
-              web_fetch: subagentTools.web_fetch,
-            },
-          }),
-        );
-      }
-      const skills = [...resolvedSkills.skills];
+      const skills = [...core.skills];
 
       for (const extension of [...this.#extensions]) {
         const contribution = await extension.resolve(context);

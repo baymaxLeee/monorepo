@@ -4,6 +4,7 @@ import {
   ChatComposerControls,
   ChatPrompt,
   ConversationSessionView,
+  ApprovalMode,
   type ChatUIMessage,
 } from "@repo/ai-elements/conversation";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
@@ -56,6 +57,7 @@ export function LocalSession({
     turnId: initial.turnId,
     error: initial.error,
     pendingInputs: initial.pendingInputs ?? [],
+    approvalMode: initial.approvalMode,
   });
   const approving = useRef(false);
   const scrollRef = useRef<ConversationScrollHandle>(null);
@@ -86,6 +88,7 @@ export function LocalSession({
               turnId: thread.turnId,
               error: thread.error,
               pendingInputs: thread.pendingInputs ?? [],
+              approvalMode: thread.approvalMode,
             });
             await chat.resumeStream();
           })
@@ -98,6 +101,7 @@ export function LocalSession({
           turnId: event.thread.turnId,
           error: event.thread.error,
           pendingInputs: event.thread.pendingInputs ?? [],
+          approvalMode: event.thread.approvalMode,
         });
         if (event.thread.status !== "running") chat.messages = event.thread.messages as ChatUIMessage[];
       }
@@ -157,12 +161,6 @@ export function LocalSession({
           )}
           maxFiles={0}
           onError={setError}
-          loading={busy || state.status === "waiting"}
-          submitWhileLoading={busy}
-          disabled={state.status === "waiting"}
-          onStop={() =>
-            void Promise.all([chat.stop(), bridge.stop(initial.id)]).catch((cause) => setError(getErrorMessage(cause)))
-          }
           onSubmit={(value) => {
             if (state.status === "waiting" || !value.text.trim()) return;
             setError(null);
@@ -223,6 +221,15 @@ export function LocalSession({
                 mode="normal"
               />
               <ContextUsage value={null} loading={busy} />
+              <ApprovalMode
+                value={state.approvalMode}
+                onChange={(approvalMode) => {
+                  setError(null);
+                  void bridge
+                    .setApprovalMode(initial.id, approvalMode)
+                    .catch((cause) => setError(getErrorMessage(cause)));
+                }}
+              />
             </>
           )}
         />

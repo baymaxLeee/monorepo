@@ -5,7 +5,7 @@ import { simulateReadableStream, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
-import { createSubagent } from "./subagents.js";
+import { createSubagent } from "./subagent-agent.js";
 
 const model = new MockLanguageModelV4();
 

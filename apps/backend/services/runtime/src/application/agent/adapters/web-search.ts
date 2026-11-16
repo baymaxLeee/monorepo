@@ -1,34 +1,7 @@
-import { defineAgentTool } from "@repo/agent-runtime/manifest";
 import { ToolBlockedError } from "@repo/agent-runtime/outcome";
-import { tool } from "ai";
-import { z } from "zod";
+import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
 
-import { getServerSettings } from "../../../../config/server.js";
-import { retrieveKnowledge } from "../../../../infrastructure/clients/knowledge.js";
-import { knowledgeSearchToolContextSchema, type KnowledgeSearchToolContext } from "../context.js";
-
-const searchResultSchema = z.object({
-  title: z.string(),
-  url: z.string(),
-  snippet: z.string(),
-  published_date: z.string().nullable(),
-  score: z.number().nullable(),
-});
-
-const webSearchOutputSchema = z.object({
-  query: z.string(),
-  untrusted: z.literal(true),
-  results: z.array(searchResultSchema),
-});
-
-type WebSearchInput = {
-  query: string;
-  max_results: number;
-  category?: "news" | "research_paper";
-  time_range?: "day" | "week" | "month" | "year";
-  start_date?: string;
-  end_date?: string;
-};
+import { getServerSettings } from "../../../config/server.js";
 
 const EXA_CATEGORY: Record<NonNullable<WebSearchInput["category"]>, string> = {
   news: "news",
@@ -46,7 +19,7 @@ const TIME_RANGE_HOURS: Record<NonNullable<WebSearchInput["time_range"]>, number
   year: 8760,
 };
 
-type WebSearchCompleted = z.infer<typeof webSearchOutputSchema>;
+type WebSearchCompleted = WebSearchOutput;
 
 interface ExaSearchResult {
   title?: string | null;
@@ -200,10 +173,10 @@ async function searchTavily(
   };
 }
 
-async function webSearch(
+export async function webSearch(
   input: WebSearchInput,
   { abortSignal }: { abortSignal?: AbortSignal },
-): Promise<z.infer<typeof webSearchOutputSchema>> {
+): Promise<WebSearchOutput> {
   const settings = getServerSettings();
   if (!settings.exaApiKey && !settings.tavilyApiKey) {
     throw new ToolBlockedError({
@@ -240,127 +213,4 @@ async function webSearch(
     }
     throw error;
   }
-}
-
-const knowledgeSearchOutputSchema = z.object({
-  query: z.string(),
-  note: z.string().nullable(),
-  untrusted: z.literal(true),
-  results: z.array(
-    z.object({
-      document_id: z.string(),
-      title: z.string(),
-      filename: z.string(),
-      media_type: z.string(),
-      chunk_index: z.number(),
-      score: z.number(),
-      content: z.string(),
-    }),
-  ),
-});
-
-async function knowledgeSearch(
-  input: { query: string; top_k?: number },
-  { context, abortSignal }: { context: KnowledgeSearchToolContext; abortSignal?: AbortSignal },
-): Promise<z.infer<typeof knowledgeSearchOutputSchema>> {
-  const result = await retrieveKnowledge(
-    context.userId,
-    context.tenantId,
-    context.workspaceId,
-    input.query,
-    input.top_k,
-    abortSignal,
-  );
-  const emptyNote =
-    "no relevant knowledge base passages found; use web_search for public information or report that private knowledge does not cover the question";
-  return {
-    query: result.query,
-    note: result.chunks.length === 0 ? (result.note ?? emptyNote) : (result.note ?? null),
-    untrusted: true,
-    results: result.chunks.map((chunk) => ({
-      document_id: chunk.document_id,
-      title: chunk.title,
-      filename: chunk.filename,
-      media_type: chunk.media_type,
-      chunk_index: chunk.chunk_index,
-      score: chunk.score,
-      content: chunk.content,
-    })),
-  };
-}
-
-export function createSearchToolManifests() {
-  return [
-    defineAgentTool(
-      "web_search",
-      tool({
-        description:
-          "Run one focused public-web query and return titled sources with URLs. Use web_search directly for a single query or a small lookup that needs no programmatic aggregation. For two or more independent queries, or when results must be deduplicated, filtered, joined, or reduced before reaching the model, use code_mode. Set category to 'news' for current events/trends or 'research_paper' for academic and technical papers; use time_range or start_date/end_date to bound recency.",
-        inputSchema: z.object({
-          query: z.string().min(1).max(2_000).describe("Focused natural-language search query."),
-          max_results: z.number().int().min(1).max(8).default(5).describe("Maximum sources to return."),
-          category: z
-            .enum(["news", "research_paper"])
-            .optional()
-            .describe("Optional source category; omit for general web search."),
-          time_range: z
-            .enum(["day", "week", "month", "year"])
-            .optional()
-            .describe("Relative freshness window. Do not combine with explicit start_date/end_date."),
-          start_date: z
-            .string()
-            .regex(/^\d{4}-\d{2}-\d{2}$/)
-            .optional()
-            .describe("Optional inclusive publication start date in YYYY-MM-DD format."),
-          end_date: z
-            .string()
-            .regex(/^\d{4}-\d{2}-\d{2}$/)
-            .optional()
-            .describe("Optional inclusive publication end date in YYYY-MM-DD format."),
-        }),
-        inputExamples: [
-          {
-            input: {
-              query: "Vercel AI SDK tool calling reliability",
-              category: "research_paper",
-              max_results: 5,
-            },
-          },
-        ],
-        outputSchema: webSearchOutputSchema,
-        execute: webSearch,
-      }),
-      {
-        capability: "search",
-        callableByCodeMode: true,
-        effect: "read",
-        trust: "open-world",
-        execution: "inline",
-        modes: ["normal", "plan"],
-      },
-      { summary: "Search current and public web sources." },
-    ),
-    defineAgentTool(
-      "knowledge_search",
-      tool({
-        description:
-          "Search the team's shared knowledge base for uploaded documents, past incident write-ups, runbooks, internal policies, and workspace-specific facts.",
-        inputSchema: z.object({
-          query: z.string().min(1).max(2_000).describe("Focused semantic query for private knowledge."),
-          top_k: z.number().int().min(1).max(20).optional().describe("Optional maximum passage count."),
-        }),
-        outputSchema: knowledgeSearchOutputSchema,
-        contextSchema: knowledgeSearchToolContextSchema,
-        execute: knowledgeSearch,
-      }),
-      {
-        capability: "search",
-        effect: "read",
-        trust: "private-untrusted",
-        execution: "inline",
-        modes: ["normal", "plan"],
-      },
-      { summary: "Search uploaded and workspace-private knowledge." },
-    ),
-  ];
 }

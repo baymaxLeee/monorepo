@@ -1,8 +1,10 @@
-import { experimental_codeModeTool as codeModeTool } from "@ai-sdk/code-mode";
-import { transformToolPreservingCaller } from "@repo/agent-runtime/manifest";
+import { DIRECT_TOOL_CALL, experimental_codeModeTool as codeModeTool } from "@ai-sdk/code-mode";
 import type { ToolSet } from "ai";
 
+import { defineAgentTool, transformToolPreservingCaller } from "../manifest.js";
+
 export const CODE_MODE_TIMEOUT_MS = 90_000;
+export { DIRECT_TOOL_CALL };
 
 const CODE_MODE_GUIDANCE = [
   "Use Code Mode for two or more independent public searches or fetches, or when intermediate results need programmatic deduplication, filtering, joining, or reduction before reaching the model.",
@@ -119,4 +121,22 @@ export function createAgentCodeModeTool(): ToolSet[string] {
         : {}),
     } as ToolSet[string];
   });
+}
+
+export function createCodeModeManifest() {
+  return defineAgentTool(
+    "code_mode",
+    createAgentCodeModeTool(),
+    {
+      capability: "search",
+      effect: "read",
+      trust: "open-world",
+      execution: "inline",
+      modes: ["normal", "plan"],
+    },
+    {
+      summary: "Use JavaScript to search and fetch public sources concurrently, then filter or combine results.",
+      constraints: ["Only explicitly eligible read tools are callable from generated code."],
+    },
+  );
 }

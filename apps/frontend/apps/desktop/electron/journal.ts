@@ -80,7 +80,7 @@ export class LocalJournal {
     return this.db
       .prepare("SELECT metadata FROM threads ORDER BY json_extract(metadata,'$.updatedAt') DESC")
       .all()
-      .map((row) => ({ ...JSON.parse(String(row.metadata)), messages: [] }) as LocalThread);
+      .map((row) => ({ approvalMode: "auto", ...JSON.parse(String(row.metadata)), messages: [] }) as LocalThread);
   }
   get(id: string): LocalThread {
     const row = this.db.prepare("SELECT metadata FROM threads WHERE id=?").get(id);
@@ -89,8 +89,15 @@ export class LocalJournal {
       .prepare("SELECT value FROM messages WHERE thread_id=? ORDER BY position")
       .all(id)
       .map((item) => JSON.parse(String(item.value)) as UIMessage);
-    const metadata = JSON.parse(String(row.metadata)) as Omit<LocalThread, "messages">;
-    return { ...metadata, pendingInputs: metadata.pendingInputs ?? [], messages };
+    const metadata = JSON.parse(String(row.metadata)) as Omit<LocalThread, "messages"> & {
+      approvalMode?: LocalThread["approvalMode"];
+    };
+    return {
+      ...metadata,
+      approvalMode: metadata.approvalMode ?? "auto",
+      pendingInputs: metadata.pendingInputs ?? [],
+      messages,
+    };
   }
   save(thread: LocalThread) {
     const { messages, ...metadata } = thread;
