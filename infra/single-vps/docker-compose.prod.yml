@@ -161,7 +161,10 @@ services:
     container_name: monorepo-workflow-db-init
     depends_on:
       postgres: { condition: service_healthy }
-    command: ["node", "node_modules/@workflow/world-postgres/bin/setup.js"]
+    # The runtime image intentionally ends in the service workdir. Use the
+    # image-root dependency path so this one-shot job does not resolve against
+    # the service-local node_modules tree, which does not contain the World CLI.
+    command: ["node", "/app/node_modules/@workflow/world-postgres/bin/setup.js"]
     environment:
       WORKFLOW_POSTGRES_URL: postgres://workflow:${WORKFLOW_POSTGRES_PASSWORD}@postgres:5432/workflow
     restart: "no"

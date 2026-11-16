@@ -21,6 +21,14 @@ VPS = ROOT / "infra/single-vps"
 
 
 class DeploymentSecretsTest(unittest.TestCase):
+    def test_workflow_db_init_uses_image_absolute_cli_path(self):
+        compose = yaml.safe_load((VPS / "docker-compose.prod.yml").read_text())
+
+        self.assertEqual(
+            compose["services"]["workflow-db-init"]["command"],
+            ["node", "/app/node_modules/@workflow/world-postgres/bin/setup.js"],
+        )
+
     def test_service_check_rejects_receiver_drift(self):
         spec = importlib.util.spec_from_file_location("check_services", ROOT / "scripts/check-services.py")
         checker = importlib.util.module_from_spec(spec)
@@ -174,7 +182,7 @@ class DeploymentSecretsTest(unittest.TestCase):
             )
         with self.subTest(service="knowledge"):
             actual = json.loads(services["knowledge"]["environment"]["INTERNAL_SERVICE_TOKENS"])
-            expected = {caller: values[f"{caller.upper()}_INTERNAL_API_TOKEN"] for caller in ("chat", "executor")}
+            expected = {"runtime": values["RUNTIME_INTERNAL_API_TOKEN"]}
             self.assertEqual(actual, expected)
 
     def test_k8s_secret_templates(self):
@@ -186,7 +194,7 @@ class DeploymentSecretsTest(unittest.TestCase):
         with self.subTest(service="knowledge"):
             self.assertEqual(
                 json.loads(knowledge["INTERNAL_SERVICE_TOKENS"]),
-                {caller: f"REPLACE_{caller.upper()}_TOKEN" for caller in ("chat", "executor")},
+                {"runtime": "REPLACE_RUNTIME_TOKEN"},
             )
 
 

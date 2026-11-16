@@ -28,6 +28,23 @@ Read only relevant routes and every closer AGENTS file. See the
 | Behavior/config/contract/lifecycle change | [change verification](.agents/playbooks/change-verification.md) |
 | Unclear edit scope | [scope guidance](.agents/scopes/default.yaml) |
 
+## Critical recovery commands
+
+1. **Large refactor image prewarm — `just publish-images`.** After a large
+   refactor changes many image layers, wait for `build-images` to publish the
+   exact current HEAD, then run this command from a clean checkout. It compares
+   every immutable GHCR `sha-<HEAD8>` image with Aliyun, syncs only mismatches,
+   verifies the complete set and moves `main` only after all requested images
+   match. Use it proactively before relying on the cross-region `mirror-images`
+   transfer; a local rebuild is only a fallback.
+2. **VPS application-data rebuild — `gh workflow run deploy-single-vps.yml --ref main -f tag=sha-<HEAD8> -f reset_application_data=true`.** Use only when the user explicitly authorizes
+   recreating VPS application data while retaining identity and operator
+   configuration. It preserves the PostgreSQL `admin` and `iam` databases, but
+   deletes Storage, Canvas, Chat, Runtime, Workflow, Knowledge and Telemetry data
+   plus Redis sessions and the Storage and ClickHouse data volumes. Never
+   substitute `reset_data=true`, which destroys the whole stack. Observe the
+   resulting deploy through health checks.
+
 ## Architectural invariants
 
 - One primary agent owns a feature end to end. Helpers are limited to mechanical
