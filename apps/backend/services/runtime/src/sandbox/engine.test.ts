@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parseEnv } from "node:util";
 
-import { createApp } from "./app.js";
-import { settings } from "./config.js";
+import { createApp } from "../bootstrap/sandbox-app.js";
+import { getSandboxSettings } from "../config/sandbox.js";
 import { filePath } from "./contracts.js";
 import { Engine, resourceName } from "./engine.js";
 
@@ -15,16 +15,16 @@ const scope = {
   conversation_id: "conversation",
   run_id: "run",
 };
-const config = settings({ ENVIRONMENT: "development" });
+const config = getSandboxSettings({ ENVIRONMENT: "development" });
 
 test("local Docker example selects runc explicitly without permitting production downgrade", () => {
-  const env = parseEnv(readFileSync(new URL("../../../.env.sandbox.example", import.meta.url), "utf8"));
+  const env = parseEnv(readFileSync(new URL("../../.env.sandbox.example", import.meta.url), "utf8"));
   const local = { ...env, INTERNAL_SERVICE_TOKENS: JSON.stringify({ runtime: "dev-runtime-internal-token" }) };
-  assert.equal(settings(local).runtime, "runc");
-  assert.equal(settings(local).proxy, "http://127.0.0.1:3128");
+  assert.equal(getSandboxSettings(local).runtime, "runc");
+  assert.equal(getSandboxSettings(local).proxy, "http://127.0.0.1:3128");
   assert.throws(
     () =>
-      settings({
+      getSandboxSettings({
         ...local,
         ENVIRONMENT: "production",
         INTERNAL_SERVICE_TOKENS: JSON.stringify({ runtime: "a".repeat(32) }),
@@ -71,13 +71,17 @@ test("Pod spec has no host mounts, service identity or writable root, and bounde
 });
 
 test("configuration fails closed for production runtime downgrade and malformed limits", () => {
-  assert.throws(() => settings({}), /strong Runtime credential/);
+  assert.throws(() => getSandboxSettings({}), /strong Runtime credential/);
   assert.throws(
-    () => settings({ SANDBOX_RUNTIME: "runc", INTERNAL_SERVICE_TOKENS: JSON.stringify({ runtime: "a".repeat(32) }) }),
+    () =>
+      getSandboxSettings({
+        SANDBOX_RUNTIME: "runc",
+        INTERNAL_SERVICE_TOKENS: JSON.stringify({ runtime: "a".repeat(32) }),
+      }),
     /require runsc/,
   );
-  assert.throws(() => settings({ ENVIRONMENT: "development", SANDBOX_MEMORY_MIB: "0" }), /positive/);
-  assert.throws(() => settings({ SANDBOX_BACKEND: "host" }), /invalid/);
+  assert.throws(() => getSandboxSettings({ ENVIRONMENT: "development", SANDBOX_MEMORY_MIB: "0" }), /positive/);
+  assert.throws(() => getSandboxSettings({ SANDBOX_BACKEND: "host" }), /invalid/);
 });
 
 test("transfer paths cannot select host or parent paths", () => {

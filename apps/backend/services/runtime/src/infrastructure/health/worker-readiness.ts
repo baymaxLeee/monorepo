@@ -1,8 +1,9 @@
+import { getWorkerSettings } from "../../config/worker.js";
 import { getSql } from "../persistence/index.js";
 
 export type ReadinessReport = {
   ok: boolean;
-  boot: "pending" | "ready" | "failed";
+  boot: "pending" | "ready" | "stopping" | "failed";
   postgres: "up" | "down";
   workflowWorld: "up" | "down" | "skipped";
   error?: string;
@@ -30,17 +31,23 @@ export function markBootFailed(error: unknown): void {
   bootError = error instanceof Error ? error.message : String(error);
 }
 
+export function markBootStopping(): void {
+  bootState = "stopping";
+  bootError = undefined;
+}
+
 export function markWorkflowWorldStarted(): void {
   workflowWorldStarted = true;
 }
 
 export async function checkReadiness(): Promise<ReadinessReport> {
-  if (bootState === "pending") {
+  const workflowConfigured = Boolean(getWorkerSettings().workflowTargetWorld);
+  if (bootState === "pending" || bootState === "stopping") {
     return {
       ok: false,
-      boot: "pending",
+      boot: bootState,
       postgres: "down",
-      workflowWorld: process.env.WORKFLOW_TARGET_WORLD ? "down" : "skipped",
+      workflowWorld: workflowConfigured ? "down" : "skipped",
     };
   }
   if (bootState === "failed") {
@@ -61,7 +68,7 @@ export async function checkReadiness(): Promise<ReadinessReport> {
     postgres = "down";
   }
 
-  const workflowWorld = process.env.WORKFLOW_TARGET_WORLD ? (workflowWorldStarted ? "up" : "down") : "skipped";
+  const workflowWorld = workflowConfigured ? (workflowWorldStarted ? "up" : "down") : "skipped";
 
   return {
     ok: postgres === "up" && (workflowWorld === "up" || workflowWorld === "skipped"),

@@ -1,4 +1,4 @@
-export interface Settings {
+export interface SandboxSettings {
   port: number;
   backend: "docker" | "kubernetes";
   runtimeToken: string;
@@ -20,7 +20,7 @@ export interface Settings {
   maxRequests: number;
 }
 
-export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
+export function getSandboxSettings(env: NodeJS.ProcessEnv = process.env): SandboxSettings {
   if (env.ENVIRONMENT && !["development", "staging", "single-vps", "production"].includes(env.ENVIRONMENT))
     throw new Error("unsupported ENVIRONMENT");
   const positive = (name: string, fallback: number) => {

@@ -8,7 +8,7 @@ test("real shell supervisor lifecycle and file containment", async () => {
     "python3",
     ["-m", "unittest", "discover", "-s", "runtime", "-p", "test_*.py"],
     {
-      cwd: new URL("../../../sandbox-assets", import.meta.url),
+      cwd: new URL("../../sandbox-assets", import.meta.url),
       timeout: 30000,
     },
   );

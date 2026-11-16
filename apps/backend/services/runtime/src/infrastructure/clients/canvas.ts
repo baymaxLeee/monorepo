@@ -3,7 +3,7 @@ import { TransportError } from "@backend/transport-ts";
 import { CanvasInternalClient } from "@backend/transport-ts/canvas";
 
 import { AppError, ConflictError, NotFoundError, RequestError } from "../../application/errors.js";
-import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getServerSettings } from "../../config/server.js";
 
 function canvasError(error: unknown): never {
   if (error instanceof TransportError) {

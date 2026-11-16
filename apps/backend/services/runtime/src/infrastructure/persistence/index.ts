@@ -1,7 +1,7 @@
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { getDatabaseSettings, type Environment } from "../../bootstrap/database-config.js";
+import { getDatabaseSettings } from "../../config/database.js";
 import * as mediaSchema from "./media-schema.js";
 import * as runtimeSchema from "./schema.js";
 
@@ -13,8 +13,7 @@ let db: RuntimeDb | null = null;
 
 export function getSql(): postgres.Sql {
   if (!sql) {
-    const environment = (process.env.ENVIRONMENT ?? "development") as Environment;
-    const s = getDatabaseSettings(environment);
+    const s = getDatabaseSettings();
     sql = postgres({
       host: s.postgresHost,
       port: s.postgresPort,
@@ -32,4 +31,11 @@ export function getDb(): RuntimeDb {
     db = drizzle(getSql(), { schema });
   }
   return db;
+}
+
+export async function closeSql(): Promise<void> {
+  const current = sql;
+  sql = null;
+  db = null;
+  if (current) await current.end({ timeout: 5 });
 }

@@ -1,14 +1,14 @@
 import { createLogger } from "@backend/kernel-ts";
 import { serve } from "@hono/node-server";
 
-import { createApp } from "../../roles/sandbox/app.js";
-import { settings } from "../../roles/sandbox/config.js";
-import { Engine } from "../../roles/sandbox/engine.js";
+import { createApp } from "../../bootstrap/sandbox-app.js";
+import { getSandboxSettings } from "../../config/sandbox.js";
+import { Engine } from "../../sandbox/engine.js";
 
 try {
   process.loadEnvFile(".env.sandbox");
 } catch {}
-const config = settings();
+const config = getSandboxSettings();
 const engine = new Engine(config);
 const logger = createLogger({ service: "runtime-sandbox" });
 const server = serve({ fetch: createApp(config, engine).fetch, port: config.port });

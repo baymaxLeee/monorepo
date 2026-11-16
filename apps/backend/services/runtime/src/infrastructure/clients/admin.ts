@@ -10,7 +10,7 @@ import type { LanguageProviderSnapshot, ResponsesDialect } from "@backend/transp
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../../application/errors.js";
-import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getServerSettings } from "../../config/server.js";
 import { getRedisClient } from "../redis/index.js";
 
 export interface ProviderSnapshot {

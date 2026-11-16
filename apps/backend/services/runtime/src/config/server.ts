@@ -1,8 +1,9 @@
-import { getDatabaseSettings, type Environment } from "./database-config.js";
+import { parseDatabaseSettings } from "./database.js";
+import { envOr, nonNegativeInt, parseEnvironment, positiveInt, type Environment } from "./env.js";
 
 const DEV_INTERNAL_TOKEN = "dev-runtime-internal-token";
 
-export interface Settings {
+export interface ServerSettings {
   environment: Environment;
   port: number;
   postgresHost: string;
@@ -27,37 +28,21 @@ export interface Settings {
   providerCacheTtlSeconds: number;
 }
 
-function envOr(key: string, fallback: string): string {
-  return process.env[key] ?? fallback;
-}
-
-function envInt(key: string, fallback: number): number {
-  const raw = process.env[key];
-  if (!raw) {
-    return fallback;
-  }
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-export function getServerSettings(): Settings {
-  const environment = envOr("ENVIRONMENT", "development");
-  if (!["development", "staging", "single-vps", "production"].includes(environment)) {
-    throw new Error(`unsupported ENVIRONMENT ${JSON.stringify(environment)}`);
-  }
-  const database = getDatabaseSettings(environment as Environment);
-  const redisHost = envOr("REDIS_HOST", "localhost");
+export function parseServerSettings(env: NodeJS.ProcessEnv): ServerSettings {
+  const environment = parseEnvironment(env);
+  const database = parseDatabaseSettings(environment, env);
+  const redisHost = envOr(env, "REDIS_HOST", "localhost");
   if (environment !== "development" && ["localhost", "127.0.0.1"].includes(redisHost)) {
     throw new Error("REDIS_HOST must be set explicitly outside development");
   }
-  const toolApprovalSecret = envOr("TOOL_APPROVAL_SECRET", "");
+  const toolApprovalSecret = envOr(env, "TOOL_APPROVAL_SECRET", "");
   if (environment !== "development" && (toolApprovalSecret.length < 32 || toolApprovalSecret.startsWith("dev-"))) {
     throw new Error("TOOL_APPROVAL_SECRET must be a strong secret outside development");
   }
-  const internalApiToken = envOr("INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN);
+  const internalApiToken = envOr(env, "INTERNAL_API_TOKEN", DEV_INTERNAL_TOKEN);
   let internalServiceTokens: unknown;
   try {
-    internalServiceTokens = JSON.parse(envOr("INTERNAL_SERVICE_TOKENS", '{"chat":"dev-chat-internal-token"}'));
+    internalServiceTokens = JSON.parse(envOr(env, "INTERNAL_SERVICE_TOKENS", '{"chat":"dev-chat-internal-token"}'));
   } catch {
     throw new Error("INTERNAL_SERVICE_TOKENS must be a JSON object");
   }
@@ -79,23 +64,30 @@ export function getServerSettings(): Settings {
     throw new Error("INTERNAL_SERVICE_TOKENS contains an invalid Chat credential");
   }
   return {
-    environment: environment as Environment,
-    port: envInt("PORT", 8015),
+    environment,
+    port: positiveInt(env, "PORT", 8015),
     ...database,
     redisHost,
-    redisPort: envInt("REDIS_PORT", 6379),
-    redisDb: envInt("REDIS_DB", 2),
-    adminServiceUrl: envOr("ADMIN_SERVICE_URL", "http://localhost:8001"),
-    storageServiceUrl: envOr("STORAGE_SERVICE_URL", "http://localhost:8013"),
-    knowledgeServiceUrl: envOr("KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
-    canvasServiceUrl: envOr("CANVAS_SERVICE_URL", "http://localhost:8012"),
-    workerServiceUrl: envOr("RUNTIME_WORKER_URL", "http://localhost:8011"),
-    sandboxRoleUrl: envOr("RUNTIME_SANDBOX_URL", "http://localhost:8014"),
+    redisPort: positiveInt(env, "REDIS_PORT", 6379),
+    redisDb: nonNegativeInt(env, "REDIS_DB", 2),
+    adminServiceUrl: envOr(env, "ADMIN_SERVICE_URL", "http://localhost:8001"),
+    storageServiceUrl: envOr(env, "STORAGE_SERVICE_URL", "http://localhost:8013"),
+    knowledgeServiceUrl: envOr(env, "KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
+    canvasServiceUrl: envOr(env, "CANVAS_SERVICE_URL", "http://localhost:8012"),
+    workerServiceUrl: envOr(env, "RUNTIME_WORKER_URL", "http://localhost:8011"),
+    sandboxRoleUrl: envOr(env, "RUNTIME_SANDBOX_URL", "http://localhost:8014"),
     internalApiToken,
     chatCallerToken,
     toolApprovalSecret: toolApprovalSecret || DEV_INTERNAL_TOKEN,
-    exaApiKey: envOr("EXA_API_KEY", ""),
-    tavilyApiKey: envOr("TAVILY_API_KEY", ""),
-    providerCacheTtlSeconds: envInt("PROVIDER_CACHE_TTL_SECONDS", 300),
+    exaApiKey: envOr(env, "EXA_API_KEY", ""),
+    tavilyApiKey: envOr(env, "TAVILY_API_KEY", ""),
+    providerCacheTtlSeconds: positiveInt(env, "PROVIDER_CACHE_TTL_SECONDS", 300),
   };
+}
+
+let cached: ServerSettings | undefined;
+
+export function getServerSettings(): ServerSettings {
+  cached ??= parseServerSettings(process.env);
+  return cached;
 }

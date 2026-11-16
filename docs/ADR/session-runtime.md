@@ -18,7 +18,7 @@ Runtime 使用一个镜像、三个显式 command 入口。结构参照 Canvas �
 
 三个角色复用 `runtime` image 和版本，但不共享进程内状态。生产分别部署 Pod/容器；本地分别启动三个命令。Sandbox guest 是 controller 创建的第四类临时 workload，不是 Runtime 服务角色。
 
-配置同样按入口装配：server 使用 `getServerSettings()`，worker 使用 `getWorkerSettings()`，sandbox 使用 controller 自己的 `settings()`；server/worker 只共享 PostgreSQL 基础解析。不能为了“同一镜像”把三个角色的凭据、端口或启动校验合成一份全局配置。
+配置同样按入口装配：server 使用 `getServerSettings()`，worker 使用 `getWorkerSettings()`，sandbox 使用 `getSandboxSettings()`；server/worker 只共享 PostgreSQL 基础解析。进程配置在启动时校验并缓存，业务层不得反向依赖 `bootstrap/`。不能为了“同一镜像”把三个角色的凭据、端口或启动校验合成一份全局配置。
 
 ```mermaid
 flowchart LR
@@ -103,10 +103,10 @@ Runtime 业务 schema 统一在 `apps/backend/services/runtime/migrations/v1.0.0
 角色启动命令分别为：
 
 - server：`node --import tsx src/cmd/server/main.ts`
-- worker：`node .output/server/index.mjs`
+- worker：`node --import tsx src/cmd/worker/production.ts`
 - sandbox：`node --import tsx src/cmd/sandbox/main.ts`
 
-源码入口分别位于 `src/cmd/server`、`src/cmd/worker`、`src/cmd/sandbox`。worker 的开发入口负责加载 Workflow 开发产物；生产入口由同一 Runtime 项目的 Nitro build 生成顶层 `.output/server/index.mjs`。`src/index.ts` role dispatcher、`RUNTIME_ROLE` 环境分支和 `/runtime/worker` 子包都属于禁止恢复的旧结构。
+源码入口分别位于 `src/cmd/server`、`src/cmd/worker`、`src/cmd/sandbox`。worker 的开发入口负责加载 Workflow 开发产物；Nitro production build 生成 `.output/server/index.mjs` server，由 `production.ts` 在加载前固定 application-managed shutdown 模式。HTTP listener 与 Runtime bootstrap 各有一个明确 owner，但共享同一进程和 bundle lifecycle；不得从 bundle 外再次导入一份 bootstrap。`src/index.ts` role dispatcher、`RUNTIME_ROLE` 环境分支和 `/runtime/worker` 子包都属于禁止恢复的旧结构。
 
 部署使用同一个 `runtime:<immutable-tag>`，但分别配置 readiness、资源和凭据。Sandbox controller 不挂 Runtime/Workflow DB secret。Server、worker、sandbox 可以独立扩缩；发布必须同时验证三角色构建，不能只验证 server。
 
@@ -131,9 +131,10 @@ durable Job 必须能跨正常部署继续：绑定 definition/release，兼容�
 事实入口：
 
 - Runtime server 与 ToolLoop：[server entry](../../apps/backend/services/runtime/src/cmd/server/main.ts)、[agent application](../../apps/backend/services/runtime/src/application/agent)
-- Runtime worker：[worker entry](../../apps/backend/services/runtime/src/cmd/worker/app.ts)、[task application](../../apps/backend/services/runtime/src/application/tasks)、[workflows](../../apps/backend/services/runtime/workflows)
-- Sandbox controller：[sandbox role](../../apps/backend/services/runtime/src/roles/sandbox)
-- 角色配置：[server](../../apps/backend/services/runtime/src/bootstrap/server-config.ts)、[worker](../../apps/backend/services/runtime/src/bootstrap/worker-config.ts)、[shared database](../../apps/backend/services/runtime/src/bootstrap/database-config.ts)
+- Runtime worker：[production wrapper](../../apps/backend/services/runtime/src/cmd/worker/production.ts)、[Nitro app and lifecycle owner](../../apps/backend/services/runtime/src/cmd/worker/app.ts)、[task application](../../apps/backend/services/runtime/src/application/tasks)、[workflows](../../apps/backend/services/runtime/workflows)
+- Sandbox controller：[sandbox app assembly](../../apps/backend/services/runtime/src/bootstrap/sandbox-app.ts)、[engine](../../apps/backend/services/runtime/src/sandbox/engine.ts)
+- 启动装配：[bootstrap](../../apps/backend/services/runtime/src/bootstrap)
+- 进程配置：[config](../../apps/backend/services/runtime/src/config)；配置解析不属于 bootstrap，底层模块不得导入启动装配层
 - Chat BFF：[app.ts](../../apps/backend/services/chat/src/bootstrap/app.ts)、[conversation projection](../../apps/backend/services/chat/src/application/conversations.ts)
 - 服务图：[services.yaml](../../services.yaml)
 - K8s 三角色：[runtime base](../../infra/k8s/base/runtime)

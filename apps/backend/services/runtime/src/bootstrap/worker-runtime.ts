@@ -1,19 +1,39 @@
+import { shutdownOpenTelemetry } from "@backend/kernel-ts";
 import { getWorld } from "workflow/runtime";
 
-import { reconcileTaskCleanup, startTaskCleanupRecovery } from "../application/tasks/cleanup.js";
-import { reconcilePendingTasks, startPendingTaskRecovery } from "../application/tasks/service.js";
+import {
+  reconcileTaskCleanup,
+  startTaskCleanupRecovery,
+  stopTaskCleanupRecovery,
+} from "../application/tasks/cleanup.js";
+import {
+  reconcilePendingTasks,
+  startPendingTaskRecovery,
+  stopPendingTaskRecovery,
+} from "../application/tasks/service.js";
 import {
   recoverStaleVideoProductionDecisions,
   startStaleVideoProductionDecisionRecovery,
+  stopStaleVideoProductionDecisionRecovery,
 } from "../application/video-production/decisions.js";
-import { markBootFailed, markBootReady, markWorkflowWorldStarted } from "../infrastructure/health/worker-readiness.js";
+import { getWorkerSettings } from "../config/worker.js";
+import {
+  markBootFailed,
+  markBootReady,
+  markBootStopping,
+  markWorkflowWorldStarted,
+} from "../infrastructure/health/worker-readiness.js";
 import { logger } from "../infrastructure/observability/worker-logger.js";
-import { getSql } from "../infrastructure/persistence/index.js";
+import { closeSql, getSql } from "../infrastructure/persistence/index.js";
 
-export async function bootstrapWorker(): Promise<void> {
+let workerBootstrap: Promise<void> | undefined;
+let workerStopping = false;
+
+async function runWorkerBootstrap(): Promise<void> {
   try {
+    const settings = getWorkerSettings();
     await getSql()`SELECT 1`;
-    if (process.env.WORKFLOW_TARGET_WORLD) {
+    if (settings.workflowTargetWorld) {
       await (await getWorld()).start?.();
       markWorkflowWorldStarted();
     }
@@ -23,11 +43,74 @@ export async function bootstrapWorker(): Promise<void> {
     startTaskCleanupRecovery();
     await recoverStaleVideoProductionDecisions();
     startStaleVideoProductionDecisionRecovery();
-    markBootReady();
+    if (!workerStopping) markBootReady();
     logger.info("runtime worker bootstrap complete");
   } catch (error) {
-    markBootFailed(error);
+    if (!workerStopping) markBootFailed(error);
     logger.error({ err: error }, "runtime worker bootstrap failed");
     throw error;
   }
+}
+
+export function bootstrapWorker(): Promise<void> {
+  workerBootstrap ??= runWorkerBootstrap();
+  return workerBootstrap;
+}
+
+export interface WorkerShutdownDependencies {
+  markStopping(): void;
+  stopRecoveries(): Promise<void>;
+  closeWorld(): Promise<void>;
+  closeHttp(): Promise<void>;
+  closeDatabase(): Promise<void>;
+  closeTelemetry(): Promise<void>;
+}
+
+export function createWorkerShutdown(dependencies: WorkerShutdownDependencies): () => Promise<void> {
+  let shutdown: Promise<void> | undefined;
+  return () =>
+    (shutdown ??= (async () => {
+      dependencies.markStopping();
+      let firstError: unknown;
+      try {
+        await dependencies.stopRecoveries();
+      } catch (error) {
+        firstError = error;
+      }
+      try {
+        await dependencies.closeWorld();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
+        await dependencies.closeHttp();
+      } catch (error) {
+        firstError ??= error;
+      }
+      const trailing = await Promise.allSettled([dependencies.closeDatabase(), dependencies.closeTelemetry()]);
+      firstError ??= trailing.find((result) => result.status === "rejected")?.reason;
+      if (firstError) throw firstError;
+    })());
+}
+
+async function stopWorkerRecoveries(): Promise<void> {
+  await workerBootstrap?.catch(() => undefined);
+  await Promise.all([stopPendingTaskRecovery(), stopTaskCleanupRecovery(), stopStaleVideoProductionDecisionRecovery()]);
+}
+
+export function workerShutdown(closeHttp: () => Promise<void>): () => Promise<void> {
+  const settings = getWorkerSettings();
+  return createWorkerShutdown({
+    markStopping: () => {
+      workerStopping = true;
+      markBootStopping();
+    },
+    stopRecoveries: stopWorkerRecoveries,
+    closeWorld: async () => {
+      if (settings.workflowTargetWorld) await (await getWorld()).close?.();
+    },
+    closeHttp,
+    closeDatabase: closeSql,
+    closeTelemetry: shutdownOpenTelemetry,
+  });
 }

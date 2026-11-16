@@ -12,7 +12,7 @@
     "dev:worker": "tsx scripts/build-workflows.ts && tsx src/cmd/worker/main.ts",
     "start:server": "tsx src/cmd/server/main.ts",
     "start:sandbox": "tsx src/cmd/sandbox/main.ts",
-    "start:worker": "node .output/server/index.mjs",
+    "start:worker": "node --import tsx src/cmd/worker/production.ts",
     "backfill-workspace-paths": "tsx src/scripts/backfill-workspace-paths.ts",
     "start": "tsx src/cmd/server/main.ts",
     "lint": "pnpm --dir ../../../.. lint:ts apps/backend/services/runtime && pnpm --dir ../../../.. exec oxfmt --check 'apps/backend/services/runtime/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' && node node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",

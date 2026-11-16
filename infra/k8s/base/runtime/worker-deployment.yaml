@@ -24,7 +24,7 @@ spec:
         - name: runtime-worker
           image: ghcr.io/example/runtime:latest
           imagePullPolicy: IfNotPresent
-          command: ["node", ".output/server/index.mjs"]
+          command: ["node", "--import", "tsx", "src/cmd/worker/production.ts"]
           ports:
             - { name: http, containerPort: 8011 }
           envFrom:

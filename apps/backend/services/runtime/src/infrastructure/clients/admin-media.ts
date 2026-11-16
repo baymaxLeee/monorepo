@@ -2,7 +2,7 @@ import { AdminInternalClient, TransportError, type AdminProviderSnapshot } from 
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
 
 import { RequestError } from "../../application/errors.js";
-import { getWorkerSettings } from "../../bootstrap/worker-config.js";
+import { getWorkerSettings } from "../../config/worker.js";
 
 function adminClient(): AdminInternalClient {
   const settings = getWorkerSettings();

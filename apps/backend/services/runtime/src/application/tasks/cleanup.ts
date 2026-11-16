@@ -54,16 +54,26 @@ export async function reconcileTaskCleanup(): Promise<void> {
     }),
   );
 }
+let taskCleanupRecoveryTimer: ReturnType<typeof setInterval> | undefined;
+let taskCleanupRecoveryRun: Promise<void> | undefined;
+
 export function startTaskCleanupRecovery(): void {
-  let running = false;
-  const timer = setInterval(() => {
-    if (running) return;
-    running = true;
-    void reconcileTaskCleanup()
+  if (taskCleanupRecoveryTimer) return;
+  taskCleanupRecoveryTimer = setInterval(() => {
+    if (taskCleanupRecoveryRun) return;
+    taskCleanupRecoveryRun = reconcileTaskCleanup()
       .catch((error) => console.error("[runtime-worker] cleanup recovery failed", { error }))
       .finally(() => {
-        running = false;
+        taskCleanupRecoveryRun = undefined;
       });
   }, 5000);
-  timer.unref();
+  taskCleanupRecoveryTimer.unref();
+}
+
+export async function stopTaskCleanupRecovery(): Promise<void> {
+  if (taskCleanupRecoveryTimer) {
+    clearInterval(taskCleanupRecoveryTimer);
+    taskCleanupRecoveryTimer = undefined;
+  }
+  await taskCleanupRecoveryRun;
 }

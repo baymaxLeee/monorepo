@@ -3,7 +3,7 @@ import { ToolBlockedError } from "@backend/agent-runtime-ts/outcome";
 import { tool } from "ai";
 import { z } from "zod";
 
-import { getServerSettings } from "../../../../bootstrap/server-config.js";
+import { getServerSettings } from "../../../../config/server.js";
 import { retrieveKnowledge } from "../../../../infrastructure/clients/knowledge.js";
 import { knowledgeSearchToolContextSchema, type KnowledgeSearchToolContext } from "../context.js";
 

@@ -8,7 +8,7 @@ import {
 } from "@backend/transport-ts";
 
 import { NotFoundError } from "../../application/errors.js";
-import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getServerSettings } from "../../config/server.js";
 import { storageClient } from "./storage.js";
 
 export type { DocumentSlice, KnowledgeDocument, RetrieveResult } from "@backend/transport-ts";

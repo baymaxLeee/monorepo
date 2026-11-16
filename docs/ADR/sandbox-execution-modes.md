@@ -400,7 +400,7 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 
 ## 当前差距、实施边界与验收
 
-云端 [ToolLoop](../../apps/backend/services/runtime/src/application/agent/agents/tool-loop.ts) 通过 [RunSandbox](../../apps/backend/services/runtime/src/application/agent/tools/builtins/sandbox-session.ts) 使用 [Runtime Sandbox Engine](../../apps/backend/services/runtime/src/roles/sandbox/engine.ts)。controller 仍按 run 管理隔离资源、期限和回收。
+云端 [ToolLoop](../../apps/backend/services/runtime/src/application/agent/agents/tool-loop.ts) 通过 [RunSandbox](../../apps/backend/services/runtime/src/application/agent/tools/builtins/sandbox-session.ts) 使用 [Runtime Sandbox Engine](../../apps/backend/services/runtime/src/sandbox/engine.ts)。controller 仍按 run 管理隔离资源、期限和回收。
 
 云端代码使用稳定路径恢复、静止文件清单、新增/修改/删除自动提交、内容与路径 generation
 fencing，以及 `restoring → active → finalizing → releasing` 的崩溃重试与实例回收。
@@ -447,6 +447,6 @@ token 的工作区写屏障；Runtime 在屏障内核对磁盘摘要与编辑器
 | 旧 worker 迟到、删除会话、并发新 run | 旧写入和错误实例删除被拒绝 |
 | 配额、缓存和垃圾回收 | 不截断文件，不删有效引用，不保留无界实例或历史对象 |
 
-现有测试入口包括 [sandbox-session tests](../../apps/backend/services/runtime/src/application/agent/tools/builtins/sandbox-session.test.ts)、[Engine tests](../../apps/backend/services/runtime/src/roles/sandbox/engine.test.ts)、[runtime tests](../../apps/backend/services/runtime/src/roles/sandbox/runtime.test.ts) 和 [Docker integration](../../apps/backend/services/runtime/sandbox-assets/integration/docker.ts)。新增行为需增加能复现失败的测试，不能把已有 suite 当作目标能力已验证。
+现有测试入口包括 [sandbox-session tests](../../apps/backend/services/runtime/src/application/agent/tools/builtins/sandbox-session.test.ts)、[Engine tests](../../apps/backend/services/runtime/src/sandbox/engine.test.ts)、[runtime tests](../../apps/backend/services/runtime/src/sandbox/runtime.test.ts) 和 [Docker integration](../../apps/backend/services/runtime/sandbox-assets/integration/docker.ts)。新增行为需增加能复现失败的测试，不能把已有 suite 当作目标能力已验证。
 
 实施时运行受影响的 Chat、Sandbox、Storage、Admin/Gateway 边界测试与构建，契约变化运行 `just sync` 并验证消费者；执行层需通过 `just test-sandbox-integration` 和目标生产隔离环境故障验证。relay 验证鉴权、参数约束、配额、取消、重试与无正文落盘；迁移在代表性旧数据上验证升级、幂等重跑、碰撞、失败恢复及首次工作区恢复。本地须在发布支持矩阵内的真实 macOS 签名包验证隔离、外部编辑和进程树清理，其他系统验证明确拒绝。单元测试不能替代这些检查。仅编写本 ADR 时运行链接、命令、内容一致性检查与 `just check-repo`，不据此声称运行时行为通过。

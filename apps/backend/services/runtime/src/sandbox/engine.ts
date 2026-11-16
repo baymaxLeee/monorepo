@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-import type { Settings } from "./config.js";
+import type { SandboxSettings } from "../config/sandbox.js";
 import { filePath, processSchema, workspaceSnapshotSchema, type Scope } from "./contracts.js";
 
 const LABEL = "monorepo.sandbox";
@@ -54,7 +54,7 @@ export async function command(
 
 export class Engine {
   constructor(
-    readonly config: Settings,
+    readonly config: SandboxSettings,
     readonly execute = command,
   ) {}
   private creationTail: Promise<unknown> = Promise.resolve();

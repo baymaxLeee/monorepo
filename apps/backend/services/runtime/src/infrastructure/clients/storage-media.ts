@@ -1,7 +1,7 @@
 import { propagationHeaders } from "@backend/kernel-ts";
 import { StorageInternalClient, type StorageUploadBody } from "@backend/transport-ts";
 
-import { getWorkerSettings } from "../../bootstrap/worker-config.js";
+import { getWorkerSettings } from "../../config/worker.js";
 
 export function uploadAsset(input: {
   tenantId: string;

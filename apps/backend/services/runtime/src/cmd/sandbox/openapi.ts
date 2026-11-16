@@ -8,7 +8,7 @@ import {
   startSchema,
   workspaceEditSchema,
   workspaceSnapshotSchema,
-} from "../../roles/sandbox/contracts.js";
+} from "../../sandbox/contracts.js";
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const json = (schema: object) => ({ description: "success", content: { "application/json": { schema } } });

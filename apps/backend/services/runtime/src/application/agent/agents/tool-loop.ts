@@ -12,7 +12,7 @@ import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
 
-import { getServerSettings } from "../../../bootstrap/server-config.js";
+import { getServerSettings } from "../../../config/server.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { createInferenceModel } from "../../inference/provider.js";
 import { estimateSessionContext, type ContextEstimate } from "../context/context-snapshot.js";

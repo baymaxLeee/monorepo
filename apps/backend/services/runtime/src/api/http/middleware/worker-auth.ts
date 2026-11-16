@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { Context, Next } from "hono";
 
 import { UnauthorizedError } from "../../../application/errors.js";
-import { getWorkerSettings } from "../../../bootstrap/worker-config.js";
+import { getWorkerSettings } from "../../../config/worker.js";
 
 const ALLOWED_CALLERS = new Set(["runtime"]);
 

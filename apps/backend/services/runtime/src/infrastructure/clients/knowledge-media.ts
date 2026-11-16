@@ -5,7 +5,7 @@ import {
   type StagedMedia,
 } from "@backend/transport-ts";
 
-import { getWorkerSettings } from "../../bootstrap/worker-config.js";
+import { getWorkerSettings } from "../../config/worker.js";
 
 export type { KnowledgeDocument, StagedMedia } from "@backend/transport-ts";
 

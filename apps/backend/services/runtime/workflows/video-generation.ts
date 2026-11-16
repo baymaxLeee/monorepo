@@ -51,7 +51,7 @@ import {
 } from "../src/application/video/limits.js";
 import { parseVideoOutputConfig, type VideoOutputConfig } from "../src/application/video/output-config.js";
 import { generateCharacterSheet, type CharacterRef } from "../src/application/video/storyboard.js";
-import { getWorkerSettings } from "../src/bootstrap/worker-config.js";
+import { getWorkerSettings } from "../src/config/worker.js";
 import type { ShotSpec, ShotPlan, ShotTakeReview, VideoTake } from "../src/domain/video-production/contracts.js";
 import { shotPlanSchema } from "../src/domain/video-production/contracts.js";
 import { getProvider } from "../src/infrastructure/clients/admin-media.js";

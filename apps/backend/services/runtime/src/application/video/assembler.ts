@@ -7,7 +7,7 @@ import { pipeline } from "node:stream/promises";
 
 import { secureProviderFetch } from "@backend/transport-ts/provider-url";
 
-import { getWorkerSettings } from "../../bootstrap/worker-config.js";
+import { getWorkerSettings } from "../../config/worker.js";
 import type { VideoOutputConfig } from "./output-config.js";
 
 function buildNormalizeVf(config: Pick<VideoOutputConfig, "width" | "height" | "fps">): string {

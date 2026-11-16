@@ -33,6 +33,7 @@ function newId(): string {
 
 const PENDING_DECISION_LEASE_MS = 60_000;
 let decisionRecoveryTimer: ReturnType<typeof setInterval> | undefined;
+let decisionRecoveryRun: Promise<void> | undefined;
 
 export async function decideVideoProduction(
   productionId: string,
@@ -215,8 +216,23 @@ export function startStaleVideoProductionDecisionRecovery(): void {
   if (decisionRecoveryTimer) {
     return;
   }
-  decisionRecoveryTimer = setInterval(() => void recoverStaleVideoProductionDecisions(), PENDING_DECISION_LEASE_MS);
+  decisionRecoveryTimer = setInterval(() => {
+    if (decisionRecoveryRun) return;
+    decisionRecoveryRun = recoverStaleVideoProductionDecisions()
+      .catch((error) => logger.error({ err: error }, "stale video production decision recovery failed"))
+      .finally(() => {
+        decisionRecoveryRun = undefined;
+      });
+  }, PENDING_DECISION_LEASE_MS);
   decisionRecoveryTimer.unref();
+}
+
+export async function stopStaleVideoProductionDecisionRecovery(): Promise<void> {
+  if (decisionRecoveryTimer) {
+    clearInterval(decisionRecoveryTimer);
+    decisionRecoveryTimer = undefined;
+  }
+  await decisionRecoveryRun;
 }
 
 async function claimStalePendingDecision(productionId: string): Promise<{

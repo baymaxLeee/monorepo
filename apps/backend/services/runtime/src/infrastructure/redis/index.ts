@@ -1,6 +1,6 @@
 import { Redis } from "ioredis";
 
-import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getServerSettings } from "../../config/server.js";
 
 export interface RedisClientOptions {
   maxRetriesPerRequest?: number;

@@ -352,18 +352,25 @@ export async function reconcilePendingTasks(): Promise<void> {
 }
 
 let pendingTaskRecoveryTimer: ReturnType<typeof setInterval> | undefined;
+let pendingTaskRecoveryRun: Promise<void> | undefined;
 
 export function startPendingTaskRecovery(): void {
   if (pendingTaskRecoveryTimer) return;
-  let running = false;
   pendingTaskRecoveryTimer = setInterval(() => {
-    if (running) return;
-    running = true;
-    void reconcilePendingTasks()
+    if (pendingTaskRecoveryRun) return;
+    pendingTaskRecoveryRun = reconcilePendingTasks()
       .catch((error) => console.error("[runtime-worker] pending task recovery failed", { error }))
       .finally(() => {
-        running = false;
+        pendingTaskRecoveryRun = undefined;
       });
   }, 5_000);
   pendingTaskRecoveryTimer.unref();
+}
+
+export async function stopPendingTaskRecovery(): Promise<void> {
+  if (pendingTaskRecoveryTimer) {
+    clearInterval(pendingTaskRecoveryTimer);
+    pendingTaskRecoveryTimer = undefined;
+  }
+  await pendingTaskRecoveryRun;
 }

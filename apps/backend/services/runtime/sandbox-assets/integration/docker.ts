@@ -6,13 +6,13 @@ import { setTimeout } from "node:timers/promises";
 import { RuntimeSandboxClient, type SandboxScope } from "@backend/transport-ts";
 import { serve } from "@hono/node-server";
 
-import { createApp } from "../../src/roles/sandbox/app.js";
-import { settings } from "../../src/roles/sandbox/config.js";
-import { command, Engine } from "../../src/roles/sandbox/engine.js";
+import { createApp } from "../../src/bootstrap/sandbox-app.js";
+import { getSandboxSettings } from "../../src/config/sandbox.js";
+import { command, Engine } from "../../src/sandbox/engine.js";
 
 // This suite is separate from unit tests: missing Docker/proxy/runtime is a
 // failure, never a skipped test reported as an integration pass.
-const config = settings({
+const config = getSandboxSettings({
   ...process.env,
   ENVIRONMENT: "development",
   SANDBOX_RUNTIME: process.env.SANDBOX_RUNTIME ?? "runc",

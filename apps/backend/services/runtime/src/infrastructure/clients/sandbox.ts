@@ -9,7 +9,7 @@ import {
   type SandboxWorkspaceSnapshot,
 } from "@backend/transport-ts";
 
-import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getServerSettings } from "../../config/server.js";
 
 export interface SandboxScope {
   tenant_id: string;

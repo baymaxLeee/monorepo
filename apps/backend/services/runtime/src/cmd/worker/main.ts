@@ -20,10 +20,14 @@ function loadRuntime() {
   runtimePromise ??= importHandler("workflows");
   return runtimePromise;
 }
-const [{ default: workerApp }, { getWorkerSettings }, { logger }] = await Promise.all([
-  import("./app.js"),
-  import("../../bootstrap/worker-config.js"),
+const [{ prepareWorkerEnvironment }, { logger }] = await Promise.all([
+  import("../../config/worker.js"),
   import("../../infrastructure/observability/worker-logger.js"),
+]);
+const settings = prepareWorkerEnvironment();
+const [{ default: workerApp }, { workerShutdown }] = await Promise.all([
+  import("./app.js"),
+  import("../../bootstrap/worker-runtime.js"),
 ]);
 
 const app = new Hono();
@@ -38,7 +42,23 @@ app.all("/.well-known/workflow/v1/webhook/:token", async (c) => {
 });
 app.route("/", workerApp);
 
-const { port } = getWorkerSettings();
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port: settings.port }, (info) => {
   logger.info({ port: info.port, workflowWatch: false }, "listening");
 });
+
+const closeHttp = () =>
+  new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+const shutdown = workerShutdown(closeHttp);
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void shutdown().then(
+      () => process.exit(0),
+      (error) => {
+        logger.error({ err: error, signal }, "runtime worker shutdown failed");
+        process.exit(1);
+      },
+    );
+  });
+}

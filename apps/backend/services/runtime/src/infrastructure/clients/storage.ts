@@ -1,7 +1,7 @@
 import { propagationHeaders } from "@backend/kernel-ts";
 import { StorageInternalClient } from "@backend/transport-ts";
 
-import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getServerSettings } from "../../config/server.js";
 
 export function storageClient() {
   const settings = getServerSettings();

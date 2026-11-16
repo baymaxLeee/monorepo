@@ -10,7 +10,7 @@ import {
 } from "@backend/transport-ts";
 
 import { NotFoundError } from "../../application/errors.js";
-import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getServerSettings } from "../../config/server.js";
 
 export type { Task } from "@backend/transport-ts";
 export type { ProductionDecision, VideoProductionDetail, VideoProductionProjection } from "@backend/transport-ts";

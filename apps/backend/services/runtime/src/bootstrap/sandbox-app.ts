@@ -6,11 +6,11 @@ import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
-import type { Settings } from "./config.js";
-import { continueSchema, scopeSchema, startSchema, workspaceEditSchema } from "./contracts.js";
-import { Engine, resourceName } from "./engine.js";
+import type { SandboxSettings } from "../config/sandbox.js";
+import { continueSchema, scopeSchema, startSchema, workspaceEditSchema } from "../sandbox/contracts.js";
+import { Engine, resourceName } from "../sandbox/engine.js";
 
-export function createApp(config: Settings, engine = new Engine(config)) {
+export function createApp(config: SandboxSettings, engine = new Engine(config)) {
   const app = new Hono();
   const logger = createLogger({ service: "runtime-sandbox" });
   let active = 0;
