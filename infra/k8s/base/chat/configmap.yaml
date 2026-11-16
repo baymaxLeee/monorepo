@@ -7,14 +7,4 @@ data:
   ENVIRONMENT: "production"
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "chat"
-  REDIS_PORT: "6379"
-  REDIS_DB: "2"
-  # Admin owns LLM credentials. chat calls
-  # `${ADMIN_SERVICE_URL}/internal/providers/...` with chat's workload
-  # credential (kept in the Secret).
-  ADMIN_SERVICE_URL: "http://admin:8001"
-  KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"
-  EXECUTOR_SERVICE_URL: "http://executor:8011"
-  CANVAS_SERVICE_URL: "http://canvas:8012"
-  STORAGE_SERVICE_URL: "http://storage:8013"
-  SANDBOX_SERVICE_URL: "http://sandbox:8014"
+  RUNTIME_SERVICE_URL: "http://runtime:8015"

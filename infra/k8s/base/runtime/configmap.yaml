@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: runtime-server-config
+data:
+  PORT: "8015"
+  ENVIRONMENT: "production"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: "runtime"
+  REDIS_PORT: "6379"
+  REDIS_DB: "2"
+  ADMIN_SERVICE_URL: "http://admin:8001"
+  KNOWLEDGE_SERVICE_URL: "http://knowledge:8010"
+  STORAGE_SERVICE_URL: "http://storage:8013"
+  CANVAS_SERVICE_URL: "http://canvas:8012"
+  RUNTIME_WORKER_URL: "http://runtime-worker:8011"
+  RUNTIME_SANDBOX_URL: "http://runtime-sandbox:8014"
+  RUNTIME_AGENT_LEASE_SECONDS: "30"

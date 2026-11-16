@@ -10,8 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 Environment = Literal["development", "staging", "single-vps", "production"]
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin", "workflow", "postgres", "knowledge"})
 _DEV_INTERNAL_SERVICE_TOKENS = {
-    "chat": "dev-chat-internal-token",
-    "executor": "dev-executor-internal-token",
+    "runtime": "dev-runtime-internal-token",
 }
 _DEV_CALLER_TOKEN = "dev-knowledge-internal-token"
 

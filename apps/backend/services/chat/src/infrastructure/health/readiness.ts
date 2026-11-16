@@ -1,11 +1,9 @@
 import { getSql } from "../persistence/index.js";
-import { createRedisClient } from "../redis/index.js";
 
 export type ReadinessReport = {
   ok: boolean;
   boot: "pending" | "ready" | "failed";
   postgres: "up" | "down";
-  redis: "up" | "down";
   error?: string;
 };
 
@@ -30,52 +28,20 @@ export function markBootFailed(error: unknown): void {
   bootError = error instanceof Error ? error.message : String(error);
 }
 
-async function pingRedis(): Promise<boolean> {
-  const client = createRedisClient({
-    maxRetriesPerRequest: 1,
-    connectTimeout: 2_000,
-  });
-  try {
-    await client.connect();
-    const pong = await client.ping();
-    return pong === "PONG";
-  } catch {
-    return false;
-  } finally {
-    client.disconnect();
-  }
-}
-
 export async function checkReadiness(): Promise<ReadinessReport> {
-  if (bootState === "pending") {
-    return { ok: false, boot: "pending", postgres: "down", redis: "down" };
-  }
-  if (bootState === "failed") {
+  if (bootState !== "ready") {
     return {
       ok: false,
-      boot: "failed",
+      boot: bootState,
       postgres: "down",
-      redis: "down",
-      error: bootError,
+      ...(bootError ? { error: bootError } : {}),
     };
   }
 
-  let postgres: ReadinessReport["postgres"] = "down";
-  let redis: ReadinessReport["redis"] = "down";
   try {
     await getSql()`SELECT 1`;
-    postgres = "up";
+    return { ok: true, boot: "ready", postgres: "up" };
   } catch {
-    postgres = "down";
+    return { ok: false, boot: "ready", postgres: "down" };
   }
-  if (await pingRedis()) {
-    redis = "up";
-  }
-
-  return {
-    ok: postgres === "up" && redis === "up",
-    boot: "ready",
-    postgres,
-    redis,
-  };
 }

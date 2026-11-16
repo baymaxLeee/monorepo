@@ -11,8 +11,7 @@ resources:
   - ../../base/storage
   - ../../base/canvas
   - ../../base/chat
-  - ../../base/sandbox
-  - ../../base/executor
+  - ../../base/runtime
   - ../../base/knowledge
   - ../../base/telemetry
   - ../../base/web
@@ -28,9 +27,6 @@ resources:
 # For 火山引擎 CR the production newName looks like:
 #   cr-cn-<region>.volces.com/<namespace>/<repo>
 images:
-  - name: ghcr.io/example/sandbox
-    newName: registry.invalid/monorepo/sandbox
-    newTag: placeholder
   - name: ghcr.io/example/sandbox-runtime
     newName: registry.invalid/monorepo/sandbox-runtime
     newTag: placeholder
@@ -52,8 +48,8 @@ images:
   - name: ghcr.io/example/chat
     newName: registry.invalid/monorepo/chat
     newTag: placeholder
-  - name: ghcr.io/example/executor
-    newName: registry.invalid/monorepo/executor
+  - name: ghcr.io/example/runtime
+    newName: registry.invalid/monorepo/runtime
     newTag: placeholder
   - name: ghcr.io/example/knowledge
     newName: registry.invalid/monorepo/knowledge
@@ -81,8 +77,6 @@ patches:
     target: { kind: ConfigMap, name: canvas-config }
   - path: patches/chat-config.yaml
     target: { kind: ConfigMap, name: chat-config }
-  - path: patches/executor-config.yaml
-    target: { kind: ConfigMap, name: executor-config }
   - path: patches/telemetry-config.yaml
     target: { kind: ConfigMap, name: telemetry-config }
   - path: patches/ingress-host.yaml

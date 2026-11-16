@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-PACKAGE = ROOT / "apps/backend/services/executor/node_modules/@workflow/world-postgres"
+PACKAGE = ROOT / "apps/backend/services/runtime/node_modules/@workflow/world-postgres"
 SCRIPT = ROOT / "infra/single-vps/repair-workflow-4-to-5.sh"
 
 

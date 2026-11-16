@@ -8,7 +8,8 @@
 
 [services.yaml](../../services.yaml) 是后端 runtime、端口、公开路径、binding、数据库和 OpenAPI 产物的唯一组合声明。公开业务服务必须声明可离线重建的 OpenAPI artifact；IAM 也属于该契约链，不再由前端复制身份 DTO。目录发现只能发现代码项目，不能推导服务权限或网络连接。`check-services.py` 验证本地与部署面一致，不生成第二套部署配置。
 
-Gateway 是唯一公共 API 边缘，承担认证、CORS、限流、反向代理与 trace 传播，不承担业务聚合。Executor 保持内部访问。Platform 是唯一浏览器业务入口，通过 Module Federation 加载 remote。独立部署不等于可以任意改变共享契约。
+Gateway 是唯一公共 API 边缘，承担认证、CORS、限流、反向代理与 trace 传播，不承担业务聚合。
+Runtime 三个角色都保持内部访问，浏览器只经 Chat 产品 API 进入 Runtime。Platform 是唯一浏览器业务入口，通过 Module Federation 加载 remote。独立部署不等于可以任意改变共享契约。
 
 ## 所有权与依赖
 
@@ -31,19 +32,20 @@ Gateway 是唯一公共 API 边缘，承担认证、CORS、限流、反向代理
 
 | 能力                  | 消费者                         | 选择                                               |
 | --------------------- | ------------------------------ | -------------------------------------------------- |
-| 沙箱生命周期/命令 API | Chat → Sandbox                 | OpenAPI 契约与 transport-ts client；不共享服务源码 |
-| 原件流式读取          | Chat 的 sandbox bridge → Storage | 扩展既有 Storage transport client，沿用 scope 鉴权   |
-| 进程监督/文件传输     | Sandbox runtime                | 服务私有，不抽取通用业务库                         |
+| 沙箱生命周期/命令 API | Runtime server → sandbox role | OpenAPI 契约与 transport-ts client；不共享角色源码 |
+| 原件流式读取 | Runtime server 的 sandbox bridge → Storage | 扩展既有 Storage transport client，沿用 scope 鉴权 |
+| 进程监督/文件传输 | Runtime sandbox role | Runtime 私有，不抽取通用业务库 |
 
-Sandbox 单独持有容器/Pod 控制权限，Chat 只持内部调用凭据，Executor 无此权限。这隔开了模型/业务凭据与高权限执行控制面；部署与故障语义见 [Sandbox](../微服务/sandbox.md)。
+Runtime sandbox role 单独持有容器/Pod 控制权限，runtime-server 只持调用凭据，runtime-worker
+无此权限。这隔开了模型/业务凭据与高权限执行控制面；部署与故障语义见 [Sandbox](../微服务/sandbox.md)。
 
 ## Agent harness 的共享判断
 
 | 能力 | 真实消费者 | 决策 |
 | --- | --- | --- |
-| SDK 主循环、固定提示词组装、step 策略 | Chat 服务、Electron utility host | 共享 `apps/backend/libs/agent-runtime-ts` 实现，不维护本地专属循环 |
+| SDK 主循环、固定提示词组装、step 策略 | Runtime server、Electron utility host | 共享 `apps/backend/libs/agent-runtime-ts` 实现，不维护本地专属循环 |
 | Tool manifest、ToolOutcome、Bash 定义、审批策略 | 同上，结果由同一 Chat UI 消费 | 共享实现；环境只注入命令执行适配器，UI 不按执行位置分支 |
-| IAM、模型凭据与转发 | Chat 模型访问层、Electron relay transport | Chat 持有凭据，Electron 仅消费受限推理协议；不将身份/数据库抽进 harness |
+| IAM、模型凭据与转发 | Runtime 模型访问层、Electron relay transport | Runtime 解析服务端凭据，Electron 仅消费受限推理协议；不将身份/数据库抽进 harness |
 | 工作区与消息持久化 | 云端 Storage/PostgreSQL、本地磁盘/SQLite | 各宿主负责 I/O 和清理，保留文件与会话；不复制 Agent 决策策略 |
 
 共享包由 backend workspace 管理；Electron 通过声明的 `file:` 包依赖消费，避免 Turbo workspace 越界；只依赖 SDK 和 schema 基础设施，不引用服务、Electron 或数据库。

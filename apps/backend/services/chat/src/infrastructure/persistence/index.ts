@@ -1,32 +1,27 @@
-import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { getSettings } from "../../bootstrap/config.js";
-import * as schema from "./schema.js";
 
-type ChatDb = PostgresJsDatabase<typeof schema>;
-
-let sql: postgres.Sql | null = null;
-let db: ChatDb | null = null;
+let client: postgres.Sql | undefined;
 
 export function getSql(): postgres.Sql {
-  if (!sql) {
-    const s = getSettings();
-    sql = postgres({
-      host: s.postgresHost,
-      port: s.postgresPort,
-      user: s.postgresUser,
-      password: s.postgresPassword,
-      database: s.postgresDatabase,
+  if (!client) {
+    const settings = getSettings();
+    client = postgres({
+      host: settings.postgresHost,
+      port: settings.postgresPort,
+      user: settings.postgresUser,
+      password: settings.postgresPassword,
+      database: settings.postgresDatabase,
       max: 8,
     });
   }
-  return sql;
+  return client;
 }
 
-export function getDb(): ChatDb {
-  if (!db) {
-    db = drizzle(getSql(), { schema });
-  }
-  return db;
+export async function closeSql(): Promise<void> {
+  if (!client) return;
+  const current = client;
+  client = undefined;
+  await current.end();
 }

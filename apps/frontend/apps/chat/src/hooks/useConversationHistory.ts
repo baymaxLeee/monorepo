@@ -7,7 +7,7 @@ import {
   getConversation,
   listConversations,
 } from "@repo/api/chat";
-import { getErrorMessage } from "@repo/shared";
+import { getErrorMessage, randomId } from "@repo/shared";
 import type { UIMessage } from "ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -66,7 +66,7 @@ export function useConversationHistory() {
     creatingRef.current = true;
     setCreating(true);
     try {
-      const item = await createConversation({});
+      const item = await createConversation({ request_id: randomId() });
       if (!mounted.current) return;
       revision.current++;
       setConversations((list) => [item, ...(list ?? [])]);

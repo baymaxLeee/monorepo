@@ -22,17 +22,16 @@ class TestSettings:
             )
 
     def test_declared_callers_start_in_deployed_environment(self):
-        tokens = {"chat": "c" * 48, "executor": "e" * 48}
+        tokens = {"runtime": "r" * 48}
         assert self.settings(tokens).internal_service_tokens == tokens
 
     def test_invalid_credentials_fail_closed(self):
         invalid = [
             {},
             {"chat": "c" * 48},
-            {"chat": "c" * 48, "executor": "e" * 48, "canvas": "v" * 48},
-            {"chat": "short", "executor": "e" * 48},
-            {"chat": "c" * 48, "executor": "c" * 48},
-            {"chat": "dev-" + "c" * 48, "executor": "e" * 48},
+            {"runtime": "r" * 48, "canvas": "v" * 48},
+            {"runtime": "short"},
+            {"runtime": "dev-" + "r" * 48},
         ]
         for tokens in invalid:
             with pytest.raises(ValidationError):
@@ -44,7 +43,7 @@ class TestSettings:
             "POSTGRES_HOST": "postgres",
             "POSTGRES_PASSWORD": "test-database-password",
             "INTERNAL_API_TOKEN": "k" * 48,
-            "INTERNAL_SERVICE_TOKENS": json.dumps({"chat": "c" * 48, "executor": "e" * 48}),
+            "INTERNAL_SERVICE_TOKENS": json.dumps({"runtime": "r" * 48}),
         }
         with patch.dict(os.environ, env, clear=True), patch.dict(Settings.model_config, {"env_file": None}):
-            assert set(Settings().internal_service_tokens) == {"chat", "executor"}
+            assert set(Settings().internal_service_tokens) == {"runtime"}

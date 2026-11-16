@@ -15,7 +15,7 @@ set -euo pipefail
 
 export DB_MIGRATE_TRANSPORT=tcp
 
-SERVICES="iam admin storage canvas chat executor knowledge telemetry"
+SERVICES="iam admin storage canvas chat runtime knowledge telemetry"
 
 for svc in ${SERVICES}; do
   password_var="$(printf '%s_POSTGRES_PASSWORD' "$svc" | tr '[:lower:]' '[:upper:]')"

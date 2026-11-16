@@ -1,0 +1,159 @@
+import { randomBytes } from "node:crypto";
+
+import { and, eq } from "drizzle-orm";
+
+import type { AuthContext } from "../api/http/middleware/auth.js";
+import { forkSessionDocuments } from "../infrastructure/clients/knowledge.js";
+import { getDb } from "../infrastructure/persistence/index.js";
+import {
+  sessionArtifactCleanupOutbox,
+  sessionRunLeases,
+  sessions,
+  messages,
+} from "../infrastructure/persistence/schema.js";
+import { ConflictError, NotFoundError } from "./errors.js";
+import { forkSessionFileRows } from "./session-files.js";
+import { forkMessageContent } from "./session-fork-content.js";
+import { getSessionRow, listMessages, type Message } from "./sessions.js";
+
+export function selectForkMessages(history: Message[], messageId: string): Message[] {
+  const boundary = history.findIndex((message) => message.id === messageId);
+  if (boundary < 0) throw new NotFoundError("分支起点不存在于此会话");
+  const last = history[boundary];
+  if (last.role !== "assistant" || last.status === "streaming") throw new ConflictError("请等待该轮回复完成后创建分支");
+  return history.slice(0, boundary + 1);
+}
+
+export const sessionForkDependencies = {
+  getSessionRow,
+  listMessages,
+  forkSessionDocuments,
+  async hasActiveRun(id: string) {
+    const rows = await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, id));
+    return rows.length > 0;
+  },
+  async reserve(auth: AuthContext, id: string, now: Date) {
+    // The existing cleanup relay leases this compensation intent. If the
+    // process dies before publication, it releases the orphaned file claims.
+    await getDb().insert(sessionArtifactCleanupOutbox).values({
+      sessionId: id,
+      userId: auth.userId,
+      tenantId: auth.tenantId,
+      workspaceId: auth.workspaceId,
+      createdAt: now,
+      availableAt: now,
+      claimedAt: now,
+    });
+  },
+  async publish(
+    source: Awaited<ReturnType<typeof getSessionRow>>,
+    id: string,
+    now: Date,
+    history: Message[],
+    documentIds: Record<string, string>,
+  ) {
+    await getDb().transaction(async (tx) => {
+      // The lease INSERT trigger advances this revision under the same row lock.
+      // A run that starts AND ends during the external copy still invalidates it.
+      const [current] = await tx
+        .select({ runRevision: sessions.runRevision, historyRevision: sessions.historyRevision })
+        .from(sessions)
+        .where(eq(sessions.id, source.id))
+        .for("no key update");
+      if (
+        !current ||
+        current.runRevision !== source.runRevision ||
+        current.historyRevision !== source.historyRevision
+      ) {
+        throw new ConflictError("原会话已开始新的生成，请重试创建分支");
+      }
+      const reserved = await tx
+        .delete(sessionArtifactCleanupOutbox)
+        .where(
+          and(
+            eq(sessionArtifactCleanupOutbox.sessionId, id),
+            eq(sessionArtifactCleanupOutbox.claimedAt, now),
+            eq(sessionArtifactCleanupOutbox.attempts, 0),
+          ),
+        )
+        .returning();
+      if (!reserved.length) throw new ConflictError("分支文件准备超时，请重试");
+      const copiedIds = history.map(() => randomBytes(16).toString("hex"));
+      await tx.insert(sessions).values({
+        id,
+        userId: source.userId,
+        tenantId: source.tenantId,
+        workspaceId: source.workspaceId,
+        createRequestId: `fork:${id}`,
+        model: source.model,
+        providerId: source.providerId,
+        selectedMessageId: copiedIds.at(-1) ?? null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const fileIds = await forkSessionFileRows(tx, {
+        sourceSessionId: source.id,
+        sourceActivePlanFileId: source.activePlanFileId,
+        sessionId: id,
+        userId: source.userId,
+        tenantId: source.tenantId,
+        workspaceId: source.workspaceId,
+        now,
+      });
+      await tx.insert(messages).values(
+        history.map((message, index) => ({
+          id: copiedIds[index],
+          parentMessageId: copiedIds[index - 1] ?? null,
+          branchIndex: 0,
+          sessionId: id,
+          role: message.role,
+          content: forkMessageContent(message.content, {
+            sourceId: source.id,
+            sessionId: id,
+            messageId: message.id,
+            documentIds,
+            fileIds,
+          }),
+          status: message.status === "streaming" ? "failed" : message.status,
+          // Preserve exact transcript order even when original timestamps tie.
+          createdAt: new Date(now.getTime() - history.length + index),
+        })),
+      );
+    });
+  },
+  async release(id: string, now: Date) {
+    await getDb()
+      .update(sessionArtifactCleanupOutbox)
+      .set({ claimedAt: null })
+      .where(and(eq(sessionArtifactCleanupOutbox.sessionId, id), eq(sessionArtifactCleanupOutbox.claimedAt, now)));
+  },
+};
+
+export async function forkSession(
+  auth: AuthContext,
+  sourceId: string,
+  messageId: string,
+  deps = sessionForkDependencies,
+) {
+  const source = await deps.getSessionRow(auth, sourceId);
+  if (await deps.hasActiveRun(sourceId)) throw new ConflictError("请先停止当前生成，再创建分支");
+  const history = selectForkMessages(await deps.listMessages(sourceId), messageId);
+  const id = randomBytes(16).toString("hex");
+  const now = new Date();
+  await deps.reserve(auth, id, now);
+  try {
+    const snapshot = await deps.forkSessionDocuments({
+      sourceSessionId: sourceId,
+      sessionId: id,
+      userId: auth.userId,
+      tenantId: auth.tenantId,
+      workspaceId: auth.workspaceId,
+    });
+    await deps.publish(source, id, now, history, snapshot.document_ids);
+    return { id, source_session_id: sourceId, source_message_id: messageId };
+  } catch (error) {
+    // Failure leaves the durable intent for the relay; source data is untouched.
+    await deps.release(id, now).catch(() => {});
+    throw error;
+  }
+}

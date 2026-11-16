@@ -15,7 +15,8 @@ name: deploy-prod
 #   The cluster MUST already have:
 #     - namespace `monorepo-prod`
 #     - Secrets: gateway-secrets, iam-secrets, admin-secrets, knowledge-secrets,
-#       telemetry-secrets, chat-secrets, executor-secrets, canvas-secrets, storage-secrets, sandbox-secrets, and
+#       telemetry-secrets, chat-secrets, runtime-server-secrets,
+#       runtime-worker-secrets, runtime-sandbox-secrets, canvas-secrets, storage-secrets, and
 #       postgres-admin-secrets (migration-only managed Postgres credentials)
 #     - TLS Secret: api-tls
 #     - Nginx Ingress Controller installed
@@ -80,7 +81,7 @@ jobs:
         run: |
           REG="${{ steps.vars.outputs.registry }}"
           TAG="${{ steps.vars.outputs.tag }}"
-          for svc in gateway iam canvas admin chat knowledge telemetry executor storage sandbox sandbox-runtime web; do
+          for svc in gateway iam canvas admin chat knowledge telemetry runtime storage sandbox-runtime web; do
             kustomize edit set image \
               "ghcr.io/example/${svc}=${REG}/${svc}:${TAG}"
           done
@@ -137,11 +138,11 @@ jobs:
                 restartPolicy: Never
                 containers:
                   - name: migrate
-                    image: ${REG}/executor:${TAG}
+                    image: ${REG}/runtime:${TAG}
                     env:
                       - name: WORKFLOW_POSTGRES_URL
                         valueFrom:
-                          secretKeyRef: { name: executor-secrets, key: WORKFLOW_POSTGRES_URL }
+                          secretKeyRef: { name: runtime-worker-secrets, key: WORKFLOW_POSTGRES_URL }
                     command: ["node", "node_modules/@workflow/world-postgres/bin/setup.js"]
                     resources:
                       requests: { cpu: 50m, memory: 64Mi }
@@ -225,7 +226,7 @@ jobs:
 
       - name: Wait for rollouts
         run: |
-          for svc in gateway iam canvas admin chat knowledge telemetry executor storage sandbox web; do
+          for svc in gateway iam canvas admin chat knowledge telemetry runtime-server runtime-worker runtime-sandbox storage web; do
             kubectl -n monorepo-prod rollout status deployment/${svc} --timeout=5m
           done
 

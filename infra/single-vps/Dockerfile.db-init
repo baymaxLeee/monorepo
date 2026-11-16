@@ -38,7 +38,7 @@ RUN chmod +x /db-migrate.sh /init.sh
 COPY apps/backend/services/iam/migrations       /schema/iam/migrations
 COPY apps/backend/services/admin/migrations     /schema/admin/migrations
 COPY apps/backend/services/chat/migrations      /schema/chat/migrations
-COPY apps/backend/services/executor/migrations  /schema/executor/migrations
+COPY apps/backend/services/runtime/migrations   /schema/runtime/migrations
 COPY apps/backend/services/knowledge/migrations /schema/knowledge/migrations
 COPY apps/backend/services/telemetry/migrations /schema/telemetry/migrations
 

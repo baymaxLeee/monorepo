@@ -16,15 +16,15 @@
 #                                     ├─ admin:8001
 #                                     ├─ chat:8009
 #                                     ├─ canvas:8012
-#                                     ├─ executor:8011 (internal only)
+#                                     ├─ runtime-server:8015 (internal only)
 #                                     ├─ knowledge:8010
 #                                     └─ telemetry:8008
 #                                         ↓
 #                                    postgres + redis (internal)
 #
 # One shared Postgres instance (pgvector image) holds every service database
-# (iam / admin / canvas / chat / executor / telemetry business schemas, knowledge rows +
-# RAG vectors, and executor's Workflow DevKit World) — see docs/ADR/0029.
+# (iam / admin / canvas / chat / runtime / telemetry business schemas, knowledge rows +
+# RAG vectors, and Runtime worker's Workflow World) — see docs/ADR/0029.
 #
 # Image source: ghcr.io/<owner>/<repo>/<service>:<tag>
 # Images are built and pushed by .github/workflows/build-images.yml.
@@ -71,11 +71,11 @@ services:
     <<: *restart_policy
 
   # Single shared Postgres instance (pgvector superset image). Holds:
-  #   - `workflow`  → executor's Workflow DevKit World (@workflow/world-postgres)
+  #   - `workflow`  → Runtime worker's Workflow World (@workflow/world-postgres)
   #   - `knowledge` → knowledge service rows + RAG vectors (CREATE EXTENSION vector)
-  #   - `iam` / `admin` / `chat` / `executor` / `telemetry` → business schemas
+  #   - `iam` / `admin` / `chat` / `runtime` / `telemetry` → business schemas
   # All migrated off MySQL (docs/ADR/0029). Local dev runs the same container
-  # (root docker-compose.yml) for dev/prod parity — see docs/微服务/executor.md.
+  # (root docker-compose.yml) for dev/prod parity — see docs/微服务/runtime.md.
   postgres:
     image: pgvector/pgvector:pg16
     container_name: monorepo-postgres
@@ -149,15 +149,15 @@ services:
       IAM_POSTGRES_PASSWORD: ${IAM_POSTGRES_PASSWORD:?IAM_POSTGRES_PASSWORD is required}
       ADMIN_POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
       CHAT_POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
+      RUNTIME_POSTGRES_PASSWORD: ${RUNTIME_POSTGRES_PASSWORD:?RUNTIME_POSTGRES_PASSWORD is required}
       CANVAS_POSTGRES_PASSWORD: ${CANVAS_POSTGRES_PASSWORD:?CANVAS_POSTGRES_PASSWORD is required}
       STORAGE_POSTGRES_PASSWORD: ${STORAGE_POSTGRES_PASSWORD:?STORAGE_POSTGRES_PASSWORD is required}
-      EXECUTOR_POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
       KNOWLEDGE_POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       TELEMETRY_POSTGRES_PASSWORD: ${TELEMETRY_POSTGRES_PASSWORD:?TELEMETRY_POSTGRES_PASSWORD is required}
     restart: "no"
 
   workflow-db-init:
-    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/executor:${IMAGE_TAG:-main}
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/runtime:${IMAGE_TAG:-main}
     container_name: monorepo-workflow-db-init
     depends_on:
       postgres: { condition: service_healthy }
@@ -262,7 +262,7 @@ services:
       STORAGE_GC_INTERVAL: ${STORAGE_GC_INTERVAL:-1h}
       STORAGE_CANDIDATE_AGE: ${STORAGE_CANDIDATE_AGE:-24h}
       STORAGE_RETENTION: ${STORAGE_RETENTION:-168h}
-      INTERNAL_SERVICE_TOKENS: '{"admin":"${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_SERVICE_TOKENS: '{"admin":"${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
     volumes:
       - storage_data:/data/assets
     <<: *restart_policy
@@ -291,7 +291,7 @@ services:
       # Fernet key encrypting model_providers.api_key_enc.
       ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:?ADMIN_SECRET_KEY is required}
       INTERNAL_API_TOKEN: ${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   canvas:
@@ -319,7 +319,7 @@ services:
       POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
       INTERNAL_API_TOKEN: ${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   canvas-worker:
@@ -354,7 +354,6 @@ services:
     container_name: monorepo-chat
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
@@ -366,32 +365,53 @@ services:
       POSTGRES_USER: chat
       POSTGRES_PASSWORD: ${CHAT_POSTGRES_PASSWORD:?CHAT_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: chat
+      RUNTIME_SERVICE_URL: http://runtime:8015
+      INTERNAL_API_TOKEN: ${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}
+    <<: *restart_policy
+
+  runtime:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/runtime:${IMAGE_TAG:-main}
+    container_name: monorepo-runtime-server
+    depends_on:
+      postgres: { condition: service_healthy }
+      db-init: { condition: service_completed_successfully }
+    environment:
+      ENVIRONMENT: single-vps
+      OTEL_SERVICE_NAME: runtime
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PORT: "8015"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: runtime
+      POSTGRES_PASSWORD: ${RUNTIME_POSTGRES_PASSWORD:?RUNTIME_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: runtime
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "2"
-      # admin owns LLM credentials; chat asks it for decrypted snapshots.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
-      EXECUTOR_SERVICE_URL: http://executor:8011
-      CANVAS_SERVICE_URL: http://canvas:8012
       STORAGE_SERVICE_URL: http://storage:8013
-      SANDBOX_SERVICE_URL: http://sandbox:8014
-      INTERNAL_API_TOKEN: ${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}
+      CANVAS_SERVICE_URL: http://canvas:8012
+      RUNTIME_WORKER_URL: http://runtime-worker:8011
+      RUNTIME_SANDBOX_URL: http://runtime-sandbox:8014
+      INTERNAL_API_TOKEN: ${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}
+      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}"}'
       TOOL_APPROVAL_SECRET: ${TOOL_APPROVAL_SECRET:?TOOL_APPROVAL_SECRET is required}
       EXA_API_KEY: ${EXA_API_KEY:?EXA_API_KEY is required}
-      # Optional fallback provider; chat runs on Exa alone if unset.
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      RUNTIME_AGENT_LEASE_SECONDS: "30"
     <<: *restart_policy
 
-  sandbox:
-    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/sandbox:${IMAGE_TAG:-main}
-    container_name: monorepo-sandbox
+  runtime-sandbox:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/runtime:${IMAGE_TAG:-main}
+    container_name: monorepo-runtime-sandbox
+    command: ["node", "--import", "tsx", "src/cmd/sandbox/main.ts"]
     depends_on:
       sandbox-proxy: { condition: service_started }
     environment:
       ENVIRONMENT: single-vps
       PORT: "8014"
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
       SANDBOX_BACKEND: docker
       SANDBOX_RUNTIME: runsc
       SANDBOX_IMAGE: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/sandbox-runtime:${IMAGE_TAG:-main}
@@ -428,25 +448,25 @@ services:
     security_opt: [no-new-privileges:true]
     <<: *restart_policy
 
-  executor:
-    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/executor:${IMAGE_TAG:-main}
-    container_name: monorepo-executor
+  runtime-worker:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/runtime:${IMAGE_TAG:-main}
+    container_name: monorepo-runtime-worker
+    command: ["node", ".output/server/index.mjs"]
     depends_on:
       postgres: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
       workflow-db-init: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
-      OTEL_SERVICE_NAME: executor
+      OTEL_SERVICE_NAME: runtime-worker
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8011"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
-      POSTGRES_USER: executor
-      POSTGRES_PASSWORD: ${EXECUTOR_POSTGRES_PASSWORD:?EXECUTOR_POSTGRES_PASSWORD is required}
-      POSTGRES_DATABASE: executor
-      # No default World here (unlike executor/.env.example's commented-out
-      # local-dev hint): a deployed environment MUST use the durable Postgres
+      POSTGRES_USER: runtime
+      POSTGRES_PASSWORD: ${RUNTIME_POSTGRES_PASSWORD:?RUNTIME_POSTGRES_PASSWORD is required}
+      POSTGRES_DATABASE: runtime
+      # A deployed environment MUST use the durable Postgres
       # World, never the filesystem-backed Local World (it isn't shared
       # across replicas or container restarts).
       WORKFLOW_TARGET_WORLD: "@workflow/world-postgres"
@@ -454,8 +474,8 @@ services:
       WORKFLOW_POSTGRES_WORKER_CONCURRENCY: "20"
       WORKFLOW_POSTGRES_MAX_POOL_SIZE: "24"
       FILE_TASK_CONCURRENCY: "8"
-      INTERNAL_API_TOKEN: ${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_API_TOKEN: ${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
       # Provider calls (SSRF-guarded); knowledge owns the published document.
       ADMIN_SERVICE_URL: http://admin:8001
       KNOWLEDGE_SERVICE_URL: http://knowledge:8010
@@ -480,7 +500,7 @@ services:
       ADMIN_SERVICE_URL: http://admin:8001
       STORAGE_SERVICE_URL: http://storage:8013
       INTERNAL_API_TOKEN: ${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"chat":"${CHAT_INTERNAL_API_TOKEN:?CHAT_INTERNAL_API_TOKEN is required}","executor":"${EXECUTOR_INTERNAL_API_TOKEN:?EXECUTOR_INTERNAL_API_TOKEN is required}"}'
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   telemetry:

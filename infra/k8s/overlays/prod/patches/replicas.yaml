@@ -30,7 +30,21 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: executor
+  name: runtime-server
+spec:
+  replicas: 2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runtime-worker
+spec:
+  replicas: 2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runtime-sandbox
 spec:
   replicas: 2
 ---

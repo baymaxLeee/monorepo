@@ -15,11 +15,24 @@ function git(root, ...args) {
   if (result.status !== 0) throw new Error(result.stderr || `git ${args[0]} failed`);
   return result.stdout.trim();
 }
-function snapshot(root) {
+async function snapshot(root) {
   const hash = createHash("sha256");
   hash.update(git(root, "rev-parse", "HEAD"));
-  hash.update(git(root, "diff", "--binary", "HEAD", "--"));
-  hash.update(git(root, "diff", "--cached", "--binary", "--"));
+  // Stream patches into the digest: repository refactors can exceed spawnSync's buffer.
+  for (const args of [
+    ["diff", "--binary", "HEAD", "--"],
+    ["diff", "--cached", "--binary", "--"],
+  ]) {
+    await new Promise((resolve, reject) => {
+      const child = spawn("git", args, { cwd: root, stdio: ["ignore", "pipe", "inherit"] });
+      child.stdout.on("data", (chunk) => hash.update(chunk));
+      child.on("error", reject);
+      child.on("close", (code, signal) => {
+        if (code === 0) resolve();
+        else reject(new Error(`git diff failed (${signal ?? code})`));
+      });
+    });
+  }
   for (const path of git(root, "ls-files", "--others", "--exclude-standard", "-z").split("\0").filter(Boolean)) {
     hash.update(path);
     hash.update(readFileSync(resolve(root, path)));
@@ -346,7 +359,7 @@ export async function verify(root, baseRef, preview = false, includeImages = fal
   const save = () => writeFileSync(reportPath, JSON.stringify(report, null, 2), { mode: 0o600 });
   try {
     save();
-    const before = snapshot(root);
+    const before = await snapshot(root);
     for (const step of steps) {
       report.activeStep = step[0];
       save();
@@ -359,7 +372,8 @@ export async function verify(root, baseRef, preview = false, includeImages = fal
           `${step[0]} failed; fix the cause and rerun just ${includeImages ? "ci-release" : "ci"} ${baseRef}. Log: ${log}`,
         );
     }
-    if (before !== snapshot(root)) throw new Error("Files changed during verification; review changes and rerun");
+    if (before !== (await snapshot(root)))
+      throw new Error("Files changed during verification; review changes and rerun");
     report.status = "passed";
     report.activeStep = null;
   } catch (error) {

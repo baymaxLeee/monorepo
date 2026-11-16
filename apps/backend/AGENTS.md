@@ -59,7 +59,7 @@ and record high-risk extraction decisions before moving code.
 - Gateway owns the public edge: routing, auth boundary, CORS, rate limiting,
   request logging, reverse proxying, and trace propagation.
 - `X-Trace-Id` is canonical; do not introduce `X-Request-Id`.
-- `executor` remains internal-only unless an ADR changes that decision.
+- `runtime` remains internal-only; its server, worker and sandbox roles are never public gateway targets.
 
 ### Resource boundaries
 

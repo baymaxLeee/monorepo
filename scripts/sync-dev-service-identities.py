@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Migrate and validate local development service identity credentials.
 
-Only the retired shared development placeholder is rewritten automatically.
+Only known retired development placeholders and topology maps are rewritten automatically.
 Explicit custom credentials are preserved and must already agree across caller
 and receiver .env files.
 """
@@ -21,20 +21,24 @@ DEFAULT_CALLER_TOKENS = {
     "admin": "dev-admin-internal-token",
     "canvas": "dev-canvas-internal-token",
     "chat": "dev-chat-internal-token",
-    "executor": "dev-executor-internal-token",
     "knowledge": "dev-knowledge-internal-token",
+    "runtime": "dev-runtime-internal-token",
 }
 RECEIVER_CALLERS = {
+    "admin": ("canvas", "knowledge", "runtime"),
+    "canvas": ("runtime",),
+    "knowledge": ("runtime",),
+    "runtime": ("chat",),
+    "runtime-worker": ("runtime",),
+    "runtime-sandbox": ("runtime",),
+    "storage": ("admin", "canvas", "knowledge", "runtime"),
+}
+# Exact pre-Runtime defaults, not a general permission to rewrite caller maps.
+LEGACY_RECEIVER_CALLERS = {
     "admin": ("canvas", "chat", "executor", "knowledge"),
     "canvas": ("chat",),
-    "executor": ("chat",),
     "knowledge": ("chat", "executor"),
     "storage": ("admin", "canvas", "chat", "executor", "knowledge"),
-    "sandbox": ("chat",),
-}
-RETIRED_RECEIVER_CALLERS = {
-    "canvas": ("executor",),
-    "executor": ("canvas", "knowledge"),
 }
 ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 
@@ -62,7 +66,10 @@ def set_value(lines: list[str], key: str, value: str) -> list[str]:
 
 
 def local_envs() -> dict[str, Path]:
-    return {service: SERVICE_ROOT / service / ".env" for service in set(DEFAULT_CALLER_TOKENS) | set(RECEIVER_CALLERS)}
+    paths = {service: SERVICE_ROOT / service / ".env" for service in set(DEFAULT_CALLER_TOKENS) | set(RECEIVER_CALLERS)}
+    for role in ("worker", "sandbox"):
+        paths[f"runtime-{role}"] = SERVICE_ROOT / "runtime" / f".env.{role}"
+    return paths
 
 
 def migrate_legacy_tokens(paths: dict[str, Path]) -> None:
@@ -129,15 +136,13 @@ def sync_receiver_maps(paths: dict[str, Path], caller_tokens: dict[str, str], fi
         except json.JSONDecodeError:
             errors.append(f"{path.relative_to(ROOT)} has invalid INTERNAL_SERVICE_TOKENS JSON")
             continue
-        retired = {
-            caller: caller_tokens[caller] for caller in RETIRED_RECEIVER_CALLERS.get(receiver, ()) if caller in actual
-        }
-        if fix and retired and actual == {**expected, **retired}:
-            set_value(lines, "INTERNAL_SERVICE_TOKENS", json.dumps(expected, separators=(",", ":")))
-            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            print(f"  removed retired callers from {path.relative_to(ROOT)}")
-            continue
         if actual != expected:
+            legacy = {caller: f"dev-{caller}-internal-token" for caller in LEGACY_RECEIVER_CALLERS.get(receiver, ())}
+            if fix and legacy and actual == legacy:
+                set_value(lines, "INTERNAL_SERVICE_TOKENS", json.dumps(expected, separators=(",", ":")))
+                path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                print(f"  migrated Runtime caller map in {path.relative_to(ROOT)}")
+                continue
             errors.append(f"{path.relative_to(ROOT)} INTERNAL_SERVICE_TOKENS does not match current caller credentials")
     return errors
 
@@ -154,6 +159,13 @@ def main() -> int:
     if args.fix:
         migrate_legacy_tokens(paths)
     caller_tokens, errors = current_caller_tokens(paths)
+    worker = paths["runtime-worker"]
+    if worker.is_file():
+        _, values = read_env(worker)
+        if values.get("ENVIRONMENT", "development") == "development" and values.get(
+            "INTERNAL_API_TOKEN", DEFAULT_CALLER_TOKENS["runtime"]
+        ) != caller_tokens.get("runtime"):
+            errors.append(f"{worker.relative_to(ROOT)} INTERNAL_API_TOKEN must match the Runtime workload credential")
     errors.extend(sync_receiver_maps(paths, caller_tokens, args.fix))
     if errors:
         for error in errors:

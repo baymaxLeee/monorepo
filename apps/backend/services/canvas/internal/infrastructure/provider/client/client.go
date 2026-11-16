@@ -100,7 +100,7 @@ func (c *client) runtime(ctx context.Context, providerID, expectedKind string, t
 	return arkruntime.NewClientWithApiKey(provider.APIKey, arkruntime.WithBaseUrl(arkAPIRoot(provider.BaseURL)), arkruntime.WithRetryTimes(0)), provider.Model, nil
 }
 
-// arkAPIRoot mirrors Admin's provider connectivity test and Executor's Ark
+// arkAPIRoot mirrors Admin's provider connectivity test and Runtime worker's Ark
 // adapter. Admin accepts both an API root and a concrete resource URL; the SDK
 // always appends its own resource path, so retaining the suffix would produce
 // paths such as /images/generations/images/generations.

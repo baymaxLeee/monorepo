@@ -8,7 +8,7 @@ if [ "$#" -ne 0 ]; then
     exit 1
 fi
 
-for container in monorepo-executor monorepo-workflow-db-init; do
+for container in monorepo-runtime-worker monorepo-workflow-db-init; do
     running=$(docker inspect --format '{{.State.Running}}' "$container")
     if [ "$running" = true ]; then
         echo "Stop $container before repair; keep deployment jobs paused during repair." >&2

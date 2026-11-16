@@ -31,7 +31,7 @@ test("passes streaming uploads through without materializing the body", async ()
     const client = new StorageInternalClient({
       baseUrl: "http://storage.internal",
       internalToken: "secret",
-      callerService: "executor",
+      callerService: "runtime",
     });
     await client.upload({
       tenantId: "tenant",

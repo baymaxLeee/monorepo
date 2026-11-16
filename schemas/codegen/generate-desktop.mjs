@@ -5,7 +5,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const source = await readFile(resolve(root, "schemas/desktop/inference.ts"), "utf8");
 const generated = `// Generated from schemas/desktop/inference.ts by just sync. Do not edit.\n${source}`;
 for (const path of [
-  "apps/backend/services/chat/src/application/inference/generated/inference.ts",
+  "apps/backend/services/runtime/src/application/inference/generated/inference.ts",
   "apps/frontend/apps/desktop/contracts/inference.generated.ts",
 ]) {
   const destination = resolve(root, path);

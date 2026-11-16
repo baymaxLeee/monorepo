@@ -39,6 +39,7 @@ coverage/
 .env
 .env.*
 !.env.example
+!apps/backend/services/runtime/.env.*.example
 # age private keys (single-VPS SOPS: VPS key stays on the VPS, recovery key
 # stays offline). The *.sops.env files ARE committed on purpose — encrypted.
 age.key

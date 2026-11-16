@@ -30,10 +30,10 @@ spec:
             - { name: http, containerPort: 8009 }
           envFrom:
             - configMapRef: { name: chat-config }
-            - secretRef:    { name: chat-secrets }
+            - secretRef: { name: chat-secrets }
           resources:
-            requests: { cpu: 100m,  memory: 128Mi }
-            limits:   { cpu: 500m,  memory: 512Mi }
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
           livenessProbe:
             httpGet: { path: /livez, port: http }
             initialDelaySeconds: 5

@@ -9,14 +9,10 @@ import { createApp } from "./bootstrap/app.js";
 import { getSettings } from "./bootstrap/config.js";
 import { bootstrapChat } from "./bootstrap/runtime.js";
 import { logger } from "./infrastructure/observability/logger.js";
-import { closeRedisClient } from "./infrastructure/redis/index.js";
+import { closeSql } from "./infrastructure/persistence/index.js";
 
 configureOpenTelemetry("chat");
-
-const app = createApp();
-const { port } = getSettings();
-
-serve({ fetch: app.fetch, port }, (info) => {
+serve({ fetch: createApp().fetch, port: getSettings().port }, (info) => {
   logger.info({ port: info.port }, "listening");
 });
 
@@ -24,6 +20,6 @@ void bootstrapChat().catch(() => undefined);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
-    void Promise.allSettled([closeRedisClient(), shutdownOpenTelemetry()]).finally(() => process.exit(0));
+    void Promise.allSettled([closeSql(), shutdownOpenTelemetry()]).finally(() => process.exit(0));
   });
 }

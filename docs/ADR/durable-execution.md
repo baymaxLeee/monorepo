@@ -1,66 +1,33 @@
-# 当前决策：耐久任务与视频工作流
+# 当前决策：Runtime durable Job 与视频工作流
 
-状态：当前。Executor 执行可恢复任务，Chat 保持交互意图与生成规划。
+状态：当前。Runtime worker 执行可恢复 Job；Runtime server 的交互 `ToolLoopAgent` 不进入 Workflow。
 
 ## 执行边界
 
-Executor 使用 Workflow 5 和自建 Postgres World。业务 task/projection 在服务库，
-step、重放和执行事件在独立 Workflow 库；调用者不读取这两个库。启动先完成
-数据库/World 初始化，再恢复运行任务、清理任务和待处理审批。
+`runtime-worker` 使用 Workflow 5 和自管理 Postgres World。它不是独立子项目：HTTP、task/video application、domain 与 persistence 都在 Runtime 顶层四层结构中，只有启动和 Nitro 装配位于 `src/cmd/worker`。task/video projection 在 Runtime 业务库，step、replay 与引擎事件在独立 `workflow` database。Runtime server 只能通过 role transport 使用 worker API，不能读取 World 表。
 
-`POST /tasks` 按 owner identity 幂等启动；task read 提供快照，cancel 请求持久化
-取消并执行 task 类型自己的补偿。`GET /tasks/:id/stream` 是内部鉴权 SSE：
-连接先返回当前快照，Workflow durable stream 仅作唤醒信号，route 重读业务表。
-run completion 与进度 stream 独立收口，stream EOF 不能推断业务成功。
+`POST /tasks` 按 `owner_service=runtime + owner_ref` 幂等受理，并将该 owner 同时绑定 task type 与规范化 payload；同 owner 异参失败。task read 返回业务快照，cancel 先持久化再执行 task 类型补偿。`GET /tasks/:id/stream` 是 Runtime 内部 SSE：连接先返回当前快照，durable stream 仅作唤醒，route 重读业务表。stream EOF 不能推断业务成功。
 
-消费者中断后重连同一 SSE，不增加 task-wait polling fallback，不回调 Chat，
-不新增浏览器进度协议或通用消息 broker。业务真相保留在各服务自己的表。
+当前 task registry 只包含图片和视频生成。Canvas 自有异步作业仍由 Canvas Worker 执行；Knowledge ingest 仍属于 Knowledge。统一 Agent Runtime 不等于接管所有服务的后台任务。
 
-注册种类以[registry](../../apps/backend/services/executor/src/application/tasks/registry.ts)
-为准，当前仅包括图片生成和视频生成。Canvas 的生成、删除、归档、
-视频拆帧和其他定制异步任务由 Canvas Worker 从 Canvas 数据库领取；Executor
-不注册 Canvas task type，也不回调 Canvas worker HTTP 路由。Knowledge 文档转换与
-索引在 Knowledge 请求内同步完成，不经过 Executor。
+## Workflow 与外部副作用
 
-## 工作流与外部副作用
+`use workflow` orchestrator 只处理可重放控制流，Node I/O、provider 调用和跨服务请求放入 `use step`。生产与开发都使用 Nitro/Workflow 构建入口；不维护平行的自制 workflow host。
 
-`use workflow` orchestrator 只处理可重放数据与流程，Node I/O、provider 调用及
-跨服务请求放入 `use step`，防止依赖进入 Workflow sandbox。开发路径先做一次
-Workflow 编译再由 Hono/tsx 托管；生产由 Nitro 构建。两者使用 Workflow 5 的
-合并 flow handler 和 webhook，不能重新增加旧 step handler。
+`run.cancel()` 不能自动撤销 provider 已产生的付费效果。外部 task ID 必须持久化，付费 create 默认不自动重试；只有远端幂等或可查询契约才能安全恢复。取消先落库，清理失败保留 cleanup responsibility，不复活任务。
 
-`run.cancel()` 使执行态终止，但不能自动撤销 provider 的付费任务。外部任务 ID
-必须持久化，长调用观察取消，task type 注册补偿；取消先落库，再清理，清理失败
-不复活任务。`WorkflowRunCancelledError` 与普通失败区别处理。
+task admission 与 Workflow `start()` 不是跨数据库事务。业务 task row 先作为持久 dispatch intent 落库；`start()` 超时或异常保持 queued，由周期 reconciler 重试。每个候选 run 在任何业务/付费副作用前通过 `claimTaskStep` 原子绑定 task，未取得 claim 的重复 run 失败并被取消。该模式允许多建无副作用的候选 run，不声称 World 与业务库 exactly-once；告警与积压监控必须覆盖长期 queued admission。
 
-## 媒体生成业务
+普通问答、Bash、artifact、workspace 保存和普通审批都由 runtime-server inline ToolLoop 执行。只有必须跨 Turn、进程、部署或长等待继续的 detached Job 才进入 Workflow。工具收到稳定 Job ID 即表示“已受理”，不表示生成已完成；当前 Turn 可以继续或结束。
 
-Chat 的图片和视频工具只负责提交 durable task；`POST /tasks` 返回后 tool execution
-立即完成，不订阅任务 SSE、不等待 provider、分镜、审批或最终媒体。这里的“工具完成”
-表示 Executor 已受理，不表示生成成功。任务状态与结果由 Executor API 和业务工作台
-独立读取；用户停止当前 Chat run 不取消已经受理的后台任务。
+## 媒体生成
 
-图片批次由 Executor Workflow 串行调用 provider，并将成功结果写入 Storage/Knowledge。
-付费图片调用不自动重试，避免在响应丢失时重复扣费；批次进度与最终结果写入 task。
+Runtime server 的图片/视频工具提交 durable task。图片 Workflow 调用 provider 并把成功结果写入 Storage/Knowledge。视频 Workflow 管理创作规划、分镜/预算投影、审批、付费生成、Take 审核、合成、确定性 QA、暂存与发布；审批先持久化 action ID、payload 与 projection version，再恢复 Workflow Hook。相同 action ID 只接受相同 payload，Worker 重启后仍恢复同一 run。
 
-Chat 提交完整创作规划；Executor 管理分镜/预算投影、审批、付费生成、Take 审核、
-合成、确定性 QA、暂存与发布。审批绑定投影版本，修改使旧审批失效，Workflow
-Hook 恢复同一耐久 run。创建工具在任务受理后立即返回稳定的 task/production ID，
-不等待初始规划或完整视频生命周期，因此 Agent tool-loop 可以继续。
+输入/输出流式处理并使用临时文件，持久 bytes 进入 Storage，Runtime projection 只保存 revision 引用。确定性 QA 不替代语义审核；需要人工判断的发布继续保留业务审批。
 
-付费 create 不自动重试：响应丢失可能意味着 provider 已创建任务。记录 reservation
-与 provider 标识，只有有幂等/查询契约时才安全恢复。确定性 QA 不等于语义质量
-判断；需人工判断的发布要求保留业务审批。视频输入/输出流式处理并使用临时文件，
-持久 bytes 进入 Asset，业务投影引用 revision。
+## 实现与验证
 
-## 取舍与验证
+入口：[task routes](../../apps/backend/services/runtime/src/api/http/routes/tasks.ts)、[service](../../apps/backend/services/runtime/src/application/tasks/service.ts)、[worker bootstrap](../../apps/backend/services/runtime/src/bootstrap/worker-runtime.ts)、[Nitro app entry](../../apps/backend/services/runtime/src/cmd/worker/app.ts)、[local worker entry](../../apps/backend/services/runtime/src/cmd/worker/main.ts)、[workflows](../../apps/backend/services/runtime/workflows)。生产从同一 Runtime image 启动 `.output/server/index.mjs`；不使用 `RUNTIME_ROLE`，也不恢复 `/runtime/worker` 子包。
 
-复用 Workflow 持久执行避免第二套 worker/lease 调度器；业务幂等、授权、付费
-边界和补偿仍由服务负责。程序挂掉与用户显式 Stop 对任务的影响不同。
-
-入口：[task routes](../../apps/backend/services/executor/src/api/http/routes/tasks.ts)、
-[service](../../apps/backend/services/executor/src/application/tasks/service.ts)、
-[bootstrap](../../apps/backend/services/executor/src/bootstrap/runtime.ts)、
-[workflows](../../apps/backend/services/executor/workflows)。
-验证：`just test backend/executor`、受影响调用者测试和 Executor build；持久恢复、
-重复通知、取消补偿与审批恢复需真实 Workflow/数据库集成证据。
+验证至少运行 `just test backend/runtime` 与 `just build runtime`。持久恢复、重复 step、取消补偿、审批恢复和 World 数据库故障必须有真实 Workflow/PostgreSQL 证据；单元 mock 与类型检查不能证明 durable 语义。

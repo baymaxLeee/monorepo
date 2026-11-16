@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: runtime-worker
+spec:
+  selector: { app: runtime-worker }
+  ports:
+    - { name: http, port: 8011, targetPort: http }

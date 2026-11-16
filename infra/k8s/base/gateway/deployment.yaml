@@ -32,10 +32,10 @@ spec:
             - { name: http, containerPort: 8000 }
           envFrom:
             - configMapRef: { name: gateway-config }
-            - secretRef:    { name: gateway-secrets }
+            - secretRef: { name: gateway-secrets }
           resources:
-            requests: { cpu: 100m,  memory: 128Mi }
-            limits:   { cpu: 1000m, memory: 512Mi }
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 1000m, memory: 512Mi }
           # Liveness only checks the HTTP server itself. Failure RESTARTS
           # the pod, so we never tie it to Redis health.
           livenessProbe:

@@ -3,11 +3,11 @@ set shell := ["bash", "-cu"]
 
 # Service registry (Python / Node / Go services and their fixed dev ports)
 PY_SERVICES := "admin knowledge telemetry"
-NODE_SERVICES := "chat executor sandbox"
+NODE_SERVICES := "chat runtime"
 GO_SERVICES := "gateway iam canvas storage"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
-PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"executor":8011,"canvas":8012,"storage":8013,"sandbox":8014}'
+PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"canvas":8012,"storage":8013,"runtime":8015}'
 
 default:
     @just --list
@@ -101,7 +101,7 @@ build-image service registry="local" tag="latest":
     fi
     @echo "✓ {{ registry }}/{{ service }}:{{ tag }}"
 
-# Build images for all services and the sandbox execution runtime.
+# Build images for all services and the sandbox guest/proxy assets.
 build-images registry="local" tag="latest":
     @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} {{ GO_SERVICES }}; do \
         just build-image $s {{ registry }} {{ tag }} || exit 1; \
@@ -157,7 +157,12 @@ lint-go:
 gen-openapi service:
     @echo "→ Exporting OpenAPI for {{ service }}..."
     @out="{{ service }}-server"; \
-    if [ -f "services/{{ service }}/cmd/openapi/main.go" ]; then \
+    if [ "{{ service }}" = "runtime" ]; then \
+        cd services/runtime && \
+        pnpm exec tsx src/cmd/server/openapi.ts > ../../../../schemas/openapi/runtime-server.json && \
+        pnpm exec tsx src/cmd/worker/openapi.ts > ../../../../schemas/openapi/runtime-worker.json && \
+        pnpm exec tsx src/cmd/sandbox/openapi.ts > ../../../../schemas/openapi/runtime-sandbox.json; \
+    elif [ -f "services/{{ service }}/cmd/openapi/main.go" ]; then \
         cd services/{{ service }} && go run ./cmd/openapi > ../../../../schemas/openapi/$out.json; \
     elif [ -f "services/{{ service }}/package.json" ]; then \
         cd services/{{ service }} && pnpm exec tsx src/gen-openapi.ts > ../../../../schemas/openapi/$out.json; \
@@ -170,7 +175,8 @@ gen-openapi service:
     echo "✓ schemas/openapi/$out.json"
 
 gen-openapi-all:
-    @for s in {{ PY_SERVICES }} {{ NODE_SERVICES }} iam canvas storage; do just gen-openapi $s; done
+    @just gen-openapi runtime
+    @for s in {{ PY_SERVICES }} chat iam canvas storage; do just gen-openapi $s; done
 
 gen-transport-ts:
     cd libs/transport-ts && pnpm install && pnpm run codegen

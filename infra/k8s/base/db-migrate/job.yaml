@@ -36,8 +36,8 @@ spec:
               valueFrom: { secretKeyRef: { name: canvas-secrets, key: POSTGRES_PASSWORD } }
             - name: CHAT_POSTGRES_PASSWORD
               valueFrom: { secretKeyRef: { name: chat-secrets, key: POSTGRES_PASSWORD } }
-            - name: EXECUTOR_POSTGRES_PASSWORD
-              valueFrom: { secretKeyRef: { name: executor-secrets, key: POSTGRES_PASSWORD } }
+            - name: RUNTIME_POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: runtime-server-secrets, key: POSTGRES_PASSWORD } }
             - name: KNOWLEDGE_POSTGRES_PASSWORD
               valueFrom: { secretKeyRef: { name: knowledge-secrets, key: POSTGRES_PASSWORD } }
             - name: TELEMETRY_POSTGRES_PASSWORD

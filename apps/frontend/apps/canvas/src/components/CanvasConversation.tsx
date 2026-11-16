@@ -1,7 +1,8 @@
 import { ChatSession, ChatWorkspacePanel } from "@repo/ai-elements/conversation";
 import { createCanvasConversation } from "@repo/api/chat";
 import { Button } from "@repo/design-system";
-import { useEffect, useState } from "react";
+import { randomId } from "@repo/shared";
+import { useEffect, useMemo, useState } from "react";
 export function CanvasConversation({
   projectId,
   canvasId,
@@ -15,12 +16,13 @@ export function CanvasConversation({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const createRequestId = useMemo(() => randomId(), [projectId, canvasId]);
   useEffect(() => {
     let active = true;
     setLoading(true);
     setFailed(false);
     setConversationId(null);
-    void createCanvasConversation({ project_id: projectId, canvas_id: canvasId })
+    void createCanvasConversation({ request_id: createRequestId, project_id: projectId, canvas_id: canvasId })
       .then((conversation) => {
         if (active) setConversationId(conversation.id);
       })
@@ -33,7 +35,7 @@ export function CanvasConversation({
     return () => {
       active = false;
     };
-  }, [projectId, canvasId, attempt]);
+  }, [projectId, canvasId, attempt, createRequestId]);
   if (loading) return <div className="p-4 text-sm text-muted-foreground">读取会话…</div>;
   if (failed)
     return (

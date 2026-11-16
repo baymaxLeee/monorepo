@@ -30,10 +30,10 @@ spec:
             - { name: http, containerPort: 8008 }
           envFrom:
             - configMapRef: { name: telemetry-config }
-            - secretRef:    { name: telemetry-secrets }
+            - secretRef: { name: telemetry-secrets }
           resources:
-            requests: { cpu: 100m,  memory: 128Mi }
-            limits:   { cpu: 500m,  memory: 512Mi }
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
           livenessProbe:
             httpGet: { path: /livez, port: http }
             initialDelaySeconds: 5

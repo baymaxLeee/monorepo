@@ -109,8 +109,8 @@ def validate_schema(services: dict[str, dict[str, Any]]) -> None:
         if openapi is not None and not (ROOT / openapi).is_file():
             fail(f"{service_id}: openapi path missing: {openapi}")
 
-    if services["executor"]["publicRoutes"]:
-        fail("executor must remain internal-only")
+    if services["runtime"]["publicRoutes"]:
+        fail("runtime must remain internal-only")
     if services["gateway"]["publicRoutes"] != ["/*"]:
         fail("gateway must be the sole catch-all public edge")
 

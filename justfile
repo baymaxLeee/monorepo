@@ -79,7 +79,8 @@ dev-shell:
 
 dev-urls:
     @echo "  storage:    http://localhost:8013/healthz"
-    @echo "  sandbox:  http://localhost:8014/healthz"
+    @echo "  runtime-sandbox: http://localhost:8014/healthz"
+    @echo "  runtime-server:  http://localhost:8015/healthz"
     @echo "  canvas: http://localhost:8012/healthz; mfe-canvas: http://localhost:3006"
     @echo "  platform:  http://localhost:3000"
     @echo "  mfe-admin: http://localhost:3001"
@@ -88,7 +89,7 @@ dev-urls:
     @echo "  telemetry: http://localhost:8008/healthz"
     @echo "  iam:      http://localhost:8002/healthz"
     @echo "  knowledge: http://localhost:8010/healthz"
-    @echo "  executor:  http://localhost:8011/healthz"
+    @echo "  runtime-worker:  http://localhost:8011/healthz"
     @echo "  svc-admin: http://localhost:8001/docs"
     @echo "  svc-chat:  http://localhost:8009/docs"
 
@@ -127,7 +128,7 @@ publish-images-local target tag *args:
 
 # Build the ephemeral sandbox execution image used by Docker and Kubernetes.
 build-sandbox-runtime registry="local" tag="latest":
-    docker build -t {{ registry }}/sandbox-runtime:{{ tag }} -f apps/backend/services/sandbox/runtime/Dockerfile .
+    docker build -t {{ registry }}/sandbox-runtime:{{ tag }} -f apps/backend/services/runtime/sandbox-assets/runtime/Dockerfile .
 
 # ─── Cross-stack ────────────────────────────────────────────
 sync:
@@ -299,8 +300,8 @@ doctor:
 
 # Build the policy-enforcing sandbox egress proxy.
 build-sandbox-proxy registry="local" tag="latest":
-    docker build -t {{registry}}/sandbox-proxy:{{tag}} -f apps/backend/services/sandbox/proxy/Dockerfile .
+    docker build -t {{registry}}/sandbox-proxy:{{tag}} -f apps/backend/services/runtime/sandbox-assets/proxy/Dockerfile .
 
 # Requires Docker and prebuilt runtime/proxy images; executes real isolated commands.
 test-sandbox-integration:
-    pnpm --dir apps/backend --filter sandbox run test:integration
+    pnpm --dir apps/backend --filter runtime run test:sandbox-integration

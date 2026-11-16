@@ -1,0 +1,186 @@
+import { and, eq, inArray, lte } from "drizzle-orm";
+
+import { logger } from "../../../infrastructure/observability/logger.js";
+import { getDb } from "../../../infrastructure/persistence/index.js";
+import { sessionRunLeases } from "../../../infrastructure/persistence/schema.js";
+import { ConflictError } from "../../errors.js";
+import { deactivateAgentStream } from "../streams/service.js";
+import {
+  finishAgentRun,
+  getAgentRunById,
+  interruptRuns,
+  listOrphanedRuns,
+  requestAgentRunCancellation,
+  RUN_LEASE_MS,
+} from "./repository.js";
+import { markSandboxExecutionsReleasing, reconcileSandboxExecutions } from "./sandbox-executions.js";
+
+const controllers = new Map<string, AbortController>();
+const completions = new Map<string, { promise: Promise<void>; resolve: () => void }>();
+const heartbeats = new Map<string, ReturnType<typeof setInterval>>();
+const cancellationPolls = new Map<string, ReturnType<typeof setInterval>>();
+const CANCELLATION_POLL_MS = 1_000;
+const CANCELLATION_WAIT_MS = 30_000;
+const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
+
+export async function acquireRunLease(sessionId: string, runId: string): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  // Reap expired leases, verify no active lease, and claim in one transaction so
+  // the read-then-write is atomic (Drizzle rolls back on any throw). A lost race
+  // rolls back the reap too; the next acquire re-reaps — expired rows are inert.
+  const expired = await db.transaction(async (tx) => {
+    const expiredLeases = await tx
+      .select()
+      .from(sessionRunLeases)
+      .where(and(eq(sessionRunLeases.sessionId, sessionId), lte(sessionRunLeases.expiresAt, now)));
+    await tx
+      .delete(sessionRunLeases)
+      .where(and(eq(sessionRunLeases.sessionId, sessionId), lte(sessionRunLeases.expiresAt, now)));
+    const [active] = await tx.select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, sessionId));
+    if (active) {
+      throw new ConflictError("this session already has an active run", "active_run_exists", {
+        run_id: active.runId,
+      });
+    }
+    try {
+      await tx.insert(sessionRunLeases).values({
+        sessionId,
+        runId,
+        heartbeatAt: now,
+        expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
+      });
+    } catch {
+      throw new ConflictError("this session already has an active run", "active_run_exists");
+    }
+    return expiredLeases;
+  });
+  // Cross-table run finalization for the leases we just reclaimed runs outside
+  // the lease transaction — a slow/failed run update must not widen the window.
+  await Promise.all(
+    expired.map((lease) => finishAgentRun({ runId: lease.runId, status: "interrupted" }).catch(() => undefined)),
+  );
+}
+
+export function registerRunController(runId: string): AbortSignal {
+  const controller = new AbortController();
+  controllers.set(runId, controller);
+  let resolve: () => void = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  completions.set(runId, { promise, resolve });
+  heartbeats.set(
+    runId,
+    setInterval(() => {
+      const now = new Date();
+      void getDb()
+        .update(sessionRunLeases)
+        .set({
+          heartbeatAt: now,
+          expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
+        })
+        .where(eq(sessionRunLeases.runId, runId))
+        .catch((error) => logger.error({ err: error }, "run lease heartbeat failed"));
+    }, 60_000),
+  );
+  cancellationPolls.set(
+    runId,
+    setInterval(() => {
+      void getAgentRunById(runId)
+        .then((run) => {
+          if (run?.status === "cancel_requested") {
+            controller.abort(new DOMException("agent run cancelled", "AbortError"));
+          }
+        })
+        .catch((error) => logger.error({ err: error }, "cancellation poll failed"));
+    }, CANCELLATION_POLL_MS),
+  );
+  return controller.signal;
+}
+
+export function abortRun(runId: string, reason: unknown): boolean {
+  const controller = controllers.get(runId);
+  if (!controller || controller.signal.aborted) return false;
+  controller.abort(reason);
+  return true;
+}
+
+export async function releaseRun(runId: string): Promise<void> {
+  controllers.delete(runId);
+  completions.get(runId)?.resolve();
+  completions.delete(runId);
+  const heartbeat = heartbeats.get(runId);
+  if (heartbeat) {
+    clearInterval(heartbeat);
+  }
+  heartbeats.delete(runId);
+  const cancellationPoll = cancellationPolls.get(runId);
+  if (cancellationPoll) {
+    clearInterval(cancellationPoll);
+  }
+  cancellationPolls.delete(runId);
+  await getDb().delete(sessionRunLeases).where(eq(sessionRunLeases.runId, runId));
+}
+
+export async function cancelRun(sessionId: string, runId: string): Promise<boolean> {
+  const run = await getAgentRunById(runId);
+  if (!run || run.sessionId !== sessionId) {
+    return false;
+  }
+  await requestAgentRunCancellation(runId);
+  const completion = completions.get(runId)?.promise;
+  controllers.get(runId)?.abort(new DOMException("agent run cancelled", "AbortError"));
+  if (completion) {
+    await completion;
+  } else {
+    const deadline = Date.now() + CANCELLATION_WAIT_MS;
+    while (Date.now() < deadline) {
+      const current = await getAgentRunById(runId);
+      if (!current || TERMINAL_RUN_STATUSES.has(current.status)) {
+        return true;
+      }
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, CANCELLATION_POLL_MS);
+      });
+    }
+    return false;
+  }
+  const current = await getAgentRunById(runId);
+  return current != null && TERMINAL_RUN_STATUSES.has(current.status);
+}
+
+export async function reconcileOrphanedRuns(): Promise<void> {
+  const now = new Date();
+  const orphaned = await listOrphanedRuns(now);
+  if (orphaned.length === 0) {
+    return;
+  }
+  const interrupted = await interruptRuns(orphaned.map((run) => run.id));
+  if (interrupted.length === 0) return;
+  const runIds = interrupted.map((run) => run.id);
+  await markSandboxExecutionsReleasing(runIds);
+  await reconcileSandboxExecutions();
+  await Promise.all(
+    interrupted.map((run) =>
+      deactivateAgentStream(run.sessionId, run.id).catch((error) =>
+        logger.error({ runId: run.id, err: error }, "failed to clear stream flag for orphaned run"),
+      ),
+    ),
+  );
+  await getDb().delete(sessionRunLeases).where(inArray(sessionRunLeases.runId, runIds));
+  logger.info({ count: interrupted.length }, "reconciled orphaned runs");
+}
+
+const ORPHAN_RECONCILE_MS = 5 * 60_000;
+let orphanReconcileTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startOrphanRunReconciler(): void {
+  if (orphanReconcileTimer) {
+    return;
+  }
+  orphanReconcileTimer = setInterval(() => {
+    void reconcileOrphanedRuns().catch((error) => logger.error({ err: error }, "periodic orphan run reconcile failed"));
+  }, ORPHAN_RECONCILE_MS);
+  orphanReconcileTimer.unref();
+}

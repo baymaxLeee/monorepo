@@ -18,10 +18,11 @@ description: >-
 
 # Nitro + Workflow DevKit in this monorepo
 
-Context: `apps/backend/services/executor` is the first (and, as of writing,
-only) service using `nitro build`/`nitro dev` + `workflow` (Workflow DevKit)
-in this repo. See `docs/ADR/durable-execution.md` and
-`apps/backend/services/executor/AGENTS.md` for the full story. This skill is
+Context: the `runtime-worker` role under
+`apps/backend/services/runtime/src/cmd/worker` is the only role using
+the Runtime app's top-level `nitro build` + `workflow` (Workflow DevKit)
+integration in this repo. See `docs/ADR/durable-execution.md` and
+`apps/backend/services/runtime/AGENTS.md` for the full story. This skill is
 the condensed, actionable version for the next service that hits the same
 class of bugs.
 
@@ -48,7 +49,7 @@ narrows the install, so it is not an accepted long-term fix in this repo.
 
 ## Former bug 2: `nf3` miscalculates `../` depth copying `@vercel/oidc`
 
-**Status: fixed in the current Nitro/nf3 stack.** A clean Executor production
+**Status: fixed in the current Nitro/nf3 stack.** A clean Runtime worker production
 build places `@vercel/oidc` in `.output/server/_libs`; the former
 `fix-oidc-trace.mjs` post-build copy/rewrite script has been deleted.
 

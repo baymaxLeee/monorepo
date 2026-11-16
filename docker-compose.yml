@@ -10,25 +10,24 @@ services:
       retries: 5
 
   # Single shared Postgres instance (one instance, many databases):
-  #   - `workflow`  → executor's Workflow DevKit World (@workflow/world-postgres)
+  #   - `workflow`  → Runtime worker's Workflow World (@workflow/world-postgres)
   #   - `knowledge` → knowledge service business rows + RAG vectors (pgvector)
-  #   - `iam` / `admin` / `chat` / `executor` / `telemetry` → each service's own
+  #   - `iam` / `admin` / `chat` / `runtime` / `telemetry` → each service's own
   #     business schema (all migrated off MySQL — see docs/ADR/0029)
   # Image is pgvector/pgvector (a superset of the official postgres image) so the
   # knowledge DB can `CREATE EXTENSION vector`; the other DBs are unaffected.
   #
-  # Dev/prod parity (explicit product decision — see docs/微服务/executor.md):
-  # every deployed environment runs executor against the self-hosted Postgres
+  # Dev/prod parity (see docs/微服务/runtime.md): every deployed environment
+  # runs Runtime worker against the self-hosted Postgres
   # World, so local dev runs the same container rather than defaulting to the
   # filesystem-backed Local World. This is also how the missing
-  # `getWorld().start()` call (see executor/AGENTS.md "Known operational
-  # notes" #3) was caught in the first place — Local World would have hidden
-  # it in every local run.
+  # `getWorld().start()` lifecycle is exercised locally as well; Local World
+  # would hide that class of deployment failure.
   sandbox-proxy:
     image: local/sandbox-proxy:latest
     build:
       context: .
-      dockerfile: apps/backend/services/sandbox/proxy/Dockerfile
+      dockerfile: apps/backend/services/runtime/sandbox-assets/proxy/Dockerfile
     profiles: [sandbox]
     volumes:
       - sandbox_egress:/run/egress

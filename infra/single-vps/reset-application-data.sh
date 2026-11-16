@@ -33,14 +33,14 @@ clickhouse_logs_volume="$(volume_for_mount monorepo-clickhouse /var/log/clickhou
 
 echo "→ stopping services that own disposable application data"
 "${COMPOSE[@]}" stop \
-    admin iam redis storage canvas chat executor knowledge telemetry otel-collector clickhouse \
+    admin iam redis storage canvas chat runtime runtime-worker runtime-sandbox knowledge telemetry otel-collector clickhouse \
     db-init workflow-db-init
 "${COMPOSE[@]}" rm -f \
-    redis storage canvas chat executor knowledge telemetry otel-collector clickhouse \
+    redis storage canvas chat runtime runtime-worker runtime-sandbox knowledge telemetry otel-collector clickhouse \
     db-init workflow-db-init
 
 echo "→ keeping PostgreSQL volume and preserving databases: admin, iam"
-for database in storage canvas chat executor knowledge telemetry; do
+for database in storage canvas chat runtime knowledge telemetry; do
     docker exec \
         -e PGPASSWORD="${WORKFLOW_POSTGRES_PASSWORD}" \
         monorepo-postgres \
@@ -48,7 +48,7 @@ for database in storage canvas chat executor knowledge telemetry; do
         -c "DROP DATABASE IF EXISTS \"${database}\" WITH (FORCE);"
 done
 
-# Workflow World is executor-owned state. Unlike service databases, it is the
+# Workflow World is Runtime worker engine state. Unlike service databases, it is the
 # cluster's bootstrap database, so recreate it before workflow-db-init connects.
 docker exec \
     -e PGPASSWORD="${WORKFLOW_POSTGRES_PASSWORD}" \

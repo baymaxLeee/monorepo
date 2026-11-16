@@ -1,4 +1,4 @@
-"""Idempotent document indexing invoked by Executor's durable Workflow."""
+"""Idempotent document indexing invoked by Runtime worker durable Workflows."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _lock_key(document_id: str) -> int:
 async def index_document_by_id(document_id: str) -> str:
     """Replace one document's searchable chunks under a cluster-wide lock.
 
-    The lock blocks instead of opportunistically dropping duplicate work. Executor
+    The lock blocks instead of opportunistically dropping duplicate work. Runtime worker
     may replay or concurrently dispatch a newer document version; every accepted
     Workflow therefore reaches an authoritative state transition.
     """

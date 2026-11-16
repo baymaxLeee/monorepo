@@ -90,8 +90,9 @@ for pair in \
   "apps/backend/services/canvas/.env.example:apps/backend/services/canvas/.env" \
   "apps/backend/services/storage/.env.example:apps/backend/services/storage/.env" \
   "apps/backend/services/iam/.env.example:apps/backend/services/iam/.env" \
-  "apps/backend/services/executor/.env.example:apps/backend/services/executor/.env" \
-  "apps/backend/services/sandbox/.env.example:apps/backend/services/sandbox/.env"; do
+  "apps/backend/services/runtime/.env.example:apps/backend/services/runtime/.env" \
+  "apps/backend/services/runtime/.env.worker.example:apps/backend/services/runtime/.env.worker" \
+  "apps/backend/services/runtime/.env.sandbox.example:apps/backend/services/runtime/.env.sandbox"; do
   src="${pair%%:*}"
   dst="${pair##*:}"
   if [ -f "$src" ] && [ ! -f "$dst" ]; then

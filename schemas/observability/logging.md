@@ -115,11 +115,11 @@ logger 只自动注入低基数字段,避免把完整用户/profile 快照变成
 唯一入口,注入前先 `Del` 客户端可能伪造的同名头,只写从 JWT/授权来源解析出的值,
 下游无条件信任。日志上下文只消费其中的低基数字段。
 
-### executor 的特例(Workflow DevKit)
+### Runtime worker 的特例(Workflow DevKit)
 
-executor 的 `"use workflow"`/`"use step"` 运行在会持久化/重放的沙箱里:
+Runtime worker 的 `"use workflow"`/`"use step"` 运行在会持久化/重放的沙箱里:
 `AsyncLocalStorage` **不跨 step 边界**,且沙箱禁止静态 import Node 依赖
-(见 `services/executor/AGENTS.md`)。因此:
+(见 `services/runtime/AGENTS.md`)。因此:
 
 - HTTP 入口层(`app.ts`)用 `AsyncLocalStorage` + pino,与其他服务一致;
 - workflow-imported clients 不 import `@backend/kernel-ts` 或

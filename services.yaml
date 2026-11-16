@@ -49,15 +49,25 @@ services:
     publicRoutes:
       - /api/chat-server/*
     bindings:
-      - admin
-      - knowledge
-      - executor
-      - canvas
-      - storage
-      - sandbox
+      - runtime
     databases:
       - chat
     openapi: schemas/openapi/chat-server.json
+
+  runtime:
+    root: apps/backend/services/runtime
+    runtime: node
+    port: 8015
+    publicRoutes: []
+    bindings:
+      - admin
+      - knowledge
+      - canvas
+      - storage
+    databases:
+      - runtime
+      - workflow
+    openapi: schemas/openapi/runtime-server.json
 
   knowledge:
     root: apps/backend/services/knowledge
@@ -83,20 +93,6 @@ services:
       - telemetry
     openapi: schemas/openapi/telemetry-server.json
 
-  executor:
-    root: apps/backend/services/executor
-    runtime: node
-    port: 8011
-    publicRoutes: []
-    bindings:
-      - admin
-      - knowledge
-      - storage
-    databases:
-      - executor
-      - workflow
-    openapi: schemas/openapi/executor-server.json
-
   canvas:
     root: apps/backend/services/canvas
     runtime: go
@@ -120,12 +116,3 @@ services:
     databases:
       - storage
     openapi: schemas/openapi/storage-server.json
-
-  sandbox:
-    root: apps/backend/services/sandbox
-    runtime: node
-    port: 8014
-    publicRoutes: []
-    bindings: []
-    databases: []
-    openapi: schemas/openapi/sandbox-server.json

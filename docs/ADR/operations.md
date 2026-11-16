@@ -6,7 +6,7 @@
 
 业务服务各自拥有 PostgreSQL database/role，禁止使用 Workflow bootstrap 超级用户
 运行应用。Knowledge 使用 pgvector；Workflow 使用独立 Postgres World，官方 setup
-在 Executor 接流量前完成，业务库与执行库保持不同所有权。
+在 Runtime worker 接流量前完成，业务库与执行库保持不同所有权。
 
 本地与部署数据库都保存历史数据。schema 和小规模数据转换采用不可变、按版本排序的
 SQL；复杂事务内数据转换使用编译注册的 Go 函数。发布版本目录聚合连续步骤，每步拥有 UP/DOWN，
@@ -28,6 +28,9 @@ Storage 的 PostgreSQL database/role 与服务同名为 `storage`。字节卷使
 审计记录保留已执行 UP/DOWN 的 checksum，不能用降级抹除历史。VPS 的迁移镜像可独立固定版本，避免回退应用时误用
 旧迁移器。大规模回填由数据所属服务实现可重入批处理，不占用发布 DDL 长事务。
 具体协议、恢复边界及验证入口见 [数据库迁移规范](../开发规范/database-migrations.md)。
+
+Chat/Runtime 的一次性 v1 重构是已明确授权的 fresh baseline 例外：两者只保留
+`v1.0.0.0`，不读取旧 Chat/Executor/Sandbox 数据；边界见 [Session Runtime](session-runtime.md)。
 
 ## 部署与密钥
 

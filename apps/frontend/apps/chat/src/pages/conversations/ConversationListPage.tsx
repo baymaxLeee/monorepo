@@ -30,7 +30,7 @@ export function ConversationListPage() {
           void navigate(`/platform/chat/local/${thread.id}`);
         }
       } else {
-        const conversation = await createConversation({});
+        const conversation = await createConversation({ request_id: randomId() });
         void navigate(`/platform/chat/conversations/${conversation.id}`, {
           state: { refreshConversationHistory: true, externalRequest: { id: randomId(), text: value.text } },
         });

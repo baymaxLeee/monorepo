@@ -163,7 +163,7 @@ func TestServiceUpload(t *testing.T) {
 		service := NewService(repository, storage, fixedClock{now}, 1024)
 		asset, revision, err := service.Upload(context.Background(), CreateUploadInput{
 			TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "video.mp4",
-			Category: "generated-video", CallerService: "executor", IdempotencyKey: "step-1",
+			Category: "generated-video", CallerService: "runtime", IdempotencyKey: "step-1",
 		}, strings.NewReader("retry body"))
 		if err != nil {
 			t.Fatal(err)

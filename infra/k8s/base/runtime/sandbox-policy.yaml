@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: runtime-sandbox
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: runtime-sandbox
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: runtime-sandbox }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: runtime-sandbox-control
+spec:
+  podSelector:
+    matchLabels: { app: runtime-sandbox }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: runtime-server }
+      ports:
+        - { protocol: TCP, port: 8014 }

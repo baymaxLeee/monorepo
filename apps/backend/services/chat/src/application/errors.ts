@@ -1,62 +1,15 @@
-export class AppError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: number,
-    readonly code: string,
-    readonly details: Record<string, unknown> = {},
-  ) {
-    super(message);
-    this.name = "AppError";
-  }
+export class RequestError extends Error {
+  readonly status = 400;
+  readonly code = "bad_request";
 }
 
-export class NotFoundError extends AppError {
-  constructor(message: string, details: Record<string, unknown> = {}) {
-    super(message, 404, "not_found", details);
-  }
+export class NotFoundError extends Error {
+  readonly status = 404;
+  readonly code = "not_found";
 }
 
-export class UnauthorizedError extends AppError {
-  constructor(message: string) {
-    super(message, 401, "unauthorized");
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message: string) {
-    super(message, 403, "forbidden");
-  }
-}
-
-export class RequestError extends AppError {
-  constructor(message: string, details: Record<string, unknown> = {}) {
-    super(message, 400, "bad_request", details);
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message: string, code = "conflict", details: Record<string, unknown> = {}) {
-    super(message, 409, code, details);
-  }
-}
-
-export class ProviderNotConfiguredError extends AppError {
-  constructor(message: string) {
-    super(message, 412, "provider_not_configured");
-  }
-}
-
-export class AdminUnavailableError extends AppError {
-  constructor(message: string) {
-    super(message, 502, "admin_unavailable");
-  }
-}
-
-export class AgentRunCancelledError extends Error {
-  readonly code = "agent_run_cancelled";
-
-  constructor(message = "agent run cancelled") {
-    super(message);
-    this.name = "AgentRunCancelledError";
+export class RuntimeResponseError extends Error {
+  constructor(readonly response: Response) {
+    super(`Runtime request failed with status ${response.status}`);
   }
 }

@@ -6,7 +6,7 @@ cd "$ROOT"
 
 echo "→ Starting full demo stack (shell mode). Ctrl+C to stop all."
 
-DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 8012 8013 8014 3000 3001 3005 3006)
+DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 8012 8013 8014 8015 3000 3001 3005 3006)
 PIDS=()
 
 cleanup() {
@@ -80,8 +80,13 @@ track_last_pid
 ) &
 track_last_pid
 (
-  cd apps/backend/services/executor
-  PORT=8011 pnpm dev 2>&1 | sed 's/^/[executor] /'
+  cd apps/backend/services/runtime
+  PORT=8015 pnpm dev:server 2>&1 | sed 's/^/[runtime-server]  /'
+) &
+track_last_pid
+(
+  cd apps/backend/services/runtime
+  PORT=8011 pnpm dev:worker 2>&1 | sed 's/^/[runtime-worker]  /'
 ) &
 track_last_pid
 (
@@ -110,8 +115,8 @@ track_last_pid
 ) &
 track_last_pid
 (
-  cd apps/backend/services/sandbox
-  PORT=8014 pnpm dev 2>&1 | sed 's/^/[sandbox]    /'
+  cd apps/backend/services/runtime
+  PORT=8014 pnpm dev:sandbox 2>&1 | sed 's/^/[runtime-sandbox] /'
 ) &
 track_last_pid
 (

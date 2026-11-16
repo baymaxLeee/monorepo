@@ -19,7 +19,7 @@ listed instructions before editing. For example:
 
 ```bash
 just context frontend/@repo/ai-elements
-just context apps/backend/services/chat/src/application/agent --json
+just context apps/backend/services/runtime/src/application/agent --json
 just context scripts/repo.mjs
 just test-affected HEAD frontend --list
 ```
@@ -261,7 +261,9 @@ Repository commands enforce pass/fail; the agent diagnoses and repairs failures.
 - `dev-preflight.sh`: checks that local infra and frontend dependencies exist
   before starting the dev stack, including caller/receiver service credentials.
 - `sync-dev-service-identities.py`: safely migrates the retired shared local
-  token and validates per-caller credentials without overwriting custom values.
+  token and exact pre-Runtime default caller maps, and validates per-caller
+  credentials without overwriting custom values. `just install` invokes `--fix`;
+  custom or unrecognized maps remain errors requiring explicit reconciliation.
 - `dev-orchestrator.sh`: starts `Procfile.dev` with an installed process
   manager, falling back to `dev-stack.sh`.
 - `dev-stack.sh`: shell fallback for starting the local demo stack.
@@ -303,3 +305,10 @@ Repository commands enforce pass/fail; the agent diagnoses and repairs failures.
 - `new-service.sh`: creates a Python service skeleton.
 - `new-mfe.sh`: creates a Module Federation remote skeleton.
 - `worktree.sh`: creates a git worktree for truly parallel agent processes.
+
+Runtime local roles use independent files: server loads `apps/backend/services/runtime/.env`,
+worker loads `.env.worker`, and sandbox loads `.env.sandbox` in the same directory.
+`just install` creates missing files from their respective examples. Workflow database
+bootstrap uses `.env.worker`. Keep the worker outbound Runtime credential and the
+worker/sandbox receiver maps consistent with the server caller credential;
+`just dev-preflight` validates these identities without rewriting configuration.

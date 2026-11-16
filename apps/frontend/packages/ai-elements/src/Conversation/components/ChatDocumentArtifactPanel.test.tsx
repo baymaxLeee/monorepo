@@ -92,7 +92,7 @@ it("loads metadata then previews HTML from srcDoc with the Asset URL as its base
   expect(screen.queryByText("HTML 预览地址不可用，请重新打开预览。")).toBeNull();
 });
 
-it("renders Chat-owned HTML files with hidden scrollbars and preserved relative URL resolution", async () => {
+it("renders Runtime-owned HTML files with hidden scrollbars and preserved relative URL resolution", async () => {
   Object.assign(chatStoreMock.artifactPreview, { documentId: null, fileId: "file" });
   render(<ChatFileArtifactPanel />);
   const frame = await screen.findByTitle("Saved page");

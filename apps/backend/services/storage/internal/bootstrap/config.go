@@ -95,12 +95,12 @@ func Load() (Config, error) {
 }
 
 func serviceTokens(environment string) (map[string]string, error) {
-	raw := envOr("INTERNAL_SERVICE_TOKENS", `{"admin":"dev-admin-internal-token","canvas":"dev-canvas-internal-token","chat":"dev-chat-internal-token","executor":"dev-executor-internal-token","knowledge":"dev-knowledge-internal-token"}`)
+	raw := envOr("INTERNAL_SERVICE_TOKENS", `{"admin":"dev-admin-internal-token","canvas":"dev-canvas-internal-token","runtime":"dev-runtime-internal-token","knowledge":"dev-knowledge-internal-token"}`)
 	var tokens map[string]string
 	if err := json.Unmarshal([]byte(raw), &tokens); err != nil {
 		return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS must be a JSON object: %w", err)
 	}
-	required := []string{"admin", "canvas", "chat", "executor", "knowledge"}
+	required := []string{"admin", "canvas", "runtime", "knowledge"}
 	if len(tokens) != len(required) {
 		return nil, fmt.Errorf("INTERNAL_SERVICE_TOKENS must define exactly %s", strings.Join(required, ", "))
 	}

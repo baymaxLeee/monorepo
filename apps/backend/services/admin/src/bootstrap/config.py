@@ -15,8 +15,7 @@ _DEV_ADMIN_SECRET_KEY = "MFnLpzWN-y-Hh0aJtaxKXh4uOFcljnPC6FwpDF4S5Y8="
 _DEV_CALLER_TOKEN = "dev-admin-internal-token"
 _DEV_INTERNAL_SERVICE_TOKENS = {
     "canvas": "dev-canvas-internal-token",
-    "chat": "dev-chat-internal-token",
-    "executor": "dev-executor-internal-token",
+    "runtime": "dev-runtime-internal-token",
     "knowledge": "dev-knowledge-internal-token",
 }
 

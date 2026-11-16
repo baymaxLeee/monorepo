@@ -8,16 +8,12 @@ resources:
   - ../../base/storage
   - ../../base/canvas
   - ../../base/chat
-  - ../../base/sandbox
-  - ../../base/executor
+  - ../../base/runtime
   - ../../base/knowledge
   - ../../base/telemetry
   - ../../base/web
   - ../../base/ingress.yaml
 images:
-  - name: ghcr.io/example/sandbox
-    newName: local/sandbox
-    newTag: latest
   - name: ghcr.io/example/sandbox-runtime
     newName: local/sandbox-runtime
     newTag: latest
@@ -33,8 +29,9 @@ images:
     newTag: latest
   - name: ghcr.io/example/chat
     newTag: dev
-  - name: ghcr.io/example/executor
-    newTag: dev
+  - name: ghcr.io/example/runtime
+    newName: local/runtime
+    newTag: latest
   - name: ghcr.io/example/knowledge
     newTag: dev
   - name: ghcr.io/example/telemetry
@@ -42,7 +39,7 @@ images:
   - name: ghcr.io/example/web
     newTag: dev
 patches:
-  - target: { kind: ConfigMap, name: sandbox-config }
+  - target: { kind: ConfigMap, name: runtime-sandbox-config }
     patch: |-
       - op: replace
         path: /data/ENVIRONMENT
@@ -53,8 +50,8 @@ patches:
       - op: replace
         path: /data/SANDBOX_PROXY_URL
         value: http://sandbox-proxy.monorepo-sandboxes-dev.svc.cluster.local:3128
-  - target: { kind: Secret, name: sandbox-secrets }
+  - target: { kind: Secret, name: runtime-sandbox-secrets }
     patch: |-
       - op: replace
         path: /stringData/INTERNAL_SERVICE_TOKENS
-        value: '{"chat":"dev-chat-internal-token"}'
+        value: '{"runtime":"dev-runtime-internal-token"}'

@@ -262,24 +262,6 @@ class MigrationTest(unittest.TestCase):
         schema = "SELECT table_name,column_name,data_type FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('canvas_events','canvas_event_heads') ORDER BY table_name,ordinal_position;"
         self.assertEqual(self.sql("canvas", schema), self.sql("fresh_canvas", schema))
 
-    def test_executor_retires_pending_knowledge_workflows(self):
-        source = ROOT / "apps/backend/services/executor/migrations"
-        service = self.service("executor_retirement", (source / "v1.0.0/v1.0.0.0.up.sql").read_text())
-        self.success(self.migrate(service))
-        self.sql(
-            "executor_retirement",
-            "INSERT INTO public.tasks (id,type,status,owner_service,owner_ref,payload,created_at,updated_at) VALUES ('task','knowledge-document-process','running','knowledge','document:1','{}',NOW(),NOW());",
-        )
-        shutil.copytree(source / "v1.0.1", service / "migrations/v1.0.1")
-        self.success(self.migrate(service))
-        self.assertEqual(
-            self.sql(
-                "executor_retirement",
-                "SELECT status || '|' || cleanup_pending::text FROM public.tasks WHERE id='task';",
-            ),
-            "cancelled|false",
-        )
-
     def test_search_path_does_not_leak_between_pending_steps(self):
         service = self.service(
             "search_path_isolation",

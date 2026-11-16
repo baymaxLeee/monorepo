@@ -1,0 +1,287 @@
+import type { BotProfileSnapshot } from "@backend/agent-runtime-ts/instructions/index";
+import { propagationHeaders } from "@backend/kernel-ts";
+import {
+  AdminInternalClient,
+  TransportError,
+  type AdminProviderSnapshot,
+  type AdminResolvedAgent,
+} from "@backend/transport-ts";
+import type { LanguageProviderSnapshot, ResponsesDialect } from "@backend/transport-ts/provider-model";
+import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
+
+import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../../application/errors.js";
+import { getServerSettings } from "../../bootstrap/server-config.js";
+import { getRedisClient } from "../redis/index.js";
+
+export interface ProviderSnapshot {
+  id: string;
+  userId: string;
+  name: string;
+  model: string;
+  providerKind: string;
+  responsesDialect: ResponsesDialect | null;
+  baseUrl: string;
+  apiKey: string;
+  extraBody: Record<string, unknown>;
+  contextWindow: number;
+  maxOutputTokens: number;
+  supportsImageInput: boolean;
+  isDefault: boolean;
+  isEnabled: boolean;
+}
+
+export interface ProviderLimits {
+  contextWindow: number;
+  maxOutputTokens: number;
+}
+
+function providerLimitsKey(tenantId: string, workspaceId: string, providerId: string | null): string {
+  return `chat:provider-limits:${encodeURIComponent(tenantId)}:${encodeURIComponent(workspaceId)}:${encodeURIComponent(providerId ?? "default")}`;
+}
+
+function parseProviderLimits(value: string | null): ProviderLimits | null {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as Partial<ProviderLimits>;
+    return typeof parsed.contextWindow === "number" &&
+      Number.isFinite(parsed.contextWindow) &&
+      parsed.contextWindow > 0 &&
+      typeof parsed.maxOutputTokens === "number" &&
+      Number.isFinite(parsed.maxOutputTokens) &&
+      parsed.maxOutputTokens >= 0
+      ? {
+          contextWindow: parsed.contextWindow,
+          maxOutputTokens: parsed.maxOutputTokens,
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** L1 skill listing resolved for a bot: name/description advertised in
+ *  `<available_skills>`, `id` used to pull the body via `getSkillBody`. */
+export interface AgentSkillRef {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export type SkillFileResource =
+  | { storageKind: "inline"; mimeType: string | null; content: string }
+  | {
+      storageKind: "asset";
+      mimeType: string | null;
+      assetId: string;
+      revisionId: string;
+      sizeBytes: number;
+      sha256: string;
+      url: string;
+    };
+
+export interface ResolvedAgentProviders {
+  agentId: string;
+  agentName: string;
+  profile: BotProfileSnapshot;
+  text: (ProviderSnapshot & LanguageProviderSnapshot) | null;
+  image: ProviderSnapshot | null;
+  video: ProviderSnapshot | null;
+  skills: AgentSkillRef[];
+}
+
+function adminClient(): AdminInternalClient {
+  const settings = getServerSettings();
+  return new AdminInternalClient({
+    baseUrl: settings.adminServiceUrl,
+    internalToken: settings.internalApiToken,
+    callerService: "runtime",
+    propagatedHeaders: propagationHeaders,
+  });
+}
+
+function toSnapshot(data: AdminProviderSnapshot): ProviderSnapshot {
+  return {
+    id: data.id,
+    userId: data.user_id,
+    name: data.name,
+    model: data.model,
+    providerKind: data.provider_kind ?? "chat",
+    responsesDialect: data.responses_dialect ?? null,
+    baseUrl: data.base_url,
+    apiKey: data.api_key,
+    extraBody: data.extra_body ?? {},
+    contextWindow: data.context_window,
+    maxOutputTokens: data.max_output_tokens,
+    supportsImageInput: data.supports_image_input ?? false,
+    isDefault: data.is_default,
+    isEnabled: data.is_enabled,
+  };
+}
+
+async function assertSnapshotUrl(snapshot: ProviderSnapshot): Promise<ProviderSnapshot> {
+  try {
+    await assertPublicProviderUrl(snapshot.baseUrl);
+  } catch (error) {
+    throw new ProviderNotConfiguredError(`provider base URL is not allowed: ${String(error)}`);
+  }
+  return snapshot;
+}
+
+export async function getProvider(
+  tenantId: string,
+  workspaceId: string,
+  providerId?: string | null,
+): Promise<ProviderSnapshot & LanguageProviderSnapshot> {
+  let data: AdminProviderSnapshot;
+  try {
+    const client = adminClient();
+    data = providerId
+      ? await client.getProvider(providerId, tenantId, workspaceId)
+      : await client.getDefaultProvider(tenantId, workspaceId);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new ProviderNotConfiguredError("no model provider configured");
+    }
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
+  }
+  const provider = await assertSnapshotUrl(toSnapshot(data));
+  if (provider.providerKind !== "chat") {
+    throw new ProviderNotConfiguredError(`provider ${provider.id} is not a configured language provider`);
+  }
+  if (!provider.responsesDialect) {
+    throw new ProviderNotConfiguredError(`provider ${provider.id} has no Responses dialect`);
+  }
+  return provider as ProviderSnapshot & LanguageProviderSnapshot;
+}
+
+export async function getProviderLimits(
+  tenantId: string,
+  workspaceId: string,
+  providerId?: string | null,
+): Promise<ProviderLimits> {
+  const cache = getRedisClient();
+  const key = providerLimitsKey(tenantId, workspaceId, providerId ?? null);
+  const cached = await cache
+    .get(key)
+    .then(parseProviderLimits)
+    .catch(() => null);
+  if (cached) {
+    return cached;
+  }
+
+  const provider = await getProvider(tenantId, workspaceId, providerId);
+  const limits = {
+    contextWindow: provider.contextWindow,
+    maxOutputTokens: provider.maxOutputTokens,
+  };
+  await cache
+    .set(key, JSON.stringify(limits), "EX", getServerSettings().providerCacheTtlSeconds)
+    .catch(() => undefined);
+  return limits;
+}
+
+export async function getAgent(
+  userId: string,
+  agentId: string,
+  tenantId: string,
+  workspaceId: string,
+): Promise<ResolvedAgentProviders> {
+  let data: AdminResolvedAgent;
+  try {
+    data = await adminClient().getResolvedAgent(userId, agentId, tenantId, workspaceId);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new ProviderNotConfiguredError(`agent ${agentId} not found`);
+    }
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
+  }
+  const resolve = async (p: AdminProviderSnapshot | null | undefined) => (p ? assertSnapshotUrl(toSnapshot(p)) : null);
+  const text = await resolve(data.text_provider);
+  if (text && text.providerKind !== "chat") {
+    throw new ProviderNotConfiguredError(`provider ${text.id} is not a configured language provider`);
+  }
+  if (text && !text.responsesDialect) {
+    throw new ProviderNotConfiguredError(`provider ${text.id} has no Responses dialect`);
+  }
+  return {
+    agentId: data.id,
+    agentName: data.name,
+    profile: {
+      name: data.name,
+      roleDescription: data.role_description ?? null,
+      domainDescription: data.domain_description ?? null,
+      audience: data.audience ?? null,
+      tone: data.tone ?? null,
+    },
+    text: text as (ProviderSnapshot & LanguageProviderSnapshot) | null,
+    image: await resolve(data.image_provider),
+    video: await resolve(data.video_provider),
+    skills: (data.skills ?? []).map((skill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+    })),
+  };
+}
+
+/** Pulls a skill's full L2 body on demand (progressive disclosure). Called by
+ *  `load_skill` and by explicit `/` activation — never at prompt-assembly time. */
+export async function getSkillBody(
+  skillId: string,
+  tenantId: string,
+  workspaceId: string,
+): Promise<{ id: string; name: string; body: string; files: string[] }> {
+  let data;
+  try {
+    data = await adminClient().getSkill(skillId, tenantId, workspaceId);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new RequestError(`skill ${skillId} not found`);
+    }
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
+  }
+  return { id: data.id, name: data.name, body: data.body, files: data.files };
+}
+
+export async function getSkillFile(
+  skillId: string,
+  tenantId: string,
+  workspaceId: string,
+  path: string,
+): Promise<SkillFileResource> {
+  try {
+    const file = await adminClient().getSkillFile(skillId, tenantId, workspaceId, path);
+    if (file.storage_kind === "inline" && typeof file.content === "string") {
+      return { storageKind: "inline", mimeType: file.mime_type ?? null, content: file.content };
+    }
+    if (
+      file.storage_kind === "asset" &&
+      file.asset_id &&
+      file.revision_id &&
+      typeof file.size_bytes === "number" &&
+      file.sha256 &&
+      file.url
+    ) {
+      return {
+        storageKind: "asset",
+        mimeType: file.mime_type ?? null,
+        assetId: file.asset_id,
+        revisionId: file.revision_id,
+        sizeBytes: file.size_bytes,
+        sha256: file.sha256,
+        url: file.url,
+      };
+    }
+    throw new AdminUnavailableError(`admin returned an invalid skill file descriptor for ${path}`);
+  } catch (err) {
+    if (err instanceof TransportError && err.status === 404) {
+      throw new RequestError(`skill file ${path} not found`);
+    }
+    if (err instanceof AdminUnavailableError) {
+      throw err;
+    }
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
+  }
+}

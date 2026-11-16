@@ -21,10 +21,10 @@ spec:
             - { name: http, containerPort: 8010 }
           envFrom:
             - configMapRef: { name: knowledge-config }
-            - secretRef:    { name: knowledge-secrets }
+            - secretRef: { name: knowledge-secrets }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
-            limits:   { cpu: 500m, memory: 512Mi }
+            limits: { cpu: 500m, memory: 512Mi }
           livenessProbe:
             httpGet: { path: /livez, port: http }
             initialDelaySeconds: 5

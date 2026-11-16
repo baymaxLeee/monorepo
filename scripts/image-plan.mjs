@@ -17,8 +17,16 @@ function imageForProject(project) {
 
 export const images = [
   ...backendServices.map(imageForProject),
-  { service: "sandbox-runtime", context: ".", dockerfile: "apps/backend/services/sandbox/runtime/Dockerfile" },
-  { service: "sandbox-proxy", context: ".", dockerfile: "apps/backend/services/sandbox/proxy/Dockerfile" },
+  {
+    service: "sandbox-runtime",
+    context: ".",
+    dockerfile: "apps/backend/services/runtime/sandbox-assets/runtime/Dockerfile",
+  },
+  {
+    service: "sandbox-proxy",
+    context: ".",
+    dockerfile: "apps/backend/services/runtime/sandbox-assets/proxy/Dockerfile",
+  },
   { service: "web", context: ".", dockerfile: "infra/single-vps/Dockerfile.web" },
   { service: "db-init", context: ".", dockerfile: "infra/single-vps/Dockerfile.db-init" },
 ];
@@ -77,7 +85,7 @@ function affectedByFile(file) {
   if (isImageNeutralMetadata(file)) return selected;
 
   for (const service of allServices.filter(
-    (candidate) => !["sandbox", "sandbox-runtime", "sandbox-proxy", "web", "db-init"].includes(candidate),
+    (candidate) => !["sandbox-runtime", "sandbox-proxy", "web", "db-init"].includes(candidate),
   )) {
     if (matches(file, `apps/backend/services/${service}`)) selected.add(service);
     if (migrationServices.includes(service) && matches(file, `apps/backend/services/${service}/migrations`)) {
@@ -85,9 +93,8 @@ function affectedByFile(file) {
     }
   }
 
-  if (matches(file, "apps/backend/services/sandbox/runtime")) selected.add("sandbox-runtime");
-  else if (matches(file, "apps/backend/services/sandbox/proxy")) selected.add("sandbox-proxy");
-  else if (matches(file, "apps/backend/services/sandbox")) selected.add("sandbox");
+  if (matches(file, "apps/backend/services/runtime/sandbox-assets/runtime")) selected.add("sandbox-runtime");
+  if (matches(file, "apps/backend/services/runtime/sandbox-assets/proxy")) selected.add("sandbox-proxy");
 
   if (matches(file, "apps/backend/libs/kernel")) add(selected, pythonServices);
   for (const project of projects.filter((p) => p.area === "backend" && p.kind === "libs" && p.runtime === "node")) {

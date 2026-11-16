@@ -1,4 +1,4 @@
-"""Idempotent source conversion invoked by Executor's durable Workflow."""
+"""Idempotent source conversion invoked by Runtime worker durable Workflows."""
 
 from __future__ import annotations
 

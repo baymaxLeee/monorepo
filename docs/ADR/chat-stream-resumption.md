@@ -88,13 +88,13 @@ buffer 隔离到专用 Redis，而不是继续提高单 run 上限。
 
 ## 实现与验证
 
-- [stream service](../../apps/backend/services/chat/src/application/agent/streams/service.ts)：租约、原子预算、完整重放与清理；
-- [run owner](../../apps/backend/services/chat/src/application/agent/runs/run.ts)：容量超限传播和 journal finalizer；
-- [run lease](../../apps/backend/services/chat/src/application/agent/runs/lease.ts)：run AbortSignal 与 orphan 清理；
-- [subagents](../../apps/backend/services/chat/src/application/agent/tools/builtins/subagents.ts)：有界 preliminary progress；
-- [Redis integration tests](../../apps/backend/services/chat/src/application/agent/streams/service.integration.test.ts)：短 TTL、active replay、终态删除、容量超限和 compare-delete；
-- [Subagent tests](../../apps/backend/services/chat/src/application/agent/tools/builtins/subagents.test.ts)：并行、失败、取消、完整终态与 progress 上界。
+- [stream service](../../apps/backend/services/runtime/src/application/agent/streams/service.ts)：租约、原子预算、完整重放与清理；
+- [run owner](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)：容量超限传播和 journal finalizer；
+- [run lease](../../apps/backend/services/runtime/src/application/agent/runs/lease.ts)：run AbortSignal 与 orphan 清理；
+- [subagents](../../apps/backend/services/runtime/src/application/agent/tools/builtins/subagents.ts)：有界 preliminary progress；
+- [Redis integration tests](../../apps/backend/services/runtime/src/application/agent/streams/service.integration.test.ts)：短 TTL、active replay、终态删除、容量超限和 compare-delete；
+- [Subagent tests](../../apps/backend/services/runtime/src/application/agent/tools/builtins/subagents.test.ts)：并行、失败、取消、完整终态与 progress 上界。
 
-变更这些边界时运行 `just test backend/chat`、启用 `CHAT_REDIS_INTEGRATION=1` 的 stream integration、
-`just test frontend/@repo/ai-elements`，并执行 Chat backend lint/typecheck。容量值变化还必须复核正常 run 的
+变更这些边界时运行 `just test backend/runtime`、启用 `RUNTIME_REDIS_INTEGRATION=1` 的 stream integration、
+`just test frontend/@repo/ai-elements`，并执行 Runtime backend lint/typecheck。容量值变化还必须复核正常 run 的
 P95/P99 bytes、active 并发和 Redis 总内存预算，不能只让单元测试通过。

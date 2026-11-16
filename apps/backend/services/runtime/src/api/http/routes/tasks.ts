@@ -1,0 +1,161 @@
+import type { ReadableStreamReadResult } from "node:stream/web";
+
+import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
+import { getRun } from "workflow/api";
+import { z } from "zod";
+
+import { imageGenerationInputSchema } from "../../../../workflows/image-generation.js";
+import { videoGenerationInputSchema } from "../../../../workflows/video-generation.js";
+import { RequestError } from "../../../application/errors.js";
+import {
+  cancelTask,
+  cancelTaskByOwner,
+  createTask,
+  getTask,
+  getTaskWatchSource,
+  waitForTaskCompletion,
+  type TaskOwner,
+} from "../../../application/tasks/service.js";
+import { getVideoProductionProjection } from "../../../application/video-production/service.js";
+import { requireCallerService } from "../middleware/worker-auth.js";
+
+export const tasksRoutes = new Hono();
+
+function parseOwner(c: { req: { query: (key: string) => string | undefined } }): TaskOwner {
+  const caller = requireCallerService(c as Parameters<typeof requireCallerService>[0]);
+  const service = c.req.query("owner_service");
+  if (!service || service !== caller) {
+    throw new RequestError("owner_service must match X-Caller-Service");
+  }
+  const ref = c.req.query("owner_ref");
+  if (!ref) {
+    throw new RequestError("owner_ref query parameter is required");
+  }
+  return { service, ref };
+}
+
+const createTaskEnvelope = {
+  owner_service: z.string().min(1).max(40),
+  owner_ref: z.string().min(1).max(80),
+};
+
+const createTaskSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("image-generation"), payload: imageGenerationInputSchema, ...createTaskEnvelope }),
+  z.object({ type: z.literal("video-generation"), payload: videoGenerationInputSchema, ...createTaskEnvelope }),
+]);
+
+function terminal(status: string): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
+async function taskWatchFrame(id: string, owner: TaskOwner) {
+  const source = await getTaskWatchSource(id, owner);
+  return {
+    source,
+    frame: {
+      task: source.task,
+      production:
+        source.task.type === "video-generation"
+          ? await getVideoProductionProjection(source.task.id, owner.service)
+          : null,
+    },
+  };
+}
+
+tasksRoutes.post("/", zValidator("json", createTaskSchema), async (c) => {
+  const caller = requireCallerService(c);
+  const body = c.req.valid("json");
+  if (body.owner_service !== caller) {
+    throw new RequestError("owner_service must match X-Caller-Service");
+  }
+  const task = await createTask({
+    type: body.type,
+    ownerService: body.owner_service,
+    ownerRef: body.owner_ref,
+    payload: body.payload,
+  });
+  return c.json(task, 201);
+});
+
+tasksRoutes.post(
+  "/cancel-by-owner",
+  zValidator("json", z.object({ ...createTaskEnvelope, type: z.string().min(1).max(64) })),
+  async (c) => {
+    const caller = requireCallerService(c);
+    const body = c.req.valid("json");
+    if (body.owner_service !== caller) throw new RequestError("owner_service must match X-Caller-Service");
+    return c.json(await cancelTaskByOwner(caller, body.owner_ref, body.type));
+  },
+);
+
+tasksRoutes.get("/:id/stream", async (c) => {
+  const id = c.req.param("id");
+  const owner = parseOwner(c);
+  const initial = await taskWatchFrame(id, owner);
+  return streamSSE(
+    c,
+    async (stream) => {
+      let current = initial;
+      await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+      if (terminal(current.frame.task.status) || !current.source.workflowRunId) {
+        return;
+      }
+
+      const workflowRunId = current.source.workflowRunId;
+      const run = getRun(workflowRunId);
+      const reader = run.getReadable({ startIndex: -1 }).getReader();
+      const completion = waitForTaskCompletion(id, workflowRunId).then(() => ({ type: "completion" }) as const);
+      let pendingRead: Promise<{ type: "stream"; item: ReadableStreamReadResult<unknown> }> | null = null;
+      stream.onAbort(() => reader.cancel());
+      while (!stream.aborted) {
+        pendingRead ??= reader.read().then((item) => ({ type: "stream" as const, item }));
+        const event = await Promise.race([pendingRead, completion]);
+        if (event.type === "completion") {
+          await reader.cancel();
+          if (stream.aborted) {
+            return;
+          }
+          current = await taskWatchFrame(id, owner);
+          await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+          return;
+        }
+        pendingRead = null;
+        if (event.item.done) {
+          break;
+        }
+        const next = await taskWatchFrame(id, owner);
+        if (
+          next.frame.task.updatedAt !== current.frame.task.updatedAt ||
+          next.frame.production?.version !== current.frame.production?.version
+        ) {
+          current = next;
+          await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+        }
+        if (terminal(current.frame.task.status)) {
+          return;
+        }
+      }
+      if (stream.aborted) {
+        return;
+      }
+      await completion;
+      current = await taskWatchFrame(id, owner);
+      await stream.writeSSE({ event: "snapshot", data: JSON.stringify(current.frame) });
+    },
+    async (error) => {
+      console.error("[runtime-worker] task status stream failed", { taskId: id, error });
+    },
+  );
+});
+
+tasksRoutes.get("/:id", async (c) => {
+  const task = await getTask(c.req.param("id"), parseOwner(c));
+  return c.json(task);
+});
+
+tasksRoutes.post("/:id/cancel", async (c) => {
+  const task = await cancelTask(c.req.param("id"), parseOwner(c));
+  return c.json(task);
+});

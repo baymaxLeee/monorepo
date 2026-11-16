@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Chat Service",
-    "version": "0.1.0",
-    "description": "对话 / Agent 微服务 (TypeScript)"
+    "title": "Chat Product API",
+    "version": "1.0.0",
+    "description": "Thin Web conversation product facade over Runtime"
   },
   "paths": {
     "/local-inference/config": {
@@ -71,7 +71,7 @@
     "/local-inference/stream": {
       "post": {
         "operationId": "streamLocalInference",
-        "description": "Constrained AI SDK LanguageModelV4 inference relay. Native provider stream parts as NDJSON; no tool execution or conversation persistence. See schemas/desktop/README.md.",
+        "description": "Constrained AI SDK LanguageModelV4 inference relay. Native provider stream parts as NDJSON; no tool execution or session persistence. See schemas/desktop/README.md.",
         "requestBody": {
           "required": true,
           "content": {
@@ -966,33 +966,6 @@
         }
       }
     },
-    "/conversations/canvas": {
-      "post": {
-        "operationId": "createCanvasConversation",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CanvasConversationInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Canvas-bound conversation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CanvasConversationBinding"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/healthz": {
       "get": {
         "operationId": "chatHealthz",
@@ -1008,7 +981,7 @@
         "operationId": "listConversations",
         "responses": {
           "200": {
-            "description": "list conversations",
+            "description": "list sessions",
             "content": {
               "application/json": {
                 "schema": {
@@ -1036,7 +1009,7 @@
         },
         "responses": {
           "201": {
-            "description": "created conversation",
+            "description": "created session",
             "content": {
               "application/json": {
                 "schema": {
@@ -1063,7 +1036,7 @@
         ],
         "responses": {
           "200": {
-            "description": "selected conversation history",
+            "description": "selected session history",
             "content": {
               "application/json": {
                 "schema": {
@@ -1071,6 +1044,24 @@
                 }
               }
             }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteConversation",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "delete session"
           }
         }
       },
@@ -1098,7 +1089,7 @@
         },
         "responses": {
           "200": {
-            "description": "updated conversation",
+            "description": "updated conversation metadata",
             "content": {
               "application/json": {
                 "schema": {
@@ -1106,24 +1097,6 @@
                 }
               }
             }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteConversation",
-        "parameters": [
-          {
-            "name": "conversation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "delete conversation"
           }
         }
       }
@@ -1163,7 +1136,7 @@
             }
           },
           "404": {
-            "description": "leaf is not part of this conversation"
+            "description": "leaf is not part of this session"
           },
           "409": {
             "description": "stale revision or active run"
@@ -1255,7 +1228,7 @@
         ],
         "responses": {
           "200": {
-            "description": "conversation context snapshot",
+            "description": "session context snapshot",
             "content": {
               "application/json": {
                 "schema": {
@@ -1372,7 +1345,7 @@
         ],
         "responses": {
           "200": {
-            "description": "conversation document detail; include_content=false returns metadata with an empty content_md",
+            "description": "session document detail; include_content=false returns metadata with an empty content_md",
             "content": {
               "application/json": {
                 "schema": {
@@ -1415,7 +1388,7 @@
         },
         "responses": {
           "200": {
-            "description": "updated conversation artifact",
+            "description": "updated session artifact",
             "content": {
               "application/json": {
                 "schema": {
@@ -1593,7 +1566,7 @@
         },
         "responses": {
           "200": {
-            "description": "same conversation file pointing to the committed content",
+            "description": "same session file pointing to the committed content",
             "content": {
               "application/json": {
                 "schema": {
@@ -1716,7 +1689,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Chat-owned conversation file reference",
+            "description": "Runtime-owned session file reference",
             "content": {
               "application/json": {
                 "schema": {
@@ -2296,6 +2269,33 @@
           }
         }
       }
+    },
+    "/conversations/canvas": {
+      "post": {
+        "operationId": "createCanvasConversation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Canvas-bound conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasConversationBinding"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2416,53 +2416,18 @@
           }
         ]
       },
-      "CanvasConversationInput": {
-        "type": "object",
-        "required": [
-          "project_id",
-          "canvas_id"
-        ],
-        "properties": {
-          "project_id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 36
-          },
-          "canvas_id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 36
-          },
-          "title": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200
-          }
-        }
-      },
-      "CanvasConversationBinding": {
-        "type": "object",
-        "required": [
-          "id",
-          "project_id",
-          "canvas_id"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "project_id": {
-            "type": "string"
-          },
-          "canvas_id": {
-            "type": "string"
-          }
-        }
-      },
       "CreateConversationInput": {
         "type": "object",
+        "required": [
+          "request_id"
+        ],
         "additionalProperties": false,
         "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64
+          },
           "title": {
             "type": "string",
             "minLength": 1,
@@ -2472,17 +2437,14 @@
             "type": "string",
             "maxLength": 32,
             "nullable": true
-          }
-        }
-      },
-      "UpdateConversationInput": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "title": {
+          },
+          "project_id": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 200
+            "maxLength": 36
+          },
+          "canvas_id": {
+            "type": "string",
+            "maxLength": 36
           }
         }
       },
@@ -2494,15 +2456,10 @@
           "tenant_id",
           "workspace_id",
           "title",
-          "model",
-          "provider_id",
-          "active_plan_file_id",
           "project_id",
           "canvas_id",
           "created_at",
-          "updated_at",
-          "revision",
-          "selected_message_id"
+          "updated_at"
         ],
         "properties": {
           "id": {
@@ -2520,16 +2477,6 @@
           "title": {
             "type": "string"
           },
-          "model": {
-            "type": "string"
-          },
-          "provider_id": {
-            "type": "string"
-          },
-          "active_plan_file_id": {
-            "type": "string",
-            "nullable": true
-          },
           "project_id": {
             "type": "string",
             "nullable": true
@@ -2545,14 +2492,6 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "selected_message_id": {
-            "type": "string",
-            "nullable": true
           }
         }
       },
@@ -2605,6 +2544,26 @@
               "normal",
               "plan"
             ]
+          },
+          "host_context": {
+            "type": "object",
+            "required": [
+              "project_id",
+              "canvas_id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 36
+              },
+              "canvas_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 36
+              }
+            }
           }
         }
       },
@@ -2894,7 +2853,6 @@
           "user_id",
           "tenant_id",
           "workspace_id",
-          "title",
           "model",
           "provider_id",
           "created_at",
@@ -2905,7 +2863,8 @@
           "branches",
           "documents",
           "active_run_id",
-          "latest_run_id"
+          "latest_run_id",
+          "title"
         ],
         "properties": {
           "id": {
@@ -2920,9 +2879,6 @@
           "workspace_id": {
             "type": "string"
           },
-          "title": {
-            "type": "string"
-          },
           "model": {
             "type": "string"
           },
@@ -2930,14 +2886,6 @@
             "type": "string"
           },
           "active_plan_file_id": {
-            "type": "string",
-            "nullable": true
-          },
-          "project_id": {
-            "type": "string",
-            "nullable": true
-          },
-          "canvas_id": {
             "type": "string",
             "nullable": true
           },
@@ -2980,6 +2928,17 @@
             "nullable": true
           },
           "latest_run_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "canvas_id": {
             "type": "string",
             "nullable": true
           }
@@ -3393,7 +3352,7 @@
                               "skills",
                               "mcp",
                               "memory",
-                              "conversation"
+                              "session"
                             ]
                           },
                           "tokens": {
@@ -4196,6 +4155,39 @@
         "properties": {
           "deleted": {
             "type": "boolean"
+          }
+        }
+      },
+      "UpdateConversationInput": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      },
+      "CanvasConversationBinding": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "canvas_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "canvas_id": {
+            "type": "string"
           }
         }
       }

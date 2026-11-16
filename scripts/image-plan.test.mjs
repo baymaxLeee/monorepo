@@ -58,13 +58,13 @@ test("builds only the directly changed backend service", () => {
 });
 
 test("expands shared libraries only to image consumers", () => {
-  assert.deepEqual(imagePlan(["apps/backend/libs/transport-ts/src/storage.ts"]).build, ["chat", "executor", "sandbox"]);
+  assert.deepEqual(imagePlan(["apps/backend/libs/transport-ts/src/storage.ts"]).build, ["runtime"]);
   assert.deepEqual(imagePlan(["apps/backend/libs/kernel/src/kernel/logging.py"]).build, [
     "admin",
     "knowledge",
     "telemetry",
   ]);
-  assert.deepEqual(imagePlan(["apps/backend/libs/kernel-ts/src/index.ts"]).build, ["chat", "executor", "sandbox"]);
+  assert.deepEqual(imagePlan(["apps/backend/libs/kernel-ts/src/index.ts"]).build, ["chat", "runtime"]);
 });
 
 test("builds the web image for any frontend workspace change", () => {

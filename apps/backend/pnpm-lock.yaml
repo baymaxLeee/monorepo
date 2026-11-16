@@ -312,9 +312,40 @@ importers:
 
   services/chat:
     dependencies:
+      '@backend/kernel-ts':
+        specifier: workspace:*
+        version: link:../../libs/kernel-ts
+      '@hono/node-server':
+        specifier: 'catalog:'
+        version: 2.1.1(hono@4.13.8)
+      '@hono/zod-validator':
+        specifier: 'catalog:'
+        version: 0.9.1(hono@4.13.8)(zod@4.6.5)
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.8
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      '@typescript/native':
+        specifier: 'catalog:'
+        version: typescript@7.0.2
+
+  services/runtime:
+    dependencies:
       '@ai-sdk/code-mode':
         specifier: 'catalog:'
-        version: 1.0.129(ai@7.0.172(zod@4.6.5))(typescript@7.0.2)
+        version: 1.0.129(ai@7.0.172(zod@4.6.5))(typescript@5.9.3)
       '@ai-sdk/provider':
         specifier: 'catalog:'
         version: 4.0.38
@@ -339,49 +370,6 @@ importers:
       '@hono/zod-validator':
         specifier: 'catalog:'
         version: 0.9.1(hono@4.13.8)(zod@4.6.5)
-      ai:
-        specifier: 'catalog:'
-        version: 7.0.172(zod@4.6.5)
-      drizzle-orm:
-        specifier: ^0.44.0
-        version: 0.44.7(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@24.13.3))(pg@8.20.0)(postgres@3.4.9)(sql.js@1.15.1)
-      hono:
-        specifier: 'catalog:'
-        version: 4.13.8
-      ioredis:
-        specifier: ^5.6.0
-        version: 5.11.1(supports-color@10.2.2)
-      postgres:
-        specifier: ^3.4.5
-        version: 3.4.9
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.4
-      zod:
-        specifier: ^4.6.5
-        version: 4.6.5
-    devDependencies:
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.13.3
-      '@typescript/native':
-        specifier: 'catalog:'
-        version: typescript@7.0.2
-
-  services/executor:
-    dependencies:
-      '@backend/kernel-ts':
-        specifier: workspace:*
-        version: link:../../libs/kernel-ts
-      '@backend/transport-ts':
-        specifier: workspace:*
-        version: link:../../libs/transport-ts
-      '@hono/node-server':
-        specifier: 'catalog:'
-        version: 2.1.1(hono@4.13.8)
-      '@hono/zod-validator':
-        specifier: 'catalog:'
-        version: 0.9.1(hono@4.13.8)(zod@4.6.5)
       '@workflow/world-postgres':
         specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(mysql2@3.22.5(@types/node@24.13.3))(postgres@3.4.9)(sql.js@1.15.1)(supports-color@8.1.1)(typescript@5.9.3)
@@ -394,9 +382,15 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.8
+      ioredis:
+        specifier: ^5.6.0
+        version: 5.11.1(supports-color@8.1.1)
       postgres:
         specifier: ^3.4.5
         version: 3.4.9
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
       workflow:
         specifier: 'catalog:'
         version: 5.2.3(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.1.27(@nestjs/common@11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3)(chokidar@5.0.0)(supports-color@8.1.1))(@swc/core@1.15.3)(react@19.3.1)(supports-color@8.1.1)(typescript@5.9.3)(ws@8.22.0)
@@ -419,40 +413,9 @@ importers:
       rollup:
         specifier: ^4.62.2
         version: 4.62.2
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.4
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
-
-  services/sandbox:
-    dependencies:
-      '@backend/kernel-ts':
-        specifier: workspace:*
-        version: link:../../libs/kernel-ts
-      '@hono/node-server':
-        specifier: 'catalog:'
-        version: 2.1.1(hono@4.13.8)
-      hono:
-        specifier: 'catalog:'
-        version: 4.13.8
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.4
-      zod:
-        specifier: ^4.6.5
-        version: 4.6.5
-    devDependencies:
-      '@backend/transport-ts':
-        specifier: workspace:*
-        version: link:../../libs/transport-ts
-      '@types/node':
-        specifier: ^24.0.0
-        version: 24.13.3
-      '@typescript/native':
-        specifier: 'catalog:'
-        version: typescript@7.0.2
 
 packages:
 
@@ -3606,10 +3569,10 @@ snapshots:
 
   '@acemir/cssom@0.9.32': {}
 
-  '@ai-sdk/code-mode@1.0.129(ai@7.0.172(zod@4.6.5))(typescript@7.0.2)':
+  '@ai-sdk/code-mode@1.0.129(ai@7.0.172(zod@4.6.5))(typescript@5.9.3)':
     dependencies:
       ai: 7.0.172(zod@4.6.5)
-      run: 2.1.10(typescript@7.0.2)
+      run: 2.1.10(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
 
@@ -5636,11 +5599,11 @@ snapshots:
 
   interpret@3.1.1: {}
 
-  ioredis@5.11.1(supports-color@10.2.2):
+  ioredis@5.11.1(supports-color@8.1.1):
     dependencies:
       '@ioredis/commands': 1.10.0
       cluster-key-slot: 1.1.1
-      debug: 4.4.3(supports-color@10.2.2)
+      debug: 4.4.3(supports-color@8.1.1)
       denque: 2.1.0
       redis-errors: 1.2.0
       redis-parser: 3.0.0
@@ -6196,9 +6159,9 @@ snapshots:
 
   run-applescript@7.1.0: {}
 
-  run@2.1.10(typescript@7.0.2):
+  run@2.1.10(typescript@5.9.3):
     optionalDependencies:
-      typescript: 7.0.2
+      typescript: 5.9.3
 
   rxjs@7.8.2:
     dependencies:

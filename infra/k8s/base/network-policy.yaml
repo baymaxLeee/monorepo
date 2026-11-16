@@ -32,7 +32,7 @@ spec:
     matchExpressions:
       - key: app
         operator: NotIn
-        values: [gateway, web, sandbox]
+        values: [gateway, web, runtime-worker, runtime-sandbox]
   policyTypes:
     - Ingress
   ingress:
@@ -56,7 +56,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [gateway, admin, chat, knowledge, executor, canvas, canvas-worker]
+                values: [gateway, admin, knowledge, runtime-server, runtime-worker, canvas, canvas-worker]
       ports:
         - protocol: TCP
           port: 8013
@@ -64,13 +64,11 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-chat-to-dependencies
+  name: allow-chat-to-runtime
 spec:
   podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [admin, knowledge, executor, canvas]
+    matchLabels:
+      app: runtime-server
   policyTypes:
     - Ingress
   ingress:
@@ -82,20 +80,40 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-executor-to-dependencies
+  name: allow-runtime-to-dependencies
 spec:
   podSelector:
     matchExpressions:
       - key: app
         operator: In
-        values: [admin, knowledge]
+        values: [admin, knowledge, canvas]
   policyTypes:
     - Ingress
   ingress:
     - from:
         - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [runtime-server, runtime-worker]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-runtime-server-to-worker
+spec:
+  podSelector:
+    matchLabels:
+      app: runtime-worker
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
             matchLabels:
-              app: executor
+              app: runtime-server
+      ports:
+        - protocol: TCP
+          port: 8011
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

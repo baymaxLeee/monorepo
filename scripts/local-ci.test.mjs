@@ -218,3 +218,13 @@ test("a terminated check blocks push and releases the verification lock", async 
   await verify(f.root, f.base);
   assert.equal(f.report().status, "passed");
 });
+
+test("verification snapshots large staged diffs and still detects mutations", async (t) => {
+  const f = fixture(t);
+  writeFileSync(join(f.root, "apps/example.ts"), "large change\n".repeat(100000));
+  f.git("add", ".");
+  await verify(f.root, f.base);
+  assert.equal(f.report().status, "passed");
+  writeFileSync(join(f.root, ".git/mutate"), "");
+  await assert.rejects(verify(f.root, f.base), /Files changed during verification/);
+});
