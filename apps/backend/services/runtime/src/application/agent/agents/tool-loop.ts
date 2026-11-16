@@ -3,12 +3,12 @@ import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
 import { createAgentHarness } from "@repo/agent-runtime";
+import { deriveOrchestrationState } from "@repo/agent-runtime/agent/orchestration";
+import { newMessagesForStoredResponse } from "@repo/agent-runtime/agent/response-continuation";
 import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
-import { transformToolPreservingCaller } from "@repo/agent-runtime/manifest";
-import { deriveOrchestrationState } from "@repo/agent-runtime/orchestration";
-import { isToolOutcome } from "@repo/agent-runtime/outcome";
-import { createToolApprovalPolicy } from "@repo/agent-runtime/policy";
-import { newMessagesForStoredResponse } from "@repo/agent-runtime/response-continuation";
+import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
+import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
+import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
 

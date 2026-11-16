@@ -1,6 +1,6 @@
 import { isToolUIPart, type UIMessage } from "ai";
 
-import { isToolOutcome } from "./outcome.js";
+import { isToolOutcome } from "../tools/outcome.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
 type AnyPart = AnyUIMessage["parts"][number];

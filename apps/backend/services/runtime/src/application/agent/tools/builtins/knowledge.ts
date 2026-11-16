@@ -1,4 +1,4 @@
-import { defineAgentTool } from "@repo/agent-runtime/manifest";
+import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
 import { tool } from "ai";
 import { z } from "zod";
 

@@ -1,4 +1,4 @@
-import { isToolOutcome, toolOutcomeData } from "./outcome.js";
+import { isToolOutcome, toolOutcomeData } from "../tools/outcome.js";
 
 export const MAX_AGENT_STEPS = 50;
 const FINAL_RESPONSE_STEP_INDEX = MAX_AGENT_STEPS - 1;

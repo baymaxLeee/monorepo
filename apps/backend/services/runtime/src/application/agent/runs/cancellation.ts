@@ -1,5 +1,5 @@
-import { finalizeInterruptedParts, hasNonTerminalOutput } from "@repo/agent-runtime/lifecycle";
-import { isToolOutcome, toolOutcomeData } from "@repo/agent-runtime/outcome";
+import { finalizeInterruptedParts, hasNonTerminalOutput } from "@repo/agent-runtime/protocol/lifecycle";
+import { isToolOutcome, toolOutcomeData } from "@repo/agent-runtime/tools/outcome";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;

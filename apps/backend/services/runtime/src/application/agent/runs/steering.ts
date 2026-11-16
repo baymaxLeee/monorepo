@@ -1,4 +1,4 @@
-import type { AgentSteering, AgentSteeringOutcome } from "@repo/agent-runtime/steering";
+import type { AgentSteering, AgentSteeringOutcome } from "@repo/agent-runtime/agent/steering";
 import { and, eq } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";

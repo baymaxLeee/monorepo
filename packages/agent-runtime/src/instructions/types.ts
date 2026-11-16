@@ -1,4 +1,4 @@
-import type { AgentMode } from "../types.js";
+import type { AgentMode } from "../agent/types.js";
 
 export type BotTone = "professional" | "concise" | "friendly" | "empathetic";
 

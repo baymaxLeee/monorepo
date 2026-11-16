@@ -5,18 +5,19 @@ import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 import { createAgentHarness } from "@repo/agent-runtime";
-import type { PublishedWorkspaceFile } from "@repo/agent-runtime/artifact";
-import { createBashTool } from "@repo/agent-runtime/bash";
+import { createAgentSteering, type AgentSteering } from "@repo/agent-runtime/agent/steering";
+import type { PublishedWorkspaceFile } from "@repo/agent-runtime/protocol/artifact";
 import {
   applyToolApprovalResponse,
   finalizeInterruptedMessages,
   hasPendingToolApprovals,
-} from "@repo/agent-runtime/lifecycle";
-import { manifestsToTools } from "@repo/agent-runtime/manifest";
-import { createToolApprovalPolicy } from "@repo/agent-runtime/policy";
-import { createAgentSteering, type AgentSteering } from "@repo/agent-runtime/steering";
+} from "@repo/agent-runtime/protocol/lifecycle";
+import { createBashTool } from "@repo/agent-runtime/tools/bash";
 import { DIRECT_TOOL_CALL } from "@repo/agent-runtime/tools/code-mode";
-import { createCoreToolManifests } from "@repo/agent-runtime/tools/core";
+import { manifestsToTools } from "@repo/agent-runtime/tools/manifest";
+import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
+import { primaryAgentToolProfile, resolveAgentToolProfile } from "@repo/agent-runtime/tools/profile";
+import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
 import {
   convertToModelMessages,
@@ -358,7 +359,7 @@ export class LocalSessionHost {
       let modelEpoch = runWorkspace.epoch;
       const artifactEpoch = runWorkspace.epoch;
       const artifacts = publishedArtifacts(thread.messages);
-      const core = createCoreToolManifests({
+      const portableTools = createPortableToolRegistry({
         mode: "normal",
         model: {
           name: config.model,
@@ -368,36 +369,39 @@ export class LocalSessionHost {
         },
         webSearch: (input, options) => this.options.webSearch(input, options.abortSignal),
         // Local transport does not yet accept SDK client-tool results. This is
-        // a host protocol gap, not a separately curated core tool list.
+        // a host protocol gap, not a separately curated portable default set.
         clientInteraction: false,
       });
-      const manifests = [
-        createBashTool((input, options) =>
-          this.access(thread, async (w) => {
-            if (w.epoch !== modelEpoch) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
-            const result = await w.sandbox.execute(
-              "/bin/bash",
-              [
-                "--noprofile",
-                "--norc",
-                "-c",
-                'cd -- "$1" && eval "$2"',
-                "bash",
-                input.workdir ?? thread.workspace,
-                input.command,
-              ],
-              undefined,
-              options.abortSignal,
-            );
-            await new Promise<void>((resolve) => {
-              setImmediate(resolve);
-            });
-            w.flushChanges();
-            return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
-          }),
-        ),
-        ...core.manifests,
-      ];
+      const manifests = resolveAgentToolProfile({
+        defaults: portableTools.defaults,
+        profile: primaryAgentToolProfile,
+        additions: [
+          createBashTool((input, options) =>
+            this.access(thread, async (w) => {
+              if (w.epoch !== modelEpoch) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
+              const result = await w.sandbox.execute(
+                "/bin/bash",
+                [
+                  "--noprofile",
+                  "--norc",
+                  "-c",
+                  'cd -- "$1" && eval "$2"',
+                  "bash",
+                  input.workdir ?? thread.workspace,
+                  input.command,
+                ],
+                undefined,
+                options.abortSignal,
+              );
+              await new Promise<void>((resolve) => {
+                setImmediate(resolve);
+              });
+              w.flushChanges();
+              return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
+            }),
+          ),
+        ],
+      });
       const tools = manifestsToTools(manifests);
       const activeTools = Object.keys(tools);
       const codeModeToolCallers = Object.fromEntries(

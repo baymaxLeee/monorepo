@@ -5,7 +5,7 @@ import { asSchema, simulateReadableStream, tool, type ToolExecutionOptions, type
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
-import { isToolOutcome, type ToolOutcome } from "../outcome.js";
+import { isToolOutcome, type ToolOutcome } from "./outcome.js";
 import { createSubagentsManifest } from "./subagents.js";
 
 const subagentConfig = {

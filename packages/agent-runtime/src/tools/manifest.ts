@@ -18,7 +18,7 @@ import {
   ToolBlockedError,
   type ToolOutcome,
 } from "./outcome.js";
-import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy, ToolAvailability } from "./tool-types.js";
+import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy, ToolAvailability } from "./types.js";
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return Boolean(value && (typeof value === "object" || typeof value === "function") && Symbol.asyncIterator in value);

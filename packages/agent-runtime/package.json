@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/harness.ts",
-    "./*": "./src/*.ts",
+    ".": "./src/agent/harness.ts",
+    "./agent/*": "./src/agent/*.ts",
+    "./instructions/*": "./src/instructions/*.ts",
+    "./protocol/*": "./src/protocol/*.ts",
     "./tools/*": "./src/tools/*.ts"
   },
   "scripts": {

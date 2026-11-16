@@ -1,5 +1,5 @@
-import { defineAgentTool, defineUnavailableCapability } from "@repo/agent-runtime/manifest";
-import { toolCompleted, type ToolEmission } from "@repo/agent-runtime/outcome";
+import { defineAgentTool, defineUnavailableCapability } from "@repo/agent-runtime/tools/manifest";
+import { toolCompleted, type ToolEmission } from "@repo/agent-runtime/tools/outcome";
 import { tool } from "ai";
 import { z } from "zod";
 

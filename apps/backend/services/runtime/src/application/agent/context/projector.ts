@@ -1,6 +1,6 @@
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { escapeXmlText } from "@repo/agent-runtime/instructions/xml";
-import { isToolOutcome, toolOutcomeData } from "@repo/agent-runtime/outcome";
+import { isToolOutcome, toolOutcomeData } from "@repo/agent-runtime/tools/outcome";
 import {
   convertToModelMessages,
   getToolName,

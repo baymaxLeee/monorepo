@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "../manifest.js";
+import { defineAgentTool } from "./manifest.js";
 
 const todoItemSchema = z.object({
   id: z.string().min(1).max(64).describe("Stable unique id for this task."),

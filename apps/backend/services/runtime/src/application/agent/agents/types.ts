@@ -1,6 +1,6 @@
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import type { OrchestrationState } from "@repo/agent-runtime/agent/orchestration";
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
-import type { OrchestrationState } from "@repo/agent-runtime/orchestration";
 import type { ModelMessage } from "ai";
 
 import type { AgentSkillRef, ProviderSnapshot, SkillFileResource } from "../../../infrastructure/clients/admin.js";

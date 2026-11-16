@@ -4,11 +4,11 @@ import { test } from "node:test";
 import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { convertToModelMessages, isToolUIPart, readUIMessageStream, toUIMessageStream, type UIMessage } from "ai";
 
-import { createBashTool } from "./bash.js";
+import { assembleInstructions } from "../instructions/index.js";
+import { createBashTool } from "../tools/bash.js";
+import { manifestsToTools } from "../tools/manifest.js";
+import { createToolApprovalPolicy } from "../tools/policy.js";
 import { createAgentHarness } from "./harness.js";
-import { assembleInstructions } from "./instructions/index.js";
-import { manifestsToTools } from "./manifest.js";
-import { createToolApprovalPolicy } from "./policy.js";
 import { createAgentSteering } from "./steering.js";
 
 const finish: LanguageModelV4StreamPart = {

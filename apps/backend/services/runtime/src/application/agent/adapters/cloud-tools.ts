@@ -1,6 +1,6 @@
-import { createUploadArtifactsTool } from "@repo/agent-runtime/artifact";
-import { createBashTool } from "@repo/agent-runtime/bash";
-import { defineAgentTool } from "@repo/agent-runtime/manifest";
+import { createUploadArtifactsTool } from "@repo/agent-runtime/protocol/artifact";
+import { createBashTool } from "@repo/agent-runtime/tools/bash";
+import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
 import { tool } from "ai";
 import { z } from "zod";
 

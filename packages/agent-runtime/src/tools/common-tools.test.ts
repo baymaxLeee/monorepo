@@ -4,8 +4,8 @@ import test from "node:test";
 import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
 import type { Tool, ToolExecutionOptions } from "ai";
 
-import { isToolOutcome } from "../outcome.js";
 import { createCodeModeManifest } from "./code-mode.js";
+import { isToolOutcome } from "./outcome.js";
 import { createWebFetchManifest, createWebSearchManifest } from "./web.js";
 
 function executable(definition: Tool<unknown, unknown> | undefined) {

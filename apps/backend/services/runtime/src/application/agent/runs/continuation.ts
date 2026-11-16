@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { toolOutcomeData } from "@repo/agent-runtime/outcome";
 import { askUserInputSchema, askUserOutcomeSchema } from "@repo/agent-runtime/tools/interaction";
+import { toolOutcomeData } from "@repo/agent-runtime/tools/outcome";
 import { getToolName, isToolUIPart, type UIMessage, type UIMessagePart } from "ai";
 
 import { RequestError } from "../../errors.js";

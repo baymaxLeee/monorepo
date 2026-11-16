@@ -1,14 +1,15 @@
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
-import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@repo/agent-runtime/manifest";
-import type { AgentToolManifest, ToolSource } from "@repo/agent-runtime/tool-types";
-import { createCoreToolManifests } from "@repo/agent-runtime/tools/core";
+import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@repo/agent-runtime/tools/manifest";
+import { primaryAgentToolProfile, resolveAgentToolProfile } from "@repo/agent-runtime/tools/profile";
+import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { AdminSkillSource } from "@repo/agent-runtime/tools/skills";
+import type { AgentToolManifest, ToolSource } from "@repo/agent-runtime/tools/types";
 import type { ToolSet } from "ai";
 
 import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import { createCloudToolAdapters } from "../adapters/cloud-tools.js";
-import { createRuntimeCoreToolModel } from "../adapters/core-tools.js";
+import { createRuntimePortableToolModel } from "../adapters/core-tools.js";
 import { webSearch } from "../adapters/web-search.js";
 import type { AgentExtension, AgentExtensionContext } from "../integrations/types.js";
 import { createCanvasToolManifests } from "./builtins/canvas.js";
@@ -85,17 +86,16 @@ export class ToolCatalog {
     contributions: InstructionContributions;
     dispose: () => Promise<void>;
   }> {
-    const core = createCoreToolManifests({
+    const portableTools = createPortableToolRegistry({
       mode: context.mode,
-      model: createRuntimeCoreToolModel(providers.textProvider),
+      model: createRuntimePortableToolModel(providers.textProvider),
       webSearch,
       skillSource,
     });
     const cloudAdapters = await createCloudToolAdapters();
     const disposers: Array<() => void | Promise<void>> = [cloudAdapters.dispose];
     try {
-      const manifests = [
-        ...core.manifests,
+      const additions = [
         ...domainManifests(providers),
         ...cloudAdapters.manifests,
         ...(context.projectId && context.canvasId
@@ -105,7 +105,7 @@ export class ToolCatalog {
             })
           : []),
       ];
-      const skills = [...core.skills];
+      const skills = [...portableTools.skills];
 
       for (const extension of [...this.#extensions]) {
         const contribution = await extension.resolve(context);
@@ -115,7 +115,7 @@ export class ToolCatalog {
         const source = extensionSource(extension.id);
         for (const [contributedName, definition] of Object.entries(contribution.tools ?? {})) {
           const name = extensionToolName(extension.id, contributedName);
-          manifests.push(
+          additions.push(
             defineAgentTool(
               name,
               { ...definition, deferLoading: true },
@@ -139,13 +139,11 @@ export class ToolCatalog {
         }
       }
 
-      const names = new Set<string>();
-      for (const manifest of manifests) {
-        if (names.has(manifest.name)) {
-          throw new Error(`duplicate agent tool ${manifest.name}`);
-        }
-        names.add(manifest.name);
-      }
+      const manifests = resolveAgentToolProfile({
+        defaults: portableTools.defaults,
+        additions,
+        profile: primaryAgentToolProfile,
+      });
 
       // Capability projection is code-generated from resolved manifests and only
       // in plan mode; normal mode relies on the callable tool schemas directly.

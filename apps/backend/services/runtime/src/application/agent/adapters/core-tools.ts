@@ -1,7 +1,7 @@
 import { finishSpan, startSpan } from "@backend/kernel-ts";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { createProviderModel } from "@backend/transport-ts/provider-model";
-import type { CoreToolModel } from "@repo/agent-runtime/tools/core";
+import type { PortableToolModel } from "@repo/agent-runtime/tools/registry";
 import type { SubagentObserver } from "@repo/agent-runtime/tools/subagents";
 
 import { contextCompactionThreshold } from "../context/budget.js";
@@ -34,7 +34,9 @@ function runtimeSubagentObserver(): SubagentObserver<SubagentToolContext> {
   };
 }
 
-export function createRuntimeCoreToolModel(provider: LanguageProviderSnapshot): CoreToolModel<SubagentToolContext> {
+export function createRuntimePortableToolModel(
+  provider: LanguageProviderSnapshot,
+): PortableToolModel<SubagentToolContext> {
   return {
     name: provider.model,
     model: createProviderModel(provider, {

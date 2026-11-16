@@ -2,8 +2,8 @@ import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/t
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool, transformToolPreservingCaller } from "../manifest.js";
-import { toolCompleted, toolFailed } from "../outcome.js";
+import { defineAgentTool, transformToolPreservingCaller } from "./manifest.js";
+import { toolCompleted, toolFailed } from "./outcome.js";
 
 export const webSearchInputSchema = z.object({
   query: z.string().min(1).max(2_000).describe("Focused natural-language search query."),

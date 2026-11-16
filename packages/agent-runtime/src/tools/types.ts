@@ -1,6 +1,6 @@
 import type { ToolSet } from "ai";
 
-import type { AgentMode } from "./types.js";
+import type { AgentMode } from "../agent/types.js";
 
 export type ToolCapability =
   | "canvas"

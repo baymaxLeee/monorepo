@@ -1,17 +1,17 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { FlexibleSchema } from "ai";
 
-import { manifestsToTools } from "../manifest.js";
-import type { AgentMode } from "../types.js";
+import type { AgentMode } from "../agent/types.js";
 import { createCodeModeManifest } from "./code-mode.js";
 import { createToolSearchManifest } from "./discovery.js";
 import { createInteractionToolManifests } from "./interaction.js";
+import { manifestsToTools } from "./manifest.js";
 import { createPlanningToolManifests } from "./planning.js";
 import { type AdminSkillSource, resolveSkills } from "./skills.js";
 import { createSubagentsManifest, type SubagentObserver } from "./subagents.js";
 import { createWebFetchManifest, createWebSearchManifest, type WebSearchInput, type WebSearchOutput } from "./web.js";
 
-export interface CoreToolModel<CONTEXT extends Record<string, unknown>> {
+export interface PortableToolModel<CONTEXT extends Record<string, unknown>> {
   name: string;
   model: LanguageModelV4;
   maxOutputTokens?: number;
@@ -20,39 +20,37 @@ export interface CoreToolModel<CONTEXT extends Record<string, unknown>> {
   observer?: SubagentObserver<CONTEXT>;
 }
 
-export interface CoreToolOptions<CONTEXT extends Record<string, unknown>> {
+export interface PortableToolBindings<CONTEXT extends Record<string, unknown>> {
   mode: AgentMode;
-  model: CoreToolModel<CONTEXT>;
+  model: PortableToolModel<CONTEXT>;
   webSearch(input: WebSearchInput, options: { abortSignal?: AbortSignal }): Promise<WebSearchOutput>;
   skillSource?: AdminSkillSource | null;
   clientInteraction?: boolean;
 }
 
 /**
- * The portable tool surface owned by the shared Agent runtime.
- *
- * Hosts inject execution dependencies and append host/domain manifests; they do
- * not select individual core tools. `clientInteraction: false` is reserved for
- * hosts that cannot yet continue an SDK client tool result.
+ * Creates the portable default-tool registry and binds its execution ports.
+ * This does not decide the capability surface of every agent; callers resolve
+ * these defaults through an AgentToolProfile and add only that agent's tools.
  */
-export function createCoreToolManifests<CONTEXT extends Record<string, unknown> = Record<string, never>>({
+export function createPortableToolRegistry<CONTEXT extends Record<string, unknown> = Record<string, never>>({
   mode,
   model,
   webSearch,
   skillSource,
   clientInteraction = true,
-}: CoreToolOptions<CONTEXT>) {
+}: PortableToolBindings<CONTEXT>) {
   const webSearchManifest = createWebSearchManifest(webSearch);
   const webFetchManifest = createWebFetchManifest();
   const researchTools = manifestsToTools([webSearchManifest, webFetchManifest]);
   const skills = resolveSkills(skillSource);
 
   if (!researchTools.web_search || !researchTools.web_fetch) {
-    throw new Error("core research tools are unavailable");
+    throw new Error("portable research tools are unavailable");
   }
 
   return {
-    manifests: [
+    defaults: [
       webSearchManifest,
       webFetchManifest,
       createCodeModeManifest(),

@@ -1,4 +1,4 @@
-import { MAX_INJECTED_MEMORIES, MAX_INJECTED_MEMORY_CHARS } from "../instruction-config.js";
+import { MAX_INJECTED_MEMORIES, MAX_INJECTED_MEMORY_CHARS } from "./config.js";
 import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
 import type { MemoryDatum } from "./types.js";
 import { escapeXmlText, xmlSection } from "./xml.js";

@@ -32,7 +32,7 @@ Plan 是 Chat 注册的稳定 conversation file，已保存内容指向精确 As
 
 ## 工具与模型
 
-`@repo/agent-runtime` 只拥有 tool 协议、manifest/outcome、agent-loop 可复用原子能力及其测试，不得依赖 Runtime 服务的领域 client。`createCoreToolManifests` 是云端与本地唯一的核心工具集合，统一提供 Web Fetch、Code Mode、Tool Search、Planning、Interaction、Skills 与 Subagents；宿主不得逐项复制或筛选这份名单，只注入模型、Web Search 执行器、上下文/观测及真实存在的宿主协议差异，再追加 Bash 和领域/MCP manifests。Canvas、Media、Knowledge、Memory 等当前直连领域系统的工具暂留 Runtime 领域边界。共享层不得反向导入这些具体实现。
+`@repo/agent-runtime` 只拥有 tool 协议、manifest/outcome、agent-loop 可复用原子能力及其测试，不得依赖 Runtime 服务的领域 client。`createPortableToolRegistry` 是云端与本地唯一的公共工具定义与执行端口注册表，统一提供 Web Fetch、Code Mode、Tool Search、Planning、Interaction、Skills 与 Subagents；注册表不是无差别暴露给所有 Agent 的全局工具袋。每个 `ToolLoopAgent` 在构造前必须通过 `AgentToolProfile` 解析最终能力面：主 Agent 复用共享默认 profile，专用 Agent 可关闭默认集并显式选取较窄集合；Agent/宿主追加的工具自动属于该 Agent，同名 manifest 可为同一逻辑槽绑定不同 executor，profile 可最终禁用。宿主不得复制公共默认名单，只注入模型、Web Search、Bash sandbox、上下文/观测等真实执行差异，并追加该 Agent 的领域/MCP manifests。最终只把解析后的 manifests/tools 交给 SDK，`activeTools` 只负责当前 mode/step 的进一步收窄。Canvas、Media、Knowledge、Memory 等当前直连领域系统的工具暂留 Runtime 领域边界。共享层不得反向导入这些具体实现。
 
 - `ask_user` 是无 server execute 的 client tool，批量询问已知独立问题，客户端 `addToolOutput` 后 continuation；依赖答案的后续问题再提出。
 - 应用工具使用 ToolOutcome；业务失败可在 UI/persistence 保留结构化结果，同时向模型投影为 error-json。Abort、审批拒绝、输入/协议错误保留原生控制流。 `toolSearch()` 保留原生结果以激活延迟工具。

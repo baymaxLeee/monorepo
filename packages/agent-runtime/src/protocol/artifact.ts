@@ -1,8 +1,8 @@
 import { tool, type ToolExecutionOptions, type UIMessageChunk } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "./manifest.js";
-import { toolOutcomeData } from "./outcome.js";
+import { defineAgentTool } from "../tools/manifest.js";
+import { toolOutcomeData } from "../tools/outcome.js";
 
 export const uploadArtifactInputSchema = z.object({
   operation: z.enum(["create", "update"]),

@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
 import type { ToolSet } from "@ai-sdk/provider-utils";
-import { fileDataChunks } from "@repo/agent-runtime/artifact";
-import { isToolOutcome } from "@repo/agent-runtime/outcome";
+import { fileDataChunks } from "@repo/agent-runtime/protocol/artifact";
+import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
 import {
   getToolName,
   isToolUIPart,

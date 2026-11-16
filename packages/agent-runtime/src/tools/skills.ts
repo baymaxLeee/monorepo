@@ -2,9 +2,9 @@ import { tool } from "ai";
 import { z } from "zod";
 
 import type { SkillListing } from "../instructions/index.js";
-import { defineAgentTool } from "../manifest.js";
-import { ToolBlockedError } from "../outcome.js";
-import type { AgentToolManifest } from "../tool-types.js";
+import { defineAgentTool } from "./manifest.js";
+import { ToolBlockedError } from "./outcome.js";
+import type { AgentToolManifest } from "./types.js";
 
 export type SkillFileResource =
   | { storageKind: "inline"; mimeType: string | null; content: string }

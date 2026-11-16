@@ -10,8 +10,8 @@ import {
 } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "../manifest.js";
-import { normalizeToolIssue, shouldRethrowToolError, toolCompleted, toolIssueSchema, toolRunning } from "../outcome.js";
+import { defineAgentTool } from "./manifest.js";
+import { normalizeToolIssue, shouldRethrowToolError, toolCompleted, toolIssueSchema, toolRunning } from "./outcome.js";
 import { createSubagent } from "./subagent-agent.js";
 
 const MAX_SUBAGENTS = 3;

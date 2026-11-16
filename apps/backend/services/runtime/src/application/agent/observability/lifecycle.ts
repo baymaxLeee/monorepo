@@ -1,4 +1,4 @@
-import { isToolOutcome } from "@repo/agent-runtime/outcome";
+import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
 
 import { finalizeSessionContext, type ContextEstimate } from "../context/context-snapshot.js";
 import {
