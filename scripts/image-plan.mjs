@@ -97,15 +97,28 @@ function affectedByFile(file) {
   if (matches(file, "apps/backend/services/runtime/sandbox-assets/proxy")) selected.add("sandbox-proxy");
 
   if (matches(file, "apps/backend/libs/kernel")) add(selected, pythonServices);
+  for (const project of projects.filter((p) => p.area === "shared" && p.runtime === "node")) {
+    if (matches(file, project.path)) {
+      const affected = new Set(consumersOf(projects, [project.id]));
+      add(
+        selected,
+        backendServices
+          .filter(({ id }) => affected.has(id))
+          .map(imageForProject)
+          .map(({ service }) => service),
+      );
+      if ([...affected].some((id) => id.startsWith("frontend/"))) selected.add("web");
+    }
+  }
   for (const project of projects.filter((p) => p.area === "backend" && p.kind === "libs" && p.runtime === "node")) {
     if (matches(file, project.path)) add(selected, consumersOfBackendLibrary(project.id));
   }
   if (["apps/backend/pyproject.toml", "apps/backend/uv.lock"].includes(file)) add(selected, pythonServices);
   if (file === "apps/backend/.dockerignore") add(selected, pythonServices);
-  if (["apps/backend/package.json", "apps/backend/pnpm-lock.yaml", "apps/backend/pnpm-workspace.yaml"].includes(file)) {
-    add(selected, nodeServices);
+  if (file === "apps/backend/package.json") add(selected, nodeServices);
+  if (["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".pnpmfile.mjs"].includes(file)) {
+    add(selected, [...nodeServices, "web"]);
   }
-  if (file === "package.json") add(selected, [...nodeServices, "web"]);
 
   if (matches(file, "apps/frontend")) selected.add("web");
   if (matches(file, "schemas")) add(selected, applicationServices);

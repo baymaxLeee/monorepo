@@ -149,7 +149,7 @@ ui-add *args:
 
 # One JS/TS policy for frontend, Node services and repository scripts.
 lint-ts:
-    pnpm lint:ts oxlint.config.ts oxfmt.config.ts scripts apps/frontend apps/backend
+    pnpm lint:ts oxlint.config.ts oxfmt.config.ts scripts packages apps/frontend apps/backend
     pnpm format:ts:check
 
 fmt-ts:
@@ -304,4 +304,4 @@ build-sandbox-proxy registry="local" tag="latest":
 
 # Requires Docker and prebuilt runtime/proxy images; executes real isolated commands.
 test-sandbox-integration:
-    pnpm --dir apps/backend --filter runtime run test:sandbox-integration
+    pnpm --filter @backend/runtime run test:sandbox-integration

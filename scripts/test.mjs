@@ -29,7 +29,8 @@ export function selectTargets(targets, selection) {
   if (selection === "all") return targets;
   const selected = targets.filter(
     (target) =>
-      target.id === selection || (["backend", "frontend"].includes(selection) && target.id.startsWith(`${selection}/`)),
+      target.id === selection ||
+      (["backend", "frontend", "shared"].includes(selection) && target.id.startsWith(`${selection}/`)),
   );
   if (!selected.length) throw new Error(`Unknown test target: ${selection}. Run just test-list.`);
   return selected;

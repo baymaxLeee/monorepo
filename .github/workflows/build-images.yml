@@ -13,10 +13,14 @@ on:
     paths:
       - "apps/backend/**"
       - "apps/frontend/**"
+      - "packages/**"
       - "schemas/**"
       - "infra/single-vps/**"
       - "package.json"
+      - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
+      - ".pnpmfile.mjs"
+      - "turbo.json"
       - "mise.toml"
       - "justfile"
       - "ruff.toml"
@@ -117,8 +121,7 @@ jobs:
   build:
     needs: [quality, plan]
     if: >-
-      needs.quality.result == 'success' &&
-      needs.plan.outputs.has-build == 'true'
+      needs.quality.result == 'success' && needs.plan.outputs.has-build == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -176,8 +179,7 @@ jobs:
   reuse:
     needs: [quality, plan]
     if: >-
-      needs.quality.result == 'success' &&
-      needs.plan.outputs.has-reuse == 'true'
+      needs.quality.result == 'success' && needs.plan.outputs.has-reuse == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

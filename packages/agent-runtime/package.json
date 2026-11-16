@@ -1,5 +1,5 @@
 {
-  "name": "@backend/agent-runtime-ts",
+  "name": "@repo/agent-runtime",
   "version": "0.1.0",
   "private": true,
   "type": "module",

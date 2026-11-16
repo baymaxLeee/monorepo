@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isToolOutcome, type ToolOutcome } from "@backend/agent-runtime-ts/outcome";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import { isToolOutcome, type ToolOutcome } from "@repo/agent-runtime/outcome";
 import { asSchema, simulateReadableStream, tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";

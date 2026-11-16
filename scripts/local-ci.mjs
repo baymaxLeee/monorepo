@@ -50,8 +50,6 @@ function fullCodePlan(base, files) {
   }
   const steps = [
     ["root-dependencies", "pnpm", "install", "--frozen-lockfile"],
-    ["frontend-dependencies", "pnpm", "--dir", "apps/frontend", "install", "--frozen-lockfile"],
-    ["backend-dependencies", "pnpm", "--dir", "apps/backend", "install", "--frozen-lockfile"],
     ["python-dependencies", "uv", "sync", "--project", "apps/backend", "--all-packages", "--locked"],
     ["go-module-consistency", "just", "check-go-modules"],
     ["lint-format-types", "just", "lint"],
@@ -109,9 +107,8 @@ function toolingCodePlan(files) {
   const formatFiles = executable.filter((path) => /\.(?:jsonc?|[cm]?[jt]sx?)$/.test(path));
   const steps = [
     ["repository", "just", "check-repo"],
-    ["frontend-dependencies", "pnpm", "--dir", "apps/frontend", "install", "--frozen-lockfile"],
+    ["root-dependencies", "pnpm", "install", "--frozen-lockfile"],
   ];
-  if (lintFiles.length || formatFiles.length) steps.push(["root-dependencies", "pnpm", "install", "--frozen-lockfile"]);
   if (lintFiles.length) steps.push(["tooling-lint", "pnpm", "lint:ts", ...lintFiles]);
   if (formatFiles.length) steps.push(["tooling-format", "pnpm", "exec", "oxfmt", "--check", ...formatFiles]);
   steps.push(["tooling-tests", "just", "test", "tooling"]);
@@ -122,12 +119,17 @@ export function codePlan(base, files, root = ROOT) {
   if (files.length && files.every(isTooling)) return toolingCodePlan(files);
   const projects = discoverProjects(root);
   const executableFiles = files.filter((path) => !isDocumentation(path));
-  const changes = executableFiles.map((path) => ({
-    path,
-    area: path.startsWith("apps/frontend/") ? "frontend" : path.startsWith("apps/backend/") ? "backend" : null,
-    owner: ownerOf(projects, root, path),
-    contractOwners: contractOwners(path),
-  }));
+  const changes = executableFiles.map((path) => {
+    const owner = ownerOf(projects, root, path);
+    return {
+      path,
+      area:
+        owner?.area ??
+        (path.startsWith("apps/frontend/") ? "frontend" : path.startsWith("apps/backend/") ? "backend" : null),
+      owner,
+      contractOwners: contractOwners(path),
+    };
+  });
   if (changes.some(({ area, contractOwners: owners }) => !area && !owners.length)) return fullCodePlan(base, files);
 
   const broadAreas = new Set(
@@ -154,6 +156,7 @@ export function codePlan(base, files, root = ROOT) {
   const affected = projects.filter(({ id }) => affectedIds.has(id));
   const frontend = affected.filter(({ area }) => area === "frontend");
   const backend = affected.filter(({ area }) => area === "backend");
+  const shared = affected.filter(({ area }) => area === "shared");
   const nodeBackend = backend.filter(({ runtime }) => runtime === "node");
   const pythonBackend = backend.filter(({ runtime }) => runtime === "python");
   const goBackend = backend.filter(({ runtime }) => runtime === "go");
@@ -161,11 +164,8 @@ export function codePlan(base, files, root = ROOT) {
 
   if (files.some(isDocumentation)) steps.push(["repository", "just", "check-repo"]);
 
-  if (frontend.length || nodeBackend.length) steps.push(["root-dependencies", "pnpm", "install", "--frozen-lockfile"]);
-  if (frontend.length)
-    steps.push(["frontend-dependencies", "pnpm", "--dir", "apps/frontend", "install", "--frozen-lockfile"]);
-  if (nodeBackend.length)
-    steps.push(["backend-dependencies", "pnpm", "--dir", "apps/backend", "install", "--frozen-lockfile"]);
+  if (frontend.length || nodeBackend.length || shared.length)
+    steps.push(["root-dependencies", "pnpm", "install", "--frozen-lockfile"]);
   if (pythonBackend.length)
     steps.push(["python-dependencies", "uv", "sync", "--project", "apps/backend", "--all-packages", "--locked"]);
 
@@ -214,6 +214,16 @@ export function codePlan(base, files, root = ROOT) {
     if (formatFiles.length) steps.push(["backend-node-format", "pnpm", "exec", "oxfmt", "--check", ...formatFiles]);
     steps.push(...nodeBackend.map(({ id, path }) => [`type-${id}`, "pnpm", "--dir", path, "run", "typecheck"]));
   }
+  if (shared.length) {
+    const changed = changes
+      .filter(({ area, path }) => area === "shared" && existsSync(resolve(root, path)))
+      .map(({ path }) => path);
+    const lintFiles = changed.filter((path) => /\.[cm]?[jt]sx?$/.test(path));
+    const formatFiles = changed.filter((path) => /\.(?:jsonc?|[cm]?[jt]sx?)$/.test(path));
+    if (lintFiles.length) steps.push(["shared-lint", "pnpm", "lint:ts", ...lintFiles]);
+    if (formatFiles.length) steps.push(["shared-format", "pnpm", "exec", "oxfmt", "--check", ...formatFiles]);
+    steps.push(...shared.map(({ id, path }) => [`type-${id}`, "pnpm", "--dir", path, "run", "typecheck"]));
+  }
   if (pythonBackend.length) {
     const changed = changes
       .filter(
@@ -246,6 +256,9 @@ export function codePlan(base, files, root = ROOT) {
       ...frontendTests.flatMap(({ packageName }) => ["--project", packageName]),
     ]);
   for (const { id } of backend.filter(({ id }) => targets.get(id)?.files.length)) {
+    steps.push([`test-${id}`, "just", "test", id]);
+  }
+  for (const { id } of shared.filter(({ id }) => targets.get(id)?.files.length)) {
     steps.push([`test-${id}`, "just", "test", id]);
   }
   if (changes.some(({ contractOwners: owners }) => owners.length)) steps.push(["contracts", "just", "sync-check"]);

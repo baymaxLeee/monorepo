@@ -43,7 +43,7 @@ test("global configuration and missing diff bases conservatively select all scop
     ["schemas/openapi/chat.json"],
     [".github/workflows/build-images.yml"],
   ]) {
-    assert.deepEqual(affectedSelections(files, targets, root), ["backend", "frontend", "tooling"]);
+    assert.deepEqual(affectedSelections(files, targets, root), ["backend", "frontend", "shared", "tooling"]);
   }
   assert.deepEqual(affectedSelections(["apps/backend/services/deleted/src/old.py"], targets, root), ["backend"]);
   assert.throws(() => affectedSelections([], targets, root, "typo"), /Unknown test scope/);

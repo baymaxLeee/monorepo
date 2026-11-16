@@ -6,7 +6,7 @@ import { consumersOf } from "./repository.mjs";
 import { discoverTargets, runSelections } from "./test.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const scopes = ["backend", "frontend", "tooling"];
+const scopes = ["backend", "frontend", "shared", "tooling"];
 
 export function changedFiles(root, base) {
   if (base === "all" || /^0+$/.test(base)) return null;
@@ -39,15 +39,23 @@ export function affectedSelections(files, targets, root, scope = "all") {
     }
     // Documentation changes do not alter executable behavior.
     if (/(^|\/)README\.md$/.test(file) || file.startsWith("docs/")) continue;
-    const area = file.startsWith("apps/frontend/") ? "frontend" : file.startsWith("apps/backend/") ? "backend" : null;
+    const area = file.startsWith("apps/frontend/")
+      ? "frontend"
+      : file.startsWith("apps/backend/")
+        ? "backend"
+        : file.startsWith("packages/")
+          ? "shared"
+          : null;
     if (area) {
       const owner = targets.find((target) => {
         const dir = relative(root, target.dir).split("\\").join("/");
-        return dir.startsWith(`apps/${area}/`) && file.startsWith(`${dir}/`);
+        return file.startsWith(`${dir}/`);
       });
       const graphIncomplete = targets.some((p) => p.area === area && p.dependencyErrors?.length);
-      if (!owner || /\/(package\.json|pyproject\.toml|go\.mod)$/.test(file) || graphIncomplete) selected.add(area);
-      else if (owner.dependencies && ["frontend", "node"].includes(owner.runtime)) {
+      if (!owner || /\/(package\.json|pyproject\.toml|go\.mod)$/.test(file) || graphIncomplete) {
+        if (area === "shared") all();
+        else selected.add(area);
+      } else if (owner.dependencies && ["frontend", "node"].includes(owner.runtime)) {
         for (const id of consumersOf(targets, [owner.id])) selected.add(id);
       } else if (file.startsWith(`apps/${area}/libs/`) || file.startsWith(`apps/${area}/packages/`)) selected.add(area);
       else selected.add(owner.id);

@@ -4,17 +4,21 @@ on:
   workflow_call:
   pull_request:
     paths:
-      - 'apps/frontend/**'
-      - 'schemas/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'mise.toml'
-      - 'justfile'
-      - 'oxlint.config.ts'
-      - 'oxfmt.config.ts'
-      - '.pre-commit-config.yaml'
-      - 'scripts/*.mjs'
-      - '.github/workflows/frontend.yml'
+      - "apps/frontend/**"
+      - "packages/**"
+      - "schemas/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - ".pnpmfile.mjs"
+      - "turbo.json"
+      - "mise.toml"
+      - "justfile"
+      - "oxlint.config.ts"
+      - "oxfmt.config.ts"
+      - ".pre-commit-config.yaml"
+      - "scripts/*.mjs"
+      - ".github/workflows/frontend.yml"
 
 jobs:
   test:
@@ -30,7 +34,6 @@ jobs:
       - name: Install root lint tooling
         working-directory: .
         run: pnpm install --frozen-lockfile
-      - run: pnpm install --frozen-lockfile
       - name: Affected frontend behavior tests
         working-directory: .
         env:

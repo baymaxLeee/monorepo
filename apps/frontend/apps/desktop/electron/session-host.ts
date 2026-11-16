@@ -4,17 +4,17 @@ import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
-import { createAgentHarness } from "@backend/agent-runtime-ts";
-import type { PublishedWorkspaceFile } from "@backend/agent-runtime-ts/artifact";
-import { createBashTool } from "@backend/agent-runtime-ts/bash";
+import { createAgentHarness } from "@repo/agent-runtime";
+import type { PublishedWorkspaceFile } from "@repo/agent-runtime/artifact";
+import { createBashTool } from "@repo/agent-runtime/bash";
 import {
   applyToolApprovalResponse,
   finalizeInterruptedMessages,
   hasPendingToolApprovals,
-} from "@backend/agent-runtime-ts/lifecycle";
-import { manifestsToTools } from "@backend/agent-runtime-ts/manifest";
-import { createToolApprovalPolicy } from "@backend/agent-runtime-ts/policy";
-import { createAgentSteering, type AgentSteering } from "@backend/agent-runtime-ts/steering";
+} from "@repo/agent-runtime/lifecycle";
+import { manifestsToTools } from "@repo/agent-runtime/manifest";
+import { createToolApprovalPolicy } from "@repo/agent-runtime/policy";
+import { createAgentSteering, type AgentSteering } from "@repo/agent-runtime/steering";
 import {
   convertToModelMessages,
   isToolUIPart,

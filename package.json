@@ -7,8 +7,8 @@
     "sync": "just sync",
     "lint:ts": "oxlint -f agent --quiet --report-unused-disable-directives",
     "lint:ui-contracts": "node scripts/check-ui-contracts.mjs",
-    "format:ts": "oxfmt --write oxlint.config.ts oxfmt.config.ts package.json 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
-    "format:ts:check": "oxfmt --check oxlint.config.ts oxfmt.config.ts package.json 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'"
+    "format:ts": "oxfmt --write oxlint.config.ts oxfmt.config.ts package.json pnpm-workspace.yaml 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'packages/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'",
+    "format:ts:check": "oxfmt --check oxlint.config.ts oxfmt.config.ts package.json pnpm-workspace.yaml 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'packages/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'"
   },
   "devDependencies": {
     "oxfmt": "^0.60.0",

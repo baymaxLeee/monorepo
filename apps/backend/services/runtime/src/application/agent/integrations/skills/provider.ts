@@ -1,7 +1,7 @@
-import type { SkillListing } from "@backend/agent-runtime-ts/instructions/index";
-import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
-import { ToolBlockedError } from "@backend/agent-runtime-ts/outcome";
-import type { AgentToolManifest } from "@backend/agent-runtime-ts/tool-types";
+import type { SkillListing } from "@repo/agent-runtime/instructions/index";
+import { defineAgentTool } from "@repo/agent-runtime/manifest";
+import { ToolBlockedError } from "@repo/agent-runtime/outcome";
+import type { AgentToolManifest } from "@repo/agent-runtime/tool-types";
 import { tool } from "ai";
 import { z } from "zod";
 

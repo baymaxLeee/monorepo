@@ -1,4 +1,4 @@
-import { escapeXmlText } from "@backend/agent-runtime-ts/instructions/xml";
+import { escapeXmlText } from "@repo/agent-runtime/instructions/xml";
 import { isFileUIPart, isReasoningFileUIPart, type UIMessage } from "ai";
 
 import { getDocumentSource } from "../../../infrastructure/clients/knowledge.js";

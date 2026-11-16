@@ -1,14 +1,14 @@
 import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
-import { createAgentHarness } from "@backend/agent-runtime-ts";
-import { assembleInstructions } from "@backend/agent-runtime-ts/instructions/index";
-import { transformToolPreservingCaller } from "@backend/agent-runtime-ts/manifest";
-import { deriveOrchestrationState } from "@backend/agent-runtime-ts/orchestration";
-import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
-import { createToolApprovalPolicy } from "@backend/agent-runtime-ts/policy";
-import { newMessagesForStoredResponse } from "@backend/agent-runtime-ts/response-continuation";
 import { finishSpan, runWithActiveSpan, startSpan } from "@backend/kernel-ts";
+import { createAgentHarness } from "@repo/agent-runtime";
+import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
+import { transformToolPreservingCaller } from "@repo/agent-runtime/manifest";
+import { deriveOrchestrationState } from "@repo/agent-runtime/orchestration";
+import { isToolOutcome } from "@repo/agent-runtime/outcome";
+import { createToolApprovalPolicy } from "@repo/agent-runtime/policy";
+import { newMessagesForStoredResponse } from "@repo/agent-runtime/response-continuation";
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
 

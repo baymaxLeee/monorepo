@@ -14,7 +14,7 @@ Platform 按导航发现/挂载路由，不静态导入 remote 业务代码。
 ## 包与运行时
 
 `app`、`feature`、`ui`、`data`、`runtime`、`util` 的允许依赖由
-[turbo.json](../../apps/frontend/turbo.json) 管理，每包声明标签；应用无源码
+[turbo.json](../../turbo.json) 管理，每包声明标签；应用无源码
 消费者。共享包使用 package exports，不从另包的 src 深入导入。
 
 前端通用资源统一由 `@repo/shared` 发布：根入口只包含浏览器安全的运行时工具；

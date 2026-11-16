@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 
-import type { BotProfileSnapshot } from "@backend/agent-runtime-ts/instructions/index";
-import { createAgentSteering } from "@backend/agent-runtime-ts/steering";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import type { BotProfileSnapshot } from "@repo/agent-runtime/instructions/index";
+import { createAgentSteering } from "@repo/agent-runtime/steering";
 import {
   consumeStream,
   createUIMessageStream,

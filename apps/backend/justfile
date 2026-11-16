@@ -54,11 +54,11 @@ build-go:
     @for s in {{ GO_SERVICES }}; do just build-go-svc $s; done
     @echo "✓ Go binaries → services/<svc>/bin/server"
 
-# Build and typecheck all Node services from the shared backend workspace.
+# Build and typecheck all Node services from the root workspace.
 build-node:
-    pnpm install --frozen-lockfile
+    pnpm --dir ../.. install --frozen-lockfile
     @for s in {{ NODE_SERVICES }}; do \
-        pnpm --filter $s run --if-present typecheck && pnpm --filter $s run build || exit 1; \
+        pnpm --filter ./services/$s run --if-present typecheck && pnpm --filter ./services/$s run build || exit 1; \
     done
 
 build-go-svc service:
@@ -79,10 +79,10 @@ build-py-svc service:
 # "Build" a Node service = typecheck + OpenAPI export.
 build-node-svc service:
     @echo "→ Pre-flighting Node service: {{ service }}"
-    pnpm install --frozen-lockfile
-    pnpm --filter {{ service }} run --if-present typecheck
-    pnpm --filter {{ service }} run build
-    pnpm --filter {{ service }} run gen-openapi
+    pnpm --dir ../.. install --frozen-lockfile
+    pnpm --filter ./services/{{ service }} run --if-present typecheck
+    pnpm --filter ./services/{{ service }} run build
+    pnpm --filter ./services/{{ service }} run gen-openapi
     @echo "✓ {{ service }} ready (run as image via: just build-image {{ service }})"
 
 # Build a single service's docker image. Usage:
@@ -143,7 +143,7 @@ lint-node:
     @just typecheck-node
 
 typecheck-node:
-    @for p in libs/kernel-ts libs/transport-ts libs/agent-runtime-ts; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
+    @for p in libs/kernel-ts libs/transport-ts ../../packages/agent-runtime; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
     @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run typecheck) || exit 1; done
 
 typecheck-python:
@@ -179,7 +179,8 @@ gen-openapi-all:
     @for s in {{ PY_SERVICES }} chat iam canvas storage; do just gen-openapi $s; done
 
 gen-transport-ts:
-    cd libs/transport-ts && pnpm install && pnpm run codegen
+    pnpm --dir ../.. install
+    cd libs/transport-ts && pnpm run codegen
     @echo "✓ backend transport-ts clients regenerated"
 
 gen-proto:

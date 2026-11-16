@@ -8,14 +8,13 @@ on:
       - "apps/backend/libs/transport-ts/**"
       - "apps/backend/services/**"
       - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "packages/**"
       - "mise.toml"
       - "apps/backend/package.json"
       - "apps/backend/justfile"
-      - "apps/backend/pnpm-lock.yaml"
-      - "apps/backend/pnpm-workspace.yaml"
-      - "apps/frontend/pnpm-lock.yaml"
-      - "apps/frontend/pnpm-workspace.yaml"
-      - "apps/frontend/.pnpmfile.mjs"
+      - ".pnpmfile.mjs"
       - "apps/frontend/packages/api/**"
       - "justfile"
       - ".github/workflows/contracts.yml"
@@ -28,8 +27,6 @@ jobs:
       - uses: jdx/mise-action@v2
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --dir apps/backend install --frozen-lockfile
-      - run: pnpm --dir apps/frontend install --frozen-lockfile
       - run: uv sync --project apps/backend --all-packages --locked
       - run: just sync-check
       - run: pnpm --dir apps/backend --filter @backend/transport-ts typecheck

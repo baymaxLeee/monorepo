@@ -1,5 +1,5 @@
-import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
-import { toolOutcomeSchema } from "@backend/agent-runtime-ts/outcome";
+import { defineAgentTool } from "@repo/agent-runtime/manifest";
+import { toolOutcomeSchema } from "@repo/agent-runtime/outcome";
 import { tool } from "ai";
 import { z } from "zod";
 

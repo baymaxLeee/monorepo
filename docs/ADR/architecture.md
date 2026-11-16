@@ -4,7 +4,7 @@
 
 ## 架构
 
-仓库是多语言、独立部署的产品组合。后端 deployable 在 `apps/backend/services/`，共享基础设施在 `apps/backend/libs/`；前端 deployable 在 `apps/frontend/apps/`，共享能力在 `apps/frontend/packages/`。保留 pnpm、uv、Go 原生 workspace，由根 just CLI 统一入口；不把业务服务合并成共享大内核。
+仓库是多语言、独立部署的产品组合。后端 deployable 在 `apps/backend/services/`，后端专用基础设施在 `apps/backend/libs/`；前端 deployable 在 `apps/frontend/apps/`，浏览器共享能力在 `apps/frontend/packages/`；跨栈 Node 能力在根 `packages/`。所有 JavaScript/TypeScript 项目使用根 `pnpm-workspace.yaml` 与单一 lockfile，Python 和 Go 保留各自原生 workspace，由根 just CLI 统一入口；不把业务服务合并成共享大内核。
 
 [services.yaml](../../services.yaml) 是后端 runtime、端口、公开路径、binding、数据库和 OpenAPI 产物的唯一组合声明。公开业务服务必须声明可离线重建的 OpenAPI artifact；IAM 也属于该契约链，不再由前端复制身份 DTO。目录发现只能发现代码项目，不能推导服务权限或网络连接。`check-services.py` 验证本地与部署面一致，不生成第二套部署配置。
 
@@ -43,10 +43,10 @@ Runtime sandbox role 单独持有容器/Pod 控制权限，runtime-server 只持
 
 | 能力 | 真实消费者 | 决策 |
 | --- | --- | --- |
-| SDK 主循环、固定提示词组装、step 策略 | Runtime server、Electron utility host | 共享 `apps/backend/libs/agent-runtime-ts` 实现，不维护本地专属循环 |
+| SDK 主循环、固定提示词组装、step 策略 | Runtime server、Electron utility host | 共享 `packages/agent-runtime` 实现，不维护本地专属循环 |
 | Tool manifest、ToolOutcome、Bash 定义、审批策略 | 同上，结果由同一 Chat UI 消费 | 共享实现；环境只注入命令执行适配器，UI 不按执行位置分支 |
 | IAM、模型凭据与转发 | Runtime 模型访问层、Electron relay transport | Runtime 解析服务端凭据，Electron 仅消费受限推理协议；不将身份/数据库抽进 harness |
 | 工作区与消息持久化 | 云端 Storage/PostgreSQL、本地磁盘/SQLite | 各宿主负责 I/O 和清理，保留文件与会话；不复制 Agent 决策策略 |
 
-共享包由 backend workspace 管理；Electron 通过声明的 `file:` 包依赖消费，避免 Turbo workspace 越界；只依赖 SDK 和 schema 基础设施，不引用服务、Electron 或数据库。
+共享包由根 pnpm workspace 管理；Runtime server 与 Electron 都通过声明的 `workspace:*` 依赖消费。包只依赖 SDK 和 schema 基础设施，不引用服务、Electron 或数据库；根 Turbo 边界把它标记为 runtime capability。
 库的消费者必须通过声明依赖进入 affected checks 和镜像构建计划。

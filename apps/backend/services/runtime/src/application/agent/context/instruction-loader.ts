@@ -1,4 +1,4 @@
-import type { BotProfileSnapshot, InstructionInput, MemoryDatum } from "@backend/agent-runtime-ts/instructions/index";
+import type { BotProfileSnapshot, InstructionInput, MemoryDatum } from "@repo/agent-runtime/instructions/index";
 
 import type { AgentMode } from "../agents/types.js";
 import { listActiveMemories } from "../memory/repository.js";

@@ -21,7 +21,7 @@ function fixture(t) {
 test("context returns root-to-leaf instructions for new files and separates same-named stacks", (t) => {
   const { root, write } = fixture(t);
   for (const path of ["AGENTS.md", "apps/backend/AGENTS.md", "apps/backend/services/chat/AGENTS.md"]) write(path);
-  write("apps/backend/services/chat/package.json", { name: "chat" });
+  write("apps/backend/services/chat/package.json", { name: "@backend/chat" });
   write("apps/frontend/apps/chat/package.json", { name: "chat" });
   const context = contextFor(root, "apps/backend/services/chat/src/new/file.ts");
   assert.equal(context.owner, "backend/chat");
@@ -74,6 +74,13 @@ test("workspace graph includes dev, optional and peer consumers and rejects ille
   assert.match(errors, /Dependency cycle/);
 });
 
+test("workspace graph rejects duplicate package names across areas", (t) => {
+  const { root, write } = fixture(t);
+  write("apps/backend/libs/base/package.json", { name: "@repo/base" });
+  write("apps/frontend/packages/base/package.json", { name: "@repo/base" });
+  assert.match(graphErrors(discoverProjects(root)).join("\n"), /Duplicate package name: @repo\/base/);
+});
+
 test("navigation checks relative links and ignores external URLs and anchors", (t) => {
   const { root, write } = fixture(t);
   write("docs/index.md", "[rule](../AGENTS.md) [web](https://example.com) [section](#here)");
@@ -95,20 +102,20 @@ test("public CLI emits parseable JSON and nonzero status for invalid input", () 
 
 test("native and service hosts resolve a shared infrastructure package across stacks", (t) => {
   const { root, write } = fixture(t);
-  write("apps/backend/libs/agent-runtime-ts/package.json", { name: "@backend/agent-runtime-ts" });
+  write("packages/agent-runtime/package.json", { name: "@repo/agent-runtime" });
   write("apps/backend/services/chat/package.json", {
     name: "chat",
-    dependencies: { "@backend/agent-runtime-ts": "workspace:*" },
+    dependencies: { "@repo/agent-runtime": "workspace:*" },
   });
   write("apps/frontend/apps/desktop/package.json", {
     name: "desktop",
-    dependencies: { "@backend/agent-runtime-ts": "workspace:*" },
+    dependencies: { "@repo/agent-runtime": "workspace:*" },
   });
   const projects = discoverProjects(root);
   assert.deepEqual(graphErrors(projects), []);
-  assert.deepEqual(consumersOf(projects, ["backend/agent-runtime-ts"]), [
-    "backend/agent-runtime-ts",
+  assert.deepEqual(consumersOf(projects, ["shared/agent-runtime"]), [
     "backend/chat",
     "frontend/desktop",
+    "shared/agent-runtime",
   ]);
 });

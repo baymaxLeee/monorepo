@@ -3,40 +3,45 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export function discoverProjects(root) {
   const projects = [];
-  for (const area of ["backend", "frontend"]) {
-    for (const kind of area === "backend" ? ["services", "libs"] : ["apps", "packages"]) {
-      for (const path of globSync(`apps/${area}/${kind}/*`, { cwd: root }).sort()) {
-        const dir = join(root, path);
-        const manifest = existsSync(join(dir, "package.json"))
-          ? JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
-          : null;
-        const runtime =
-          area === "frontend"
-            ? manifest
-              ? "frontend"
-              : null
-            : existsSync(join(dir, "go.mod"))
-              ? "go"
-              : existsSync(join(dir, "pyproject.toml"))
-                ? "python"
-                : manifest
-                  ? "node"
-                  : null;
-        if (!runtime) continue;
-        if (manifest && !manifest.name) throw new Error(`${path}/package.json: missing package name`);
-        projects.push({
-          id: `${area}/${area === "frontend" ? manifest.name : path.split("/").at(-1)}`,
-          area,
-          kind,
-          path,
-          dir,
-          runtime,
-          packageName: manifest?.name ?? null,
-          manifest,
-          dependencies: [],
-          dependencyErrors: [],
-        });
-      }
+  const routes = [
+    { area: "shared", kind: "packages", pattern: "packages/*" },
+    { area: "backend", kind: "services", pattern: "apps/backend/services/*" },
+    { area: "backend", kind: "libs", pattern: "apps/backend/libs/*" },
+    { area: "frontend", kind: "apps", pattern: "apps/frontend/apps/*" },
+    { area: "frontend", kind: "packages", pattern: "apps/frontend/packages/*" },
+  ];
+  for (const { area, kind, pattern } of routes) {
+    for (const path of globSync(pattern, { cwd: root }).sort()) {
+      const dir = join(root, path);
+      const manifest = existsSync(join(dir, "package.json"))
+        ? JSON.parse(readFileSync(join(dir, "package.json"), "utf8"))
+        : null;
+      const runtime =
+        area === "frontend"
+          ? manifest
+            ? "frontend"
+            : null
+          : existsSync(join(dir, "go.mod"))
+            ? "go"
+            : existsSync(join(dir, "pyproject.toml"))
+              ? "python"
+              : manifest
+                ? "node"
+                : null;
+      if (!runtime) continue;
+      if (manifest && !manifest.name) throw new Error(`${path}/package.json: missing package name`);
+      projects.push({
+        id: `${area}/${area === "frontend" ? manifest.name : path.split("/").at(-1)}`,
+        area,
+        kind,
+        path,
+        dir,
+        runtime,
+        packageName: manifest?.name ?? null,
+        manifest,
+        dependencies: [],
+        dependencyErrors: [],
+      });
     }
   }
   for (const project of projects) {
@@ -103,7 +108,7 @@ export function graphErrors(projects) {
   for (const project of projects) {
     if (byId.has(project.id)) errors.push(`Duplicate project: ${project.id}`);
     byId.set(project.id, project);
-    const packageKey = `${project.area}/${project.packageName}`;
+    const packageKey = project.packageName;
     if (project.packageName && packageNames.has(packageKey)) errors.push(`Duplicate package name: ${packageKey}`);
     packageNames.add(packageKey);
     for (const error of project.dependencyErrors) errors.push(`${project.id}: ${error}`);

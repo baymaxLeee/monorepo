@@ -24,14 +24,14 @@ just context scripts/repo.mjs
 just test-affected HEAD frontend --list
 ```
 
-- Use exact target IDs from `repo-map`; frontend shared packages keep `@repo/`.
+- Use exact target IDs from `repo-map`; frontend packages keep `@repo/`, while root cross-stack packages use `shared/<directory>` IDs.
   Context also accepts repository paths, including files not yet created.
   A path outside a discovered project has no project owner; follow its directory
   instructions and the returned repository checks.
 - `--json` is available on `repo-map` and `context` for structured consumption.
   Context prints instruction paths, not their contents; it does not run tests.
 - `test-affected [base] [scope] [--list]` defaults to `HEAD` and `all`.
-  Scope is `all`, `frontend`, `backend` or `tooling`, not an individual target.
+  Scope is `all`, `frontend`, `backend`, `shared` or `tooling`, not an individual target.
   Supply both positional arguments before `--list`. HEAD includes staged,
   unstaged and untracked changes; use the PR base SHA to include committed work.
   For a single target use `just test frontend/@repo/ai-elements`.
@@ -51,7 +51,7 @@ frontend, backend, local development, agents and CI use the same root configs.
 | Command | Scope and behavior |
 |---|---|
 | `just lint-ts` | Oxlint + Oxfmt check for all JS/JSX/TS/TSX/MTS/CTS, including Node backend, build config and scripts |
-| `just typecheck-ts` | TS7 checks in both Node and frontend workspaces |
+| `just typecheck-ts` | TS7 checks across the root Node workspace, including backend, frontend and shared packages |
 | `just fmt-ts` | Oxfmt writes for the same source scope |
 | `just lint-py [paths/flags...]` | Ruff lint, including scripts and infrastructure; accepts native `--fix` / `--output-format json` |
 | `just fmt-py --check [paths...]` | Ruff format check; omit `--check` to write, or use `--diff` to preview |
@@ -73,8 +73,8 @@ ambient Node globals; locally declared bundler constants remain valid. Frontend
 test/spec files and `test`/`tests`/`__tests__` directories allow Node plus jsdom.
 JavaScript checks undefined globals with Oxlint; TypeScript uses TS7. Node
 tsconfigs exclude DOM while retaining native web APIs through Node types.
-Tooling regression tests need both root lint tools and the frontend workspace's
-TS7 checker (`just install` installs both); CI installs that workspace selectively.
+Tooling regression tests use the root workspace's lint tools and TS7 checker;
+`just install` and CI install that workspace once.
 
 `.pre-commit-config.yaml` uses local hooks to reuse those installed tools;
 `just install` installs the dependencies. Checks are read-only. After an explicit
@@ -110,7 +110,7 @@ The default base is `origin/main`; fetch it first when using these diagnostic
 commands. Missing bases fail closed. Results are diagnostic evidence, never a
 reusable push permission.
 
-The code gate uses frozen pnpm installs in all three workspaces and locked uv
+The code gate uses one frozen root pnpm workspace install and locked uv
 sync, read-only Go module consistency (`just check-go-modules`), root lint
 (including format/type checks), affected tests, contract generation checks, and
 frontend/backend builds. Executable tooling edits run root tests once instead of

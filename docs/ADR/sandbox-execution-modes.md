@@ -72,7 +72,7 @@
 
 ## 唯一 harness 与工具协议
 
-`apps/backend/libs/agent-runtime-ts` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。Runtime server `createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议。
+`packages/agent-runtime` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。Runtime server `createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议。
 
 两端文件操作共用 `createBashTool` 的 schema、说明、manifest、审批策略与 `ToolOutcome`，以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染。本地没有独立的 `list_files/read_file/write_file` 模型工具；原生文件 helper 仅用于文件编辑器受限 I/O。云端必须通过共享 `createUploadArtifactsTool` 一次批量把完成文件发布为 Chat/Storage 身份，并把成功结果逐文件投影为 `data-file`。本地磁盘已经是持久化边界，因此不向模型暴露上传工具；本地 runtime 在 turn 的 `finish` 前验证本轮真实变更文件，直接生成同构 `data-file`。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
 
@@ -103,7 +103,7 @@ Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息�
 Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。
 
 - `apps/frontend/apps/desktop/electron` 的 main 管理身份与原生授权，utility process
-  调用共享 `@backend/agent-runtime-ts` harness，管理 SQLite journal。Chat MFE `/local/:id?` 通过
+  调用共享 `@repo/agent-runtime` harness，管理 SQLite journal。Chat MFE `/local/:id?` 通过
   `useChat` 与 IPC `ChatTransport` 消费 SDK 原生 UIMessageChunk；重连从原始消息及
   当前流片段重放，仅取消订阅不会 Stop。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
 - 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/sessions.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
@@ -147,7 +147,7 @@ Electron renderer 负责会话和文件界面；main 负责目录选择、桌面
 
 ### 本地推理与 provider 凭据
 
-共享 `@backend/agent-runtime-ts` 拥有唯一主 `ToolLoopAgent`、固定提示词组装、工具封装、step 和审批策略。本地 session host 仅提供沙箱、文件变更、模型连接和 journal 适配；云端 host 提供对应的服务适配。服务端 `application/inference` 为共用模型访问层，流式 relay，只执行一次受授权的模型调用；Gateway 继续承担身份验证和流式路由，不承载 Agent 或 provider 业务。复用 [身份与配置](identity-and-configuration.md) 的所有权：IAM 管理身份和成员关系，Admin 管理 Agent/provider/model 配置及凭据，Chat 校验模型使用权限与预算并执行转发。
+共享 `@repo/agent-runtime` 拥有唯一主 `ToolLoopAgent`、固定提示词组装、工具封装、step 和审批策略。本地 session host 仅提供沙箱、文件变更、模型连接和 journal 适配；云端 host 提供对应的服务适配。服务端 `application/inference` 为共用模型访问层，流式 relay，只执行一次受授权的模型调用；Gateway 继续承担身份验证和流式路由，不承载 Agent 或 provider 业务。复用 [身份与配置](identity-and-configuration.md) 的所有权：IAM 管理身份和成员关系，Admin 管理 Agent/provider/model 配置及凭据，Chat 校验模型使用权限与预算并执行转发。
 
 ```mermaid
 sequenceDiagram

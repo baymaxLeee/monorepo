@@ -67,6 +67,10 @@ test("expands shared libraries only to image consumers", () => {
   assert.deepEqual(imagePlan(["apps/backend/libs/kernel-ts/src/index.ts"]).build, ["chat", "runtime"]);
 });
 
+test("expands root shared packages across backend and web consumers", () => {
+  assert.deepEqual(imagePlan(["packages/agent-runtime/src/harness.ts"]).build, ["runtime", "web"]);
+});
+
 test("builds the web image for any frontend workspace change", () => {
   assert.deepEqual(imagePlan(["apps/frontend/packages/editors/src/index.ts"]).build, ["web"]);
 });

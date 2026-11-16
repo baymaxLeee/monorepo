@@ -6,15 +6,15 @@ ENV NODE_ENV=production
 WORKDIR /app
 RUN corepack enable
 COPY package.json ./package.json
-COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
+COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
+COPY apps/backend/package.json ./apps/backend/package.json
 COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
-COPY apps/backend/services/runtime/package.json ./apps/backend/services/runtime/package.json
-WORKDIR /app/apps/backend
-RUN pnpm install --filter runtime... --prod --frozen-lockfile --config.node-linker=hoisted \
+COPY apps/backend/services/chat/package.json ./apps/backend/services/chat/package.json
+RUN pnpm install --filter @backend/chat... --prod --frozen-lockfile --config.node-linker=hoisted \
     --config.registry=${NPM_CONFIG_REGISTRY}
-COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
-COPY apps/backend/services/runtime/tsconfig.json ./services/runtime/
-COPY apps/backend/services/runtime/src ./services/runtime/src
-WORKDIR /app/apps/backend/services/runtime
-EXPOSE 8015
+COPY apps/backend/libs/kernel-ts ./apps/backend/libs/kernel-ts
+COPY apps/backend/services/chat/tsconfig.json ./apps/backend/services/chat/
+COPY apps/backend/services/chat/src ./apps/backend/services/chat/src
+WORKDIR /app/apps/backend/services/chat
+EXPOSE 8009
 CMD ["node", "--import", "tsx", "src/index.ts"]

@@ -1,5 +1,5 @@
 import { experimental_codeModeTool as codeModeTool } from "@ai-sdk/code-mode";
-import { transformToolPreservingCaller } from "@backend/agent-runtime-ts/manifest";
+import { transformToolPreservingCaller } from "@repo/agent-runtime/manifest";
 import type { ToolSet } from "ai";
 
 export const CODE_MODE_TIMEOUT_MS = 90_000;

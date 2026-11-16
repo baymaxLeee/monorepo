@@ -1,7 +1,7 @@
-import type { InstructionContributions } from "@backend/agent-runtime-ts/instructions/index";
-import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@backend/agent-runtime-ts/manifest";
-import type { AgentToolManifest, ToolSource } from "@backend/agent-runtime-ts/tool-types";
 import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
+import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@repo/agent-runtime/manifest";
+import type { AgentToolManifest, ToolSource } from "@repo/agent-runtime/tool-types";
 import type { ToolSet } from "ai";
 
 import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";

@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -78,11 +87,22 @@ test("pre-commit CLI defaults to staged checks and forwards explicit all-files",
 
 function typescriptFixture(t) {
   const f = fixture(t);
-  symlinkSync(join(source, "node_modules"), join(f.root, "node_modules"), "dir");
-  for (const path of ["package.json", "oxlint.config.ts", "oxfmt.config.ts"]) {
+  mkdirSync(join(f.root, "node_modules/.bin"), { recursive: true });
+  for (const name of ["oxfmt", "oxlint"]) {
+    symlinkSync(join(source, "node_modules", name), join(f.root, "node_modules", name), "dir");
+    symlinkSync(realpathSync(join(source, "node_modules/.bin", name)), join(f.root, "node_modules/.bin", name));
+  }
+  for (const path of [
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    ".pnpmfile.mjs",
+    "oxlint.config.ts",
+    "oxfmt.config.ts",
+  ]) {
     copyFileSync(join(source, path), join(f.root, path));
   }
-  for (const path of ["apps/frontend/apps/example/src", "scripts"]) {
+  for (const path of ["apps/frontend/apps/example/src", "packages", "scripts"]) {
     mkdirSync(join(f.root, path), { recursive: true });
   }
   return f;

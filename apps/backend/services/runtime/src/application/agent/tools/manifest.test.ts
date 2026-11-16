@@ -5,8 +5,8 @@ import {
   experimental_getToolCaller as getToolCaller,
   experimental_toolCaller as toolCaller,
 } from "@ai-sdk/provider-utils";
-import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
-import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
+import { defineAgentTool } from "@repo/agent-runtime/manifest";
+import { isToolOutcome } from "@repo/agent-runtime/outcome";
 import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 

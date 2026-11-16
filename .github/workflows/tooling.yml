@@ -4,30 +4,35 @@ on:
   workflow_call:
   pull_request:
     paths:
-      - 'scripts/**'
-      - 'apps/backend/services/**/migrations/**'
-      - 'infra/single-vps/Dockerfile.db-init'
-      - 'infra/single-vps/postgres-init.sh'
-      - '**/AGENTS.md'
-      - '**/AGENTS.override.md'
-      - '.agents/**'
-      - '.cursor/**'
-      - 'docs/**'
-      - 'README.md'
-      - 'DESIGN.md'
-      - 'package.json'
-      - 'apps/**/package.json'
-      - 'apps/**/tsconfig*.json'
-      - 'apps/frontend/packages/shared/typescript-config.json'
-      - 'apps/frontend/packages/shared/tsconfig*.json'
-      - 'justfile'
-      - 'oxlint.config.ts'
-      - 'oxfmt.config.ts'
-      - 'ruff.toml'
-      - '.pre-commit-config.yaml'
-      - 'mise.toml'
-      - 'services.yaml'
-      - '.github/workflows/tooling.yml'
+      - "scripts/**"
+      - "apps/backend/services/**/migrations/**"
+      - "infra/single-vps/Dockerfile.db-init"
+      - "infra/single-vps/postgres-init.sh"
+      - "**/AGENTS.md"
+      - "**/AGENTS.override.md"
+      - ".agents/**"
+      - ".cursor/**"
+      - "docs/**"
+      - "README.md"
+      - "DESIGN.md"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - ".pnpmfile.mjs"
+      - "turbo.json"
+      - "packages/**"
+      - "apps/**/package.json"
+      - "apps/**/tsconfig*.json"
+      - "apps/frontend/packages/shared/typescript-config.json"
+      - "apps/frontend/packages/shared/tsconfig*.json"
+      - "justfile"
+      - "oxlint.config.ts"
+      - "oxfmt.config.ts"
+      - "ruff.toml"
+      - ".pre-commit-config.yaml"
+      - "mise.toml"
+      - "services.yaml"
+      - ".github/workflows/tooling.yml"
 
 jobs:
   test:
@@ -39,8 +44,6 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Install shared Oxc tools
         run: pnpm install --frozen-lockfile
-      - name: Install TS7 for environment configuration tests
-        run: pnpm --dir apps/frontend --filter frontend-workspace install --frozen-lockfile
       - name: Check repository JavaScript and TypeScript
         run: |
           pnpm lint:ts oxlint.config.ts oxfmt.config.ts scripts

@@ -28,7 +28,7 @@ Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 
 
 utility runtime 意外退出时，main 只启动一次替代进程并重新打开同一 scope 的 SQLite journal；出错中的 IPC 明确失败且不自动重放，恢复完成后页面重载权威会话。替代进程再次退出则 fail closed，要求重启应用，避免崩溃循环。
 
-Agent 核心与云端共用 `@backend/agent-runtime-ts`。`electron/session-host.ts` 只管理本地 journal、工作区和流订阅；文件操作使用同一个 Bash manifest、ToolOutcome 与终端 UI，不维护本地专属文件工具。审批响应、待审批判断及取消/异常退出后的工具终态复用共享 lifecycle；本地 IPC 与云端 SSE 只是 transport adapter，不产生第二套 Agent 协议。
+Agent 核心与云端共用 `@repo/agent-runtime`。`electron/session-host.ts` 只管理本地 journal、工作区和流订阅；文件操作使用同一个 Bash manifest、ToolOutcome 与终端 UI，不维护本地专属文件工具。审批响应、待审批判断及取消/异常退出后的工具终态复用共享 lifecycle；本地 IPC 与云端 SSE 只是 transport adapter，不产生第二套 Agent 协议。
 
 ## 正式版本 TODO
 

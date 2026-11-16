@@ -1,8 +1,8 @@
 import { experimental_createWebFetchTool as createWebFetchTool } from "@ai-sdk/tool-web-fetch";
-import { createUploadArtifactsTool } from "@backend/agent-runtime-ts/artifact";
-import { createBashTool } from "@backend/agent-runtime-ts/bash";
-import { defineAgentTool, transformToolPreservingCaller } from "@backend/agent-runtime-ts/manifest";
-import { toolCompleted, toolFailed } from "@backend/agent-runtime-ts/outcome";
+import { createUploadArtifactsTool } from "@repo/agent-runtime/artifact";
+import { createBashTool } from "@repo/agent-runtime/bash";
+import { defineAgentTool, transformToolPreservingCaller } from "@repo/agent-runtime/manifest";
+import { toolCompleted, toolFailed } from "@repo/agent-runtime/outcome";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 

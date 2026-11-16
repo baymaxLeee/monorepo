@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { asSchema, experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
-import { isToolOutcome } from "@backend/agent-runtime-ts/outcome";
+import { isToolOutcome } from "@repo/agent-runtime/outcome";
 import type { Tool, ToolExecutionOptions } from "ai";
 
 import { createRuntimeTools } from "./runtime.js";

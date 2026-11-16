@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { toolOutcomeData } from "@backend/agent-runtime-ts/outcome";
+import { toolOutcomeData } from "@repo/agent-runtime/outcome";
 import { getToolName, isToolUIPart, type UIMessage, type UIMessagePart } from "ai";
 
 import { RequestError } from "../../errors.js";

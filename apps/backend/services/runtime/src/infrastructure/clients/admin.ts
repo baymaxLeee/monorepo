@@ -1,4 +1,3 @@
-import type { BotProfileSnapshot } from "@backend/agent-runtime-ts/instructions/index";
 import { propagationHeaders } from "@backend/kernel-ts";
 import {
   AdminInternalClient,
@@ -8,6 +7,7 @@ import {
 } from "@backend/transport-ts";
 import type { LanguageProviderSnapshot, ResponsesDialect } from "@backend/transport-ts/provider-model";
 import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
+import type { BotProfileSnapshot } from "@repo/agent-runtime/instructions/index";
 
 import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../../application/errors.js";
 import { getServerSettings } from "../../config/server.js";

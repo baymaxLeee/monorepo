@@ -1,15 +1,15 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
-import { defineAgentTool } from "@backend/agent-runtime-ts/manifest";
+import { finishSpan, startSpan } from "@backend/kernel-ts";
+import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import { createProviderModel } from "@backend/transport-ts/provider-model";
+import { defineAgentTool } from "@repo/agent-runtime/manifest";
 import {
   normalizeToolIssue,
   shouldRethrowToolError,
   toolCompleted,
   toolIssueSchema,
   toolRunning,
-} from "@backend/agent-runtime-ts/outcome";
-import { finishSpan, startSpan } from "@backend/kernel-ts";
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
-import { createProviderModel } from "@backend/transport-ts/provider-model";
+} from "@repo/agent-runtime/outcome";
 import {
   readUIMessageStream,
   toUIMessageStream,

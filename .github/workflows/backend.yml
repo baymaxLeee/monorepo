@@ -4,20 +4,23 @@ on:
   workflow_call:
   pull_request:
     paths:
-      - 'apps/backend/**'
-      - 'schemas/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'mise.toml'
-      - 'justfile'
-      - 'ruff.toml'
-      - 'oxlint.config.ts'
-      - 'oxfmt.config.ts'
-      - '.pre-commit-config.yaml'
-      - 'infra/single-vps/tests/**'
-      - 'scripts/**'
-      - 'services.yaml'
-      - '.github/workflows/backend.yml'
+      - "apps/backend/**"
+      - "packages/**"
+      - "schemas/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - ".pnpmfile.mjs"
+      - "mise.toml"
+      - "justfile"
+      - "ruff.toml"
+      - "oxlint.config.ts"
+      - "oxfmt.config.ts"
+      - ".pre-commit-config.yaml"
+      - "infra/single-vps/tests/**"
+      - "scripts/**"
+      - "services.yaml"
+      - ".github/workflows/backend.yml"
 
 jobs:
   check:
@@ -28,7 +31,6 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --dir apps/backend install --frozen-lockfile
       - run: uv lock --project apps/backend --check
       - run: uv sync --project apps/backend --all-packages
       - name: Test affected backend services and libraries

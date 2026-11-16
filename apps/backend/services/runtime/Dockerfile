@@ -8,17 +8,17 @@ ENV npm_config_registry=${NPM_CONFIG_REGISTRY}
 WORKDIR /app
 RUN corepack enable
 COPY package.json ./package.json
-COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
-COPY apps/backend/libs/agent-runtime-ts/package.json ./apps/backend/libs/agent-runtime-ts/package.json
+COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
+COPY apps/backend/package.json ./apps/backend/package.json
+COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
 COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
 COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/runtime/package.json ./apps/backend/services/runtime/package.json
-WORKDIR /app/apps/backend
-RUN pnpm install --filter runtime... --frozen-lockfile --config.registry=${NPM_CONFIG_REGISTRY}
-COPY apps/backend/libs/agent-runtime-ts ./libs/agent-runtime-ts
-COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
-COPY apps/backend/libs/transport-ts ./libs/transport-ts
-COPY apps/backend/services/runtime ./services/runtime
+RUN pnpm install --filter @backend/runtime... --frozen-lockfile --config.registry=${NPM_CONFIG_REGISTRY}
+COPY packages/agent-runtime ./packages/agent-runtime
+COPY apps/backend/libs/kernel-ts ./apps/backend/libs/kernel-ts
+COPY apps/backend/libs/transport-ts ./apps/backend/libs/transport-ts
+COPY apps/backend/services/runtime ./apps/backend/services/runtime
 WORKDIR /app/apps/backend/services/runtime
 RUN pnpm run build
 
@@ -37,20 +37,20 @@ RUN corepack enable \
 COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=kubectl /bin/kubectl /usr/local/bin/kubectl
 COPY package.json ./package.json
-COPY apps/backend/package.json apps/backend/pnpm-workspace.yaml apps/backend/pnpm-lock.yaml ./apps/backend/
-COPY apps/backend/libs/agent-runtime-ts/package.json ./apps/backend/libs/agent-runtime-ts/package.json
+COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
+COPY apps/backend/package.json ./apps/backend/package.json
+COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
 COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
 COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/runtime/package.json ./apps/backend/services/runtime/package.json
-WORKDIR /app/apps/backend
-RUN pnpm install --filter runtime... --prod --frozen-lockfile --config.node-linker=hoisted \
+RUN pnpm install --filter @backend/runtime... --prod --frozen-lockfile --config.node-linker=hoisted \
     --config.registry=${NPM_CONFIG_REGISTRY}
-COPY apps/backend/libs/agent-runtime-ts ./libs/agent-runtime-ts
-COPY apps/backend/libs/kernel-ts ./libs/kernel-ts
-COPY apps/backend/libs/transport-ts ./libs/transport-ts
-COPY apps/backend/services/runtime/src ./services/runtime/src
-COPY apps/backend/services/runtime/sandbox-assets ./services/runtime/sandbox-assets
-COPY --from=build /app/apps/backend/services/runtime/.output ./services/runtime/.output
+COPY packages/agent-runtime ./packages/agent-runtime
+COPY apps/backend/libs/kernel-ts ./apps/backend/libs/kernel-ts
+COPY apps/backend/libs/transport-ts ./apps/backend/libs/transport-ts
+COPY apps/backend/services/runtime/src ./apps/backend/services/runtime/src
+COPY apps/backend/services/runtime/sandbox-assets ./apps/backend/services/runtime/sandbox-assets
+COPY --from=build /app/apps/backend/services/runtime/.output ./apps/backend/services/runtime/.output
 WORKDIR /app/apps/backend/services/runtime
 # Workflow resolves its configured World from /app. Point that lookup at the
 # traced dependency tree shipped inside the worker build.

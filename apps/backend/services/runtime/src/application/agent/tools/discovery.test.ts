@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { manifestsToTools } from "@backend/agent-runtime-ts/manifest";
+import { manifestsToTools } from "@repo/agent-runtime/manifest";
 import { generateText, isStepCount, tool, type ToolSet } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";

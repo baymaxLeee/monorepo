@@ -38,11 +38,11 @@ lint:
     pnpm lint
     pnpm --dir ../.. lint:ui-contracts
     pnpm typecheck
-    pnpm exec turbo boundaries
+    pnpm exec turbo boundaries --filter='./apps/frontend/apps/**' --filter='./apps/frontend/packages/**'
 
 # Package dependency-tag rules only (see turbo.json#boundaries)
 boundaries:
-    pnpm exec turbo boundaries
+    pnpm exec turbo boundaries --filter='./apps/frontend/apps/**' --filter='./apps/frontend/packages/**'
 
 fmt:
     pnpm format

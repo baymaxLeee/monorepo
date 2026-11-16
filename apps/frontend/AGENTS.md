@@ -6,7 +6,7 @@ React 19 + TypeScript + Tailwind + Rspack + Module Federation 2.0.
 
 JS/TS style is shared with Node backend services and repository scripts through
 root `oxlint.config.ts` and `oxfmt.config.ts`. Root `just lint-ts` checks lint and
-format (including `.mts`/`.cts`); `just typecheck-ts` checks both workspaces.
+format (including `.mts`/`.cts`); `just typecheck-ts` checks the unified workspace.
 Browser/React source uses an override; build configuration and scripts use Node.
 Browser source rejects Node builtins and ambient Node globals. Test files
 (`*.test.*` / `*.spec.*`) and `test` / `tests` / `__tests__` directories explicitly
@@ -29,7 +29,7 @@ platform (host @ :3000)
 
 ## Internal package imports
 
-The Electron Node host also consumes the portable `@backend/agent-runtime-ts` library through its public exports. This is shared infrastructure, not an import of a backend service; browser MFEs do not import it.
+The Electron Node host also consumes the portable root `@repo/agent-runtime` library through its public exports. This is cross-stack shared infrastructure, not an import of a backend service; browser MFEs do not import it.
 
 Browser-facing internal packages are scoped `@repo/*` and is imported by its real pnpm workspace package name — that name is the single module identity:
 
