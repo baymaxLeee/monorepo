@@ -35,7 +35,7 @@ export function ConversationHistoryList({
             onClick={onSelect}
             className={cn(
               buttonVariants({ variant: item.active ? "secondary" : "ghost" }),
-              "h-9 w-full min-w-0 justify-start gap-2 pr-9 text-sm font-normal",
+              "h-9 w-full min-w-0 justify-start gap-2 rounded-lg pr-9 text-sm font-normal",
             )}
           >
             {item.icon}

@@ -19,24 +19,30 @@ import {
   useSidebar,
 } from "@repo/design-system";
 import { memo, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 
+import { useLocalWorkspaceStore } from "../stores/useLocalWorkspaceStore";
 import { ChatConversationSidebar } from "./ChatConversationSidebar";
 import { ChatInspector } from "./ChatInspector";
 
 const ChatContent = memo(function ChatContent() {
+  const { open } = useSidebar();
   return (
     <main aria-label="会话" className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <Tooltip>
-        <TooltipTrigger render={<SidebarTrigger className="absolute left-3 top-2 z-10" aria-label="切换会话记录" />} />
-        <TooltipContent>
-          会话记录{" "}
-          <KbdGroup>
-            <Kbd>⌘ / Ctrl</Kbd>
-            <Kbd>B</Kbd>
-          </KbdGroup>
-        </TooltipContent>
-      </Tooltip>
+      {!open ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={<SidebarTrigger className="absolute left-3 top-2 z-10" aria-label="展开会话记录" />}
+          />
+          <TooltipContent>
+            会话记录{" "}
+            <KbdGroup>
+              <Kbd>⌘ / Ctrl</Kbd>
+              <Kbd>B</Kbd>
+            </KbdGroup>
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
       <Outlet />
     </main>
   );
@@ -44,7 +50,9 @@ const ChatContent = memo(function ChatContent() {
 
 export function ChatPanels() {
   const { open, setOpen, isMobile } = useSidebar();
-  const inspectorOpen = useChatStore((s) => s.artifactPreview.open || s.videoProductionWorkspace.open);
+  const { pathname } = useLocation();
+  const cloudInspectorOpen = useChatStore((s) => s.artifactPreview.open || s.videoProductionWorkspace.open);
+  const localWorkspaceOpen = useLocalWorkspaceStore((s) => s.open);
   const wideQuery = useMemo(() => window.matchMedia("(min-width: 1024px)"), []);
   const wide = useSyncExternalStore(
     useCallback(
@@ -59,11 +67,16 @@ export function ChatPanels() {
   );
   const historyPanel = usePanelRef();
   const closeInspector = useCallback(() => {
+    if (useLocalWorkspaceStore.getState().open) {
+      useLocalWorkspaceStore.getState().requestClose();
+      return;
+    }
     const state = useChatStore.getState();
     state.closeArtifactPreview();
     state.closeVideoProductionWorkspace();
   }, []);
-  const panelIds = [!isMobile && "history", "conversation", wide && inspectorOpen && "artifact"].filter(
+  const anyInspectorOpen = localWorkspaceOpen || (pathname.includes("/conversations/") && cloudInspectorOpen);
+  const panelIds = [!isMobile && "history", "conversation", wide && anyInspectorOpen && "artifact"].filter(
     (id): id is string => Boolean(id),
   );
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
@@ -71,6 +84,14 @@ export function ChatPanels() {
     panelIds,
     onlySaveAfterUserInteractions: true,
   });
+  const handleLayoutChanged = useCallback(
+    (...args: Parameters<typeof onLayoutChanged>) => {
+      onLayoutChanged(...args);
+      const [layout, meta] = args;
+      if (meta.isUserInteraction && anyInspectorOpen && layout.artifact === 0) closeInspector();
+    },
+    [anyInspectorOpen, closeInspector, onLayoutChanged],
+  );
   useLayoutEffect(() => {
     if (isMobile) return;
     if (open) historyPanel.current?.expand();
@@ -84,7 +105,7 @@ export function ChatPanels() {
         id="chat-workspace"
         orientation="horizontal"
         defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
+        onLayoutChanged={handleLayoutChanged}
       >
         {!isMobile ? (
           <ResizablePanel
@@ -104,7 +125,7 @@ export function ChatPanels() {
             <ChatConversationSidebar />
           </ResizablePanel>
         ) : null}
-        {!isMobile && open ? <ResizableHandle key="history-resize" aria-label="调整会话记录宽度" /> : null}
+        {!isMobile ? <ResizableHandle key="history-resize" aria-label="调整会话记录宽度" /> : null}
         <ResizablePanel
           key="conversation"
           id="conversation"
@@ -113,8 +134,8 @@ export function ChatPanels() {
         >
           <ChatContent />
         </ResizablePanel>
-        {wide && inspectorOpen ? <ResizableHandle key="artifact-resize" aria-label="调整预览宽度" /> : null}
-        {wide && inspectorOpen ? (
+        {wide && anyInspectorOpen ? <ResizableHandle key="artifact-resize" aria-label="调整预览宽度" /> : null}
+        {wide && anyInspectorOpen ? (
           <ResizablePanel
             key="artifact"
             id="artifact"
@@ -123,9 +144,6 @@ export function ChatPanels() {
             maxSize="70%"
             collapsible
             className="min-w-0 overflow-hidden [contain:layout_paint_style]"
-            onResize={(size, _id, previous) => {
-              if (previous && size.inPixels === 0 && previous.inPixels > 0) closeInspector();
-            }}
           >
             <aside aria-label="Artifact 预览" className="h-full w-full min-w-0 overflow-hidden">
               <ChatInspector />
@@ -135,7 +153,7 @@ export function ChatPanels() {
       </ResizablePanelGroup>
       {!wide ? (
         <Sheet
-          open={inspectorOpen}
+          open={anyInspectorOpen}
           onOpenChange={(next) => {
             if (!next) closeInspector();
           }}
@@ -145,7 +163,7 @@ export function ChatPanels() {
               <SheetTitle>Artifact 预览</SheetTitle>
               <SheetDescription>查看当前会话的产物</SheetDescription>
             </SheetHeader>
-            {inspectorOpen ? <ChatInspector /> : null}
+            {anyInspectorOpen ? <ChatInspector /> : null}
           </SheetContent>
         </Sheet>
       ) : null}

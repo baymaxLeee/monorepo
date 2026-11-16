@@ -8,13 +8,15 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
   Button,
-  Skeleton,
 } from "@repo/design-system";
 import { CodeEditor } from "@repo/editors/code-editor";
 import type { DesktopBridge, LocalDirectoryEntry, LocalFile } from "@repo/runtime/desktop";
 import { getErrorMessage } from "@repo/shared";
+import { FileCode2Icon, RotateCcwIcon, SaveIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBlocker } from "react-router-dom";
+
+import { LocalFileBrowser } from "./LocalFileBrowser";
 
 export function LocalFiles({
   bridge,
@@ -113,7 +115,7 @@ export function LocalFiles({
     }
   }
   return (
-    <aside className="flex min-h-0 w-full shrink-0 flex-col border-l" aria-label="本地文件">
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       <AlertDialog
         open={blocker.state === "blocked"}
         onOpenChange={(open) => {
@@ -131,87 +133,75 @@ export function LocalFiles({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <div className="flex items-center justify-between gap-2 border-b p-3">
-        <span className="truncate text-sm" title={directory}>
-          {directory}
-        </span>
-        <Button variant="ghost" size="sm" onClick={() => setRevision((n) => n + 1)}>
-          刷新目录
-        </Button>
-      </div>
-      <div className="max-h-48 overflow-auto p-2">
-        {directory !== "." ? (
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            onClick={() => setDirectory(directory.split("/").slice(0, -1).join("/") || ".")}
-          >
-            上级目录
-          </Button>
-        ) : null}
-        {entries === null ? (
-          <Skeleton className="h-20" />
-        ) : entries.length === 0 ? (
-          <p className="p-2 text-sm text-muted-foreground">目录为空</p>
-        ) : (
-          entries.slice(0, visible).map((entry) => {
-            const path = directory === "." ? entry.name : `${directory}/${entry.name}`;
-            return (
-              <Button
-                key={entry.name}
-                variant={selected?.path === path ? "secondary" : "ghost"}
-                className="w-full justify-start truncate"
-                disabled={entry.symlink || (!entry.directory && dirty)}
-                onClick={() => (entry.directory ? setDirectory(path) : void open(path))}
-              >
-                {entry.directory ? "▸ " : ""}
-                {entry.name}
-              </Button>
-            );
-          })
-        )}
-        {entries && entries.length > visible ? (
-          <Button variant="ghost" onClick={() => setVisible((n) => n + 100)}>
-            显示更多
-          </Button>
-        ) : null}
-      </div>
+      <LocalFileBrowser
+        directory={directory}
+        entries={entries}
+        selectedPath={selected?.path ?? null}
+        dirty={dirty}
+        visible={visible}
+        onDirectoryChange={setDirectory}
+        onOpen={(path) => void open(path)}
+        onRefresh={() => setRevision((n) => n + 1)}
+        onShowMore={() => setVisible((n) => n + 100)}
+      />
       {error ? (
-        <p role="alert" className="p-3 text-sm text-destructive">
+        <p
+          role="alert"
+          className="mx-3 mb-3 rounded-lg border border-destructive/30 bg-background px-3 py-2 text-sm text-destructive"
+        >
           {error}
         </p>
       ) : null}
       {changed ? (
-        <p role="status" className="p-3 text-xs text-muted-foreground">
+        <p role="status" className="mx-3 mb-3 rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground">
           磁盘文件有变更。重新读取后可查看最新内容；未保存的草稿会保留。
         </p>
       ) : null}
       {selected ? (
-        <>
-          <div className="flex flex-wrap items-center gap-2 border-y p-2">
-            <span className="min-w-0 flex-1 truncate text-xs" title={selected.path}>
-              {selected.path}
-              {dirty ? " · 未保存" : ""}
-            </span>
-            <Button size="sm" variant="outline" disabled={dirty || saving} onClick={() => void open(selected.path)}>
+        <section
+          aria-label="文件编辑器"
+          className="mx-3 mb-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background"
+        >
+          <div className="flex min-h-12 flex-wrap items-center gap-2 border-b px-3 py-2">
+            <FileCode2Icon className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium" title={selected.path}>
+                {selected.path.split("/").at(-1)}
+              </p>
+              <p className="truncate text-xs text-muted-foreground" title={selected.path}>
+                {selected.path}
+                {dirty ? " · 未保存" : ""}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5"
+              disabled={dirty || saving}
+              onClick={() => void open(selected.path)}
+            >
+              <RotateCcwIcon />
               重新读取
             </Button>
-            <Button size="sm" disabled={!dirty || saving} onClick={() => void save()}>
+            <Button size="sm" className="gap-1.5" disabled={!dirty || saving} onClick={() => void save()}>
+              <SaveIcon />
               {saving ? "保存中…" : "保存"}
             </Button>
           </div>
           {dirty ? (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
-              请先保存草稿再切换文件。可复制草稿后撤销修改，以读取磁盘上的版本。
+            <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <span className="min-w-0 flex-1">保存或撤销草稿后可切换文件。</span>
               <Button
-                variant="link"
+                variant="ghost"
                 size="sm"
+                className="h-7 gap-1.5 px-2"
                 disabled={saving}
                 onClick={() => setSelected({ ...selected, draft: selected.file.content })}
               >
+                <RotateCcwIcon />
                 撤销草稿
               </Button>
-            </p>
+            </div>
           ) : null}
           <CodeEditor
             className="min-h-0 flex-1"
@@ -221,10 +211,18 @@ export function LocalFiles({
             onChange={(draft) => setSelected((current) => (current ? { ...current, draft } : current))}
             onSave={() => void save()}
           />
-        </>
+        </section>
       ) : (
-        <p className="p-4 text-sm text-muted-foreground">选择文本文件进行编辑。保存后 Agent 将感知变更。</p>
+        <div className="mx-3 mb-3 flex min-h-40 flex-1 flex-col items-center justify-center rounded-xl border border-dashed bg-background px-6 text-center">
+          <span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <FileCode2Icon className="size-5" />
+          </span>
+          <p className="text-sm font-medium">选择一个文件开始编辑</p>
+          <p className="mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
+            保存后，Agent 会在下一步工作中感知这些修改。
+          </p>
+        </div>
       )}
-    </aside>
+    </div>
   );
 }

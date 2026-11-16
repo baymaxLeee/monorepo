@@ -120,6 +120,15 @@ function fixture() {
   return { thread, bridge, transport, off, emit: (event: DesktopEvent) => listener?.(event) };
 }
 
+test("treats a legacy local thread without pending inputs as an empty queue", () => {
+  const f = fixture();
+  Reflect.deleteProperty(f.thread, "pendingInputs");
+
+  expect(() =>
+    render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />),
+  ).not.toThrow();
+});
+
 test("clears a submitted local prompt immediately and uses the task-oriented placeholder", async () => {
   promptApi.clear.mockClear();
   promptApi.setValue.mockClear();
@@ -131,7 +140,8 @@ test("clears a submitted local prompt immediately and uses the task-oriented pla
   expect(screen.getByText("发送消息或创建任务…")).toBeTruthy();
   expect(screen.queryByText("本地电脑")).toBeNull();
   await screen.findByText(/Agent baymax/);
-  expect(screen.getByText("project")).toBeTruthy();
+  expect(screen.queryByText("project")).toBeNull();
+  expect(screen.queryByRole("button", { name: "查看本地文件" })).toBeNull();
   expect(screen.getByRole("button", { name: "浏览工作区文件" })).toBeTruthy();
   expect(screen.getByTestId("local-context-usage")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));

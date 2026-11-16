@@ -75,6 +75,12 @@ export async function canDiscoverPlatformRoutes(signal: AbortSignal): Promise<bo
   return !!user && canEnterPlatform(user);
 }
 
+export function canAccessApp(user: AuthUser, app: App): boolean {
+  return (
+    app.is_enabled && (!app.requires_admin || isSuperAdmin(user) || user.activeWorkspace?.role === "workspace_admin")
+  );
+}
+
 export function createAppAccessMiddleware(app: App): MiddlewareFunction {
   return async ({ context }) => {
     const user = context.get(platformUserContext);
@@ -82,9 +88,7 @@ export function createAppAccessMiddleware(app: App): MiddlewareFunction {
       throw redirect("/login");
     }
 
-    const canAccess =
-      app.is_enabled && (!app.requires_admin || isSuperAdmin(user) || user.activeWorkspace?.role === "workspace_admin");
-    if (!canAccess) {
+    if (!canAccessApp(user, app)) {
       throw new Response("Not Found", { status: 404 });
     }
   };

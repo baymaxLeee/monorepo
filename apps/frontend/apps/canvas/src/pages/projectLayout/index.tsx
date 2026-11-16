@@ -1,8 +1,8 @@
 import { canvasGetProject } from "@repo/api/canvas";
 import { Button } from "@repo/design-system";
-import { Library as IconAssetLibrary, ChevronLeft as IconLeft, Clapperboard as IconVideoCreation } from "lucide-react";
+import { ChevronLeft as IconLeft } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useNavigate, useParams } from "react-router-dom";
 
 import t from "@/utils/i18n";
 
@@ -60,30 +60,9 @@ export default function ProjectLayout() {
         <h1 className="m-0 text-[20px] font-semibold leading-7 text-foreground">{projectName || t("项目")}</h1>
         {summary ? <span className="shrink-0 text-[20px] leading-7 text-muted-foreground">{summary}</span> : null}
       </header>
-      <div className="flex min-h-0 flex-1">
-        <aside className="mt-3 w-[200px] shrink-0 border-0 border-r border-solid border-border px-3 pb-3">
-          <nav aria-label={t("项目功能")} className="flex flex-col gap-1">
-            <NavLink
-              className={({ isActive }) => `${styles.navigation} ${isActive ? styles.selectedNavigation : ""}`}
-              to={`/platform/canvas/projects/${projectId}/canvases`}
-            >
-              <IconVideoCreation aria-hidden size={18} strokeWidth={1.5} />
-              {t("视频创作")}
-            </NavLink>
-            <NavLink
-              className={({ isActive }) => `${styles.navigation} ${isActive ? styles.selectedNavigation : ""}`}
-              to={`/platform/canvas/projects/${projectId}/resources`}
-            >
-              <IconAssetLibrary aria-hidden size={18} strokeWidth={1.5} />
-              {t("资产库")}
-            </NavLink>
-          </nav>
-        </aside>
-
-        <ProjectLayoutContext.Provider value={contextValue}>
-          <Outlet />
-        </ProjectLayoutContext.Provider>
-      </div>
+      <ProjectLayoutContext.Provider value={contextValue}>
+        <Outlet />
+      </ProjectLayoutContext.Provider>
     </main>
   );
 }

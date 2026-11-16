@@ -2,7 +2,6 @@ import { Aside, buttonVariants, Layout, Main, Section } from "@repo/design-syste
 import { cn } from "@repo/shared";
 import {
   AppWindowIcon,
-  ArrowLeftIcon,
   BotIcon,
   BrainCircuitIcon,
   Building2Icon,
@@ -123,18 +122,9 @@ export function AdminLayout() {
   }
 
   return (
-    <Layout className="h-svh min-h-0 flex-row overflow-hidden">
+    <Layout className="h-full min-h-0 flex-row overflow-hidden">
       <Aside className="w-52 shrink-0 gap-2 overflow-y-auto p-2">
-        <Link
-          to="/platform/chat"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "h-8 justify-start gap-2 self-start px-2 text-muted-foreground",
-          )}
-        >
-          <ArrowLeftIcon aria-hidden="true" className="size-4" />
-          返回应用
-        </Link>
+        <h1 className="px-2 py-2 text-base font-semibold">设置</h1>
         <Section>
           <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">个人</div>
           <MenuList items={personalMenus} />

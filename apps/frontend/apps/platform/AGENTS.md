@@ -4,8 +4,11 @@ Platform is the only browser application entry and the only owner of
 `createBrowserRouter` / `RouterProvider`. It owns authentication, top-level
 routing, remote discovery, global errors, and global providers.
 
-Platform is a transparent host. Its `Layout` renders no global chrome; each
-MFE owns its visible shell. Do not add domain navigation or business UI here.
+Platform owns the stable outer Apps rail. It lists accessible registry-backed
+MFEs, performs cross-app navigation, and owns the global account menu at the
+bottom of the rail. MFE capabilities launched there use URL state rather than
+private MFE stores. Each MFE owns its second-column menus and content region.
+Do not add domain menus or MFE business UI here.
 
 ## Hard rules
 

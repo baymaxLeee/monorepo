@@ -1,4 +1,3 @@
-import { Layout as LayoutFrame, Main } from "@repo/design-system";
 import {
   clearUser as clearObservabilityUser,
   recordPageView,
@@ -8,14 +7,17 @@ import { usePlatformStore } from "@repo/runtime";
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
+import { PlatformAppRail } from "./PlatformAppRail";
+
 function Layout() {
   return (
-    <LayoutFrame className="h-svh overflow-hidden">
+    <div className="flex h-svh min-h-0 gap-1 overflow-hidden bg-muted p-2">
       <PlatformObservability />
-      <Main className="overflow-y-auto">
+      <PlatformAppRail />
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border/80 bg-background shadow-sm">
         <Outlet />
-      </Main>
-    </LayoutFrame>
+      </main>
+    </div>
   );
 }
 

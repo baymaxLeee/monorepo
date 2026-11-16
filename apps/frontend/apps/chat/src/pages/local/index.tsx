@@ -1,11 +1,11 @@
-import { Sheet, SheetContent, SheetHeader, SheetTitle, Skeleton } from "@repo/design-system";
+import { Skeleton } from "@repo/design-system";
 import { getDesktopBridge } from "@repo/runtime/desktop";
 import type { LocalThread } from "@repo/runtime/desktop";
 import { getErrorMessage } from "@repo/shared";
 import { useEffect, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 
-import { LocalFiles } from "./LocalFiles";
+import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 import { LocalSession } from "./LocalSession";
 import { LocalChatTransport } from "./transport";
 
@@ -14,10 +14,12 @@ export function Component() {
   const { id } = useParams();
   const [loaded, setLoaded] = useState<{ thread: LocalThread; transport: LocalChatTransport } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [files, setFiles] = useState(false);
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [closeBlocked, setCloseBlocked] = useState(false);
+  const openWorkspace = useLocalWorkspaceStore((state) => state.openWorkspace);
+  const resetWorkspace = useLocalWorkspaceStore((state) => state.reset);
+  useEffect(() => {
+    resetWorkspace();
+    return resetWorkspace;
+  }, [id, resetWorkspace]);
   useEffect(() => {
     if (!bridge || !id) return;
     let mounted = true;
@@ -25,10 +27,6 @@ export function Component() {
     const transport = new LocalChatTransport(bridge, id);
     setLoaded(null);
     setError(null);
-    setFiles(false);
-    setFilePath(null);
-    setDirty(false);
-    setCloseBlocked(false);
     const load = () =>
       void transport
         .load()
@@ -71,48 +69,12 @@ export function Component() {
           bridge={bridge}
           initial={loaded.thread}
           transport={loaded.transport}
-          onOpenFiles={() => {
-            setFilePath(null);
-            setFiles(true);
-          }}
-          onOpenFile={(path) => {
-            if (dirty) {
-              setCloseBlocked(true);
-              setFiles(true);
-              return;
-            }
-            setFilePath(path);
-            setFiles(true);
-          }}
+          onOpenFiles={() => openWorkspace(id)}
+          onOpenFile={(path) => openWorkspace(id, path)}
         />
       ) : (
         <Skeleton className="m-6 h-32" />
       )}
-      <Sheet
-        open={files}
-        onOpenChange={(open) => {
-          if (!open && dirty) {
-            setCloseBlocked(true);
-            return;
-          }
-          setFiles(open);
-          setCloseBlocked(false);
-        }}
-      >
-        <SheetContent className="w-full sm:max-w-xl">
-          <SheetHeader>
-            <SheetTitle>本地文件</SheetTitle>
-          </SheetHeader>
-          {closeBlocked ? (
-            <p role="alert" className="px-4 text-sm text-muted-foreground">
-              请先保存或撤销草稿，再关闭文件面板。
-            </p>
-          ) : null}
-          {files ? (
-            <LocalFiles key={id} bridge={bridge} id={id} initialPath={filePath} onDirtyChange={setDirty} />
-          ) : null}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

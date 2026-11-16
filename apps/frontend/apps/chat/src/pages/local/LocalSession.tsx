@@ -11,7 +11,7 @@ import { getLocalInferenceConfig, type GetLocalInferenceConfig200 } from "@repo/
 import { Button } from "@repo/design-system";
 import type { DesktopBridge, LocalThread } from "@repo/runtime/desktop";
 import { randomId, getErrorMessage } from "@repo/shared";
-import { FolderIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { LocalChatTransport } from "./transport";
@@ -55,7 +55,7 @@ export function LocalSession({
     status: initial.status,
     turnId: initial.turnId,
     error: initial.error,
-    pendingInputs: initial.pendingInputs,
+    pendingInputs: initial.pendingInputs ?? [],
   });
   const approving = useRef(false);
   const scrollRef = useRef<ConversationScrollHandle>(null);
@@ -85,7 +85,7 @@ export function LocalSession({
               status: thread.status,
               turnId: thread.turnId,
               error: thread.error,
-              pendingInputs: thread.pendingInputs,
+              pendingInputs: thread.pendingInputs ?? [],
             });
             await chat.resumeStream();
           })
@@ -97,7 +97,7 @@ export function LocalSession({
           status: event.thread.status,
           turnId: event.thread.turnId,
           error: event.thread.error,
-          pendingInputs: event.thread.pendingInputs,
+          pendingInputs: event.thread.pendingInputs ?? [],
         });
         if (event.thread.status !== "running") chat.messages = event.thread.messages as ChatUIMessage[];
       }
@@ -130,11 +130,6 @@ export function LocalSession({
   return (
     <ConversationSessionView
       title={state.title}
-      headerActions={
-        <Button variant="ghost" size="icon-sm" aria-label="查看本地文件" onClick={onOpenFiles}>
-          <FolderIcon />
-        </Button>
-      }
       chat={chat}
       resume
       scrollRef={scrollRef}
@@ -227,13 +222,6 @@ export function LocalSession({
                 selectedAgentId={inferenceConfig?.agentId ?? "local-default"}
                 mode="normal"
               />
-              <span
-                className="flex h-8 max-w-48 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground"
-                title={initial.workspace}
-              >
-                <FolderIcon className="size-3.5 shrink-0" />
-                <span className="truncate">{initial.workspace.split("/").at(-1)}</span>
-              </span>
               <ContextUsage value={null} loading={busy} />
             </>
           )}

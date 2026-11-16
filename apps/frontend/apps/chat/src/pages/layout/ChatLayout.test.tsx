@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
+import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 import { ChatLayout } from "./ChatLayout";
 
 let viewportWidth = 1280;
@@ -27,6 +28,9 @@ vi.mock("@repo/ai-elements/conversation/components/ChatArtifactPanel", () => ({
   },
 }));
 vi.mock("../../components/ChatAuxiliaryPanels", () => ({ ChatAuxiliaryPanels: () => null }));
+vi.mock("../../components/LocalWorkspacePanel", () => ({
+  LocalWorkspacePanel: () => <div>本地工作区</div>,
+}));
 
 beforeEach(() => {
   viewportWidth = 1280;
@@ -80,6 +84,7 @@ beforeEach(() => {
   useChatStore.setState({ loadAgents: async () => {}, tracePanelOpen: false, memoryPanelOpen: false });
   useChatStore.getState().closeArtifactPreview();
   useChatStore.getState().closeVideoProductionWorkspace();
+  useLocalWorkspaceStore.getState().reset();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -144,8 +149,9 @@ test("opening and closing the inspector keeps the conversation mounted and its d
 test("the sidebar toggle uses the standard control without resetting the content", async () => {
   await mount();
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "draft" } });
-  fireEvent.click(screen.getByRole("button", { name: "切换会话记录" }));
-  fireEvent.click(screen.getByRole("button", { name: "切换会话记录" }));
+  expect(screen.queryByRole("button", { name: "展开会话记录" })).toBeNull();
+  fireEvent.keyDown(document, { key: "b", ctrlKey: true });
+  fireEvent.click(await screen.findByRole("button", { name: "展开会话记录" }));
   expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("draft");
   expect(renders.content).not.toHaveBeenCalled();
 });
@@ -171,5 +177,40 @@ test("keyboard resizing updates the separator without rendering the conversation
   const previous = separator.getAttribute("aria-valuenow");
   fireEvent.keyDown(separator, { key: "ArrowRight" });
   expect(separator.getAttribute("aria-valuenow")).not.toBe(previous);
+  expect(renders.content).not.toHaveBeenCalled();
+});
+
+test("collapsing the conversation sidebar keeps its active resize separator mounted", async () => {
+  await mount();
+  expect(screen.getByRole("separator", { name: "调整会话记录宽度" })).toBeTruthy();
+
+  fireEvent.keyDown(document, { key: "b", ctrlKey: true });
+
+  expect(screen.getByRole("separator", { name: "调整会话记录宽度" })).toBeTruthy();
+});
+
+test("local files use the same third inspector region as cloud artifacts", async () => {
+  await mount();
+  await act(async () => useLocalWorkspaceStore.getState().openWorkspace("local", "src/demo.js"));
+  expect(await screen.findByText("本地工作区")).toBeTruthy();
+  expect(screen.getByRole("complementary", { name: "Artifact 预览" })).toBeTruthy();
+  expect(renders.content).not.toHaveBeenCalled();
+
+  await act(async () => useLocalWorkspaceStore.getState().requestClose());
+  expect(screen.queryByText("本地工作区")).toBeNull();
+});
+
+test("local files use the shared modal inspector on narrow layouts", async () => {
+  await mount();
+  await act(async () => {
+    viewportWidth = 600;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 600 });
+    mediaListeners.forEach((notify) => notify());
+    useLocalWorkspaceStore.getState().openWorkspace("local");
+  });
+
+  expect(await screen.findByRole("dialog", { name: "Artifact 预览" })).toBeTruthy();
+  expect(await screen.findByText("本地工作区")).toBeTruthy();
+  expect(screen.queryByRole("complementary", { name: "Artifact 预览" })).toBeNull();
   expect(renders.content).not.toHaveBeenCalled();
 });
