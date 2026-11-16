@@ -1,5 +1,0 @@
-{
-  "extends": "@repo/shared/typescript-config",
-  "compilerOptions": { "noEmit": true, "lib": ["ES2023"], "types": ["node"] },
-  "include": ["electron", "contracts", "test"]
-}

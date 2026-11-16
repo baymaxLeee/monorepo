@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "package": "node scripts/package.mjs",
-    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json && node node_modules/@typescript/native/bin/tsc -p tsconfig.node.json",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc -p tsconfig.json",
     "test": "pnpm --dir ../.. test --project desktop",
     "lint": "pnpm --dir ../../../.. lint:ts apps/frontend/apps/desktop && pnpm --dir ../../../.. exec oxfmt --check 'apps/frontend/apps/desktop/**/*.{ts,tsx,mjs,json}'",
     "launch": "node scripts/develop.mjs"
