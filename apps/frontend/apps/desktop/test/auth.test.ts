@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const { fetch } = vi.hoisted(() => ({ fetch: vi.fn() }));
 vi.mock("electron", () => ({ net: { fetch } }));
 import { DesktopAuth } from "../electron/auth";
-import { platformUrl } from "../electron/platform-url";
+import { platformLaunch, platformUrl } from "../electron/platform-url";
 const user = { id: "user", activeWorkspace: { tenantId: "tenant", workspaceId: "workspace", status: "active" } };
 const expires = "2099-01-01T00:00:00Z";
 beforeEach(() => fetch.mockReset());
@@ -51,4 +51,21 @@ it("pins a root Platform origin and explicitly opts in to remote HTTP", () => {
   expect(platformUrl("http://vps.test", true).hostname).toBe("vps.test");
   for (const value of ["file:///tmp/index.html", "https://a:b@host", "https://host/path", "https://host?token=x"])
     expect(() => platformUrl(value)).toThrow();
+});
+it("prompts only packaged interactive launches while explicit development URLs stay non-interactive", () => {
+  expect(platformLaunch(undefined, { url: "https://default.test", prompt: true }, false)).toEqual({
+    url: "https://default.test",
+    allowHttp: false,
+    prompt: true,
+  });
+  expect(platformLaunch("http://127.0.0.1:3000", { url: "https://default.test", prompt: true }, false)).toEqual({
+    url: "http://127.0.0.1:3000",
+    allowHttp: false,
+    prompt: false,
+  });
+  expect(platformLaunch(undefined, null, true)).toEqual({
+    url: "http://localhost:3000",
+    allowHttp: true,
+    prompt: false,
+  });
 });

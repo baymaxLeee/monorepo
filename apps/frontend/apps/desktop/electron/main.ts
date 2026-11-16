@@ -7,7 +7,8 @@ import { z } from "zod";
 
 import { DesktopAuth } from "./auth";
 import { RuntimeHost } from "./host-runtime";
-import { platformUrl } from "./platform-url";
+import { selectPlatform } from "./platform-selector";
+import { type PackagedPlatform, platformLaunch, platformUrl } from "./platform-url";
 import { legacySessionDirectories, resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
 import { WorkspaceGrants } from "./workspace-grants";
 
@@ -22,18 +23,36 @@ let signedIn = false;
 
 async function start() {
   const packaged = await readFile(join(directory, "platform.json"), "utf8")
-    .then((text) => JSON.parse(text) as { url: string })
+    .then((text) => JSON.parse(text) as PackagedPlatform)
     .catch(() => null);
-  const url = platformUrl(
-    argument("platform-url") ?? packaged?.url ?? "http://localhost:3000",
-    process.argv.includes("--allow-http"),
-  );
+  const launch = platformLaunch(argument("platform-url"), packaged, process.argv.includes("--allow-http"));
+  let url = platformUrl(launch.url, launch.allowHttp);
+  await app.whenReady();
+  if (launch.prompt) {
+    let selected = await selectPlatform(url.href, launch.allowHttp);
+    while (selected) {
+      try {
+        url = platformUrl(selected.url, selected.allowHttp);
+        break;
+      } catch (error) {
+        await dialog.showMessageBox({
+          type: "error",
+          message: "Platform 地址无效",
+          detail: error instanceof Error ? error.message : "请填写 Platform 根地址",
+        });
+        selected = await selectPlatform(selected.url, selected.allowHttp);
+      }
+    }
+    if (!selected) {
+      app.quit();
+      return;
+    }
+  }
   const runtimeHome = resolveRuntimeHome();
   if (!app.requestSingleInstanceLock({ origin: url.origin })) {
     app.quit();
     return;
   }
-  await app.whenReady();
   runtime = new RuntimeHost(
     directory,
     (path, init) => auth.fetch(path, init),

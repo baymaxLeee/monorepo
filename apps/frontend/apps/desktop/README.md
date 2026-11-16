@@ -14,7 +14,7 @@ DESKTOP_PLATFORM_URL=https://platform.example.com just desktop-package
 MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just desktop-dev
 ```
 
-开发和打包都需要 macOS、Xcode Command Line Tools 与 `just install`。打包产物位于 `release/Monorepo-darwin-<arch>/Monorepo.app`，可直接从应用入口打开。URL 必须是 Platform 根地址，不能是单个 MFE；其网关必须提供同源 `/api/` 和 MFE 资源。默认值为 `http://localhost:3000`。不提供浏览器通用文件或命令接口。
+开发和打包都需要 macOS、Xcode Command Line Tools 与 `just install`。打包产物位于 `release/Monorepo-darwin-<arch>/Monorepo.app`，同时生成可下载的 `release/Monorepo-darwin-<arch>.zip`。开发包会做完整 ad-hoc 签名，但不会开启要求 Developer ID team 一致性的 hardened runtime，也未经过 Apple 公证。安装包启动时会要求填写 Platform URL，`DESKTOP_PLATFORM_URL` 只决定输入框默认值；显式传给开发入口的 `--platform-url` 仍会直接打开。URL 必须是 Platform 根地址，不能是单个 MFE；其网关必须提供同源 `/api/` 和 MFE 资源。默认值为 `http://localhost:3000`。远程地址默认要求 HTTPS，用户可以在启动页明确允许不安全的 HTTP。应用不提供浏览器通用文件或命令接口。
 
 登录后，只有 Desktop App 在 Chat 新建会话时渲染执行位置选择器；选择“本地电脑”后通过原生目录选择器授权目录。Web 不渲染该选择器并固定创建云端会话。云端会话由 Chat 持久化，可在 App 与 Web 继续；本地会话只属于当前本地主机，不上传或同步到 Web。文件直接在授权目录读写，不上传 Storage；本地 SQLite 保存会话，按 Platform origin、用户、租户和组织工作区隔离。模型推理所需上下文会发送给平台配置的 provider。服务端不保存本地会话/文件；只保存推理请求的授权和用量元数据。
 
