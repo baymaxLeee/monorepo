@@ -842,3 +842,5 @@ ALTER TABLE ONLY public.video_production_events
 
 ALTER TABLE ONLY public.video_productions
     ADD CONSTRAINT video_productions_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id);
+
+
