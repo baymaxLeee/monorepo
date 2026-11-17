@@ -169,6 +169,17 @@ def validate_procfile(services: dict[str, dict[str, Any]]) -> None:
         if not re.search(rf"(?:PORT=|--port\s+){re.escape(port)}(?:\s|$)", command):
             fail(f"Procfile.dev process {service_id} does not own port {port}")
 
+    port_owners: dict[str, str] = {}
+    for match in re.finditer(r"(?m)^([^#:\s]+):\s*(.+)$", text):
+        label, command = match.groups()
+        port_match = re.search(r"(?:^|\s)(?:PORT=(\d+)|--port\s+(\d+))(?:\s|$)", command)
+        if not port_match:
+            continue
+        port = next(value for value in port_match.groups() if value is not None)
+        if owner := port_owners.get(port):
+            fail(f"Procfile.dev processes {owner} and {label} both own port {port}")
+        port_owners[port] = label
+
 
 def validate_dev_entrypoints(services: dict[str, dict[str, Any]]) -> None:
     preflight = DEV_PREFLIGHT_PATH.read_text()

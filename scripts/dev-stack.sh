@@ -6,7 +6,7 @@ cd "$ROOT"
 
 echo "→ Starting full demo stack (shell mode). Ctrl+C to stop all."
 
-DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 8012 8013 8014 8015 3000 3001 3005 3006)
+DEV_PORTS=(8000 8001 8002 8008 8009 8010 8011 8012 8013 8014 8015 8016 3000 3001 3005 3006)
 PIDS=()
 
 cleanup() {
@@ -107,6 +107,11 @@ track_last_pid
 (
   cd apps/backend/services/canvas
   PORT=8012 go run ./cmd/server 2>&1 | sed 's/^/[canvas]     /'
+) &
+track_last_pid
+(
+  cd apps/backend/services/canvas
+  PORT=8016 ADMIN_RPC_TARGET=localhost:9001 STORAGE_RPC_TARGET=localhost:9013 go run ./cmd/worker 2>&1 | sed 's/^/[canvas-worker] /'
 ) &
 track_last_pid
 (
