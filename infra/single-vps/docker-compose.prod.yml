@@ -250,6 +250,7 @@ services:
     environment:
       ENVIRONMENT: single-vps
       PORT: "8013"
+      RPC_PORT: "9013"
       REDIS_URL: redis://redis:6379/0
       STORAGE_DELIVERY_URL_TTL: ${STORAGE_DELIVERY_URL_TTL:-6h}
       POSTGRES_HOST: postgres
@@ -265,7 +266,6 @@ services:
       STORAGE_GC_INTERVAL: ${STORAGE_GC_INTERVAL:-1h}
       STORAGE_CANDIDATE_AGE: ${STORAGE_CANDIDATE_AGE:-24h}
       STORAGE_RETENTION: ${STORAGE_RETENTION:-168h}
-      INTERNAL_SERVICE_TOKENS: '{"admin":"${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}","runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}"}'
     volumes:
       - storage_data:/data/assets
     <<: *restart_policy
@@ -282,7 +282,8 @@ services:
       OTEL_SERVICE_NAME: admin
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8001"
-      STORAGE_SERVICE_URL: http://storage:8013
+      RPC_PORT: "9001"
+      STORAGE_RPC_TARGET: storage:9013
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: admin
@@ -291,10 +292,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "0"
-      # Fernet key encrypting model_providers.api_key_enc.
+      # URL-safe base64 AES-256-GCM key encrypting model_providers.api_key_enc.
       ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY:?ADMIN_SECRET_KEY is required}
-      INTERNAL_API_TOKEN: ${ADMIN_INTERNAL_API_TOKEN:?ADMIN_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}","knowledge":"${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}","canvas":"${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   canvas:
@@ -310,10 +309,11 @@ services:
       OTEL_SERVICE_NAME: canvas
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      ADMIN_SERVICE_URL: http://admin:8001
-      STORAGE_SERVICE_URL: http://storage:8013
+      ADMIN_RPC_TARGET: admin:9001
+      STORAGE_RPC_TARGET: storage:9013
       PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       PORT: "8012"
+      RPC_PORT: "9012"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: canvas
@@ -321,8 +321,6 @@ services:
       POSTGRES_DATABASE: canvas
       POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
-      INTERNAL_API_TOKEN: ${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   canvas-worker:
@@ -338,8 +336,8 @@ services:
       OTEL_SERVICE_NAME: canvas-worker
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      ADMIN_SERVICE_URL: http://admin:8001
-      STORAGE_SERVICE_URL: http://storage:8013
+      ADMIN_RPC_TARGET: admin:9001
+      STORAGE_RPC_TARGET: storage:9013
       PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL:?PUBLIC_GATEWAY_URL is required}
       PORT: "8012"
       POSTGRES_HOST: postgres
@@ -349,7 +347,6 @@ services:
       POSTGRES_DATABASE: canvas
       POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
-      INTERNAL_API_TOKEN: ${CANVAS_INTERNAL_API_TOKEN:?CANVAS_INTERNAL_API_TOKEN is required}
     <<: *restart_policy
 
   chat:
@@ -392,10 +389,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "2"
-      ADMIN_SERVICE_URL: http://admin:8001
-      KNOWLEDGE_SERVICE_URL: http://knowledge:8010
-      STORAGE_SERVICE_URL: http://storage:8013
-      CANVAS_SERVICE_URL: http://canvas:8012
+      ADMIN_RPC_TARGET: admin:9001
+      KNOWLEDGE_RPC_TARGET: knowledge:9010
+      STORAGE_RPC_TARGET: storage:9013
+      CANVAS_RPC_TARGET: canvas:9012
       RUNTIME_WORKER_URL: http://runtime-worker:8011
       RUNTIME_SANDBOX_URL: http://runtime-sandbox:8014
       INTERNAL_API_TOKEN: ${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}
@@ -482,9 +479,9 @@ services:
       INTERNAL_API_TOKEN: ${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}
       INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
       # Provider calls (SSRF-guarded); knowledge owns the published document.
-      ADMIN_SERVICE_URL: http://admin:8001
-      KNOWLEDGE_SERVICE_URL: http://knowledge:8010
-      STORAGE_SERVICE_URL: http://storage:8013
+      ADMIN_RPC_TARGET: admin:9001
+      KNOWLEDGE_RPC_TARGET: knowledge:9010
+      STORAGE_RPC_TARGET: storage:9013
     <<: *restart_policy
 
   knowledge:
@@ -497,15 +494,14 @@ services:
       OTEL_SERVICE_NAME: knowledge
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       PORT: "8010"
+      RPC_PORT: "9010"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_USER: knowledge
       POSTGRES_PASSWORD: ${KNOWLEDGE_POSTGRES_PASSWORD:?KNOWLEDGE_POSTGRES_PASSWORD is required}
       POSTGRES_DATABASE: knowledge
-      ADMIN_SERVICE_URL: http://admin:8001
-      STORAGE_SERVICE_URL: http://storage:8013
-      INTERNAL_API_TOKEN: ${KNOWLEDGE_INTERNAL_API_TOKEN:?KNOWLEDGE_INTERNAL_API_TOKEN is required}
-      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
+      ADMIN_RPC_TARGET: admin:9001
+      STORAGE_RPC_TARGET: storage:9013
     <<: *restart_policy
 
   telemetry:

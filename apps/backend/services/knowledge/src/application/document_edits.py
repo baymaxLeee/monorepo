@@ -7,7 +7,7 @@ from uuid import uuid4
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import documents
-from kernel.errors import ConflictError, NotFoundError
+from knowledge_kernel.errors import ConflictError, NotFoundError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.conversation_cleanup import assert_conversation_accepts_artifacts

@@ -14,12 +14,12 @@ export interface ServerSettings {
   redisHost: string;
   redisPort: number;
   redisDb: number;
-  adminServiceUrl: string;
-  storageServiceUrl: string;
-  knowledgeServiceUrl: string;
+  adminRpcTarget: string;
+  storageRpcTarget: string;
+  knowledgeRpcTarget: string;
   workerServiceUrl: string;
   sandboxRoleUrl: string;
-  canvasServiceUrl: string;
+  canvasRpcTarget: string;
   internalApiToken: string;
   chatCallerToken: string;
   toolApprovalSecret: string;
@@ -70,10 +70,10 @@ export function parseServerSettings(env: NodeJS.ProcessEnv): ServerSettings {
     redisHost,
     redisPort: positiveInt(env, "REDIS_PORT", 6379),
     redisDb: nonNegativeInt(env, "REDIS_DB", 2),
-    adminServiceUrl: envOr(env, "ADMIN_SERVICE_URL", "http://localhost:8001"),
-    storageServiceUrl: envOr(env, "STORAGE_SERVICE_URL", "http://localhost:8013"),
-    knowledgeServiceUrl: envOr(env, "KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
-    canvasServiceUrl: envOr(env, "CANVAS_SERVICE_URL", "http://localhost:8012"),
+    adminRpcTarget: envOr(env, "ADMIN_RPC_TARGET", "localhost:9001"),
+    storageRpcTarget: envOr(env, "STORAGE_RPC_TARGET", "localhost:9013"),
+    knowledgeRpcTarget: envOr(env, "KNOWLEDGE_RPC_TARGET", "localhost:9010"),
+    canvasRpcTarget: envOr(env, "CANVAS_RPC_TARGET", "localhost:9012"),
     workerServiceUrl: envOr(env, "RUNTIME_WORKER_URL", "http://localhost:8011"),
     sandboxRoleUrl: envOr(env, "RUNTIME_SANDBOX_URL", "http://localhost:8014"),
     internalApiToken,

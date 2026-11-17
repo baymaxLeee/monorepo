@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 
-import type { StorageInternalClient } from "@backend/transport-ts";
-
 import { sandboxClient } from "../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter } from "../infrastructure/clients/sandbox.js";
+import type { StorageClient } from "../infrastructure/clients/storage.js";
 import { storageClient } from "../infrastructure/clients/storage.js";
 import { deleteWorkspaceSessionFile, listSessionFiles, publishSessionFile, saveSessionFile } from "./session-files.js";
 import { isValidWorkspacePath } from "./workspace-paths.js";
@@ -18,7 +17,7 @@ export interface CloudWorkspaceScope {
 
 export interface CloudWorkspaceDependencies {
   sandbox: () => Pick<RuntimeSandboxAdapter, "snapshot" | "download">;
-  asset: () => Pick<StorageInternalClient, "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
+  asset: () => Pick<StorageClient, "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
   files: typeof listSessionFiles;
   publish: typeof publishSessionFile;
   update: typeof saveSessionFile;

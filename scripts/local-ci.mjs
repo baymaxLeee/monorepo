@@ -439,11 +439,92 @@ export async function push(root, remote, branch) {
   console.log(git(root, "-c", "push.followTags=false", "push", remote, `${head}:refs/heads/${branch}`));
 }
 export function checkGoModules(root) {
+  const issues = goWorkspaceIssues(root);
+  if (issues.length) throw new Error(`Go workspace policy failed:\n${issues.map((issue) => `- ${issue}`).join("\n")}`);
   for (const project of discoverProjects(root).filter((p) => p.runtime === "go")) {
     console.log(`Checking Go module ${project.id}`);
-    const result = spawnSync("go", ["mod", "tidy", "-diff"], { cwd: project.dir, stdio: "inherit" });
+    const result = spawnSync("go", ["mod", "tidy", "-diff"], {
+      cwd: project.dir,
+      env: { ...process.env, GOWORK: "off" },
+      stdio: "inherit",
+    });
     if (result.status !== 0) throw new Error(`Go module consistency failed: ${project.id}`);
   }
+}
+
+export function goWorkspaceIssues(root) {
+  const backend = resolve(root, "apps/backend");
+  const workPath = resolve(backend, "go.work");
+  const platformPath = resolve(backend, "go-platform.json");
+  if (!existsSync(workPath)) return ["apps/backend/go.work is missing"];
+  if (!existsSync(platformPath)) return ["apps/backend/go-platform.json is missing"];
+
+  const work = readFileSync(workPath, "utf8");
+  const platform = JSON.parse(readFileSync(platformPath, "utf8"));
+  const goVersion = work.match(/^go\s+(\S+)$/m)?.[1];
+  const toolchain = work.match(/^toolchain\s+(go\S+)$/m)?.[1];
+  const members = [...work.matchAll(/^\s*(\.\/[^\s/]+(?:\/[^\s/]+)*)\s*$/gm)].map((match) => match[1]);
+  const issues = [];
+  const dependencyVersions = new Map();
+
+  if (!goVersion) issues.push("go.work must declare a Go language version");
+  if (!toolchain) issues.push("go.work must pin an exact Go toolchain patch");
+  if (toolchain && platform.toolchain !== toolchain)
+    issues.push(`go-platform.json uses toolchain ${platform.toolchain ?? "<missing>"}; workspace uses ${toolchain}`);
+  if (!members.length) issues.push("go.work must list workspace modules");
+
+  for (const member of members) {
+    const moduleDir = resolve(backend, member);
+    const modPath = resolve(moduleDir, "go.mod");
+    if (!existsSync(modPath)) {
+      issues.push(`${member}/go.mod is missing`);
+      continue;
+    }
+    const mod = readFileSync(modPath, "utf8");
+    const directDependencies = new Map();
+    const moduleGo = mod.match(/^go\s+(\S+)$/m)?.[1];
+    const moduleToolchain = mod.match(/^toolchain\s+(go\S+)$/m)?.[1];
+    if (goVersion && moduleGo !== goVersion)
+      issues.push(`${member}/go.mod uses Go ${moduleGo ?? "<missing>"}; workspace uses ${goVersion}`);
+    if (toolchain && moduleToolchain !== toolchain)
+      issues.push(`${member}/go.mod uses toolchain ${moduleToolchain ?? "<missing>"}; workspace uses ${toolchain}`);
+
+    for (const match of mod.matchAll(/^\s*(?:require\s+)?([^\s/]+\.[^\s]+)\s+(v\S+)(?:\s+\/\/\s+indirect)?\s*$/gm)) {
+      const [, dependency, version] = match;
+      if (!match[0].includes("// indirect")) directDependencies.set(dependency, version);
+      const versions = dependencyVersions.get(dependency) ?? new Map();
+      const consumers = versions.get(version) ?? [];
+      consumers.push(member);
+      versions.set(version, consumers);
+      dependencyVersions.set(dependency, versions);
+    }
+
+    for (const capability of Object.values(platform.capabilities ?? {})) {
+      const actual = directDependencies.get(capability.module);
+      if (actual && actual !== capability.version)
+        issues.push(`${member}/go.mod uses ${capability.module} ${actual}; platform pins ${capability.version}`);
+    }
+    if (member.startsWith("./services/")) {
+      for (const dependency of platform.requiredForServices ?? []) {
+        if (!directDependencies.has(dependency))
+          issues.push(`${member}/go.mod must directly require platform dependency ${dependency}`);
+      }
+    }
+
+    const dockerfile = resolve(moduleDir, "Dockerfile");
+    if (toolchain && existsSync(dockerfile)) {
+      const expected = `golang:${toolchain.slice(2)}-`;
+      const firstFrom = readFileSync(dockerfile, "utf8").match(/^FROM\s+.*?golang:([^\s]+).*$/m)?.[0];
+      if (!firstFrom?.includes(expected)) issues.push(`${member}/Dockerfile must build with ${expected}<distribution>`);
+    }
+  }
+
+  for (const [dependency, versions] of dependencyVersions) {
+    if (versions.size < 2) continue;
+    const detail = [...versions].map(([version, consumers]) => `${version} in ${consumers.join(", ")}`).join("; ");
+    issues.push(`${dependency} has divergent workspace versions: ${detail}`);
+  }
+  return issues;
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

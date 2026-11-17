@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationprojectstatistics "github.com/example/monorepo/canvas/internal/application/projectstatistics"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domainresource "github.com/example/monorepo/canvas/internal/domain/resource"
 	domainresourceassetgeneration "github.com/example/monorepo/canvas/internal/domain/resourceassetgeneration"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

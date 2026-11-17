@@ -19,7 +19,7 @@ test("Python images use the same pinned uv version as local and hosted checks", 
   const mise = readFileSync(resolve(root, "mise.toml"), "utf8");
   const uvVersion = mise.match(/^uv = "([^"]+)"$/m)?.[1];
   assert.ok(uvVersion);
-  for (const service of ["admin", "knowledge", "telemetry"]) {
+  for (const service of ["knowledge"]) {
     const dockerfile = readFileSync(resolve(root, `apps/backend/services/${service}/Dockerfile`), "utf8");
     assert.match(
       dockerfile,
@@ -57,16 +57,6 @@ test("builds only the directly changed backend service", () => {
   ]);
 });
 
-test("expands shared libraries only to image consumers", () => {
-  assert.deepEqual(imagePlan(["apps/backend/libs/transport-ts/src/storage.ts"]).build, ["runtime"]);
-  assert.deepEqual(imagePlan(["apps/backend/libs/kernel/src/kernel/logging.py"]).build, [
-    "admin",
-    "knowledge",
-    "telemetry",
-  ]);
-  assert.deepEqual(imagePlan(["apps/backend/libs/kernel-ts/src/index.ts"]).build, ["chat", "runtime"]);
-});
-
 test("expands root shared packages across backend and web consumers", () => {
   assert.deepEqual(imagePlan(["packages/agent-runtime/src/agent/harness.ts"]).build, ["runtime", "web"]);
 });
@@ -96,7 +86,7 @@ test("image pipeline changes and unreliable diffs conservatively rebuild all", (
 });
 
 test("context and unrelated workflow changes reuse existing images", () => {
-  assert.deepEqual(imagePlan(["apps/backend/.dockerignore"]).build, ["admin", "knowledge", "telemetry"]);
+  assert.deepEqual(imagePlan(["apps/backend/.dockerignore"]).build, ["knowledge"]);
   assert.deepEqual(imagePlan([".github/workflows/mirror-images.yml"]).build, []);
   assert.deepEqual(imagePlan([".github/workflows/storage.yml"]).build, []);
 });
@@ -105,7 +95,7 @@ test("ordinary documentation does not invalidate runtime images", () => {
   const plan = imagePlan(["docs/ADR/container-image-delivery.md", "README.md", "apps/frontend/README.md"]);
   assert.deepEqual(plan.build, []);
   assert.deepEqual(plan.reuse, all);
-  assert.deepEqual(imagePlan(["apps/backend/services/chat/src/prompts/system.md"]).build, ["chat"]);
+  assert.deepEqual(imagePlan(["apps/backend/services/chat/internal/application/service.go"]).build, ["chat"]);
 });
 
 test("quality and agent configuration reuse every immutable image", () => {

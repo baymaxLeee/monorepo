@@ -2,15 +2,14 @@ package application
 
 import (
 	"context"
-	"github.com/example/monorepo/iam/internal/application/contracts"
-	"github.com/example/monorepo/iam/internal/domain"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 	"strings"
 	"time"
+
+	"github.com/example/monorepo/iam/internal/application/contracts"
+	"github.com/example/monorepo/iam/internal/domain"
 )
 
-func tenantView(row models.Tenant) contracts.Tenant {
+func tenantView(row Tenant) contracts.Tenant {
 	return contracts.Tenant{ID: row.ID, Name: row.Name, Slug: row.Slug}
 }
 
@@ -32,8 +31,8 @@ func (s *WorkspaceService) CreateTenant(ctx context.Context, req contracts.Creat
 		return contracts.Tenant{}, ErrInvalidWorkspace
 	}
 	now := time.Now().UTC()
-	row := models.Tenant{ID: NewID(), Name: name, Slug: slug, CreatedAt: now, UpdatedAt: now}
-	err := mutateWithAudit(ctx, s.store, auditEntry{Action: "tenant.create", Actor: meta.ActorUserID, After: map[string]any{"tenantId": row.ID, "name": name}, Trace: meta.TraceID}, func(store *repositories.Store) error { return store.CreateTenant(ctx, row) })
+	row := Tenant{ID: NewID(), Name: name, Slug: slug, CreatedAt: now, UpdatedAt: now}
+	err := mutateWithAudit(ctx, s.store, auditEntry{Action: "tenant.create", Actor: meta.ActorUserID, After: map[string]any{"tenantId": row.ID, "name": name}, Trace: meta.TraceID}, func(store Store) error { return store.CreateTenant(ctx, row) })
 	if err != nil {
 		return contracts.Tenant{}, ErrConflict
 	}

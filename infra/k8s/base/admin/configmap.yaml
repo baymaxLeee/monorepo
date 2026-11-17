@@ -4,9 +4,10 @@ metadata:
   name: admin-config
 data:
   PORT: "8001"
+  RPC_PORT: "9001"
   ENVIRONMENT: "development"
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "admin"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
-  STORAGE_SERVICE_URL: "http://storage:8013"
+  STORAGE_RPC_TARGET: "storage:9013"

@@ -7,8 +7,8 @@ import (
 	thriftasset "github.com/example/monorepo/canvas/internal/api/contracts/asset"
 	thriftpackage "github.com/example/monorepo/canvas/internal/api/contracts/benefitpackage"
 	thriftcommon "github.com/example/monorepo/canvas/internal/api/contracts/common"
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	applicationuploadintent "github.com/example/monorepo/canvas/internal/application/uploadintent"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 )

@@ -1,0 +1,277 @@
+syntax = "proto3";
+
+package storage.v1;
+
+import "common/v1/context.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/example/monorepo/inner-api-go/gen/storage/v1;storagev1";
+
+service AssetService {
+  rpc Upload(stream UploadRequest) returns (UploadResponse);
+  rpc AppendRevision(stream AppendRevisionRequest) returns (AppendRevisionResponse);
+  rpc DescribeRevision(DescribeRevisionRequest) returns (DescribeRevisionResponse);
+  rpc ReadContent(ReadContentRequest) returns (stream ReadContentResponse);
+  rpc ReadImageVariant(ReadImageVariantRequest) returns (stream ReadImageVariantResponse);
+}
+
+service ClaimService {
+  rpc PrepareClaim(PrepareClaimRequest) returns (PrepareClaimResponse);
+  rpc ActivateClaim(ActivateClaimRequest) returns (ActivateClaimResponse);
+  rpc ReleaseClaim(ReleaseClaimRequest) returns (ReleaseClaimResponse);
+}
+
+service UploadSessionService {
+  rpc CreateUploadSession(CreateUploadSessionRequest) returns (CreateUploadSessionResponse);
+  rpc DescribeUploadSession(DescribeUploadSessionRequest) returns (DescribeUploadSessionResponse);
+}
+
+service DeliveryService {
+  rpc MintCapabilities(MintCapabilitiesRequest) returns (MintCapabilitiesResponse);
+}
+
+message UploadMetadata {
+  common.v1.ActorContext actor = 1;
+  string filename = 2;
+  string media_type = 3;
+  string category = 4;
+  string idempotency_key = 5;
+}
+
+message UploadRequest {
+  oneof value {
+    UploadMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message AppendRevisionMetadata {
+  common.v1.ActorContext actor = 1;
+  string asset_id = 2;
+  string filename = 3;
+  string media_type = 4;
+  string idempotency_key = 5;
+  string base_revision_id = 6;
+  string owner_type = 7;
+  string owner_id = 8;
+  string slot = 9;
+  int64 generation = 10;
+}
+
+message AppendRevisionRequest {
+  oneof value {
+    AppendRevisionMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message UploadResult {
+  string asset_id = 1;
+  string revision_id = 2;
+  string filename = 3;
+  string media_type = 4;
+  int64 size_bytes = 5;
+  string sha256 = 6;
+}
+
+message UploadResponse {
+  UploadResult result = 1;
+}
+
+message AppendRevisionResponse {
+  UploadResult result = 1;
+}
+
+message DescribeRevisionRequest {
+  common.v1.ActorContext actor = 1;
+  string asset_id = 2;
+  string revision_id = 3;
+}
+
+message RevisionMetadata {
+  string asset_id = 1;
+  string revision_id = 2;
+  string category = 3;
+  string filename = 4;
+  string media_type = 5;
+  int64 size_bytes = 6;
+  string sha256 = 7;
+  string created_by = 8;
+}
+
+message DescribeRevisionResponse {
+  RevisionMetadata revision = 1;
+}
+
+message ReadContentRequest {
+  common.v1.ActorContext actor = 1;
+  string asset_id = 2;
+  string revision_id = 3;
+  optional int64 offset = 4;
+  optional int64 limit = 5;
+}
+
+message ReadImageVariantRequest {
+  common.v1.ActorContext actor = 1;
+  string asset_id = 2;
+  string revision_id = 3;
+  optional int32 max_dimension = 4;
+}
+
+message ContentMetadata {
+  string filename = 1;
+  string media_type = 2;
+  int64 size_bytes = 3;
+  string sha256 = 4;
+}
+
+message ContentChunk {
+  oneof value {
+    ContentMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message ReadContentResponse {
+  ContentChunk value = 1;
+}
+
+message ReadImageVariantResponse {
+  ContentChunk value = 1;
+}
+
+enum ClaimKind {
+  CLAIM_KIND_UNSPECIFIED = 0;
+  CLAIM_KIND_STRONG = 1;
+  CLAIM_KIND_SNAPSHOT = 2;
+  CLAIM_KIND_LEASE = 3;
+  CLAIM_KIND_WEAK = 4;
+}
+
+enum ClaimStatus {
+  CLAIM_STATUS_UNSPECIFIED = 0;
+  CLAIM_STATUS_PENDING = 1;
+  CLAIM_STATUS_ACTIVE = 2;
+  CLAIM_STATUS_RELEASED = 3;
+}
+
+message Claim {
+  string claim_id = 1;
+  string asset_id = 2;
+  optional string revision_id = 3;
+  ClaimKind kind = 4;
+  ClaimStatus status = 5;
+  int64 generation = 6;
+  optional google.protobuf.Timestamp expires_at = 7;
+}
+
+message PrepareClaimRequest {
+  common.v1.ActorContext actor = 1;
+  string owner_type = 2;
+  string owner_id = 3;
+  string slot = 4;
+  int64 generation = 5;
+  string asset_id = 6;
+  optional string revision_id = 7;
+  ClaimKind kind = 8;
+  optional google.protobuf.Timestamp expires_at = 9;
+}
+
+message ActivateClaimRequest {
+  common.v1.ActorContext actor = 1;
+  string owner_type = 2;
+  string owner_id = 3;
+  string slot = 4;
+  int64 generation = 5;
+}
+
+message ReleaseClaimRequest {
+  common.v1.ActorContext actor = 1;
+  string owner_type = 2;
+  string owner_id = 3;
+  string slot = 4;
+  int64 generation = 5;
+}
+
+message PrepareClaimResponse {
+  Claim claim = 1;
+}
+
+message ActivateClaimResponse {
+  Claim claim = 1;
+}
+
+message ReleaseClaimResponse {
+  Claim claim = 1;
+}
+
+message CreateUploadSessionRequest {
+  common.v1.ActorContext actor = 1;
+  string intent_id = 2;
+  string filename = 3;
+  string media_type = 4;
+  string category = 5;
+  int64 size_bytes = 6;
+}
+
+message DescribeUploadSessionRequest {
+  common.v1.ActorContext actor = 1;
+  string upload_session_id = 2;
+}
+
+enum UploadSessionState {
+  UPLOAD_SESSION_STATE_UNSPECIFIED = 0;
+  UPLOAD_SESSION_STATE_PENDING = 1;
+  UPLOAD_SESSION_STATE_UPLOADING = 2;
+  UPLOAD_SESSION_STATE_COMPLETED = 3;
+  UPLOAD_SESSION_STATE_FAILED = 4;
+  UPLOAD_SESSION_STATE_ABORTED = 5;
+}
+
+message UploadSession {
+  string upload_session_id = 1;
+  string intent_id = 2;
+  UploadSessionState state = 3;
+  string user_id = 4;
+  string category = 5;
+  string filename = 6;
+  string media_type = 7;
+  int64 size_bytes = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  string upload_url = 10;
+  optional string asset_id = 11;
+  optional string revision_id = 12;
+}
+
+message CreateUploadSessionResponse {
+  UploadSession session = 1;
+}
+
+message DescribeUploadSessionResponse {
+  UploadSession session = 1;
+}
+
+message DeliveryCapabilityItem {
+  common.v1.ActorContext actor = 1;
+  string asset_id = 2;
+  string revision_id = 3;
+  optional int32 max_dimension = 4;
+}
+
+message MintCapabilitiesRequest {
+  repeated DeliveryCapabilityItem items = 1;
+}
+
+message DeliveryCapability {
+  string asset_id = 1;
+  string revision_id = 2;
+  string url = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  string filename = 5;
+  string media_type = 6;
+  int64 size_bytes = 7;
+}
+
+message MintCapabilitiesResponse {
+  repeated DeliveryCapability items = 1;
+}

@@ -1,6 +1,5 @@
-"""Production caller credentials follow the declared transport bindings."""
+"""Deployment safety configuration tests."""
 
-import json
 import os
 from unittest.mock import patch
 
@@ -11,39 +10,22 @@ from bootstrap.config import Settings
 
 
 class TestSettings:
-    def settings(self, tokens: dict[str, str]) -> Settings:
+    def test_deployed_environment_accepts_rpc_transport_without_shared_tokens(self):
         with patch.dict(os.environ, {}, clear=True), patch.dict(Settings.model_config, {"env_file": None}):
-            return Settings(
+            settings = Settings(
                 environment="single-vps",
                 postgres_host="postgres",
                 postgres_password="test-database-password",
-                internal_api_token="k" * 48,
-                internal_service_tokens=tokens,
+                admin_rpc_target="admin:9001",
+                storage_rpc_target="storage:9013",
             )
+        assert settings.admin_rpc_target == "admin:9001"
+        assert settings.storage_rpc_target == "storage:9013"
 
-    def test_declared_callers_start_in_deployed_environment(self):
-        tokens = {"runtime": "r" * 48}
-        assert self.settings(tokens).internal_service_tokens == tokens
-
-    def test_invalid_credentials_fail_closed(self):
-        invalid = [
-            {},
-            {"chat": "c" * 48},
-            {"runtime": "r" * 48, "canvas": "v" * 48},
-            {"runtime": "short"},
-            {"runtime": "dev-" + "r" * 48},
-        ]
-        for tokens in invalid:
-            with pytest.raises(ValidationError):
-                self.settings(tokens)
-
-    def test_environment_json_reaches_settings(self):
-        env = {
-            "ENVIRONMENT": "single-vps",
-            "POSTGRES_HOST": "postgres",
-            "POSTGRES_PASSWORD": "test-database-password",
-            "INTERNAL_API_TOKEN": "k" * 48,
-            "INTERNAL_SERVICE_TOKENS": json.dumps({"runtime": "r" * 48}),
-        }
-        with patch.dict(os.environ, env, clear=True), patch.dict(Settings.model_config, {"env_file": None}):
-            assert set(Settings().internal_service_tokens) == {"runtime"}
+    def test_insecure_deployed_database_fails_closed(self):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.dict(Settings.model_config, {"env_file": None}),
+            pytest.raises(ValidationError),
+        ):
+            Settings(environment="single-vps")

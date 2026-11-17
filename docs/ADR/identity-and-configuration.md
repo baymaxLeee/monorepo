@@ -16,8 +16,8 @@ Gateway 验证 IAM 签发的身份，剥离调用者伪造的身份头，再传�
 tenant/user/workspace/roles。服务必须检查作用域与资源权限，资源 ID、前端
 隐藏按钮、工具参数或 internal caller 身份都不能单独授予业务权限。
 
-服务间使用显式 binding、`X-Caller-Service` 和每 caller 独立 credential，接收方
-使用自己的允许映射验证。Gateway 不公开代理 downstream `/internal/*`；
+服务间使用显式 Proto/gRPC binding，client runtime 注入固定 caller metadata，接收方
+按 RPC method allowlist 验证。Gateway 不公开代理 RPC 端口；
 Runtime server、worker、sandbox 都没有公共 Gateway route。内部 API 的解密配置不能原样返回浏览器。
 
 浏览器认证生命周期统一由 Platform 的 `src/auth/` 拥有：登录、注册、刷新、
@@ -48,12 +48,11 @@ Claim。执行时初始只暴露 metadata，激活后逐步披露资源；服务
 
 ## 取舍与验证
 
-显式 scope 和 caller credential 增加传输/配置工作，但避免一个共享 secret
-代表所有 workload，也避免把模型输出当成可信身份。缓存不能取代 owner，
+显式 scope 和 caller allowlist 避免把网络可达性或模型输出当成可信身份。缓存不能取代 owner，
 每次需要的可变权威引用按所属服务契约刷新。
 
 入口：[IAM application](../../apps/backend/services/iam/internal/application)、
 [Gateway auth](../../apps/backend/services/gateway/internal/api/http/middleware/auth.go)、
-[Admin application](../../apps/backend/services/admin/src/application)。
+[Admin application](../../apps/backend/services/admin/internal/application)。
 验证跨 tenant/workspace 拒绝、伪造头剥离、未知 caller、缺省/无效配置、
 凭据公开脱敏与审批拒绝；契约变化同时验证生成客户端与消费者。

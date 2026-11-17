@@ -1,6 +1,6 @@
 import "@workflow/world-postgres";
 import "@workflow/world-postgres/cli";
-import { configureOpenTelemetry } from "@backend/kernel-ts";
+import { configureOpenTelemetry } from "#runtime/foundation";
 
 import { createApp } from "../../bootstrap/worker-app.js";
 import { bootstrapWorker, workerShutdown } from "../../bootstrap/worker-runtime.js";

@@ -4,21 +4,19 @@ import (
 	"context"
 	"net/http"
 	"time"
-
-	"github.com/example/monorepo/gateway/internal/infrastructure/store"
 )
 
 func Livez(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func Healthz(st *store.Store) http.HandlerFunc {
+func Healthz(ready func(context.Context) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 
 		redis := "up"
-		if err := st.Redis.Ping(ctx).Err(); err != nil {
+		if err := ready(ctx); err != nil {
 			redis = "down"
 		}
 

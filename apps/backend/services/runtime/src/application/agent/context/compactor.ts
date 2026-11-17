@@ -1,10 +1,11 @@
-import { finishSpan, startSpan } from "@backend/kernel-ts";
+import { extractJsonMiddleware, generateText, Output, wrapLanguageModel, type UIMessage } from "ai";
+
+import { finishSpan, startSpan } from "#runtime/foundation";
 import {
   createProviderModel,
   JSON_OBJECT_MODE_INSTRUCTION,
   type LanguageProviderSnapshot,
-} from "@backend/transport-ts/provider-model";
-import { extractJsonMiddleware, generateText, Output, wrapLanguageModel, type UIMessage } from "ai";
+} from "#runtime/provider-model";
 
 import { addUsage, EMPTY_USAGE, extractUsageTokens, type UsageTokens } from "../observability/lifecycle.js";
 import { COMPACTION_STATE_VERSION, compactionModelOutputSchema, type CompactionState } from "./compaction-state.js";

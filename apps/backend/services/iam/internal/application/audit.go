@@ -7,9 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 )
 
 // AuditMeta carries the request-scoped attribution for a high-value mutation:
@@ -47,12 +44,12 @@ const (
 	auditError = "error"
 )
 
-func auditEvent(e auditEntry) models.IamAuditEvent {
+func auditEvent(e auditEntry) IamAuditEvent {
 	result := e.Result
 	if result == "" {
 		result = auditOK
 	}
-	return models.IamAuditEvent{
+	return IamAuditEvent{
 		ID:           NewID(),
 		Action:       e.Action,
 		ActorUserID:  strPtr(e.Actor),
@@ -67,7 +64,7 @@ func auditEvent(e auditEntry) models.IamAuditEvent {
 	}
 }
 
-func recordAudit(ctx context.Context, store *repositories.Store, e auditEntry) {
+func recordAudit(ctx context.Context, store Store, e auditEntry) {
 	if err := store.RecordAudit(ctx, auditEvent(e)); err != nil {
 		slog.ErrorContext(ctx, "iam audit write failed",
 			"action", e.Action,
@@ -80,8 +77,8 @@ func recordAudit(ctx context.Context, store *repositories.Store, e auditEntry) {
 	}
 }
 
-func mutateWithAudit(ctx context.Context, store *repositories.Store, e auditEntry, mutate func(*repositories.Store) error) error {
-	err := store.Transaction(ctx, func(txStore *repositories.Store) error {
+func mutateWithAudit(ctx context.Context, store Store, e auditEntry, mutate func(Store) error) error {
+	err := store.Transaction(ctx, func(txStore Store) error {
 		if err := mutate(txStore); err != nil {
 			return err
 		}

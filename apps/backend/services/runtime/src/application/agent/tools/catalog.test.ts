@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { experimental_getToolCaller as getToolCaller } from "@ai-sdk/provider-utils";
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { ToolCatalog } from "./catalog.js";
 

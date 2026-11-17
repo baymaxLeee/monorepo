@@ -1,5 +1,6 @@
-import { shutdownOpenTelemetry } from "@backend/kernel-ts";
 import { getWorld } from "workflow/runtime";
+
+import { shutdownOpenTelemetry } from "#runtime/foundation";
 
 import {
   reconcileTaskCleanup,

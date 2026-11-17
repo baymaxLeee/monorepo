@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 )
 
 const canvasStatisticsRefreshTimeout = 5 * time.Second

@@ -1,0 +1,11 @@
+{
+  "admin-server": {
+    "source": "schemas/openapi/admin-server.json",
+    "language": "go",
+    "goPackage": "adminapi",
+    "embedCanonicalHash": true,
+    "preserveInfo": true,
+    "preserveOperationIds": true,
+    "operations": "*"
+  }
+}

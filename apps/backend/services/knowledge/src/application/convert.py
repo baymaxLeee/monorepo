@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 import anyio
 from bootstrap.config import get_settings
-from kernel.errors import BaseError, RequestError
+from knowledge_kernel.errors import BaseError, RequestError
 from markitdown import MarkItDown, StreamInfo
 from openai import OpenAI
 

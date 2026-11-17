@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/example/monorepo/iam/internal/application"
 	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
 	"github.com/example/monorepo/iam/internal/infrastructure/security"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -15,22 +16,22 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound = application.ErrStoreNotFound
 	// ErrConflict signals a lost race on a conditional state transition
 	// (RowsAffected == 0). Callers must NOT retry with last-write-wins.
-	ErrConflict = errors.New("conflict")
+	ErrConflict = application.ErrStoreConflict
 	// ErrNotActiveMember: the target workspace is not an active membership of the user.
-	ErrNotActiveMember = errors.New("not an active member")
+	ErrNotActiveMember = application.ErrStoreNotActiveMember
 	// ErrInvariant: the operation would break a hard invariant (last workspace_admin,
 	// owner demotion, last super_admin, ...).
-	ErrInvariant = errors.New("operation violates an invariant")
+	ErrInvariant = application.ErrStoreInvariant
 )
 
 type Store struct {
 	db *gorm.DB
 }
 
-func (s *Store) Transaction(ctx context.Context, fn func(*Store) error) error {
+func (s *Store) Transaction(ctx context.Context, fn func(application.Store) error) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return fn(&Store{db: tx})
 	})
@@ -477,17 +478,7 @@ func (s *Store) ListWorkspaces(ctx context.Context) ([]models.Workspace, error) 
 	return workspaces, err
 }
 
-type WorkspaceAdminRow struct {
-	TenantID      string
-	ID            string
-	Name          string
-	Slug          string
-	OwnerUserID   string
-	SystemManaged bool
-	JoinPolicy    string
-	MemberCount   int64
-	CreatedAt     time.Time
-}
+type WorkspaceAdminRow = application.WorkspaceAdminRow
 
 func (s *Store) ListWorkspacesForAdmin(ctx context.Context) ([]WorkspaceAdminRow, error) {
 	var rows []WorkspaceAdminRow
@@ -593,13 +584,7 @@ func upsertActiveWorkspaceAdmin(tx *gorm.DB, workspaceID, userID string, now tim
 
 // --- Memberships ---------------------------------------------------------
 
-type MembershipRow struct {
-	TenantID      string
-	WorkspaceID   string
-	WorkspaceName string
-	Role          string
-	Status        string
-}
+type MembershipRow = application.MembershipRow
 
 func (s *Store) ListUserMemberships(ctx context.Context, userID string) ([]MembershipRow, error) {
 	var rows []MembershipRow
@@ -629,18 +614,7 @@ func (s *Store) ActiveMembership(ctx context.Context, userID, workspaceID string
 	return row, err
 }
 
-type WorkspaceMemberRow struct {
-	UserID          string
-	Account         string
-	DisplayName     string
-	Email           string
-	Role            string
-	Status          string
-	ReviewedBy      *string
-	ReviewedAt      *time.Time
-	RejectionReason *string
-	CreatedAt       time.Time
-}
+type WorkspaceMemberRow = application.WorkspaceMemberRow
 
 // ListWorkspaceMembers lists members of an workspace. An empty statusFilter returns all.
 func (s *Store) ListWorkspaceMembers(ctx context.Context, workspaceID, statusFilter string) ([]WorkspaceMemberRow, error) {

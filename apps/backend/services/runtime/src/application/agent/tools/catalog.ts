@@ -1,4 +1,3 @@
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
 import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@repo/agent-runtime/tools/manifest";
 import { primaryAgentToolProfile, resolveAgentToolProfile } from "@repo/agent-runtime/tools/profile";
@@ -6,6 +5,8 @@ import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { AdminSkillSource } from "@repo/agent-runtime/tools/skills";
 import type { AgentToolManifest, ToolSource } from "@repo/agent-runtime/tools/types";
 import type { ToolSet } from "ai";
+
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import { createCloudToolAdapters } from "../adapters/cloud-tools.js";

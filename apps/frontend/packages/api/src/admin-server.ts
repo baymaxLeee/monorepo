@@ -1031,232 +1031,12 @@ export type DeleteBenefitPackageParams = {
   expected_revision: number;
 };
 
-export type ListAvailableBenefitPackagesInternalParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetBenefitPackageInternalParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type ReserveBenefitPackageReviewParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type TransitionBenefitPackageReviewParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type BeginBenefitPackageReviewCleanupParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type CompleteBenefitPackageReviewCleanupParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type SubmitReviewedAssetParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetReviewedAssetParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type DeleteReviewedAssetParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetInternalCanvasSettingsParams = {
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-};
-
 export type DeleteSkillNodeParams = {
   /**
    * @minLength 64
    * @maxLength 64
    */
   base_etag: string;
-};
-
-export type GetSkillFileInternalParams = {
-  /**
-   * @minLength 1
-   * @maxLength 1024
-   */
-  path: string;
-  /**
-   * Team that owns the skill
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * Team that owns the skill
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetSkillInternalParams = {
-  /**
-   * Team that owns the skill
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * Team that owns the skill
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type ListProviderCatalogInternalParams = {
-  /**
-   * Team that owns the provider
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * Tenant that owns the provider
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetDefaultProviderInternalParams = {
-  /**
-   * Team that owns the provider
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * Team that owns the provider
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetProviderByKindInternalParams = {
-  /**
-   * Team that owns the provider
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * Team that owns the provider
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetProviderInternalParams = {
-  /**
-   * Team that owns the provider
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * Team that owns the provider
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetTaskProviderInternalParams = {
-  /**
-   * @minLength 1
-   */
-  workspace_id: string;
-  /**
-   * @minLength 1
-   */
-  tenant_id: string;
-};
-
-export type GetResolvedAgentInternalParams = {
-  /**
-   * Requesting user
-   * @minLength 1
-   */
-  user_id: string;
-  /**
-   * Requester's active workspace (team scope)
-   */
-  workspace_id?: string;
-  /**
-   * Requester's active workspace (team scope)
-   */
-  tenant_id?: string;
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
@@ -1464,175 +1244,6 @@ export const deleteBenefitPackage = (
 };
 
 /**
- * @summary List Available Benefit Packages Internal
- */
-export const listAvailableBenefitPackagesInternal = (
-  params: ListAvailableBenefitPackagesInternalParams,
-  options?: SecondParameter<typeof apiMutator<AvailableBenefitPackage[]>>,
-) => {
-  return apiMutator<AvailableBenefitPackage[]>(
-    { url: `/api/admin-server/internal/canvas/benefit-packages`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * @summary Get Benefit Package Internal
- */
-export const getBenefitPackageInternal = (
-  packageId: string,
-  params: GetBenefitPackageInternalParams,
-  options?: SecondParameter<typeof apiMutator<InternalBenefitPackage>>,
-) => {
-  return apiMutator<InternalBenefitPackage>(
-    { url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * @summary Reserve Review
- */
-export const reserveBenefitPackageReview = (
-  packageId: string,
-  reserveBenefitPackageReviewInput: ReserveBenefitPackageReviewInput,
-  params: ReserveBenefitPackageReviewParams,
-  options?: SecondParameter<typeof apiMutator<BenefitPackageReviewReservation>>,
-) => {
-  return apiMutator<BenefitPackageReviewReservation>(
-    {
-      url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}/review-reservations`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: reserveBenefitPackageReviewInput,
-      params,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Transition Review
- */
-export const transitionBenefitPackageReview = (
-  packageId: string,
-  reservationId: string,
-  status: string,
-  params: TransitionBenefitPackageReviewParams,
-  options?: SecondParameter<typeof apiMutator<BenefitPackageReviewReservation>>,
-) => {
-  return apiMutator<BenefitPackageReviewReservation>(
-    {
-      url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}/review-reservations/${reservationId}/${status}`,
-      method: "POST",
-      params,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Begin Review Cleanup
- */
-export const beginBenefitPackageReviewCleanup = (
-  packageId: string,
-  reservationId: string,
-  beginBenefitPackageReviewCleanupInput: BeginBenefitPackageReviewCleanupInput,
-  params: BeginBenefitPackageReviewCleanupParams,
-  options?: SecondParameter<typeof apiMutator<BenefitPackageReviewCleanup>>,
-) => {
-  return apiMutator<BenefitPackageReviewCleanup>(
-    {
-      url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}/review-cleanups/${reservationId}`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: beginBenefitPackageReviewCleanupInput,
-      params,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Complete Review Cleanup
- */
-export const completeBenefitPackageReviewCleanup = (
-  packageId: string,
-  reservationId: string,
-  cleanupId: string,
-  params: CompleteBenefitPackageReviewCleanupParams,
-  options?: SecondParameter<typeof apiMutator<BenefitPackageReviewCleanup>>,
-) => {
-  return apiMutator<BenefitPackageReviewCleanup>(
-    {
-      url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}/review-cleanups/${reservationId}/${cleanupId}/complete`,
-      method: "POST",
-      params,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Submit Reviewed Asset
- */
-export const submitReviewedAsset = (
-  packageId: string,
-  submitReviewedAssetInput: SubmitReviewedAssetInput,
-  params: SubmitReviewedAssetParams,
-  options?: SecondParameter<typeof apiMutator<ReviewedAsset>>,
-) => {
-  return apiMutator<ReviewedAsset>(
-    {
-      url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}/reviewed-assets`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: submitReviewedAssetInput,
-      params,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Get Reviewed Asset
- */
-export const getReviewedAsset = (
-  packageId: string,
-  assetId: string,
-  params: GetReviewedAssetParams,
-  options?: SecondParameter<typeof apiMutator<ReviewedAsset>>,
-) => {
-  return apiMutator<ReviewedAsset>(
-    {
-      url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}/reviewed-assets/${assetId}`,
-      method: "GET",
-      params,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Delete Reviewed Asset
- */
-export const deleteReviewedAsset = (
-  packageId: string,
-  assetId: string,
-  params: DeleteReviewedAssetParams,
-  options?: SecondParameter<typeof apiMutator<void>>,
-) => {
-  return apiMutator<void>(
-    {
-      url: `/api/admin-server/internal/canvas/benefit-packages/${packageId}/reviewed-assets/${assetId}`,
-      method: "DELETE",
-      params,
-    },
-    options,
-  );
-};
-
-/**
  * @summary Get Settings
  */
 export const getCanvasSettings = (options?: SecondParameter<typeof apiMutator<CanvasSettings>>) => {
@@ -1653,19 +1264,6 @@ export const updateCanvasSettings = (
       headers: { "Content-Type": "application/json" },
       data: updateCanvasSettings,
     },
-    options,
-  );
-};
-
-/**
- * @summary Get Settings
- */
-export const getInternalCanvasSettings = (
-  params: GetInternalCanvasSettingsParams,
-  options?: SecondParameter<typeof apiMutator<CanvasSettings>>,
-) => {
-  return apiMutator<CanvasSettings>(
-    { url: `/api/admin-server/internal/canvas/settings`, method: "GET", params },
     options,
   );
 };
@@ -1948,34 +1546,6 @@ export const bulkDeleteSkills = (
 };
 
 /**
- * @summary Get Skill File Internal
- */
-export const getSkillFileInternal = (
-  skillId: string,
-  params: GetSkillFileInternalParams,
-  options?: SecondParameter<typeof apiMutator<InternalSkillFile>>,
-) => {
-  return apiMutator<InternalSkillFile>(
-    { url: `/api/admin-server/internal/skills/${skillId}/files`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * @summary Get Skill Internal
- */
-export const getSkillInternal = (
-  skillId: string,
-  params: GetSkillInternalParams,
-  options?: SecondParameter<typeof apiMutator<InternalSkill>>,
-) => {
-  return apiMutator<InternalSkill>(
-    { url: `/api/admin-server/internal/skills/${skillId}`, method: "GET", params },
-    options,
-  );
-};
-
-/**
  * @summary List Providers
  */
 export const listProviders = (options?: SecondParameter<typeof apiMutator<ModelProvider[]>>) => {
@@ -2081,92 +1651,6 @@ export const testProvider = (
 };
 
 /**
- * @summary List Provider Catalog Internal
- */
-export const listProviderCatalogInternal = (
-  params: ListProviderCatalogInternalParams,
-  options?: SecondParameter<typeof apiMutator<ProviderCatalogItem[]>>,
-) => {
-  return apiMutator<ProviderCatalogItem[]>(
-    { url: `/api/admin-server/internal/providers`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * @summary Get Default Provider Internal
- */
-export const getDefaultProviderInternal = (
-  params: GetDefaultProviderInternalParams,
-  options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,
-) => {
-  return apiMutator<InternalModelProvider>(
-    { url: `/api/admin-server/internal/providers/default`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * First enabled provider of `kind` (embedding/rerank/...) for the team.
- *
- * Used by knowledge to resolve the embedding/rerank model for RAG. Non-chat
- * kinds have no default flag, so this returns the newest enabled one.
- * @summary Get Provider By Kind Internal
- */
-export const getProviderByKindInternal = (
-  kind: string,
-  params: GetProviderByKindInternalParams,
-  options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,
-) => {
-  return apiMutator<InternalModelProvider>(
-    { url: `/api/admin-server/internal/providers/by-kind/${kind}`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * @summary Get Provider Internal
- */
-export const getProviderInternal = (
-  providerId: string,
-  params: GetProviderInternalParams,
-  options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,
-) => {
-  return apiMutator<InternalModelProvider>(
-    { url: `/api/admin-server/internal/providers/${providerId}`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * @summary Get Task Provider Internal
- */
-export const getTaskProviderInternal = (
-  providerId: string,
-  params: GetTaskProviderInternalParams,
-  options?: SecondParameter<typeof apiMutator<InternalModelProvider>>,
-) => {
-  return apiMutator<InternalModelProvider>(
-    { url: `/api/admin-server/internal/providers/${providerId}/task-credentials`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * @summary Get Resolved Agent Internal
- */
-export const getResolvedAgentInternal = (
-  agentId: string,
-  params: GetResolvedAgentInternalParams,
-  options?: SecondParameter<typeof apiMutator<ResolvedAgent>>,
-) => {
-  return apiMutator<ResolvedAgent>(
-    { url: `/api/admin-server/internal/agents/${agentId}`, method: "GET", params },
-    options,
-  );
-};
-
-/**
  * @summary List Apps
  */
 export const listApps = (options?: SecondParameter<typeof apiMutator<App[]>>) => {
@@ -2242,26 +1726,8 @@ export type ListBenefitPackagesResult = NonNullable<Awaited<ReturnType<typeof li
 export type CreateBenefitPackageResult = NonNullable<Awaited<ReturnType<typeof createBenefitPackage>>>;
 export type UpdateBenefitPackageResult = NonNullable<Awaited<ReturnType<typeof updateBenefitPackage>>>;
 export type DeleteBenefitPackageResult = NonNullable<Awaited<ReturnType<typeof deleteBenefitPackage>>>;
-export type ListAvailableBenefitPackagesInternalResult = NonNullable<
-  Awaited<ReturnType<typeof listAvailableBenefitPackagesInternal>>
->;
-export type GetBenefitPackageInternalResult = NonNullable<Awaited<ReturnType<typeof getBenefitPackageInternal>>>;
-export type ReserveBenefitPackageReviewResult = NonNullable<Awaited<ReturnType<typeof reserveBenefitPackageReview>>>;
-export type TransitionBenefitPackageReviewResult = NonNullable<
-  Awaited<ReturnType<typeof transitionBenefitPackageReview>>
->;
-export type BeginBenefitPackageReviewCleanupResult = NonNullable<
-  Awaited<ReturnType<typeof beginBenefitPackageReviewCleanup>>
->;
-export type CompleteBenefitPackageReviewCleanupResult = NonNullable<
-  Awaited<ReturnType<typeof completeBenefitPackageReviewCleanup>>
->;
-export type SubmitReviewedAssetResult = NonNullable<Awaited<ReturnType<typeof submitReviewedAsset>>>;
-export type GetReviewedAssetResult = NonNullable<Awaited<ReturnType<typeof getReviewedAsset>>>;
-export type DeleteReviewedAssetResult = NonNullable<Awaited<ReturnType<typeof deleteReviewedAsset>>>;
 export type GetCanvasSettingsResult = NonNullable<Awaited<ReturnType<typeof getCanvasSettings>>>;
 export type UpdateCanvasSettingsResult = NonNullable<Awaited<ReturnType<typeof updateCanvasSettings>>>;
-export type GetInternalCanvasSettingsResult = NonNullable<Awaited<ReturnType<typeof getInternalCanvasSettings>>>;
 export type ListSkillsResult = NonNullable<Awaited<ReturnType<typeof listSkills>>>;
 export type CreateSkillResult = NonNullable<Awaited<ReturnType<typeof createSkill>>>;
 export type GetSkillResult = NonNullable<Awaited<ReturnType<typeof getSkill>>>;
@@ -2280,8 +1746,6 @@ export type DeleteSkillNodeResult = NonNullable<Awaited<ReturnType<typeof delete
 export type ValidateSkillResult = NonNullable<Awaited<ReturnType<typeof validateSkill>>>;
 export type PublishSkillResult = NonNullable<Awaited<ReturnType<typeof publishSkill>>>;
 export type BulkDeleteSkillsResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteSkills>>>;
-export type GetSkillFileInternalResult = NonNullable<Awaited<ReturnType<typeof getSkillFileInternal>>>;
-export type GetSkillInternalResult = NonNullable<Awaited<ReturnType<typeof getSkillInternal>>>;
 export type ListProvidersResult = NonNullable<Awaited<ReturnType<typeof listProviders>>>;
 export type CreateProviderResult = NonNullable<Awaited<ReturnType<typeof createProvider>>>;
 export type GetProviderResult = NonNullable<Awaited<ReturnType<typeof getProvider>>>;
@@ -2290,12 +1754,6 @@ export type DeleteProviderResult = NonNullable<Awaited<ReturnType<typeof deleteP
 export type BulkDeleteProvidersResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteProviders>>>;
 export type SetDefaultProviderResult = NonNullable<Awaited<ReturnType<typeof setDefaultProvider>>>;
 export type TestProviderResult = NonNullable<Awaited<ReturnType<typeof testProvider>>>;
-export type ListProviderCatalogInternalResult = NonNullable<Awaited<ReturnType<typeof listProviderCatalogInternal>>>;
-export type GetDefaultProviderInternalResult = NonNullable<Awaited<ReturnType<typeof getDefaultProviderInternal>>>;
-export type GetProviderByKindInternalResult = NonNullable<Awaited<ReturnType<typeof getProviderByKindInternal>>>;
-export type GetProviderInternalResult = NonNullable<Awaited<ReturnType<typeof getProviderInternal>>>;
-export type GetTaskProviderInternalResult = NonNullable<Awaited<ReturnType<typeof getTaskProviderInternal>>>;
-export type GetResolvedAgentInternalResult = NonNullable<Awaited<ReturnType<typeof getResolvedAgentInternal>>>;
 export type ListAppsResult = NonNullable<Awaited<ReturnType<typeof listApps>>>;
 export type CreateAppResult = NonNullable<Awaited<ReturnType<typeof createApp>>>;
 export type GetAppResult = NonNullable<Awaited<ReturnType<typeof getApp>>>;

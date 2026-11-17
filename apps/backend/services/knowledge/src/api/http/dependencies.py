@@ -1,13 +1,12 @@
 """FastAPI dependencies."""
 
-import hmac
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from application.auth import AuthContext
 from fastapi import Depends, Header
 from infrastructure.persistence.database import get_db_session
-from kernel.errors import UnauthorizedError
+from knowledge_kernel.errors import UnauthorizedError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -67,17 +66,5 @@ def auth_context(
     )
 
 
-def require_internal_token(
-    x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
-    x_caller_service: Annotated[str | None, Header(alias="X-Caller-Service")] = None,
-) -> None:
-    from bootstrap.config import get_settings
-
-    expected = get_settings().internal_service_tokens.get(x_caller_service or "")
-    if not expected or not x_internal_token or not hmac.compare_digest(expected, x_internal_token):
-        raise UnauthorizedError("invalid internal service credentials")
-
-
 DbSession = Annotated[AsyncSession, Depends(db_session)]
 CurrentUser = Annotated[AuthContext, Depends(auth_context)]
-InternalAuth = Annotated[None, Depends(require_internal_token)]

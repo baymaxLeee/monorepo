@@ -36,7 +36,6 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "pydantic>=2.7",
     "pydantic-settings>=2.7",
-    "kernel",
 ]
 
 [tool.uv]
@@ -66,12 +65,10 @@ EOF
 cat > "$SVC_DIR/src/main.py" <<EOF
 from api.http.routes import health
 from fastapi import FastAPI
-from kernel.errors import register_exception_handlers
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="$NAME service", version="0.1.0")
-    register_exception_handlers(app)
     app.include_router(health.router)
     return app
 

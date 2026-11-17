@@ -1,8 +1,9 @@
-import { finishSpan, startSpan } from "@backend/kernel-ts";
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
-import { createProviderModel } from "@backend/transport-ts/provider-model";
 import type { PortableToolModel } from "@repo/agent-runtime/tools/registry";
 import type { SubagentObserver } from "@repo/agent-runtime/tools/subagents";
+
+import { finishSpan, startSpan } from "#runtime/foundation";
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
+import { createProviderModel } from "#runtime/provider-model";
 
 import { contextCompactionThreshold } from "../context/budget.js";
 import { subagentToolContextSchema, type SubagentToolContext } from "../tools/context.js";

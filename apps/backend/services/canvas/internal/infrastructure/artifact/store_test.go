@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,7 +13,37 @@ import (
 
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
+	storagev1 "github.com/example/monorepo/inner-api-go/gen/storage/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 )
+
+type assetServer struct {
+	storagev1.UnimplementedAssetServiceServer
+	content []byte
+	reads   int
+}
+
+func (server *assetServer) ReadContent(_ *storagev1.ReadContentRequest, stream grpc.ServerStreamingServer[storagev1.ReadContentResponse]) error {
+	server.reads++
+	return stream.Send(&storagev1.ReadContentResponse{Value: &storagev1.ContentChunk{Value: &storagev1.ContentChunk_Chunk{Chunk: server.content}}})
+}
+
+func newStorageClient(t *testing.T, content []byte) (*storageclient.Client, *assetServer) {
+	t.Helper()
+	listener := bufconn.Listen(1 << 20)
+	server := grpc.NewServer()
+	implementation := &assetServer{content: content}
+	storagev1.RegisterAssetServiceServer(server, implementation)
+	go func() { _ = server.Serve(listener) }()
+	connection, err := grpc.NewClient("passthrough:///bufconn", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = connection.Close(); server.Stop(); _ = listener.Close() })
+	return storageclient.New(connection), implementation
+}
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
@@ -52,7 +83,8 @@ func TestStorePersistRemote(t *testing.T) {
 		}))
 		defer server.Close()
 
-		store := New(storageclient.New(server.URL, "", nil), "").(*Store)
+		storage, implementation := newStorageClient(t, nil)
+		store := New(storage, "").(*Store)
 		_, err := store.persistRemote(
 			context.Background(), "tenant-1", "workspace-1", "user-1", "result.png", "generated_image", "task-1", server.URL+"/generated.png",
 		)
@@ -62,17 +94,12 @@ func TestStorePersistRemote(t *testing.T) {
 		if requests != 0 {
 			t.Fatalf("private server received %d requests, want 0", requests)
 		}
+		if implementation.reads != 0 {
+			t.Fatalf("storage received %d reads, want 0", implementation.reads)
+		}
 	})
 
 	t.Run("rejects oversized source before upload", func(t *testing.T) {
-		storageRequests := 0
-		storageServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-			storageRequests++
-			writer.Header().Set("Content-Type", "application/json")
-			_, _ = writer.Write([]byte(`{"artifact_id":"unexpected","size":0,"sha256":""}`))
-		}))
-		defer storageServer.Close()
-
 		originalClient := generatedMediaHTTPClient
 		generatedMediaHTTPClient = &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -84,37 +111,24 @@ func TestStorePersistRemote(t *testing.T) {
 		})}
 		t.Cleanup(func() { generatedMediaHTTPClient = originalClient })
 
-		store := New(storageclient.New(storageServer.URL, "", nil), "").(*Store)
+		storage, implementation := newStorageClient(t, nil)
+		store := New(storage, "").(*Store)
 		_, err := store.persistRemote(
 			context.Background(), "tenant-1", "workspace-1", "user-1", "result.mp4", "generated_video", "task-1", "https://media.example.com/generated.mp4",
 		)
 		if err == nil {
 			t.Fatal("expected oversized generated media to be rejected")
 		}
-		if storageRequests != 0 {
-			t.Fatalf("storage received %d requests, want 0", storageRequests)
+		if implementation.reads != 0 {
+			t.Fatalf("storage received %d reads, want 0", implementation.reads)
 		}
 	})
 }
 
 func TestProviderReferenceInlinesImageBytes(t *testing.T) {
 	payload := []byte("small-image")
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet || request.URL.Path != "/internal/assets/asset-1/revisions/revision-1/content" {
-			t.Errorf("unexpected storage request: %s %s", request.Method, request.URL.Path)
-			writer.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if request.Header.Get("X-Caller-Service") != "canvas" {
-			t.Errorf("missing Canvas service identity")
-			writer.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		_, _ = writer.Write(payload)
-	}))
-	defer server.Close()
-
-	store := New(storageclient.New(server.URL, "internal-token", nil), "http://localhost:8000")
+	storage, _ := newStorageClient(t, payload)
+	store := New(storage, "http://localhost:8000")
 	workspaceID := "workspace-1"
 	reference, err := store.ProviderReference(context.Background(), "tenant-1", "user-1", domainasset.Asset{
 		TenantID: "tenant-1", WorkspaceID: &workspaceID, SourceAssetID: "asset-1", SourceRevisionID: "revision-1",
@@ -130,12 +144,8 @@ func TestProviderReferenceInlinesImageBytes(t *testing.T) {
 }
 
 func TestProviderReferenceRejectsMismatchedImageSize(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		_, _ = writer.Write([]byte("short"))
-	}))
-	defer server.Close()
-
-	store := New(storageclient.New(server.URL, "", nil), "http://localhost:8000")
+	storage, _ := newStorageClient(t, []byte("short"))
+	store := New(storage, "http://localhost:8000")
 	workspaceID := "workspace-1"
 	_, err := store.ProviderReference(context.Background(), "tenant-1", "user-1", domainasset.Asset{
 		TenantID: "tenant-1", WorkspaceID: &workspaceID, SourceAssetID: "asset-1", SourceRevisionID: "revision-1",

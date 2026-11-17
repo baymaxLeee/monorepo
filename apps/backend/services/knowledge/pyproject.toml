@@ -17,14 +17,18 @@ dependencies = [
     "openai>=1.50",
     "markitdown[all]>=0.1.3",
     "python-multipart>=0.0.20",
-    "kernel",
+    "opentelemetry-api>=1.43.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.43.0",
+    "opentelemetry-sdk>=1.43.0",
+    "structlog>=24.1",
+    "inner-api",
 ]
 
 [tool.uv]
 package = false
 
 [tool.mypy]
-mypy_path = "src"
+mypy_path = ["src", "../../libs/inner-api-py/generated"]
 explicit_package_bases = true
 files = ["src"]
 

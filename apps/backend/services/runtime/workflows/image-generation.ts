@@ -1,7 +1,8 @@
-import { createProviderImageModel } from "@backend/transport-ts/provider-model";
 import { generateImage, NoImageGeneratedError, type JSONValue } from "ai";
 import { getWorkflowMetadata } from "workflow";
 import { z } from "zod";
+
+import { createProviderImageModel } from "#runtime/provider-model";
 
 import { claimTaskStep } from "../src/application/tasks/binding.js";
 import { observeTaskCancellation } from "../src/application/tasks/cancellation.js";

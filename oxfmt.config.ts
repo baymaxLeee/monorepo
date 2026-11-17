@@ -22,7 +22,6 @@ export default defineConfig({
     "**/dist-mfe",
     "**/migrations",
     "**/patches",
-    "apps/backend/libs/transport-ts/src/schema",
   ],
   jsxSingleQuote: false,
   printWidth: 120,

@@ -2,7 +2,7 @@
 
 from hashlib import sha256
 
-from kernel.errors import ConflictError
+from knowledge_kernel.errors import ConflictError
 
 from application.storage_client import StorageRevision, get_storage_client
 

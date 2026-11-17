@@ -1,10 +1,29 @@
 version: v2
+clean: true
 plugins:
   - remote: buf.build/protocolbuffers/go
-    out: ../../apps/backend/services/gateway/internal/infrastructure/clients
+    out: ../../apps/backend/libs/inner-api-go/gen
     opt: paths=source_relative
   - remote: buf.build/grpc/go
-    out: ../../apps/backend/services/gateway/internal/infrastructure/clients
+    out: ../../apps/backend/libs/inner-api-go/gen
     opt: paths=source_relative
   - remote: buf.build/protocolbuffers/python
-    out: ../../apps/backend/libs/transport/src/transport/clients
+    out: ../../apps/backend/libs/inner-api-py/generated
+  - remote: buf.build/protocolbuffers/pyi
+    out: ../../apps/backend/libs/inner-api-py/generated
+  - remote: buf.build/grpc/python
+    out: ../../apps/backend/libs/inner-api-py/generated
+  - remote: buf.build/community/nipunn1313-mypy-grpc
+    out: ../../apps/backend/libs/inner-api-py/generated
+  - remote: buf.build/community/stephenh-ts-proto
+    out: ../../apps/backend/libs/inner-api-ts/src/gen
+    opt:
+      - outputServices=grpc-js
+      - esModuleInterop=true
+      - env=node
+      - oneof=unions
+      - useDate=string
+      - forceLong=number
+      - useOptionals=messages
+      - useExactTypes=false
+      - importSuffix=.js

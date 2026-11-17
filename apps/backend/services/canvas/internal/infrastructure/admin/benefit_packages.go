@@ -1,187 +1,121 @@
 package admin
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	applicationpackage "github.com/example/monorepo/canvas/internal/application/benefitpackage"
-)
-
-type benefitPackageResponse struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	IsPreset         bool     `json:"is_preset"`
-	ModelIDs         []string `json:"model_ids"`
-	MaterialUsed     int64    `json:"material_used"`
-	MaterialReserved int64    `json:"material_reserved"`
-	MaterialLimit    *int64   `json:"material_limit"`
-}
-
-type reviewReservationResponse struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-}
-
-type reviewedAssetResponse struct {
-	ID            string `json:"id"`
-	Status        string `json:"status"`
-	FailureReason string `json:"failure_reason"`
-}
-
-type reviewCleanupResponse struct {
-	CleanupID     string `json:"cleanup_id"`
-	ReservationID string `json:"reservation_id"`
-	Status        string `json:"status"`
-}
-
-type DependencyError struct {
-	Status  int
-	Code    string
-	Detail  string
-	Details map[string]any
-}
-
-func (e *DependencyError) Error() string {
-	return fmt.Sprintf("admin benefit package returned status %d: %s", e.Status, e.Detail)
-}
-
-const (
-	assetGroupRateLimitedCode   = "asset_group_rate_limited"
-	assetGroupQuotaExceededCode = "asset_group_quota_exceeded"
+	adminv1 "github.com/example/monorepo/inner-api-go/gen/admin/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (d *Directory) ListBenefitPackages(ctx context.Context, tenantID, workspaceID string) ([]applicationpackage.BenefitPackage, error) {
-	var response []benefitPackageResponse
-	if err := d.benefitPackageRequest(ctx, http.MethodGet, "", tenantID, workspaceID, nil, &response); err != nil {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	response, err := d.benefits.ListAvailableBenefitPackages(ctx, &adminv1.ListAvailableBenefitPackagesRequest{Actor: actor(tenantID, workspaceID)})
+	if err != nil {
 		return nil, err
 	}
-	items := make([]applicationpackage.BenefitPackage, 0, len(response))
-	for _, item := range response {
-		items = append(items, applicationpackage.BenefitPackage{ID: item.ID, Name: item.Name, IsPreset: item.IsPreset, ModelIDs: item.ModelIDs})
+	items := make([]applicationpackage.BenefitPackage, 0, len(response.GetPackages()))
+	for _, item := range response.GetPackages() {
+		items = append(items, applicationpackage.BenefitPackage{ID: item.GetId(), Name: item.GetName(), IsPreset: item.GetIsPreset(), ModelIDs: item.GetModelIds()})
 	}
 	return items, nil
 }
 
 func (d *Directory) ReserveBenefitPackageReview(ctx context.Context, tenantID, workspaceID, packageID, reservationID, projectID, assetID string) (applicationpackage.ReviewReservation, error) {
-	payload := map[string]string{"reservation_id": reservationID, "project_id": projectID, "asset_id": assetID}
-	var response reviewReservationResponse
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-reservations", tenantID, workspaceID, payload, &response)
-	return applicationpackage.ReviewReservation{ID: response.ID, Status: response.Status}, err
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	response, err := d.benefits.ReserveReview(ctx, &adminv1.ReserveReviewRequest{Actor: actor(tenantID, workspaceID), PackageId: packageID, ReservationId: reservationID, ProjectId: projectID, AssetId: assetID})
+	if err != nil {
+		return applicationpackage.ReviewReservation{}, err
+	}
+	return reviewReservationFromProto(response.GetReservation())
 }
 
-func (d *Directory) TransitionBenefitPackageReview(ctx context.Context, tenantID, workspaceID, packageID, reservationID, status string) (applicationpackage.ReviewReservation, error) {
-	var response reviewReservationResponse
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-reservations/"+url.PathEscape(reservationID)+"/"+url.PathEscape(status), tenantID, workspaceID, nil, &response)
-	return applicationpackage.ReviewReservation{ID: response.ID, Status: response.Status}, err
+func (d *Directory) TransitionBenefitPackageReview(ctx context.Context, tenantID, workspaceID, packageID, reservationID, nextStatus string) (applicationpackage.ReviewReservation, error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	response, err := d.benefits.TransitionReview(ctx, &adminv1.TransitionReviewRequest{Actor: actor(tenantID, workspaceID), PackageId: packageID, ReservationId: reservationID, Status: nextStatus})
+	if err != nil {
+		return applicationpackage.ReviewReservation{}, err
+	}
+	return reviewReservationFromProto(response.GetReservation())
 }
 
 func (d *Directory) SubmitReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, referenceURL, assetType, name string) (applicationpackage.ReviewedAsset, error) {
-	payload := map[string]string{"url": referenceURL, "asset_type": assetType, "name": name}
-	var response reviewedAssetResponse
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/reviewed-assets", tenantID, workspaceID, payload, &response)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	response, err := d.benefits.SubmitReviewedAsset(ctx, &adminv1.SubmitReviewedAssetRequest{Actor: actor(tenantID, workspaceID), PackageId: packageID, Url: referenceURL, AssetType: assetType, Name: name})
 	if err != nil {
 		return applicationpackage.ReviewedAsset{}, classifyAssetSubmissionError(err)
 	}
-	return applicationpackage.ReviewedAsset{ID: response.ID, Status: applicationpackage.ProviderAssetStatus(response.Status), FailureReason: response.FailureReason}, nil
+	return reviewedAssetFromProto(response.GetAsset())
 }
 
 func classifyAssetSubmissionError(err error) error {
-	var dependency *DependencyError
-	if !errors.As(err, &dependency) {
+	if status.Code(err) != codes.ResourceExhausted {
 		return err
 	}
-	var cause error
-	switch {
-	case dependency.Code == assetGroupQuotaExceededCode:
-		cause = applicationpackage.ErrAssetReviewQuotaExceeded
-	case dependency.Code == assetGroupRateLimitedCode, dependency.Status == http.StatusTooManyRequests:
-		cause = applicationpackage.ErrAssetReviewRateLimited
-	default:
-		return err
-	}
-	return &applicationpackage.AssetReviewProviderError{
-		Cause:     cause,
-		Code:      stringDetail(dependency.Details, "provider_code"),
-		RequestID: stringDetail(dependency.Details, "provider_request_id"),
-	}
-}
-
-func stringDetail(details map[string]any, key string) string {
-	value, _ := details[key].(string)
-	return strings.TrimSpace(value)
+	return &applicationpackage.AssetReviewProviderError{Cause: applicationpackage.ErrAssetReviewRateLimited}
 }
 
 func (d *Directory) GetReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) (applicationpackage.ReviewedAsset, error) {
-	var response reviewedAssetResponse
-	err := d.benefitPackageRequest(ctx, http.MethodGet, "/"+url.PathEscape(packageID)+"/reviewed-assets/"+url.PathEscape(assetID), tenantID, workspaceID, nil, &response)
-	return applicationpackage.ReviewedAsset{ID: response.ID, Status: applicationpackage.ProviderAssetStatus(response.Status), FailureReason: response.FailureReason}, err
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	response, err := d.benefits.GetReviewedAsset(ctx, &adminv1.GetReviewedAssetRequest{Actor: actor(tenantID, workspaceID), PackageId: packageID, AssetId: assetID})
+	if err != nil {
+		return applicationpackage.ReviewedAsset{}, err
+	}
+	return reviewedAssetFromProto(response.GetAsset())
 }
 
 func (d *Directory) BeginBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (applicationpackage.ReviewCleanup, error) {
-	payload := map[string]string{"cleanup_id": cleanupID}
-	var response reviewCleanupResponse
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID), tenantID, workspaceID, payload, &response)
-	return applicationpackage.ReviewCleanup{CleanupID: response.CleanupID, ReservationID: response.ReservationID, Status: response.Status}, err
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	response, err := d.benefits.BeginReviewCleanup(ctx, &adminv1.BeginReviewCleanupRequest{Actor: actor(tenantID, workspaceID), PackageId: packageID, ReservationId: reservationID, CleanupId: cleanupID})
+	if err != nil {
+		return applicationpackage.ReviewCleanup{}, err
+	}
+	return reviewCleanupFromProto(response.GetCleanup())
 }
 
 func (d *Directory) CompleteBenefitPackageReviewCleanup(ctx context.Context, tenantID, workspaceID, packageID, reservationID, cleanupID string) (applicationpackage.ReviewCleanup, error) {
-	var response reviewCleanupResponse
-	err := d.benefitPackageRequest(ctx, http.MethodPost, "/"+url.PathEscape(packageID)+"/review-cleanups/"+url.PathEscape(reservationID)+"/"+url.PathEscape(cleanupID)+"/complete", tenantID, workspaceID, nil, &response)
-	return applicationpackage.ReviewCleanup{CleanupID: response.CleanupID, ReservationID: response.ReservationID, Status: response.Status}, err
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	response, err := d.benefits.CompleteReviewCleanup(ctx, &adminv1.CompleteReviewCleanupRequest{Actor: actor(tenantID, workspaceID), PackageId: packageID, ReservationId: reservationID, CleanupId: cleanupID})
+	if err != nil {
+		return applicationpackage.ReviewCleanup{}, err
+	}
+	return reviewCleanupFromProto(response.GetCleanup())
 }
 
 func (d *Directory) DeleteReviewedAsset(ctx context.Context, tenantID, workspaceID, packageID, assetID string) error {
-	return d.benefitPackageRequest(ctx, http.MethodDelete, "/"+url.PathEscape(packageID)+"/reviewed-assets/"+url.PathEscape(assetID), tenantID, workspaceID, nil, nil)
-}
-
-func (d *Directory) benefitPackageRequest(ctx context.Context, method, path, tenantID, workspaceID string, payload any, output any) error {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	var body bytes.Buffer
-	if payload != nil {
-		if err := json.NewEncoder(&body).Encode(payload); err != nil {
-			return err
-		}
+	_, err := d.benefits.DeleteReviewedAsset(ctx, &adminv1.DeleteReviewedAssetRequest{Actor: actor(tenantID, workspaceID), PackageId: packageID, AssetId: assetID})
+	return err
+}
+
+func reviewReservationFromProto(value *adminv1.ReviewReservation) (applicationpackage.ReviewReservation, error) {
+	if value == nil {
+		return applicationpackage.ReviewReservation{}, errors.New("admin returned no review reservation")
 	}
-	endpoint := strings.TrimRight(d.URL, "/") + "/internal/canvas/benefit-packages" + path +
-		"?tenant_id=" + url.QueryEscape(tenantID) + "&workspace_id=" + url.QueryEscape(workspaceID)
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, &body)
-	if err != nil {
-		return err
+	return applicationpackage.ReviewReservation{ID: value.GetId(), Status: value.GetStatus()}, nil
+}
+
+func reviewedAssetFromProto(value *adminv1.ReviewedAsset) (applicationpackage.ReviewedAsset, error) {
+	if value == nil {
+		return applicationpackage.ReviewedAsset{}, errors.New("admin returned no reviewed asset")
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Internal-Token", d.Token)
-	req.Header.Set("X-Caller-Service", "canvas")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
+	return applicationpackage.ReviewedAsset{ID: value.GetId(), Status: applicationpackage.ProviderAssetStatus(value.GetStatus()), FailureReason: value.GetFailureReason()}, nil
+}
+
+func reviewCleanupFromProto(value *adminv1.ReviewCleanup) (applicationpackage.ReviewCleanup, error) {
+	if value == nil {
+		return applicationpackage.ReviewCleanup{}, errors.New("admin returned no review cleanup")
 	}
-	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		var problem struct {
-			Code    string         `json:"code"`
-			Message string         `json:"message"`
-			Detail  string         `json:"detail"`
-			Details map[string]any `json:"details"`
-		}
-		_ = json.NewDecoder(res.Body).Decode(&problem)
-		if problem.Detail == "" {
-			problem.Detail = problem.Message
-		}
-		if problem.Detail == "" {
-			problem.Detail = http.StatusText(res.StatusCode)
-		}
-		return &DependencyError{Status: res.StatusCode, Code: problem.Code, Detail: problem.Detail, Details: problem.Details}
-	}
-	if output == nil || res.StatusCode == http.StatusNoContent {
-		return nil
-	}
-	return json.NewDecoder(res.Body).Decode(output)
+	return applicationpackage.ReviewCleanup{CleanupID: value.GetCleanupId(), ReservationID: value.GetReservationId(), Status: value.GetStatus()}, nil
 }

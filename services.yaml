@@ -29,11 +29,13 @@ services:
     databases:
       - iam
     openapi: schemas/openapi/iam-server.json
+    openapiVersion: 3.1.0
 
   admin:
     root: apps/backend/services/admin
-    runtime: python
+    runtime: go
     port: 8001
+    rpcPort: 9001
     publicRoutes:
       - /api/admin-server/*
     bindings:
@@ -41,10 +43,11 @@ services:
     databases:
       - admin
     openapi: schemas/openapi/admin-server.json
+    openapiVersion: 3.1.0
 
   chat:
     root: apps/backend/services/chat
-    runtime: node
+    runtime: go
     port: 8009
     publicRoutes:
       - /api/chat-server/*
@@ -53,6 +56,7 @@ services:
     databases:
       - chat
     openapi: schemas/openapi/chat-server.json
+    openapiVersion: 3.0.3
 
   runtime:
     root: apps/backend/services/runtime
@@ -68,11 +72,13 @@ services:
       - runtime
       - workflow
     openapi: schemas/openapi/runtime-server.json
+    openapiVersion: 3.0.3
 
   knowledge:
     root: apps/backend/services/knowledge
     runtime: python
     port: 8010
+    rpcPort: 9010
     publicRoutes:
       - /api/knowledge-server/*
     bindings:
@@ -81,10 +87,11 @@ services:
     databases:
       - knowledge
     openapi: schemas/openapi/knowledge-server.json
+    openapiVersion: 3.1.0
 
   telemetry:
     root: apps/backend/services/telemetry
-    runtime: python
+    runtime: go
     port: 8008
     publicRoutes:
       - /api/telemetry-server/*
@@ -92,11 +99,13 @@ services:
     databases:
       - telemetry
     openapi: schemas/openapi/telemetry-server.json
+    openapiVersion: 3.1.0
 
   canvas:
     root: apps/backend/services/canvas
     runtime: go
     port: 8012
+    rpcPort: 9012
     publicRoutes:
       - /api/canvas-server/*
     bindings:
@@ -105,14 +114,17 @@ services:
     databases:
       - canvas
     openapi: schemas/openapi/canvas-server.json
+    openapiVersion: 3.0.3
 
   storage:
     root: apps/backend/services/storage
     runtime: go
     port: 8013
+    rpcPort: 9013
     publicRoutes:
       - /api/storage-server/*
     bindings: []
     databases:
       - storage
     openapi: schemas/openapi/storage-server.json
+    openapiVersion: 3.1.0

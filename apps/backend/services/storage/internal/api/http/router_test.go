@@ -86,63 +86,14 @@ func (uploadBlobStore) Commit(context.Context, application.StagedBlob, string) e
 func (uploadBlobStore) Abort(context.Context, application.StagedBlob) error          { return nil }
 func (uploadBlobStore) Delete(context.Context, string) error                         { return nil }
 
-func TestDecodeJSONRejectsAmbiguousBodies(t *testing.T) {
-	tests := map[string]string{
-		"trailing value": `{"generation":1} {"generation":2}`,
-		"too large":      `{"value":"` + strings.Repeat("a", (1<<20)+1) + `"}`,
-	}
-	for name, body := range tests {
-		t.Run(name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, "/internal/claims:activate", strings.NewReader(body))
-			var target map[string]any
-			if err := decodeJSON(request, &target); err == nil {
-				t.Fatal("expected invalid JSON body")
-			}
-		})
-	}
-}
-
-func TestInternalRoutesRequireExactServiceIdentity(t *testing.T) {
-	handler := NewRouter(nil, nil, map[string]string{"knowledge": "secret"}, 1024, RouterOptions{})
-	for name, identity := range map[string][2]string{
-		"missing":        {},
-		"unknown caller": {"chat", "secret"},
-		"wrong token":    {"knowledge", "other"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, "/internal/claims:activate", strings.NewReader(`{}`))
-			request.Header.Set("X-Caller-Service", identity[0])
-			request.Header.Set("X-Internal-Token", identity[1])
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, request)
-			if response.Code != http.StatusForbidden {
-				t.Fatalf("status = %d, want %d", response.Code, http.StatusForbidden)
-			}
-		})
-	}
-}
-
 func TestDeliveryCapabilitySupportsGetAndHeadAndRejectsTampering(t *testing.T) {
 	service := application.NewService(deliveryRepository{}, deliveryBlobStore{}, deliveryClock{}, 1024)
-	handler := NewRouter(service, nil, map[string]string{"canvas": "secret"}, 1024, RouterOptions{DeliverySigningKey: "signing-secret", DeliveryURLTTL: time.Minute})
-	body := strings.NewReader(`{"items":[{"tenant_id":"tenant/a","workspace_id":"workspace b","asset_id":"asset","revision_id":"revision"}]}`)
-	request := httptest.NewRequest(http.MethodPost, "/internal/delivery-capabilities:mint", body)
-	request.Header.Set("X-Caller-Service", "canvas")
-	request.Header.Set("X-Internal-Token", "secret")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("mint status = %d: %s", response.Code, response.Body.String())
+	handler := NewRouter(service, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
+	minted, err := application.NewDeliveryService(service, "signing-secret", time.Minute, nil).Mint(context.Background(), application.DeliveryItem{TenantID: "tenant/a", WorkspaceID: "workspace b", AssetID: "asset", RevisionID: "revision"})
+	if err != nil {
+		t.Fatalf("Mint() error = %v", err)
 	}
-	var minted struct {
-		Items []struct {
-			URL string `json:"url"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(response.Body.Bytes(), &minted); err != nil || len(minted.Items) != 1 {
-		t.Fatalf("mint response = %s, error = %v", response.Body.String(), err)
-	}
-	capabilityURL, err := url.Parse(minted.Items[0].URL)
+	capabilityURL, err := url.Parse(minted.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +144,7 @@ func TestDeliveryCapabilityRejectsExpiredSignature(t *testing.T) {
 	router := &Router{signingKey: []byte("signing-secret")}
 	expires := time.Now().Add(-time.Second).Unix()
 	signature := router.signDelivery("tenant", "workspace", "asset", "revision", expires)
-	handler := NewRouter(nil, nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
+	handler := NewRouter(nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
 	request := httptest.NewRequest(http.MethodGet, "/media/asset/revisions/revision/content", nil)
 	request.URL.RawQuery = url.Values{"tenant_id": {"tenant"}, "workspace_id": {"workspace"}, "expires": {fmt.Sprint(expires)}, "signature": {signature}}.Encode()
 	response := httptest.NewRecorder()
@@ -223,7 +174,7 @@ func TestUploadCapabilityRejectsExpiredOrTamperedSignature(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			handler := NewRouter(nil, nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
+			handler := NewRouter(nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
 			target := fmt.Sprintf("/upload-sessions/%s/content?expires=%d&signature=%s", testCase.uploadID, testCase.expires, testCase.signature)
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPut, target, strings.NewReader("payload")))
@@ -243,7 +194,7 @@ func TestUploadCapabilityStreamsAnAuthorizedExactFile(t *testing.T) {
 		SizeBytes: 7, State: "pending", ExpiresAt: expiresAt,
 	}}
 	service := application.NewService(repository, uploadBlobStore{}, deliveryClock{}, 1024)
-	handler := NewRouter(service, nil, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
+	handler := NewRouter(service, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
 	signer := &Router{signingKey: []byte("signing-secret")}
 	expires := expiresAt.Unix()
 	target := fmt.Sprintf("/upload-sessions/upload/content?expires=%d&signature=%s", expires, signer.signUploadSession("upload", expires))

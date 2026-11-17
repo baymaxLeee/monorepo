@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	envconfig "github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -14,39 +15,17 @@ import (
 )
 
 type Config struct {
-	Environment       string
-	Port              string
-	InternalToken     string
-	DatabaseURL       string
-	RedisURL          string
-	PublicGatewayURL  string
-	AdminServiceURL   string
-	StorageServiceURL string
+	Environment      string
+	Port             string
+	RPCPort          string
+	DatabaseURL      string
+	RedisURL         string
+	PublicGatewayURL string
+	AdminRPCTarget   string
+	StorageRPCTarget string
 }
 
-func Env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func requiredEnv(key string, deployed bool, fallback string) (string, error) {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value != "" {
-		return value, nil
-	}
-	if deployed {
-		return "", fmt.Errorf("%s is required outside development", key)
-	}
-	return fallback, nil
-}
-
-func serviceURL(key string, deployed bool, fallback string) (string, error) {
-	value, err := requiredEnv(key, deployed, fallback)
-	if err != nil {
-		return "", err
-	}
+func serviceURL(key, value string) (string, error) {
 	parsed, parseErr := url.Parse(value)
 	if parseErr != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return "", fmt.Errorf("%s must be an absolute HTTP URL", key)
@@ -56,64 +35,70 @@ func serviceURL(key string, deployed bool, fallback string) (string, error) {
 
 func Load() (Config, error) {
 	_ = godotenv.Load()
-	environment := strings.TrimSpace(Env("ENVIRONMENT", "development"))
+	raw, err := envconfig.ParseAs[struct {
+		Environment      string `env:"ENVIRONMENT" envDefault:"development"`
+		Port             string `env:"PORT" envDefault:"8012"`
+		RPCPort          string `env:"RPC_PORT" envDefault:"9012"`
+		PostgresHost     string `env:"POSTGRES_HOST" envDefault:"localhost"`
+		PostgresPort     string `env:"POSTGRES_PORT" envDefault:"5432"`
+		PostgresUser     string `env:"POSTGRES_USER" envDefault:"canvas"`
+		PostgresPassword string `env:"POSTGRES_PASSWORD" envDefault:"canvas"`
+		PostgresDatabase string `env:"POSTGRES_DATABASE" envDefault:"canvas"`
+		PostgresSSLMode  string `env:"POSTGRES_SSLMODE" envDefault:"disable"`
+		RedisURL         string `env:"REDIS_URL" envDefault:"redis://localhost:6379/0"`
+		PublicGatewayURL string `env:"PUBLIC_GATEWAY_URL" envDefault:"http://localhost:8000"`
+		AdminRPCTarget   string `env:"ADMIN_RPC_TARGET" envDefault:"localhost:9001"`
+		StorageRPCTarget string `env:"STORAGE_RPC_TARGET" envDefault:"localhost:9013"`
+	}]()
+	if err != nil {
+		return Config{}, fmt.Errorf("parse environment: %w", err)
+	}
+	environment := strings.TrimSpace(raw.Environment)
 	switch environment {
 	case "development", "staging", "single-vps", "production":
 	default:
 		return Config{}, fmt.Errorf("unsupported ENVIRONMENT %q", environment)
 	}
 	deployed := environment != "development"
-	token, err := requiredEnv("INTERNAL_API_TOKEN", deployed, "dev-canvas-internal-token")
-	if err != nil {
-		return Config{}, err
+	if deployed {
+		for _, key := range []string{"POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DATABASE", "REDIS_URL", "PUBLIC_GATEWAY_URL", "ADMIN_RPC_TARGET", "STORAGE_RPC_TARGET"} {
+			value, exists := os.LookupEnv(key)
+			if !exists || strings.TrimSpace(value) == "" {
+				return Config{}, fmt.Errorf("%s is required outside development", key)
+			}
+		}
 	}
-	password, err := requiredEnv("POSTGRES_PASSWORD", deployed, "canvas")
-	if err != nil {
-		return Config{}, err
+	if deployed && raw.PostgresPassword == "canvas" {
+		return Config{}, fmt.Errorf("POSTGRES_PASSWORD must use non-development credentials")
 	}
-	if deployed && (len(token) < 32 || strings.HasPrefix(token, "dev-") || password == "canvas") {
-		return Config{}, fmt.Errorf("deployed environments require non-development database credentials and internal token")
+	if deployed && raw.PostgresHost == "localhost" {
+		return Config{}, fmt.Errorf("POSTGRES_HOST must not use localhost outside development")
 	}
-	postgresHost, err := requiredEnv("POSTGRES_HOST", deployed, "localhost")
-	if err != nil {
-		return Config{}, err
+	if deployed && strings.Contains(raw.RedisURL, "localhost") {
+		return Config{}, fmt.Errorf("REDIS_URL must not use localhost outside development")
 	}
-	postgresUser, err := requiredEnv("POSTGRES_USER", deployed, "canvas")
-	if err != nil {
-		return Config{}, err
+	if deployed && strings.HasPrefix(raw.AdminRPCTarget, "localhost:") {
+		return Config{}, fmt.Errorf("ADMIN_RPC_TARGET must not use localhost outside development")
 	}
-	postgresDatabase, err := requiredEnv("POSTGRES_DATABASE", deployed, "canvas")
-	if err != nil {
-		return Config{}, err
+	if deployed && strings.HasPrefix(raw.StorageRPCTarget, "localhost:") {
+		return Config{}, fmt.Errorf("STORAGE_RPC_TARGET must not use localhost outside development")
 	}
-	redisURL, err := requiredEnv("REDIS_URL", deployed, "redis://localhost:6379/0")
-	if err != nil {
-		return Config{}, err
-	}
-	publicGatewayURL, err := serviceURL("PUBLIC_GATEWAY_URL", deployed, "http://localhost:8000")
+	publicGatewayURL, err := serviceURL("PUBLIC_GATEWAY_URL", raw.PublicGatewayURL)
 	if err != nil {
 		return Config{}, err
 	}
 	if environment == "production" && !strings.HasPrefix(publicGatewayURL, "https://") {
 		return Config{}, fmt.Errorf("production PUBLIC_GATEWAY_URL must use https")
 	}
-	adminServiceURL, err := serviceURL("ADMIN_SERVICE_URL", deployed, "http://localhost:8001")
-	if err != nil {
-		return Config{}, err
-	}
-	storageServiceURL, err := serviceURL("STORAGE_SERVICE_URL", deployed, "http://localhost:8013")
-	if err != nil {
-		return Config{}, err
-	}
 	return Config{
-		Environment:       environment,
-		Port:              Env("PORT", "8012"),
-		InternalToken:     token,
-		PublicGatewayURL:  publicGatewayURL,
-		RedisURL:          redisURL,
-		AdminServiceURL:   adminServiceURL,
-		StorageServiceURL: storageServiceURL,
-		DatabaseURL:       fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", postgresHost, Env("POSTGRES_PORT", "5432"), postgresUser, password, postgresDatabase, Env("POSTGRES_SSLMODE", "disable")),
+		Environment:      environment,
+		Port:             raw.Port,
+		RPCPort:          raw.RPCPort,
+		PublicGatewayURL: publicGatewayURL,
+		RedisURL:         raw.RedisURL,
+		AdminRPCTarget:   raw.AdminRPCTarget,
+		StorageRPCTarget: raw.StorageRPCTarget,
+		DatabaseURL:      fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", raw.PostgresHost, raw.PostgresPort, raw.PostgresUser, raw.PostgresPassword, raw.PostgresDatabase, raw.PostgresSSLMode),
 	}, nil
 }
 func Connect(cfg Config) (*gorm.DB, error) {

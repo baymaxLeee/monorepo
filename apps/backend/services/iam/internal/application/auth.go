@@ -10,20 +10,17 @@ import (
 	"time"
 
 	"github.com/example/monorepo/iam/internal/application/contracts"
-	"github.com/example/monorepo/iam/internal/bootstrap/config"
 	"github.com/example/monorepo/iam/internal/domain"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
-	"github.com/example/monorepo/iam/internal/infrastructure/security"
 )
 
 type AuthService struct {
-	store *repositories.Store
-	cfg   config.ServerConfig
+	store    Store
+	cfg      AuthConfig
+	security Security
 }
 
-func NewAuthService(store *repositories.Store, cfg config.ServerConfig) *AuthService {
-	return &AuthService{store: store, cfg: cfg}
+func NewAuthService(store Store, cfg AuthConfig, security Security) *AuthService {
+	return &AuthService{store: store, cfg: cfg, security: security}
 }
 
 func (s *AuthService) AccountAvailability(ctx context.Context, value string) (string, bool, error) {
@@ -47,7 +44,7 @@ func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, m
 		if err == nil && (workspace.SystemManaged || workspace.JoinPolicy != "approval") {
 			return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidWorkspace
 		}
-		if errors.Is(err, repositories.ErrNotFound) {
+		if errors.Is(err, ErrStoreNotFound) {
 			return contracts.AuthResponse{}, "", time.Time{}, ErrWorkspaceNotFound
 		}
 		if err != nil {
@@ -58,12 +55,12 @@ func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, m
 	if displayName == "" {
 		displayName = req.Account
 	}
-	passwordHash, err := security.HashPassword(req.Password)
+	passwordHash, err := s.security.HashPassword(req.Password)
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
 	now := time.Now().UTC()
-	user := models.User{
+	user := User{
 		ID:              NewID(),
 		Account:         req.Account,
 		Email:           req.Email,
@@ -85,7 +82,7 @@ func (s *AuthService) Register(ctx context.Context, req contracts.AuthRequest, m
 
 func (s *AuthService) Login(ctx context.Context, req contracts.AuthRequest, meta RequestMeta) (contracts.AuthResponse, string, time.Time, error) {
 	user, passwordHash, err := s.store.UserByAccount(ctx, domain.NormalizeAccount(req.Account))
-	if err != nil || !security.VerifyPassword(passwordHash, req.Password) {
+	if err != nil || !s.security.VerifyPassword(passwordHash, req.Password) {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidCredentials
 	}
 	_ = s.store.MarkLogin(ctx, user.ID)
@@ -93,12 +90,12 @@ func (s *AuthService) Login(ctx context.Context, req contracts.AuthRequest, meta
 }
 
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta RequestMeta) (contracts.AuthResponse, string, time.Time, error) {
-	plain, digest, err := security.NewOpaqueToken()
+	plain, digest, err := s.security.NewOpaqueToken()
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
 	expiresAt := time.Now().UTC().Add(s.cfg.RefreshTokenTTL)
-	next := models.RefreshToken{
+	next := RefreshToken{
 		ID:        NewID(),
 		TokenHash: digest,
 		UserAgent: meta.UserAgent,
@@ -106,7 +103,7 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta Req
 		ExpiresAt: expiresAt,
 		CreatedAt: time.Now().UTC(),
 	}
-	user, activeWorkspaceID, err := s.store.RotateRefreshToken(ctx, security.DigestToken(refreshToken), next)
+	user, activeWorkspaceID, err := s.store.RotateRefreshToken(ctx, s.security.DigestToken(refreshToken), next)
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidRefreshToken
 	}
@@ -124,12 +121,12 @@ func (s *AuthService) SwitchActiveWorkspace(ctx context.Context, refreshToken, w
 	if workspaceID == "" {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrInvalidWorkspace
 	}
-	plain, digest, err := security.NewOpaqueToken()
+	plain, digest, err := s.security.NewOpaqueToken()
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
 	expiresAt := time.Now().UTC().Add(s.cfg.RefreshTokenTTL)
-	next := models.RefreshToken{
+	next := RefreshToken{
 		ID:        NewID(),
 		TokenHash: digest,
 		UserAgent: meta.UserAgent,
@@ -137,16 +134,16 @@ func (s *AuthService) SwitchActiveWorkspace(ctx context.Context, refreshToken, w
 		ExpiresAt: expiresAt,
 		CreatedAt: time.Now().UTC(),
 	}
-	var user models.User
+	var user User
 	err = mutateWithAudit(ctx, s.store, auditEntry{
 		Action: "session.active_workspace.switch", Actor: expectedUserID, Target: expectedUserID,
 		Workspace: workspaceID, After: map[string]any{"activeWorkspaceId": workspaceID}, Trace: auditMeta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		var rotateErr error
-		user, rotateErr = txStore.RotateRefreshTokenToWorkspace(ctx, security.DigestToken(refreshToken), next, workspaceID, expectedUserID)
+		user, rotateErr = txStore.RotateRefreshTokenToWorkspace(ctx, s.security.DigestToken(refreshToken), next, workspaceID, expectedUserID)
 		return rotateErr
 	})
-	if errors.Is(err, repositories.ErrNotActiveMember) {
+	if errors.Is(err, ErrStoreNotActiveMember) {
 		return contracts.AuthResponse{}, "", time.Time{}, ErrNotActiveMember
 	}
 	if err != nil {
@@ -161,7 +158,7 @@ func (s *AuthService) SwitchActiveWorkspace(ctx context.Context, refreshToken, w
 
 func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
 	if refreshToken != "" {
-		return s.store.RevokeRefreshToken(ctx, security.DigestToken(refreshToken))
+		return s.store.RevokeRefreshToken(ctx, s.security.DigestToken(refreshToken))
 	}
 	return nil
 }
@@ -188,8 +185,8 @@ func (s *AuthService) Memberships(ctx context.Context, userID string) ([]contrac
 	return membershipsFromRows(rows), nil
 }
 
-func (s *AuthService) IssueSession(ctx context.Context, user models.User, meta RequestMeta) (contracts.AuthResponse, string, time.Time, error) {
-	plain, digest, err := security.NewOpaqueToken()
+func (s *AuthService) IssueSession(ctx context.Context, user User, meta RequestMeta) (contracts.AuthResponse, string, time.Time, error) {
+	plain, digest, err := s.security.NewOpaqueToken()
 	if err != nil {
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
@@ -198,7 +195,7 @@ func (s *AuthService) IssueSession(ctx context.Context, user models.User, meta R
 		return contracts.AuthResponse{}, "", time.Time{}, err
 	}
 	refreshExpiresAt := time.Now().UTC().Add(s.cfg.RefreshTokenTTL)
-	token := models.RefreshToken{
+	token := RefreshToken{
 		ID:                NewID(),
 		UserID:            user.ID,
 		ActiveWorkspaceID: activeWorkspaceID,
@@ -239,13 +236,13 @@ func (s *AuthService) resolveInitialActiveWorkspace(ctx context.Context, userID 
 	return nil, nil
 }
 
-func (s *AuthService) AuthResponse(ctx context.Context, user models.User, activeWorkspaceID *string) (contracts.AuthResponse, error) {
+func (s *AuthService) AuthResponse(ctx context.Context, user User, activeWorkspaceID *string) (contracts.AuthResponse, error) {
 	expiresAt := time.Now().UTC().Add(s.cfg.AccessTokenTTL)
 	resp, err := s.buildUserResponse(ctx, user, activeWorkspaceID)
 	if err != nil {
 		return contracts.AuthResponse{}, err
 	}
-	claims := security.Claims{
+	claims := TokenClaims{
 		Subject: user.ID,
 		Email:   user.Email,
 		Name:    user.DisplayName,
@@ -258,7 +255,7 @@ func (s *AuthService) AuthResponse(ctx context.Context, user models.User, active
 		claims.WorkspaceID = resp.ActiveWorkspace.WorkspaceID
 		claims.WorkspaceRole = resp.ActiveWorkspace.Role
 	}
-	token, err := security.SignAccessToken(s.cfg.AccessTokenSecret, claims)
+	token, err := s.security.SignAccessToken(s.cfg.AccessTokenSecret, claims)
 	if err != nil {
 		return contracts.AuthResponse{}, err
 	}
@@ -268,7 +265,7 @@ func (s *AuthService) AuthResponse(ctx context.Context, user models.User, active
 // buildUserResponse assembles the two-dimensional identity: platform roles,
 // every membership, and the single activeWorkspace the session is bound to (only when
 // that membership is still active).
-func (s *AuthService) buildUserResponse(ctx context.Context, user models.User, activeWorkspaceID *string) (contracts.UserResponse, error) {
+func (s *AuthService) buildUserResponse(ctx context.Context, user User, activeWorkspaceID *string) (contracts.UserResponse, error) {
 	roles, err := s.userRoleNames(ctx, user.ID)
 	if err != nil {
 		return contracts.UserResponse{}, err
@@ -318,7 +315,7 @@ func (s *AuthService) userRoleNames(ctx context.Context, userID string) ([]strin
 	return names, nil
 }
 
-func membershipsFromRows(rows []repositories.MembershipRow) []contracts.Membership {
+func membershipsFromRows(rows []MembershipRow) []contracts.Membership {
 	out := make([]contracts.Membership, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, contracts.Membership{

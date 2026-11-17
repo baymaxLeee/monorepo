@@ -8,13 +8,16 @@ import (
 	thriftbase "github.com/example/monorepo/canvas/internal/api/contracts/base"
 	thriftcommon "github.com/example/monorepo/canvas/internal/api/contracts/common"
 	thriftproject "github.com/example/monorepo/canvas/internal/api/contracts/project"
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	domainproject "github.com/example/monorepo/canvas/internal/domain/project"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 
-const projectAPIVersion = "2026-07-31"
+const (
+	ProjectAPIVersion = "2026-07-31"
+	projectAPIVersion = ProjectAPIVersion
+)
 
 type projectService interface {
 	List(context.Context, applicationproject.ListInput) ([]domainproject.Project, int64, error)

@@ -2,50 +2,47 @@ package storageclient
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"net"
 	"testing"
 	"time"
+
+	storagev1 "github.com/example/monorepo/inner-api-go/gen/storage/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+type uploadSessionServer struct {
+	storagev1.UnimplementedUploadSessionServiceServer
+	t *testing.T
+}
+
+func (server *uploadSessionServer) CreateUploadSession(_ context.Context, request *storagev1.CreateUploadSessionRequest) (*storagev1.CreateUploadSessionResponse, error) {
+	if request.GetIntentId() != "intent" || request.GetActor().GetTenantId() != "tenant" || request.GetActor().GetWorkspaceId() != "workspace" {
+		server.t.Fatalf("request = %#v", request)
+	}
+	return &storagev1.CreateUploadSessionResponse{Session: &storagev1.UploadSession{UploadSessionId: "019d0000-0000-7000-8000-000000000001", IntentId: "intent", State: storagev1.UploadSessionState_UPLOAD_SESSION_STATE_PENDING, UserId: "user", Category: "canvas-cover", Filename: "cover.png", MediaType: "image/png", SizeBytes: 128, ExpiresAt: timestamppb.New(time.Now().UTC().Add(time.Hour)), UploadUrl: "/api/storage-server/upload-sessions/session/content"}}, nil
+}
 
 func TestCreateUploadSessionUsesAssetIntentContract(t *testing.T) {
 	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodPost || request.URL.Path != "/internal/upload-sessions" {
-			t.Fatalf("request = %s %s", request.Method, request.URL.Path)
-		}
-		if request.Header.Get("X-Caller-Service") != callerService || request.Header.Get("X-Internal-Token") != "token" {
-			t.Fatalf("service identity headers = %#v", request.Header)
-		}
-		var payload map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-			t.Fatalf("decode request: %v", err)
-		}
-		if payload["intent_id"] != "intent" {
-			t.Fatalf("intent_id = %#v", payload["intent_id"])
-		}
-		if _, exists := payload["idempotency_key"]; exists {
-			t.Fatalf("unexpected legacy idempotency_key in payload: %#v", payload)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"upload_session_id": "session", "intent_id": "intent", "state": "pending", "user_id": "user",
-			"category": "canvas-cover", "filename": "cover.png", "media_type": "image/png", "size_bytes": 128,
-			"expires_at": time.Now().UTC().Add(time.Hour), "upload_url": "/api/storage-server/upload-sessions/session/content",
-		})
-	}))
-	t.Cleanup(server.Close)
+	listener := bufconn.Listen(1 << 20)
+	server := grpc.NewServer()
+	storagev1.RegisterUploadSessionServiceServer(server, &uploadSessionServer{t: t})
+	go func() { _ = server.Serve(listener) }()
+	connection, err := grpc.NewClient("passthrough:///bufconn", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = connection.Close(); server.Stop(); _ = listener.Close() })
 
-	client := New(server.URL, "token", server.Client())
-	session, err := client.CreateUploadSession(context.Background(), CreateUploadSessionInput{
-		TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "cover.png",
-		MediaType: "image/png", Category: "canvas-cover", IdempotencyKey: "intent", SizeBytes: 128,
-	})
+	client := New(connection)
+	session, err := client.CreateUploadSession(context.Background(), CreateUploadSessionInput{TenantID: "tenant", WorkspaceID: "workspace", UserID: "user", Filename: "cover.png", MediaType: "image/png", Category: "canvas-cover", IdempotencyKey: "intent", SizeBytes: 128})
 	if err != nil {
 		t.Fatalf("CreateUploadSession() error = %v", err)
 	}
-	if session.UploadSessionID != "session" || session.IntentID != "intent" {
+	if session.UploadSessionID != "019d0000-0000-7000-8000-000000000001" || session.IntentID != "intent" {
 		t.Fatalf("session = %#v", session)
 	}
 }

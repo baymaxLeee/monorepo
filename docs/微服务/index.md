@@ -9,12 +9,12 @@
 |---|---|---|---|---|---|---|
 | gateway | Go | 8000 | `/*`（唯一后端公网入口） | 无业务库 | iam, admin, storage, chat, canvas, knowledge, telemetry | 边缘反向代理 BFF |
 | iam | Go | 8002 | `/api/iam-server/*` | PostgreSQL `iam` | — | 身份 / 会话 |
-| admin | Python | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | storage | 管理与配置平面 |
-| chat | TypeScript | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | runtime | Web Chat 产品会话与呈现投影 |
+| admin | Go | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | storage | 管理与配置平面 |
+| chat | Go | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | runtime | Web Chat 产品会话与呈现投影 |
 | [runtime](runtime.md) | TypeScript | 8015（server）/ 8011（worker）/ 8014（sandbox） | **internal-only** | PostgreSQL `runtime` + Workflow `workflow` | admin, knowledge, canvas, storage | Session/messages、ToolLoopAgent、Sandbox 与 durable Job |
 | canvas | Go | 8012 | `/api/canvas-server/*` | PostgreSQL `canvas` | admin, storage | 项目 / 画布 / 素材 |
 | knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin, storage | 知识库 / ingest / RAG |
-| telemetry | Python | 8008 | `/api/telemetry-server/*` | PostgreSQL `telemetry` | — | 可观测 / RUM |
+| telemetry | Go | 8008 | `/api/telemetry-server/*` | PostgreSQL `telemetry` | — | 可观测 / RUM |
 | storage | Go | 8013 | `/api/storage-server/*` | PostgreSQL `storage` + 独占 byte volume | — | 统一 Asset revision / Claim / delivery / GC 控制面 |
 
 Failure 责任（摘要）：同步 HTTP binding 的 timeout / 错误映射由 **caller 的 transport client** 负责；gateway 不对 proxied/SSE 请求做 body 重试。长任务重试与跨请求状态在 Runtime worker / Workflow，不藏在普通 HTTP handler。
@@ -23,7 +23,7 @@ Failure 责任（摘要）：同步 HTTP binding 的 timeout / 错误映射由 *
 
 参见 `apps/backend/AGENTS.md`。核心约束:
 - 服务自治: 各自的 DB、各自的部署、不互相 import
-- 跨服务调用: 显式 binding + `libs/transport-*` 或服务内 client，不走直接 import
+- 跨服务调用: 显式 binding + 生成的 `libs/transport-*` 或服务内 client，不走直接 import；业务层不直接操作原始 HTTP，详见 [内部 API 传输决策](../ADR/inner-api-transport.md)
 - 共享内核(`libs/`): 只放有 consumer matrix 依据的基础设施,**禁止**放领域模型（见 docs/ADR/architecture.md）
 - 参照边界: next-forge → 前端 package；Vercel Services → 组合/routing/binding；Eve **仅** agent runtime，不是微服务注册模板
 
@@ -75,23 +75,20 @@ CRUD/DTO 的服务不创建占位 domain。
 
 ## 服务间通信
 
-- **当前同步调用**：声明 binding 的 HTTP transport，契约在 `schemas/`。
+- **当前同步调用**：声明 binding 的 Proto/gRPC transport，契约在 `schemas/proto/`；`just sync` 为 Go、TypeScript、Python 生成 wire binding。
 - **耐久任务通知**：Runtime worker 的 Workflow-backed 内部 SSE；Chat 使用原生 UIMessage 流。
-- Proto 与 CloudEvents 保留契约目录，不表示已经部署通用 gRPC 网络或消息 broker。
+- CloudEvents 保留异步契约目录，不表示已经部署通用消息 broker。
 
-### 内部 API (`/internal/*`)
+### 内部 RPC
 
-部分服务对**同集群 sibling 服务**额外暴露 `/internal/*` 路径
-(例如 `admin` 的 `/internal/providers/*`)。约定:
+Admin、Knowledge、Canvas 与 Storage 对同集群 sibling 暴露标准 gRPC 服务。约定：
 
-- gateway **不**代理 `/internal/*` 到公网 —— 仅集群内可达。
-- 调用方在 header 携带自己的 `X-Caller-Service` 与
-  `X-Internal-Token`；被调方用 `INTERNAL_SERVICE_TOKENS` 的 caller→token
-  映射做 constant-time 校验。每个 workload 的 token 必须独立，禁止共享。
+- gateway 不代理 RPC 端口到公网；Single-VPS 和本地使用 h2c，不要求 sidecar。
+- 生成 client 自动携带固定 caller metadata、trace、deadline 和取消；接收方按 method allowlist 校验 caller。
 - 业务身份按具体契约携带 tenant/workspace/user，由调用方从认证上下文取得；
   接收方继续校验资源 scope，不能只凭 caller token 或 user_id 授权。
-- 内部响应可包含**解密后**的敏感字段(API key 等),公开 API **绝不**
-  返回相同形态 —— 必须脱敏(参考 `admin.services.encryption.mask`)。
+- RPC 响应可包含**解密后**的敏感字段(API key 等),公开 API **绝不**
+  返回相同形态 —— 必须脱敏（参考 Admin `internal/infrastructure/crypto.Mask`）。
 
 典型场景：Runtime 通过 Admin client 解析当前作用域的 provider snapshot。
 具体路由、缓存与刷新策略以 client 和 owner 契约为准，不把旧 TTL 写成平台规则。

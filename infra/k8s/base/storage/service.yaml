@@ -7,3 +7,4 @@ spec:
   selector: { app: storage }
   ports:
     - { name: http, port: 8013, targetPort: http }
+    - { name: rpc, port: 9013, targetPort: rpc }

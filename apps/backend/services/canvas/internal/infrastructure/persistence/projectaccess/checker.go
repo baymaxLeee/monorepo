@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"log/slog"
 
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationprojectaccess "github.com/example/monorepo/canvas/internal/application/projectaccess"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 	platformlogger "github.com/example/monorepo/canvas/pkg/platform/logger"
@@ -58,11 +58,11 @@ var ErrForbidden = applicationprojectaccess.ErrForbidden
 type Checker struct {
 	db    *gorm.DB
 	cache redis.UniversalClient
-	log   *zap.Logger
+	log   *slog.Logger
 	draw  func(int64) int64
 }
 
-func NewChecker(db *gorm.DB, cache redis.UniversalClient, log *zap.Logger) *Checker {
+func NewChecker(db *gorm.DB, cache redis.UniversalClient, log *slog.Logger) *Checker {
 	checker := newChecker(db, cache, rand.Int64N)
 	checker.log = log
 	return checker
@@ -270,7 +270,7 @@ func (c *Checker) logCacheError(
 ) {
 	fields := append(logcontext.Fields(logcontext.WithBusiness(ctx, logcontext.Business{
 		TenantID: tenantID, WorkspaceID: workspaceID, ProjectID: projectID,
-	})), zap.String("operation", operation))
+	})), slog.String("operation", operation))
 	platformlogger.Error(c.log, "project member cache operation failed", err, fields...)
 }
 

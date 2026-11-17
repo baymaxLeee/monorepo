@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { KnowledgeDocument, SandboxProcess } from "@backend/transport-ts";
+import type { SandboxProcess } from "#runtime/transport";
 
+import type { KnowledgeDocument } from "../../../infrastructure/clients/knowledge.js";
 import type { SessionFile } from "../../session-files.js";
 import { RunSandbox, type SandboxDependencies } from "./cloud-sandbox.js";
 

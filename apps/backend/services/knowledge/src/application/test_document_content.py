@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from kernel.errors import ConflictError
+from knowledge_kernel.errors import ConflictError
 
 from application import document_content
 from application.storage_client import StorageRevision

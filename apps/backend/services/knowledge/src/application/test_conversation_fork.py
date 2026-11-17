@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from infrastructure.persistence.models.document import DocumentRow
-from kernel.errors import ConflictError
+from knowledge_kernel.errors import ConflictError
 from pydantic import ValidationError
 
 from application import conversation_fork as service

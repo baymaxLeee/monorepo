@@ -43,59 +43,11 @@ for service_dir in "${SERVICE_DIRS[@]}"; do
     "$ROOT/scripts/db-migrate.sh" "$service_dir"
 done
 
-ADMIN_DIR="$SERVICES_DIR/admin"
-CHAT_DIR="$SERVICES_DIR/chat"
 IAM_DIR="$SERVICES_DIR/iam"
 
-if [ ! -f "$ADMIN_DIR/.env" ]; then
-  echo "⚠ $ADMIN_DIR/.env missing; copy from .env.example" >&2
-  exit 1
-fi
-
-echo "→ Seeding admin demo data..."
-cd "$ADMIN_DIR"
-uv run python - <<'PY'
-import asyncio
-import sys
-
-sys.path.insert(0, "src")
-
-from infrastructure.persistence.database import close_db, seed_demo_apps
-
-
-async def main() -> None:
-    await seed_demo_apps()
-    await close_db()
-
-
-asyncio.run(main())
-PY
-echo "✓ admin demo data ready"
-
-if [ -f "$CHAT_DIR/.env" ] && [ -f "$CHAT_DIR/package.json" ]; then
-  echo "→ chat is Node; skipping Python demo seed (create conversations via UI)"
-elif [ -f "$CHAT_DIR/.env" ]; then
-  echo "→ Seeding chat demo data..."
-  cd "$CHAT_DIR"
-  uv run python - <<'PY'
-import asyncio
-
-from chat.db import close_db, seed_demo_conversations
-
-
-async def main() -> None:
-    await seed_demo_conversations()
-    await close_db()
-
-
-asyncio.run(main())
-PY
-  echo "✓ chat demo data ready"
-else
-  echo "⚠ $CHAT_DIR/.env missing; skipping chat seed (run install-deps.sh)" >&2
-fi
+echo "→ Admin and Chat demo resources are created through their HTTP APIs"
 
 echo "→ Bootstrapping iam identity (super-admin + guest-workspace)..."
 cd "$IAM_DIR"
-POSTGRES_USER=iam POSTGRES_PASSWORD=iam IAM_POSTGRES_DATABASE=iam go run ./cmd/server seed
+POSTGRES_USER=iam POSTGRES_PASSWORD=iam IAM_POSTGRES_DATABASE=iam go run ./cmd/seed
 echo "✓ iam identity ready"

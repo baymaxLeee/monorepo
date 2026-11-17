@@ -3,8 +3,8 @@
 
 This diagnostic complements the automated behavior tests run through
 `just test backend/knowledge`. Use it to tune chunking / top_k / RRF / rerank
-against a small golden set. It calls the
-knowledge `/internal/retrieve` endpoint and reports simple retrieval metrics:
+against a small golden set. It calls Knowledge's typed RetrievalService RPC and
+reports simple retrieval metrics:
 
   - recall@k         : share of queries whose expected document appears in top-k
   - substring hit@k  : share of queries where an expected substring is retrieved
@@ -15,9 +15,9 @@ Golden set: JSONL, one object per line, e.g.
 
 Usage:
   uv run python scripts/eval_rag.py \
-    --base-url http://localhost:8010 \
-    --token dev-internal-token \
+    --target localhost:9010 \
     --user demo-super-admin \
+    --tenant guest-tenant \
     --workspace guest-workspace \
     --file scripts/golden_set.example.jsonl \
     --top-k 8
@@ -31,7 +31,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import httpx
+import grpc
+import knowledge.v1.knowledge_pb2 as knowledge_pb2
+import knowledge.v1.knowledge_pb2_grpc as knowledge_pb2_grpc
+from common.v1.context_pb2 import ActorContext
 
 
 def load_golden(path: Path) -> list[dict[str, Any]]:
@@ -45,9 +48,9 @@ def load_golden(path: Path) -> list[dict[str, Any]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-url", default="http://localhost:8010")
-    parser.add_argument("--token", default="dev-internal-token")
+    parser.add_argument("--target", default="localhost:9010")
     parser.add_argument("--user", required=True, help="end-user id whose KB is queried")
+    parser.add_argument("--tenant", required=True, help="tenant id whose KB is queried")
     parser.add_argument("--workspace", required=True, help="workspace id whose KB is queried")
     parser.add_argument("--file", required=True, help="golden set JSONL path")
     parser.add_argument("--top-k", type=int, default=8)
@@ -63,26 +66,26 @@ def main() -> int:
     sub_hits = 0
     sub_total = 0
 
-    with httpx.Client(base_url=args.base_url.rstrip("/"), timeout=60.0) as client:
+    with grpc.insecure_channel(args.target) as channel:
+        client = knowledge_pb2_grpc.RetrievalServiceStub(channel)
         for row in golden:
             query = row["query"]
-            resp = client.post(
-                "/internal/retrieve",
-                headers={
-                    "X-Internal-Token": args.token,
-                    "X-Caller-Service": "chat",
-                },
-                json={
-                    "user_id": args.user,
-                    "workspace_id": args.workspace,
-                    "query": query,
-                    "top_k": args.top_k,
-                },
+            response = client.Retrieve(
+                knowledge_pb2.RetrieveRequest(
+                    actor=ActorContext(
+                        user_id=args.user,
+                        tenant_id=args.tenant,
+                        workspace_id=args.workspace,
+                    ),
+                    query=query,
+                    top_k=args.top_k,
+                ),
+                timeout=60,
+                metadata=(("x-caller-service", "runtime"),),
             )
-            resp.raise_for_status()
-            chunks = resp.json().get("chunks", [])
-            retrieved_ids = {c["document_id"] for c in chunks}
-            retrieved_text = "\n".join(c["content"] for c in chunks)
+            chunks = response.chunks
+            retrieved_ids = {chunk.document_id for chunk in chunks}
+            retrieved_text = "\n".join(chunk.content for chunk in chunks)
 
             expected_ids = row.get("expected_document_ids") or []
             if expected_ids:

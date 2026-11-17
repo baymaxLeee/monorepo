@@ -1,7 +1,5 @@
-import { propagationHeaders } from "@backend/kernel-ts";
-import { StorageInternalClient, type StorageUploadBody } from "@backend/transport-ts";
-
 import { getWorkerSettings } from "../../config/worker.js";
+import { StorageClient, type StorageUploadBody } from "./storage.js";
 
 export function uploadAsset(input: {
   tenantId: string;
@@ -16,11 +14,5 @@ export function uploadAsset(input: {
   signal?: AbortSignal;
 }) {
   const settings = getWorkerSettings();
-  return new StorageInternalClient({
-    baseUrl: settings.storageServiceUrl,
-    internalToken: settings.internalApiToken,
-    callerService: "runtime",
-    propagatedHeaders: propagationHeaders,
-    timeoutMs: 180_000,
-  }).upload(input);
+  return new StorageClient(settings.storageRpcTarget).upload(input);
 }

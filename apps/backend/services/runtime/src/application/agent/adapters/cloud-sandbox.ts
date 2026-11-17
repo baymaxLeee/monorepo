@@ -1,17 +1,17 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import type {
-  KnowledgeDocument,
-  SandboxProcess,
-  SandboxSession as SandboxResource,
-  StorageInternalClient,
-} from "@backend/transport-ts";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
-import { knowledgeDocumentSessionId, listDocuments } from "../../../infrastructure/clients/knowledge.js";
+import type { SandboxProcess, SandboxSession as SandboxResource } from "#runtime/transport";
+
+import {
+  knowledgeDocumentSessionId,
+  listDocuments,
+  type KnowledgeDocument,
+} from "../../../infrastructure/clients/knowledge.js";
 import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
-import { storageClient } from "../../../infrastructure/clients/storage.js";
+import { storageClient, type StorageClient } from "../../../infrastructure/clients/storage.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { persistCloudWorkspace } from "../../cloud-workspace.js";
 import { assertEditableFileSize } from "../../file-edit-limits.js";
@@ -30,7 +30,7 @@ export interface SandboxDependencies {
     RuntimeSandboxAdapter,
     "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download" | "snapshot"
   >;
-  asset: () => Pick<StorageInternalClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
+  asset: () => Pick<StorageClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
   documents: typeof listDocuments;
   files: typeof listSessionFiles;
   publish: typeof publishSessionFile;

@@ -20,7 +20,7 @@ DEV_PREFLIGHT_PATH = ROOT / "scripts" / "dev-preflight.sh"
 SINGLE_VPS_PATH = ROOT / "infra" / "single-vps" / "docker-compose.prod.yml"
 SINGLE_VPS_RENDER_ENV_PATH = ROOT / "infra" / "single-vps" / "render-env.sh"
 SINGLE_VPS_OPERATOR_ENV_EXAMPLE_PATH = ROOT / "infra" / "single-vps" / "secrets.sops.env.example"
-GATEWAY_MAIN_PATH = ROOT / "apps" / "backend" / "services" / "gateway" / "cmd" / "server" / "main.go"
+GATEWAY_SOURCE_ROOT = ROOT / "apps" / "backend" / "services" / "gateway"
 K8S_BASE = ROOT / "infra" / "k8s" / "base"
 REQUIRED = ("root", "runtime", "port", "publicRoutes", "bindings", "databases")
 RUNTIMES = {"go", "python", "node"}
@@ -108,6 +108,19 @@ def validate_schema(services: dict[str, dict[str, Any]]) -> None:
         openapi = config.get("openapi")
         if openapi is not None and not (ROOT / openapi).is_file():
             fail(f"{service_id}: openapi path missing: {openapi}")
+        expected_openapi_version = config.get("openapiVersion")
+        if openapi is None:
+            if expected_openapi_version is not None:
+                fail(f"{service_id}: openapiVersion requires an openapi artifact")
+        else:
+            if not isinstance(expected_openapi_version, str):
+                fail(f"{service_id}: openapiVersion must be declared as a string")
+            document = json.loads((ROOT / openapi).read_text())
+            if document.get("openapi") != expected_openapi_version:
+                fail(
+                    f"{service_id}: openapi version drift: "
+                    f"expected={expected_openapi_version} actual={document.get('openapi')}"
+                )
 
     if services["runtime"]["publicRoutes"]:
         fail("runtime must remain internal-only")
@@ -184,8 +197,14 @@ def env_from_example(service_id: str) -> dict[str, str]:
     return values
 
 
-def expected_binding_keys(config: dict[str, Any]) -> set[str]:
-    return {f"{dependency.upper()}_SERVICE_URL" for dependency in config["bindings"]}
+def binding_key(service_id: str, dependency: str) -> str:
+    if service_id == "gateway" or (service_id == "chat" and dependency == "runtime"):
+        return f"{dependency.upper()}_SERVICE_URL"
+    return f"{dependency.upper()}_RPC_TARGET"
+
+
+def expected_binding_keys(service_id: str, config: dict[str, Any]) -> set[str]:
+    return {binding_key(service_id, dependency) for dependency in config["bindings"]}
 
 
 def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
@@ -195,9 +214,9 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
         fail("single-vps compose must define services")
 
     for service_id, config in services.items():
-        expected = expected_binding_keys(config)
+        expected = expected_binding_keys(service_id, config)
         local_env = env_from_example(service_id)
-        local = {key for key in local_env if key.endswith("_SERVICE_URL")}
+        local = {key for key in local_env if key.endswith(("_SERVICE_URL", "_RPC_TARGET"))}
         if local != expected:
             fail(f"{service_id}: .env.example bindings drift: expected={sorted(expected)} actual={sorted(local)}")
 
@@ -205,7 +224,7 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
         k8s_data = configmap.get("data") if isinstance(configmap, dict) else None
         if not isinstance(k8s_data, dict):
             fail(f"{service_id}: invalid K8s ConfigMap")
-        k8s_keys = {key for key in k8s_data if key.endswith("_SERVICE_URL")}
+        k8s_keys = {key for key in k8s_data if key.endswith(("_SERVICE_URL", "_RPC_TARGET"))}
         if k8s_keys != expected:
             fail(f"{service_id}: K8s bindings drift: expected={sorted(expected)} actual={sorted(k8s_keys)}")
 
@@ -213,14 +232,17 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
         compose_env = compose_entry.get("environment") if isinstance(compose_entry, dict) else None
         if not isinstance(compose_env, dict):
             fail(f"{service_id}: single-vps compose environment missing")
-        compose_keys = {key for key in compose_env if key.endswith("_SERVICE_URL")}
+        compose_keys = {key for key in compose_env if key.endswith(("_SERVICE_URL", "_RPC_TARGET"))}
         if compose_keys != expected:
             fail(f"{service_id}: single-vps bindings drift: expected={sorted(expected)} actual={sorted(compose_keys)}")
 
         for dependency in config["bindings"]:
-            key = f"{dependency.upper()}_SERVICE_URL"
+            key = binding_key(service_id, dependency)
             target = services[dependency]
-            expected_fragment = f"{dependency}:{target['port']}"
+            port = target["port"] if key.endswith("_SERVICE_URL") else target.get("rpcPort")
+            if port is None:
+                fail(f"{dependency}: services.yaml must declare rpcPort for RPC binding from {service_id}")
+            expected_fragment = f"{dependency}:{port}"
             if expected_fragment not in str(k8s_data[key]) or expected_fragment not in str(compose_env[key]):
                 fail(f"{service_id}: {key} must target {expected_fragment} in K8s and single-vps")
 
@@ -241,56 +263,13 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
 
 
 def validate_service_identities(services: dict[str, dict[str, Any]]) -> None:
-    caller_tokens: dict[str, str] = {}
-    for service_id, config in services.items():
-        if service_id == "gateway" or not config["bindings"]:
-            continue
-        token = env_from_example(service_id).get("INTERNAL_API_TOKEN", "")
-        if not token or token == "dev-internal-token":
-            fail(f"{service_id}: .env.example must declare a caller-specific INTERNAL_API_TOKEN")
-        caller_tokens[service_id] = token
-
-    if len(set(caller_tokens.values())) != len(caller_tokens):
-        fail("development INTERNAL_API_TOKEN values must be unique per caller")
-
-    inbound_callers = {service_id: set() for service_id in services}
-    for caller, config in services.items():
-        if caller == "gateway":
-            continue
-        for receiver in config["bindings"]:
-            inbound_callers[receiver].add(caller)
-
-    for receiver, callers in inbound_callers.items():
-        if not callers:
-            continue
-        raw = env_from_example(receiver).get("INTERNAL_SERVICE_TOKENS")
-        if raw is None:
-            fail(f"{receiver}: .env.example missing INTERNAL_SERVICE_TOKENS")
-        try:
-            actual = json.loads(raw)
-        except json.JSONDecodeError:
-            fail(f"{receiver}: .env.example INTERNAL_SERVICE_TOKENS must be valid JSON")
-        expected = {caller: caller_tokens[caller] for caller in sorted(callers)}
-        if actual != expected:
-            fail(f"{receiver}: .env.example INTERNAL_SERVICE_TOKENS drift: expected={expected} actual={actual}")
-
-        compose_env = load_yaml(SINGLE_VPS_PATH)["services"][receiver]["environment"]
-        secret = load_yaml(K8S_BASE / receiver / "secret.yaml").get("stringData", {})
-        for surface, source in (("single-vps", compose_env), ("K8s Secret", secret)):
-            try:
-                deployed = json.loads(source.get("INTERNAL_SERVICE_TOKENS", "{}"))
-            except TypeError, json.JSONDecodeError:
-                fail(f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must be a JSON object")
-            if not isinstance(deployed, dict) or set(deployed) != callers:
-                fail(f"{receiver}: {surface} INTERNAL_SERVICE_TOKENS must contain callers {sorted(callers)}")
-            for caller, token in deployed.items():
-                variable = f"{caller.upper().replace('-', '_')}_INTERNAL_API_TOKEN"
-                if surface == "single-vps":
-                    valid = isinstance(token, str) and re.fullmatch(rf"\$\{{{variable}:\?[^}}]+\}}", token)
-                else:
-                    valid = token == f"REPLACE_{caller.upper().replace('-', '_')}_TOKEN"
-                if not valid:
-                    fail(f"{receiver}: {surface} must bind {caller} to its own caller credential")
+    chat_token = env_from_example("chat").get("INTERNAL_API_TOKEN", "")
+    if not chat_token:
+        fail("chat: .env.example must declare INTERNAL_API_TOKEN for the HTTP streaming edge")
+    expected = {"chat": chat_token}
+    actual = json.loads(env_from_example("runtime").get("INTERNAL_SERVICE_TOKENS", "{}"))
+    if actual != expected:
+        fail(f"runtime: .env.example HTTP caller map drift: expected={expected} actual={actual}")
 
 
 def dotenv_keys(path: Path) -> set[str]:
@@ -350,7 +329,9 @@ def validate_k8s_ports(services: dict[str, dict[str, Any]]) -> None:
 
 
 def validate_gateway_routes(services: dict[str, dict[str, Any]]) -> None:
-    source = GATEWAY_MAIN_PATH.read_text()
+    source = "\n".join(
+        path.read_text() for path in GATEWAY_SOURCE_ROOT.rglob("*.go") if not path.name.endswith("_test.go")
+    )
     gateway_bindings = set(services["gateway"]["bindings"])
     expected_public = {
         service_id for service_id, config in services.items() if service_id != "gateway" and config["publicRoutes"]
@@ -363,7 +344,9 @@ def validate_gateway_routes(services: dict[str, dict[str, Any]]) -> None:
     for service_id in expected_public:
         for route in services[service_id]["publicRoutes"]:
             prefix = route.removesuffix("/*")
-            if f'r.Mount("{prefix}"' not in source:
+            direct_mount = re.search(rf'\.Mount\(\s*"{re.escape(prefix)}"', source)
+            route_table = re.search(rf'\{{\s*"{re.escape(prefix)}"\s*,', source)
+            if not direct_mount and not route_table:
                 fail(f"gateway source missing public route {route} for {service_id}")
 
 

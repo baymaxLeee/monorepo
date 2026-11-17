@@ -14,26 +14,19 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
   editable skill-tree and publication semantics.
 
 ## Entry points
-- `src/main.py` — FastAPI app
-- `src/api/http/routes/*.py` — HTTP handlers
-- `src/application/contracts/*.py` — Pydantic request/response schemas
-- `src/application/*.py` — business orchestration
-- `src/domain/skills.py` — Skill workspace and publishing invariants
-- `src/infrastructure/persistence/repositories/*.py` — persistence operations
-- `src/infrastructure/persistence/models/*.py` — SQLAlchemy ORM table models
-- `src/gen_openapi.py` — OpenAPI export (run by `just gen-openapi admin`)
+- `cmd/server/main.go` — HTTP server
+- `cmd/openapi/main.go` — OpenAPI export (run by `just gen-openapi admin`)
+- `internal/api/http/*.go` — HTTP handlers
+- `internal/application/*.go` — business orchestration
+- `internal/domain/*.go` — business invariants
+- `internal/infrastructure/persistence/*.go` — PostgreSQL persistence
 
 ## Conventions
 - Routers are thin: request/response wiring only.
 - Business orchestration lives in `application/`.
-- DB access lives in `infrastructure/persistence/repositories/`; routes never touch SQLAlchemy directly.
-- Transactions (docs/ADR/architecture.md): repositories only read/stage (`add`/`flush`/`delete`/
-  `select`) and NEVER commit. The `application/` method that owns a write unit of
-  work opens `async with write_tx(session):` before any DB access and does all
-  its reads + writes inside that block (autobegin-first). Keep external IO (DNS
-  validation, Redis) outside the block.
-- Pydantic API shapes live in `application/contracts/`; SQLAlchemy table definitions
-  live in `infrastructure/persistence/models/`.
+- DB access lives in `internal/infrastructure/persistence/`; routes never issue SQL.
+- Application methods own transaction boundaries. Keep external IO outside database transactions.
+- OpenAPI-generated wire types live in `internal/api/generated/`; domain types stay transport-independent.
 - Keep business resources separated end-to-end. Each table/resource gets its
   own files in API, application, repository, and persistence-model layers. Do NOT merge distinct
   business resources into a generic shared CRUD/model/schema/service just to
@@ -41,7 +34,7 @@ The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing
 - Skill text files remain inline for precise code-agent edits. Binary skill
   files and imported ZIP sources are immutable Asset revisions; published
   snapshots pin exact revision IDs and protect them with snapshot Claims.
-- Errors via `libs.kernel.errors.*`, NEVER raw HTTPException
+- Return application errors through the shared HTTP problem writer; never expose raw infrastructure errors.
 
 ## Verification after code changes
 

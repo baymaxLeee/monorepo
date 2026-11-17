@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from application.auth import AuthContext
-from kernel.errors import NotFoundError
+from knowledge_kernel.errors import NotFoundError
 
 from api.http.routes import documents
 

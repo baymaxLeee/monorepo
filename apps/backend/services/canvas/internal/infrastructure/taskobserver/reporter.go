@@ -4,67 +4,67 @@ import (
 	"context"
 	"fmt"
 
-	"go.uber.org/zap"
+	"log/slog"
 
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationprojectstatistics "github.com/example/monorepo/canvas/internal/application/projectstatistics"
 	applicationresource "github.com/example/monorepo/canvas/internal/application/resource"
 	applicationvideogeneration "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	platformlogger "github.com/example/monorepo/canvas/pkg/platform/logger"
 )
 
 type reporter struct {
-	log *zap.Logger
+	log *slog.Logger
 }
 
-func New(log *zap.Logger) applicationvideogeneration.TargetFailureReporter {
+func New(log *slog.Logger) applicationvideogeneration.TargetFailureReporter {
 	return reporter{log: log}
 }
 
-func NewCanvasNodeCancellationFailureReporter(log *zap.Logger) applicationcanvas.CancellationFailureReporter {
+func NewCanvasNodeCancellationFailureReporter(log *slog.Logger) applicationcanvas.CancellationFailureReporter {
 	return reporter{log: log}
 }
 
-func NewCanvasNodeVisibilityFailureReporter(log *zap.Logger) applicationcanvas.VisibilityFailureReporter {
+func NewCanvasNodeVisibilityFailureReporter(log *slog.Logger) applicationcanvas.VisibilityFailureReporter {
 	return reporter{log: log}
 }
 
-func NewCanvasNodeFramePreviewFailureReporter(log *zap.Logger) applicationcanvas.FramePreviewFailureReporter {
+func NewCanvasNodeFramePreviewFailureReporter(log *slog.Logger) applicationcanvas.FramePreviewFailureReporter {
 	return reporter{log: log}
 }
 
-func NewGenerationFramePreviewFailureReporter(log *zap.Logger) applicationvideogeneration.FramePreviewFailureReporter {
+func NewGenerationFramePreviewFailureReporter(log *slog.Logger) applicationvideogeneration.FramePreviewFailureReporter {
 	return reporter{log: log}
 }
 
-func NewCanvasFallbackCoverFailureReporter(log *zap.Logger) applicationcanvas.FallbackCoverFailureReporter {
+func NewCanvasFallbackCoverFailureReporter(log *slog.Logger) applicationcanvas.FallbackCoverFailureReporter {
 	return reporter{log: log}
 }
 
-func NewProjectStatisticsFailureReporter(log *zap.Logger) applicationprojectstatistics.FailureReporter {
+func NewProjectStatisticsFailureReporter(log *slog.Logger) applicationprojectstatistics.FailureReporter {
 	return reporter{log: log}
 }
 
-func NewCanvasStatisticsFailureReporter(log *zap.Logger) applicationcanvas.CanvasStatisticsFailureReporter {
+func NewCanvasStatisticsFailureReporter(log *slog.Logger) applicationcanvas.CanvasStatisticsFailureReporter {
 	return reporter{log: log}
 }
 
-func NewStoryboardAssetCatalogFailureReporter(log *zap.Logger) applicationcanvas.StoryboardAssetCatalogFailureReporter {
+func NewStoryboardAssetCatalogFailureReporter(log *slog.Logger) applicationcanvas.StoryboardAssetCatalogFailureReporter {
 	return reporter{log: log}
 }
 
-func NewStoryboardCacheCleanupFailureReporter(log *zap.Logger) applicationcanvas.StoryboardCacheCleanupFailureReporter {
+func NewStoryboardCacheCleanupFailureReporter(log *slog.Logger) applicationcanvas.StoryboardCacheCleanupFailureReporter {
 	return reporter{log: log}
 }
 
 func (r reporter) ReportTargetFailure(ctx context.Context, run domaintask.TaskRun, err error) {
 	fields := append(logcontext.Fields(ctx),
-		zap.String("task_run_id", run.ID),
-		zap.String("run_type", string(run.RunType)),
-		zap.String("subject_type", string(run.SubjectType)),
-		zap.String("subject_id", run.SubjectID),
+		slog.String("task_run_id", run.ID),
+		slog.String("run_type", string(run.RunType)),
+		slog.String("subject_type", string(run.SubjectType)),
+		slog.String("subject_id", run.SubjectID),
 	)
 	platformlogger.Error(r.log,
 		"generation target state is missing",
@@ -83,16 +83,16 @@ func (r reporter) ReportVisibilityFailure(ctx context.Context, err error) {
 
 func (r reporter) ReportFramePreviewFailure(ctx context.Context, tenantID, sourceAssetID string, err error) {
 	fields := append(logcontext.Fields(ctx),
-		zap.String("tenant_id", tenantID),
-		zap.String("asset_id", sourceAssetID),
+		slog.String("tenant_id", tenantID),
+		slog.String("asset_id", sourceAssetID),
 	)
 	platformlogger.Error(r.log, "frame asset delivery capability failed", err, fields...)
 }
 
 func (r reporter) ReportFallbackCoverFailure(ctx context.Context, tenantID, operation string, err error) {
 	fields := append(logcontext.Fields(ctx),
-		zap.String("operation", operation),
-		zap.String("tenant_id", tenantID),
+		slog.String("operation", operation),
+		slog.String("tenant_id", tenantID),
 	)
 	platformlogger.Error(r.log, "canvas fallback cover enrichment failed", err, fields...)
 }
@@ -111,24 +111,24 @@ func (r reporter) ReportStoryboardAssetCatalogFailure(ctx context.Context, err e
 	}
 	fields := logcontext.Fields(ctx)
 	if err != nil {
-		fields = append(fields, zap.String("error_type", fmt.Sprintf("%T", err)))
+		fields = append(fields, slog.String("error_type", fmt.Sprintf("%T", err)))
 	}
-	r.log.Warn("storyboard asset catalog list failed; confirming without auto-attach", fields...)
+	r.log.LogAttrs(ctx, slog.LevelWarn, "storyboard asset catalog list failed; confirming without auto-attach", fields...)
 }
 
 func (r reporter) ReportStoryboardCacheCleanupFailure(ctx context.Context, operation string, err error) {
-	fields := append(logcontext.Fields(ctx), zap.String("operation", operation))
+	fields := append(logcontext.Fields(ctx), slog.String("operation", operation))
 	platformlogger.Error(r.log, "storyboard live cache cleanup failed", err, fields...)
 }
 
 // officialMaterializationReporter 独立于 reporter：后者的 Report 文案固定为分镜取消失败，
 // 复用会打出与实际原因无关的日志。
 type officialMaterializationReporter struct {
-	log *zap.Logger
+	log *slog.Logger
 }
 
 func NewOfficialMaterializationFailureReporter(
-	log *zap.Logger,
+	log *slog.Logger,
 ) applicationresource.OfficialMaterializationFailureReporter {
 	return officialMaterializationReporter{log: log}
 }

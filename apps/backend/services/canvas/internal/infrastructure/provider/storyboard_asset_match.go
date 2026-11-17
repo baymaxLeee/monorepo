@@ -2,9 +2,10 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
-	"go.uber.org/zap"
 
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
@@ -39,7 +40,7 @@ func (s *StoryboardSplitter) matchStoryboardDraftAssets(ctx context.Context, tas
 		return nil
 	}
 	if s.log != nil {
-		s.log.Warn("storyboard asset matching exhausted retries; prompts remain usable", zap.Int("canvasnode_no", draft.CanvasNodeNo), zap.Error(err))
+		s.log.Warn("storyboard asset matching exhausted retries; prompts remain usable", slog.Int("canvasnode_no", draft.CanvasNodeNo), slog.String("error_type", fmt.Sprintf("%T", err)))
 	}
 	return assetmatching.ResolveBindings(draft.Prompt, nil, candidates)
 }

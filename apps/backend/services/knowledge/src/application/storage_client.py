@@ -4,21 +4,30 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Literal, TypedDict, cast
 
-import httpx
+import common.v1.context_pb2 as context_pb2
+import grpc
+import storage.v1.storage_pb2 as storage_pb2
+import storage.v1.storage_pb2_grpc as storage_pb2_grpc
 from bootstrap.config import Settings, get_settings
 from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.models.asset_claim_intent import AssetClaimIntentRow
-from kernel.tracing import propagation_headers
+from knowledge_kernel.tracing import propagation_headers
 from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("knowledge.asset")
+
+
+class _CallOptions(TypedDict):
+    metadata: list[tuple[str, str]]
+    timeout: float
 
 
 class StorageRevision(BaseModel):
@@ -60,37 +69,50 @@ class StorageUploadSession(BaseModel):
 class StorageClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
-        self._http = httpx.AsyncClient(
-            base_url=self._settings.storage_service_url.rstrip("/"),
-            timeout=httpx.Timeout(30.0, connect=2.0),
-            headers={
-                "X-Internal-Token": self._settings.internal_api_token,
-                "X-Caller-Service": "knowledge",
-            },
-        )
+        self._channel = grpc.aio.insecure_channel(self._settings.storage_rpc_target)
+        self._assets = storage_pb2_grpc.AssetServiceStub(self._channel)
+        self._claims = storage_pb2_grpc.ClaimServiceStub(self._channel)
+        self._uploads = storage_pb2_grpc.UploadSessionServiceStub(self._channel)
+        self._delivery = storage_pb2_grpc.DeliveryServiceStub(self._channel)
 
     async def aclose(self) -> None:
-        await self._http.aclose()
+        await self._channel.close()
+
+    @staticmethod
+    def _actor(tenant_id: str, workspace_id: str, user_id: str = "") -> context_pb2.ActorContext:
+        return context_pb2.ActorContext(tenant_id=tenant_id, workspace_id=workspace_id, user_id=user_id)
+
+    @staticmethod
+    def _options(timeout: float = 30.0) -> _CallOptions:
+        metadata = [("x-caller-service", "knowledge")]
+        metadata.extend((key.lower(), value) for key, value in propagation_headers().items())
+        return {"metadata": metadata, "timeout": timeout}
 
     async def mint_delivery(
         self, *, tenant_id: str, workspace_id: str, asset_id: str, revision_id: str
     ) -> StorageDelivery:
-        response = await self._http.post(
-            "/internal/delivery-capabilities:mint",
-            json={
-                "items": [
-                    {
-                        "tenant_id": tenant_id,
-                        "workspace_id": workspace_id,
-                        "asset_id": asset_id,
-                        "revision_id": revision_id,
-                    }
+        result = await self._delivery.MintCapabilities(
+            storage_pb2.MintCapabilitiesRequest(
+                items=[
+                    storage_pb2.DeliveryCapabilityItem(
+                        actor=self._actor(tenant_id, workspace_id), asset_id=asset_id, revision_id=revision_id
+                    )
                 ]
-            },
-            headers=propagation_headers(),
+            ),
+            **self._options(),
         )
-        response.raise_for_status()
-        return StorageDelivery.model_validate(response.json()["items"][0])
+        if len(result.items) != 1:
+            raise RuntimeError("storage returned no delivery capability")
+        value = result.items[0]
+        return StorageDelivery(
+            asset_id=value.asset_id,
+            revision_id=value.revision_id,
+            url=value.url,
+            expires_at=value.expires_at.ToDatetime(tzinfo=UTC),
+            filename=value.filename,
+            media_type=value.media_type,
+            size_bytes=value.size_bytes,
+        )
 
     async def upload_text(
         self,
@@ -103,30 +125,51 @@ class StorageClient:
         content: str,
         idempotency_key: str,
     ) -> StorageRevision:
-        response = await self._http.post(
-            "/internal/assets",
-            params={
-                "tenant_id": tenant_id,
-                "workspace_id": workspace_id,
-                "user_id": user_id,
-                "filename": filename,
-                "category": "knowledge-file",
-                "idempotency_key": idempotency_key,
-            },
-            content=content.encode("utf-8"),
-            headers={**propagation_headers(), "Content-Type": media_type},
+        async def requests() -> AsyncIterator[storage_pb2.UploadRequest]:
+            yield storage_pb2.UploadRequest(
+                metadata=storage_pb2.UploadMetadata(
+                    actor=self._actor(tenant_id, workspace_id, user_id),
+                    filename=filename,
+                    media_type=media_type,
+                    category="knowledge-file",
+                    idempotency_key=idempotency_key,
+                )
+            )
+            raw = content.encode("utf-8")
+            for offset in range(0, len(raw), 64 * 1024):
+                yield storage_pb2.UploadRequest(chunk=raw[offset : offset + 64 * 1024])
+
+        response = await self._assets.Upload(requests(), **self._options(180.0))
+        value = response.result
+        return StorageRevision(
+            asset_id=value.asset_id,
+            revision_id=value.revision_id,
+            category="knowledge-file",
+            filename=value.filename,
+            media_type=value.media_type,
+            size_bytes=value.size_bytes,
+            sha256=value.sha256,
+            created_by=user_id,
         )
-        response.raise_for_status()
-        return StorageRevision.model_validate({**response.json(), "created_by": user_id, "category": "knowledge-file"})
 
     async def describe(self, *, tenant_id: str, workspace_id: str, asset_id: str, revision_id: str) -> StorageRevision:
-        response = await self._http.get(
-            f"/internal/assets/{asset_id}/revisions/{revision_id}",
-            params={"tenant_id": tenant_id, "workspace_id": workspace_id},
-            headers=propagation_headers(),
+        result = await self._assets.DescribeRevision(
+            storage_pb2.DescribeRevisionRequest(
+                actor=self._actor(tenant_id, workspace_id), asset_id=asset_id, revision_id=revision_id
+            ),
+            **self._options(),
         )
-        response.raise_for_status()
-        return StorageRevision.model_validate(response.json())
+        value = result.revision
+        return StorageRevision(
+            asset_id=value.asset_id,
+            revision_id=value.revision_id,
+            category=value.category,
+            filename=value.filename,
+            media_type=value.media_type,
+            size_bytes=value.size_bytes,
+            sha256=value.sha256,
+            created_by=value.created_by,
+        )
 
     async def create_upload_session(
         self,
@@ -140,22 +183,18 @@ class StorageClient:
         size_bytes: int,
         category: str,
     ) -> StorageUploadSession:
-        response = await self._http.post(
-            "/internal/upload-sessions",
-            json={
-                "tenant_id": tenant_id,
-                "workspace_id": workspace_id,
-                "user_id": user_id,
-                "intent_id": intent_id,
-                "filename": filename,
-                "media_type": media_type,
-                "size_bytes": size_bytes,
-                "category": category,
-            },
-            headers=propagation_headers(),
+        result = await self._uploads.CreateUploadSession(
+            storage_pb2.CreateUploadSessionRequest(
+                actor=self._actor(tenant_id, workspace_id, user_id),
+                intent_id=intent_id,
+                filename=filename,
+                media_type=media_type,
+                size_bytes=size_bytes,
+                category=category,
+            ),
+            **self._options(),
         )
-        response.raise_for_status()
-        return StorageUploadSession.model_validate(response.json())
+        return self._upload_session(result.session)
 
     async def get_upload_session(
         self,
@@ -164,73 +203,171 @@ class StorageClient:
         workspace_id: str,
         upload_session_id: str,
     ) -> StorageUploadSession:
-        response = await self._http.get(
-            f"/internal/upload-sessions/{upload_session_id}",
-            params={"tenant_id": tenant_id, "workspace_id": workspace_id},
-            headers=propagation_headers(),
+        result = await self._uploads.DescribeUploadSession(
+            storage_pb2.DescribeUploadSessionRequest(
+                actor=self._actor(tenant_id, workspace_id), upload_session_id=upload_session_id
+            ),
+            **self._options(),
         )
-        response.raise_for_status()
-        return StorageUploadSession.model_validate(response.json())
+        return self._upload_session(result.session)
 
     async def read(
         self, *, tenant_id: str, workspace_id: str, asset_id: str, revision_id: str, max_bytes: int
     ) -> bytes:
-        async with self._http.stream(
-            "GET",
-            f"/internal/assets/{asset_id}/revisions/{revision_id}/content",
-            params={"tenant_id": tenant_id, "workspace_id": workspace_id},
-            headers=propagation_headers(),
-        ) as response:
-            response.raise_for_status()
-            declared = response.headers.get("content-length")
-            if declared is not None and int(declared) > max_bytes:
+        stream = self._assets.ReadContent(
+            storage_pb2.ReadContentRequest(
+                actor=self._actor(tenant_id, workspace_id), asset_id=asset_id, revision_id=revision_id
+            ),
+            **self._options(180.0),
+        )
+        chunks: list[bytes] = []
+        size = 0
+        async for response in stream:
+            if response.value.HasField("metadata") and response.value.metadata.size_bytes > max_bytes:
                 raise ValueError("asset exceeds consumer byte limit")
-            chunks: list[bytes] = []
-            size = 0
-            async for chunk in response.aiter_bytes():
-                size += len(chunk)
+            if response.value.HasField("chunk"):
+                size += len(response.value.chunk)
                 if size > max_bytes:
                     raise ValueError("asset exceeds consumer byte limit")
-                chunks.append(chunk)
-            return b"".join(chunks)
+                chunks.append(response.value.chunk)
+        return b"".join(chunks)
 
     async def deliver_claim(self, intent: AssetClaimIntentRow) -> None:
-        common = {
-            "tenant_id": intent.tenant_id,
-            "workspace_id": intent.workspace_id,
-            "owner_type": intent.owner_type,
-            "owner_id": intent.owner_id,
-            "slot": intent.slot,
-            "generation": intent.generation,
-        }
+        if intent.revision_id is None:
+            raise ValueError("asset claim revision_id is required")
         if intent.desired_state == "released":
-            response = await self._http.post(
-                "/internal/claims:prepare",
-                json={
-                    **common,
-                    "asset_id": intent.asset_id,
-                    "revision_id": intent.revision_id,
-                    "kind": intent.kind,
-                },
-                headers=propagation_headers(),
+            await self._prepare_claim(
+                tenant_id=intent.tenant_id,
+                workspace_id=intent.workspace_id,
+                owner_type=intent.owner_type,
+                owner_id=intent.owner_id,
+                slot=intent.slot,
+                generation=intent.generation,
+                asset_id=intent.asset_id,
+                revision_id=intent.revision_id,
+                kind=intent.kind,
             )
-            response.raise_for_status()
-            response = await self._http.post("/internal/claims:release", json=common, headers=propagation_headers())
-            response.raise_for_status()
+            await self._mutate_claim(
+                True,
+                tenant_id=intent.tenant_id,
+                workspace_id=intent.workspace_id,
+                owner_type=intent.owner_type,
+                owner_id=intent.owner_id,
+                slot=intent.slot,
+                generation=intent.generation,
+            )
             return
-        response = await self._http.post(
-            "/internal/claims:prepare",
-            json={
-                **common,
-                "asset_id": intent.asset_id,
-                "revision_id": intent.revision_id,
-                "kind": intent.kind,
-            },
-            headers=propagation_headers(),
+        await self._prepare_claim(
+            tenant_id=intent.tenant_id,
+            workspace_id=intent.workspace_id,
+            owner_type=intent.owner_type,
+            owner_id=intent.owner_id,
+            slot=intent.slot,
+            generation=intent.generation,
+            asset_id=intent.asset_id,
+            revision_id=intent.revision_id,
+            kind=intent.kind,
         )
-        response.raise_for_status()
-        response = await self._http.post("/internal/claims:activate", json=common, headers=propagation_headers())
-        response.raise_for_status()
+        await self._mutate_claim(
+            False,
+            tenant_id=intent.tenant_id,
+            workspace_id=intent.workspace_id,
+            owner_type=intent.owner_type,
+            owner_id=intent.owner_id,
+            slot=intent.slot,
+            generation=intent.generation,
+        )
+
+    async def _prepare_claim(
+        self,
+        *,
+        tenant_id: str,
+        workspace_id: str,
+        owner_type: str,
+        owner_id: str,
+        slot: str,
+        generation: int,
+        asset_id: str,
+        revision_id: str,
+        kind: str,
+    ) -> None:
+        kinds = {
+            "strong": storage_pb2.CLAIM_KIND_STRONG,
+            "snapshot": storage_pb2.CLAIM_KIND_SNAPSHOT,
+            "lease": storage_pb2.CLAIM_KIND_LEASE,
+            "weak": storage_pb2.CLAIM_KIND_WEAK,
+        }
+        await self._claims.PrepareClaim(
+            storage_pb2.PrepareClaimRequest(
+                actor=self._actor(tenant_id, workspace_id),
+                owner_type=owner_type,
+                owner_id=owner_id,
+                slot=slot,
+                generation=generation,
+                asset_id=asset_id,
+                revision_id=revision_id,
+                kind=kinds[kind],
+            ),
+            **self._options(),
+        )
+
+    async def _mutate_claim(
+        self,
+        release: bool,
+        *,
+        tenant_id: str,
+        workspace_id: str,
+        owner_type: str,
+        owner_id: str,
+        slot: str,
+        generation: int,
+    ) -> None:
+        if release:
+            await self._claims.ReleaseClaim(
+                storage_pb2.ReleaseClaimRequest(
+                    actor=self._actor(tenant_id, workspace_id),
+                    owner_type=owner_type,
+                    owner_id=owner_id,
+                    slot=slot,
+                    generation=generation,
+                ),
+                **self._options(),
+            )
+        else:
+            await self._claims.ActivateClaim(
+                storage_pb2.ActivateClaimRequest(
+                    actor=self._actor(tenant_id, workspace_id),
+                    owner_type=owner_type,
+                    owner_id=owner_id,
+                    slot=slot,
+                    generation=generation,
+                ),
+                **self._options(),
+            )
+
+    @staticmethod
+    def _upload_session(value: storage_pb2.UploadSession) -> StorageUploadSession:
+        states: dict[int, Literal["pending", "uploading", "completed", "failed", "aborted"]] = {
+            storage_pb2.UPLOAD_SESSION_STATE_PENDING: "pending",
+            storage_pb2.UPLOAD_SESSION_STATE_UPLOADING: "uploading",
+            storage_pb2.UPLOAD_SESSION_STATE_COMPLETED: "completed",
+            storage_pb2.UPLOAD_SESSION_STATE_FAILED: "failed",
+            storage_pb2.UPLOAD_SESSION_STATE_ABORTED: "aborted",
+        }
+        return StorageUploadSession(
+            upload_session_id=value.upload_session_id,
+            intent_id=value.intent_id,
+            state=cast(Literal["pending", "uploading", "completed", "failed", "aborted"], states[value.state]),
+            user_id=value.user_id,
+            category=value.category,
+            filename=value.filename,
+            media_type=value.media_type,
+            size_bytes=value.size_bytes,
+            expires_at=value.expires_at.ToDatetime(tzinfo=UTC),
+            upload_url=value.upload_url,
+            asset_id=value.asset_id if value.HasField("asset_id") else None,
+            revision_id=value.revision_id if value.HasField("revision_id") else None,
+        )
 
 
 _client: StorageClient | None = None

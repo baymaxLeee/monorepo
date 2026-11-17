@@ -1,5 +1,6 @@
-import { createLogger } from "@backend/kernel-ts";
 import { serve } from "@hono/node-server";
+
+import { createLogger } from "#runtime/foundation";
 
 import { createApp } from "../../bootstrap/sandbox-app.js";
 import { getSandboxSettings } from "../../config/sandbox.js";

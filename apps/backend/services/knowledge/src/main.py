@@ -6,33 +6,32 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from api.http.routes import (
-    conversation_cleanup_internal,
-    conversation_fork_internal,
     documents,
-    documents_internal,
     health,
     ingest,
-    retrieval_internal,
 )
+from api.rpc.server import start_server
 from application.admin_client import close_admin_client
 from application.storage_client import close_storage_client, run_asset_claim_relay
 from bootstrap.config import get_settings
 from fastapi import FastAPI
 from infrastructure.persistence.database import close_db
-from kernel.errors import register_exception_handlers
-from kernel.logging import RequestLoggingMiddleware, configure_logging
-from kernel.observability import configure_opentelemetry
-from kernel.openapi import operation_id_from_route_name
-from kernel.tracing import TraceIDMiddleware
+from knowledge_kernel.errors import register_exception_handlers
+from knowledge_kernel.logging import RequestLoggingMiddleware, configure_logging
+from knowledge_kernel.observability import configure_opentelemetry
+from knowledge_kernel.openapi import operation_id_from_route_name
+from knowledge_kernel.tracing import TraceIDMiddleware
 
 logger = logging.getLogger("knowledge.main")
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    rpc_server = await start_server(get_settings().rpc_port)
     stop = asyncio.Event()
     claim_relay = asyncio.create_task(run_asset_claim_relay(stop), name="asset-claim-relay")
     yield
+    await rpc_server.stop(10)
     stop.set()
     await claim_relay
     await close_storage_client()
@@ -51,9 +50,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
         generate_unique_id_function=operation_id_from_route_name,
         # Swagger/OpenAPI HTTP routes are docs UI only — `gen-openapi` calls
-        # app.openapi() in-process, so hiding these in prod doesn't affect
-        # codegen. Internal routers document real artifact/document internals,
-        # so the interactive UI must not be reachable off the cluster network.
+        # app.openapi() in-process, so hiding these in prod doesn't affect codegen.
         docs_url=None if settings.is_production else "/docs",
         redoc_url=None if settings.is_production else "/redoc",
         openapi_url=None if settings.is_production else "/openapi.json",
@@ -64,10 +61,6 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(ingest.router)
     app.include_router(documents.router)
-    app.include_router(documents_internal.router)
-    app.include_router(conversation_cleanup_internal.router)
-    app.include_router(conversation_fork_internal.router)
-    app.include_router(retrieval_internal.router)
     return app
 
 

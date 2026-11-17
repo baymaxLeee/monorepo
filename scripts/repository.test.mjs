@@ -21,9 +21,9 @@ function fixture(t) {
 test("context returns root-to-leaf instructions for new files and separates same-named stacks", (t) => {
   const { root, write } = fixture(t);
   for (const path of ["AGENTS.md", "apps/backend/AGENTS.md", "apps/backend/services/chat/AGENTS.md"]) write(path);
-  write("apps/backend/services/chat/package.json", { name: "@backend/chat" });
+  write("apps/backend/services/chat/go.mod", "module example.com/chat\n");
   write("apps/frontend/apps/chat/package.json", { name: "chat" });
-  const context = contextFor(root, "apps/backend/services/chat/src/new/file.ts");
+  const context = contextFor(root, "apps/backend/services/chat/internal/new/file.go");
   assert.equal(context.owner, "backend/chat");
   assert.deepEqual(context.instructions, [
     "AGENTS.md",
@@ -103,8 +103,8 @@ test("public CLI emits parseable JSON and nonzero status for invalid input", () 
 test("native and service hosts resolve a shared infrastructure package across stacks", (t) => {
   const { root, write } = fixture(t);
   write("packages/agent-runtime/package.json", { name: "@repo/agent-runtime" });
-  write("apps/backend/services/chat/package.json", {
-    name: "chat",
+  write("apps/backend/services/runtime/package.json", {
+    name: "runtime",
     dependencies: { "@repo/agent-runtime": "workspace:*" },
   });
   write("apps/frontend/apps/desktop/package.json", {
@@ -114,7 +114,7 @@ test("native and service hosts resolve a shared infrastructure package across st
   const projects = discoverProjects(root);
   assert.deepEqual(graphErrors(projects), []);
   assert.deepEqual(consumersOf(projects, ["shared/agent-runtime"]), [
-    "backend/chat",
+    "backend/runtime",
     "frontend/desktop",
     "shared/agent-runtime",
   ]);

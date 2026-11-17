@@ -1,16 +1,331 @@
-import { propagationHeaders } from "@backend/kernel-ts";
-import { StorageInternalClient } from "@backend/transport-ts";
+import { InnerApiCaller, insecureChannelCredentials } from "@backend/inner-api/client";
+import {
+  AssetServiceClient,
+  ClaimKind,
+  ClaimServiceClient,
+  DeliveryServiceClient,
+  type AppendRevisionMetadata,
+  type AppendRevisionResponse,
+  type UploadMetadata,
+  type UploadResponse,
+} from "@backend/inner-api/gen/storage/v1/storage";
+
+import { propagationHeaders } from "#runtime/foundation";
 
 import { getServerSettings } from "../../config/server.js";
 
+export interface StorageRevision {
+  assetId: string;
+  revisionId: string;
+  filename: string;
+  mediaType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+export interface StorageClaimIdentity {
+  tenantId: string;
+  workspaceId: string;
+  ownerType: string;
+  ownerId: string;
+  slot: string;
+  generation: number;
+}
+export type StorageUploadBody = Blob | Uint8Array | ReadableStream<Uint8Array>;
+
+export class StorageClient {
+  private readonly caller = new InnerApiCaller("runtime", 180_000);
+  private readonly assets: AssetServiceClient;
+  private readonly claims: ClaimServiceClient;
+  private readonly delivery: DeliveryServiceClient;
+
+  constructor(target: string) {
+    this.assets = new AssetServiceClient(target, insecureChannelCredentials);
+    this.claims = new ClaimServiceClient(target, insecureChannelCredentials);
+    this.delivery = new DeliveryServiceClient(target, insecureChannelCredentials);
+  }
+
+  content(input: {
+    tenantId: string;
+    workspaceId: string;
+    assetId: string;
+    revisionId: string;
+    signal?: AbortSignal;
+    maxDim?: number;
+  }): Promise<ReadableStream<Uint8Array>> {
+    const actor = { userId: "", tenantId: input.tenantId, workspaceId: input.workspaceId };
+    const metadata = this.caller.metadata(propagationHeaders());
+    const options = this.caller.deadline(180_000);
+    const stream = input.maxDim
+      ? this.assets.readImageVariant(
+          { actor, assetId: input.assetId, revisionId: input.revisionId, maxDimension: input.maxDim },
+          metadata,
+          options,
+        )
+      : this.assets.readContent(
+          { actor, assetId: input.assetId, revisionId: input.revisionId, offset: undefined, limit: undefined },
+          metadata,
+          options,
+        );
+    input.signal?.addEventListener("abort", () => stream.cancel(), { once: true });
+    return Promise.resolve(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          stream.on("data", (message) => {
+            const chunk = message.value?.value?.$case === "chunk" ? message.value.value.chunk : undefined;
+            if (chunk) controller.enqueue(chunk);
+          });
+          stream.on("end", () => controller.close());
+          stream.on("error", (error) => controller.error(error));
+        },
+        cancel() {
+          stream.cancel();
+        },
+      }),
+    );
+  }
+
+  async mintDelivery(input: {
+    tenantId: string;
+    workspaceId: string;
+    assetId: string;
+    revisionId: string;
+    maxDim?: number;
+  }) {
+    const response = await this.caller.unary<{
+      items: Array<{
+        assetId: string;
+        revisionId: string;
+        url: string;
+        expiresAt?: string;
+        filename: string;
+        mediaType: string;
+        sizeBytes: number;
+      }>;
+    }>(
+      (metadata, options, callback) =>
+        this.delivery.mintCapabilities(
+          {
+            items: [
+              {
+                actor: { userId: "", tenantId: input.tenantId, workspaceId: input.workspaceId },
+                assetId: input.assetId,
+                revisionId: input.revisionId,
+                maxDimension: input.maxDim,
+              },
+            ],
+          },
+          metadata,
+          options,
+          callback,
+        ),
+      { headers: propagationHeaders() },
+    );
+    const value = response.items[0];
+    if (!value) throw new Error("storage returned no delivery capability");
+    return {
+      asset_id: value.assetId,
+      revision_id: value.revisionId,
+      url: value.url,
+      expires_at: value.expiresAt ?? "",
+      filename: value.filename,
+      media_type: value.mediaType,
+      size_bytes: value.sizeBytes,
+    };
+  }
+
+  async prepareClaim(
+    input: StorageClaimIdentity & {
+      assetId: string;
+      revisionId: string;
+      kind: "strong" | "snapshot" | "lease" | "weak";
+      expiresAt?: string;
+    },
+  ): Promise<void> {
+    const kinds = {
+      strong: ClaimKind.CLAIM_KIND_STRONG,
+      snapshot: ClaimKind.CLAIM_KIND_SNAPSHOT,
+      lease: ClaimKind.CLAIM_KIND_LEASE,
+      weak: ClaimKind.CLAIM_KIND_WEAK,
+    };
+    await this.caller.unary(
+      (metadata, options, callback) =>
+        this.claims.prepareClaim(
+          {
+            actor: actor(input),
+            ownerType: input.ownerType,
+            ownerId: input.ownerId,
+            slot: input.slot,
+            generation: input.generation,
+            assetId: input.assetId,
+            revisionId: input.revisionId,
+            kind: kinds[input.kind],
+            expiresAt: input.expiresAt,
+          },
+          metadata,
+          options,
+          callback,
+        ),
+      { headers: propagationHeaders() },
+    );
+  }
+
+  async activateClaim(input: StorageClaimIdentity): Promise<void> {
+    await this.mutateClaim(input, false);
+  }
+  async releaseClaim(input: StorageClaimIdentity): Promise<void> {
+    await this.mutateClaim(input, true);
+  }
+
+  private async mutateClaim(input: StorageClaimIdentity, release: boolean): Promise<void> {
+    const request = {
+      actor: actor(input),
+      ownerType: input.ownerType,
+      ownerId: input.ownerId,
+      slot: input.slot,
+      generation: input.generation,
+    };
+    if (release)
+      await this.caller.unary(
+        (metadata, options, callback) => this.claims.releaseClaim(request, metadata, options, callback),
+        { headers: propagationHeaders() },
+      );
+    else
+      await this.caller.unary(
+        (metadata, options, callback) => this.claims.activateClaim(request, metadata, options, callback),
+        { headers: propagationHeaders() },
+      );
+  }
+
+  upload(input: {
+    tenantId: string;
+    workspaceId: string;
+    userId: string;
+    filename: string;
+    mediaType: string;
+    category: string;
+    body: StorageUploadBody;
+    contentLength?: number;
+    idempotencyKey: string;
+    signal?: AbortSignal;
+  }): Promise<StorageRevision> {
+    return this.sendUpload(
+      {
+        actor: actor(input),
+        filename: input.filename,
+        mediaType: input.mediaType,
+        category: input.category,
+        idempotencyKey: input.idempotencyKey,
+      },
+      input.body,
+      input.signal,
+    );
+  }
+
+  appendRevision(
+    input: StorageClaimIdentity & {
+      userId: string;
+      assetId: string;
+      baseRevisionId: string;
+      filename: string;
+      mediaType: string;
+      body: StorageUploadBody;
+      contentLength?: number;
+      idempotencyKey: string;
+      signal?: AbortSignal;
+    },
+  ): Promise<StorageRevision> {
+    const metadata: AppendRevisionMetadata = {
+      actor: actor(input),
+      assetId: input.assetId,
+      filename: input.filename,
+      mediaType: input.mediaType,
+      idempotencyKey: input.idempotencyKey,
+      baseRevisionId: input.baseRevisionId,
+      ownerType: input.ownerType,
+      ownerId: input.ownerId,
+      slot: input.slot,
+      generation: input.generation,
+    };
+    return this.sendStream<AppendRevisionResponse>(
+      (callback) =>
+        this.assets.appendRevision(this.caller.metadata(propagationHeaders()), this.caller.deadline(), callback),
+      { value: { $case: "metadata", metadata } },
+      (chunk) => ({ value: { $case: "chunk", chunk } }),
+      input.body,
+      input.signal,
+    );
+  }
+
+  private sendUpload(
+    metadata: UploadMetadata,
+    body: StorageUploadBody,
+    signal?: AbortSignal,
+  ): Promise<StorageRevision> {
+    return this.sendStream<UploadResponse>(
+      (callback) => this.assets.upload(this.caller.metadata(propagationHeaders()), this.caller.deadline(), callback),
+      { value: { $case: "metadata", metadata } },
+      (chunk) => ({ value: { $case: "chunk", chunk } }),
+      body,
+      signal,
+    );
+  }
+
+  private sendStream<T extends { result?: StorageRevision }>(
+    start: (callback: (error: any, response: T) => void) => any,
+    metadata: any,
+    chunkMessage: (chunk: Uint8Array) => any,
+    body: StorageUploadBody,
+    signal?: AbortSignal,
+  ): Promise<StorageRevision> {
+    return new Promise((resolve, reject) => {
+      const stream = start((error, response) => {
+        if (error) {
+          reject(this.caller.error(error));
+          return;
+        }
+        const value = response.result;
+        if (!value) {
+          reject(new Error("storage returned no upload result"));
+          return;
+        }
+        resolve(value);
+      });
+      signal?.addEventListener("abort", () => stream.cancel(), { once: true });
+      void (async () => {
+        try {
+          stream.write(metadata);
+          for await (const chunk of bodyChunks(body)) stream.write(chunkMessage(chunk));
+          stream.end();
+        } catch (error) {
+          stream.cancel();
+          reject(error);
+        }
+      })();
+    });
+  }
+}
+
+function actor(input: { userId?: string; tenantId: string; workspaceId: string }) {
+  return { userId: input.userId ?? "", tenantId: input.tenantId, workspaceId: input.workspaceId };
+}
+
+async function* bodyChunks(body: StorageUploadBody): AsyncGenerator<Uint8Array> {
+  const stream = body instanceof Uint8Array ? new Blob([body]).stream() : body instanceof Blob ? body.stream() : body;
+  const reader = stream.getReader();
+  try {
+    for (;;) {
+      const value = await reader.read();
+      if (value.done) break;
+      yield value.value;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+let cached: StorageClient | undefined;
 export function storageClient() {
-  const settings = getServerSettings();
-  return new StorageInternalClient({
-    baseUrl: settings.storageServiceUrl,
-    internalToken: settings.internalApiToken,
-    callerService: "runtime",
-    propagatedHeaders: propagationHeaders,
-  });
+  return (cached ??= new StorageClient(getServerSettings().storageRpcTarget));
 }
 
 export function uploadAsset(input: {

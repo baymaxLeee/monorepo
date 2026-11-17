@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	contractcanvasnode "github.com/example/monorepo/canvas/internal/api/contracts/canvasnode"
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	domaincanvas "github.com/example/monorepo/canvas/internal/domain/canvas"
 )
 

@@ -1,4 +1,4 @@
-import { secureProviderFetch } from "@backend/transport-ts/provider-url";
+import { secureProviderFetch } from "#runtime/provider-url";
 
 import { clampArkDuration } from "../../application/video/limits.js";
 import { pickArkVideoBody } from "../../application/video/output-config.js";

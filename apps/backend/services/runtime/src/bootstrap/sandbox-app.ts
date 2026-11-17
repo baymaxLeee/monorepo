@@ -1,10 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { createLogger, traceMiddleware, requestLogger } from "@backend/kernel-ts";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+
+import { createLogger, traceMiddleware, requestLogger } from "#runtime/foundation";
 
 import type { SandboxSettings } from "../config/sandbox.js";
 import { continueSchema, scopeSchema, startSchema, workspaceEditSchema } from "../sandbox/contracts.js";

@@ -8,11 +8,11 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domain "github.com/example/monorepo/canvas/internal/domain/canvas"
 	domainvideo "github.com/example/monorepo/canvas/internal/domain/videogeneration"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

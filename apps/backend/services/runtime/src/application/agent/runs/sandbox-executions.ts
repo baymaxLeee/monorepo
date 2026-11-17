@@ -1,5 +1,6 @@
-import type { SandboxSession } from "@backend/transport-ts";
 import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+
+import type { SandboxSession } from "#runtime/transport";
 
 import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
 import type { SandboxScope } from "../../../infrastructure/clients/sandbox.js";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { addUsage, EMPTY_USAGE } from "../observability/lifecycle.js";
 import { compactSessionPrefix } from "./compactor.js";

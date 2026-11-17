@@ -1,5 +1,6 @@
-import { TransportError } from "@backend/transport-ts";
 import { FatalError } from "workflow";
+
+import { TransportError } from "#runtime/transport";
 
 export function rethrowTerminalArtifactError(error: unknown): never {
   const body = error instanceof TransportError ? error.body : undefined;

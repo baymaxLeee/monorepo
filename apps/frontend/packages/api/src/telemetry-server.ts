@@ -8,30 +8,30 @@
 import { apiMutator } from "./orval-mutator";
 export interface ClickHouseStatus {
   configured: boolean;
-  healthy: boolean;
-  spans_last_hour: number;
-  latest_span_at?: string | null;
   error?: string | null;
+  healthy: boolean;
+  latest_span_at?: string | null;
+  spans_last_hour: number;
 }
 
 export type ErrorEventPayload = { [key: string]: unknown };
 
 export interface ErrorEvent {
-  ts_server: string;
   app: string;
+  device_id: string;
+  fingerprint: string;
+  is_admin: boolean;
+  message: string;
+  name: string;
+  payload: ErrorEventPayload;
   release: string;
+  route: string;
+  session_id: string;
+  stack: string;
+  trace_id: string | null;
+  ts_server: string;
   user_id: string | null;
   username: string | null;
-  is_admin: boolean;
-  device_id: string;
-  session_id: string;
-  trace_id: string | null;
-  route: string;
-  fingerprint: string;
-  name: string;
-  message: string;
-  stack: string;
-  payload: ErrorEventPayload;
 }
 
 export interface ErrorListResponse {
@@ -41,11 +41,11 @@ export interface ErrorListResponse {
 export type ValidationErrorCtx = { [key: string]: unknown };
 
 export interface ValidationError {
+  ctx?: ValidationErrorCtx;
+  input?: unknown;
   loc: (string | number)[];
   msg: string;
   type: string;
-  input?: unknown;
-  ctx?: ValidationErrorCtx;
 }
 
 export interface HTTPValidationError {
@@ -53,35 +53,35 @@ export interface HTTPValidationError {
 }
 
 export interface ObservabilityCapability {
+  detail: string;
   key: string;
   label: string;
   status: string;
-  detail: string;
 }
 
 export interface ObservabilityStatusResponse {
+  capabilities: ObservabilityCapability[];
+  clickhouse: ClickHouseStatus;
   otlp_endpoint: string | null;
   trace_retention_days: number;
-  clickhouse: ClickHouseStatus;
-  capabilities: ObservabilityCapability[];
 }
 
 export type PerformanceEventPayload = { [key: string]: unknown };
 
 export interface PerformanceEvent {
-  ts_server: string;
   app: string;
-  release: string;
-  user_id: string | null;
-  username: string | null;
-  is_admin: boolean;
   device_id: string;
+  is_admin: boolean;
+  metric: string;
+  payload: PerformanceEventPayload;
+  release: string;
+  route: string;
   session_id: string;
   trace_id: string | null;
-  route: string;
-  metric: string;
+  ts_server: string;
+  user_id: string | null;
+  username: string | null;
   value: number;
-  payload: PerformanceEventPayload;
 }
 
 export interface PerformanceListResponse {
@@ -107,23 +107,28 @@ export const RumEventType = {
 export type RumEventPayload = { [key: string]: unknown };
 
 export interface RumEvent {
-  type: RumEventType;
-  ts_client?: number | null;
-  trace_id?: string | null;
+  payload?: RumEventPayload;
   /** @maxLength 256 */
   route?: string;
-  payload?: RumEventPayload;
+  trace_id?: string | null;
+  ts_client?: number | null;
+  type: RumEventType;
 }
 
 export interface RumBatch {
   app: RumBatchApp;
-  /** @maxLength 128 */
-  release?: string;
   /**
    * @minLength 1
    * @maxLength 128
    */
   device_id: string;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  events: RumEvent[];
+  /** @maxLength 128 */
+  release?: string;
   /**
    * @minLength 1
    * @maxLength 128
@@ -131,55 +136,44 @@ export interface RumBatch {
   session_id: string;
   /** @maxLength 512 */
   user_agent?: string;
-  /**
-   * @minItems 1
-   * @maxItems 100
-   */
-  events: RumEvent[];
 }
 
 export type TraceSpanSpanAttributes = { [key: string]: string };
 
 export interface TraceSpan {
-  trace_id: string;
-  span_id: string;
-  parent_span_id: string;
-  timestamp: string;
-  span_name: string;
-  span_kind: string;
-  service_name: string;
   duration_ms: number;
+  parent_span_id: string;
+  service_name: string;
+  span_attributes: TraceSpanSpanAttributes;
+  span_id: string;
+  span_kind: string;
+  span_name: string;
   status_code: string;
   status_message: string;
-  span_attributes: TraceSpanSpanAttributes;
+  timestamp: string;
+  trace_id: string;
 }
 
 export interface TraceDetailResponse {
-  trace_id: string;
   spans: TraceSpan[];
+  trace_id: string;
 }
 
 export interface TraceSummary {
-  trace_id: string;
-  started_at: string;
-  ended_at: string;
   duration_ms: number;
-  span_count: number;
+  ended_at: string;
   error_count: number;
-  services: string[];
   root_span_name?: string | null;
   run_id?: string | null;
+  services: string[];
+  span_count: number;
+  started_at: string;
+  trace_id: string;
 }
 
 export interface TraceListResponse {
   items: TraceSummary[];
 }
-
-export type Livez200 = { [key: string]: string };
-
-export type Readyz200 = { [key: string]: unknown };
-
-export type Healthz200 = { [key: string]: unknown };
 
 export type ListErrorEventsParams = {
   /**
@@ -189,13 +183,9 @@ export type ListErrorEventsParams = {
   limit?: number;
 };
 
-export type ListPerformanceEventsParams = {
-  /**
-   * @minimum 1
-   * @maximum 1000
-   */
-  limit?: number;
-};
+export type Healthz200 = { [key: string]: unknown };
+
+export type Livez200 = { [key: string]: string };
 
 export type RecentTracesParams = {
   /**
@@ -210,43 +200,17 @@ export type RecentTracesParams = {
   minutes?: number;
 };
 
+export type ListPerformanceEventsParams = {
+  /**
+   * @minimum 1
+   * @maximum 1000
+   */
+  limit?: number;
+};
+
+export type Readyz200 = { [key: string]: unknown };
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-/**
- * @summary Livez
- */
-export const livez = (options?: SecondParameter<typeof apiMutator<Livez200>>) => {
-  return apiMutator<Livez200>({ url: `/api/telemetry-server/livez`, method: "GET" }, options);
-};
-
-/**
- * @summary Readyz
- */
-export const readyz = (options?: SecondParameter<typeof apiMutator<Readyz200>>) => {
-  return apiMutator<Readyz200>({ url: `/api/telemetry-server/readyz`, method: "GET" }, options);
-};
-
-/**
- * @summary Healthz
- */
-export const healthz = (options?: SecondParameter<typeof apiMutator<Healthz200>>) => {
-  return apiMutator<Healthz200>({ url: `/api/telemetry-server/healthz`, method: "GET" }, options);
-};
-
-/**
- * @summary Ingest Rum Batch
- */
-export const ingestRumBatch = (rumBatch: RumBatch, options?: SecondParameter<typeof apiMutator<void>>) => {
-  return apiMutator<void>(
-    {
-      url: `/api/telemetry-server/rum/batch`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: rumBatch,
-    },
-    options,
-  );
-};
 
 /**
  * @summary List Error Events
@@ -259,16 +223,17 @@ export const listErrorEvents = (
 };
 
 /**
- * @summary List Performance Events
+ * @summary Healthz
  */
-export const listPerformanceEvents = (
-  params?: ListPerformanceEventsParams,
-  options?: SecondParameter<typeof apiMutator<PerformanceListResponse>>,
-) => {
-  return apiMutator<PerformanceListResponse>(
-    { url: `/api/telemetry-server/performance`, method: "GET", params },
-    options,
-  );
+export const healthz = (options?: SecondParameter<typeof apiMutator<Healthz200>>) => {
+  return apiMutator<Healthz200>({ url: `/api/telemetry-server/healthz`, method: "GET" }, options);
+};
+
+/**
+ * @summary Livez
+ */
+export const livez = (options?: SecondParameter<typeof apiMutator<Livez200>>) => {
+  return apiMutator<Livez200>({ url: `/api/telemetry-server/livez`, method: "GET" }, options);
 };
 
 /**
@@ -301,12 +266,47 @@ export const traceDetail = (traceId: string, options?: SecondParameter<typeof ap
   );
 };
 
-export type LivezResult = NonNullable<Awaited<ReturnType<typeof livez>>>;
-export type ReadyzResult = NonNullable<Awaited<ReturnType<typeof readyz>>>;
-export type HealthzResult = NonNullable<Awaited<ReturnType<typeof healthz>>>;
-export type IngestRumBatchResult = NonNullable<Awaited<ReturnType<typeof ingestRumBatch>>>;
+/**
+ * @summary List Performance Events
+ */
+export const listPerformanceEvents = (
+  params?: ListPerformanceEventsParams,
+  options?: SecondParameter<typeof apiMutator<PerformanceListResponse>>,
+) => {
+  return apiMutator<PerformanceListResponse>(
+    { url: `/api/telemetry-server/performance`, method: "GET", params },
+    options,
+  );
+};
+
+/**
+ * @summary Readyz
+ */
+export const readyz = (options?: SecondParameter<typeof apiMutator<Readyz200>>) => {
+  return apiMutator<Readyz200>({ url: `/api/telemetry-server/readyz`, method: "GET" }, options);
+};
+
+/**
+ * @summary Ingest Rum Batch
+ */
+export const ingestRumBatch = (rumBatch: RumBatch, options?: SecondParameter<typeof apiMutator<void>>) => {
+  return apiMutator<void>(
+    {
+      url: `/api/telemetry-server/rum/batch`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: rumBatch,
+    },
+    options,
+  );
+};
+
 export type ListErrorEventsResult = NonNullable<Awaited<ReturnType<typeof listErrorEvents>>>;
-export type ListPerformanceEventsResult = NonNullable<Awaited<ReturnType<typeof listPerformanceEvents>>>;
+export type HealthzResult = NonNullable<Awaited<ReturnType<typeof healthz>>>;
+export type LivezResult = NonNullable<Awaited<ReturnType<typeof livez>>>;
 export type ObservabilityStatusResult = NonNullable<Awaited<ReturnType<typeof observabilityStatus>>>;
 export type RecentTracesResult = NonNullable<Awaited<ReturnType<typeof recentTraces>>>;
 export type TraceDetailResult = NonNullable<Awaited<ReturnType<typeof traceDetail>>>;
+export type ListPerformanceEventsResult = NonNullable<Awaited<ReturnType<typeof listPerformanceEvents>>>;
+export type ReadyzResult = NonNullable<Awaited<ReturnType<typeof readyz>>>;
+export type IngestRumBatchResult = NonNullable<Awaited<ReturnType<typeof ingestRumBatch>>>;

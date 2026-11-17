@@ -8,7 +8,7 @@ from hashlib import blake2b
 from bootstrap.config import get_settings
 from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.repositories import documents as document_crud
-from kernel.errors import BaseError, RequestError
+from knowledge_kernel.errors import BaseError, RequestError
 
 from application.auth import AuthContext
 from application.contracts.document import (

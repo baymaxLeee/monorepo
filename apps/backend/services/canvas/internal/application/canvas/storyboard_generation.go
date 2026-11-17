@@ -7,13 +7,13 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationprojectusage "github.com/example/monorepo/canvas/internal/application/projectusage"
 	applicationtask "github.com/example/monorepo/canvas/internal/application/task"
 	domaincanvasnode "github.com/example/monorepo/canvas/internal/domain/canvas"
 	domainprojectusage "github.com/example/monorepo/canvas/internal/domain/projectusage"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	domainvideo "github.com/example/monorepo/canvas/internal/domain/videogeneration"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

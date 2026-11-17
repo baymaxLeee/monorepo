@@ -1,4 +1,4 @@
-import { propagationHeaders } from "@backend/kernel-ts";
+import { propagationHeaders } from "#runtime/foundation";
 import {
   RuntimeWorkerClient,
   TransportError,
@@ -7,13 +7,13 @@ import {
   type Task,
   type VideoProductionDetail,
   type VideoProductionProjection,
-} from "@backend/transport-ts";
+} from "#runtime/transport";
 
 import { NotFoundError } from "../../application/errors.js";
 import { getServerSettings } from "../../config/server.js";
 
-export type { Task } from "@backend/transport-ts";
-export type { ProductionDecision, VideoProductionDetail, VideoProductionProjection } from "@backend/transport-ts";
+export type { Task } from "#runtime/transport";
+export type { ProductionDecision, VideoProductionDetail, VideoProductionProjection } from "#runtime/transport";
 
 function workerClient(): RuntimeWorkerClient {
   const s = getServerSettings();

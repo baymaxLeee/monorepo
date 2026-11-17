@@ -6,8 +6,8 @@ import (
 	thriftbase "github.com/example/monorepo/canvas/internal/api/contracts/base"
 	thriftcanvas "github.com/example/monorepo/canvas/internal/api/contracts/canvas"
 	thriftcommon "github.com/example/monorepo/canvas/internal/api/contracts/common"
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	domaincanvas "github.com/example/monorepo/canvas/internal/domain/canvas"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )

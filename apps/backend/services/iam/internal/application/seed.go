@@ -4,20 +4,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/example/monorepo/iam/internal/bootstrap/config"
 	"github.com/example/monorepo/iam/internal/domain"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
-	"github.com/example/monorepo/iam/internal/infrastructure/security"
 )
 
-func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg config.SeedConfig) error {
+func EnsureSystemBootstrap(ctx context.Context, store Store, security Security, cfg SeedConfig) error {
 	passwordHash, err := security.HashPassword(cfg.SuperAdminPassword)
 	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
-	user := models.User{
+	user := User{
 		ID:              cfg.SuperAdminID,
 		Account:         domain.NormalizeAccount(cfg.SuperAdminAccount),
 		Email:           domain.NormalizeEmail(cfg.SuperAdminEmail),
@@ -29,18 +25,18 @@ func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg c
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	role := models.Role{
+	role := Role{
 		ID:          "role-super-admin",
 		Name:        "super_admin",
 		Description: "System super administrator",
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	tenant := models.Tenant{
+	tenant := Tenant{
 		ID: "system-tenant", Name: "平台", Slug: "platform", CreatedAt: now, UpdatedAt: now,
 	}
 	guestSystemKey := "guest-workspace"
-	workspace := models.Workspace{
+	workspace := Workspace{
 		TenantID:      "system-tenant",
 		ID:            cfg.GuestWorkspaceID,
 		Name:          cfg.GuestWorkspaceName,
@@ -55,7 +51,7 @@ func EnsureSystemBootstrap(ctx context.Context, store *repositories.Store, cfg c
 	return mutateWithAudit(ctx, store, auditEntry{
 		Action: "system.bootstrap", Target: user.ID, Workspace: workspace.ID,
 		After: map[string]any{"superAdminId": user.ID, "guestWorkspaceId": workspace.ID},
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		if err := txStore.EnsureTenant(ctx, tenant); err != nil {
 			return err
 		}

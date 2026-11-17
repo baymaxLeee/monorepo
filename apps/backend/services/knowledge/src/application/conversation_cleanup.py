@@ -5,7 +5,7 @@ from infrastructure.persistence.database import get_session_factory, write_tx
 from infrastructure.persistence.models.conversation_cleanup import ConversationArtifactTombstoneRow
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.models.staged_media import StagedMediaRow
-from kernel.errors import ConflictError
+from knowledge_kernel.errors import ConflictError
 from sqlalchemy import delete, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession

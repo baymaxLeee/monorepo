@@ -1,4 +1,3 @@
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { escapeXmlText } from "@repo/agent-runtime/instructions/xml";
 import { isToolOutcome, toolOutcomeData } from "@repo/agent-runtime/tools/outcome";
 import {
@@ -10,6 +9,8 @@ import {
   type UIMessage,
 } from "ai";
 import { and, eq } from "drizzle-orm";
+
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";

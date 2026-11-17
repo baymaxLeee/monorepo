@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package common.v1;
+
+option go_package = "github.com/example/monorepo/inner-api-go/gen/common/v1;commonv1";
+
+// ActorContext is the end-user scope explicitly authorized by the caller.
+// Workload identity is transport metadata and never belongs in this message.
+message ActorContext {
+  string user_id = 1;
+  string tenant_id = 2;
+  string workspace_id = 3;
+}

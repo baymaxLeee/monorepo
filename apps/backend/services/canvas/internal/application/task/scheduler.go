@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 )
 
 type PollPoolConfig struct {

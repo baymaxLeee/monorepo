@@ -1,22 +1,12 @@
-import {
-  KnowledgeInternalClient,
-  TransportError,
-  type KnowledgeDocument,
-  type StagedMedia,
-} from "@backend/transport-ts";
+import { InnerApiError } from "@backend/inner-api/client";
 
 import { getWorkerSettings } from "../../config/worker.js";
+import { KnowledgeRpcClient, type KnowledgeDocument, type StagedMedia } from "./knowledge.js";
 
-export type { KnowledgeDocument, StagedMedia } from "@backend/transport-ts";
+export type { KnowledgeDocument, StagedMedia } from "./knowledge.js";
 
-function knowledgeClient(timeoutMs?: number): KnowledgeInternalClient {
-  const settings = getWorkerSettings();
-  return new KnowledgeInternalClient({
-    baseUrl: settings.knowledgeServiceUrl,
-    internalToken: settings.internalApiToken,
-    callerService: "runtime",
-    ...(timeoutMs ? { timeoutMs } : {}),
-  });
+function knowledgeClient(timeoutMs?: number): KnowledgeRpcClient {
+  return new KnowledgeRpcClient(getWorkerSettings().knowledgeRpcTarget, timeoutMs);
 }
 
 export async function getDocument(userId: string, documentId: string): Promise<KnowledgeDocument> {
@@ -27,7 +17,7 @@ export async function deleteDocument(userId: string, documentId: string): Promis
   try {
     await knowledgeClient().deleteDocument({ userId, documentId });
   } catch (error) {
-    if (error instanceof TransportError && error.status === 404) return;
+    if (error instanceof InnerApiError && error.code === 5) return;
     throw error;
   }
 }
@@ -43,10 +33,7 @@ export function createMediaDocument(input: {
   idempotencyKey?: string;
 }): Promise<KnowledgeDocument> {
   const { sessionId, ...rest } = input;
-  return knowledgeClient(180_000).createMediaDocument({
-    ...rest,
-    conversationId: sessionId,
-  });
+  return knowledgeClient(180_000).createMediaDocument({ ...rest, conversationId: sessionId });
 }
 
 export function createStagedMedia(input: {
@@ -60,10 +47,7 @@ export function createStagedMedia(input: {
   idempotencyKey?: string;
 }): Promise<StagedMedia> {
   const { sessionId, ...rest } = input;
-  return knowledgeClient(180_000).createStagedMedia({
-    ...rest,
-    conversationId: sessionId,
-  });
+  return knowledgeClient(180_000).createStagedMedia({ ...rest, conversationId: sessionId });
 }
 
 export function publishStagedMedia(input: {

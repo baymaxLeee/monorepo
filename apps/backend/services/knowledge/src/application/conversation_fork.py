@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
-from kernel.errors import ConflictError
+from knowledge_kernel.errors import ConflictError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

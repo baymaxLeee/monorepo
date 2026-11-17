@@ -1,0 +1,344 @@
+syntax = "proto3";
+
+package admin.v1;
+
+import "common/v1/context.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/example/monorepo/inner-api-go/gen/admin/v1;adminv1";
+
+service ProviderService {
+  rpc GetProvider(GetProviderRequest) returns (GetProviderResponse);
+  rpc GetDefaultProvider(GetDefaultProviderRequest) returns (GetDefaultProviderResponse);
+  rpc GetProviderByKind(GetProviderByKindRequest) returns (GetProviderByKindResponse);
+  rpc GetTaskProvider(GetTaskProviderRequest) returns (GetTaskProviderResponse);
+  rpc ListProviderCatalog(ListProviderCatalogRequest) returns (ListProviderCatalogResponse);
+}
+
+service AgentConfigurationService {
+  rpc GetResolvedAgent(GetResolvedAgentRequest) returns (GetResolvedAgentResponse);
+  rpc GetSkill(GetSkillRequest) returns (GetSkillResponse);
+  rpc GetSkillFile(GetSkillFileRequest) returns (GetSkillFileResponse);
+  rpc GetCanvasSettings(GetCanvasSettingsRequest) returns (GetCanvasSettingsResponse);
+}
+
+service BenefitPackageService {
+  rpc ListAvailableBenefitPackages(ListAvailableBenefitPackagesRequest) returns (ListAvailableBenefitPackagesResponse);
+  rpc ReserveReview(ReserveReviewRequest) returns (ReserveReviewResponse);
+  rpc TransitionReview(TransitionReviewRequest) returns (TransitionReviewResponse);
+  rpc BeginReviewCleanup(BeginReviewCleanupRequest) returns (BeginReviewCleanupResponse);
+  rpc CompleteReviewCleanup(CompleteReviewCleanupRequest) returns (CompleteReviewCleanupResponse);
+  rpc SubmitReviewedAsset(SubmitReviewedAssetRequest) returns (SubmitReviewedAssetResponse);
+  rpc GetReviewedAsset(GetReviewedAssetRequest) returns (GetReviewedAssetResponse);
+  rpc DeleteReviewedAsset(DeleteReviewedAssetRequest) returns (DeleteReviewedAssetResponse);
+}
+
+enum ProviderKind {
+  PROVIDER_KIND_UNSPECIFIED = 0;
+  PROVIDER_KIND_CHAT = 1;
+  PROVIDER_KIND_IMAGE = 2;
+  PROVIDER_KIND_VIDEO = 3;
+  PROVIDER_KIND_EMBEDDING = 4;
+  PROVIDER_KIND_RERANK = 5;
+}
+
+enum ResponsesDialect {
+  RESPONSES_DIALECT_UNSPECIFIED = 0;
+  RESPONSES_DIALECT_OPENAI = 1;
+  RESPONSES_DIALECT_ARK = 2;
+  RESPONSES_DIALECT_DEEPSEEK = 3;
+}
+
+enum PricingUnit {
+  PRICING_UNIT_UNSPECIFIED = 0;
+  PRICING_UNIT_GENERATED_ITEM = 1;
+  PRICING_UNIT_GENERATED_SECOND = 2;
+}
+
+message ProviderPricing {
+  string currency = 1;
+  PricingUnit unit = 2;
+  int64 unit_price_micros = 3;
+}
+
+message ModelProvider {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string model = 4;
+  ProviderKind provider_kind = 5;
+  optional ResponsesDialect responses_dialect = 6;
+  string base_url = 7;
+  string api_key = 8;
+  google.protobuf.Struct extra_body = 9;
+  optional ProviderPricing pricing = 10;
+  int32 context_window = 11;
+  int32 max_output_tokens = 12;
+  bool supports_image_input = 13;
+  bool is_default = 14;
+  bool is_enabled = 15;
+}
+
+message ProviderCatalogItem {
+  string id = 1;
+  string name = 2;
+  string model = 3;
+  ProviderKind provider_kind = 4;
+  optional ProviderPricing pricing = 5;
+  bool is_default = 6;
+  bool is_enabled = 7;
+}
+
+message GetProviderRequest {
+  common.v1.ActorContext actor = 1;
+  string provider_id = 2;
+}
+
+message GetProviderResponse {
+  ModelProvider provider = 1;
+}
+
+message GetDefaultProviderRequest {
+  common.v1.ActorContext actor = 1;
+}
+
+message GetDefaultProviderResponse {
+  ModelProvider provider = 1;
+}
+
+message GetProviderByKindRequest {
+  common.v1.ActorContext actor = 1;
+  ProviderKind kind = 2;
+}
+
+message GetProviderByKindResponse {
+  ModelProvider provider = 1;
+}
+
+message GetTaskProviderRequest {
+  common.v1.ActorContext actor = 1;
+  string provider_id = 2;
+}
+
+message GetTaskProviderResponse {
+  ModelProvider provider = 1;
+}
+
+message ListProviderCatalogRequest {
+  common.v1.ActorContext actor = 1;
+}
+
+message ListProviderCatalogResponse {
+  repeated ProviderCatalogItem providers = 1;
+}
+
+message AgentSkill {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message ResolvedAgent {
+  string id = 1;
+  string name = 2;
+  optional string role_description = 3;
+  optional string domain_description = 4;
+  optional string audience = 5;
+  string tone = 6;
+  optional ModelProvider text_provider = 7;
+  optional ModelProvider image_provider = 8;
+  optional ModelProvider video_provider = 9;
+  repeated AgentSkill skills = 10;
+}
+
+message GetResolvedAgentRequest {
+  common.v1.ActorContext actor = 1;
+  string agent_id = 2;
+}
+
+message GetResolvedAgentResponse {
+  ResolvedAgent agent = 1;
+}
+
+message Skill {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string body = 4;
+  repeated string files = 5;
+}
+
+message SkillFile {
+  string path = 1;
+  string storage_kind = 2;
+  optional string mime_type = 3;
+  optional string content = 4;
+  optional string asset_id = 5;
+  optional string revision_id = 6;
+  optional int64 size_bytes = 7;
+  optional string sha256 = 8;
+  optional string url = 9;
+}
+
+message GetSkillRequest {
+  common.v1.ActorContext actor = 1;
+  string skill_id = 2;
+}
+
+message GetSkillResponse {
+  Skill skill = 1;
+}
+
+message GetSkillFileRequest {
+  common.v1.ActorContext actor = 1;
+  string skill_id = 2;
+  string path = 3;
+}
+
+message GetSkillFileResponse {
+  SkillFile file = 1;
+}
+
+message CanvasModelSelection {
+  string provider_id = 1;
+  google.protobuf.Struct parameters = 2;
+}
+
+message CanvasDefaults {
+  optional CanvasModelSelection inference = 1;
+  optional CanvasModelSelection image = 2;
+  optional CanvasModelSelection video = 3;
+}
+
+message CanvasSettings {
+  int64 revision = 1;
+  CanvasDefaults defaults = 2;
+}
+
+message GetCanvasSettingsRequest {
+  common.v1.ActorContext actor = 1;
+}
+
+message GetCanvasSettingsResponse {
+  CanvasSettings settings = 1;
+}
+
+message BenefitPackage {
+  string id = 1;
+  bool is_preset = 2;
+  string name = 3;
+  string project_name = 4;
+  bool has_access_key_id = 5;
+  bool has_secret_access_key = 6;
+  bool enabled = 7;
+  repeated string model_ids = 8;
+  int64 material_used = 9;
+  int64 material_reserved = 10;
+  optional int64 material_limit = 11;
+  int64 revision = 12;
+  string created_by = 13;
+  string updated_by = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+message ListAvailableBenefitPackagesRequest {
+  common.v1.ActorContext actor = 1;
+}
+
+message ListAvailableBenefitPackagesResponse {
+  repeated BenefitPackage packages = 1;
+}
+
+message ReviewReservation {
+  string id = 1;
+  string status = 2;
+}
+
+message ReserveReviewResponse {
+  ReviewReservation reservation = 1;
+}
+
+message ReserveReviewRequest {
+  common.v1.ActorContext actor = 1;
+  string package_id = 2;
+  string reservation_id = 3;
+  string project_id = 4;
+  string asset_id = 5;
+}
+
+message TransitionReviewRequest {
+  common.v1.ActorContext actor = 1;
+  string package_id = 2;
+  string reservation_id = 3;
+  string status = 4;
+}
+
+message TransitionReviewResponse {
+  ReviewReservation reservation = 1;
+}
+
+message ReviewCleanup {
+  string cleanup_id = 1;
+  string reservation_id = 2;
+  string status = 3;
+}
+
+message BeginReviewCleanupResponse {
+  ReviewCleanup cleanup = 1;
+}
+
+message BeginReviewCleanupRequest {
+  common.v1.ActorContext actor = 1;
+  string package_id = 2;
+  string reservation_id = 3;
+  string cleanup_id = 4;
+}
+
+message CompleteReviewCleanupRequest {
+  common.v1.ActorContext actor = 1;
+  string package_id = 2;
+  string reservation_id = 3;
+  string cleanup_id = 4;
+}
+
+message CompleteReviewCleanupResponse {
+  ReviewCleanup cleanup = 1;
+}
+
+message ReviewedAsset {
+  string id = 1;
+  string status = 2;
+  string failure_reason = 3;
+}
+
+message SubmitReviewedAssetRequest {
+  common.v1.ActorContext actor = 1;
+  string package_id = 2;
+  string url = 3;
+  string asset_type = 4;
+  string name = 5;
+}
+
+message SubmitReviewedAssetResponse {
+  ReviewedAsset asset = 1;
+}
+
+message GetReviewedAssetRequest {
+  common.v1.ActorContext actor = 1;
+  string package_id = 2;
+  string asset_id = 3;
+}
+
+message GetReviewedAssetResponse {
+  ReviewedAsset asset = 1;
+}
+
+message DeleteReviewedAssetRequest {
+  common.v1.ActorContext actor = 1;
+  string package_id = 2;
+  string asset_id = 3;
+}
+
+message DeleteReviewedAssetResponse {}

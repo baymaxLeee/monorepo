@@ -18,27 +18,17 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVICE_ROOT = ROOT / "apps" / "backend" / "services"
 LEGACY_SHARED_TOKEN = "dev-internal-token"
 DEFAULT_CALLER_TOKENS = {
-    "admin": "dev-admin-internal-token",
-    "canvas": "dev-canvas-internal-token",
     "chat": "dev-chat-internal-token",
-    "knowledge": "dev-knowledge-internal-token",
     "runtime": "dev-runtime-internal-token",
 }
 RECEIVER_CALLERS = {
-    "admin": ("canvas", "knowledge", "runtime"),
-    "canvas": ("runtime",),
-    "knowledge": ("runtime",),
     "runtime": ("chat",),
     "runtime-worker": ("runtime",),
     "runtime-sandbox": ("runtime",),
-    "storage": ("admin", "canvas", "knowledge", "runtime"),
 }
 # Exact pre-Runtime defaults, not a general permission to rewrite caller maps.
 LEGACY_RECEIVER_CALLERS = {
-    "admin": ("canvas", "chat", "executor", "knowledge"),
-    "canvas": ("chat",),
-    "knowledge": ("chat", "executor"),
-    "storage": ("admin", "canvas", "chat", "executor", "knowledge"),
+    "runtime": ("chat",),
 }
 ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 

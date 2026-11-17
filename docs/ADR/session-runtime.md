@@ -135,7 +135,7 @@ durable Job 必须能跨正常部署继续：绑定 definition/release，兼容�
 - Sandbox controller：[sandbox app assembly](../../apps/backend/services/runtime/src/bootstrap/sandbox-app.ts)、[engine](../../apps/backend/services/runtime/src/sandbox/engine.ts)
 - 启动装配：[bootstrap](../../apps/backend/services/runtime/src/bootstrap)
 - 进程配置：[config](../../apps/backend/services/runtime/src/config)；配置解析不属于 bootstrap，底层模块不得导入启动装配层
-- Chat BFF：[app.ts](../../apps/backend/services/chat/src/bootstrap/app.ts)、[conversation projection](../../apps/backend/services/chat/src/application/conversations.ts)
+- Chat BFF：[HTTP composition](../../apps/backend/services/chat/internal/api/http/router.go)、[conversation projection](../../apps/backend/services/chat/internal/application/projection.go)
 - 服务图：[services.yaml](../../services.yaml)
 - K8s 三角色：[runtime base](../../infra/k8s/base/runtime)
 

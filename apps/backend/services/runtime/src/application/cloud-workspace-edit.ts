@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 
-import { TransportError } from "@backend/transport-ts";
 import { and, eq, inArray } from "drizzle-orm";
+
+import { TransportError } from "#runtime/transport";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
 import { sandboxClient } from "../infrastructure/clients/sandbox.js";

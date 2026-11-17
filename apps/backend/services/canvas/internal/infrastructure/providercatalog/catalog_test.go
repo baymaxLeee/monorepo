@@ -2,31 +2,45 @@ package modelcatalog
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"net"
 	"testing"
 
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
+	adminv1 "github.com/example/monorepo/inner-api-go/gen/admin/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 )
 
-func TestResolveUsesExplicitWorkspaceOutsideRequestContext(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if got := request.URL.Query().Get("tenant_id"); got != "tenant-1" {
-			t.Fatalf("unexpected tenant_id: %q", got)
-		}
-		if got := request.URL.Query().Get("workspace_id"); got != "workspace-1" {
-			t.Fatalf("unexpected workspace_id: %q", got)
-		}
-		_ = json.NewEncoder(writer).Encode(admin.Provider{
-			ID: "chat-provider", Name: "Chat", Model: "chat-model", ProviderKind: "chat", IsEnabled: true,
-		})
-	}))
-	defer server.Close()
+type providerServer struct {
+	adminv1.UnimplementedProviderServiceServer
+	t *testing.T
+}
 
+func (server *providerServer) GetProvider(_ context.Context, request *adminv1.GetProviderRequest) (*adminv1.GetProviderResponse, error) {
+	if request.GetActor().GetTenantId() != "tenant-1" || request.GetActor().GetWorkspaceId() != "workspace-1" {
+		server.t.Fatalf("unexpected scope: %#v", request.GetActor())
+	}
+	return &adminv1.GetProviderResponse{Provider: &adminv1.ModelProvider{Id: "chat-provider", Name: "Chat", Model: "chat-model", ProviderKind: adminv1.ProviderKind_PROVIDER_KIND_CHAT, IsEnabled: true}}, nil
+}
+
+func testDirectory(t *testing.T) *admin.Directory {
+	listener := bufconn.Listen(1 << 20)
+	server := grpc.NewServer()
+	adminv1.RegisterProviderServiceServer(server, &providerServer{t: t})
+	go func() { _ = server.Serve(listener) }()
+	connection, err := grpc.NewClient("passthrough:///bufconn", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = connection.Close(); server.Stop(); _ = listener.Close() })
+	return admin.New(connection)
+}
+
+func TestResolveUsesExplicitWorkspaceOutsideRequestContext(t *testing.T) {
 	workspaceID := "workspace-1"
-	catalog := New(&admin.Directory{URL: server.URL})
+	catalog := New(testDirectory(t))
 	resolved, err := catalog.Resolve(context.Background(), applicationmodel.Actor{
 		TenantID: "tenant-1", WorkspaceID: &workspaceID, UserID: "user-1",
 	}, []applicationmodel.Requirement{{Capability: applicationmodel.CapabilityStoryboardInference, ModelID: "chat-provider"}})

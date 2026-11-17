@@ -2,9 +2,13 @@ set positional-arguments
 set shell := ["bash", "-cu"]
 
 # Service registry (Python / Node / Go services and their fixed dev ports)
-PY_SERVICES := "admin knowledge telemetry"
-NODE_SERVICES := "chat runtime"
-GO_SERVICES := "gateway iam canvas storage"
+PY_SERVICES := "knowledge"
+NODE_SERVICES := "runtime"
+GO_SERVICES := "gateway iam admin canvas chat storage telemetry"
+OPENAPI_SERVICES := "admin knowledge chat iam canvas storage telemetry"
+SQLC_SERVICES := "chat telemetry"
+SQLC_VERSION := "v1.31.1"
+OAPI_CODEGEN_VERSION := "v2.8.2"
 
 # Fixed port allocation so multiple agents/dev servers don't collide
 PORTS := '{"gateway":8000,"admin":8001,"iam":8002,"telemetry":8008,"chat":8009,"knowledge":8010,"canvas":8012,"storage":8013,"runtime":8015}'
@@ -35,7 +39,7 @@ dev service:
 #
 #   just build                       # everything: Go binaries + every image
 #   just build gateway           # single Go service binary
-#   just build admin                 # Python "build": lint + OpenAPI export
+#   just build admin                 # Go service binary
 #   just build-image admin           # docker build for a single service
 #   just build-images                # docker build for ALL services
 #
@@ -97,7 +101,7 @@ build-image service registry="local" tag="latest":
     elif echo "{{ NODE_SERVICES }}" | tr ' ' '\n' | grep -qx "{{ service }}"; then \
         docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile ../..; \
     else \
-        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile services/{{ service }}; \
+        docker build -t {{ registry }}/{{ service }}:{{ tag }} -f services/{{ service }}/Dockerfile .; \
     fi
     @echo "✓ {{ registry }}/{{ service }}:{{ tag }}"
 
@@ -143,7 +147,7 @@ lint-node:
     @just typecheck-node
 
 typecheck-node:
-    @for p in libs/kernel-ts libs/transport-ts ../../packages/agent-runtime; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
+    @for p in ../../packages/agent-runtime; do echo "=== $p ===" && (cd $p && pnpm run typecheck) || exit 1; done
     @for s in {{ NODE_SERVICES }}; do echo "=== $s ===" && (cd services/$s && pnpm run typecheck) || exit 1; done
 
 typecheck-python:
@@ -155,36 +159,70 @@ lint-go:
 
 # ─── schema ─────────────────────────────────────────────
 gen-openapi service:
-    @echo "→ Exporting OpenAPI for {{ service }}..."
-    @out="{{ service }}-server"; \
-    if [ "{{ service }}" = "runtime" ]; then \
-        cd services/runtime && \
-        pnpm exec tsx src/cmd/server/openapi.ts > ../../../../schemas/openapi/runtime-server.json && \
-        pnpm exec tsx src/cmd/worker/openapi.ts > ../../../../schemas/openapi/runtime-worker.json && \
-        pnpm exec tsx src/cmd/sandbox/openapi.ts > ../../../../schemas/openapi/runtime-sandbox.json; \
-    elif [ -f "services/{{ service }}/cmd/openapi/main.go" ]; then \
-        cd services/{{ service }} && go run ./cmd/openapi > ../../../../schemas/openapi/$out.json; \
-    elif [ -f "services/{{ service }}/package.json" ]; then \
-        cd services/{{ service }} && pnpm exec tsx src/gen-openapi.ts > ../../../../schemas/openapi/$out.json; \
-    else \
-        cd services/{{ service }} && \
-            uv run python src/gen_openapi.py \
-            > ../../../../schemas/openapi/$out.json; \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "→ Exporting OpenAPI for {{ service }}..."
+    out="{{ service }}-server"
+    read -r runtime expected_version < <(uv run python -c 'import pathlib, sys, yaml; config=yaml.safe_load(pathlib.Path("../../services.yaml").read_text())["services"][sys.argv[1]]; print(config["runtime"], config["openapiVersion"])' "{{ service }}")
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' EXIT
+    if [ "{{ service }}" = "runtime" ]; then
+        cd services/runtime
+        pnpm exec tsx src/cmd/server/openapi.ts > "$tmpdir/runtime-server.json"
+        pnpm exec tsx src/cmd/worker/openapi.ts > "$tmpdir/runtime-worker.json"
+        pnpm exec tsx src/cmd/sandbox/openapi.ts > "$tmpdir/runtime-sandbox.json"
+        cd ../..
+    elif [ "{{ service }}" = "admin" ]; then
+        just gen-admin-server
+        (cd services/admin && GOWORK=off go run ./cmd/openapi) > "$tmpdir/$out.json"
+    elif [ "$runtime" = "go" ]; then
+        test -f "services/{{ service }}/cmd/openapi/main.go" || { echo "✗ Go service {{ service }} has no cmd/openapi exporter"; exit 1; }
+        (cd services/{{ service }} && GOWORK=off go run ./cmd/openapi) > "$tmpdir/$out.json"
+    elif [ "$runtime" = "node" ]; then
+        (cd services/{{ service }} && pnpm exec tsx src/gen-openapi.ts) > "$tmpdir/$out.json"
+    elif [ "$runtime" = "python" ]; then
+        (cd services/{{ service }} && uv run python src/gen_openapi.py) > "$tmpdir/$out.json"
+    else
+        echo "✗ Unsupported runtime '$runtime' for {{ service }}"
+        exit 1
     fi
-    @out="{{ service }}-server"; \
-    echo "✓ schemas/openapi/$out.json"
+    for artifact in "$tmpdir"/*.json; do
+        node -e 'const fs=require("node:fs"); const document=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (typeof document.openapi !== "string") process.exit(1)' "$artifact"
+    done
+    primary="$tmpdir/$out.json"
+    test -f "$primary" || { echo "✗ {{ service }} did not export $out.json"; exit 1; }
+    actual=$(node -e 'const fs=require("node:fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).openapi)' "$primary")
+    test "$actual" = "$expected_version" || { echo "✗ {{ service }} exported OpenAPI $actual; expected $expected_version"; exit 1; }
+    for artifact in "$tmpdir"/*.json; do
+        mv "$artifact" "../../schemas/openapi/$(basename "$artifact")"
+    done
+    echo "✓ schemas/openapi/$out.json ($expected_version)"
 
 gen-openapi-all:
     @just gen-openapi runtime
-    @for s in {{ PY_SERVICES }} chat iam canvas storage; do just gen-openapi $s; done
+    @for s in {{ OPENAPI_SERVICES }}; do just gen-openapi $s || exit 1; done
 
-gen-transport-ts:
-    pnpm --dir ../.. install
-    cd libs/transport-ts && pnpm run codegen
-    @echo "✓ backend transport-ts clients regenerated"
+gen-sql service:
+    @test -f "services/{{ service }}/sqlc.yaml" || (echo "✗ services/{{ service }}/sqlc.yaml not found" && exit 1)
+    cd services/{{ service }} && GOWORK=off go run github.com/sqlc-dev/sqlc/cmd/sqlc@{{ SQLC_VERSION }} generate
+
+gen-sql-all:
+    @for s in {{ SQLC_SERVICES }}; do just gen-sql $s || exit 1; done
+
+gen-admin-server:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' EXIT
+    node ../../schemas/codegen/prepare-admin-server.mjs --target admin-server --output "$tmpdir/admin.json"
+    GOWORK=off go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@{{ OAPI_CODEGEN_VERSION }} -generate types,chi-server,spec,skip-prune -package adminapi -o services/admin/internal/api/generated/adminapi/server.gen.go "$tmpdir/admin.json"
+    echo "✓ Admin Go server bindings regenerated"
+
+gen-transport-all: gen-proto
 
 gen-proto:
-    cd ../../schemas && buf generate
+    cd ../../schemas/proto && buf generate
+    pnpm --dir ../.. exec oxfmt --write 'apps/backend/libs/inner-api-ts/src/gen/**/*.ts'
     @echo "✓ proto codegen done"
 
 # ─── db ─────────────────────────────────────────────────

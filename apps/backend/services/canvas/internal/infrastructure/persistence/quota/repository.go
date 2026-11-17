@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"log/slog"
 
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
@@ -16,10 +16,10 @@ import (
 
 type Repository struct {
 	db  *gorm.DB
-	log *zap.Logger
+	log *slog.Logger
 }
 
-func NewRepository(db *gorm.DB, log *zap.Logger) *Repository {
+func NewRepository(db *gorm.DB, log *slog.Logger) *Repository {
 	return &Repository{db: db, log: log}
 }
 

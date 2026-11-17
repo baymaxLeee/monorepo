@@ -11,6 +11,7 @@ import (
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationgenerationinput "github.com/example/monorepo/canvas/internal/application/canvasgenerationinput"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	applicationprojectstatistics "github.com/example/monorepo/canvas/internal/application/projectstatistics"
 	applicationprojectusage "github.com/example/monorepo/canvas/internal/application/projectusage"
@@ -22,7 +23,6 @@ import (
 	domainprojectusage "github.com/example/monorepo/canvas/internal/domain/projectusage"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	domainvideo "github.com/example/monorepo/canvas/internal/domain/videogeneration"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

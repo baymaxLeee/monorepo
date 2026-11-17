@@ -1,10 +1,15 @@
-go 1.26.0
+go 1.27.0
 
-toolchain go1.26.3
+toolchain go1.27.4
 
 use (
+	./libs/inner-api-go
+	./libs/observability-go
+	./services/admin
 	./services/canvas
+	./services/chat
 	./services/gateway
 	./services/iam
 	./services/storage
+	./services/telemetry
 )

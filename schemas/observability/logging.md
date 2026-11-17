@@ -106,8 +106,8 @@ logger 只自动注入低基数字段,避免把完整用户/profile 快照变成
    (Go `context`、Python `contextvar`、Node `AsyncLocalStorage`),回写 `X-Trace-Id`。
 2. **日志注入**:logger 遍历注册表,把上下文里**存在**的字段注入每条日志(空则省略键)。
 3. **出站(服务间)**:HTTP 客户端遍历注册表,把当前上下文的字段写回下游请求头,
-   实现跨服务串联。Node 侧 `libs/transport-ts` 通过注入的 `propagatedHeaders` 回调
-   (由 `libs/kernel-ts` 从当前上下文生成)拿到这批头。
+   实现跨服务串联。Node 侧 Runtime 的 service-local client 从当前请求上下文生成
+   propagation metadata，并由 `inner-api-ts` 注入 gRPC 调用。
 
 ### 身份注入的安全约束
 
@@ -122,8 +122,8 @@ Runtime worker 的 `"use workflow"`/`"use step"` 运行在会持久化/重放的
 (见 `services/runtime/AGENTS.md`)。因此:
 
 - HTTP 入口层(`app.ts`)用 `AsyncLocalStorage` + pino,与其他服务一致;
-- workflow-imported clients 不 import `@backend/kernel-ts` 或
-  `@backend/kernel-ts/trace`,避免 `node:async_hooks` 进入 orchestrator 依赖图;
+- workflow-imported clients 不 import Runtime 的 request-context 实现，避免
+  `node:async_hooks` 进入 orchestrator 依赖图；
 - 跨 step 的 payload 级 `trace_id`/`user_id` 传播仍是 follow-up。当前
   workflow-internal 日志继续用 `console.*`,HTTP 边界日志已经具备 `trace_id`。
 
@@ -149,7 +149,7 @@ Runtime worker 的 `"use workflow"`/`"use step"` 运行在会持久化/重放的
 
 - Go:`services/{gateway,iam}/internal/api/http/middleware`(`TraceId` + `RequestLogger`)
   与各 `cmd/server/main.go` 的 slog 初始化。
-- Python:`libs/kernel/src/kernel/logging.py`(`configure_logging` +
+- Python:`services/knowledge/src/knowledge_kernel/logging.py`(`configure_logging` +
   `RequestLoggingMiddleware` + trace 注入 processor)、`kernel/tracing.py`。
-- Node:`libs/kernel-ts`(`logger` + `traceContext` + `traceMiddleware` +
-  `requestLogger`);`libs/transport-ts` 负责出站头注入。
+- Node:`services/runtime/src/infrastructure/foundation`(`logger` + `traceContext` +
+  `traceMiddleware` + `requestLogger`); `inner-api-ts` 负责 RPC metadata 注入。

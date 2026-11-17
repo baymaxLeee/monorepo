@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/zap"
+	"log/slog"
 
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
@@ -95,7 +95,7 @@ func (s *StoryboardSplitter) splitFrozenStoryboard(
 		if normalized || state.ProtocolVersion != applicationcanvasnode.StoryboardGenerationProtocolVersion || len(state.SourceBeats) == 0 {
 			if s.log != nil {
 				s.log.Info("normalizing persisted storyboard plan into the current core shape",
-					zap.String("task_run_id", taskRunID), zap.Bool("plan_fields_added", normalized))
+					slog.String("task_run_id", taskRunID), slog.Bool("plan_fields_added", normalized))
 			}
 			state.ProtocolVersion = applicationcanvasnode.StoryboardGenerationProtocolVersion
 			state.SourceBeats = append([]applicationcanvasnode.StoryboardSourceBeat(nil), beats...)
@@ -168,7 +168,7 @@ func (s *StoryboardSplitter) runStoryboardPipeline(ctx context.Context, taskRunI
 							if err != nil {
 								matchConstraints.AssetCandidates = nil
 								if s.log != nil {
-									s.log.Warn("storyboard asset catalog unavailable; keeping plain drafts", zap.Error(err))
+									s.log.Warn("storyboard asset catalog unavailable; keeping plain drafts", "error_type", fmt.Sprintf("%T", err))
 								}
 								return
 							}
@@ -229,7 +229,7 @@ func (s *StoryboardSplitter) runStoryboardPipeline(ctx context.Context, taskRunI
 						return ctx.Err()
 					}
 					if s.log != nil {
-						s.log.Warn("storyboard asset enrichment failed; keeping plain draft", zap.String("task_run_id", taskRunID), zap.Int("canvasnode_no", draft.CanvasNodeNo), zap.Error(err))
+						s.log.Warn("storyboard asset enrichment failed; keeping plain draft", slog.String("task_run_id", taskRunID), slog.Int("canvasnode_no", draft.CanvasNodeNo), slog.String("error_type", fmt.Sprintf("%T", err)))
 					}
 				}
 			}
@@ -408,8 +408,8 @@ func (s *StoryboardSplitter) generateStoryboardBatch(
 		if noProgressRounds >= storyboardMaxNoProgressRounds {
 			if s.log != nil {
 				s.log.Warn("storyboard detail batch used deterministic fallback",
-					zap.Ints("canvasnode_no", storyboardPlanItemNumbers(remaining)),
-					zap.Int("no_progress_rounds", storyboardMaxNoProgressRounds))
+					slog.Any("canvasnode_no", storyboardPlanItemNumbers(remaining)),
+					slog.Int("no_progress_rounds", storyboardMaxNoProgressRounds))
 			}
 			drafts = append(drafts, fallbackStoryboardDrafts(remaining, beats, constraints)...)
 			return storyboardPlannedBatchResult{drafts: drafts}

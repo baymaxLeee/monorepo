@@ -2,10 +2,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from application import document_operations
 from application.contracts.document import CreateStagedMediaInput
-from kernel.errors import ConflictError
-
-from api.http.routes import documents_internal
+from knowledge_kernel.errors import ConflictError
 
 
 def payload(**patch: str) -> CreateStagedMediaInput:
@@ -28,10 +27,10 @@ async def test_replay_lookup_uses_complete_owner_scope(monkeypatch):
         revision_id="00000000-0000-0000-0000-000000000002",
     )
     lookup = AsyncMock(return_value=row)
-    monkeypatch.setattr(documents_internal.staged_media_crud, "get_by_idempotency_key", lookup)
+    monkeypatch.setattr(document_operations.staged_media_crud, "get_by_idempotency_key", lookup)
     session = AsyncMock()
 
-    assert await documents_internal._find_staged_media_replay(session, payload()) is row
+    assert await document_operations._find_staged_media_replay(session, payload()) is row
     lookup.assert_awaited_once_with(
         session,
         idempotency_key="render:1",
@@ -49,7 +48,7 @@ async def test_replay_rejects_a_different_storage_revision(monkeypatch):
             revision_id="00000000-0000-0000-0000-000000000004",
         )
     )
-    monkeypatch.setattr(documents_internal.staged_media_crud, "get_by_idempotency_key", lookup)
+    monkeypatch.setattr(document_operations.staged_media_crud, "get_by_idempotency_key", lookup)
 
     with pytest.raises(ConflictError, match="different Storage revision"):
-        await documents_internal._find_staged_media_replay(AsyncMock(), payload())
+        await document_operations._find_staged_media_replay(AsyncMock(), payload())

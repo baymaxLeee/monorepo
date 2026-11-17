@@ -1,0 +1,30 @@
+[project]
+name = "inner-api"
+version = "0.1.0"
+requires-python = ">=3.14.5,<3.15"
+dependencies = [
+    "grpcio>=1.76.0",
+    "protobuf>=7.36.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/inner_api",
+    "generated/admin",
+    "generated/bot",
+    "generated/common",
+    "generated/knowledge",
+    "generated/storage",
+]
+
+[tool.hatch.build.targets.wheel.sources]
+"generated" = ""
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "generated"]
+testpaths = ["src"]
+

@@ -23,11 +23,11 @@ storage and dashboard query APIs.
 
 - Routers are thin: request/response wiring only.
 - Write-path validation, redaction, sampling, fingerprinting, and dispatch
-  live in `application/ingestion.py`.
-- ORM models live in `infrastructure/persistence/models/`; query helpers in
-  `infrastructure/persistence/repositories/`.
-- Transactions (docs/ADR/architecture.md): the write path wraps its `add_all` + session upsert
-  in `async with write_tx(session):`; no manual `commit()`.
+  live in `internal/application/ingestion.go`.
+- PostgreSQL queries live in `internal/infrastructure/persistence/`; HTTP
+  handlers do not issue SQL directly.
+- Repository methods own transaction boundaries and use explicit PostgreSQL
+  transactions for multi-statement writes.
 - Query endpoints must require `X-Auth-*`; anonymous writes are allowed only
   on `/rum/batch`.
 - Never trust frontend `user_id`, `username`, `email`, or `is_admin` fields.
@@ -41,7 +41,7 @@ have one DB to back up.
 
 Trade-offs we accepted:
 
-- `sessions` uses `INSERT ... ON DUPLICATE KEY UPDATE` to emulate the
+- `sessions` uses `INSERT ... ON CONFLICT DO UPDATE` to emulate the
   `ReplacingMergeTree(ts_server)` semantics.
 - Pre-aggregated materialized views (`errors_by_fingerprint_daily`,
   `vitals_p75_by_route_daily`) were dropped. The handful of query endpoints
@@ -57,6 +57,6 @@ Consider these rules if they affect your changes.
 
 ## Verification after code changes
 
-Run `just test backend/telemetry` from the repository root. Test conventions and
+Run `just test backend/telemetry` from the repository root. Go test conventions and
 runner configuration are owned by `apps/backend/AGENTS.md`; add regression
 coverage for changed behavior before reporting completion.

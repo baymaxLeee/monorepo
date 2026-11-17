@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 
-import { secureProviderFetch } from "@backend/transport-ts/provider-url";
+import { secureProviderFetch } from "#runtime/provider-url";
 
 import { getWorkerSettings } from "../../config/worker.js";
 import type { VideoOutputConfig } from "./output-config.js";

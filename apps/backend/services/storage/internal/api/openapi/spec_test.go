@@ -3,6 +3,7 @@ package openapi
 import (
 	"encoding/json"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -16,6 +17,11 @@ func TestPathParametersMatchTemplates(t *testing.T) {
 	}
 	if err := json.Unmarshal(raw, &spec); err != nil {
 		t.Fatal(err)
+	}
+	for path := range spec.Paths {
+		if strings.HasPrefix(path, "/internal") {
+			t.Fatalf("legacy internal HTTP route remains in Storage OpenAPI: %s", path)
+		}
 	}
 	type parameter struct {
 		Name string `json:"name"`

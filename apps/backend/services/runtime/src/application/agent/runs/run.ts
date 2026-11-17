@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { createAgentSteering } from "@repo/agent-runtime/agent/steering";
 import type { BotProfileSnapshot } from "@repo/agent-runtime/instructions/index";
 import {
@@ -10,6 +9,8 @@ import {
   type UIMessage,
   validateUIMessages,
 } from "ai";
+
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import type { AuthContext } from "../../../api/http/middleware/auth.js";
 import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";

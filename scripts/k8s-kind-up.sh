@@ -129,14 +129,11 @@ fi
 
 if $BUILD; then
   echo "→ building service images..."
-  for svc in gateway iam; do
-    docker build -t "monorepo/${svc}:local" -f "${ROOT}/apps/backend/services/${svc}/Dockerfile" "${ROOT}/apps/backend/services/${svc}"
-  done
-  for svc in admin telemetry; do
+  for svc in gateway iam admin chat telemetry; do
     docker build -t "monorepo/${svc}:local" -f "${ROOT}/apps/backend/services/${svc}/Dockerfile" "${ROOT}/apps/backend"
   done
   echo "→ loading images into kind cluster..."
-  for svc in gateway iam admin telemetry; do
+  for svc in gateway iam admin chat telemetry; do
     kind load docker-image "monorepo/${svc}:local" --name "${CLUSTER_NAME}"
   done
 fi
@@ -158,7 +155,7 @@ if $BUILD; then
     exit 1
   fi
   pushd "${K8S_DIR}/overlays/prod" >/dev/null
-  for svc in gateway iam admin telemetry; do
+  for svc in gateway iam admin chat telemetry; do
     kustomize edit set image \
       "ghcr.io/example/${svc}=monorepo/${svc}:local"
   done

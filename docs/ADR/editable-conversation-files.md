@@ -167,7 +167,7 @@ Runtime `v1.0.0.0` 直接包含文件引用、generation、ETag、保存操作�
 | Runtime HTTP 文件鉴权及保存 | [sessions.ts](../../apps/backend/services/runtime/src/api/http/routes/sessions.ts) 与现有 delivery 应用层 |
 | Sandbox 导入、基准与发布 | [cloud-sandbox.ts](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-sandbox.ts)、[cloud-tools.ts](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-tools.ts)、对应测试与指令 |
 | Storage 追加与事务 | [service.go](../../apps/backend/services/storage/internal/application/service.go)、[ports.go](../../apps/backend/services/storage/internal/application/ports.go)、[repository.go](../../apps/backend/services/storage/internal/infrastructure/persistence/repository.go)、HTTP/OpenAPI 与迁移 |
-| 服务间传输 | [storage.ts](../../apps/backend/libs/transport-ts/src/storage.ts) 与生成契约；禁止跨服务导入源码/查库 |
+| 服务间传输 | [storage.ts](../../apps/backend/services/runtime/src/infrastructure/clients/storage.ts) 与生成的 `inner-api-ts` 契约；禁止跨服务导入源码/查库 |
 | Runtime 编辑面板 | [ChatFileArtifactPanel.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatFileArtifactPanel.tsx)、[ChatArtifactPreview.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatArtifactPreview.tsx)、文件列表/卡片与查询缓存 |
 | 编辑器复用参考 | [ChatDocumentArtifactPanel.tsx](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatDocumentArtifactPanel.tsx)，只复用组件及交互经验，不改变 Knowledge 流程 |
 

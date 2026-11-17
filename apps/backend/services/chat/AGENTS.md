@@ -8,4 +8,9 @@ Sandbox and durable Jobs.
 - Never add model, tool, Sandbox, Workflow or run-journal code here.
 - Cross-service creation uses Runtime idempotency and a durable local mapping.
 
+Go entry points are `cmd/server/main.go` and `cmd/openapi/main.go`. Keep HTTP
+wiring in `internal/api/http`, orchestration and wire projection in
+`internal/application`, and PostgreSQL/Runtime adapters in
+`internal/infrastructure`.
+
 Run `just test backend/chat` and `just build chat`.

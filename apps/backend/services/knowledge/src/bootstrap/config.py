@@ -9,10 +9,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "single-vps", "production"]
 _INSECURE_PASSWORDS: frozenset[str] = frozenset({"", "dev", "password", "admin", "workflow", "postgres", "knowledge"})
-_DEV_INTERNAL_SERVICE_TOKENS = {
-    "runtime": "dev-runtime-internal-token",
-}
-_DEV_CALLER_TOKEN = "dev-knowledge-internal-token"
 
 
 class Settings(BaseSettings):
@@ -20,6 +16,7 @@ class Settings(BaseSettings):
 
     environment: Environment = "development"
     port: int = 8010
+    rpc_port: int = 9010
 
     postgres_host: str = "localhost"
     postgres_port: int = 5432
@@ -27,10 +24,8 @@ class Settings(BaseSettings):
     postgres_password: str = "knowledge"
     postgres_database: str = "knowledge"
 
-    admin_service_url: str = "http://localhost:8001"
-    storage_service_url: str = "http://localhost:8013"
-    internal_api_token: str = _DEV_CALLER_TOKEN
-    internal_service_tokens: dict[str, str] = Field(default_factory=lambda: dict(_DEV_INTERNAL_SERVICE_TOKENS))
+    admin_rpc_target: str = "localhost:9001"
+    storage_rpc_target: str = "localhost:9013"
 
     media_max_object_bytes: int = 512 * 1024 * 1024
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
@@ -70,16 +65,6 @@ class Settings(BaseSettings):
         missing: list[str] = []
         if self.ingest_max_batch_bytes < self.attachment_max_upload_bytes:
             raise ValueError("INGEST_MAX_BATCH_BYTES must be at least ATTACHMENT_MAX_UPLOAD_BYTES")
-        if self.environment != "development":
-            if len(self.internal_api_token) < 32 or self.internal_api_token.startswith("dev-"):
-                missing.append("INTERNAL_API_TOKEN")
-            tokens = self.internal_service_tokens
-            if (
-                set(tokens) != set(_DEV_INTERNAL_SERVICE_TOKENS)
-                or any(len(token) < 32 or token.startswith("dev-") for token in tokens.values())
-                or len(set(tokens.values())) != len(tokens)
-            ):
-                missing.append("INTERNAL_SERVICE_TOKENS")
         if self.environment != "development":
             if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
                 missing.append("POSTGRES_PASSWORD")

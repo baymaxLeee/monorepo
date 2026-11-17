@@ -8,15 +8,13 @@ import (
 
 	"github.com/example/monorepo/iam/internal/application/contracts"
 	"github.com/example/monorepo/iam/internal/domain"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
 )
 
 type RoleService struct {
-	store *repositories.Store
+	store Store
 }
 
-func NewRoleService(store *repositories.Store) *RoleService {
+func NewRoleService(store Store) *RoleService {
 	return &RoleService{store: store}
 }
 
@@ -66,7 +64,7 @@ func (s *RoleService) Assign(ctx context.Context, userID, roleID string, meta Au
 		Target: userID,
 		After:  map[string]any{"roleId": roleID, "role": roleName},
 		Trace:  meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		if err := txStore.AssignRole(ctx, userID, roleID); err != nil {
 			return err
 		}
@@ -91,10 +89,10 @@ func (s *RoleService) Remove(ctx context.Context, userID, roleID string, meta Au
 		Target: userID,
 		Before: map[string]any{"roleId": roleID, "role": role.Name},
 		Trace:  meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		return txStore.RemoveRolePreservingSuperAdmin(ctx, userID, roleID)
 	})
-	if errors.Is(removeErr, repositories.ErrInvariant) {
+	if errors.Is(removeErr, ErrStoreInvariant) {
 		return ErrLastSuperAdmin
 	}
 	if removeErr != nil {
@@ -103,7 +101,7 @@ func (s *RoleService) Remove(ctx context.Context, userID, roleID string, meta Au
 	return nil
 }
 
-func RoleResponse(role models.Role) contracts.RoleResponse {
+func RoleResponse(role Role) contracts.RoleResponse {
 	return contracts.RoleResponse{
 		ID:          role.ID,
 		Name:        role.Name,
@@ -112,7 +110,7 @@ func RoleResponse(role models.Role) contracts.RoleResponse {
 	}
 }
 
-func RoleResponses(roles []models.Role) []contracts.RoleResponse {
+func RoleResponses(roles []Role) []contracts.RoleResponse {
 	out := make([]contracts.RoleResponse, 0, len(roles))
 	for _, role := range roles {
 		out = append(out, RoleResponse(role))

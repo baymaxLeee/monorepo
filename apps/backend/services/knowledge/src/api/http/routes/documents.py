@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query
 from infrastructure.persistence.database import write_tx
 from infrastructure.persistence.models.document import DocumentRow
 from infrastructure.persistence.repositories import documents as document_crud
-from kernel.errors import ForbiddenError, NotFoundError
+from knowledge_kernel.errors import ForbiddenError, NotFoundError
 from pydantic import BaseModel, Field
 
 from api.http.dependencies import CurrentUser, DbSession

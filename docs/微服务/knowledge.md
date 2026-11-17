@@ -11,7 +11,7 @@ Knowledge 负责：
 - 将 Storage revision 解析为 Markdown，并维护转换、索引和处理状态。
 - `documents` 语义生命周期，包括用户上传的 `source` 与 agent 生成的 `artifact`。
 - PostgreSQL + pgvector 上的 chunk、混合检索、RRF 与 rerank。
-- 面向用户的文档 CRUD，以及面向 Runtime 的内部语义与媒体发布 API。
+- 面向用户的文档 CRUD，以及面向 Runtime 的 gRPC 语义与媒体发布 API。
 
 Knowledge 不负责：
 
@@ -24,17 +24,19 @@ durable Claim intent 将引用激活或释放；不得把物理 locator 重新�
 
 ## 端口与入口
 
-- 本地 / K8s：`8010`
+- 公开 HTTP：`8010`
+- 内部 gRPC：`9010`；本地目标 `localhost:9010`，容器目标 `knowledge:9010`
 - Gateway 对外：`/api/knowledge-server`
-- Storage：`STORAGE_SERVICE_URL`，默认 `http://localhost:8013`
+- Storage RPC：`STORAGE_RPC_TARGET`，默认 `localhost:9013`
 
 | 路径 | 鉴权 | 说明 |
 |---|---|---|
 | `POST /ingest` | Gateway 用户 JWT | 接收文档引用，同步完成 Markdown 转换与 RAG 索引 |
 | `GET/PATCH/DELETE /documents/*` | Gateway 用户 JWT | 用户文档管理 |
-| `/internal/documents/*` | per-caller service identity | Runtime 读写语义文档 |
-| `POST /internal/conversation-forks` | per-caller service identity | 按用户/tenant/workspace 复制当前不可变文档引用，返回 document id 映射 |
-| `POST /internal/retrieve` | per-caller service identity | 用户作用域混合检索 |
+
+跨服务能力不再暴露 HTTP 路径。`DocumentService`、`StagedMediaService`、
+`ConversationDocumentService` 与 `RetrievalService` 通过 Proto/gRPC 提供，并由
+caller allowlist 与显式 tenant/workspace/user 字段共同授权。
 
 字节上传和内容读取使用 Storage API，不经过 Knowledge 的 public media route。
 
@@ -69,7 +71,7 @@ fencing 决定。
 
 ## 与 Runtime 的关系
 
-- Runtime server 通过生成的 transport client 读取/复制语义文档；它不读取 Knowledge 数据库。
+- Runtime server 通过生成的 gRPC client 读取/复制语义文档；它不读取 Knowledge 数据库。
   Runtime-owned `conversation_files`、Plan 与对应 Claim intent 留在 Runtime 数据库。
 - 删除 Session 时，Runtime 通过事务 outbox 请求 Knowledge 幂等清理该会话生成的 document
   artifact 与 staged media，并释放关联 Storage Claims。用户独立拥有的 source 保留。
@@ -96,7 +98,7 @@ source 会在下一次读取或显式 reindex 时用同一路径同步收敛。
 cd apps/backend
 just dev knowledge
 just gen-openapi knowledge
-just gen-transport-ts
+just gen-proto
 ```
 
 OpenAPI 输出：`schemas/openapi/knowledge-server.json`。生成文件必须从服务源码重建，

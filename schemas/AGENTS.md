@@ -41,7 +41,8 @@ Never hand-edit those generated modules or copy native AI SDK types.
 2. From `schemas/`: `buf lint && buf breaking`
 3. From `apps/backend/`: `just gen-proto`
 4. Implement server in `services/<svc>/src/.../grpc/`
-5. Other services consume via `libs/transport/clients/<svc>/`
+5. Consumers generate into their service-local infrastructure boundary unless
+   an existing shared package has multiple real consumers.
 
 ### Versioning
 - REST: never break v1 silently; introduce v2 when needed

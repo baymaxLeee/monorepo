@@ -29,7 +29,7 @@ just dev
 ```bash
 just repo-map
 just context frontend/@repo/ai-elements
-just context apps/backend/services/chat/src/application/agent
+just context apps/backend/services/chat/internal/application
 just test-list
 just test-affected HEAD all --list
 just test tooling

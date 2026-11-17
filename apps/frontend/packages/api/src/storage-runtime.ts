@@ -2,7 +2,6 @@ import { authFetch } from "./auth-fetch";
 import { authorizeConversationDocumentDelivery, authorizeConversationFileDelivery } from "./chat-server";
 import { API_BASE_URL } from "./http";
 import { authorizeDocumentDelivery } from "./knowledge-server";
-import type { DeliveryCapability } from "./storage-server";
 
 export interface StorageRevisionRef {
   assetId: string;
@@ -47,7 +46,16 @@ export async function executeStorageUploadPlan(plan: AssetUploadPlan, file: File
   }
 }
 
-export type StorageDownloadCapability = DeliveryCapability;
+/** Public, owner-authorized projection returned by Chat or Knowledge. */
+export interface StorageDownloadCapability {
+  asset_id: string;
+  revision_id: string;
+  url: string;
+  expires_at: string;
+  filename: string;
+  media_type: string;
+  size_bytes: number;
+}
 
 /** Authenticated control plane; the returned capability is the only credential for bytes. */
 export async function createStorageDownloadUrl(

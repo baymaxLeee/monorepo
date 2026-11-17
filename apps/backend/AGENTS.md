@@ -7,9 +7,7 @@ routes, outbound bindings, owned databases, and optional OpenAPI artifacts.
 ## Layout
 
 - `services/<name>/` — independently deployable microservice
-- `libs/kernel/` — thin Python errors, logging, tracing, and observability
-- `libs/kernel-ts/` — thin TypeScript runtime primitives
-- `libs/transport-ts/` — generated-contract-based internal HTTP clients
+- `libs/inner-api-{go,ts,py}/` — generated cross-stack gRPC bindings and protocol runtime
 
 Do not create a shared package for language symmetry. Follow docs/ADR/architecture.md: build a
 consumer matrix, choose share implementation / share contract / keep local,
@@ -23,8 +21,8 @@ and record high-risk extraction decisions before moving code.
 - Each service owns its SQL migrations under `services/<name>/migrations/<release>/`.
   The current initial baseline is `v1.0.0/v1.0.0.0.up.sql`.
 - Services never import another service's source.
-- Cross-service calls use explicit bindings from `services.yaml` and transport
-  clients; asynchronous flows use shared event contracts where appropriate.
+- Cross-service calls use Proto/gRPC bindings declared by `services.yaml`;
+  asynchronous flows use shared event contracts where appropriate.
 - A service must not read or mutate another service's database.
 
 ### Database migrations
@@ -72,6 +70,23 @@ and record high-risk extraction decisions before moving code.
 - Do not merge unrelated resources into generic CRUD/model/schema modules merely
   to reduce boilerplate.
 
+### Application host and dependency direction
+
+- Entrypoints are thin: create the process cancellation context, call one
+  `bootstrap` role, report its terminal error and set the exit code. They do not
+  construct routers, repositories, clients or background workers.
+- `bootstrap` is the sole composition root and lifecycle owner. Do not create a
+  second generic `app` layer with overlapping ownership.
+- Dependencies point `api -> application -> domain`. Infrastructure implements
+  small ports defined by its application consumer; application and domain never
+  import concrete adapters.
+- Complex services split assembly by business capability and process role, then
+  aggregate explicit module bindings in bootstrap. Do not use reflection DI,
+  service locators or one unbounded wiring file.
+- One-shot seed/backfill commands use their own entrypoint. Long-running roles
+  share one cancellation context and shut down admission, HTTP/workers,
+  adapters and telemetry in that order. Child goroutines never call `os.Exit`.
+
 ### Shared capability discipline
 
 - `libs/` contains infrastructure capabilities only; never domain models.
@@ -81,6 +96,28 @@ and record high-risk extraction decisions before moving code.
   them into a mega-kernel or create `auth_sdk`, `audit_sdk`, `transport-py`, or
   a Go kernel speculatively.
 - Never add `libs/utils/` or share Pydantic domain DTOs across services.
+
+### Go platform
+
+- Follow [`docs/ADR/go-service-platform.md`](../../docs/ADR/go-service-platform.md).
+  [`go-platform.json`](go-platform.json) is the executable capability/version
+  catalog; adding a competing library for an existing capability is forbidden.
+  `go.work` owns workspace membership and the exact toolchain; each service or
+  library keeps an independently valid `go.mod`.
+- Shared direct dependencies use one version across every workspace module.
+  Update all consumers together, run `go work sync`, and keep every module
+  clean under `GOWORK=off go mod tidy -diff`; do not use `replace` as a version catalog.
+- PostgreSQL code uses `pgx/v5`; static SQL defaults to checked-in queries plus
+  generated `sqlc` types. Raw pgx is limited to genuinely dynamic query shapes.
+  Do not introduce new GORM repositories or a shared domain repository layer.
+- Go process configuration uses typed structs and startup validation. HTTP and
+  gRPC entrypoints propagate context, cancellation and OpenTelemetry through the
+  shared infrastructure capability; services retain ownership of semantic spans.
+- Every Go service directly uses the catalogued config, Chi, observability and
+  HTTP tracing dependencies. Domain-only libraries remain service-local and may
+  not replace a catalogued platform capability.
+- Pin stable generator versions in recipes. Run `just gen-sql <service>` after
+  changing SQL queries and `just gen-sql-all` for the complete generated set.
 
 ## Adding a service or route
 
@@ -104,6 +141,8 @@ capability.
 | `just fmt` | Rewrite supported source using root Oxfmt, Ruff, and gofmt; run only when requested or needed |
 | `just gen-openapi <service>` | Export one Python/Node OpenAPI contract |
 | `just gen-openapi-all` | Export all registered Python/Node contracts |
+| `just gen-sql <service>` | Regenerate one service's checked-in sqlc output |
+| `just gen-sql-all` | Regenerate all registered sqlc outputs |
 | `just migrate-up <svc>` | Apply pending versioned SQL and verify applied checksums |
 | `just migrate-down <svc> <target>` | Apply verified reverse SQL to an explicit target |
 

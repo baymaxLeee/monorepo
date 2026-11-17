@@ -11,27 +11,50 @@ import (
 	"github.com/example/monorepo/iam/internal/api/http/middleware"
 	"github.com/example/monorepo/iam/internal/application"
 	"github.com/example/monorepo/iam/internal/application/contracts"
-	"github.com/example/monorepo/iam/internal/bootstrap/config"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
-	"github.com/example/monorepo/iam/internal/infrastructure/security"
 	"github.com/go-chi/chi/v5"
 )
 
+type Config struct {
+	RefreshCookieName     string
+	RefreshCookieDomain   string
+	RefreshCookieSecure   bool
+	RefreshCookieSameSite string
+}
+
+type Claims struct {
+	TenantID, Subject, Email, Name, WorkspaceID, WorkspaceRole string
+	Roles                                                      []string
+}
+
+type Store interface {
+	Ping(context.Context) error
+	MemberRoleStatus(context.Context, string, string) (string, string, error)
+}
+
+type Dependencies struct {
+	Store      Store
+	Config     Config
+	Auth       *application.AuthService
+	Roles      *application.RoleService
+	Workspace  *application.WorkspaceService
+	Verify     func(string, time.Time) (Claims, error)
+	IsNotFound func(error) bool
+}
+
 type Router struct {
-	store     *repositories.Store
-	cfg       config.ServerConfig
+	store     Store
+	cfg       Config
 	auth      *application.AuthService
 	roles     *application.RoleService
 	workspace *application.WorkspaceService
+	verify    func(string, time.Time) (Claims, error)
+	notFound  func(error) bool
 }
 
-func New(store *repositories.Store, cfg config.ServerConfig) http.Handler {
+func New(deps Dependencies) http.Handler {
 	rt := &Router{
-		store:     store,
-		cfg:       cfg,
-		auth:      application.NewAuthService(store, cfg),
-		roles:     application.NewRoleService(store),
-		workspace: application.NewWorkspaceService(store, cfg),
+		store: deps.Store, cfg: deps.Config, auth: deps.Auth, roles: deps.Roles, workspace: deps.Workspace,
+		verify: deps.Verify, notFound: deps.IsNotFound,
 	}
 	r := chi.NewRouter()
 	r.Use(middleware.TraceId)
@@ -495,33 +518,33 @@ func (rt *Router) removeUserRole(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (rt *Router) claimsFromRequest(w http.ResponseWriter, r *http.Request) (security.Claims, bool) {
+func (rt *Router) claimsFromRequest(w http.ResponseWriter, r *http.Request) (Claims, bool) {
 	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if raw == "" {
 		writeProblem(w, http.StatusUnauthorized, "missing_access_token", "access token is required")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
-	claims, err := security.VerifyAccessToken(rt.cfg.AccessTokenSecret, raw, time.Now().UTC())
+	claims, err := rt.verify(raw, time.Now().UTC())
 	if err != nil {
 		writeProblem(w, http.StatusUnauthorized, "invalid_access_token", "access token is invalid")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	return claims, true
 }
 
-func (rt *Router) requireSuperAdmin(w http.ResponseWriter, r *http.Request) (security.Claims, bool) {
+func (rt *Router) requireSuperAdmin(w http.ResponseWriter, r *http.Request) (Claims, bool) {
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	isSuper, err := rt.roles.IsSuperAdmin(r.Context(), claims.Subject)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "authorization_failed", "could not verify privileges")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	if !isSuper {
 		writeProblem(w, http.StatusForbidden, "forbidden", "super_admin privileges are required")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	return claims, true
 }
@@ -534,19 +557,19 @@ func (rt *Router) requireSuperAdmin(w http.ResponseWriter, r *http.Request) (sec
 // plane (create workspace, appoint the first admin, transfer owner, platform roles,
 // global apps/telemetry), never a standing god-mode over every tenant's members
 // or data. Membership is verified against the DB, never a stale JWT role.
-func (rt *Router) requireWorkspaceAdmin(w http.ResponseWriter, r *http.Request, workspaceID string) (security.Claims, bool) {
+func (rt *Router) requireWorkspaceAdmin(w http.ResponseWriter, r *http.Request, workspaceID string) (Claims, bool) {
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	isAdmin, err := rt.activeWorkspaceAdmin(r.Context(), workspaceID, claims.Subject)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "authorization_failed", "could not verify privileges")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	if !isAdmin {
 		writeProblem(w, http.StatusForbidden, "forbidden", "workspace_admin privileges are required")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	return claims, true
 }
@@ -557,15 +580,15 @@ func (rt *Router) requireWorkspaceAdmin(w http.ResponseWriter, r *http.Request, 
 // workspace_admin of THIS workspace. Reading the roster is metadata oversight, not access to
 // the workspace's business data (knowledge/chat/config), which still requires a
 // session bound to the workspace.
-func (rt *Router) requireWorkspaceViewer(w http.ResponseWriter, r *http.Request, workspaceID string) (security.Claims, bool) {
+func (rt *Router) requireWorkspaceViewer(w http.ResponseWriter, r *http.Request, workspaceID string) (Claims, bool) {
 	claims, ok := rt.claimsFromRequest(w, r)
 	if !ok {
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	isSuper, err := rt.roles.IsSuperAdmin(r.Context(), claims.Subject)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "authorization_failed", "could not verify privileges")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	if isSuper {
 		return claims, true
@@ -573,11 +596,11 @@ func (rt *Router) requireWorkspaceViewer(w http.ResponseWriter, r *http.Request,
 	isAdmin, err := rt.activeWorkspaceAdmin(r.Context(), workspaceID, claims.Subject)
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "authorization_failed", "could not verify privileges")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	if !isAdmin {
 		writeProblem(w, http.StatusForbidden, "forbidden", "workspace_admin privileges are required")
-		return security.Claims{}, false
+		return Claims{}, false
 	}
 	return claims, true
 }
@@ -587,7 +610,7 @@ func (rt *Router) requireWorkspaceViewer(w http.ResponseWriter, r *http.Request,
 func (rt *Router) activeWorkspaceAdmin(ctx context.Context, workspaceID, userID string) (bool, error) {
 	role, status, err := rt.store.MemberRoleStatus(ctx, workspaceID, userID)
 	if err != nil {
-		if errors.Is(err, repositories.ErrNotFound) {
+		if rt.notFound(err) {
 			return false, nil
 		}
 		return false, err

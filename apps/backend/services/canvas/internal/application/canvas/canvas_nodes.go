@@ -10,13 +10,13 @@ import (
 
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	applicationdeletion "github.com/example/monorepo/canvas/internal/application/deletion"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
 	applicationprojectstatistics "github.com/example/monorepo/canvas/internal/application/projectstatistics"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domain "github.com/example/monorepo/canvas/internal/domain/canvas"
 	domainimagegeneration "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
 	domainvideo "github.com/example/monorepo/canvas/internal/domain/videogeneration"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

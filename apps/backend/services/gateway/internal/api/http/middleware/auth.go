@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/example/monorepo/gateway/internal/infrastructure/security"
 )
 
 const (
@@ -27,7 +25,14 @@ const (
 	HeaderCallerService = "X-Caller-Service"
 )
 
-func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
+type Claims struct {
+	Subject, TenantID, Email, Name, WorkspaceID, WorkspaceRole string
+	Roles                                                      []string
+}
+
+type TokenVerifier func(token string, now time.Time) (Claims, error)
+
+func IdentityPropagation(verify TokenVerifier, publicPathPrefixes, publicExactPaths, optionalAuthPathPrefixes []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Del(HeaderAuthTenantID)
@@ -51,7 +56,7 @@ func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, op
 			raw := bearerToken(r.Header.Get("Authorization"))
 			if isPublicPath(r.URL.Path, optionalAuthPathPrefixes) {
 				if raw != "" {
-					if claims, err := security.VerifyAccessToken(secret, raw, time.Now().UTC()); err == nil {
+					if claims, err := verify(raw, time.Now().UTC()); err == nil {
 						propagateClaims(r, claims)
 					}
 				}
@@ -65,7 +70,7 @@ func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, op
 				return
 			}
 
-			claims, err := security.VerifyAccessToken(secret, raw, time.Now().UTC())
+			claims, err := verify(raw, time.Now().UTC())
 			if err != nil {
 				writeProblem(w, http.StatusUnauthorized,
 					"invalid_access_token", "access token is invalid")
@@ -78,7 +83,7 @@ func IdentityPropagation(secret string, publicPathPrefixes, publicExactPaths, op
 	}
 }
 
-func propagateClaims(r *http.Request, claims security.Claims) {
+func propagateClaims(r *http.Request, claims Claims) {
 	r.Header.Set(HeaderAuthUserID, claims.Subject)
 	if claims.TenantID != "" {
 		r.Header.Set(HeaderAuthTenantID, claims.TenantID)

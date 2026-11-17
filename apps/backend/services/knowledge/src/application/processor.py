@@ -10,7 +10,7 @@ from datetime import datetime
 from bootstrap.config import get_settings
 from infrastructure.persistence.database import get_engine, get_session_factory, write_tx
 from infrastructure.persistence.repositories import documents as document_crud
-from kernel.errors import BaseError
+from knowledge_kernel.errors import BaseError
 from sqlalchemy import text
 
 from application.admin_client import ProviderSnapshot, get_admin_client

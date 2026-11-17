@@ -4,7 +4,6 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/
 FROM uv-base AS requirements
 WORKDIR /app
 COPY pyproject.toml uv.lock /app/
-COPY libs/kernel/pyproject.toml /app/libs/kernel/pyproject.toml
 COPY services/knowledge/pyproject.toml /app/services/knowledge/pyproject.toml
 # Export only this service's locked third-party dependencies. Unrelated workspace
 # lock changes must not invalidate the large installed dependency layer.
@@ -18,21 +17,11 @@ RUN --mount=type=bind,from=requirements,source=/requirements.txt,target=/require
     --mount=type=cache,target=/root/.cache/uv \
     uv pip sync --python /app/.venv/bin/python --require-hashes /requirements.txt
 
-FROM uv-base AS kernel-wheel
-COPY libs/kernel /kernel
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv build /kernel --wheel --out-dir /wheels
-
 FROM python:3.14.5-slim
 ENV PATH="/app/.venv/bin:$PATH"
 COPY --from=dependencies /app/.venv /app/.venv
-# Install kernel in its own small layer; never flatten it and all third-party
-# dependencies into a fresh COPY of the complete virtual environment.
-RUN --mount=type=bind,from=uv-base,source=/bin/uv,target=/bin/uv \
-    --mount=type=bind,from=kernel-wheel,source=/wheels,target=/wheels \
-    uv pip install --python /app/.venv/bin/python --no-deps --no-cache /wheels/*.whl
 RUN mkdir -p /data/objects
 WORKDIR /app/services/knowledge
 COPY services/knowledge /app/services/knowledge
-EXPOSE 8010
+EXPOSE 8010 9010
 CMD ["uvicorn", "main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8010", "--no-access-log"]

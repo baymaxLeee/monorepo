@@ -200,7 +200,7 @@ unchanged components only receive the new release tag inside the target registry
 Tencent TCR is the documented example, but `TCR_HOST` may point at another
 OCI-compatible registry such as an Aliyun regional registry.
 
-The Python images (`admin`, `knowledge`, `telemetry`) export each service's locked
+The Python image (`knowledge`) exports the service's locked
 third-party requirements before installing dependencies. The export omits workspace
 packages and annotations, so changes to unrelated workspace dependencies do not
 invalidate the installed dependency layer when the exported requirements stay the

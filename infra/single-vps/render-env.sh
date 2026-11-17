@@ -17,7 +17,7 @@
 #
 # Idempotent. The persistence in (2) is REQUIRED for correctness, not just
 # tidiness: the Postgres superuser password is fixed at first data-volume init
-# and the ADMIN_SECRET_KEY Fernet key must never change once data exists.
+# and the ADMIN_SECRET_KEY AES-256-GCM key must never change once data exists.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -43,10 +43,7 @@ INTERNAL_KEYS=(
   TOOL_APPROVAL_SECRET
   STORAGE_SIGNING_KEY
   CHAT_INTERNAL_API_TOKEN
-  ADMIN_INTERNAL_API_TOKEN
   RUNTIME_INTERNAL_API_TOKEN
-  KNOWLEDGE_INTERNAL_API_TOKEN
-  CANVAS_INTERNAL_API_TOKEN
 )
 
 umask 077

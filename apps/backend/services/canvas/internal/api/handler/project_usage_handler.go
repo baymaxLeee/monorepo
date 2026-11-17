@@ -4,8 +4,8 @@ import (
 	"context"
 
 	thriftprojectusage "github.com/example/monorepo/canvas/internal/api/contracts/projectusage"
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationprojectusage "github.com/example/monorepo/canvas/internal/application/projectusage"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

@@ -24,8 +24,8 @@ import (
 	contractprojectusage "github.com/example/monorepo/canvas/internal/api/contracts/projectusage"
 	contractresource "github.com/example/monorepo/canvas/internal/api/contracts/resource"
 	maturehttp "github.com/example/monorepo/canvas/internal/api/handler"
-	requestcontext "github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationprojectaccess "github.com/example/monorepo/canvas/internal/application/projectaccess"
+	requestcontext "github.com/example/monorepo/canvas/internal/application/requestcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

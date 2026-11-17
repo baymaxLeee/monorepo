@@ -3,13 +3,19 @@ package providerclient
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/example/monorepo/canvas/internal/infrastructure/admin"
+	adminv1 "github.com/example/monorepo/inner-api-go/gen/admin/v1"
 	arkmodel "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestCreateResponsesCallsConfiguredTextProviderDirectly(t *testing.T) {
@@ -33,9 +39,7 @@ func TestCreateResponsesCallsConfiguredTextProviderDirectly(t *testing.T) {
 		ID: "provider-text", ProviderKind: "chat", Model: "text-upstream",
 		BaseURL: provider.URL + "/api/v3/responses", APIKey: "secret", IsEnabled: true,
 	}, false)
-	defer directory.Close()
-
-	client := New(&admin.Directory{URL: directory.URL, Token: "internal-token"})
+	client := New(directory)
 	_, err := client.CreateResponses(requestContext("provider-text"), &responses.ResponsesRequest{Model: "provider-text"})
 	if err != nil {
 		t.Fatalf("CreateResponses returned error: %v", err)
@@ -71,9 +75,7 @@ func TestGenerateImagesResolvesAdminProviderAndNormalizesResourceURL(t *testing.
 		ID: "provider-image", ProviderKind: "image", Model: "seedream-upstream",
 		BaseURL: ark.URL + "/api/v3/images/generations", APIKey: "secret", IsEnabled: true,
 	}, false)
-	defer directory.Close()
-
-	client := New(&admin.Directory{URL: directory.URL, Token: "internal-token"})
+	client := New(directory)
 	response, err := client.GenerateImages(requestContext("provider-image"), arkmodel.GenerateImagesRequest{
 		Model: "provider-image", Prompt: "draw a cat",
 	})
@@ -103,9 +105,7 @@ func TestVideoTaskPollUsesTaskCredentialsAfterProviderDisabled(t *testing.T) {
 		ID: "provider-video", ProviderKind: "video", Model: "seedance-upstream",
 		BaseURL: ark.URL + "/api/v3/contents/generations/tasks", APIKey: "secret", IsEnabled: false,
 	}, true)
-	defer directory.Close()
-
-	client := New(&admin.Directory{URL: directory.URL, Token: "internal-token"})
+	client := New(directory)
 	response, err := client.GetContentGenerationTask(requestContext("provider-video"), arkmodel.GetContentGenerationTaskRequest{ID: "task-1"})
 	if err != nil {
 		t.Fatalf("GetContentGenerationTask returned error: %v", err)
@@ -132,9 +132,7 @@ func TestCreateVideoTaskResolvesProviderAndNormalizesResourceURL(t *testing.T) {
 		ID: "provider-video", ProviderKind: "video", Model: "seedance-upstream",
 		BaseURL: ark.URL + "/api/v3/contents/generations/tasks", APIKey: "secret", IsEnabled: true,
 	}, false)
-	defer directory.Close()
-
-	client := New(&admin.Directory{URL: directory.URL, Token: "internal-token"})
+	client := New(directory)
 	duration := int64(5)
 	response, err := client.CreateContentGenerationTask(requestContext("provider-video"), arkmodel.CreateContentGenerationTaskRequest{
 		Model: "provider-video", Duration: &duration,
@@ -159,9 +157,7 @@ func TestGenerateImagesRejectsProviderKindMismatchBeforeArkRequest(t *testing.T)
 		ID: "provider-video", ProviderKind: "video", Model: "seedance-upstream",
 		BaseURL: "https://ark.example.com/api/v3", APIKey: "secret", IsEnabled: true,
 	}, false)
-	defer directory.Close()
-
-	client := New(&admin.Directory{URL: directory.URL, Token: "internal-token"})
+	client := New(directory)
 	_, err := client.GenerateImages(requestContext("provider-video"), arkmodel.GenerateImagesRequest{Model: "provider-video", Prompt: "draw"})
 	if err == nil {
 		t.Fatal("expected provider kind mismatch")
@@ -192,22 +188,60 @@ func requestContext(providerID string) context.Context {
 	return WithProviderID(ctx, providerID)
 }
 
-func providerDirectoryServer(t *testing.T, provider admin.Provider, taskCredentials bool) *httptest.Server {
+type providerServer struct {
+	adminv1.UnimplementedProviderServiceServer
+	provider        *adminv1.ModelProvider
+	taskCredentials bool
+	t               *testing.T
+}
+
+func (server *providerServer) GetProvider(_ context.Context, request *adminv1.GetProviderRequest) (*adminv1.GetProviderResponse, error) {
+	if server.taskCredentials {
+		server.t.Error("expected task-credential lookup")
+	}
+	server.assertScope(request.GetActor().GetTenantId(), request.GetActor().GetWorkspaceId())
+	return &adminv1.GetProviderResponse{Provider: server.provider}, nil
+}
+
+func (server *providerServer) GetTaskProvider(_ context.Context, request *adminv1.GetTaskProviderRequest) (*adminv1.GetTaskProviderResponse, error) {
+	if !server.taskCredentials {
+		server.t.Error("unexpected task-credential lookup")
+	}
+	server.assertScope(request.GetActor().GetTenantId(), request.GetActor().GetWorkspaceId())
+	return &adminv1.GetTaskProviderResponse{Provider: server.provider}, nil
+}
+
+func (server *providerServer) assertScope(tenantID, workspaceID string) {
+	if tenantID != "tenant-1" || workspaceID != "workspace-1" {
+		server.t.Errorf("unexpected Admin scope: %s/%s", tenantID, workspaceID)
+	}
+}
+
+func providerDirectoryServer(t *testing.T, provider admin.Provider, taskCredentials bool) *admin.Directory {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		expectedPath := "/internal/providers/" + provider.ID
-		if taskCredentials {
-			expectedPath += "/task-credentials"
-		}
-		if request.URL.Path != expectedPath {
-			t.Errorf("unexpected Admin path: %s", request.URL.Path)
-		}
-		if request.URL.Query().Get("tenant_id") != "tenant-1" || request.URL.Query().Get("workspace_id") != "workspace-1" {
-			t.Errorf("unexpected Admin scope: %s", request.URL.RawQuery)
-		}
-		if request.Header.Get("X-Internal-Token") != "internal-token" || request.Header.Get("X-Caller-Service") != "canvas" {
-			t.Errorf("unexpected Admin authentication headers")
-		}
-		_ = json.NewEncoder(writer).Encode(provider)
-	}))
+	extra, _ := structpb.NewStruct(provider.ExtraBody)
+	implementation := &providerServer{t: t, taskCredentials: taskCredentials, provider: &adminv1.ModelProvider{Id: provider.ID, Name: provider.Name, Model: provider.Model, ProviderKind: providerKindProto(provider.ProviderKind), BaseUrl: provider.BaseURL, ApiKey: provider.APIKey, ExtraBody: extra, ContextWindow: int32(provider.ContextWindow), MaxOutputTokens: int32(provider.MaxOutputTokens), SupportsImageInput: provider.SupportsImageInput, IsDefault: provider.IsDefault, IsEnabled: provider.IsEnabled}}
+	listener := bufconn.Listen(1 << 20)
+	server := grpc.NewServer()
+	adminv1.RegisterProviderServiceServer(server, implementation)
+	go func() { _ = server.Serve(listener) }()
+	connection, err := grpc.NewClient("passthrough:///bufconn", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
+	if err != nil {
+		t.Fatalf("grpc.NewClient() error = %v", err)
+	}
+	t.Cleanup(func() { _ = connection.Close(); server.Stop(); _ = listener.Close() })
+	return admin.New(connection)
+}
+
+func providerKindProto(value string) adminv1.ProviderKind {
+	switch value {
+	case "chat":
+		return adminv1.ProviderKind_PROVIDER_KIND_CHAT
+	case "image":
+		return adminv1.ProviderKind_PROVIDER_KIND_IMAGE
+	case "video":
+		return adminv1.ProviderKind_PROVIDER_KIND_VIDEO
+	default:
+		return adminv1.ProviderKind_PROVIDER_KIND_UNSPECIFIED
+	}
 }

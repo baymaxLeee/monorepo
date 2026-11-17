@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationprojectaccess "github.com/example/monorepo/canvas/internal/application/projectaccess"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { requestLogger, traceMiddleware } from "@backend/kernel-ts";
 import { Hono } from "hono";
+
+import { requestLogger, traceMiddleware } from "#runtime/foundation";
 
 import { authMiddleware } from "../api/http/middleware/auth.js";
 import { problemJson } from "../api/http/problem.js";

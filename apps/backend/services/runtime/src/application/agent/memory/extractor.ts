@@ -1,7 +1,8 @@
-import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "@backend/transport-ts/provider-model";
-import type { LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
 import { extractJsonMiddleware, generateText, Output, wrapLanguageModel } from "ai";
 import { z } from "zod";
+
+import { createProviderModel, JSON_OBJECT_MODE_INSTRUCTION } from "#runtime/provider-model";
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import {

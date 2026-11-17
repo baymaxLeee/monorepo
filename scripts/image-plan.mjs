@@ -11,7 +11,7 @@ const projects = discoverProjects(ROOT);
 const backendServices = projects.filter(({ area, kind }) => area === "backend" && kind === "services");
 
 function imageForProject(project) {
-  const context = project.runtime === "go" ? project.path : project.runtime === "python" ? "apps/backend" : ".";
+  const context = project.runtime === "go" || project.runtime === "python" ? "apps/backend" : ".";
   return { service: project.id.slice("backend/".length), context, dockerfile: `${project.path}/Dockerfile` };
 }
 
@@ -96,7 +96,6 @@ function affectedByFile(file) {
   if (matches(file, "apps/backend/services/runtime/sandbox-assets/runtime")) selected.add("sandbox-runtime");
   if (matches(file, "apps/backend/services/runtime/sandbox-assets/proxy")) selected.add("sandbox-proxy");
 
-  if (matches(file, "apps/backend/libs/kernel")) add(selected, pythonServices);
   for (const project of projects.filter((p) => p.area === "shared" && p.runtime === "node")) {
     if (matches(file, project.path)) {
       const affected = new Set(consumersOf(projects, [project.id]));

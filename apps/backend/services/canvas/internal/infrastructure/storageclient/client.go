@@ -1,21 +1,19 @@
 package storageclient
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
+	applicationuploadintent "github.com/example/monorepo/canvas/internal/application/uploadintent"
+	commonv1 "github.com/example/monorepo/inner-api-go/gen/common/v1"
+	storagev1 "github.com/example/monorepo/inner-api-go/gen/storage/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-const callerService = "canvas"
 
 type RevisionRef struct {
 	AssetID    string `json:"asset_id"`
@@ -43,27 +41,8 @@ type UploadInput struct {
 	Body                          io.Reader
 }
 
-type CreateUploadSessionInput struct {
-	TenantID, WorkspaceID, UserID string
-	Filename, MediaType, Category string
-	IdempotencyKey                string
-	SizeBytes                     int64
-}
-
-type UploadSession struct {
-	UploadSessionID string    `json:"upload_session_id"`
-	IntentID        string    `json:"intent_id"`
-	State           string    `json:"state"`
-	UserID          string    `json:"user_id"`
-	Category        string    `json:"category"`
-	Filename        string    `json:"filename"`
-	MediaType       string    `json:"media_type"`
-	SizeBytes       int64     `json:"size_bytes"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	UploadURL       string    `json:"upload_url"`
-	AssetID         string    `json:"asset_id"`
-	RevisionID      string    `json:"revision_id"`
-}
+type CreateUploadSessionInput = applicationuploadintent.CreateUploadSessionInput
+type UploadSession = applicationuploadintent.UploadSession
 
 type DeliveryCapabilityInput struct {
 	TenantID    string `json:"tenant_id"`
@@ -95,66 +74,75 @@ type ClaimMutation struct {
 }
 
 type Client struct {
-	baseURL string
-	token   string
-	http    *http.Client
+	assets   storagev1.AssetServiceClient
+	claims   storagev1.ClaimServiceClient
+	sessions storagev1.UploadSessionServiceClient
+	delivery storagev1.DeliveryServiceClient
 }
 
-func New(baseURL, token string, client *http.Client) *Client {
-	if client == nil {
-		client = http.DefaultClient
+func New(connection grpc.ClientConnInterface) *Client {
+	return &Client{
+		assets: storagev1.NewAssetServiceClient(connection), claims: storagev1.NewClaimServiceClient(connection),
+		sessions: storagev1.NewUploadSessionServiceClient(connection), delivery: storagev1.NewDeliveryServiceClient(connection),
 	}
-	return &Client{baseURL: strings.TrimRight(baseURL, "/"), token: token, http: client}
+}
+
+func actor(tenantID, workspaceID, userID string) *commonv1.ActorContext {
+	return &commonv1.ActorContext{TenantId: tenantID, WorkspaceId: workspaceID, UserId: userID}
 }
 
 func (client *Client) Upload(ctx context.Context, input UploadInput) (Revision, error) {
-	if strings.TrimSpace(input.TenantID) == "" ||
-		strings.TrimSpace(input.UserID) == "" || strings.TrimSpace(input.Filename) == "" ||
-		strings.TrimSpace(input.Category) == "" || strings.TrimSpace(input.IdempotencyKey) == "" || input.Body == nil {
+	if strings.TrimSpace(input.TenantID) == "" || strings.TrimSpace(input.UserID) == "" || strings.TrimSpace(input.Filename) == "" || strings.TrimSpace(input.Category) == "" || strings.TrimSpace(input.IdempotencyKey) == "" || input.Body == nil {
 		return Revision{}, errors.New("storage upload requires scope, user, filename, category, idempotency key, and body")
 	}
-	query := url.Values{
-		"tenant_id": {input.TenantID}, "workspace_id": {input.WorkspaceID}, "user_id": {input.UserID},
-		"filename": {input.Filename}, "category": {input.Category}, "idempotency_key": {input.IdempotencyKey},
-	}
-	request, err := client.request(ctx, http.MethodPost, "/internal/assets?"+query.Encode(), input.Body)
+	stream, err := client.assets.Upload(ctx)
 	if err != nil {
 		return Revision{}, err
 	}
-	request.Header.Set("Content-Type", contentTypeOrDefault(input.MediaType))
-	var result Revision
-	if err = client.doJSON(request, http.StatusCreated, &result); err != nil {
+	metadata := &storagev1.UploadMetadata{Actor: actor(input.TenantID, input.WorkspaceID, input.UserID), Filename: input.Filename, MediaType: contentTypeOrDefault(input.MediaType), Category: input.Category, IdempotencyKey: input.IdempotencyKey}
+	if err = stream.Send(&storagev1.UploadRequest{Value: &storagev1.UploadRequest_Metadata{Metadata: metadata}}); err != nil {
 		return Revision{}, err
 	}
-	if !result.Valid() || result.SizeBytes < 0 || strings.TrimSpace(result.SHA256) == "" {
+	buffer := make([]byte, 256*1024)
+	for {
+		count, readErr := input.Body.Read(buffer)
+		if count > 0 {
+			chunk := append([]byte(nil), buffer[:count]...)
+			if err = stream.Send(&storagev1.UploadRequest{Value: &storagev1.UploadRequest_Chunk{Chunk: chunk}}); err != nil {
+				return Revision{}, err
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return Revision{}, readErr
+		}
+	}
+	response, err := stream.CloseAndRecv()
+	if err != nil {
+		return Revision{}, err
+	}
+	result := response.GetResult()
+	if result == nil {
+		return Revision{}, errors.New("storage upload returned no revision")
+	}
+	value := Revision{RevisionRef: RevisionRef{AssetID: result.GetAssetId(), RevisionID: result.GetRevisionId()}, Category: input.Category, Filename: result.GetFilename(), MediaType: result.GetMediaType(), SizeBytes: result.GetSizeBytes(), SHA256: result.GetSha256(), CreatedBy: input.UserID}
+	if !value.Valid() || value.SizeBytes < 0 || strings.TrimSpace(value.SHA256) == "" {
 		return Revision{}, errors.New("storage upload returned invalid revision metadata")
 	}
-	return result, nil
+	return value, nil
 }
 
 func (client *Client) CreateUploadSession(ctx context.Context, input CreateUploadSessionInput) (UploadSession, error) {
-	if strings.TrimSpace(input.TenantID) == "" || strings.TrimSpace(input.UserID) == "" ||
-		strings.TrimSpace(input.Filename) == "" || strings.TrimSpace(input.MediaType) == "" ||
-		strings.TrimSpace(input.Category) == "" || strings.TrimSpace(input.IdempotencyKey) == "" || input.SizeBytes < 0 {
+	if strings.TrimSpace(input.TenantID) == "" || strings.TrimSpace(input.UserID) == "" || strings.TrimSpace(input.Filename) == "" || strings.TrimSpace(input.MediaType) == "" || strings.TrimSpace(input.Category) == "" || strings.TrimSpace(input.IdempotencyKey) == "" || input.SizeBytes < 0 {
 		return UploadSession{}, errors.New("storage upload session requires scope, user, file metadata, category, and idempotency key")
 	}
-	payload, err := json.Marshal(map[string]any{
-		"tenant_id": input.TenantID, "workspace_id": input.WorkspaceID, "user_id": input.UserID,
-		"filename": input.Filename, "media_type": input.MediaType, "size_bytes": input.SizeBytes,
-		"category": input.Category, "intent_id": input.IdempotencyKey,
-	})
+	response, err := client.sessions.CreateUploadSession(ctx, &storagev1.CreateUploadSessionRequest{Actor: actor(input.TenantID, input.WorkspaceID, input.UserID), IntentId: input.IdempotencyKey, Filename: input.Filename, MediaType: input.MediaType, Category: input.Category, SizeBytes: input.SizeBytes})
 	if err != nil {
 		return UploadSession{}, err
 	}
-	request, err := client.request(ctx, http.MethodPost, "/internal/upload-sessions", bytes.NewReader(payload))
-	if err != nil {
-		return UploadSession{}, err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	var result UploadSession
-	if err = client.doJSON(request, http.StatusOK, &result); err != nil {
-		return UploadSession{}, err
-	}
+	result := uploadSessionFromProto(response.GetSession())
 	if err = validateUploadSession(result); err != nil {
 		return UploadSession{}, err
 	}
@@ -162,11 +150,7 @@ func (client *Client) CreateUploadSession(ctx context.Context, input CreateUploa
 }
 
 func validateUploadSession(session UploadSession) error {
-	if strings.TrimSpace(session.UploadSessionID) == "" || strings.TrimSpace(session.IntentID) == "" ||
-		strings.TrimSpace(session.State) == "" || strings.TrimSpace(session.UserID) == "" ||
-		strings.TrimSpace(session.Category) == "" || strings.TrimSpace(session.Filename) == "" ||
-		strings.TrimSpace(session.MediaType) == "" || strings.TrimSpace(session.UploadURL) == "" ||
-		session.SizeBytes < 0 || session.ExpiresAt.IsZero() {
+	if strings.TrimSpace(session.UploadSessionID) == "" || strings.TrimSpace(session.IntentID) == "" || strings.TrimSpace(session.State) == "" || strings.TrimSpace(session.UserID) == "" || strings.TrimSpace(session.Category) == "" || strings.TrimSpace(session.Filename) == "" || strings.TrimSpace(session.MediaType) == "" || strings.TrimSpace(session.UploadURL) == "" || session.SizeBytes < 0 || session.ExpiresAt.IsZero() {
 		return errors.New("storage upload session response is invalid")
 	}
 	return nil
@@ -176,15 +160,11 @@ func (client *Client) Describe(ctx context.Context, tenantID, workspaceID string
 	if strings.TrimSpace(tenantID) == "" || !ref.Valid() {
 		return Revision{}, errors.New("storage describe requires scope and revision reference")
 	}
-	query := url.Values{"tenant_id": {tenantID}, "workspace_id": {workspaceID}}
-	request, err := client.request(ctx, http.MethodGet, revisionPath("/internal/assets", ref)+"?"+query.Encode(), nil)
+	response, err := client.assets.DescribeRevision(ctx, &storagev1.DescribeRevisionRequest{Actor: actor(tenantID, workspaceID, ""), AssetId: ref.AssetID, RevisionId: ref.RevisionID})
 	if err != nil {
 		return Revision{}, err
 	}
-	var result Revision
-	if err = client.doJSON(request, http.StatusOK, &result); err != nil {
-		return Revision{}, err
-	}
+	result := revisionFromProto(response.GetRevision())
 	if !result.Valid() || result.RevisionRef != ref {
 		return Revision{}, errors.New("storage describe returned mismatched revision identity")
 	}
@@ -195,74 +175,82 @@ func (client *Client) Open(ctx context.Context, tenantID, workspaceID string, re
 	if strings.TrimSpace(tenantID) == "" || !ref.Valid() {
 		return nil, errors.New("storage content read requires scope and revision reference")
 	}
-	query := url.Values{"tenant_id": {tenantID}, "workspace_id": {workspaceID}}
-	request, err := client.request(ctx, http.MethodGet, revisionPath("/internal/assets", ref)+"/content?"+query.Encode(), nil)
+	stream, err := client.assets.ReadContent(ctx, &storagev1.ReadContentRequest{Actor: actor(tenantID, workspaceID, ""), AssetId: ref.AssetID, RevisionId: ref.RevisionID})
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.http.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("storage content request: %w", err)
-	}
-	if response.StatusCode != http.StatusOK {
-		return nil, responseError(response)
-	}
-	return response.Body, nil
+	reader, writer := io.Pipe()
+	go func() {
+		for {
+			response, receiveErr := stream.Recv()
+			if receiveErr == io.EOF {
+				_ = writer.Close()
+				return
+			}
+			if receiveErr != nil {
+				_ = writer.CloseWithError(receiveErr)
+				return
+			}
+			chunk := response.GetValue().GetChunk()
+			if len(chunk) > 0 {
+				if _, writeErr := writer.Write(chunk); writeErr != nil {
+					return
+				}
+			}
+		}
+	}()
+	return reader, nil
 }
 
 func (client *Client) MintDeliveryCapabilities(ctx context.Context, inputs []DeliveryCapabilityInput) ([]DeliveryCapability, error) {
 	if len(inputs) == 0 || len(inputs) > 200 {
 		return nil, errors.New("storage delivery capability batch must contain 1 to 200 items")
 	}
+	request := &storagev1.MintCapabilitiesRequest{Items: make([]*storagev1.DeliveryCapabilityItem, 0, len(inputs))}
 	for _, input := range inputs {
 		if strings.TrimSpace(input.TenantID) == "" || !input.Valid() {
 			return nil, errors.New("storage delivery capability requires scope and revision reference")
 		}
+		request.Items = append(request.Items, &storagev1.DeliveryCapabilityItem{Actor: actor(input.TenantID, input.WorkspaceID, ""), AssetId: input.AssetID, RevisionId: input.RevisionID})
 	}
-	body, err := json.Marshal(map[string]any{"items": inputs})
+	response, err := client.delivery.MintCapabilities(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	request, err := client.request(ctx, http.MethodPost, "/internal/delivery-capabilities:mint", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	var result struct {
-		Items []DeliveryCapability `json:"items"`
-	}
-	if err = client.doJSON(request, http.StatusOK, &result); err != nil {
-		return nil, err
-	}
-	if len(result.Items) != len(inputs) {
+	if len(response.GetItems()) != len(inputs) {
 		return nil, errors.New("storage delivery capability response length mismatch")
 	}
-	return result.Items, nil
+	result := make([]DeliveryCapability, 0, len(response.GetItems()))
+	for _, item := range response.GetItems() {
+		result = append(result, DeliveryCapability{RevisionRef: RevisionRef{AssetID: item.GetAssetId(), RevisionID: item.GetRevisionId()}, URL: item.GetUrl(), ExpiresAt: item.GetExpiresAt().AsTime()})
+	}
+	return result, nil
 }
 
 func (client *Client) PrepareClaim(ctx context.Context, input ClaimInput) error {
-	payload := map[string]any{
-		"tenant_id": input.TenantID, "workspace_id": input.WorkspaceID, "owner_type": input.OwnerType,
-		"owner_id": input.OwnerID, "slot": input.Slot, "asset_id": input.AssetID,
-		"revision_id": input.RevisionID, "kind": input.Kind, "generation": input.Generation,
-		"expires_at": input.ExpiresAt,
+	if !input.Valid() {
+		return errors.New("storage claim requires a revision reference")
 	}
-	return client.postMutation(ctx, "/internal/claims:prepare", payload)
+	request := &storagev1.PrepareClaimRequest{Actor: actor(input.TenantID, input.WorkspaceID, ""), OwnerType: input.OwnerType, OwnerId: input.OwnerID, Slot: input.Slot, Generation: input.Generation, AssetId: input.AssetID, RevisionId: &input.RevisionID, Kind: claimKind(input.Kind)}
+	if input.ExpiresAt != nil {
+		request.ExpiresAt = timestamppb.New(*input.ExpiresAt)
+	}
+	_, err := client.claims.PrepareClaim(ctx, request)
+	return err
 }
 
 func (client *Client) ActivateClaim(ctx context.Context, input ClaimMutation) error {
-	return client.mutateClaim(ctx, "/internal/claims:activate", input)
+	_, err := client.claims.ActivateClaim(ctx, &storagev1.ActivateClaimRequest{Actor: actor(input.TenantID, input.WorkspaceID, ""), OwnerType: input.OwnerType, OwnerId: input.OwnerID, Slot: input.Slot, Generation: input.Generation})
+	return err
 }
 
 func (client *Client) ReleaseClaim(ctx context.Context, input ClaimMutation) error {
-	return client.mutateClaim(ctx, "/internal/claims:release", input)
+	_, err := client.claims.ReleaseClaim(ctx, &storagev1.ReleaseClaimRequest{Actor: actor(input.TenantID, input.WorkspaceID, ""), OwnerType: input.OwnerType, OwnerId: input.OwnerID, Slot: input.Slot, Generation: input.Generation})
+	return err
 }
 
 func (client *Client) PrepareAssetClaim(ctx context.Context, intent applicationassetclaim.Intent) error {
-	return client.PrepareClaim(ctx, ClaimInput{
-		TenantID: intent.TenantID, WorkspaceID: intent.WorkspaceID, OwnerType: intent.OwnerType, OwnerID: intent.OwnerID, Slot: intent.Slot,
-		RevisionRef: RevisionRef{AssetID: intent.AssetID, RevisionID: intent.RevisionID}, Kind: intent.Kind, Generation: intent.Generation, ExpiresAt: intent.ExpiresAt,
-	})
+	return client.PrepareClaim(ctx, ClaimInput{TenantID: intent.TenantID, WorkspaceID: intent.WorkspaceID, OwnerType: intent.OwnerType, OwnerID: intent.OwnerID, Slot: intent.Slot, RevisionRef: RevisionRef{AssetID: intent.AssetID, RevisionID: intent.RevisionID}, Kind: intent.Kind, Generation: intent.Generation, ExpiresAt: intent.ExpiresAt})
 }
 
 func (client *Client) ActivateAssetClaim(ctx context.Context, intent applicationassetclaim.Intent) error {
@@ -273,63 +261,54 @@ func (client *Client) ReleaseAssetClaimIntent(ctx context.Context, intent applic
 	return client.ReleaseClaim(ctx, ClaimMutation{TenantID: intent.TenantID, WorkspaceID: intent.WorkspaceID, OwnerType: intent.OwnerType, OwnerID: intent.OwnerID, Slot: intent.Slot, Generation: intent.Generation})
 }
 
-func (client *Client) mutateClaim(ctx context.Context, endpoint string, input ClaimMutation) error {
-	return client.postMutation(ctx, endpoint, map[string]any{
-		"tenant_id": input.TenantID, "workspace_id": input.WorkspaceID, "owner_type": input.OwnerType,
-		"owner_id": input.OwnerID, "slot": input.Slot, "generation": input.Generation,
-	})
+func revisionFromProto(value *storagev1.RevisionMetadata) Revision {
+	if value == nil {
+		return Revision{}
+	}
+	return Revision{RevisionRef: RevisionRef{AssetID: value.GetAssetId(), RevisionID: value.GetRevisionId()}, Category: value.GetCategory(), Filename: value.GetFilename(), MediaType: value.GetMediaType(), SizeBytes: value.GetSizeBytes(), SHA256: value.GetSha256(), CreatedBy: value.GetCreatedBy()}
 }
 
-func (client *Client) postMutation(ctx context.Context, endpoint string, payload any) error {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return err
+func uploadSessionFromProto(value *storagev1.UploadSession) UploadSession {
+	if value == nil {
+		return UploadSession{}
 	}
-	request, err := client.request(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return err
+	result := UploadSession{UploadSessionID: value.GetUploadSessionId(), IntentID: value.GetIntentId(), State: uploadSessionState(value.GetState()), UserID: value.GetUserId(), Category: value.GetCategory(), Filename: value.GetFilename(), MediaType: value.GetMediaType(), SizeBytes: value.GetSizeBytes(), UploadURL: value.GetUploadUrl(), AssetID: value.GetAssetId(), RevisionID: value.GetRevisionId()}
+	if value.GetExpiresAt() != nil {
+		result.ExpiresAt = value.GetExpiresAt().AsTime()
 	}
-	request.Header.Set("Content-Type", "application/json")
-	return client.doJSON(request, http.StatusOK, nil)
+	return result
 }
 
-func (client *Client) request(ctx context.Context, method, target string, body io.Reader) (*http.Request, error) {
-	request, err := http.NewRequestWithContext(ctx, method, client.baseURL+target, body)
-	if err != nil {
-		return nil, err
+func uploadSessionState(value storagev1.UploadSessionState) string {
+	switch value {
+	case storagev1.UploadSessionState_UPLOAD_SESSION_STATE_PENDING:
+		return "pending"
+	case storagev1.UploadSessionState_UPLOAD_SESSION_STATE_UPLOADING:
+		return "uploading"
+	case storagev1.UploadSessionState_UPLOAD_SESSION_STATE_COMPLETED:
+		return "completed"
+	case storagev1.UploadSessionState_UPLOAD_SESSION_STATE_FAILED:
+		return "failed"
+	case storagev1.UploadSessionState_UPLOAD_SESSION_STATE_ABORTED:
+		return "aborted"
+	default:
+		return ""
 	}
-	request.Header.Set("X-Caller-Service", callerService)
-	request.Header.Set("X-Internal-Token", client.token)
-	return request, nil
 }
 
-func (client *Client) doJSON(request *http.Request, expected int, target any) error {
-	response, err := client.http.Do(request)
-	if err != nil {
-		return fmt.Errorf("storage request: %w", err)
+func claimKind(value string) storagev1.ClaimKind {
+	switch value {
+	case "strong":
+		return storagev1.ClaimKind_CLAIM_KIND_STRONG
+	case "snapshot":
+		return storagev1.ClaimKind_CLAIM_KIND_SNAPSHOT
+	case "lease":
+		return storagev1.ClaimKind_CLAIM_KIND_LEASE
+	case "weak":
+		return storagev1.ClaimKind_CLAIM_KIND_WEAK
+	default:
+		return storagev1.ClaimKind_CLAIM_KIND_UNSPECIFIED
 	}
-	defer response.Body.Close()
-	if response.StatusCode != expected {
-		return responseError(response)
-	}
-	if target == nil {
-		_, err = io.Copy(io.Discard, response.Body)
-		return err
-	}
-	if err = json.NewDecoder(response.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode storage response: %w", err)
-	}
-	return nil
-}
-
-func responseError(response *http.Response) error {
-	defer response.Body.Close()
-	payload, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
-	return fmt.Errorf("storage service returned %d: %s", response.StatusCode, strings.TrimSpace(string(payload)))
-}
-
-func revisionPath(prefix string, ref RevisionRef) string {
-	return prefix + "/" + url.PathEscape(ref.AssetID) + "/revisions/" + url.PathEscape(ref.RevisionID)
 }
 
 func contentTypeOrDefault(value string) string {

@@ -8,7 +8,6 @@ import (
 
 func TestDeliveryConfiguration(t *testing.T) {
 	t.Setenv("ENVIRONMENT", "development")
-	t.Setenv("INTERNAL_SERVICE_TOKENS", "")
 	t.Setenv("STORAGE_DELIVERY_URL_TTL", "")
 	t.Setenv("REDIS_URL", "redis://cache.example:6379/2")
 	cfg, err := Load()
@@ -31,7 +30,6 @@ func TestDevelopmentDatabaseIdentityDefaultsToStorage(t *testing.T) {
 	t.Setenv("POSTGRES_USER", "")
 	t.Setenv("POSTGRES_PASSWORD", "")
 	t.Setenv("POSTGRES_DATABASE", "")
-	t.Setenv("INTERNAL_SERVICE_TOKENS", "")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)

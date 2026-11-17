@@ -12,11 +12,11 @@ import (
 	"strings"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
-	"go.uber.org/zap"
+	"log/slog"
 
 	applicationcanvasnode "github.com/example/monorepo/canvas/internal/application/canvas"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationmodel "github.com/example/monorepo/canvas/internal/application/model"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	providerclient "github.com/example/monorepo/canvas/internal/infrastructure/provider/client"
 )
 
@@ -34,7 +34,7 @@ const (
 
 type StoryboardSplitter struct {
 	client            providerclient.Client
-	log               *zap.Logger
+	log               *slog.Logger
 	workerConcurrency int
 }
 
@@ -324,9 +324,9 @@ func newStoryboardTruncatedModelError(format string, args ...any) error {
 	return &storyboardModelError{message: fmt.Sprintf(format, args...)}
 }
 
-func NewStoryboardSplitter(client providerclient.Client, log *zap.Logger) applicationcanvasnode.StoryboardSplitter {
+func NewStoryboardSplitter(client providerclient.Client, log *slog.Logger) applicationcanvasnode.StoryboardSplitter {
 	if log == nil {
-		log = zap.NewNop()
+		log = slog.Default()
 	}
 	return &StoryboardSplitter{client: client, log: log}
 }
@@ -538,12 +538,12 @@ func (s *StoryboardSplitter) logPlannedModelRound(
 		reasons = append(reasons, rejection.Message)
 	}
 	fields := append(logcontext.Fields(ctx),
-		zap.String("model_id", modelID), zap.Int("model_round", round),
-		zap.String("response_id", outcome.ResponseID), zap.Strings("tool_call_ids", callIDs),
-		zap.Ints("accepted_canvasnode_no", accepted), zap.Ints("missing_canvasnode_no", missing),
-		zap.Strings("rejection_reasons", reasons),
+		slog.String("model_id", modelID), slog.Int("model_round", round),
+		slog.String("response_id", outcome.ResponseID), slog.Any("tool_call_ids", callIDs),
+		slog.Any("accepted_canvasnode_no", accepted), slog.Any("missing_canvasnode_no", missing),
+		slog.Any("rejection_reasons", reasons),
 	)
-	s.log.Warn("planned storyboard model round requires correction", fields...)
+	s.log.LogAttrs(ctx, slog.LevelWarn, "planned storyboard model round requires correction", fields...)
 }
 
 func storyboardDiagnosticMessage(rule string) string {

@@ -4,17 +4,15 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/example/monorepo/canvas/internal/infrastructure/storageclient"
 )
 
 type sessionCreatorStub struct {
-	input storageclient.CreateUploadSessionInput
+	input CreateUploadSessionInput
 }
 
-func (stub *sessionCreatorStub) CreateUploadSession(_ context.Context, input storageclient.CreateUploadSessionInput) (storageclient.UploadSession, error) {
+func (stub *sessionCreatorStub) CreateUploadSession(_ context.Context, input CreateUploadSessionInput) (UploadSession, error) {
 	stub.input = input
-	return storageclient.UploadSession{
+	return UploadSession{
 		UploadSessionID: "session", IntentID: input.IdempotencyKey, State: "pending", UserID: input.UserID,
 		Category: input.Category, Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes,
 		ExpiresAt: time.Unix(100, 0), UploadURL: "/upload",

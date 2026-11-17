@@ -7,20 +7,17 @@ import (
 	"time"
 
 	"github.com/example/monorepo/iam/internal/application/contracts"
-	"github.com/example/monorepo/iam/internal/bootstrap/config"
 	"github.com/example/monorepo/iam/internal/domain"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/models"
-	"github.com/example/monorepo/iam/internal/infrastructure/persistence/repositories"
-	"github.com/example/monorepo/iam/internal/infrastructure/security"
 )
 
 type WorkspaceService struct {
-	store *repositories.Store
-	cfg   config.ServerConfig
+	store    Store
+	cfg      WorkspaceConfig
+	security Security
 }
 
-func NewWorkspaceService(store *repositories.Store, cfg config.ServerConfig) *WorkspaceService {
-	return &WorkspaceService{store: store, cfg: cfg}
+func NewWorkspaceService(store Store, cfg WorkspaceConfig, security Security) *WorkspaceService {
+	return &WorkspaceService{store: store, cfg: cfg, security: security}
 }
 
 // ListPublic returns the applyable workspace list as {id,name} only — no member
@@ -71,7 +68,7 @@ func (s *WorkspaceService) Create(ctx context.Context, req contracts.CreateWorks
 		return contracts.WorkspaceAdminView{}, ErrInvalidWorkspace // exactly one owner source
 	}
 	now := time.Now().UTC()
-	workspace := models.Workspace{
+	workspace := Workspace{
 		TenantID: strings.TrimSpace(req.TenantID), ID: NewID(), Name: name, Slug: slug, JoinPolicy: "approval",
 		CreatedAt: now, UpdatedAt: now,
 	}
@@ -84,7 +81,7 @@ func (s *WorkspaceService) Create(ctx context.Context, req contracts.CreateWorks
 		if err := mutateWithAudit(ctx, s.store, auditEntry{
 			Action: "workspace.create", Actor: meta.ActorUserID, Target: ownerID, Workspace: workspace.ID,
 			After: map[string]any{"workspaceId": workspace.ID, "name": workspace.Name, "slug": workspace.Slug, "ownerUserId": ownerID}, Trace: meta.TraceID,
-		}, func(txStore *repositories.Store) error {
+		}, func(txStore Store) error {
 			return txStore.CreateWorkspaceWithOwner(ctx, workspace, ownerID)
 		}); err != nil {
 			return contracts.WorkspaceAdminView{}, ErrConflict
@@ -95,7 +92,7 @@ func (s *WorkspaceService) Create(ctx context.Context, req contracts.CreateWorks
 		if !domain.ValidAccount(account) || !domain.ValidEmail(email) || len(req.OwnerPassword) < 6 {
 			return contracts.WorkspaceAdminView{}, ErrInvalidWorkspace
 		}
-		hash, err := security.HashPassword(req.OwnerPassword)
+		hash, err := s.security.HashPassword(req.OwnerPassword)
 		if err != nil {
 			return contracts.WorkspaceAdminView{}, err
 		}
@@ -103,7 +100,7 @@ func (s *WorkspaceService) Create(ctx context.Context, req contracts.CreateWorks
 		if display == "" {
 			display = account
 		}
-		owner := models.User{
+		owner := User{
 			ID:              NewID(),
 			Account:         account,
 			Email:           email,
@@ -119,7 +116,7 @@ func (s *WorkspaceService) Create(ctx context.Context, req contracts.CreateWorks
 		if err := mutateWithAudit(ctx, s.store, auditEntry{
 			Action: "workspace.create", Actor: meta.ActorUserID, Target: owner.ID, Workspace: workspace.ID,
 			After: map[string]any{"workspaceId": workspace.ID, "name": workspace.Name, "slug": workspace.Slug, "ownerUserId": owner.ID}, Trace: meta.TraceID,
-		}, func(txStore *repositories.Store) error {
+		}, func(txStore Store) error {
 			return txStore.CreateWorkspaceWithNewOwner(ctx, workspace, owner, hash, s.cfg.GuestWorkspaceID)
 		}); err != nil {
 			return contracts.WorkspaceAdminView{}, ErrConflict
@@ -141,7 +138,7 @@ func (s *WorkspaceService) CreateWorkspaceAdmin(ctx context.Context, workspaceID
 	if !domain.ValidAccount(account) || !domain.ValidEmail(email) || len(req.Password) < 6 {
 		return contracts.WorkspaceMemberView{}, ErrInvalidRegistration
 	}
-	hash, err := security.HashPassword(req.Password)
+	hash, err := s.security.HashPassword(req.Password)
 	if err != nil {
 		return contracts.WorkspaceMemberView{}, err
 	}
@@ -150,7 +147,7 @@ func (s *WorkspaceService) CreateWorkspaceAdmin(ctx context.Context, workspaceID
 		display = account
 	}
 	now := time.Now().UTC()
-	user := models.User{
+	user := User{
 		ID:              NewID(),
 		Account:         account,
 		Email:           email,
@@ -165,7 +162,7 @@ func (s *WorkspaceService) CreateWorkspaceAdmin(ctx context.Context, workspaceID
 	if err := mutateWithAudit(ctx, s.store, auditEntry{
 		Action: "workspace.admin.create", Actor: meta.ActorUserID, Target: user.ID, Workspace: workspaceID,
 		After: map[string]any{"userId": user.ID, "account": user.Account, "role": "workspace_admin", "status": "active"}, Trace: meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		return txStore.CreateUserWithMembership(ctx, user, hash, s.cfg.GuestWorkspaceID, workspaceID, "workspace_admin", "active")
 	}); err != nil {
 		return contracts.WorkspaceMemberView{}, ErrConflict
@@ -198,7 +195,7 @@ func (s *WorkspaceService) TransferOwner(ctx context.Context, workspaceID, newOw
 		Before:    map[string]any{"ownerUserId": oldOwner},
 		After:     map[string]any{"ownerUserId": newOwnerUserID},
 		Trace:     meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		if err := txStore.TransferOwner(ctx, workspaceID, newOwnerUserID); err != nil {
 			return err
 		}
@@ -229,7 +226,7 @@ func (s *WorkspaceService) Approve(ctx context.Context, workspaceID, userID, rev
 		Before:    map[string]any{"role": beforeRole, "status": beforeStatus},
 		After:     map[string]any{"status": "active"},
 		Trace:     meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		if err := txStore.ApproveMembership(ctx, workspaceID, userID, reviewerID); err != nil {
 			return err
 		}
@@ -250,7 +247,7 @@ func (s *WorkspaceService) Reject(ctx context.Context, workspaceID, userID, revi
 		After:     map[string]any{"status": "rejected"},
 		Reason:    reason,
 		Trace:     meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		if err := txStore.RejectMembership(ctx, workspaceID, userID, reviewerID, reason); err != nil {
 			return err
 		}
@@ -273,7 +270,7 @@ func (s *WorkspaceService) SetMemberRole(ctx context.Context, workspaceID, userI
 		Before:    map[string]any{"role": beforeRole},
 		After:     map[string]any{"role": role},
 		Trace:     meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		if err := txStore.SetMemberRole(ctx, workspaceID, userID, role); err != nil {
 			return err
 		}
@@ -294,13 +291,13 @@ func (s *WorkspaceService) Apply(ctx context.Context, workspaceID, userID string
 	err = mutateWithAudit(ctx, s.store, auditEntry{
 		Action: "member.apply", Actor: userID, Target: userID, Workspace: workspaceID,
 		After: map[string]any{"status": "pending"}, Trace: meta.TraceID,
-	}, func(txStore *repositories.Store) error {
+	}, func(txStore Store) error {
 		return txStore.ApplyMembership(ctx, workspaceID, userID)
 	})
 	return mapMembershipErr(err)
 }
 
-func workspaceMemberView(row repositories.WorkspaceMemberRow) contracts.WorkspaceMemberView {
+func workspaceMemberView(row WorkspaceMemberRow) contracts.WorkspaceMemberView {
 	view := contracts.WorkspaceMemberView{
 		UserID:          row.UserID,
 		Account:         row.Account,
@@ -323,19 +320,17 @@ func mapMembershipErr(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, repositories.ErrNotFound):
+	case errors.Is(err, ErrStoreNotFound):
 		return ErrNotFound
-	case errors.Is(err, repositories.ErrConflict):
+	case errors.Is(err, ErrStoreConflict):
 		return ErrConflict
-	case errors.Is(err, repositories.ErrInvariant):
+	case errors.Is(err, ErrStoreInvariant):
 		return ErrInvariant
-	case errors.Is(err, repositories.ErrNotActiveMember):
+	case errors.Is(err, ErrStoreNotActiveMember):
 		return ErrNotActiveMember
 	default:
 		return err
 	}
 }
 
-// ErrNotFound mirrors repositories.ErrNotFound at the service boundary for router
-// mapping without importing crud there.
 var ErrNotFound = errors.New("not found")

@@ -1,16 +1,18 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestIdentityPropagationAllowsAssetDeliveryCapabilitiesOnly(t *testing.T) {
 	t.Parallel()
 
 	handler := IdentityPropagation(
-		"secret",
+		func(string, time.Time) (Claims, error) { return Claims{}, errors.New("invalid token") },
 		[]string{"/api/storage-server/media"},
 		nil,
 		nil,

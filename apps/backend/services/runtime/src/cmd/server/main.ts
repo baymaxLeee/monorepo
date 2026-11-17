@@ -2,8 +2,9 @@ try {
   process.loadEnvFile();
 } catch {}
 
-import { configureOpenTelemetry, shutdownOpenTelemetry } from "@backend/kernel-ts";
 import { serve } from "@hono/node-server";
+
+import { configureOpenTelemetry, shutdownOpenTelemetry } from "#runtime/foundation";
 
 import { createApp } from "../../bootstrap/server-app.js";
 import { bootstrapServer } from "../../bootstrap/server-runtime.js";

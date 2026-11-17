@@ -1,4 +1,4 @@
-import { createProviderModel, type LanguageProviderSnapshot } from "@backend/transport-ts/provider-model";
+import { createProviderModel, type LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { contextCompactionThreshold } from "../agent/context/budget.js";
 export function createInferenceModel(provider: LanguageProviderSnapshot) {

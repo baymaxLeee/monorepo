@@ -9,10 +9,10 @@ import (
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
 	applicationcoverimage "github.com/example/monorepo/canvas/internal/application/coverimage"
 	applicationdeletion "github.com/example/monorepo/canvas/internal/application/deletion"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationprojectstatistics "github.com/example/monorepo/canvas/internal/application/projectstatistics"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
 	domaincanvas "github.com/example/monorepo/canvas/internal/domain/canvas"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	"github.com/example/monorepo/canvas/pkg/platform/errno"
 )
 

@@ -10,10 +10,10 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	app "github.com/example/monorepo/canvas/internal/application/canvas"
 	archive "github.com/example/monorepo/canvas/internal/application/canvasarchive"
 	stream "github.com/example/monorepo/canvas/internal/application/canvasstream"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 	domain "github.com/example/monorepo/canvas/internal/domain/canvas"
 	canvasrepo "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvas"
 	archiverepo "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasarchive"

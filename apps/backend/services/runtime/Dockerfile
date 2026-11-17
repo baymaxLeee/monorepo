@@ -11,13 +11,9 @@ COPY package.json ./package.json
 COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
-COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
-COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/runtime/package.json ./apps/backend/services/runtime/package.json
 RUN pnpm install --filter @backend/runtime... --frozen-lockfile --config.registry=${NPM_CONFIG_REGISTRY}
 COPY packages/agent-runtime ./packages/agent-runtime
-COPY apps/backend/libs/kernel-ts ./apps/backend/libs/kernel-ts
-COPY apps/backend/libs/transport-ts ./apps/backend/libs/transport-ts
 COPY apps/backend/services/runtime ./apps/backend/services/runtime
 WORKDIR /app/apps/backend/services/runtime
 RUN pnpm run build
@@ -40,14 +36,10 @@ COPY package.json ./package.json
 COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
 COPY apps/backend/package.json ./apps/backend/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
-COPY apps/backend/libs/kernel-ts/package.json ./apps/backend/libs/kernel-ts/package.json
-COPY apps/backend/libs/transport-ts/package.json ./apps/backend/libs/transport-ts/package.json
 COPY apps/backend/services/runtime/package.json ./apps/backend/services/runtime/package.json
 RUN pnpm install --filter @backend/runtime... --prod --frozen-lockfile --config.node-linker=hoisted \
     --config.registry=${NPM_CONFIG_REGISTRY}
 COPY packages/agent-runtime ./packages/agent-runtime
-COPY apps/backend/libs/kernel-ts ./apps/backend/libs/kernel-ts
-COPY apps/backend/libs/transport-ts ./apps/backend/libs/transport-ts
 COPY apps/backend/services/runtime/src ./apps/backend/services/runtime/src
 COPY apps/backend/services/runtime/sandbox-assets ./apps/backend/services/runtime/sandbox-assets
 COPY --from=build /app/apps/backend/services/runtime/.output ./apps/backend/services/runtime/.output

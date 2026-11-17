@@ -3,18 +3,18 @@ package projectcleanup
 import (
 	"context"
 
-	"go.uber.org/zap"
+	"log/slog"
 
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 	platformlogger "github.com/example/monorepo/canvas/pkg/platform/logger"
 )
 
 type failureReporter struct {
-	log *zap.Logger
+	log *slog.Logger
 }
 
-func NewFailureReporter(log *zap.Logger) applicationproject.CleanupFailureReporter {
+func NewFailureReporter(log *slog.Logger) applicationproject.CleanupFailureReporter {
 	return failureReporter{log: log}
 }
 

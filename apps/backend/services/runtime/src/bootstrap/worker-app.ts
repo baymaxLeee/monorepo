@@ -1,5 +1,6 @@
-import { requestLogger, traceMiddleware } from "@backend/kernel-ts";
 import { Hono } from "hono";
+
+import { requestLogger, traceMiddleware } from "#runtime/foundation";
 
 import { internalAuthMiddleware } from "../api/http/middleware/worker-auth.js";
 import { problemJson } from "../api/http/problem.js";

@@ -1,16 +1,17 @@
-import { AdminInternalClient, TransportError, type AdminProviderSnapshot } from "@backend/transport-ts";
-import { assertPublicProviderUrl } from "@backend/transport-ts/provider-url";
+import { InnerApiCaller, InnerApiError, insecureChannelCredentials } from "@backend/inner-api/client";
+import { type ModelProvider, PricingUnit, ProviderServiceClient } from "@backend/inner-api/gen/admin/v1/admin";
+
+import { assertPublicProviderUrl } from "#runtime/provider-url";
 
 import { RequestError } from "../../application/errors.js";
 import { getWorkerSettings } from "../../config/worker.js";
 
-function adminClient(): AdminInternalClient {
+function adminClient() {
   const settings = getWorkerSettings();
-  return new AdminInternalClient({
-    baseUrl: settings.adminServiceUrl,
-    internalToken: settings.internalApiToken,
-    callerService: "runtime",
-  });
+  return {
+    service: new ProviderServiceClient(settings.adminRpcTarget, insecureChannelCredentials),
+    caller: new InnerApiCaller("runtime"),
+  };
 }
 
 export type ProviderSnapshot = {
@@ -36,13 +37,21 @@ async function loadProvider(
   tenantId: string,
   workspaceId: string,
   existingTask: boolean,
-): Promise<AdminProviderSnapshot> {
+): Promise<ModelProvider> {
   try {
-    return existingTask
-      ? await adminClient().getTaskProvider(providerId, tenantId, workspaceId)
-      : await adminClient().getProvider(providerId, tenantId, workspaceId);
+    const client = adminClient();
+    const actor = { userId: "", tenantId, workspaceId };
+    const response = existingTask
+      ? await client.caller.unary<{ provider?: ModelProvider }>((metadata, options, callback) =>
+          client.service.getTaskProvider({ actor, providerId }, metadata, options, callback),
+        )
+      : await client.caller.unary<{ provider?: ModelProvider }>((metadata, options, callback) =>
+          client.service.getProvider({ actor, providerId }, metadata, options, callback),
+        );
+    if (!response.provider) throw new Error("admin returned no provider");
+    return response.provider;
   } catch (err) {
-    if (err instanceof TransportError && err.status === 404) {
+    if (err instanceof InnerApiError && err.code === 5) {
       throw new RequestError(`provider ${providerId} not found`);
     }
     throw err;
@@ -62,13 +71,13 @@ export async function getImageProvider(
   existingTask = false,
 ): Promise<ImageProviderSnapshot> {
   const data = await loadProvider(providerId, tenantId, workspaceId, existingTask);
-  await assertProviderUrl(data.base_url);
+  await assertProviderUrl(data.baseUrl);
   return {
     id: data.id,
     model: data.model,
-    baseUrl: data.base_url,
-    apiKey: data.api_key,
-    extraBody: data.extra_body ?? {},
+    baseUrl: data.baseUrl,
+    apiKey: data.apiKey,
+    extraBody: data.extraBody ?? {},
   };
 }
 
@@ -84,21 +93,21 @@ export async function getProvider(
   return provider;
 }
 
-export function toProviderSnapshot(data: AdminProviderSnapshot): ProviderSnapshot {
+export function toProviderSnapshot(data: ModelProvider): ProviderSnapshot {
   return {
     id: data.id,
     name: data.name,
     model: data.model,
-    baseUrl: data.base_url,
-    apiKey: data.api_key,
-    extraBody: data.extra_body ?? {},
-    contextWindow: data.context_window,
-    maxOutputTokens: data.max_output_tokens,
+    baseUrl: data.baseUrl,
+    apiKey: data.apiKey,
+    extraBody: data.extraBody ?? {},
+    contextWindow: data.contextWindow,
+    maxOutputTokens: data.maxOutputTokens,
     pricing: data.pricing
       ? {
           currency: data.pricing.currency,
-          unit: data.pricing.unit,
-          unitPriceMicros: data.pricing.unit_price_micros,
+          unit: data.pricing.unit === PricingUnit.PRICING_UNIT_GENERATED_SECOND ? "generated_second" : "generated_item",
+          unitPriceMicros: data.pricing.unitPriceMicros,
         }
       : null,
   };

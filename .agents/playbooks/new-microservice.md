@@ -18,8 +18,10 @@ from directories or create a shared library for symmetry.
 
 ## 2. Create the service skeleton
 
-Run `./scripts/new-service.sh <name>` for the minimal Python shape, or copy the
-closest same-runtime service.
+Run `./scripts/new-service.sh <name>` for the minimal Python shape. For Go, follow
+the canonical [`Go service template`](../../docs/开发规范/go-services.md) and copy
+the closest compliant Go service only after comparing its dependencies with the
+platform matrix; do not copy legacy GORM, Zap, manual-env, or local tracing code.
 
 For Python, use the repository's resource-oriented layers:
 
@@ -34,6 +36,30 @@ src/
   infrastructure/            # persistence, cache, external clients
   gen_openapi.py
 ```
+
+For Go, start with one process role per command and one composition root:
+
+```text
+cmd/server/main.go               # signal context + bootstrap.Run only
+cmd/worker/main.go               # optional long-running worker role
+internal/bootstrap/              # config, module bindings, lifecycle
+internal/api/http/               # transport adapters
+internal/application/            # use cases and consumer-owned ports
+internal/domain/                 # optional framework-free invariants
+internal/infrastructure/         # persistence and outbound adapters
+```
+
+A database-owning Go service additionally requires `sqlc.yaml`, checked-in
+`internal/infrastructure/persistence/sql/*.sql`, generated `sqlc/`, and a
+`pgx/v5` pool. Every Go service uses typed `caarlos0/env`, `log/slog`, Chi and the
+shared OpenTelemetry bootstrap when the corresponding capability is needed.
+Introducing a second library for an existing capability is an architecture change,
+not a local implementation choice.
+
+Concrete adapters satisfy interfaces declared by their application consumer;
+do not place repository interfaces beside the Postgres implementation. Run
+`just check-repo` before copying a service skeleton so dependency-direction or
+entrypoint violations fail immediately.
 
 Required service-owned files normally include `pyproject.toml` or equivalent,
 `.env.example`, `Dockerfile`, and `AGENTS.md`. Add migrations only when the

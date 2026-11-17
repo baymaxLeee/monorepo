@@ -33,7 +33,9 @@ test("shared libraries expand to their stack and subsume individual consumers", 
     ),
     ["frontend"],
   );
-  assert.deepEqual(affectedSelections(["apps/backend/libs/kernel/src/kernel/errors.py"], targets, root), ["backend"]);
+  assert.deepEqual(affectedSelections(["apps/backend/libs/inner-api-py/src/inner_api/client.py"], targets, root), [
+    "backend",
+  ]);
 });
 
 test("global configuration and missing diff bases conservatively select all scopes", () => {
@@ -54,8 +56,8 @@ test("ordinary documentation selects no tests; agent instructions select tooling
   assert.deepEqual(affectedSelections(["AGENTS.md"], targets, root), ["tooling"]);
 });
 
-test("runtime Markdown and renamed files remain in the affected scope", () => {
-  assert.deepEqual(affectedSelections(["apps/backend/services/chat/src/prompts/system.md"], targets, root), [
+test("runtime sources and renamed files remain in the affected scope", () => {
+  assert.deepEqual(affectedSelections(["apps/backend/services/chat/internal/application/service.go"], targets, root), [
     "backend/chat",
   ]);
   assert.deepEqual(

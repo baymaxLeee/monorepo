@@ -5,6 +5,7 @@ metadata:
 data:
   ENVIRONMENT: "development"
   PORT: "8013"
+  RPC_PORT: "9013"
   POSTGRES_PORT: "5432"
   POSTGRES_DATABASE: "storage"
   POSTGRES_SSLMODE: "disable"

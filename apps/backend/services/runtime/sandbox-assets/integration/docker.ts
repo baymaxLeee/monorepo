@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { setTimeout } from "node:timers/promises";
 
-import { RuntimeSandboxClient, type SandboxScope } from "@backend/transport-ts";
 import { serve } from "@hono/node-server";
+
+import { RuntimeSandboxClient, type SandboxScope } from "#runtime/transport";
 
 import { createApp } from "../../src/bootstrap/sandbox-app.js";
 import { getSandboxSettings } from "../../src/config/sandbox.js";

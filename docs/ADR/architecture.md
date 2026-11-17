@@ -13,12 +13,50 @@ Runtime 三个角色都保持内部访问，浏览器只经 Chat 产品 API 进�
 
 ## 所有权与依赖
 
-- 服务不导入其他服务源码、不读写其他服务数据库；使用声明的 HTTP binding和 transport client。跨栈/跨服务契约由 [schemas](../../schemas/AGENTS.md) 管理。
+- 服务不导入其他服务源码、不读写其他服务数据库；使用声明的 HTTP binding 和 transport client。跨栈/跨服务契约由 [schemas](../../schemas/AGENTS.md) 管理；多语言同步调用的生成、认证、trace、deadline 与错误边界见 [内部 API 传输决策](inner-api-transport.md)。
 - 应用是依赖图叶节点，其他 app/package 不依赖其源码；共享包通过公开 exports 消费。运行时协作通过 URL、事件或后端状态，不跨 app 读取私有 store。
 - 共享实现需要真实多消费者，或必须集中处理的安全/协议原因。提取前列明消费者、需要和当前位置，选择共享实现、只共享契约或继续服务本地实现。
 - `libs/` 不放领域模型；不为语言对称性创建 kernel/transport 包。认证、数据库事务和加密不得随普通工具函数一起抽进大内核。
 
 服务内按 `bootstrap`、`api`、`application`、`domain`、`infrastructure` 分责。 `api -> application`，纯领域规则不依赖框架、ORM 或 SDK；CRUD 不建占位 domain。ORM 模型属于 infrastructure。各资源在路由、用例、契约、持久化层保持明确归属。
+
+### 应用宿主与组合根
+
+所有语言使用同一套逻辑边界，但保留语言惯用的文件、包和框架；统一的是职责、依赖方向与进程协议，
+不是用一个跨语言 framework 统一语法。
+
+| 边界 | 唯一职责 | 禁止 |
+| --- | --- | --- |
+| entrypoint | 创建进程级取消信号，调用一个 bootstrap 入口，记录终止错误并设置退出码 | 组装 repository/client/router，读取业务配置，启动后台任务 |
+| `bootstrap` | 加载并校验配置，初始化 observability/adapters/use cases/router，管理 server/worker 生命周期与有序关闭 | 放业务规则、HTTP DTO、SQL 或 provider policy |
+| `api` | transport 解码、校验、鉴权上下文、调用 application、编码协议错误 | 直接访问数据库或拼装外部 SDK/client |
+| `application` | 一个用例内的业务编排、事务边界，以及由用例消费方定义的 ports | 导入 `api`、具体数据库/HTTP/Redis adapter 或进程 bootstrap |
+| `domain` | 需要跨用例保护的纯业务不变量与状态转换；简单 CRUD 可以不存在 | 导入框架、ORM、网络、环境变量或进程状态 |
+| `infrastructure` | 实现 application/domain ports：持久化、缓存、内部 HTTP、provider、telemetry adapter | 被 domain 反向依赖，或拥有业务流程顺序 |
+
+依赖方向固定为 `api -> application -> domain`；`infrastructure` 向内实现 consumer-owned port；
+`bootstrap` 是唯一可以同时看到 transport、application 与具体 adapters 的 composition root。
+根 `just check-repo` 通过 `scripts/backend-architecture.mjs` 检查 Go import 方向与常驻进程入口；
+`apps/backend/architecture-import-exceptions.json` 只登记尚未完成端口反转的精确旧依赖，并在依赖消失时因
+stale exception 失败。它不是新代码的白名单：新增 exception 必须先完成同一变更内可行的 ports/adapters
+整改，并记录剩余迁移边界。
+服务内不再建立含义重叠的通用 `app` 层。复杂服务按业务 capability 在每层内继续分包，模块可以导出
+自己的 `Module`/`Bindings` 装配函数，由 bootstrap 聚合；禁止把全部依赖继续堆进一个数百行 constructor，
+也禁止引入运行时 service locator 或反射 DI 容器。
+
+语言映射如下：Go 使用 `cmd/<role>` 与 `internal/{bootstrap,api,application,domain,infrastructure}`；
+TypeScript 使用 `src/cmd/<role>` 与 `src/{bootstrap,api,application,domain,infrastructure}`；Python 使用
+`src/main.py`（或多角色 `src/cmd/<role>.py`）与相同的 `src/{bootstrap,api,application,domain,infrastructure}`。
+一次性 seed/backfill/migrate 是独立 role entrypoint，不伪装成 server 的位置参数。
+
+所有常驻角色遵循同一进程协议：启动时一次性校验不可变配置；在有界 timeout 内建立必需依赖；
+`livez` 只表达进程存活，`readyz` 在依赖未就绪或 drain 后停止接流量；HTTP server 和 worker 都监听
+同一个取消上下文；关闭顺序为 stop admission/readiness → drain HTTP/worker → close adapters → flush telemetry。
+后台 goroutine/task 的错误必须返回 bootstrap owner，禁止在子 goroutine 内 `os.Exit`。这些约束对应
+[Go module layout](https://go.dev/doc/modules/layout)、[Go consumer-owned interfaces](https://go.dev/wiki/CodeReviewComments#interfaces)、
+[hexagonal architecture ports/adapters](https://docs.aws.amazon.com/prescriptive-guidance/latest/hexagonal-architectures/best-practices.html)、
+[Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/) 和
+[OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/) 的公开实践。
 
 事务由用例拥有；同一工作单元的读写使用同一事务，外部 HTTP/Workflow 启动不放进数据库事务。跨服务所有权变化通过持久 intent/outbox 与幂等接收方收敛，不模拟跨库事务。语言特定约束在[后端规则](../../apps/backend/AGENTS.md)及服务 AGENTS。
 

@@ -1,4 +1,4 @@
-import { propagationHeaders } from "@backend/kernel-ts";
+import { propagationHeaders } from "#runtime/foundation";
 import {
   RuntimeSandboxClient,
   type SandboxContinue,
@@ -7,7 +7,7 @@ import {
   type SandboxSession,
   type SandboxStart,
   type SandboxWorkspaceSnapshot,
-} from "@backend/transport-ts";
+} from "#runtime/transport";
 
 import { getServerSettings } from "../../config/server.js";
 

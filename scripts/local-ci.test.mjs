@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { codePlan, localImagePlatform, plan, push, releasePlan, verify } from "./local-ci.mjs";
+import { codePlan, goWorkspaceIssues, localImagePlatform, plan, push, releasePlan, verify } from "./local-ci.mjs";
 
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), "local-ci-"));
@@ -56,6 +56,46 @@ if (process.argv[2] === 'ci-code' && fs.existsSync('.git/mutate')) fs.appendFile
   });
   return { root, git, base, report: () => JSON.parse(readFileSync(join(root, ".git/agent-ci/result.json"), "utf8")) };
 }
+
+test("Go workspace policy pins one toolchain and shared dependency version", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "go-workspace-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const backend = join(root, "apps/backend");
+  for (const service of ["alpha", "beta"]) mkdirSync(join(backend, "services", service), { recursive: true });
+  writeFileSync(
+    join(backend, "go.work"),
+    "go 1.27.0\n\ntoolchain go1.27.4\n\nuse (\n\t./services/alpha\n\t./services/beta\n)\n",
+  );
+  writeFileSync(
+    join(backend, "go-platform.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      toolchain: "go1.27.4",
+      capabilities: { httpRouter: { module: "github.com/go-chi/chi/v5", version: "v5.5.0" } },
+      requiredForServices: [],
+    }),
+  );
+  for (const service of ["alpha", "beta"]) {
+    writeFileSync(
+      join(backend, "services", service, "go.mod"),
+      `module example.com/${service}\n\ngo 1.27.0\n\ntoolchain go1.27.4\n\nrequire github.com/go-chi/chi/v5 v5.5.0\n`,
+    );
+    writeFileSync(
+      join(backend, "services", service, "Dockerfile"),
+      "FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine AS builder\n",
+    );
+  }
+  assert.deepEqual(goWorkspaceIssues(root), []);
+
+  writeFileSync(
+    join(backend, "services/beta/go.mod"),
+    "module example.com/beta\n\ngo 1.26.0\n\ntoolchain go1.26.3\n\nrequire github.com/go-chi/chi/v5 v5.3.2\n",
+  );
+  const issues = goWorkspaceIssues(root).join("\n");
+  assert.match(issues, /uses Go 1\.26\.0/);
+  assert.match(issues, /uses toolchain go1\.26\.3/);
+  assert.match(issues, /divergent workspace versions/);
+});
 test("failed checks block push and preserve actionable evidence", async (t) => {
   const f = fixture(t);
   writeFileSync(join(f.root, ".git/fail"), "");
@@ -134,7 +174,7 @@ test("end-to-end chat changes stay inside chat owners and declared consumers", (
   const steps = codePlan("base-sha", [
     "apps/frontend/apps/chat/src/App.tsx",
     "apps/frontend/packages/ai-elements/src/Conversation/index.ts",
-    "apps/backend/services/chat/src/main.ts",
+    "apps/backend/services/chat/internal/app/run.go",
   ]);
   const serialized = JSON.stringify(steps);
   assert.match(serialized, /frontend\/chat/);
@@ -144,7 +184,10 @@ test("end-to-end chat changes stay inside chat owners and declared consumers", (
   assert.ok(!steps.some((step) => step[0] === "all-tests" || step[0] === "build"));
 });
 test("chat app and service changes do not pull in unrelated consumers", () => {
-  const steps = codePlan("base-sha", ["apps/frontend/apps/chat/src/App.tsx", "apps/backend/services/chat/src/main.ts"]);
+  const steps = codePlan("base-sha", [
+    "apps/frontend/apps/chat/src/App.tsx",
+    "apps/backend/services/chat/internal/app/run.go",
+  ]);
   const serialized = JSON.stringify(steps);
   assert.match(serialized, /frontend\/chat/);
   assert.match(serialized, /backend\/chat/);

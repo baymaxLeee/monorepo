@@ -6,16 +6,15 @@ import (
 )
 
 var deployedEnvironment = map[string]string{
-	"ENVIRONMENT":         "single-vps",
-	"INTERNAL_API_TOKEN":  "test-canvas-internal-token-000001",
-	"POSTGRES_HOST":       "postgres",
-	"POSTGRES_USER":       "canvas",
-	"POSTGRES_PASSWORD":   "test-password",
-	"POSTGRES_DATABASE":   "canvas",
-	"REDIS_URL":           "redis://redis:6379/3",
-	"PUBLIC_GATEWAY_URL":  "http://example.test:8080",
-	"ADMIN_SERVICE_URL":   "http://admin:8001",
-	"STORAGE_SERVICE_URL": "http://asset:8013",
+	"ENVIRONMENT":        "single-vps",
+	"POSTGRES_HOST":      "postgres",
+	"POSTGRES_USER":      "canvas",
+	"POSTGRES_PASSWORD":  "test-password",
+	"POSTGRES_DATABASE":  "canvas",
+	"REDIS_URL":          "redis://redis:6379/3",
+	"PUBLIC_GATEWAY_URL": "http://example.test:8080",
+	"ADMIN_RPC_TARGET":   "admin:9001",
+	"STORAGE_RPC_TARGET": "asset:9013",
 }
 
 func setDeployedEnvironment(t *testing.T) {
@@ -70,8 +69,7 @@ func TestLoadProductionRequiresHTTPSPublicGateway(t *testing.T) {
 
 func TestLoadDeployedEnvironmentRejectsDevelopmentCredentials(t *testing.T) {
 	for key, value := range map[string]string{
-		"INTERNAL_API_TOKEN": "dev-internal-token",
-		"POSTGRES_PASSWORD":  "canvas",
+		"POSTGRES_PASSWORD": "canvas",
 	} {
 		t.Run(key, func(t *testing.T) {
 			setDeployedEnvironment(t)

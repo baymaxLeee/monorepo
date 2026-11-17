@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/monorepo/canvas/internal/api/requestcontext"
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationtext "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
+	"github.com/example/monorepo/canvas/internal/application/requestcontext"
 )
 
 type legacyTextGenerationService struct {

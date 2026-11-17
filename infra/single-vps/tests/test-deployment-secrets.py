@@ -29,30 +29,23 @@ class DeploymentSecretsTest(unittest.TestCase):
             ["node", "/app/node_modules/@workflow/world-postgres/bin/setup.js"],
         )
 
-    def test_service_check_rejects_receiver_drift(self):
+    def test_service_check_rejects_rpc_target_drift(self):
         spec = importlib.util.spec_from_file_location("check_services", ROOT / "scripts/check-services.py")
         checker = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(checker)
         services = checker.load_services()
-        checker.validate_service_identities(services)
-        for tokens in (
-            {"chat": "${CHAT_INTERNAL_API_TOKEN:?required}"},
-            {
-                "chat": "${CHAT_INTERNAL_API_TOKEN:?required}",
-                "executor": "${CHAT_INTERNAL_API_TOKEN:?required}",
-            },
-        ):
-            compose = yaml.safe_load((VPS / "docker-compose.prod.yml").read_text())
-            compose["services"]["knowledge"]["environment"]["INTERNAL_SERVICE_TOKENS"] = json.dumps(tokens)
-            with tempfile.TemporaryDirectory() as directory:
-                path = Path(directory) / "compose.yml"
-                path.write_text(yaml.safe_dump(compose))
-                with (
-                    patch.object(checker, "SINGLE_VPS_PATH", path),
-                    contextlib.redirect_stderr(io.StringIO()),
-                    self.assertRaises(SystemExit),
-                ):
-                    checker.validate_service_identities(services)
+        checker.validate_binding_environment(services)
+        compose = yaml.safe_load((VPS / "docker-compose.prod.yml").read_text())
+        compose["services"]["knowledge"]["environment"]["ADMIN_RPC_TARGET"] = "admin:8001"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "compose.yml"
+            path.write_text(yaml.safe_dump(compose))
+            with (
+                patch.object(checker, "SINGLE_VPS_PATH", path),
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                checker.validate_binding_environment(services)
 
     def test_rollback_can_pin_migration_image_independently(self):
         compose = VPS / "docker-compose.prod.yml"
@@ -181,9 +174,10 @@ class DeploymentSecretsTest(unittest.TestCase):
                 values.get("STORAGE_SIGNING_KEY", "missing-signing-key"),
             )
         with self.subTest(service="knowledge"):
-            actual = json.loads(services["knowledge"]["environment"]["INTERNAL_SERVICE_TOKENS"])
-            expected = {"runtime": values["RUNTIME_INTERNAL_API_TOKEN"]}
-            self.assertEqual(actual, expected)
+            environment = services["knowledge"]["environment"]
+            self.assertEqual(environment["ADMIN_RPC_TARGET"], "admin:9001")
+            self.assertEqual(environment["STORAGE_RPC_TARGET"], "storage:9013")
+            self.assertNotIn("INTERNAL_SERVICE_TOKENS", environment)
 
     def test_k8s_secret_templates(self):
         base = ROOT / "infra/k8s/base"
@@ -191,11 +185,10 @@ class DeploymentSecretsTest(unittest.TestCase):
         knowledge = yaml.safe_load((base / "knowledge/secret.yaml").read_text())["stringData"]
         with self.subTest(service="storage"):
             self.assertIn("STORAGE_SIGNING_KEY", storage)
+            self.assertNotIn("INTERNAL_SERVICE_TOKENS", storage)
         with self.subTest(service="knowledge"):
-            self.assertEqual(
-                json.loads(knowledge["INTERNAL_SERVICE_TOKENS"]),
-                {"runtime": "REPLACE_RUNTIME_TOKEN"},
-            )
+            self.assertNotIn("INTERNAL_SERVICE_TOKENS", knowledge)
+            self.assertNotIn("INTERNAL_API_TOKEN", knowledge)
 
 
 if __name__ == "__main__":

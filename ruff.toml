@@ -1,6 +1,11 @@
 line-length = 120
 target-version = "py314"
-extend-exclude = ["**/migrations/**", "**/__pycache__/**"]
+extend-exclude = [
+  "**/migrations/**",
+  "**/__pycache__/**",
+  "apps/backend/libs/inner-api-py/generated/**",
+  "apps/backend/services/knowledge/src/transport/clients/**",
+]
 force-exclude = true
 output-format = "concise"
 

@@ -5,5 +5,9 @@ metadata:
 spec:
   selector: { app: admin }
   ports:
-    - port: 8001
+    - name: http
+      port: 8001
       targetPort: 8001
+    - name: rpc
+      port: 9001
+      targetPort: rpc

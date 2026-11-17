@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -35,67 +34,9 @@ func (c *memoryDeliveryCache) Set(_ context.Context, key string, value []byte, t
 	return nil
 }
 
-func TestInternalDeliveryCacheAndScope(t *testing.T) {
-	cache := &memoryDeliveryCache{values: map[string][]byte{}}
-	handler := deliveryTestRouter(cache)
-	mint := func(workspace string) *httptest.ResponseRecorder {
-		raw, _ := json.Marshal(map[string]any{"items": []deliveryCapabilityItem{{TenantID: "tenant/a", WorkspaceID: workspace, AssetID: "asset", RevisionID: "revision"}}})
-		req := httptest.NewRequest("POST", "/internal/delivery-capabilities:mint", strings.NewReader(string(raw)))
-		if workspace != "" {
-			req.Header.Set("X-Caller-Service", "knowledge")
-			req.Header.Set("X-Internal-Token", "secret")
-		}
-		res := httptest.NewRecorder()
-		handler.ServeHTTP(res, req)
-		return res
-	}
-	if res := mint(""); res.Code != 403 {
-		t.Fatalf("missing auth: %d", res.Code)
-	}
-	first := mint("workspace b")
-	if first.Code != 200 {
-		t.Fatalf("mint: %d %s", first.Code, first.Body)
-	}
-	var envelope struct {
-		Items []DeliveryCapability `json:"items"`
-	}
-	if err := json.Unmarshal(first.Body.Bytes(), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	capability := envelope.Items[0]
-	if delta := time.Until(capability.ExpiresAt); delta < 6*time.Hour-5*time.Second || delta > 6*time.Hour {
-		t.Fatalf("expiry: %v", delta)
-	}
-	if capability.MediaType != "text/plain" || capability.SizeBytes != 7 || len(cache.values) != 1 || cache.ttl <= 0 {
-		t.Fatalf("metadata/cache: %+v %+v", capability, cache)
-	}
-	if second := mint("workspace b"); second.Body.String() != first.Body.String() {
-		t.Fatalf("cache hit changed capability: %s", second.Body)
-	}
-	if res := mint("other"); res.Code != 404 {
-		t.Fatalf("cached URL bypassed scope: %d", res.Code)
-	}
-	for key := range cache.values {
-		stale := capability
-		stale.ExpiresAt = time.Now().Add(30 * time.Second)
-		stale.URL = "/stale"
-		cache.values[key], _ = json.Marshal(stale)
-	}
-	if res := mint("workspace b"); res.Code != 200 || strings.Contains(res.Body.String(), "/stale") {
-		t.Fatalf("near-expiry cache: %s", res.Body)
-	}
-	cache.fail = true
-	if res := mint("workspace b"); res.Code != 200 {
-		t.Fatalf("Redis failure blocked signing: %d", res.Code)
-	}
-	if first.Header().Get("Cache-Control") != "no-store" {
-		t.Fatal("capability response must not be cached by intermediaries")
-	}
-}
-
 func TestSignedDeliveryRanges(t *testing.T) {
-	handler := deliveryTestRouter(nil)
-	router := &Router{signingKey: []byte("signing-secret"), deliveryTTL: 6 * time.Hour}
+	handler := deliveryTestRouter()
+	router := &Router{signingKey: []byte("signing-secret")}
 	expires := time.Now().Add(time.Hour).Unix()
 	// URL encoding is exercised by the normal mint endpoint in the other tests.
 	req := httptest.NewRequest("GET", "/media/asset/revisions/revision/content", nil)
@@ -153,13 +94,13 @@ func TestSignedDeliveryRanges(t *testing.T) {
 
 }
 
-func deliveryTestRouter(cache DeliveryCache) http.Handler {
+func deliveryTestRouter() http.Handler {
 	service := application.NewService(deliveryRepository{}, deliveryBlobStore{}, deliveryClock{}, 1024)
-	return NewRouter(service, nil, map[string]string{"knowledge": "secret"}, 1024, RouterOptions{DeliverySigningKey: "signing-secret", DeliveryCache: cache})
+	return NewRouter(service, nil, 1024, RouterOptions{DeliverySigningKey: "signing-secret"})
 }
 
 func TestWorkspaceIdentityCannotBypassBusinessAuthorization(t *testing.T) {
-	handler := deliveryTestRouter(nil)
+	handler := deliveryTestRouter()
 	for _, method := range []string{"GET", "POST"} {
 		route := "/assets/asset/revisions/revision/content"
 		if method == "POST" {

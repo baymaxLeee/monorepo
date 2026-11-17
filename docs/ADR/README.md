@@ -8,6 +8,8 @@
 | 主题 | 决策 |
 |---|---|
 | 服务组成、分层、共享与事务边界 | [architecture](architecture.md) |
+| Go workspace、统一依赖、sqlc/pgx 与 AI-native 技术基线 | [go-service-platform](go-service-platform.md) |
+| Node.js、Python、Go 服务的内部 HTTP 契约、生成 client 与 transport policy | [inner-api-transport](inner-api-transport.md) |
 | 主 Agent、上下文、工具与流 | [agent-runtime](agent-runtime.md) |
 | Runtime App Server：统一 Agent/tool/Sandbox 与 durable Job，一 app 多进程（拟议） | [session-runtime](session-runtime.md) |
 | 参考 Codex 核心模型的本地/云端 Sandbox、文件与恢复（零兼容重构，实施与验收边界见正文） | [sandbox-execution-modes](sandbox-execution-modes.md) |

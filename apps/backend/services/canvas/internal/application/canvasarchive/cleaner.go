@@ -6,8 +6,8 @@ import (
 	"time"
 
 	applicationassetclaim "github.com/example/monorepo/canvas/internal/application/assetclaim"
+	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
-	"github.com/example/monorepo/canvas/internal/infrastructure/observability/logcontext"
 )
 
 const (

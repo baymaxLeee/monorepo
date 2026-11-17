@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - run: docker build -t monorepo-storage:volume-test apps/backend/services/storage
+      - run: docker build -t monorepo-storage:volume-test -f apps/backend/services/storage/Dockerfile apps/backend
       - name: Verify non-root volume writes and container recreation
         env:
           STORAGE_TEST_IMAGE: monorepo-storage:volume-test

@@ -6,3 +6,4 @@ spec:
   selector: { app: knowledge }
   ports:
     - { name: http, port: 8010, targetPort: http }
+    - { name: rpc, port: 9010, targetPort: rpc }

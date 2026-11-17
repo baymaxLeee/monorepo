@@ -62,7 +62,7 @@ frontend, backend, local development, agents and CI use the same root configs.
 
 Scoped examples: `just lint-py apps/backend/services/knowledge`,
 `just fmt-py --diff scripts/check-services.py`, and
-`pnpm lint:ts apps/backend/services/chat`. For a single JS/TS file, use
+`pnpm lint:ts apps/backend/services/runtime`. For a single JS/TS file, use
 `pnpm exec oxfmt --check <path>` or `--write` with the same root config.
 Python tools are locked by `apps/backend/uv.lock`; Oxc by root `pnpm-lock.yaml`.
 Generated code and migrations stay excluded, including staged explicit paths.
@@ -111,10 +111,19 @@ commands. Missing bases fail closed. Results are diagnostic evidence, never a
 reusable push permission.
 
 The code gate uses one frozen root pnpm workspace install and locked uv
-sync, read-only Go module consistency (`just check-go-modules`), root lint
+sync, read-only Go workspace policy and module consistency (`just check-go-modules`), root lint
 (including format/type checks), affected tests, contract generation checks, and
 frontend/backend builds. Executable tooling edits run root tests once instead of
 the equivalent full affected selection.
+
+`just check-go-modules` verifies that every `apps/backend/go.work` member pins the
+workspace Go language and exact toolchain, Docker builders use that toolchain, and
+shared direct dependencies do not drift between modules. It also runs
+`GOWORK=off go mod tidy -diff` per module so workspace resolution cannot hide an
+incomplete standalone manifest. Go deliberately has no pnpm-style central version
+catalog; `apps/backend/go-platform.json` supplies the repository policy catalog
+for capability choices and exact stable versions while the independently deployable
+modules remain the Go module facts consumed by the compiler.
 Migration-related edits add disposable PostgreSQL integration tests. Production
 image builds are intentionally not part of `just push`: GitHub builds affected
 images on native `linux/amd64` after the code gate. Use `just ci-release-plan`

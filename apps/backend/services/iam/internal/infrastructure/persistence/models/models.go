@@ -1,25 +1,20 @@
 package models
 
-import "time"
+import (
+	"time"
 
-type User struct {
-	ID              string     `gorm:"type:varchar(26);primaryKey"`
-	Account         string     `gorm:"type:varchar(64);not null;uniqueIndex:uq_users_account"`
-	Email           string     `gorm:"type:varchar(320);not null"`
-	EmailNormalized string     `gorm:"type:varchar(320);not null;uniqueIndex:uq_users_email_normalized"`
-	DisplayName     string     `gorm:"type:varchar(120);not null"`
-	AvatarURL       string     `gorm:"type:varchar(2048);not null;default:''"`
-	Phone           string     `gorm:"type:varchar(32);not null;default:''"`
-	Locale          string     `gorm:"type:varchar(16);not null;default:'zh-CN'"`
-	Timezone        string     `gorm:"type:varchar(64);not null;default:'Asia/Shanghai'"`
-	Theme           string     `gorm:"type:varchar(20);not null;default:'system'"`
-	MarketingOptIn  bool       `gorm:"not null;default:false"`
-	EmailVerifiedAt *time.Time `gorm:"type:datetime(6)"`
-	DisabledAt      *time.Time `gorm:"type:datetime(6)"`
-	LastLoginAt     *time.Time `gorm:"type:datetime(6)"`
-	CreatedAt       time.Time  `gorm:"type:datetime(6);not null;index:idx_users_created_at"`
-	UpdatedAt       time.Time  `gorm:"type:datetime(6);not null"`
-}
+	"github.com/example/monorepo/iam/internal/application"
+)
+
+// Persistence reuses application-owned port records at the adapter boundary.
+// GORM's conventional table/column mapping matches the existing schema; only
+// adapter-private relationship records remain concrete here.
+type User = application.User
+type RefreshToken = application.RefreshToken
+type Role = application.Role
+type Tenant = application.Tenant
+type Workspace = application.Workspace
+type IamAuditEvent = application.IamAuditEvent
 
 type UserCredential struct {
 	UserID            string     `gorm:"type:varchar(26);primaryKey"`
@@ -32,33 +27,6 @@ type UserCredential struct {
 	User              User       `gorm:"constraint:OnDelete:CASCADE;"`
 }
 
-type RefreshToken struct {
-	ID     string `gorm:"type:varchar(26);primaryKey"`
-	UserID string `gorm:"type:varchar(26);not null;index:idx_refresh_tokens_user_id"`
-	// ActiveWorkspaceID is the workspace this refresh session is bound to. NULL means no
-	// active scope (pending/rejected member, or a super_admin who has not
-	// selected an workspace). The access JWT's workspace_id/workspace_role is derived from this +
-	// a live active-membership lookup, never from an implicit "first workspace".
-	ActiveWorkspaceID *string    `gorm:"type:varchar(26)"`
-	TokenHash         string     `gorm:"type:char(44);not null;uniqueIndex:uq_refresh_tokens_hash"`
-	UserAgent         string     `gorm:"type:varchar(512);not null;default:''"`
-	IPAddress         string     `gorm:"type:varchar(64);not null;default:''"`
-	ExpiresAt         time.Time  `gorm:"type:datetime(6);not null;index:idx_refresh_tokens_expires_at"`
-	RevokedAt         *time.Time `gorm:"type:datetime(6)"`
-	CreatedAt         time.Time  `gorm:"type:datetime(6);not null"`
-	LastUsedAt        *time.Time `gorm:"type:datetime(6)"`
-	ReplacedByTokenID *string    `gorm:"type:varchar(26)"`
-	User              User       `gorm:"constraint:OnDelete:CASCADE;"`
-}
-
-type Role struct {
-	ID          string    `gorm:"type:varchar(26);primaryKey"`
-	Name        string    `gorm:"type:varchar(64);not null;uniqueIndex:uq_roles_name"`
-	Description string    `gorm:"type:varchar(255);not null;default:''"`
-	CreatedAt   time.Time `gorm:"type:datetime(6);not null"`
-	UpdatedAt   time.Time `gorm:"type:datetime(6);not null"`
-}
-
 type UserRole struct {
 	UserID    string    `gorm:"type:varchar(26);primaryKey"`
 	RoleID    string    `gorm:"type:varchar(26);primaryKey;index:idx_user_roles_role_id"`
@@ -67,34 +35,6 @@ type UserRole struct {
 	Role      Role      `gorm:"constraint:OnDelete:CASCADE;"`
 }
 
-type Tenant struct {
-	ID        string `gorm:"type:varchar(26);primaryKey"`
-	Name      string `gorm:"type:varchar(120);not null"`
-	Slug      string `gorm:"type:varchar(64);not null;uniqueIndex"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type Workspace struct {
-	TenantID      string    `gorm:"type:varchar(26);not null;index"`
-	ID            string    `gorm:"type:varchar(26);primaryKey"`
-	Name          string    `gorm:"type:varchar(120);not null"`
-	Slug          string    `gorm:"type:varchar(64);not null;uniqueIndex:uq_workspaces_slug"`
-	OwnerUserID   string    `gorm:"type:varchar(26);not null;index:idx_workspaces_owner"`
-	SystemManaged bool      `gorm:"not null;default:false"`
-	SystemKey     *string   `gorm:"type:varchar(32);uniqueIndex:uq_workspaces_system_key"`
-	JoinPolicy    string    `gorm:"type:varchar(16);not null;default:'approval'"`
-	CreatedAt     time.Time `gorm:"type:datetime(6);not null"`
-	UpdatedAt     time.Time `gorm:"type:datetime(6);not null"`
-}
-
-// WorkspaceMember joins users to workspaces. A user can belong to
-// multiple workspaces; each membership carries an explicit review status and an
-// workspace-scoped role. A session binds exactly one active workspace — the DB never picks
-// "the first membership" on the user's behalf.
-//
-// Role  ∈ {workspace_admin, member}          (workspace-scoped; orthogonal to platform role)
-// Status ∈ {pending, active, rejected} (only active can bind a session workspace)
 type WorkspaceMember struct {
 	WorkspaceID     string     `gorm:"type:varchar(26);primaryKey"`
 	UserID          string     `gorm:"type:varchar(26);primaryKey;index:idx_workspace_members_user"`
@@ -106,44 +46,6 @@ type WorkspaceMember struct {
 	CreatedAt       time.Time  `gorm:"type:datetime(6);not null"`
 }
 
-// IamAuditEvent is an append-only audit record for high-value identity
-// operations (workspace creation, membership review, role/owner change, platform
-// role change, active-workspace switch). No FKs to users/workspaces: rows must survive
-// deletion. Never store passwords, tokens, or credentials in before/after.
-type IamAuditEvent struct {
-	ID           string    `gorm:"type:varchar(26);primaryKey"`
-	Action       string    `gorm:"type:varchar(64);not null;index:idx_iam_audit_action_created,priority:1"`
-	ActorUserID  *string   `gorm:"type:varchar(26);index:idx_iam_audit_actor"`
-	TargetUserID *string   `gorm:"type:varchar(26)"`
-	WorkspaceID  *string   `gorm:"type:varchar(26);index:idx_iam_audit_workspace"`
-	BeforeJSON   *string   `gorm:"type:json"`
-	AfterJSON    *string   `gorm:"type:json"`
-	Result       string    `gorm:"type:varchar(16);not null"`
-	Reason       *string   `gorm:"type:varchar(255)"`
-	TraceID      *string   `gorm:"type:varchar(64)"`
-	CreatedAt    time.Time `gorm:"type:datetime(6);not null;index:idx_iam_audit_action_created,priority:2"`
-}
-
-func (UserCredential) TableName() string {
-	return "user_credentials"
-}
-
-func (RefreshToken) TableName() string {
-	return "refresh_tokens"
-}
-
-func (UserRole) TableName() string {
-	return "user_roles"
-}
-
-func (Workspace) TableName() string {
-	return "workspaces"
-}
-
-func (WorkspaceMember) TableName() string {
-	return "workspace_members"
-}
-
-func (IamAuditEvent) TableName() string {
-	return "iam_audit_events"
-}
+func (UserCredential) TableName() string  { return "user_credentials" }
+func (UserRole) TableName() string        { return "user_roles" }
+func (WorkspaceMember) TableName() string { return "workspace_members" }

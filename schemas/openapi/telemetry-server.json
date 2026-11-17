@@ -1,751 +1,10 @@
 {
-  "openapi": "3.1.0",
-  "info": {
-    "title": "Telemetry Service",
-    "description": "自托管前端 RUM 采集与查询服务(PostgreSQL 后端)",
-    "version": "0.1.0"
-  },
-  "paths": {
-    "/livez": {
-      "get": {
-        "tags": [
-          "health"
-        ],
-        "summary": "Livez",
-        "operationId": "livez",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Livez"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/readyz": {
-      "get": {
-        "tags": [
-          "health"
-        ],
-        "summary": "Readyz",
-        "operationId": "readyz",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Readyz"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/healthz": {
-      "get": {
-        "tags": [
-          "health"
-        ],
-        "summary": "Healthz",
-        "operationId": "healthz",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Healthz"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/rum/batch": {
-      "post": {
-        "tags": [
-          "rum"
-        ],
-        "summary": "Ingest Rum Batch",
-        "operationId": "ingest_rum_batch",
-        "parameters": [
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-Roles",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Roles"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RumBatch"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/errors": {
-      "get": {
-        "tags": [
-          "errors"
-        ],
-        "summary": "List Error Events",
-        "operationId": "list_error_events",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 500,
-              "minimum": 1,
-              "default": 100,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-Roles",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Roles"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/performance": {
-      "get": {
-        "tags": [
-          "performance"
-        ],
-        "summary": "List Performance Events",
-        "operationId": "list_performance_events",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 200,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-Roles",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Roles"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PerformanceListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ops/observability": {
-      "get": {
-        "tags": [
-          "ops"
-        ],
-        "summary": "Observability Status",
-        "operationId": "observability_status",
-        "parameters": [
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-Roles",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Roles"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ObservabilityStatusResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ops/traces": {
-      "get": {
-        "tags": [
-          "ops"
-        ],
-        "summary": "Recent Traces",
-        "operationId": "recent_traces",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "minutes",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1440,
-              "minimum": 5,
-              "default": 60,
-              "title": "Minutes"
-            }
-          },
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-Roles",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Roles"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TraceListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ops/traces/{trace_id}": {
-      "get": {
-        "tags": [
-          "ops"
-        ],
-        "summary": "Trace Detail",
-        "operationId": "trace_detail",
-        "parameters": [
-          {
-            "name": "trace_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Trace Id"
-            }
-          },
-          {
-            "name": "X-Auth-User-ID",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-User-Id"
-            }
-          },
-          {
-            "name": "X-Auth-Name",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Name"
-            }
-          },
-          {
-            "name": "X-Auth-Email",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Email"
-            }
-          },
-          {
-            "name": "X-Auth-Roles",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Auth-Roles"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TraceDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
   "components": {
     "schemas": {
       "ClickHouseStatus": {
         "properties": {
           "configured": {
-            "type": "boolean",
-            "title": "Configured"
-          },
-          "healthy": {
-            "type": "boolean",
-            "title": "Healthy"
-          },
-          "spans_last_hour": {
-            "type": "integer",
-            "title": "Spans Last Hour"
-          },
-          "latest_span_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latest Span At"
+            "type": "boolean"
           },
           "error": {
             "anyOf": [
@@ -755,66 +14,67 @@
               {
                 "type": "null"
               }
-            ],
-            "title": "Error"
+            ]
+          },
+          "healthy": {
+            "type": "boolean"
+          },
+          "latest_span_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spans_last_hour": {
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "configured",
           "healthy",
           "spans_last_hour"
         ],
-        "title": "ClickHouseStatus"
+        "type": "object"
       },
       "ErrorEvent": {
         "properties": {
-          "ts_server": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Ts Server"
-          },
           "app": {
-            "type": "string",
-            "title": "App"
-          },
-          "release": {
-            "type": "string",
-            "title": "Release"
-          },
-          "user_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Id"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Username"
-          },
-          "is_admin": {
-            "type": "boolean",
-            "title": "Is Admin"
+            "type": "string"
           },
           "device_id": {
-            "type": "string",
-            "title": "Device Id"
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "is_admin": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "release": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
           },
           "session_id": {
-            "type": "string",
-            "title": "Session Id"
+            "type": "string"
+          },
+          "stack": {
+            "type": "string"
           },
           "trace_id": {
             "anyOf": [
@@ -824,36 +84,33 @@
               {
                 "type": "null"
               }
-            ],
-            "title": "Trace Id"
+            ]
           },
-          "route": {
-            "type": "string",
-            "title": "Route"
+          "ts_server": {
+            "format": "date-time",
+            "type": "string"
           },
-          "fingerprint": {
-            "type": "string",
-            "title": "Fingerprint"
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "stack": {
-            "type": "string",
-            "title": "Stack"
-          },
-          "payload": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Payload"
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "type": "object",
         "required": [
           "ts_server",
           "app",
@@ -871,7 +128,7 @@
           "stack",
           "payload"
         ],
-        "title": "ErrorEvent"
+        "type": "object"
       },
       "ErrorListResponse": {
         "properties": {
@@ -879,15 +136,13 @@
             "items": {
               "$ref": "#/components/schemas/ErrorEvent"
             },
-            "type": "array",
-            "title": "Items"
+            "type": "array"
           }
         },
-        "type": "object",
         "required": [
           "items"
         ],
-        "title": "ErrorListResponse"
+        "type": "object"
       },
       "HTTPValidationError": {
         "properties": {
@@ -895,43 +150,45 @@
             "items": {
               "$ref": "#/components/schemas/ValidationError"
             },
-            "type": "array",
-            "title": "Detail"
+            "type": "array"
           }
         },
-        "type": "object",
-        "title": "HTTPValidationError"
+        "type": "object"
       },
       "ObservabilityCapability": {
         "properties": {
+          "detail": {
+            "type": "string"
+          },
           "key": {
-            "type": "string",
-            "title": "Key"
+            "type": "string"
           },
           "label": {
-            "type": "string",
-            "title": "Label"
+            "type": "string"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "detail": {
-            "type": "string",
-            "title": "Detail"
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "key",
           "label",
           "status",
           "detail"
         ],
-        "title": "ObservabilityCapability"
+        "type": "object"
       },
       "ObservabilityStatusResponse": {
         "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/ObservabilityCapability"
+            },
+            "type": "array"
+          },
+          "clickhouse": {
+            "$ref": "#/components/schemas/ClickHouseStatus"
+          },
           "otlp_endpoint": {
             "anyOf": [
               {
@@ -940,81 +197,46 @@
               {
                 "type": "null"
               }
-            ],
-            "title": "Otlp Endpoint"
+            ]
           },
           "trace_retention_days": {
-            "type": "integer",
-            "title": "Trace Retention Days"
-          },
-          "clickhouse": {
-            "$ref": "#/components/schemas/ClickHouseStatus"
-          },
-          "capabilities": {
-            "items": {
-              "$ref": "#/components/schemas/ObservabilityCapability"
-            },
-            "type": "array",
-            "title": "Capabilities"
+            "type": "integer"
           }
         },
-        "type": "object",
         "required": [
           "otlp_endpoint",
           "trace_retention_days",
           "clickhouse",
           "capabilities"
         ],
-        "title": "ObservabilityStatusResponse"
+        "type": "object"
       },
       "PerformanceEvent": {
         "properties": {
-          "ts_server": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Ts Server"
-          },
           "app": {
-            "type": "string",
-            "title": "App"
-          },
-          "release": {
-            "type": "string",
-            "title": "Release"
-          },
-          "user_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Id"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Username"
-          },
-          "is_admin": {
-            "type": "boolean",
-            "title": "Is Admin"
+            "type": "string"
           },
           "device_id": {
-            "type": "string",
-            "title": "Device Id"
+            "type": "string"
+          },
+          "is_admin": {
+            "type": "boolean"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "release": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
           },
           "session_id": {
-            "type": "string",
-            "title": "Session Id"
+            "type": "string"
           },
           "trace_id": {
             "anyOf": [
@@ -1024,28 +246,36 @@
               {
                 "type": "null"
               }
-            ],
-            "title": "Trace Id"
+            ]
           },
-          "route": {
-            "type": "string",
-            "title": "Route"
+          "ts_server": {
+            "format": "date-time",
+            "type": "string"
           },
-          "metric": {
-            "type": "string",
-            "title": "Metric"
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "value": {
-            "type": "number",
-            "title": "Value"
-          },
-          "payload": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Payload"
+            "type": "number"
           }
         },
-        "type": "object",
         "required": [
           "ts_server",
           "app",
@@ -1061,7 +291,7 @@
           "value",
           "payload"
         ],
-        "title": "PerformanceEvent"
+        "type": "object"
       },
       "PerformanceListResponse": {
         "properties": {
@@ -1069,91 +299,70 @@
             "items": {
               "$ref": "#/components/schemas/PerformanceEvent"
             },
-            "type": "array",
-            "title": "Items"
+            "type": "array"
           }
         },
-        "type": "object",
         "required": [
           "items"
         ],
-        "title": "PerformanceListResponse"
+        "type": "object"
       },
       "RumBatch": {
         "properties": {
           "app": {
-            "type": "string",
             "enum": [
               "platform",
               "mfe-admin"
             ],
-            "title": "App"
-          },
-          "release": {
-            "type": "string",
-            "maxLength": 128,
-            "title": "Release",
-            "default": ""
+            "type": "string"
           },
           "device_id": {
-            "type": "string",
             "maxLength": 128,
             "minLength": 1,
-            "title": "Device Id"
-          },
-          "session_id": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Session Id"
-          },
-          "user_agent": {
-            "type": "string",
-            "maxLength": 512,
-            "title": "User Agent",
-            "default": ""
+            "type": "string"
           },
           "events": {
             "items": {
               "$ref": "#/components/schemas/RumEvent"
             },
-            "type": "array",
             "maxItems": 100,
             "minItems": 1,
-            "title": "Events"
+            "type": "array"
+          },
+          "release": {
+            "default": "",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "user_agent": {
+            "default": "",
+            "maxLength": 512,
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "app",
           "device_id",
           "session_id",
           "events"
         ],
-        "title": "RumBatch"
+        "type": "object"
       },
       "RumEvent": {
         "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "perform",
-              "error",
-              "warning",
-              "event"
-            ],
-            "title": "Type"
+          "payload": {
+            "additionalProperties": true,
+            "type": "object"
           },
-          "ts_client": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ts Client"
+          "route": {
+            "default": "",
+            "maxLength": 256,
+            "type": "string"
           },
           "trace_id": {
             "anyOf": [
@@ -1163,47 +372,50 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "ts_client": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "enum": [
+              "perform",
+              "error",
+              "warning",
+              "event"
             ],
-            "title": "Trace Id"
-          },
-          "route": {
-            "type": "string",
-            "maxLength": 256,
-            "title": "Route",
-            "default": ""
-          },
-          "payload": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Payload"
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "type"
         ],
-        "title": "RumEvent"
+        "type": "object"
       },
       "TraceDetailResponse": {
         "properties": {
-          "trace_id": {
-            "type": "string",
-            "title": "Trace Id"
-          },
           "spans": {
             "items": {
               "$ref": "#/components/schemas/TraceSpan"
             },
-            "type": "array",
-            "title": "Spans"
+            "type": "array"
+          },
+          "trace_id": {
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "trace_id",
           "spans"
         ],
-        "title": "TraceDetailResponse"
+        "type": "object"
       },
       "TraceListResponse": {
         "properties": {
@@ -1211,67 +423,53 @@
             "items": {
               "$ref": "#/components/schemas/TraceSummary"
             },
-            "type": "array",
-            "title": "Items"
+            "type": "array"
           }
         },
-        "type": "object",
         "required": [
           "items"
         ],
-        "title": "TraceListResponse"
+        "type": "object"
       },
       "TraceSpan": {
         "properties": {
-          "trace_id": {
-            "type": "string",
-            "title": "Trace Id"
-          },
-          "span_id": {
-            "type": "string",
-            "title": "Span Id"
+          "duration_ms": {
+            "type": "number"
           },
           "parent_span_id": {
-            "type": "string",
-            "title": "Parent Span Id"
-          },
-          "timestamp": {
-            "type": "string",
-            "title": "Timestamp"
-          },
-          "span_name": {
-            "type": "string",
-            "title": "Span Name"
-          },
-          "span_kind": {
-            "type": "string",
-            "title": "Span Kind"
+            "type": "string"
           },
           "service_name": {
-            "type": "string",
-            "title": "Service Name"
-          },
-          "duration_ms": {
-            "type": "number",
-            "title": "Duration Ms"
-          },
-          "status_code": {
-            "type": "string",
-            "title": "Status Code"
-          },
-          "status_message": {
-            "type": "string",
-            "title": "Status Message"
+            "type": "string"
           },
           "span_attributes": {
             "additionalProperties": {
               "type": "string"
             },
-            "type": "object",
-            "title": "Span Attributes"
+            "type": "object"
+          },
+          "span_id": {
+            "type": "string"
+          },
+          "span_kind": {
+            "type": "string"
+          },
+          "span_name": {
+            "type": "string"
+          },
+          "status_code": {
+            "type": "string"
+          },
+          "status_message": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "trace_id": {
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "trace_id",
           "span_id",
@@ -1285,40 +483,18 @@
           "status_message",
           "span_attributes"
         ],
-        "title": "TraceSpan"
+        "type": "object"
       },
       "TraceSummary": {
         "properties": {
-          "trace_id": {
-            "type": "string",
-            "title": "Trace Id"
-          },
-          "started_at": {
-            "type": "string",
-            "title": "Started At"
+          "duration_ms": {
+            "type": "integer"
           },
           "ended_at": {
-            "type": "string",
-            "title": "Ended At"
-          },
-          "duration_ms": {
-            "type": "integer",
-            "title": "Duration Ms"
-          },
-          "span_count": {
-            "type": "integer",
-            "title": "Span Count"
+            "type": "string"
           },
           "error_count": {
-            "type": "integer",
-            "title": "Error Count"
-          },
-          "services": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Services"
+            "type": "integer"
           },
           "root_span_name": {
             "anyOf": [
@@ -1328,8 +504,7 @@
               {
                 "type": "null"
               }
-            ],
-            "title": "Root Span Name"
+            ]
           },
           "run_id": {
             "anyOf": [
@@ -1339,11 +514,24 @@
               {
                 "type": "null"
               }
-            ],
-            "title": "Run Id"
+            ]
+          },
+          "services": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "span_count": {
+            "type": "integer"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "trace_id": {
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "trace_id",
           "started_at",
@@ -1353,10 +541,14 @@
           "error_count",
           "services"
         ],
-        "title": "TraceSummary"
+        "type": "object"
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "type": "object"
+          },
+          "input": {},
           "loc": {
             "items": {
               "anyOf": [
@@ -1368,32 +560,710 @@
                 }
               ]
             },
-            "type": "array",
-            "title": "Location"
+            "type": "array"
           },
           "msg": {
-            "type": "string",
-            "title": "Message"
+            "type": "string"
           },
           "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
+            "type": "string"
           }
         },
-        "type": "object",
         "required": [
           "loc",
           "msg",
           "type"
         ],
-        "title": "ValidationError"
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "自托管前端 RUM 采集与查询服务(PostgreSQL 后端)",
+    "title": "Telemetry Service",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/errors": {
+      "get": {
+        "operationId": "list_error_events",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-User-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Email",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Roles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Error Events",
+        "tags": [
+          "errors"
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "healthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/livez": {
+      "get": {
+        "operationId": "livez",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Livez",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/ops/observability": {
+      "get": {
+        "operationId": "observability_status",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Auth-User-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Email",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Roles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservabilityStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Observability Status",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/traces": {
+      "get": {
+        "operationId": "recent_traces",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minutes",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 1440,
+              "minimum": 5,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-User-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Email",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Roles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent Traces",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ops/traces/{trace_id}": {
+      "get": {
+        "operationId": "trace_detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-User-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Email",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Roles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trace Detail",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/performance": {
+      "get": {
+        "operationId": "list_performance_events",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-User-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Email",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Roles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Performance Events",
+        "tags": [
+          "performance"
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "readyz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readyz",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/rum/batch": {
+      "post": {
+        "operationId": "ingest_rum_batch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Auth-User-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Email",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Roles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RumBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest Rum Batch",
+        "tags": [
+          "rum"
+        ]
       }
     }
   }
