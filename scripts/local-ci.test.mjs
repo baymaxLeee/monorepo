@@ -213,6 +213,13 @@ test("a project manifest stays within its owner and declared consumers", () => {
   assert.match(serialized, /frontend\/canvas/);
   assert.doesNotMatch(serialized, /frontend\/platform|frontend\/admin/);
 });
+test("Python libraries typecheck authored sources without treating generated stubs as inputs", () => {
+  const steps = codePlan("base-sha", ["apps/backend/libs/inner-api-py/src/inner_api/client.py"]);
+  assert.deepEqual(
+    steps.find((step) => step[0] === "type-backend/inner-api-py"),
+    ["type-backend/inner-api-py", "uv", "run", "--directory", "apps/backend/libs/inner-api-py", "mypy", "src"],
+  );
+});
 test("the push gate remains fast while the optional release gate retains production-platform images", () => {
   assert.deepEqual(plan("base-sha"), [["code", "just", "ci-code", "base-sha"]]);
   const steps = releasePlan("base-sha", ["scripts/test.mjs", "apps/frontend/apps/chat/src/example.ts"], "linux/amd64");

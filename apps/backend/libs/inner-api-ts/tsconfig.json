@@ -5,6 +5,7 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "skipLibCheck": true,
+    "lib": ["ES2024"],
     "types": ["node"],
     "noEmit": true
   },

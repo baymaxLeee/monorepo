@@ -235,7 +235,17 @@ export function codePlan(base, files, root = ROOT) {
       steps.push(["backend-python-lint", "just", "lint-py", ...changed]);
       steps.push(["backend-python-format", "just", "fmt-py", "--check", ...changed]);
     }
-    steps.push(...pythonBackend.map(({ id, path }) => [`type-${id}`, "uv", "run", "--directory", path, "mypy", "."]));
+    steps.push(
+      ...pythonBackend.map(({ id, kind, path }) => [
+        `type-${id}`,
+        "uv",
+        "run",
+        "--directory",
+        path,
+        "mypy",
+        kind === "libs" ? "src" : ".",
+      ]),
+    );
   }
   for (const { id, path } of goBackend) {
     steps.push(
