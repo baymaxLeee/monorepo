@@ -16,6 +16,9 @@ RUN uv venv /app/.venv
 RUN --mount=type=bind,from=requirements,source=/requirements.txt,target=/requirements.txt \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip sync --python /app/.venv/bin/python --require-hashes /requirements.txt
+COPY libs/inner-api-py /tmp/inner-api-py
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /app/.venv/bin/python --no-deps /tmp/inner-api-py
 
 FROM python:3.14.5-slim
 ENV PATH="/app/.venv/bin:$PATH"

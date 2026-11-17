@@ -178,7 +178,7 @@ services:
     container_name: monorepo-iam-bootstrap
     depends_on:
       db-init: { condition: service_completed_successfully }
-    command: ["seed"]
+    entrypoint: ["/seed"]
     environment:
       <<: *iam-database-env
       SUPER_ADMIN_ACCOUNT: ${SUPER_ADMIN_ACCOUNT:?SUPER_ADMIN_ACCOUNT is required}
