@@ -10,9 +10,11 @@ RUN corepack enable
 COPY package.json ./package.json
 COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
 COPY apps/backend/package.json ./apps/backend/package.json
+COPY apps/backend/libs/inner-api-ts/package.json ./apps/backend/libs/inner-api-ts/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
 COPY apps/backend/services/runtime/package.json ./apps/backend/services/runtime/package.json
 RUN pnpm install --filter @backend/runtime... --frozen-lockfile --config.registry=${NPM_CONFIG_REGISTRY}
+COPY apps/backend/libs/inner-api-ts ./apps/backend/libs/inner-api-ts
 COPY packages/agent-runtime ./packages/agent-runtime
 COPY apps/backend/services/runtime ./apps/backend/services/runtime
 WORKDIR /app/apps/backend/services/runtime
@@ -35,10 +37,12 @@ COPY --from=kubectl /bin/kubectl /usr/local/bin/kubectl
 COPY package.json ./package.json
 COPY pnpm-workspace.yaml pnpm-lock.yaml .pnpmfile.mjs ./
 COPY apps/backend/package.json ./apps/backend/package.json
+COPY apps/backend/libs/inner-api-ts/package.json ./apps/backend/libs/inner-api-ts/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
 COPY apps/backend/services/runtime/package.json ./apps/backend/services/runtime/package.json
 RUN pnpm install --filter @backend/runtime... --prod --frozen-lockfile --config.node-linker=hoisted \
     --config.registry=${NPM_CONFIG_REGISTRY}
+COPY apps/backend/libs/inner-api-ts ./apps/backend/libs/inner-api-ts
 COPY packages/agent-runtime ./packages/agent-runtime
 COPY apps/backend/services/runtime/src ./apps/backend/services/runtime/src
 COPY apps/backend/services/runtime/sandbox-assets ./apps/backend/services/runtime/sandbox-assets

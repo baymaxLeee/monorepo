@@ -8,7 +8,10 @@
     "redis": { "module": "github.com/redis/go-redis/v9", "version": "v9.23.0" },
     "uuid": { "module": "github.com/google/uuid", "version": "v1.6.0" },
     "httpTracing": { "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", "version": "v0.72.0" },
-    "grpcTracing": { "module": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc", "version": "v0.72.0" },
+    "grpcTracing": {
+      "module": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+      "version": "v0.72.0"
+    },
     "openTelemetry": { "module": "go.opentelemetry.io/otel", "version": "v1.47.0" },
     "grpc": { "module": "google.golang.org/grpc", "version": "v1.85.0" },
     "protobuf": { "module": "google.golang.org/protobuf", "version": "v1.36.12" }
