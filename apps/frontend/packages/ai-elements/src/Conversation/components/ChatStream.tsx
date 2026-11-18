@@ -5,7 +5,8 @@ import {
   ConversationScrollButton,
   type ConversationScrollHandle,
 } from "@repo/ai-elements";
-import { type ComponentProps, type Ref, memo, useDeferredValue, useEffect, useMemo, useRef } from "react";
+import { Spinner } from "@repo/design-system";
+import { type ComponentProps, type Ref, Suspense, memo, useEffect, useRef } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatTranscript } from "./ChatTranscript";
@@ -29,7 +30,6 @@ export const ChatStream = memo(function ChatStream({
   ...props
 }: ChatStreamProps) {
   const { messages, status } = useChat({ chat, resume, throttle: 50 });
-  const snapshot = useDeferredValue(useMemo(() => ({ messages, status }), [messages, status]));
   const canvasCallback = useRef(onCanvasChange);
   useEffect(() => {
     canvasCallback.current = onCanvasChange;
@@ -56,7 +56,16 @@ export const ChatStream = memo(function ChatStream({
   return (
     <Conversation className="min-h-0 flex-1 basis-0" scrollRef={scrollRef}>
       <ConversationContent className="mx-auto w-full max-w-4xl gap-6 px-4 py-6">
-        <ChatTranscript {...props} messages={snapshot.messages} status={snapshot.status} />
+        <Suspense
+          fallback={
+            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground" role="status">
+              <Spinner aria-hidden="true" />
+              正在更新消息…
+            </div>
+          }
+        >
+          <ChatTranscript {...props} messages={messages} status={status} />
+        </Suspense>
       </ConversationContent>
       <ConversationScrollButton />
     </Conversation>

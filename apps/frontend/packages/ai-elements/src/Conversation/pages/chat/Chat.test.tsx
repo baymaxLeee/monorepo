@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { UIMessage } from "ai";
 import { Suspense, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -289,6 +290,13 @@ test("text deltas do not rerender the composer, and typing/stop remain available
   expect(state.cancel).toHaveBeenCalledWith("conversation", "run", { skipErrorNotify: true });
 });
 
+test("a published text delta is visible in the same UI commit", async () => {
+  await mount();
+  state.messages = [{ id: "live", role: "assistant", parts: [{ type: "text", text: "实时增量" }] }];
+  flushSync(() => state.listeners.forEach((notify) => notify()));
+  expect(screen.getByText("实时增量")).toBeTruthy();
+});
+
 test("a running submission clears only after durable admission and renders above the editor", async () => {
   let admit: (value: unknown) => void = () => {};
   state.steer.mockReturnValue(
@@ -406,7 +414,7 @@ test("a suspended transcript update does not block edits or cancellation", async
   state.messages = [{ id: "live", role: "assistant", parts: [{ type: "text", text: state.suspendedText }] }];
   await publish();
   expect(screen.queryByText("正文加载中")).toBeNull();
-  expect(screen.getByText("输出")).toBeTruthy();
+  expect(screen.getByText("正在更新消息…")).toBeTruthy();
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "仍然可以编辑" } });
   expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("仍然可以编辑");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "停止" })));

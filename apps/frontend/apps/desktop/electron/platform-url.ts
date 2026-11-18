@@ -1,18 +1,21 @@
 export interface PackagedPlatform {
   url: string;
   prompt?: boolean;
+  embedded?: boolean;
+  allowHttp?: boolean;
 }
 
 export function platformLaunch(
   requestedUrl: string | undefined,
   packaged: PackagedPlatform | null,
   allowHttp: boolean,
-): { url: string; allowHttp: boolean; prompt: boolean } {
-  if (requestedUrl) return { url: requestedUrl, allowHttp, prompt: false };
+): { url: string; allowHttp: boolean; prompt: boolean; embedded: boolean } {
+  if (requestedUrl) return { url: requestedUrl, allowHttp, prompt: false, embedded: false };
   return {
     url: packaged?.url ?? "http://localhost:3000",
-    allowHttp,
+    allowHttp: allowHttp || packaged?.allowHttp === true,
     prompt: packaged?.prompt === true,
+    embedded: packaged?.embedded === true,
   };
 }
 

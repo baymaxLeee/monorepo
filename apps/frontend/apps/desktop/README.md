@@ -9,12 +9,14 @@ just desktop-dev --platform-url=http://localhost:3000
 just desktop-dev --platform-url=https://platform.example.com
 # 仅用于验证 HTTP VPS；该连接没有传输加密，不用于正式分发。
 just desktop-dev --platform-url=http://vps.example.com --allow-http
-DESKTOP_PLATFORM_URL=https://platform.example.com just desktop-package
+DESKTOP_PLATFORM_URL=http://124.222.245.5:8080/ just desktop-package
 # 可选：让 App 和未来同机 CLI 使用指定的稳定本地运行时目录
 MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just desktop-dev
 ```
 
-开发和打包都需要 macOS、Xcode Command Line Tools 与 `just install`。打包产物位于 `release/Monorepo-darwin-<arch>/Monorepo.app`，同时生成可下载的 `release/Monorepo-darwin-<arch>.zip`。开发包会做完整 ad-hoc 签名，但不会开启要求 Developer ID team 一致性的 hardened runtime，也未经过 Apple 公证。安装包启动时会要求填写 Platform URL，`DESKTOP_PLATFORM_URL` 只决定输入框默认值；显式传给开发入口的 `--platform-url` 仍会直接打开。URL 必须是 Platform 根地址，不能是单个 MFE；其网关必须提供同源 `/api/` 和 MFE 资源。默认值为 `http://localhost:3000`。远程地址默认要求 HTTPS，用户可以在启动页明确允许不安全的 HTTP。应用不提供浏览器通用文件或命令接口。
+开发和打包都需要 macOS、Xcode Command Line Tools 与 `just install`。打包产物位于 `release/Monorepo-darwin-<arch>/Monorepo.app`，同时生成可下载的 `release/Monorepo-darwin-<arch>.zip`。正式打包会生产构建 Platform、Chat、Admin、Canvas，把资源写入 ASAR，并从受限 `app://platform` 协议加载；安装包不再依赖 VPS 上的前端静态文件，也不显示网关选择页。`DESKTOP_PLATFORM_URL` 是包内固定的 API authority，必须是 Platform 根地址；当前单 VPS 构建使用 `http://124.222.245.5:8080/`。自定义协议只把 `/api/*` 流式转发给该 authority，MFE 和其余资源只能从安装包读取。
+
+显式传给开发入口的 `--platform-url` 仍直接加载 URL，默认值为 `http://localhost:3000`；远程 HTTP 必须带 `--allow-http`。应用不提供浏览器通用文件或命令接口。当前包会做完整 ad-hoc 签名和签名校验，但未使用 Developer ID、hardened runtime 或 Apple 公证，因此是可安装的内部正式构建，不是可对外无提示分发的 macOS 公证版本。
 
 登录后，只有 Desktop App 在 Chat 新建会话时渲染执行位置选择器；选择“本地电脑”后通过原生目录选择器授权目录。Web 不渲染该选择器并固定创建云端会话。云端会话由 Chat 持久化，可在 App 与 Web 继续；本地会话只属于当前本地主机，不上传或同步到 Web。文件直接在授权目录读写，不上传 Storage；本地 SQLite 保存会话，按 Platform origin、用户、租户和组织工作区隔离。模型推理所需上下文会发送给平台配置的 provider。服务端不保存本地会话/文件；只保存推理请求的授权和用量元数据。
 
@@ -30,13 +32,13 @@ utility runtime 意外退出时，main 只启动一次替代进程并重新打�
 
 Agent 核心与云端共用 `@repo/agent-runtime`。`electron/session-host.ts` 只管理本地 journal、工作区和流订阅；文件操作使用同一个 Bash manifest、ToolOutcome 与终端 UI，不维护本地专属文件工具。审批响应、待审批判断及取消/异常退出后的工具终态复用共享 lifecycle；本地 IPC 与云端 SSE 只是 transport adapter，不产生第二套 Agent 协议。
 
-## 正式版本 TODO
+## 发行验收 TODO
 
-- [ ] **将 URL 加载切换为安装包内置 Platform 与 MFE 前端资源。** 当前 URL 模式用于快速更新与 localhost/VPS 验证；正式发布时内置资源是目标，不作为两套长期并行入口。
-- [ ] 内置模式使用受限自定义协议和明确的 API 网关地址，保持同一 preload capability 契约；验证离线查看本地历史、资源完整性及桌面/前端协议版本匹配。
+- [x] 安装包内置 Platform 与 MFE 前端资源，使用受限自定义协议和固定 API 网关，并保持同一 preload capability 契约。
+- [ ] 验证未登录/断网时只读查看本地历史；当前 IAM 启动与刷新仍要求 API 可用，不能把内置资源等同于完整离线模式。
 - [ ] 完成签名、公证、更新签名与升级回滚验收，并在支持的 macOS/架构矩阵上复测 Seatbelt 和后台进程回收。原生 supervisor 使用 macOS sandbox SPI；每次启动探测能力，不能将单机测试视为所有系统版本的保证。
 
-当前打包命令生成开发包，用于应用入口验收；正式分发流程待上述 TODO 落实。开发包不代表已通过签名、公证或真实 provider 联通验证。
+当前打包命令生成资源自包含、ad-hoc 签名的内部正式包；它不代表已通过 Developer ID 签名、Apple 公证、真实 provider 联通或所有支持系统版本验收。
 
 验证：`just test frontend/desktop`、`just test frontend/chat`、`just build desktop`、 `just build chat`。原生测试需要 macOS，其他平台跳过不代表验证通过。
 

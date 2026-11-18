@@ -2,19 +2,26 @@ import "./process-output";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from "electron";
 import { z } from "zod";
 
 import { DesktopAuth } from "./auth";
+import { APP_ORIGIN, APP_SCHEME, APP_URL, registerEmbeddedPlatform } from "./embedded-platform";
 import { RuntimeHost } from "./host-runtime";
 import { selectPlatform } from "./platform-selector";
 import { type PackagedPlatform, platformLaunch, platformUrl } from "./platform-url";
 import { legacySessionDirectories, resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
 import { WorkspaceGrants } from "./workspace-grants";
 
+if (!app.isReady())
+  protocol.registerSchemesAsPrivileged([
+    { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  ]);
+
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 if (argument("user-data")) app.setPath("userData", argument("user-data")!);
 const directory = __dirname;
+const unpackedDirectory = directory.replace(/([/\\])app\.asar([/\\])/, "$1app.asar.unpacked$2");
 let window: BrowserWindow | null = null,
   runtime: RuntimeHost | null = null,
   quitting = false;
@@ -48,6 +55,11 @@ async function start() {
       return;
     }
   }
+  const rendererOrigin = launch.embedded ? APP_ORIGIN : url.origin;
+  const rendererUrl = launch.embedded ? APP_URL : url.href;
+  const isRendererUrl = (value: string) =>
+    launch.embedded ? value === APP_ORIGIN || value.startsWith(`${APP_ORIGIN}/`) : new URL(value).origin === url.origin;
+  if (launch.embedded) registerEmbeddedPlatform(protocol, net.fetch.bind(net), join(directory, "renderer"), url.origin);
   const runtimeHome = resolveRuntimeHome();
   if (!app.requestSingleInstanceLock({ origin: url.origin })) {
     app.quit();
@@ -57,7 +69,7 @@ async function start() {
     directory,
     (path, init) => auth.fetch(path, init),
     (event) => {
-      if (window && !window.isDestroyed() && window.webContents.getURL().startsWith(`${url.origin}/`))
+      if (window && !window.isDestroyed() && isRendererUrl(window.webContents.getURL()))
         window.webContents.send("desktop:event", event);
     },
   );
@@ -70,9 +82,9 @@ async function start() {
         directory: scopedSessionDirectory(runtimeHome, scope),
         legacyDirectories: legacySessionDirectories(app.getPath("appData"), app.getPath("userData"), scope),
         controlDirectories: [runtimeHome, app.getPath("userData")],
-        supervisor: join(directory, "supervisor"),
+        supervisor: join(unpackedDirectory, "supervisor"),
         executable: process.execPath,
-        fileWorker: join(directory, "file-worker.cjs"),
+        fileWorker: join(unpackedDirectory, "file-worker.cjs"),
       });
       signedIn = true;
     } else await runtime!.call("close");
@@ -84,7 +96,7 @@ async function start() {
       !window ||
       event.sender !== window.webContents ||
       event.senderFrame !== window.webContents.mainFrame ||
-      new URL(event.senderFrame.url).origin !== url.origin
+      !isRendererUrl(event.senderFrame.url)
     )
       throw new Error("拒绝非 Platform 主页面的本地调用");
     if (method === "info")
@@ -231,20 +243,20 @@ async function start() {
         nodeIntegration: false,
         webSecurity: true,
         navigateOnDragDrop: false,
-        additionalArguments: [`--desktop-origin=${encodeURIComponent(url.origin)}`],
+        additionalArguments: [`--desktop-origin=${encodeURIComponent(rendererOrigin)}`],
       },
     });
     window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.webContents.on("will-navigate", (event, target) => {
       const parsed = new URL(target);
-      if (parsed.origin !== url.origin) {
+      if (!isRendererUrl(target)) {
         event.preventDefault();
         if (["https:", "http:"].includes(parsed.protocol)) void shell.openExternal(target);
       }
     });
     window.webContents.on("will-redirect", (event, target) => {
-      if (new URL(target).origin !== url.origin) event.preventDefault();
+      if (!isRendererUrl(target)) event.preventDefault();
     });
     window.webContents.on("will-prevent-unload", (event) => {
       if (
@@ -263,11 +275,13 @@ async function start() {
     window.on("closed", () => {
       window = null;
     });
-    void window.loadURL(url.href).catch(async () => {
+    void window.loadURL(rendererUrl).catch(async () => {
       await dialog.showMessageBox({
         type: "error",
         message: "无法打开 Platform",
-        detail: `请确认 ${url.origin} 已启动，然后通过菜单重新加载。`,
+        detail: launch.embedded
+          ? `无法读取安装包内前端资源；API 后端为 ${url.origin}。`
+          : `请确认 ${url.origin} 已启动，然后通过菜单重新加载。`,
       });
       window?.show();
     });
@@ -283,7 +297,7 @@ async function start() {
             label: "重新加载 Platform",
             accelerator: "CmdOrCtrl+R",
             click: () => {
-              if (window) void window.loadURL(url.href);
+              if (window) void window.loadURL(rendererUrl);
             },
           },
           { role: "toggleDevTools" },

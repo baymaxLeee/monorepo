@@ -100,9 +100,9 @@ Runtime 只保留 Knowledge、Canvas、Memory、Media、Storage 发布及 provid
 
 ### 桌面入口与资源加载
 
-Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MFE 提供。日常 `just dev` 仍启动 Web，不自动启动桌面；`just desktop-dev` 显式打开 Electron， `just desktop-package` 生成 macOS `.app`。当前按用户选择通过 URL 加载 localhost 或 VPS 的 Platform 根地址，绑定精确 origin 和主 frame 的 preload 能力。远程 HTTP 只允许显式开发验证开关；renderer 不获得 Node 或通用 IPC。
+Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MFE 提供。日常 `just dev` 仍启动 Web，不自动启动桌面；`just desktop-dev` 显式通过 URL 打开 localhost 或受控远端 Platform，`just desktop-package` 生产构建并内置 Platform、Chat、Admin、Canvas 后生成 macOS `.app`。正式包从标准、安全的 `app://platform` 协议读取 ASAR 内资源，只把同源 `/api/*` 请求流式转发到构建时固定的 API authority；renderer origin 与 API/journal authority 分离。preload 能力仍只开放给精确 renderer origin 和主 frame，renderer 不获得 Node、任意文件或通用 HTTP 代理。
 
-**TODO（正式版本发布前）：改为安装包内置 Platform 与 MFE 资源。** 届时调整页面资源协议与网关配置，沿用相同能力契约和本地运行时，不创建第二套 UI。内置资源、离线历史、签名公证和版本完整性尚未验收，当前产物是开发验证包。具体命令和发行待办见 [Desktop README](../../apps/frontend/apps/desktop/README.md)。
+当前内部正式包使用 ad-hoc 签名，尚未完成 Developer ID、hardened runtime、Apple 公证、升级回滚及完整离线历史验收。内置页面不意味着 IAM 和远端推理可以离线使用。具体命令和发行待办见 [Desktop README](../../apps/frontend/apps/desktop/README.md)。
 
 ### 当前本地实现与边界
 

@@ -61,15 +61,30 @@ it("prompts only packaged interactive launches while explicit development URLs s
     url: "https://default.test",
     allowHttp: false,
     prompt: true,
+    embedded: false,
   });
   expect(platformLaunch("http://127.0.0.1:3000", { url: "https://default.test", prompt: true }, false)).toEqual({
     url: "http://127.0.0.1:3000",
     allowHttp: false,
     prompt: false,
+    embedded: false,
   });
   expect(platformLaunch(undefined, null, true)).toEqual({
     url: "http://localhost:3000",
     allowHttp: true,
     prompt: false,
+    embedded: false,
   });
+});
+
+it("uses bundled renderer resources only for a packaged launch", () => {
+  expect(platformLaunch(undefined, { url: "http://vps.test:8080", embedded: true, allowHttp: true }, false)).toEqual({
+    url: "http://vps.test:8080",
+    allowHttp: true,
+    prompt: false,
+    embedded: true,
+  });
+  expect(
+    platformLaunch("http://localhost:3000", { url: "http://vps.test:8080", embedded: true, allowHttp: true }, false),
+  ).toEqual({ url: "http://localhost:3000", allowHttp: false, prompt: false, embedded: false });
 });
