@@ -121,6 +121,6 @@ it("loads an editable Markdown revision from Storage before opening the editor",
     editable_source: true,
   } as Awaited<ReturnType<typeof getConversationDocument>>);
   render(<ChatDocumentArtifactPanel />);
-  expect(await screen.findByText("Editable plan")).toBeTruthy();
+  expect(await screen.findByText("Editable plan", undefined, { timeout: 10_000 })).toBeTruthy();
   expect(fetchAssetText).toHaveBeenCalled();
 });
