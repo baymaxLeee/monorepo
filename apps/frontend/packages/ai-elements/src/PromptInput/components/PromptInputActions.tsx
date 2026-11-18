@@ -11,6 +11,7 @@ export function PromptInputActions({
   loading,
   submitWhileLoading,
   attachmentsUploading,
+  hasContent,
   submitLabel,
   onStop,
   footerRender,
@@ -19,9 +20,11 @@ export function PromptInputActions({
 }: Pick<PromptInputProps, "disabled" | "loading" | "submitWhileLoading" | "submitLabel" | "onStop" | "footerRender"> & {
   api: PromptInputApi;
   attachmentsUploading: boolean;
+  hasContent: boolean;
   onAttach: () => void;
   attachmentsEnabled?: boolean;
 }) {
+  const stopsRun = Boolean(loading && onStop && (!submitWhileLoading || !hasContent));
   return (
     <InputGroupAddon align="block-end" className="prompt-input-footer min-h-10">
       <div className="prompt-input-tools">
@@ -41,36 +44,18 @@ export function PromptInputActions({
         {footerRender?.(api)}
       </div>
       <div className="mr-2 flex items-center gap-1">
-        {loading && submitWhileLoading && onStop ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className={`rounded-full ${composerControlClassName}`}
-            aria-label="停止生成"
-            onClick={onStop}
-          >
-            <Square className="size-3" />
-          </Button>
-        ) : null}
         <Button
-          type={loading && !submitWhileLoading && onStop ? "button" : "submit"}
+          type={stopsRun ? "button" : "submit"}
           size="icon-xs"
           className={`cursor-pointer rounded-full ${composerControlClassName}`}
           disabled={loading && !submitWhileLoading ? !onStop : disabled || attachmentsUploading}
           aria-label={
-            loading && !submitWhileLoading && onStop
-              ? "停止生成"
-              : attachmentsUploading
-                ? "附件上传中"
-                : loading
-                  ? "补充当前任务"
-                  : "发送消息"
+            stopsRun ? "停止生成" : attachmentsUploading ? "附件上传中" : loading ? "补充当前任务" : "发送消息"
           }
-          onClick={loading && !submitWhileLoading ? onStop : undefined}
+          onClick={stopsRun ? onStop : undefined}
         >
           {submitLabel ??
-            (loading && !submitWhileLoading ? (
+            (stopsRun ? (
               <Square className="size-3" />
             ) : attachmentsUploading ? (
               <Loader2 className="size-3 motion-safe:animate-spin" />

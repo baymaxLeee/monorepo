@@ -215,6 +215,19 @@ export function isStoredResponseLineageCurrent(messages: AnyUIMessage[], outputM
   return predecessor?.id === outputMessageId;
 }
 
+export async function finalizeAfterAgentDisposal<T>(input: {
+  dispose: () => Promise<void>;
+  finalize: (disposalError: unknown | null) => Promise<T>;
+}): Promise<{ finalized: T; disposalError: unknown | null }> {
+  let disposalError: unknown | null = null;
+  try {
+    await input.dispose();
+  } catch (error) {
+    disposalError = error;
+  }
+  return { finalized: await input.finalize(disposalError), disposalError };
+}
+
 export async function createAgentRunResponse(
   auth: AuthContext,
   sessionId: string,
@@ -531,7 +544,6 @@ export async function createAgentRunResponse(
         const aborted =
           capacityError == null && (isAborted || runSignal.aborted || currentRun?.status === "cancel_requested");
         const streamError = capacityError ?? terminalStreamError(outcome, finishReason);
-        const failed = streamError != null;
         try {
           if (isContinuation !== (operation === "tool-continuation")) {
             throw new Error("SDK continuation identity does not match the claimed operation");
@@ -540,48 +552,58 @@ export async function createAgentRunResponse(
           const lineage = agentInstance.responseLineage();
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
           const tokens = addUsage(extractUsageTokens(usage), contextUsage);
-          const metadata: ChatMessageMetadata = {
-            runId,
-            providerId: provider.id,
-            model: provider.model,
-            responseId: lineage.responseId,
-            parentResponseId: lineage.parentResponseId,
-            status: aborted ? "cancelled" : failed ? "failed" : "completed",
-            finishReason,
-            usage: tokens,
-            historyRevision: claim.historyRevision,
-          };
           // Sandbox disposal is the run finalizer boundary. It must finish (or
           // leave durable release responsibility for the reconciler) before the
           // journal becomes terminal and before the session lease is freed.
-          try {
-            await agentInstance.dispose();
-          } finally {
-            disposeAgentResources = null;
-          }
-          await steeringInbox?.close();
-          steeringInbox = null;
-          const finalized = await finalizeAgentRunJournal({
-            runId,
-            parts,
-            aborted,
-            message:
-              parts.length > 0
-                ? {
-                    id: responseMessage.id,
-                    content: serializeMessageContent({ ...responseMessage, parts, metadata } as AnyUIMessage),
-                    status: aborted || failed ? "failed" : "ok",
-                  }
-                : null,
-            status: aborted ? "cancelled" : failed ? "failed" : "completed",
-            error: streamError ?? undefined,
-            inputTokens: tokens.inputTokens,
-            outputTokens: tokens.outputTokens,
-            cachedInputTokens: tokens.cachedInputTokens,
-            reasoningTokens: tokens.reasoningTokens,
-            totalTokens: tokens.totalTokens,
+          const settled = await finalizeAfterAgentDisposal({
+            dispose: async () => {
+              try {
+                await agentInstance.dispose();
+              } finally {
+                disposeAgentResources = null;
+              }
+            },
+            finalize: async (disposalError) => {
+              await steeringInbox?.close();
+              steeringInbox = null;
+              const terminalError = disposalError ?? streamError;
+              const terminalStatus = aborted ? "cancelled" : terminalError ? "failed" : "completed";
+              const metadata: ChatMessageMetadata = {
+                runId,
+                providerId: provider.id,
+                model: provider.model,
+                responseId: lineage.responseId,
+                parentResponseId: lineage.parentResponseId,
+                status: terminalStatus,
+                finishReason,
+                usage: tokens,
+                historyRevision: claim.historyRevision,
+              };
+              return finalizeAgentRunJournal({
+                runId,
+                parts,
+                aborted,
+                message:
+                  parts.length > 0
+                    ? {
+                        id: responseMessage.id,
+                        content: serializeMessageContent({ ...responseMessage, parts, metadata } as AnyUIMessage),
+                        status: terminalStatus === "completed" ? "ok" : "failed",
+                      }
+                    : null,
+                status: terminalStatus,
+                error: terminalError ?? undefined,
+                inputTokens: tokens.inputTokens,
+                outputTokens: tokens.outputTokens,
+                cachedInputTokens: tokens.cachedInputTokens,
+                reasoningTokens: tokens.reasoningTokens,
+                totalTokens: tokens.totalTokens,
+              });
+            },
           });
+          const finalized = settled.finalized;
           await releaseRun(runId);
+          if (settled.disposalError) throw settled.disposalError;
           if (finalized.status === "completed") {
             void extractMemoryCandidates({
               userId: session.userId,

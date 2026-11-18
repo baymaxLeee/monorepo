@@ -162,6 +162,37 @@ for (const storage of ["cloud", "local"] as const) {
     assert.equal(calls, 2);
   });
 }
+
+test("a terminal sandbox failure ends the tool phase without planning a recovery path", async () => {
+  let calls = 0;
+  const tools = manifestsToTools([
+    createBashTool(async () => {
+      throw Object.assign(new Error("runtime-sandbox command failed: 422"), {
+        service: "runtime-sandbox",
+        status: 422,
+        body: { message: "error: no such object: sandbox-run" },
+      });
+    }),
+  ]);
+  const agent = createAgentHarness({
+    environment: environment("cloud"),
+    tools,
+    model: model((options) => {
+      calls++;
+      if (calls === 1) {
+        assert.match(JSON.stringify(options.tools), /bash/);
+        return [{ type: "tool-call", toolCallId: "bash-missing", toolName: "bash", input: '{"command":"pwd"}' }];
+      }
+      assert.doesNotMatch(JSON.stringify(options.tools ?? {}), /bash/);
+      assert.match(JSON.stringify(options.prompt), /ended active execution/i);
+      assert.match(JSON.stringify(options.prompt), /SANDBOX_UNAVAILABLE/);
+      return text;
+    }),
+  });
+
+  await consume(agent);
+  assert.equal(calls, 2);
+});
 for (const approved of [false, true]) {
   test(`shared SDK approval resumes once without replaying the request: ${approved}`, async () => {
     let executions = 0,
@@ -267,7 +298,19 @@ test("stored-response continuation keeps steering sent during a tool in the next
       if (calls === 1) {
         return [{ type: "tool-call", toolCallId: "bash", toolName: "bash", input: '{"command":"echo done"}' }];
       }
-      assert.match(JSON.stringify(options.prompt), /继续检查日志/);
+      if (calls === 2) {
+        const userMessages = options.prompt.filter((message) => message.role === "user");
+        const systemMessages = options.prompt.filter((message) => message.role === "system");
+        const prompt = JSON.stringify(options.prompt);
+        assert.equal(JSON.stringify(userMessages.at(-1)?.content).includes("继续检查日志"), true);
+        assert.doesNotMatch(JSON.stringify(systemMessages), /继续检查日志/);
+        assert.match(prompt, /steering_reorientation/);
+        assert.match(prompt, /begin the next assistant response.*before any further tool call/);
+        return [
+          { type: "tool-call", toolCallId: "bash-after-steer", toolName: "bash", input: '{"command":"echo next"}' },
+        ];
+      }
+      assert.doesNotMatch(JSON.stringify(options.prompt), /steering_reorientation/);
       return text;
     }),
     continuation: ({ steps, messages }) => ({
@@ -297,5 +340,5 @@ test("stored-response continuation keeps steering sent during a tool in the next
     message: { role: "user", content: "继续检查日志" },
     stepNumber: 1,
   });
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });

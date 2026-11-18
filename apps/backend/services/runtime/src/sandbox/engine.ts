@@ -276,11 +276,10 @@ export class Engine {
   }
   async process(id: string, scope: Scope, input: object) {
     await this.assertOwner(id, scope);
-    const result = processSchema.parse(await this.control(id, input));
-    // Container teardown also terminates descendants that escaped their shell's
-    // process group. A timed-out workspace is not reused by subsequent calls.
-    if (result.timed_out) await this.remove(id);
-    return result;
+    // The runner closes the command environment and kills every guest process
+    // on timeout. Keep the stopped container until finalization so the host can
+    // snapshot partial workspace output before destroying the resource.
+    return processSchema.parse(await this.control(id, input));
   }
   async snapshot(id: string, scope: Scope) {
     await this.assertOwner(id, scope);

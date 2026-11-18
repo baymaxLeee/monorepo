@@ -3,7 +3,7 @@ export const INSTRUCTION_SECTION_TAGS = {
   runtimeContract: "runtime_contract",
   executionProtocol: "execution_protocol",
   capabilityContract: "capability_contract",
-  orchestrationDirective: "orchestration_directive",
+  executionStopped: "execution_stopped",
   availableSkills: "available_skills",
   activatedSkill: "activated_skill",
   userMemoryData: "user_memory_data",

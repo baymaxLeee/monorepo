@@ -110,18 +110,26 @@ test("composer has a name, retains draft during generation and offers stop", asy
   expect(input.textContent).toBe("草稿");
 });
 
-test("steering mode keeps independent Stop and Send actions during generation", async () => {
+test("steering mode shows Stop while empty and switches to Send when content is present", async () => {
+  const ref = createRef<PromptInputRef>();
   const stop = vi.fn();
   const submit = vi.fn();
-  render(<Editor defaultValue="补充要求" loading submitWhileLoading onStop={stop} onSubmit={submit} />);
+  render(<Editor ref={ref} loading submitWhileLoading onStop={stop} onSubmit={submit} />);
   const input = await screen.findByRole("textbox", { name: "消息" });
   expect(input.getAttribute("contenteditable")).toBe("true");
+  expect(screen.queryByRole("button", { name: "补充当前任务" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "停止生成" }));
   expect(stop).toHaveBeenCalledOnce();
   expect(submit).not.toHaveBeenCalled();
+
+  act(() => ref.current?.editor?.commands.insertContent("补充要求"));
+  expect(screen.queryByRole("button", { name: "停止生成" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "补充当前任务" }));
   expect(submit).toHaveBeenCalledOnce();
   expect(input.textContent).toBe("补充要求");
+
+  act(() => ref.current?.clear());
+  expect(screen.getByRole("button", { name: "停止生成" })).toBeTruthy();
 });
 
 test("IME confirmation does not send, plain Enter sends once", async () => {

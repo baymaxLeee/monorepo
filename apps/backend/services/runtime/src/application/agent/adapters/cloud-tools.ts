@@ -28,6 +28,7 @@ export async function createCloudToolAdapters() {
         return requireRunSandbox(options.experimental_sandbox).run({
           command: input.command,
           workingDirectory: input.workdir ?? "/workspace/work",
+          timeoutMs: input.timeout_ms,
           abortSignal: options.abortSignal,
         });
       },

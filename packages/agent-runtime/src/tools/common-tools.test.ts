@@ -6,7 +6,7 @@ import type { Tool, ToolExecutionOptions } from "ai";
 
 import { createCodeModeManifest } from "./code-mode.js";
 import { isToolOutcome } from "./outcome.js";
-import { createWebFetchManifest, createWebSearchManifest } from "./web.js";
+import { createWebFetchManifest, createWebSearchManifest, webFetchIssue } from "./web.js";
 
 function executable(definition: Tool<unknown, unknown> | undefined) {
   assert.ok(definition?.execute);
@@ -26,6 +26,21 @@ test("Web Fetch blocks private addresses and reports a recoverable failure", asy
   const result = await fetch({ url: "http://127.0.0.1/private" }, options);
   assert.ok(isToolOutcome(result) && result.status === "failed");
   assert.equal(result.error.source, "web-fetch");
+});
+
+test("Web Fetch preserves HTTP availability semantics in the unified issue", () => {
+  assert.deepEqual(webFetchIssue({ type: "error", errorCode: "http_error", statusCode: 429, message: "HTTP 429" }), {
+    code: "PROVIDER_RATE_LIMITED",
+    message: "HTTP 429",
+    retryable: true,
+    source: "web-fetch",
+  });
+  assert.deepEqual(webFetchIssue({ type: "error", errorCode: "http_error", statusCode: 403, message: "HTTP 403" }), {
+    code: "SERVICE_PERMISSION_DENIED",
+    message: "HTTP 403",
+    retryable: false,
+    source: "web-fetch",
+  });
 });
 
 test("Code Mode executes isolated ECMAScript and preserves its SDK caller", async () => {

@@ -3,7 +3,7 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
 import { defineAgentTool, transformToolPreservingCaller } from "./manifest.js";
-import { toolCompleted, toolFailed } from "./outcome.js";
+import { toolCompleted, toolFailed, type ToolIssue } from "./outcome.js";
 
 export const webSearchInputSchema = z.object({
   query: z.string().min(1).max(2_000).describe("Focused natural-language search query."),
@@ -34,6 +34,21 @@ export const webSearchOutputSchema = z.object({
 });
 export type WebSearchInput = z.infer<typeof webSearchInputSchema>;
 export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>;
+
+type WebFetchError = { type: "error"; errorCode: string; message: string; statusCode?: number };
+
+export function webFetchIssue(result: WebFetchError): ToolIssue {
+  if (result.errorCode === "http_error" && result.statusCode === 429) {
+    return { code: "PROVIDER_RATE_LIMITED", message: result.message, retryable: true, source: "web-fetch" };
+  }
+  if (result.errorCode === "http_error" && (result.statusCode === 401 || result.statusCode === 403)) {
+    return { code: "SERVICE_PERMISSION_DENIED", message: result.message, retryable: false, source: "web-fetch" };
+  }
+  if (result.errorCode === "network_error" || (result.statusCode != null && result.statusCode >= 500)) {
+    return { code: "SERVICE_UNAVAILABLE", message: result.message, retryable: true, source: "web-fetch" };
+  }
+  return { code: result.errorCode, message: result.message, retryable: false, source: "web-fetch" };
+}
 
 const readPolicy = {
   capability: "search" as const,
@@ -78,9 +93,7 @@ export function createWebFetchManifest() {
         const result = await base.execute(input, options);
         options.abortSignal?.throwIfAborted();
         if (!("type" in result)) throw new Error("Web Fetch returned an unexpected streaming result.");
-        return result.type === "error"
-          ? toolFailed({ code: result.errorCode, message: result.message, retryable: false, source: "web-fetch" })
-          : toolCompleted(result);
+        return result.type === "error" ? toolFailed(webFetchIssue(result)) : toolCompleted(result);
       },
     },
     { ...readPolicy, callableByCodeMode: true },

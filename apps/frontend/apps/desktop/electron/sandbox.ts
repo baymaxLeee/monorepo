@@ -109,7 +109,7 @@ export class LocalSandbox {
       this.options.protectedPaths,
       marker,
     );
-    return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
+    return new Promise<{ stdout: string; stderr: string; code: number; timedOut: boolean }>((resolve, reject) => {
       const child = spawn(this.options.supervisor, [marker, profile, command, ...args], {
         cwd: this.options.root,
         stdio: ["pipe", "pipe", "pipe"],
@@ -125,14 +125,18 @@ export class LocalSandbox {
       let stdout = "",
         stderr = "",
         bytes = 0,
-        failure: Error | undefined;
+        failure: Error | undefined,
+        timedOut = false;
       const stop = (error = new Error("执行已取消")) => {
         failure ??= error;
         child.stdin.destroy();
       };
       const cancel = () => stop();
       this.active.add(cancel);
-      const timeout = setTimeout(() => stop(new Error("命令超过执行时限")), timeoutMs);
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        child.stdin.destroy();
+      }, timeoutMs);
       signal?.addEventListener("abort", cancel, { once: true });
       const cleanup = () => {
         clearTimeout(timeout);
@@ -164,7 +168,8 @@ export class LocalSandbox {
           resolve({
             stdout: stdout + decoders.stdout.end(),
             stderr: stderr + decoders.stderr.end(),
-            code: code ?? 128,
+            code: timedOut ? 124 : (code ?? 128),
+            timedOut,
           });
       });
       if (input) child.stdin.write(`${input}\n`);

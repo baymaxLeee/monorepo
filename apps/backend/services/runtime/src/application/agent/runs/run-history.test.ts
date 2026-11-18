@@ -3,10 +3,32 @@ import test from "node:test";
 
 import type { Message } from "../../sessions.js";
 import {
+  finalizeAfterAgentDisposal,
   isStoredResponseLineageCurrent,
   persistedMessagesToModelUiMessages,
   removeStoredResponseReferences,
 } from "./run.js";
+
+test("disposal failure is passed to journal finalization instead of dropping generated output", async () => {
+  const disposalError = new Error("snapshot failed: sandbox no longer exists");
+  const generatedParts = [{ type: "text", text: "already generated" }];
+  let persisted: unknown[] | null = null;
+
+  const settled = await finalizeAfterAgentDisposal({
+    dispose: async () => {
+      throw disposalError;
+    },
+    finalize: async (error) => {
+      assert.equal(error, disposalError);
+      persisted = generatedParts;
+      return { status: "failed" as const };
+    },
+  });
+
+  assert.equal(settled.disposalError, disposalError);
+  assert.deepEqual(persisted, generatedParts);
+  assert.deepEqual(settled.finalized, { status: "failed" });
+});
 
 function message(id: string, role: Message["role"], status: Message["status"]): Message {
   return {

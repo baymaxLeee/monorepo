@@ -14,7 +14,7 @@ import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { storageClient, type StorageClient } from "../../../infrastructure/clients/storage.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
-import { persistCloudWorkspace } from "../../cloud-workspace.js";
+import { isMissingSandboxResourceError, persistCloudWorkspace } from "../../cloud-workspace.js";
 import {
   deleteWorkspaceSessionFile,
   listSessionFiles,
@@ -308,8 +308,9 @@ export class RunSandbox implements Experimental_SandboxSession {
     command: string;
     workingDirectory?: string;
     env?: Record<string, string>;
+    timeoutMs?: number;
     abortSignal?: AbortSignal;
-  }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  }): Promise<{ exitCode: number; stdout: string; stderr: string; timedOut: boolean; timeoutMs: number }> {
     const signal = this.operationSignal(options.abortSignal);
     const session = await this.ensure(options.abortSignal);
     const client = this.deps.sandbox();
@@ -321,7 +322,7 @@ export class RunSandbox implements Experimental_SandboxSession {
         env: options.env ?? {},
         tty: false,
         yield_time_ms: 10_000,
-        timeout_ms: 120_000,
+        timeout_ms: options.timeoutMs ?? 120_000,
         scope: this.scope,
         request_id: randomBytes(16).toString("hex"),
       },
@@ -346,8 +347,12 @@ export class RunSandbox implements Experimental_SandboxSession {
       );
       appendProcessOutput(output, process);
     }
-    if (process.timed_out) await this.dispose();
-    return { exitCode: process.exitCode, ...output };
+    return {
+      exitCode: process.exitCode,
+      ...output,
+      timedOut: process.timed_out,
+      timeoutMs: options.timeoutMs ?? 120_000,
+    };
   }
 
   async readFile(options: { path: string; abortSignal?: AbortSignal }) {
@@ -748,6 +753,19 @@ rm -- ${shellQuote(absolute)}`,
           }
         }
         if (persistenceError) {
+          if (isMissingSandboxResourceError(persistenceError)) {
+            await this.deps.execution.releasing(this.scope, persistenceError);
+            try {
+              await this.deps.sandbox().destroy(this.scope);
+            } catch (error) {
+              if (!isMissingSandboxResourceError(error)) {
+                await this.deps.execution.releasing(this.scope, error).catch(() => {});
+                throw persistenceError;
+              }
+            }
+            await this.deps.execution.released(this.scope);
+            throw persistenceError;
+          }
           await this.deps.execution.finalizationFailed(this.scope, persistenceError).catch(() => {});
           throw persistenceError;
         }

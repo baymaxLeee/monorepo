@@ -2,7 +2,6 @@ import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { createAgentHarness } from "@repo/agent-runtime";
-import { deriveOrchestrationState } from "@repo/agent-runtime/agent/orchestration";
 import { newMessagesForStoredResponse } from "@repo/agent-runtime/agent/response-continuation";
 import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
 import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
@@ -143,7 +142,6 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     runId: input.runId,
     userId: input.userId,
     sessionId: input.sessionId,
-    orchestration: deriveOrchestrationState([]),
   };
   const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
   const providerModel = createInferenceModel(provider, input.reasoningEffort);

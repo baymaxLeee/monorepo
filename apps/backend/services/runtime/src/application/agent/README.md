@@ -24,7 +24,7 @@ agent/
 
 ## Context and tools
 
-- AI SDK `runtimeContext.orchestration` 只保存运行所需的少量编排快照；视为 immutable，`prepareStep` 只施加最后一步 truthful summary 边界，不维护 Plan 读取、HTML verification 或 exact-tool 状态机。显式 Plan `file_id` 由 projector 和 sandbox import 解析，完整读取要求属于 runtime contract。tool callbacks 只做 telemetry，不得改写编排状态。
+- `prepareStep` 只合并 continuation/steering/workspace facts，并在硬 step 上限或工具已确认的终态错误后关闭工具以生成 truthful summary；不回扫历史做失败计数，不选择恢复工具，也不维护 Plan、HTML verification 或 exact-tool 状态机。显式 Plan `file_id` 由 projector 和 sandbox import 解析，完整读取要求属于 runtime contract。
 - 每个 tool 通过自己的 `contextSchema` 获得最小权限数据，不共享万能 ToolContext。
 - 内置 function tool 的 Zod Schema 是唯一输入契约：字段说明、strict calling 和 compact `inputExamples` 随 tool definition 发送，不在 instructions 复制 payload。 `repairToolCall` 只记录 Schema 前的拒绝并返回 `null`；主 Agent 在下一 step 自行决定是否修正，runtime 不调用隐藏 repair model。
 - `tools/` 只放模型调用边界；artifact、memory、plan 的业务实现属于各自 subsystem。

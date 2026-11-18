@@ -226,10 +226,12 @@ export function normalizeToolIssue(
   }
   if (isTransportFailure(error)) {
     const message = detailMessage(error.body) ?? context.message ?? error.message;
+    const sandboxUnavailable =
+      error.service === "runtime-sandbox" && /no such (?:object|container):?\s+sandbox-/iu.test(message);
     return {
-      code: context.code ?? codeFromStatus(error.status),
+      code: context.code ?? (sandboxUnavailable ? "SANDBOX_UNAVAILABLE" : codeFromStatus(error.status)),
       message: message.slice(0, MAX_MESSAGE_LENGTH),
-      retryable: error.status === 429 || error.status >= 500,
+      retryable: !sandboxUnavailable && (error.status === 429 || error.status >= 500),
       source: context.source ?? error.service,
       details: safeDetail({
         status_code: error.status,

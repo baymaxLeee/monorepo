@@ -7,7 +7,7 @@ import type { SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { sessionRunLeases, sandboxExecutions } from "../../../infrastructure/persistence/schema.js";
-import { persistCloudWorkspace } from "../../cloud-workspace.js";
+import { isMissingSandboxResourceError, persistCloudWorkspace } from "../../cloud-workspace.js";
 
 export interface SandboxExecutionLifecycle {
   restoring(scope: SandboxScope): Promise<void>;
@@ -184,6 +184,22 @@ export async function reconcileSandboxExecutions(
         await deps.destroy(scope);
         await deps.released(scope);
       } catch (error) {
+        if (state === "finalizing" && isMissingSandboxResourceError(error)) {
+          try {
+            await deps.releasing(scope, error);
+            try {
+              await deps.destroy(scope);
+            } catch (releaseError) {
+              if (!isMissingSandboxResourceError(releaseError)) throw releaseError;
+            }
+            await deps.released(scope);
+            return;
+          } catch (releaseError) {
+            await deps.failed(scope, releaseError);
+            logger.error({ err: releaseError, runId: scope.run_id }, "missing sandbox release failed");
+            return;
+          }
+        }
         await deps.failed(scope, error);
         logger.error({ err: error, runId: scope.run_id }, "sandbox release retry failed");
       }

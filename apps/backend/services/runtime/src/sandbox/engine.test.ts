@@ -123,6 +123,29 @@ test("workspace edit uses a scoped runtime fence", async () => {
   ]);
 });
 
+test("a timed-out command keeps the stopped workspace available for final snapshot", async () => {
+  const engine = new Engine(config);
+  engine.assertOwner = async () => {};
+  engine.control = async () => ({
+    session_id: "process",
+    stdout: "partial",
+    stderr: "",
+    exitCode: 124,
+    stdout_offset: 7,
+    stderr_offset: 0,
+    timed_out: true,
+    truncated: false,
+  });
+  engine.remove = async () => {
+    assert.fail("timed-out workspace must remain until finalization");
+  };
+
+  const result = await engine.process("sandbox", scope, { op: "poll" });
+
+  assert.equal(result.timed_out, true);
+  assert.equal(result.stdout, "partial");
+});
+
 test("workspace edit API preserves the caller operation token", async () => {
   const engine = new Engine(config);
   let acquired = "";

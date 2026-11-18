@@ -202,6 +202,40 @@ test("lazy run allocation is single-flight; original binary bytes survive import
   assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "releasing", "released"]);
 });
 
+test("command timeout remains the primary result until finalization snapshots the workspace", async () => {
+  const f = fixture();
+  let requestedTimeout = 0;
+  f.client.start = async (_id, input) => {
+    requestedTimeout = input.timeout_ms;
+    return {
+      session_id: "timed-out",
+      stdout: "partial evidence",
+      stderr: "",
+      exitCode: 124,
+      stdout_offset: 16,
+      stderr_offset: 0,
+      truncated: false,
+      timed_out: true,
+    };
+  };
+  const run = new RunSandbox(context, f.deps);
+
+  const result = await run.run({ command: "slow", timeoutMs: 10_000 });
+
+  assert.equal(requestedTimeout, 10_000);
+  assert.deepEqual(result, {
+    exitCode: 124,
+    stdout: "partial evidence",
+    stderr: "",
+    timedOut: true,
+    timeoutMs: 10_000,
+  });
+  assert.equal(f.calls.includes("destroy"), false);
+  await run.dispose();
+  assert.equal(f.calls.includes("destroy"), true);
+  assert.deepEqual(f.executionStates.slice(-3), ["finalizing", "releasing", "released"]);
+});
+
 test("user saves are reported once at the next controlled model step", async () => {
   const f = fixture();
   const base: SessionFile = {
@@ -569,4 +603,30 @@ test("failed workspace persistence retains compute for durable finalization retr
   await assert.rejects(run.dispose(), /Storage unavailable/);
   assert.ok(!f.calls.includes("destroy"));
   assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "finalization-failed"]);
+});
+
+test("missing sandbox cleanup is terminal instead of retrying an impossible snapshot", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  f.client.snapshot = async () => {
+    throw Object.assign(new Error("runtime-sandbox snapshot failed: 422"), {
+      service: "runtime-sandbox",
+      status: 422,
+      body: { message: "error: no such object: sandbox-run" },
+    });
+  };
+  f.client.destroy = async () => {
+    f.calls.push("destroy");
+    throw Object.assign(new Error("runtime-sandbox destroy failed: 422"), {
+      service: "runtime-sandbox",
+      status: 422,
+      body: { message: "error: no such object: sandbox-run" },
+    });
+  };
+  const run = new RunSandbox(context, f.deps);
+  await run.run({ command: "write draft" });
+
+  await assert.rejects(run.dispose(), /snapshot failed/);
+  assert.ok(f.calls.includes("destroy"));
+  assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "release-failed", "released"]);
 });

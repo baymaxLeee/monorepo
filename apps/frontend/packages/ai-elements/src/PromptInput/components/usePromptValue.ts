@@ -4,12 +4,17 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { PromptInputProps, PromptInputToken, PromptInputValue } from "../interface";
 import { deserializePromptInput, serializePromptInput } from "../serialize";
 
-export function usePromptValue(editorRef: RefObject<Editor | null>, onChange: PromptInputProps["onChange"]) {
+export function usePromptValue(
+  editorRef: RefObject<Editor | null>,
+  onChange: PromptInputProps["onChange"],
+  initialHasContent = false,
+) {
   const filesRef = useRef<Record<string, File>>({});
   const objectUrlsRef = useRef<Record<string, string>>({});
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const [attachmentsUploading, setAttachmentsUploading] = useState(false);
+  const [hasContent, setHasContent] = useState(initialHasContent);
   const emitChange = useCallback((currentEditor: Editor) => {
     if (currentEditor.isDestroyed) {
       return;
@@ -28,6 +33,7 @@ export function usePromptValue(editorRef: RefObject<Editor | null>, onChange: Pr
     }
     filesRef.current = value.files;
     setAttachmentsUploading(value.tokens.some((token) => token.status === "uploading"));
+    setHasContent(Boolean(value.text.trim()) || value.tokens.length > 0);
     onChangeRef.current?.(value);
   }, []);
 
@@ -140,5 +146,15 @@ export function usePromptValue(editorRef: RefObject<Editor | null>, onChange: Pr
     [],
   );
 
-  return { filesRef, objectUrlsRef, attachmentsUploading, getValue, setValue, emitChange, insertToken, updateToken };
+  return {
+    filesRef,
+    objectUrlsRef,
+    attachmentsUploading,
+    hasContent,
+    getValue,
+    setValue,
+    emitChange,
+    insertToken,
+    updateToken,
+  };
 }

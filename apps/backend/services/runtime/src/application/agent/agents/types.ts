@@ -1,4 +1,3 @@
-import type { OrchestrationState } from "@repo/agent-runtime/agent/orchestration";
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
 import type { ModelMessage } from "ai";
 
@@ -11,7 +10,6 @@ export interface AgentRuntimeContext {
   runId: string;
   userId: string;
   sessionId: string;
-  orchestration: OrchestrationState;
 }
 
 export interface ChatAgentInput {

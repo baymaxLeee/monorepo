@@ -35,6 +35,13 @@ const defaults: CloudWorkspaceDependencies = {
   delete: deleteWorkspaceSessionFile,
 };
 
+export function isMissingSandboxResourceError(error: unknown): boolean {
+  if (!(error instanceof Error) || !("service" in error) || error.service !== "runtime-sandbox") return false;
+  const body = "body" in error && error.body && typeof error.body === "object" ? error.body : null;
+  const message = body && "message" in body && typeof body.message === "string" ? body.message : error.message;
+  return /no such (?:object|container):?\s+sandbox-/iu.test(message);
+}
+
 export async function persistCloudWorkspace(
   context: CloudWorkspaceScope,
   sandboxId: string,

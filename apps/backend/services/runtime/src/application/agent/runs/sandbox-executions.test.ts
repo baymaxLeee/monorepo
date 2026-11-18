@@ -98,3 +98,37 @@ test("failed orphan finalization retains compute and durable responsibility", as
   });
   assert.deepEqual(calls, ["finalize", "failed"]);
 });
+
+test("orphan cleanup releases a sandbox resource that is already gone", async () => {
+  const calls: string[] = [];
+  await reconcileSandboxExecutions({
+    list: async () => [{ scope: first, sandboxId: "sandbox", state: "finalizing" }],
+    finalize: async () => {
+      calls.push("finalize");
+      throw Object.assign(new Error("snapshot failed"), {
+        service: "runtime-sandbox",
+        status: 422,
+        body: { message: "error: no such object: sandbox-first" },
+      });
+    },
+    releasing: async (_scope, error) => {
+      assert.match(String(error), /snapshot failed/);
+      calls.push("releasing");
+    },
+    destroy: async () => {
+      calls.push("destroy");
+      throw Object.assign(new Error("destroy failed"), {
+        service: "runtime-sandbox",
+        status: 422,
+        body: { message: "error: no such object: sandbox-first" },
+      });
+    },
+    released: async () => {
+      calls.push("released");
+    },
+    failed: async () => {
+      calls.push("failed");
+    },
+  });
+  assert.deepEqual(calls, ["finalize", "releasing", "destroy", "released"]);
+});

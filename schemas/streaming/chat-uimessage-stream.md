@@ -123,6 +123,8 @@ PostgreSQL is the semantic source of truth. The finalizer atomically commits too
 
 运行中的用户补充走独立的非流式 admission/status API，但最终语义仍回到同一条 UIMessage stream。POST 必须携带 route 一致的 `expected_run_id`、稳定 `client_message_id`、正文和 `steer|queue` delivery；同 id 仅允许完全相同重试。普通 composer 补充固定使用 `steer`，使内容进入同一 run 的下一个 step；`queue` 只表达“当前任务终答后再做下一项”，不能混作补充上下文。Chat 在 PostgreSQL 保存 `accepted → dispatching → delivered|not_delivered|unconfirmed`，持有 run lease 的进程才可调用 SDK steering。`delivered` 以官方 `steering-message` part 持久化；`not_delivered` 与 `unconfirmed` 均保留给用户判断，客户端不得自动创建下一 turn 或盲目重发。GET 单项状态用于实时对账，run 级列表用于刷新后的 pending 恢复。
 
+SDK 的 step-boundary delivery 只证明消息进入了下一次采样，不自行保证模型遵守用户新指定的优先级。Shared Agent harness 将含有 `experimental_steeringMessages` 的 step 视为一次性 re-orientation boundary：用户正文仍作为最新的普通 `role:user` 消息传入，不复制进 system instruction；该 step 的临时指令要求模型先按最新补充重新确定目标，并在用户明确要求“先回答、解释或确认，再继续”时，于任何后续工具调用前先产生用户可见内容，而不是只把补充折叠进最终交付物。该临时指令不得泄漏到没有新 steering 的后续 step，也不得改变 `steer`/`queue` 的 run/turn 边界。
+
 ## 5. Checklist when adding a streamed field (paste into your PR reasoning)
 
 - [ ] Walked the §2 ladder; confirmed no official part/metadata already covers it.

@@ -180,4 +180,11 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
     setTimeout(() => abort.abort(), 100);
     await expect(running).rejects.toThrow("取消");
   });
+
+  it("returns a distinct timeout with partial output", async () => {
+    const result = await sandbox.execute("/bin/sh", ["-c", "printf before; sleep 60"], undefined, undefined, 100);
+    expect(result.timedOut).toBe(true);
+    expect(result.code).toBe(124);
+    expect(result.stdout).toBe("before");
+  });
 });

@@ -41,8 +41,9 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
   const suggestions = usePromptSuggestions();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<Editor | null>(null);
-  const value = usePromptValue(editorRef, onChange);
-  const { attachmentsUploading, getValue, setValue, emitChange, insertToken, updateToken, filesRef } = value;
+  const value = usePromptValue(editorRef, onChange, Boolean(defaultValue?.trim()));
+  const { attachmentsUploading, hasContent, getValue, setValue, emitChange, insertToken, updateToken, filesRef } =
+    value;
   const { insertFilesRef, retryRef } = usePromptFiles(props, editorRef, value);
   const apiRef = useRef<PromptInputApi | null>(null);
   const extensions = usePromptExtensions(props, suggestions.controller, apiRef, retryRef);
@@ -198,6 +199,7 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
           loading={loading}
           submitWhileLoading={submitWhileLoading}
           attachmentsUploading={attachmentsUploading}
+          hasContent={hasContent}
           attachmentsEnabled={props.maxFiles !== 0}
           submitLabel={submitLabel}
           onStop={onStop}

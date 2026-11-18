@@ -415,12 +415,19 @@ export class LocalSessionHost {
               ],
               undefined,
               options.abortSignal,
+              input.timeout_ms,
             );
             await new Promise<void>((resolve) => {
               setImmediate(resolve);
             });
             w.flushChanges();
-            return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
+            return {
+              exitCode: result.code,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              timedOut: result.timedOut,
+              timeoutMs: input.timeout_ms,
+            };
           }),
       });
       const manifests = [...portableTools.manifests, ...executionManifests];

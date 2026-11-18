@@ -4,6 +4,9 @@ import { z } from "zod";
 import { defineAgentTool } from "./manifest.js";
 import { toolCompleted, toolPartial } from "./outcome.js";
 
+export const DEFAULT_BASH_TIMEOUT_MS = 10_000;
+export const MAX_BASH_TIMEOUT_MS = 120_000;
+
 export const bashInputSchema = z.object({
   command: z
     .string()
@@ -14,12 +17,37 @@ export const bashInputSchema = z.object({
     .string()
     .optional()
     .describe("Existing workspace directory. Omit to use the authorized working directory."),
+  timeout_ms: z
+    .number()
+    .int()
+    .min(1_000)
+    .max(MAX_BASH_TIMEOUT_MS)
+    .default(DEFAULT_BASH_TIMEOUT_MS)
+    .describe(
+      "Command deadline in milliseconds. Defaults to 10000. Increase only for a known bounded command required by the user's goal; never use a longer timeout for open-ended public-data discovery.",
+    ),
 });
 export const bashDescription =
-  "Execute Bash in the authorized sandbox for file discovery, read/create/edit/delete, CLI and program execution. Do not use Bash for ordinary public web discovery or page reading when search/fetch tools are available. Respect the supplied workspace and network capabilities. No host access, service credentials, sudo or unsandboxed fallback.";
+  "Execute one bounded Bash command in the authorized workspace for file discovery, editing, validation, CLI or raw-response handling. Prefer direct search/fetch tools for factual public-web questions; do not turn a simple answer into broad candidate collection or metric aggregation. Respect the supplied workspace and network capabilities. No host access, service credentials, sudo or unsandboxed fallback.";
 export type BashInput = z.infer<typeof bashInputSchema>;
-export type BashResult = { exitCode: number; stdout: string; stderr: string };
+export type BashResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  timedOut?: boolean;
+  timeoutMs?: number;
+};
 export function commandResult(result: BashResult) {
+  if (result.timedOut) {
+    const timeoutMs = result.timeoutMs ?? DEFAULT_BASH_TIMEOUT_MS;
+    return toolPartial(result, {
+      code: "COMMAND_TIMEOUT",
+      message: `Command timed out after ${timeoutMs}ms. Use the evidence already collected and explain what remains incomplete instead of repeating or broadening the command.`,
+      retryable: false,
+      source: "bash",
+      details: { timeout_ms: timeoutMs },
+    });
+  }
   return result.exitCode === 0
     ? toolCompleted(result)
     : toolPartial(result, {
