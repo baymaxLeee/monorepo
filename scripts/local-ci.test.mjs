@@ -145,6 +145,12 @@ test("an explicit all base produces a complete gate without a fake breaking-chan
   assert.ok(steps.some((step) => step[0] === "protobuf-lint"));
   assert.ok(!steps.some((step) => step[0] === "protobuf-breaking"));
 });
+test("protobuf changes use the baseline-bound breaking-change checker", () => {
+  assert.deepEqual(
+    codePlan("base-sha", ["schemas/proto/admin/v1/admin.proto"]).find((step) => step[0] === "protobuf-breaking"),
+    ["protobuf-breaking", "node", "scripts/check-protobuf-breaking.mjs", ".git#ref=base-sha,subdir=schemas/proto"],
+  );
+});
 test("ordinary project changes scope lint, format, types, tests and builds to owners and consumers", () => {
   const steps = codePlan("base-sha", ["apps/frontend/packages/ai-elements/src/Conversation/index.ts"]);
   assert.ok(steps.some((step) => step[0] === "frontend-lint"));

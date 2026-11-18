@@ -8,7 +8,7 @@ import {
 import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
-import { defineAgentTool } from "./manifest.js";
+import { defineAgentTool, defineUnavailableCapability, manifestsToTools } from "./manifest.js";
 import { isToolOutcome } from "./outcome.js";
 
 const options = { toolCallId: "manifest-test", messages: [], context: undefined };
@@ -50,4 +50,14 @@ void test("manifest wrapping preserves local tool callers and wraps their bound 
   const result = await bound.execute({ js: "return 42" }, options as ToolExecutionOptions<unknown>);
   assert.ok(isToolOutcome(result));
   assert.deepEqual(result, { ok: true, status: "completed", data: 42 });
+});
+
+test("tool conversion rejects duplicate manifest names", () => {
+  const manifest = defineUnavailableCapability(
+    "duplicate",
+    { capability: "external", effect: "none", trust: "closed", execution: "inline" },
+    { summary: "Duplicate test capability." },
+  );
+
+  assert.throws(() => manifestsToTools([manifest, manifest]), /duplicate agent tool duplicate/);
 });

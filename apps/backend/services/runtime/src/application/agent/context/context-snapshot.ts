@@ -28,10 +28,7 @@ export interface SessionContextSnapshot {
 
 type ProviderTool = LanguageModelV4FunctionTool | LanguageModelV4ProviderTool;
 
-const SYSTEM_TAGS = [
-  INSTRUCTION_SECTION_TAGS.corePolicy,
-  INSTRUCTION_SECTION_TAGS.environment,
-];
+const SYSTEM_TAGS = [INSTRUCTION_SECTION_TAGS.corePolicy, INSTRUCTION_SECTION_TAGS.environment];
 const RULE_TAGS = [
   INSTRUCTION_SECTION_TAGS.runtimeContract,
   INSTRUCTION_SECTION_TAGS.executionProtocol,

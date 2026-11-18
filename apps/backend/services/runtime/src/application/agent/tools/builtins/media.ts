@@ -355,7 +355,10 @@ function stableJson(value: unknown): string {
 }
 
 export function mediaConfirmationId(kind: "image" | "video", configuration: unknown): string {
-  return `media_${createHash("sha256").update(`${kind}\0${stableJson(configuration)}`).digest("hex").slice(0, 32)}`;
+  return `media_${createHash("sha256")
+    .update(`${kind}\0${stableJson(configuration)}`)
+    .digest("hex")
+    .slice(0, 32)}`;
 }
 
 function toolOutputData(output: unknown): unknown {
@@ -393,17 +396,16 @@ function confirmationHistory(messages: ModelMessage[]) {
 
 function answerValues(data: unknown, id: string): string[] {
   if (!data || typeof data !== "object" || !("answers" in data) || !Array.isArray(data.answers)) return [];
-  const answer = data.answers.find(
-    (candidate): candidate is { id: string; values: string[] } =>
-      Boolean(
-        candidate &&
-          typeof candidate === "object" &&
-          "id" in candidate &&
-          candidate.id === id &&
-          "values" in candidate &&
-          Array.isArray(candidate.values) &&
-          candidate.values.every((value: unknown) => typeof value === "string"),
-      ),
+  const answer = data.answers.find((candidate): candidate is { id: string; values: string[] } =>
+    Boolean(
+      candidate &&
+      typeof candidate === "object" &&
+      "id" in candidate &&
+      candidate.id === id &&
+      "values" in candidate &&
+      Array.isArray(candidate.values) &&
+      candidate.values.every((value: unknown) => typeof value === "string"),
+    ),
   );
   return answer?.values ?? [];
 }
@@ -466,7 +468,11 @@ export function assertMediaGenerationConfirmed(
       answerValues(entry.data, "media_generation_configuration").includes(confirmationId),
   );
   if (!confirmation) throw new Error("media generation configuration was not confirmed by the user");
-  if (Math.max(...catalogPositions) >= selection.position || selection.position >= preparation.position || preparation.position >= confirmation.position) {
+  if (
+    Math.max(...catalogPositions) >= selection.position ||
+    selection.position >= preparation.position ||
+    preparation.position >= confirmation.position
+  ) {
     throw new Error("media model selection and configuration confirmation occurred out of order");
   }
 }
@@ -546,43 +552,43 @@ export function createMediaToolManifests() {
   );
 
   const imageManifest = defineAgentTool(
-        "generate_images",
-        tool({
-          description:
-            "Start a durable background task that generates and persists one or more images. The server rejects the call unless the current user turn contains a fresh list_media_models result, separate media_model_selection and media_generation_configuration ask_user answers, and a matching prepare_media_generation confirmation_id.",
-          inputSchema: generateImagesInputSchema,
-          inputExamples: [
-            {
-              input: {
-                provider_id: "selected-image-provider-id",
-                prompts: [
-                  "Editorial isometric illustration of an AI agent tool loop, dark navy background, cyan accents, no text",
-                ],
-                confirmation_id: "media_0123456789abcdef0123456789abcdef",
-              },
-            },
-          ],
-          outputSchema: imageOutputSchema,
-          contextSchema: mediaToolContextSchema,
-          execute: generateImages,
-        }),
-        imagePolicy,
-        imagePlanning,
-      );
+    "generate_images",
+    tool({
+      description:
+        "Start a durable background task that generates and persists one or more images. The server rejects the call unless the current user turn contains a fresh list_media_models result, separate media_model_selection and media_generation_configuration ask_user answers, and a matching prepare_media_generation confirmation_id.",
+      inputSchema: generateImagesInputSchema,
+      inputExamples: [
+        {
+          input: {
+            provider_id: "selected-image-provider-id",
+            prompts: [
+              "Editorial isometric illustration of an AI agent tool loop, dark navy background, cyan accents, no text",
+            ],
+            confirmation_id: "media_0123456789abcdef0123456789abcdef",
+          },
+        },
+      ],
+      outputSchema: imageOutputSchema,
+      contextSchema: mediaToolContextSchema,
+      execute: generateImages,
+    }),
+    imagePolicy,
+    imagePlanning,
+  );
 
   const videoManifest = defineAgentTool(
-        "create_video_production",
-        tool({
-          description:
-            "Start a durable video production task and return immediately after Runtime worker accepts it. The server rejects the call unless the current user turn contains fresh model-list results, separate media_model_selection and media_generation_configuration ask_user answers, and a matching prepare_media_generation confirmation_id.",
-          inputSchema: createVideoProductionInputSchema,
-          outputSchema: videoProductionOutputSchema,
-          contextSchema: mediaToolContextSchema,
-          execute: createVideoProduction,
-        }),
-        videoPolicy,
-        videoPlanning,
-      );
+    "create_video_production",
+    tool({
+      description:
+        "Start a durable video production task and return immediately after Runtime worker accepts it. The server rejects the call unless the current user turn contains fresh model-list results, separate media_model_selection and media_generation_configuration ask_user answers, and a matching prepare_media_generation confirmation_id.",
+      inputSchema: createVideoProductionInputSchema,
+      outputSchema: videoProductionOutputSchema,
+      contextSchema: mediaToolContextSchema,
+      execute: createVideoProduction,
+    }),
+    videoPolicy,
+    videoPlanning,
+  );
 
   return [catalogManifest, prepareManifest, imageManifest, videoManifest];
 }

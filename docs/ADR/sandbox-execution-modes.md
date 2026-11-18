@@ -72,7 +72,15 @@
 
 ## 唯一 harness 与工具协议
 
-`packages/agent-runtime` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。Bash 定义、网页读取、网页检索契约、Code Mode、tool search、Ask User、Todo、Skill loader 与 subagent 核心等非业务原子能力均归该包；其中 `createPortableToolRegistry` 是所有宿主复用的唯一公共定义注册表，公共默认 profile 由共享包维护，宿主不能维护第二份默认名单。具体 Agent 先以 profile 选取默认能力，再追加自己的宿主/领域/MCP manifests；本地与云端 Bash 以同一逻辑槽绑定各自 executor，而不是分叉 Agent 能力模型。Runtime 只保留 Knowledge、Canvas、Memory、Media、Storage 发布及 provider 等服务适配。Runtime server `createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议；暂不支持 SDK client-tool continuation 的宿主必须显式声明该协议差异，而不是复制其余公共工具。
+`packages/agent-runtime` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。
+Bash 定义、网页读取、网页检索契约、Code Mode、tool search、Ask User、Todo、Skill loader 与 subagent 核心
+等非业务原子能力均归该包；其中 `createPortableToolRegistry` 是所有宿主复用的唯一公共定义注册表，宿主
+不能维护第二份公共名单或增加 Agent profile 选择层。Runtime 与 Desktop 直接追加各自宿主/领域/MCP
+manifests，重名能力失败关闭；本地与云端 Bash 由各自 execution host 追加，而不是分叉 Agent 能力模型。
+Runtime 只保留 Knowledge、Canvas、Memory、Media、Storage 发布及 provider 等服务适配。Runtime server
+`createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。
+宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议；暂不支持 SDK client-tool continuation 的
+宿主必须显式声明该协议差异，而不是复制其余公共工具。
 
 两端文件操作共用 `createBashTool` 的 schema、说明、manifest、审批策略与 `ToolOutcome`，以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染。本地没有独立的 `list_files/read_file/write_file` 模型工具；原生文件 helper 仅用于文件编辑器受限 I/O。两端用同一 `upload_artifacts({ paths })` 指定交付文件。云端基于工作区导入时的文件身份、ETag 和路径代际提交；本地校验授权目录中的普通文件并生成本地引用。两个宿主将工具结果投影为同一 `data-file`，草稿留在工作区。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
 

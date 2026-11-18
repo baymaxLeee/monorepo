@@ -27,9 +27,8 @@ export interface PortableToolBindings<CONTEXT extends Record<string, unknown>> {
 }
 
 /**
- * Creates the portable default-tool registry and binds its execution ports.
- * This does not decide the capability surface of every agent; callers resolve
- * these defaults through an AgentToolProfile and add only that agent's tools.
+ * Creates the portable tool registry and binds its execution ports. Hosts append
+ * only the manifests backed by their own execution environment or domain.
  */
 export function createPortableToolRegistry<CONTEXT extends Record<string, unknown> = Record<string, never>>({
   model,
@@ -47,7 +46,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
   }
 
   return {
-    defaults: [
+    manifests: [
       webSearchManifest,
       webFetchManifest,
       createCodeModeManifest(),

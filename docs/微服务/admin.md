@@ -1,20 +1,19 @@
 # admin service
 
-管理 & 配置面板的后端。除了智能体和技能等业务对象外，admin 还是
+管理 & 配置面板的后端。除了技能等业务对象外，admin 还是
 "第三方集成"的唯一所有者 —— 当前最重要的就是 LLM Provider。
 
 ## Owner / 责任范围
 
-- DB 表：`bots`、`model_providers`、`skills`、
+- DB 表：`model_providers`、`skills`、
   `skill_nodes`、`skill_published_nodes`（外加
   `migration` 单行版本表）
 - 公开 HTTP API（gateway 前置鉴权，路径 `/api/admin-server/*`）：
-  - `/bot` —— 智能体 CRUD
   - `/providers` —— LLM Provider 管理（CRUD、`set-default`、`test`）
   - `/skills` —— Skill 工作区、文件懒加载、验证与发布
 - 内部 gRPC API（端口 `9001`，gateway **不**代理）：
   - `ProviderService` —— 读取工作区 provider 快照与模型目录
-  - `AgentConfigurationService` —— 读取已发布 Agent、Skill 与 Canvas 设置
+  - `ConfigurationService` —— 读取已发布 Skill 与 Canvas 设置
   - `BenefitPackageService` —— 查询与推进权益包工作流
   - 调用身份由进程固定的 `x-caller-service` metadata 注入，服务端按 RPC method 做 allowlist
 
@@ -40,7 +39,7 @@
 
 - 用户身份（→ iam）
 - 业务流量本身（→ chat / 后续 LLM 消费服务）
-- 大模型调用编排（→ chat） —— admin 只配置 + 测连通
+- 大模型调用编排（→ runtime） —— admin 只配置 + 测连通
 
 ## 加密 / 密钥管理
 
@@ -55,7 +54,7 @@
 - `cmd/server/main.go` — Go HTTP server
 - `cmd/openapi/main.go` — 校验 Go binding 的 canonical SHA，并输出 design-first OpenAPI 3.1 artifact
 - `internal/api/http/` — 公开 HTTP handlers
-- `internal/api/rpc/` — Provider、Agent、Canvas settings 与 benefit-package RPC adapter
+- `internal/api/rpc/` — Provider、Skill、Canvas settings 与 benefit-package RPC adapter
 - `internal/application/` — 业务编排与授权
 - `internal/infrastructure/crypto/` — versioned AES-256-GCM envelope 与脱敏
 - `internal/infrastructure/persistence/` — PostgreSQL repositories

@@ -17,7 +17,6 @@ import {
 import { DIRECT_TOOL_CALL } from "@repo/agent-runtime/tools/code-mode";
 import { manifestsToTools } from "@repo/agent-runtime/tools/manifest";
 import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
-import { primaryAgentToolProfile, resolveAgentToolProfile } from "@repo/agent-runtime/tools/profile";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
 import {
@@ -424,11 +423,7 @@ export class LocalSessionHost {
             return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
           }),
       });
-      const manifests = resolveAgentToolProfile({
-        defaults: portableTools.defaults,
-        profile: primaryAgentToolProfile,
-        additions: executionManifests,
-      });
+      const manifests = [...portableTools.manifests, ...executionManifests];
       const tools = manifestsToTools(manifests);
       const activeTools = Object.keys(tools);
       const codeModeToolCallers = Object.fromEntries(

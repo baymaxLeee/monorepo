@@ -1,7 +1,6 @@
 import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
 import { defineAgentTool, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
-import { primaryAgentToolProfile, resolveAgentToolProfile } from "@repo/agent-runtime/tools/profile";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { AdminSkillSource } from "@repo/agent-runtime/tools/skills";
 import type { AgentToolManifest, ToolSource } from "@repo/agent-runtime/tools/types";
@@ -23,11 +22,7 @@ export interface AgentToolProviders {
 }
 
 function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
-  return [
-    ...createKnowledgeToolManifests(),
-    ...createMediaToolManifests(),
-    ...createMemoryToolManifests(),
-  ];
+  return [...createKnowledgeToolManifests(), ...createMediaToolManifests(), ...createMemoryToolManifests()];
 }
 
 function extensionSource(id: string): ToolSource {
@@ -133,11 +128,7 @@ export class ToolCatalog {
         }
       }
 
-      const manifests = resolveAgentToolProfile({
-        defaults: portableTools.defaults,
-        additions,
-        profile: primaryAgentToolProfile,
-      });
+      const manifests = [...portableTools.manifests, ...additions];
 
       const activeManifests = manifests.filter((manifest) => manifest.tool);
       const tools = manifestsToTools(activeManifests);

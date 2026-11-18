@@ -143,7 +143,6 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     runId: input.runId,
     userId: input.userId,
     sessionId: input.sessionId,
-    runtimeKind: "tool-loop",
     orchestration: deriveOrchestrationState([]),
   };
   const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
@@ -230,7 +229,6 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
         startSpan("agent.model_step", {
           "agent.run_id": input.runId,
           "agent.session_id": input.sessionId,
-          "agent.profile": "primary",
           "agent.step_number": currentStepNumber,
           "gen_ai.request.model": provider.model,
         }),

@@ -1,0 +1,38 @@
+[
+  {
+    "baselinePath": "bot/v1/bot.proto",
+    "baselineSha256": "8c48dbd4278d27baf704c42b105e075a5f7c6c927a7c49546d3a9e6412dda612",
+    "type": "FILE_NO_DELETE",
+    "message": "Previously present file \"bot/v1/bot.proto\" was deleted."
+  },
+  {
+    "baselinePath": "admin/v1/admin.proto",
+    "baselineSha256": "05d5606794b036f139439b0b18127eca2332fd82436b0ecd0b9f08d831fc2331",
+    "type": "MESSAGE_NO_DELETE",
+    "message": "Previously present message \"AgentSkill\" was deleted from file."
+  },
+  {
+    "baselinePath": "admin/v1/admin.proto",
+    "baselineSha256": "05d5606794b036f139439b0b18127eca2332fd82436b0ecd0b9f08d831fc2331",
+    "type": "MESSAGE_NO_DELETE",
+    "message": "Previously present message \"GetResolvedAgentRequest\" was deleted from file."
+  },
+  {
+    "baselinePath": "admin/v1/admin.proto",
+    "baselineSha256": "05d5606794b036f139439b0b18127eca2332fd82436b0ecd0b9f08d831fc2331",
+    "type": "MESSAGE_NO_DELETE",
+    "message": "Previously present message \"GetResolvedAgentResponse\" was deleted from file."
+  },
+  {
+    "baselinePath": "admin/v1/admin.proto",
+    "baselineSha256": "05d5606794b036f139439b0b18127eca2332fd82436b0ecd0b9f08d831fc2331",
+    "type": "MESSAGE_NO_DELETE",
+    "message": "Previously present message \"ResolvedAgent\" was deleted from file."
+  },
+  {
+    "baselinePath": "admin/v1/admin.proto",
+    "baselineSha256": "05d5606794b036f139439b0b18127eca2332fd82436b0ecd0b9f08d831fc2331",
+    "type": "SERVICE_NO_DELETE",
+    "message": "Previously present service \"AgentConfigurationService\" was deleted from file."
+  }
+]

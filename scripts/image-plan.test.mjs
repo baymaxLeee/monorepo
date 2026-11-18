@@ -98,7 +98,7 @@ test("ordinary documentation does not invalidate runtime images", () => {
   assert.deepEqual(imagePlan(["apps/backend/services/chat/internal/application/service.go"]).build, ["chat"]);
 });
 
-test("quality and agent configuration reuse every immutable image", () => {
+test("quality and instruction configuration reuse every immutable image", () => {
   for (const file of [
     ".github/workflows/tooling.yml",
     "oxlint.config.ts",

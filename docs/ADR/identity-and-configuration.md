@@ -9,7 +9,7 @@ Runtime 提供受约束的 inference relay、provider secret 留在服务端；C
 ## 身份边界
 
 IAM 拥有账号、凭据、tenant、workspace、成员关系、角色、登录会话和选中的
-workspace。Admin 拥有作用域内的运营配置：Bot、provider、Skill、应用注册和
+workspace。Admin 拥有作用域内的运营配置：provider、Skill、应用注册和
 套餐等；管理 UI 不意味着 Admin 拥有 IAM 的身份数据。
 
 Gateway 验证 IAM 签发的身份，剥离调用者伪造的身份头，再传递认证后的
@@ -41,7 +41,7 @@ Provider 凭据在 Admin 加密保存；公开形态脱敏，内部调用经 cal
 Skill 编辑文件树与唯一已发布快照由 Admin 拥有；发布原子覆盖，消费者只加载
 启用的发布快照。文本可精确编辑，binary/ZIP 使用 Asset revision 与 snapshot
 Claim。执行时初始只暴露 metadata，激活后逐步披露资源；服务启动不隐式同步
-远端仓库。Bot 是结构化 profile，不能配置任意系统指令覆盖代码权限层。
+远端仓库。系统不提供可配置 Agent/Bot 或按 profile 装配运行时的能力。
 
 授权、审计和事务由资源所属服务承担，不引入不存在的统一 audit 服务或通用
 权限 mega-SDK。共享 transport 传递身份，不拥有业务模型或授权决策。

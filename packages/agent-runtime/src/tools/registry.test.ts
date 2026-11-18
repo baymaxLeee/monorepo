@@ -13,9 +13,9 @@ const model = {
 };
 const webSearch = async (input: { query: string }) => ({ query: input.query, untrusted: true as const, results: [] });
 
-test("portable registry exposes the primary agent defaults without selecting tools for every agent", () => {
+test("portable registry exposes the shared host tool set", () => {
   const registry = createPortableToolRegistry({ model, webSearch });
-  assert.deepEqual(registry.defaults.map((manifest) => manifest.name).sort(), [
+  assert.deepEqual(registry.manifests.map((manifest) => manifest.name).sort(), [
     "ask_user",
     "code_mode",
     "subagents",
@@ -29,11 +29,11 @@ test("portable registry exposes the primary agent defaults without selecting too
 test("a host declares only its missing client continuation protocol", () => {
   const registry = createPortableToolRegistry({ model, webSearch, clientInteraction: false });
   assert.equal(
-    registry.defaults.some((manifest) => manifest.name === "ask_user"),
+    registry.manifests.some((manifest) => manifest.name === "ask_user"),
     false,
   );
   assert.equal(
-    registry.defaults.some((manifest) => manifest.name === "subagents"),
+    registry.manifests.some((manifest) => manifest.name === "subagents"),
     true,
   );
 });

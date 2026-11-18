@@ -257,9 +257,7 @@ test("first request preserves composer parts after conversation creation", async
     </MemoryRouter>,
   );
 
-  await waitFor(() =>
-    expect(state.sendMessage).toHaveBeenCalledWith({ parts }, { body: {} }),
-  );
+  await waitFor(() => expect(state.sendMessage).toHaveBeenCalledWith({ parts }, { body: {} }));
 });
 
 test("editing a message on HTTP preserves its target and generates a new message id", async () => {

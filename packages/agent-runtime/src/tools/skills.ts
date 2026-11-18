@@ -18,8 +18,7 @@ export type SkillFileResource =
       url: string;
     };
 
-/** Per-run admin (bot-bound) skill source: L1 listings + an on-demand body
- *  loader keyed by skill id. */
+/** Per-run workspace skill source: L1 listings plus an on-demand body loader. */
 export interface AdminSkillSource {
   skills: { id: string; name: string; description: string }[];
   activeSkillName?: string | null;
@@ -35,7 +34,7 @@ const loadSkillOutputSchema = z.object({
 /**
  * Resolves the skills a run advertises and the single `load_skill` tool that
  * pulls their bodies. `load_skill` refuses any name not in the advertised set,
- * so the model can only load published, enabled skills bound to this bot.
+ * so the model can only load published, enabled workspace skills.
  */
 export function resolveSkills(adminSource?: AdminSkillSource | null): {
   manifests: AgentToolManifest[];

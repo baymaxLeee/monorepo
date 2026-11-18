@@ -70,10 +70,8 @@ function fullCodePlan(base, files) {
     if (!forceAll)
       steps.push([
         "protobuf-breaking",
-        "buf",
-        "breaking",
-        "schemas/proto",
-        "--against",
+        "node",
+        "scripts/check-protobuf-breaking.mjs",
         `.git#ref=${base},subdir=schemas/proto`,
       ]);
   }

@@ -26,7 +26,6 @@ Go-based BFF / API gateway. Sits between frontend and backend Python services.
 - Use `chi` router (already standard)
 - External REST API shape is `/api/<service-name>/*`, for example:
   - `/api/iam-server/login`
-  - `/api/admin-server/bot`
 - Gateway routes by service prefix only. It strips `/api/<service-name>` and
   forwards the remaining path to the upstream service. Do NOT enumerate every
   business endpoint in gateway.

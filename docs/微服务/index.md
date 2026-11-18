@@ -43,8 +43,8 @@ infrastructure/  持久化、外部 client、provider、缓存、安全与可观
 infrastructure 适配器，只有外部边界或多实现确有需要时才引入 port。`bootstrap`
 负责最终装配。ORM model
 属于 `infrastructure/persistence/models`，不是 domain entity。资源继续在每层
-内部独立，例如 `api/http/routes/bots.py`、`application/bots.py` 和
-`infrastructure/persistence/repositories/bots.py`。
+内部独立，例如 `api/http/providers.go`、`application/providers.go` 和
+`infrastructure/persistence/providers.go`。
 
 只有业务不变量、值对象、策略和确定性状态转换可以进入 `domain/`。domain
 不得依赖 api、application、infrastructure、ORM、HTTP 框架或运行时 SDK；仅有

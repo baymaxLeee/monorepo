@@ -65,9 +65,8 @@ function parseProviderLimits(value: string | null): ProviderLimits | null {
   }
 }
 
-/** L1 skill listing resolved for a bot: name/description advertised in
- *  `<available_skills>`, `id` used to pull the body via `getSkillBody`. */
-export interface AgentSkillRef {
+/** L1 workspace skill listing advertised in `<available_skills>`. */
+export interface SkillSummary {
   id: string;
   name: string;
   description: string;
@@ -218,22 +217,14 @@ export async function getProviderLimits(
   return limits;
 }
 
-export async function listProviderCatalog(
-  tenantId: string,
-  workspaceId: string,
-): Promise<ProviderCatalogItem[]> {
+export async function listProviderCatalog(tenantId: string, workspaceId: string): Promise<ProviderCatalogItem[]> {
   try {
     const client = adminClient();
     const response = await client.caller.unary<ListProviderCatalogResponse>(
-        (metadata, options, callback) =>
-          client.providers.listProviderCatalog(
-            { actor: actor("", tenantId, workspaceId) },
-            metadata,
-            options,
-            callback,
-          ),
-        { headers: propagationHeaders() },
-      );
+      (metadata, options, callback) =>
+        client.providers.listProviderCatalog({ actor: actor("", tenantId, workspaceId) }, metadata, options, callback),
+      { headers: propagationHeaders() },
+    );
     return response.providers.map((provider) => ({
       id: provider.id,
       name: provider.name,
@@ -275,17 +266,12 @@ export async function getTaskProvider(
   }
 }
 
-export async function listSkills(tenantId: string, workspaceId: string): Promise<AgentSkillRef[]> {
+export async function listSkills(tenantId: string, workspaceId: string): Promise<SkillSummary[]> {
   try {
     const client = adminClient();
     const response = await client.caller.unary<ListSkillsResponse>(
       (metadata, options, callback) =>
-        client.configuration.listSkills(
-          { actor: actor("", tenantId, workspaceId) },
-          metadata,
-          options,
-          callback,
-        ),
+        client.configuration.listSkills({ actor: actor("", tenantId, workspaceId) }, metadata, options, callback),
       { headers: propagationHeaders() },
     );
     return response.skills.map((skill) => ({ id: skill.id, name: skill.name, description: skill.description }));

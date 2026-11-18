@@ -4,14 +4,13 @@ import type { ModelMessage } from "ai";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
-import type { AgentSkillRef, SkillFileResource } from "../../../infrastructure/clients/admin.js";
+import type { SkillFileResource, SkillSummary } from "../../../infrastructure/clients/admin.js";
 
 export interface AgentRuntimeContext {
   [key: string]: unknown;
   runId: string;
   userId: string;
   sessionId: string;
-  runtimeKind: "tool-loop";
   orchestration: OrchestrationState;
 }
 
@@ -33,7 +32,7 @@ export interface ChatAgentInput {
   /** Skill already active in the logical turn, including client-tool continuations. */
   activeSkillName?: string | null;
   /** Enabled published workspace skills advertised to the model (L1). */
-  skills?: AgentSkillRef[];
+  skills?: SkillSummary[];
   /** Pulls a skill's full body by id, for the shared `load_skill` tool. */
   loadSkillBody?: (skillId: string) => Promise<string>;
   loadSkillFile?: (skillId: string, path: string) => Promise<SkillFileResource>;

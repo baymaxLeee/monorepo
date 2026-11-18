@@ -78,13 +78,7 @@ export function createCanvasToolManifests(providers: { textProviderId: string })
         }),
         contextSchema,
         execute: async (input, { context, abortSignal, messages }) => {
-          assertMediaGenerationConfirmed(
-            "video",
-            input,
-            [input.video_provider_id],
-            input.confirmation_id,
-            messages,
-          );
+          assertMediaGenerationConfirmed("video", input, [input.video_provider_id], input.confirmation_id, messages);
           const videoProvider = await getTaskProvider(context.tenantId, context.workspaceId, input.video_provider_id);
           if (videoProvider.providerKind !== "video" || !videoProvider.isEnabled) {
             throw new Error(`provider ${videoProvider.id} is not an enabled video model`);

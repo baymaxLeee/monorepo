@@ -1,11 +1,7 @@
 import { cn } from "@repo/shared";
 import { FileIcon } from "lucide-react";
 
-export function ChatFileTag({ filename, title, onOpen }: {
-  filename: string;
-  title: string;
-  onOpen?: () => void;
-}) {
+export function ChatFileTag({ filename, title, onOpen }: { filename: string; title: string; onOpen?: () => void }) {
   const label = title || filename;
   return (
     <span className="inline-flex max-w-full items-center gap-1">

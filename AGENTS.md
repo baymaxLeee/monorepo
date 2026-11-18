@@ -56,8 +56,11 @@ Read only relevant routes and every closer AGENTS file. See the
 - Cross-stack and cross-service contracts belong in `schemas/`. Shared libraries
   contain proven infrastructure capabilities, never domain models.
 - IAM owns identity, tenants/workspaces, membership and roles. Admin owns scoped
-  operator configuration: providers, bots, skills, integrations and app registry.
+  operator configuration: providers, skills, integrations and app registry.
   Consumers fetch/cache authoritative state rather than replicating owner tables.
+- Agent assembly is not a product or runtime concept. Do not add configurable
+  Agents/Bots, Agent factories/profiles, resolved-Agent contracts or per-Agent
+  capability selection; each host runs the single shared loop and capability set.
 - Reuse official AI SDK message, stream, tool and artifact primitives. Verify
   unfamiliar APIs against installed types/source and platform decisions against
   current primary sources. Do not invent limits or orchestration policy.

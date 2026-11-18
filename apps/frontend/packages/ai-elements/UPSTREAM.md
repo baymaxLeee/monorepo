@@ -32,9 +32,8 @@ code use `@repo/ai-elements/terminal` and `/code-block` subpaths. The composer
 remains under `/prompt-input` so its editor is loaded only when needed.
 
 Local adaptations retain safe external URLs, tool outcome presentation,
-artifact previews and user-controlled disclosure. The searchable
-selector serves configured bots; `ModelPicker` provides the official radio-menu
-pattern for small model or reasoning-option lists. TipTap retains attachments,
+artifact previews and user-controlled disclosure. `ModelPicker` provides the
+official radio-menu pattern for small model or reasoning-option lists. TipTap retains attachments,
 mentions and slash commands while Input Group owns the composer frame.
 `artifact.tsx` and `attachments.tsx` retain the existing source-owned APIs.
 Subagent, checkpoint and test results remain presentation capabilities. The Chat

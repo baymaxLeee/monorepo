@@ -39,7 +39,7 @@
 - **契约覆盖缺口**——`executor-server.json` 已存在但 `packages/api/generated/` 无对应客户端；IAM（Go）无 OpenAPI，session/orgs 全手写；手写 `admin-server.ts`（约 36 个 export）与 generated client 并行，存在漂移。
 - **索引可靠性**——knowledge 后台索引是单进程 demo 调度器（advisory-lock 单飞），非 durable 队列。
 - **Web 深取**——只有 Tavily"搜"，无"读整页 / 爬站 / 抽结构"。
-- **事件流未实体化**——只有 `schemas/events/bot.published.v1.json` 一个 schema，无 broker/publisher/consumer。
+- **事件流未实体化**——无已落地的 broker、publisher、consumer 或业务事件 schema。
 - **对象存储**——knowledge 只有本地 FS demo 后端，无 S3/MinIO。
 
 ## 三、三方库清单（新增 vs 深化 vs 不做）

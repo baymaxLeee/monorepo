@@ -200,9 +200,7 @@ test("Desktop defaults to this computer and creates in the selected existing pro
   expect(screen.queryByRole("button", { name: "查看上下文用量" })).toBeNull();
   expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto"),
-  );
+  await waitFor(() => expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto"));
   await waitFor(() => expect(mocks.send).toHaveBeenCalledWith("local", "hello", expect.any(String)));
   expect(mocks.create).not.toHaveBeenCalled();
 });

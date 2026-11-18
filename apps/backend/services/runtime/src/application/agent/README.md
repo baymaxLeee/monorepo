@@ -1,11 +1,11 @@
 # Runtime Agent
 
-本目录以 AI SDK 7 `Agent` interface 为稳定边界。runtime-server 只有一个通用主 Agent；执行机制由 Runtime 决定，业务行为由 profile、context、tools 和 policy 组合，不按用户语义复制 Agent。
+本目录以 AI SDK 7 `Agent` interface 为稳定边界。runtime-server 只有一个通用主 Agent；
+Run 直接创建唯一的 ToolLoop 实现，不经过 Agent factory、profile 或 runtime 选择层。
 
 ```text
 agent/
-├── agents/          # Agent factory、ToolLoop 实现
-├── profiles/        # normal、plan 等行为配置；不是独立 Agent
+├── agents/          # 唯一 ToolLoop 实现及其运行输入类型
 ├── context/         # UIMessage → bounded ModelMessage、instructions、compaction
 ├── tools/           # 薄 tool adapters；files 统一读写与 artifact 能力
 ├── integrations/    # MCP、Skills 等 instructions/tools 扩展
@@ -17,9 +17,10 @@ agent/
 
 ## Runtime policy
 
-- `ToolLoopAgent` 是当前默认且唯一启用的交互 runtime（Brain）。
+- `ToolLoopAgent` 是唯一的交互 runtime（Brain），不得新增 Agent factory 或 profile 选择层。
 - 必须跨进程、部署、重试或长期等待后恢复的工作交给 Runtime worker Workflow。当前 Runtime 工具只把视频制片等已声明的耐久业务任务交给 worker；普通文件始终由主 Agent 在 run sandbox 中生成并通过一次 `upload_artifacts` 批量发布。视频创建工具在初始规划持久化后返回，后续审批/生成仍由 Workflow 执行。当前分工见 `docs/ADR/durable-execution.md`，不从旧任务计划推断返回边界。
-- Runtime 在 run 开始前由 profile/policy 明确选择并持久化，模型不能自行切换 runtime。
+- Runtime 和 Desktop 直接使用共享公共工具集合，再追加各自真实宿主/领域 manifests；重名拒绝启动，
+  不通过 profile 裁剪或替换工具。
 
 ## Context and tools
 

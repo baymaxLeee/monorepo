@@ -12,7 +12,7 @@ import {
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
 import type { AuthContext } from "../../../api/http/middleware/auth.js";
-import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
+import type { ProviderSnapshot, SkillSummary } from "../../../infrastructure/clients/admin.js";
 import { getProvider, getProviderLimits, getSkillBody, getSkillFile } from "../../../infrastructure/clients/admin.js";
 import { canvasClient } from "../../../infrastructure/clients/canvas.js";
 import { getDocument, knowledgeDocumentSessionId } from "../../../infrastructure/clients/knowledge.js";
@@ -20,7 +20,7 @@ import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
 import { getSessionRow, listMessages, type Message } from "../../sessions.js";
-import { createAgent } from "../agents/factory.js";
+import { createToolLoopAgent } from "../agents/tool-loop.js";
 import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
 import { shouldResetStoredResponseLineage } from "../context/budget.js";
 import type { ContextCategoryId } from "../context/context-snapshot.js";
@@ -73,7 +73,7 @@ import { terminalStreamError } from "./stream-outcome.js";
 export interface RunAgentInput {
   reasoningEffort: ReasoningEffort;
   /** Enabled published workspace skills advertised to the model via `<available_skills>`. */
-  skills?: AgentSkillRef[];
+  skills?: SkillSummary[];
   projectId?: string | null;
   canvasId?: string | null;
   trigger: "submit-message" | "regenerate-message";
@@ -157,11 +157,7 @@ function assertUserSubmissionParts(message: AnyUIMessage): void {
     throw new RequestError("user messages cannot submit authoritative metadata");
   }
   for (const part of message.parts) {
-    if (
-      part.type !== "text" &&
-      part.type !== "file" &&
-      part.type !== "data-skill-activation"
-    ) {
+    if (part.type !== "text" && part.type !== "file" && part.type !== "data-skill-activation") {
       throw new RequestError(`user messages cannot submit ${part.type} parts`);
     }
   }
@@ -418,7 +414,7 @@ export async function createAgentRunResponse(
     }
     const assistantMessageId =
       operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex");
-    const agentInstance = await createAgent({
+    const agentInstance = await createToolLoopAgent({
       projectId: input.projectId,
       canvasId: input.canvasId,
       workspaceRole: auth.workspaceRole,

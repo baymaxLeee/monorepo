@@ -2,13 +2,19 @@
 
 主循环唯一实现为 `@repo/agent-runtime`，由 Runtime server 与 Electron utility process 共同调用。固定提示词组装、step 控制、tool manifest/outcome、Bash 定义和审批策略共享；审批响应、待审批判断和未完成工具的取消/中断终态也由共享 lifecycle 实现。两端只注入模型、工作区、存储及观测适配器。不得另建本地 Agent-loop 或按执行位置复制 UI 工具协议。环境差异见 [执行模式](sandbox-execution-modes.md)。
 
-状态：当前。以 Runtime 的 Agent factory、run、context 和 tool catalog 为云端实现入口。
+状态：当前。以 Runtime 的 run、唯一 ToolLoop、context 和 tool catalog 为云端实现入口。
 
 本地/云端执行与文件生命周期见 [Sandbox 双模式决策](sandbox-execution-modes.md)；其中标记为部分实现或 TODO 的边界仍须按该文档完成，本文不另建兼容模型。
 
 ## 执行与传输
 
-Runtime 使用 AI SDK 7 的 `Agent` interface 和一个主 `ToolLoopAgent`。主 agent 持有用户意图、任务状态、交付顺序和最终综合权。 `subagents` 可作为普通 tool 并行创建 1–3 个短时、只读、独立 context 的 child `ToolLoopAgent`，但 child 不继承父会话或 response lineage，也不成为第二个规划权威。SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、取消、上下文与持久化。主模型在同一个 ReAct loop 中根据工具描述自行决定直接回答、调用普通工具或委派 child；harness 不增加意图分类器、难度分级、router、planner 或预先任务拆解。
+Runtime 使用 AI SDK 7 的 `Agent` interface 和一个主 `ToolLoopAgent`。Run 直接创建该唯一实现，
+不存在 Agent factory、runtime profile 或按业务语义装配不同 Agent 的选择层。主 agent 持有用户意图、
+任务状态、交付顺序和最终综合权。 `subagents` 可作为普通 tool 并行创建 1–3 个短时、只读、独立
+context 的 child `ToolLoopAgent`，但 child 不继承父会话或 response lineage，也不成为第二个规划权威。
+SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、取消、上下文与持久化。主模型在同一个
+ReAct loop 中根据工具描述自行决定直接回答、调用普通工具或委派 child；harness 不增加意图分类器、
+难度分级、router、planner 或预先任务拆解。
 
 ToolLoopAgent 使用 50 个 model step 的安全上限，并保留最后一步做禁止工具调用的真实结果总结；这高于 SDK 的 20 步保守默认值，适配长任务，同时仍有明确成本边界。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 把 `load_skill` 作为屏障并保持 `ask_user` 独占，独立读取可在同一步并行，生成和有依赖的副作用继续串行。
 
@@ -22,7 +28,9 @@ Runtime worker 状态经内部 SSE 汇入原生 preliminary tool results，浏�
 
 ## 上下文与权限
 
-Instructions 使用代码拥有的固定层次：稳定策略、执行契约、Skill、结构化 Bot profile、已批准记忆与服务端环境。Tool schema 是输入契约；历史会话和 todo 内容不伪装成系统指令。配置字符串的转义不等于权限控制，可用工具、scope 和审批仍由代码验证。
+Instructions 使用代码拥有的固定层次：稳定策略、执行契约、Skill、已批准记忆与服务端环境。
+Tool schema 是输入契约；历史会话和 todo 内容不伪装成系统指令。配置字符串的转义不等于权限控制，
+可用工具、scope 和审批仍由代码验证。
 
 UIMessage 到 ModelMessage 的投影保留近期原生语义，预算不足才增量压缩旧前缀。摘要记录覆盖位置并以 revision CAS 写入；失败不推进未完成的覆盖范围。历史文件写入保留路径、SHA、结果和失败事实，不重复大正文与旧工具参数。
 
@@ -32,7 +40,15 @@ UIMessage 到 ModelMessage 的投影保留近期原生语义，预算不足才�
 
 ## 工具与模型
 
-`@repo/agent-runtime` 只拥有 tool 协议、manifest/outcome、agent-loop 可复用原子能力及其测试，不得依赖 Runtime 服务的领域 client。`createPortableToolRegistry` 是云端与本地唯一的公共工具定义与执行端口注册表，统一提供 Web Fetch、Code Mode、Tool Search、Planning、Interaction、Skills 与 Subagents；注册表不是无差别暴露给所有 Agent 的全局工具袋。每个 `ToolLoopAgent` 在构造前必须通过 `AgentToolProfile` 解析最终能力面：主 Agent 复用共享默认 profile，专用 Agent 可关闭默认集并显式选取较窄集合；Agent/宿主追加的工具自动属于该 Agent，同名 manifest 可为同一逻辑槽绑定不同 executor，profile 可最终禁用。宿主不得复制公共默认名单，只注入模型、Web Search、Bash sandbox、上下文/观测等真实执行差异，并追加该 Agent 的领域/MCP manifests。最终只把解析后的 manifests/tools 交给 SDK，`activeTools` 只负责当前 mode/step 的进一步收窄。Canvas、Media、Knowledge、Memory 等当前直连领域系统的工具暂留 Runtime 领域边界。共享层不得反向导入这些具体实现。
+`@repo/agent-runtime` 只拥有 tool 协议、manifest/outcome、agent-loop 可复用原子能力及其测试，不得依赖
+Runtime 服务的领域 client。`createPortableToolRegistry` 是云端与本地唯一的公共工具定义与执行端口注册表，
+统一提供 Web Fetch、Code Mode、Tool Search、Planning、Interaction、Skills 与 Subagents。Runtime 与
+Desktop 直接使用这套公共 manifests，再追加各自真实执行环境和领域拥有的 manifests；不存在
+`AgentToolProfile`、默认能力二次选择或按业务语义装配 Agent。工具名必须全局唯一，宿主追加重名 manifest
+时拒绝启动，不能静默替换公共能力。宿主不得复制公共名单，只注入模型、Web Search、Bash sandbox、
+上下文/观测等真实执行差异。最终 manifests/tools 直接交给 SDK，`activeTools` 只表达本次真实可执行集合。
+Canvas、Media、Knowledge、Memory 等当前直连领域系统的工具暂留 Runtime 领域边界。共享层不得反向导入
+这些具体实现。
 
 - `ask_user` 是无 server execute 的 client tool，批量询问已知独立问题，客户端 `addToolOutput` 后 continuation；依赖答案的后续问题再提出。
 - 应用工具使用 ToolOutcome；业务失败可在 UI/persistence 保留结构化结果，同时向模型投影为 error-json。Abort、审批拒绝、输入/协议错误保留原生控制流。 `toolSearch()` 保留原生结果以激活延迟工具。

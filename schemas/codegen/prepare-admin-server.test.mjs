@@ -15,12 +15,15 @@ test("prepares the complete public Admin Go server contract", () => {
     execFileSync(process.execPath, [script, "--target", "admin-server", "--output", output]);
     const document = JSON.parse(readFileSync(output, "utf8"));
     const canonical = readFileSync(path.join(import.meta.dirname, "../openapi/admin-server.json"), "utf8");
-    const operation = document.paths["/bot"].get;
+    const operation = document.paths["/skills"].get;
     assert.equal(document.info.title, "Admin Service");
     assert.equal(document["x-canonical-sha256"], createHash("sha256").update(canonical).digest("hex"));
-    assert.equal(operation.operationId, "list_bots");
-    assert.equal(operation["x-original-operation-id"], "list_bots");
-    assert.equal(Object.keys(document.paths).some((value) => value.startsWith("/internal")), false);
+    assert.equal(operation.operationId, "list_skills");
+    assert.equal(operation["x-original-operation-id"], "list_skills");
+    assert.equal(
+      Object.keys(document.paths).some((value) => value.startsWith("/internal")),
+      false,
+    );
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

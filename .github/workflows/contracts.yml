@@ -56,7 +56,8 @@ jobs:
           input: schemas/proto
           lint: true
           format: true
-          breaking: true
-          breaking_against: ".git#ref=${{ steps.changes.outputs.base }},subdir=schemas/proto"
           push: false
           pr_comment: false
+      - name: Check Protobuf compatibility
+        if: steps.changes.outputs.changed == 'true'
+        run: node scripts/check-protobuf-breaking.mjs ".git#ref=${{ steps.changes.outputs.base }},subdir=schemas/proto"

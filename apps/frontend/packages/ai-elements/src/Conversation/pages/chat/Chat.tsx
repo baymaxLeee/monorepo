@@ -1,11 +1,7 @@
 import { type ConversationScrollHandle } from "@repo/ai-elements";
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
 import { listSkills } from "@repo/api/admin";
-import {
-  type ConversationDocument,
-  type ReasoningEffort,
-  updateConversationModel,
-} from "@repo/api/chat";
+import { type ConversationDocument, type ReasoningEffort, updateConversationModel } from "@repo/api/chat";
 import { toast } from "@repo/design-system";
 import { randomId } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -52,21 +48,16 @@ export function ChatSession({
     promise: Promise<PromptSlashCommand[]>;
   } | null>(null);
   const handledExternalRequestRef = useRef<string | null>(null);
-  const {
-    traceRefreshKey,
-    openArtifactPreview,
-    openFilePreview,
-    closeArtifactPreview,
-    closeImagePreview,
-  } = useChatStore(
-    useShallow((s) => ({
-      traceRefreshKey: s.traceRefreshKey,
-      openArtifactPreview: s.openArtifactPreview,
-      openFilePreview: s.openFilePreview,
-      closeArtifactPreview: s.closeArtifactPreview,
-      closeImagePreview: s.closeImagePreview,
-    })),
-  );
+  const { traceRefreshKey, openArtifactPreview, openFilePreview, closeArtifactPreview, closeImagePreview } =
+    useChatStore(
+      useShallow((s) => ({
+        traceRefreshKey: s.traceRefreshKey,
+        openArtifactPreview: s.openArtifactPreview,
+        openFilePreview: s.openFilePreview,
+        closeArtifactPreview: s.closeArtifactPreview,
+        closeImagePreview: s.closeImagePreview,
+      })),
+    );
 
   const requestBody = useMemo(() => ({}), []);
 
@@ -81,51 +72,48 @@ export function ChatSession({
     [],
   );
 
-  const loadSkills = useCallback(
-    async (signal: AbortSignal) => {
-      const cached = skillCommandsCacheRef.current;
-      if (cached) {
-        return cached;
-      }
+  const loadSkills = useCallback(async (signal: AbortSignal) => {
+    const cached = skillCommandsCacheRef.current;
+    if (cached) {
+      return cached;
+    }
 
-      let request = skillRequestRef.current;
-      if (!request) {
-        const controller = new AbortController();
-        const promise = listSkills({
-          signal: controller.signal,
-          skipErrorNotify: true,
+    let request = skillRequestRef.current;
+    if (!request) {
+      const controller = new AbortController();
+      const promise = listSkills({
+        signal: controller.signal,
+        skipErrorNotify: true,
+      })
+        .then((list) =>
+          list
+            .filter((skill) => skill.is_enabled && skill.status === "published")
+            .map((skill) => ({
+              id: skill.name,
+              title: skill.name,
+              description: skill.description,
+            })),
+        )
+        .then((commands) => {
+          skillCommandsCacheRef.current = commands;
+          return commands;
         })
-          .then((list) =>
-            list
-              .filter((skill) => skill.is_enabled && skill.status === "published")
-              .map((skill) => ({
-                id: skill.name,
-                title: skill.name,
-                description: skill.description,
-              })),
-          )
-          .then((commands) => {
-            skillCommandsCacheRef.current = commands;
-            return commands;
-          })
-          .catch(() => []);
-        request = { controller, promise };
-        skillRequestRef.current = request;
-        void promise.finally(() => {
-          if (skillRequestRef.current?.controller === controller) {
-            skillRequestRef.current = null;
-          }
-        });
-      }
+        .catch(() => []);
+      request = { controller, promise };
+      skillRequestRef.current = request;
+      void promise.finally(() => {
+        if (skillRequestRef.current?.controller === controller) {
+          skillRequestRef.current = null;
+        }
+      });
+    }
 
-      const list = await request.promise;
-      if (signal.aborted) {
-        return [];
-      }
-      return list;
-    },
-    [],
-  );
+    const list = await request.promise;
+    if (signal.aborted) {
+      return [];
+    }
+    return list;
+  }, []);
 
   const {
     chat,

@@ -66,8 +66,8 @@ export function LocalSession({
     void getLocalInferenceConfig(
       { provider_id: initial.providerId, reasoning_effort: initial.reasoningEffort },
       {
-      signal: controller.signal,
-      skipErrorNotify: true,
+        signal: controller.signal,
+        skipErrorNotify: true,
       },
     )
       .then((config) => {

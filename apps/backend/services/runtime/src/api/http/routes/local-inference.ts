@@ -19,8 +19,13 @@ localInferenceRoutes.get("/config", async (c) => {
   }
   c.header("Cache-Control", "no-store");
   return c.json(
-    (await resolveInferenceProvider(getAuth(c), providerId, reasoningEffort as Parameters<typeof resolveInferenceProvider>[2]))
-      .config,
+    (
+      await resolveInferenceProvider(
+        getAuth(c),
+        providerId,
+        reasoningEffort as Parameters<typeof resolveInferenceProvider>[2],
+      )
+    ).config,
   );
 });
 localInferenceRoutes.post("/stream", async (c) => {

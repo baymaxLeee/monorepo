@@ -119,13 +119,7 @@ export function ChatMessagePart({
         : onOpenFile
           ? () => onOpenFile(artifact.file_id)
           : undefined;
-    return (
-      <ChatFileTag
-        filename={artifact.filename}
-        title={artifact.title}
-        onOpen={open}
-      />
-    );
+    return <ChatFileTag filename={artifact.filename} title={artifact.title} onOpen={open} />;
   }
 
   if (isFileUIPart(part)) {

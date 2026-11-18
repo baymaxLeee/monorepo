@@ -209,7 +209,18 @@ export function defineUnavailableCapability(
 }
 
 export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {
-  return Object.fromEntries(manifests.flatMap((manifest) => (manifest.tool ? [[manifest.name, manifest.tool]] : [])));
+  const names = new Set<string>();
+  const tools: ToolSet = {};
+  for (const manifest of manifests) {
+    if (names.has(manifest.name)) {
+      throw new Error(`duplicate agent tool ${manifest.name}`);
+    }
+    names.add(manifest.name);
+    if (manifest.tool) {
+      tools[manifest.name] = manifest.tool;
+    }
+  }
+  return tools;
 }
 
 export function toolPolicyFromMetadata(metadata: unknown): AgentToolPolicy | null {

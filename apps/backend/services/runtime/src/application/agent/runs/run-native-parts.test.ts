@@ -13,6 +13,7 @@ import {
   type UIMessageChunk,
 } from "ai";
 
+import type { SessionFile } from "../../session-files.js";
 import {
   createPublishedAgentPartStream,
   publishNativeFileParts,
@@ -34,6 +35,30 @@ const publicationContext: NativeFilePublicationContext = {
   workspaceId: "workspace",
   signal: new AbortController().signal,
 };
+
+function sessionFile(overrides: Partial<SessionFile> = {}): SessionFile {
+  return {
+    id: "file",
+    session_id: "session",
+    title: "Saved",
+    filename: "saved.bin",
+    workspace_path: "/workspace/saved.bin",
+    workspace_state: "live",
+    path_generation: 1,
+    mime_type: "application/octet-stream",
+    size: 3,
+    asset_id: "asset",
+    revision_id: "revision",
+    sha256: "sha",
+    editable: false,
+    edit_max_bytes: 2_097_152,
+    etag: '"00000000000000000000000000000000"',
+    last_writer: { type: "agent", id: "run" },
+    created_at: new Date(0).toISOString(),
+    updated_at: new Date(0).toISOString(),
+    ...overrides,
+  };
+}
 
 function modelStream(parts: Array<TextStreamPart<ToolSet>>): ReadableStream<TextStreamPart<ToolSet>> {
   return new ReadableStream({
@@ -77,35 +102,23 @@ function dependencies(overrides: Partial<NativePartDependencies> = {}): NativePa
       sha256: "sha",
     }),
     publishSessionFile: async (input) =>
-      ({
+      sessionFile({
         id: `file-${input.idempotencyKey.split(":").at(-1) ?? "saved"}`,
         session_id: input.sessionId,
         title: input.title,
         filename: input.filename,
+        workspace_path: `/workspace/${input.filename}`,
         mime_type: input.mediaType,
         size: input.sizeBytes,
         asset_id: input.assetId,
         revision_id: input.revisionId,
         sha256: input.sha256,
-        kind: "artifact",
-        created_at: new Date(0).toISOString(),
-        updated_at: new Date(0).toISOString(),
-      }) as Awaited<ReturnType<NativePartDependencies["publishSessionFile"]>>,
+      }),
     getSessionFile: async (_auth, sessionId, fileId) =>
-      ({
+      sessionFile({
         id: fileId,
         session_id: sessionId,
-        title: "Saved",
-        filename: "saved.bin",
-        mime_type: "application/octet-stream",
-        size: 3,
-        asset_id: "asset",
-        revision_id: "revision",
-        sha256: "sha",
-        kind: "artifact",
-        created_at: new Date(0).toISOString(),
-        updated_at: new Date(0).toISOString(),
-      }) as Awaited<ReturnType<NativePartDependencies["getSessionFile"]>>,
+      }),
     getDocument: async (_userId, documentId) =>
       ({
         id: documentId,
@@ -222,20 +235,18 @@ test("real SDK file and reasoning-file parts are published before persistence", 
       };
     },
     publishSessionFile: async (input) =>
-      ({
+      sessionFile({
         id: `file-${input.assetId}`,
         session_id: input.sessionId,
         title: input.title,
         filename: input.filename,
+        workspace_path: `/workspace/${input.filename}`,
         mime_type: input.mediaType,
         size: input.sizeBytes,
         asset_id: input.assetId,
         revision_id: input.revisionId,
         sha256: input.sha256,
-        kind: "artifact",
-        created_at: new Date(0).toISOString(),
-        updated_at: new Date(0).toISOString(),
-      }) as Awaited<ReturnType<NativePartDependencies["publishSessionFile"]>>,
+      }),
   });
   const parts = createPublishedAgentPartStream({
     modelStream: modelStream([

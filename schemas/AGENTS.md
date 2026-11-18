@@ -47,7 +47,7 @@ Never hand-edit those generated modules or copy native AI SDK types.
 ### Versioning
 - REST: never break v1 silently; introduce v2 when needed
 - gRPC: package versioning (`<svc>.v1`, `<svc>.v2`)
-- Events: include version in filename (`bot.published.v1.json`)
+- Events: include version in the filename (`resource.published.v1.json`)
 
 ## Rules for agents
 
