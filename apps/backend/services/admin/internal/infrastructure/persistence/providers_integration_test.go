@@ -28,7 +28,7 @@ func TestReplacingDefaultProviderRollsBackOnInsertFailure(t *testing.T) {
 	defer pool.Close()
 	repo := ProviderRepository{Pool: pool}
 	id := strconv.FormatInt(time.Now().UnixNano(), 36)
-	dialect := "openai_responses"
+	dialect := "ark_responses"
 	initial := domain.Provider{ID: id, TenantID: id, WorkspaceID: id, UserID: id, Name: "initial", Model: "model", Kind: "chat", ResponsesDialect: &dialect, IsDefault: true, IsEnabled: true, ContextWindow: 128000}
 	stored, err := repo.Create(ctx, initial, true)
 	if err != nil || stored.ContextWindow != initial.ContextWindow || stored.PricingJSON != nil || stored.ResponsesDialect == nil || *stored.ResponsesDialect != dialect {

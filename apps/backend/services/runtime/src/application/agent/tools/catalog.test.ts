@@ -11,7 +11,6 @@ const textProvider: LanguageProviderSnapshot = {
   id: "provider",
   name: "Provider",
   model: "model",
-  responsesDialect: "openai_responses",
   baseUrl: "https://example.com/v1",
   apiKey: "test",
   extraBody: {},
@@ -38,12 +37,16 @@ void test("tool catalog exposes the current inline research and sandbox workflow
     }
     assert.deepEqual([...resolved.codeModeTools].sort(), ["web_fetch", "web_search"]);
     const codeModeCaller = getToolCaller(resolved.tools.code_mode);
-    assert.ok(codeModeCaller?.type === "local" && codeModeCaller.prepareModelMessage);
-    const catalog = codeModeCaller.prepareModelMessage(
+    assert.equal(codeModeCaller?.type, "local");
+    if (codeModeCaller?.type !== "local") throw new Error("code_mode must use a local tool caller");
+    assert.equal(codeModeCaller.prepareModelMessage, undefined);
+    const bound = codeModeCaller.bind(
       Object.fromEntries(resolved.codeModeTools.map((name) => [name, resolved.tools[name]])),
     );
-    assert.match(catalog ?? "", /web_fetch/);
-    assert.match(catalog ?? "", /web_search/);
+    assert.equal(typeof bound.description, "string");
+    if (typeof bound.description !== "string") throw new Error("code_mode must have a static description");
+    assert.match(bound.description, /web_fetch/);
+    assert.match(bound.description, /web_search/);
   } finally {
     await resolved.dispose();
   }

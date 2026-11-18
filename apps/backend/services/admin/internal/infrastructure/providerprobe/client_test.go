@@ -47,18 +47,23 @@ func TestProbeChatRetriesWithoutForcedToolChoiceWhenThinkingRejectsIt(t *testing
 				}},
 			})
 		default:
+			if body["store"] != true || body["previous_response_id"] != "response-1" {
+				t.Errorf("continuation fields = %#v", body)
+			}
+			input, ok := body["input"].([]any)
+			if !ok || len(input) != 1 {
+				t.Errorf("continuation input = %#v", body["input"])
+			}
 			writeProbeJSON(t, w, map[string]any{"output_text": "pong"})
 		}
 	}))
 	defer server.Close()
 
-	dialect := "ark_responses"
 	result := New().Probe(context.Background(), application.ProviderProbeRequest{
-		Kind:             "chat",
-		ResponsesDialect: &dialect,
-		BaseURL:          server.URL,
-		APIKey:           "test-key",
-		Model:            "kimi-k3-1-pro-261024",
+		Kind:    "chat",
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Model:   "kimi-k3-1-pro-261024",
 		ExtraBody: map[string]any{
 			"reasoning_effort": "high",
 			"thinking":         map[string]any{"type": "enabled"},
@@ -102,9 +107,8 @@ func TestProbeChatWithoutThinkingKeepsForcedToolChoice(t *testing.T) {
 	}))
 	defer server.Close()
 
-	dialect := "ark_responses"
 	result := New().Probe(context.Background(), application.ProviderProbeRequest{
-		Kind: "chat", ResponsesDialect: &dialect, BaseURL: server.URL, APIKey: "test-key", Model: "doubao-model",
+		Kind: "chat", BaseURL: server.URL, APIKey: "test-key", Model: "doubao-model",
 	})
 	if !result.OK {
 		t.Fatalf("probe failed: %v", result.Error)
@@ -124,9 +128,8 @@ func TestProbeChatDoesNotRetryUnrelatedBadRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	dialect := "ark_responses"
 	result := New().Probe(context.Background(), application.ProviderProbeRequest{
-		Kind: "chat", ResponsesDialect: &dialect, BaseURL: server.URL, APIKey: "test-key", Model: "unknown-model",
+		Kind: "chat", BaseURL: server.URL, APIKey: "test-key", Model: "unknown-model",
 	})
 	if result.OK || result.Error == nil {
 		t.Fatalf("probe result = %#v, want error", result)

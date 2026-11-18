@@ -97,6 +97,8 @@ export interface SandboxExecutionReconcilerDependencies {
   failed(scope: SandboxScope, error: unknown): Promise<void>;
 }
 
+export const sandboxExecutionReconciliationState = sql`CASE WHEN ${sandboxExecutions.state} IN ('active', 'finalizing') AND ${sandboxExecutions.expiresAt} > CURRENT_TIMESTAMP THEN 'finalizing' ELSE 'releasing' END`;
+
 const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
   async list() {
     const now = new Date();
@@ -120,7 +122,7 @@ const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
         await tx
           .update(sandboxExecutions)
           .set({
-            state: sql`CASE WHEN ${sandboxExecutions.state} IN ('active', 'finalizing') AND ${sandboxExecutions.expiresAt} > ${now} THEN 'finalizing' ELSE 'releasing' END`,
+            state: sandboxExecutionReconciliationState,
             updatedAt: new Date(),
           })
           .where(inArray(sandboxExecutions.runId, runIds));

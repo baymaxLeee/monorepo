@@ -45,9 +45,11 @@ enum ProviderKind {
 
 enum ResponsesDialect {
   RESPONSES_DIALECT_UNSPECIFIED = 0;
-  RESPONSES_DIALECT_OPENAI = 1;
+  // Retained for wire compatibility. New and updated chat providers must use Ark.
+  RESPONSES_DIALECT_OPENAI = 1 [deprecated = true];
   RESPONSES_DIALECT_ARK = 2;
-  RESPONSES_DIALECT_DEEPSEEK = 3;
+  // Retained for wire compatibility. New and updated chat providers must use Ark.
+  RESPONSES_DIALECT_DEEPSEEK = 3 [deprecated = true];
 }
 
 enum PricingUnit {
@@ -68,6 +70,7 @@ message ModelProvider {
   string name = 3;
   string model = 4;
   ProviderKind provider_kind = 5;
+  // Chat providers always expose RESPONSES_DIALECT_ARK; absent for non-chat providers.
   optional ResponsesDialect responses_dialect = 6;
   string base_url = 7;
   string api_key = 8;

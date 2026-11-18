@@ -7,13 +7,12 @@ import {
   type GetSkillResponse,
   ProviderKind,
   ProviderServiceClient,
-  ResponsesDialect as ProtoResponsesDialect,
   type ResolvedAgent,
 } from "@backend/inner-api/gen/admin/v1/admin";
 import type { BotProfileSnapshot, BotTone } from "@repo/agent-runtime/instructions/index";
 
 import { propagationHeaders } from "#runtime/foundation";
-import type { LanguageProviderSnapshot, ResponsesDialect } from "#runtime/provider-model";
+import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 import { assertPublicProviderUrl } from "#runtime/provider-url";
 
 import { AdminUnavailableError, ProviderNotConfiguredError, RequestError } from "../../application/errors.js";
@@ -26,7 +25,6 @@ export interface ProviderSnapshot {
   name: string;
   model: string;
   providerKind: string;
-  responsesDialect: ResponsesDialect | null;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -114,7 +112,6 @@ function toSnapshot(data: ModelProvider): ProviderSnapshot {
     name: data.name,
     model: data.model,
     providerKind: providerKind(data.providerKind),
-    responsesDialect: responsesDialect(data.responsesDialect),
     baseUrl: data.baseUrl,
     apiKey: data.apiKey,
     extraBody: data.extraBody ?? {},
@@ -137,18 +134,6 @@ function providerKind(value: ProviderKind): string {
         [ProviderKind.PROVIDER_KIND_RERANK]: "rerank",
       } as Record<number, string>
     )[value] ?? ""
-  );
-}
-
-function responsesDialect(value: ProtoResponsesDialect | undefined): ResponsesDialect | null {
-  return (
-    (
-      {
-        [ProtoResponsesDialect.RESPONSES_DIALECT_OPENAI]: "openai_responses",
-        [ProtoResponsesDialect.RESPONSES_DIALECT_ARK]: "ark_responses",
-        [ProtoResponsesDialect.RESPONSES_DIALECT_DEEPSEEK]: "deepseek_responses",
-      } as Record<number, ResponsesDialect>
-    )[value ?? 0] ?? null
   );
 }
 
@@ -205,9 +190,6 @@ export async function getProvider(
   const provider = await assertSnapshotUrl(toSnapshot(data));
   if (provider.providerKind !== "chat") {
     throw new ProviderNotConfiguredError(`provider ${provider.id} is not a configured language provider`);
-  }
-  if (!provider.responsesDialect) {
-    throw new ProviderNotConfiguredError(`provider ${provider.id} has no Responses dialect`);
   }
   return provider as ProviderSnapshot & LanguageProviderSnapshot;
 }
@@ -270,9 +252,6 @@ export async function getAgent(
   const text = await resolve(data.textProvider);
   if (text && text.providerKind !== "chat") {
     throw new ProviderNotConfiguredError(`provider ${text.id} is not a configured language provider`);
-  }
-  if (text && !text.responsesDialect) {
-    throw new ProviderNotConfiguredError(`provider ${text.id} has no Responses dialect`);
   }
   return {
     agentId: data.id,

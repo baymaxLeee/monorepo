@@ -5,7 +5,6 @@ import { finishSpan, startSpan } from "#runtime/foundation";
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 import { createProviderModel } from "#runtime/provider-model";
 
-import { contextCompactionThreshold } from "../context/budget.js";
 import { subagentToolContextSchema, type SubagentToolContext } from "../tools/context.js";
 
 function runtimeSubagentObserver(): SubagentObserver<SubagentToolContext> {
@@ -42,10 +41,9 @@ export function createRuntimePortableToolModel(
     name: provider.model,
     model: createProviderModel(provider, {
       parallelToolCalls: true,
-      contextCompactionThreshold: contextCompactionThreshold(provider),
     }),
     maxOutputTokens: provider.maxOutputTokens,
-    supportsStoredContinuation: provider.responsesDialect !== "deepseek_responses",
+    supportsStoredContinuation: true,
     contextSchema: subagentToolContextSchema,
     observer: runtimeSubagentObserver(),
   };

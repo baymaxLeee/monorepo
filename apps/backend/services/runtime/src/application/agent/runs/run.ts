@@ -372,9 +372,8 @@ export async function createAgentRunResponse(
     });
     const lineageIsCurrent =
       lineage !== null && isStoredResponseLineageCurrent(modelUiMessages, lineage.outputMessageId);
-    const supportsStoredContinuation = provider.responsesDialect !== "deepseek_responses";
     const lineageNeedsCompaction = lineageIsCurrent && shouldResetStoredResponseLineage(lineage.inputTokens, provider);
-    const continueStoredLineage = lineageIsCurrent && supportsStoredContinuation && !lineageNeedsCompaction;
+    const continueStoredLineage = lineageIsCurrent && !lineageNeedsCompaction;
     if (lineageNeedsCompaction) {
       logger.info(
         {

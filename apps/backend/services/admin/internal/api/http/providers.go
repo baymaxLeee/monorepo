@@ -24,8 +24,8 @@ func pricing(value map[string]any) *adminapi.ProviderPricing {
 func publicProvider(value application.ProviderPublic) adminapi.ModelProvider {
 	p := value.Provider
 	var dialect *adminapi.ModelProviderResponsesDialect
-	if p.ResponsesDialect != nil {
-		v := adminapi.ModelProviderResponsesDialect(*p.ResponsesDialect)
+	if p.Kind == "chat" {
+		v := adminapi.ModelProviderResponsesDialectArkResponses
 		dialect = &v
 	}
 	return adminapi.ModelProvider{Id: p.ID, UserId: p.UserID, WorkspaceId: p.WorkspaceID, TenantId: p.TenantID, Name: p.Name, Model: p.Model, ProviderKind: adminapi.ModelProviderProviderKind(p.Kind), ResponsesDialect: dialect, BaseUrl: p.BaseURL, ApiKeyMasked: value.APIKeyMasked, ExtraBody: value.ExtraBody, Pricing: pricing(value.Pricing), ContextWindowK: float32(p.ContextWindow) / 1024, MaxOutputTokensK: float32(p.MaxOutputTokens) / 1024, SupportsImageInput: p.SupportsImageInput, IsDefault: p.IsDefault, IsEnabled: p.IsEnabled, CreatedAt: p.CreatedAt.UTC().Format(timeLayout), UpdatedAt: p.UpdatedAt.UTC().Format(timeLayout)}

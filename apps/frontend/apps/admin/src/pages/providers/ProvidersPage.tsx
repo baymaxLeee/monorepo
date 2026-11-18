@@ -6,7 +6,6 @@ import {
   listProviders,
   type ModelProvider,
   type ModelProviderProviderKind,
-  type ModelProviderResponsesDialect,
   setDefaultProvider,
   type TestModelProviderResult,
   testProvider,
@@ -69,7 +68,7 @@ const providerSchema = z
   .object({
     name: z.string().trim().min(1, "请输入名称").max(100),
     provider_kind: z.enum(["chat", "image", "video", "embedding", "rerank"]),
-    responses_dialect: z.enum(["openai_responses", "ark_responses", "deepseek_responses"]).nullable(),
+    responses_dialect: z.literal("ark_responses").nullable(),
     model: z.string().trim().min(1, "请输入模型名").max(128),
     base_url: z.string().trim().url("base_url 必须是合法 URL"),
     api_key: z.string().max(4096),
@@ -108,7 +107,7 @@ const providerSchema = z
     path: ["is_default"],
   })
   .refine((value) => (value.provider_kind === "chat") === (value.responses_dialect !== null), {
-    message: "对话 Provider 必须选择 Responses 方言，其他类型不能选择",
+    message: "对话 Provider 统一使用火山 Ark Responses",
     path: ["responses_dialect"],
   })
   .refine((value) => !["image", "video"].includes(value.provider_kind) || value.unit_price_micros > 0, {
@@ -155,12 +154,6 @@ const kindLabels: Record<ModelProviderProviderKind, string> = {
   video: "视频生成",
   embedding: "向量嵌入",
   rerank: "重排",
-};
-
-const dialectLabels: Record<Exclude<ModelProviderResponsesDialect, null>, string> = {
-  openai_responses: "OpenAI Responses",
-  ark_responses: "火山 Ark Responses",
-  deepseek_responses: "DeepSeek Responses",
 };
 
 const chatTokenBudget = resolveChatTokenBudget(kindPresets.chat.model);
@@ -257,7 +250,7 @@ export function ProvidersPage() {
     form.reset({
       name: provider.name,
       provider_kind: provider.provider_kind ?? "chat",
-      responses_dialect: provider.responses_dialect,
+      responses_dialect: (provider.provider_kind ?? "chat") === "chat" ? "ark_responses" : null,
       model: provider.model,
       base_url: provider.base_url,
       api_key: "",
@@ -287,7 +280,7 @@ export function ProvidersPage() {
         const patch: Parameters<typeof updateProvider>[1] = {
           name: values.name,
           provider_kind: values.provider_kind,
-          responses_dialect: values.responses_dialect,
+          responses_dialect: values.provider_kind === "chat" ? "ark_responses" : null,
           model: values.model,
           base_url: values.base_url,
           extra_body,
@@ -312,7 +305,7 @@ export function ProvidersPage() {
         const payload: CreateModelProviderInput = {
           name: values.name,
           provider_kind: values.provider_kind,
-          responses_dialect: values.responses_dialect,
+          responses_dialect: values.provider_kind === "chat" ? "ark_responses" : null,
           model: values.model,
           base_url: values.base_url,
           api_key: values.api_key.trim(),
@@ -584,7 +577,7 @@ function ProviderFormDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {
-              "base_url 为 API 前缀（火山 Ark：https://ark.cn-beijing.volces.com/api/v3）。图片和视频测试只验证 Ark API 鉴权与链路，不调用模型、不创建生成任务。"
+              "所有模型统一从火山 Ark 接入；base_url 为 API 前缀（https://ark.cn-beijing.volces.com/api/v3）。图片和视频测试只验证 Ark API 鉴权与链路，不调用模型、不创建生成任务。"
             }
           </DialogDescription>
         </DialogHeader>
@@ -629,35 +622,6 @@ function ProviderFormDialog({
                   </Field>
                 )}
               />
-              {providerKind === "chat" && (
-                <Controller
-                  control={form.control}
-                  name="responses_dialect"
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor={field.name}>Responses 方言</FieldLabel>
-                      <Select
-                        name={field.name}
-                        value={field.value}
-                        onValueChange={(value) => value !== null && field.onChange(value)}
-                      >
-                        <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
-                          <SelectValue placeholder="选择服务商的 Responses 实现" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(dialectLabels).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Muted className="text-xs">OpenAI 与 Ark 使用服务端续传；DeepSeek 使用无状态全量回放。</Muted>
-                      <FieldError errors={[form.formState.errors.responses_dialect]} />
-                    </Field>
-                  )}
-                />
-              )}
               <Controller
                 control={form.control}
                 name="name"

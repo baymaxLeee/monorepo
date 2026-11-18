@@ -119,13 +119,12 @@ export function ChatMessagePart({
 
   if (part.type === "data-file") {
     const artifact = part.data;
-    const open = artifact.workspace_path
-      ? onOpenWorkspaceFile
+    const open =
+      artifact.workspace_path && onOpenWorkspaceFile
         ? () => onOpenWorkspaceFile(artifact.workspace_path!)
-        : undefined
-      : onOpenFile
-        ? () => onOpenFile(artifact.file_id)
-        : undefined;
+        : onOpenFile
+          ? () => onOpenFile(artifact.file_id)
+          : undefined;
     return (
       <ChatFileTag
         filename={artifact.filename}

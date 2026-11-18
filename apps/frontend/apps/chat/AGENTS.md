@@ -21,7 +21,7 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 - `src/pages/layout/ChatLayout.tsx` — three-region composition only; no message, list or preview-content subscriptions
 - `src/components/ChatPanels.tsx` — shadcn Sidebar/Resizable layout; only visibility changes may cross region boundaries
 - `src/components/ChatConversationSidebar.tsx` / `hooks/useConversationHistory.ts` — conversation CRUD and title updates, owned by the left sidebar
-- `src/components/ChatInspector.tsx` — the single right-sidebar surface for cloud Artifact/video previews and the local workspace; local routes do not create a second Sheet or preview shell
+- `src/components/ChatInspector.tsx` — the single right-sidebar surface for cloud Artifact/video previews and the local workspace; local routes do not create a second Sheet or preview shell. Cloud and local selected files reuse `FileArtifactPanel`; wrappers adapt Runtime/Storage or Desktop bridge reads and writes instead of maintaining a second preview/editor UI.
 - `src/components/ChatAuxiliaryPanels.tsx` — lazy memory/trace sheets; closed panels do not subscribe to content updates
 - `packages/ai-elements/src/Conversation/components/ChatStream.tsx` — the only high-frequency SDK subscriber; do not lift messages into the shell, composer or app store
 - `packages/ai-elements/src/Conversation/components/ConversationSessionView.tsx` — the single cloud/local session frame; controllers inject runtime state, issue handling and composer behavior without replacing its header or stream UI

@@ -10,7 +10,6 @@ const provider: LanguageProviderSnapshot = {
   id: "provider-id",
   name: "Provider",
   model: "gpt-test",
-  responsesDialect: "openai_responses",
   baseUrl: "https://8.8.8.8/v1",
   apiKey: "secret",
   extraBody: {},

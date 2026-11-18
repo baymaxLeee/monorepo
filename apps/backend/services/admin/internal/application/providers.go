@@ -268,7 +268,7 @@ func (s ProviderService) Test(ctx context.Context, a Actor, id string, input Tes
 		return ProviderProbeResult{}, NewError(500, "provider_probe_unavailable", "provider probe is not configured")
 	}
 	return s.Probe.Probe(ctx, ProviderProbeRequest{
-		Kind: provider.Provider.Kind, ResponsesDialect: provider.Provider.ResponsesDialect,
+		Kind:    provider.Provider.Kind,
 		BaseURL: baseURL, APIKey: apiKey, Model: model, ExtraBody: provider.ExtraBody,
 	}), nil
 }
@@ -280,8 +280,8 @@ func maskSecret(value string) string {
 	return value[:4] + "****" + value[len(value)-4:]
 }
 func validateProvider(kind string, dialect *string, pricing map[string]any, contextWindow, maxOutput int, isDefault, isEnabled bool) error {
-	if kind == "chat" && dialect == nil {
-		return BadRequest("responses_dialect is required for chat providers")
+	if kind == "chat" && (dialect == nil || *dialect != "ark_responses") {
+		return BadRequest("chat providers must use ark_responses")
 	}
 	if kind != "chat" && dialect != nil {
 		return BadRequest("responses_dialect is only valid for chat providers")

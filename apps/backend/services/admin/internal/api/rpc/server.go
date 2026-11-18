@@ -231,8 +231,8 @@ func provider(value application.ProviderInternal) *adminv1.ModelProvider {
 	p := value.Provider
 	extra, _ := structpb.NewStruct(value.ExtraBody)
 	result := &adminv1.ModelProvider{Id: p.ID, UserId: p.UserID, Name: p.Name, Model: p.Model, ProviderKind: providerKind(p.Kind), BaseUrl: p.BaseURL, ApiKey: value.APIKey, ExtraBody: extra, Pricing: pricing(value.Pricing), ContextWindow: int32(p.ContextWindow), MaxOutputTokens: int32(p.MaxOutputTokens), SupportsImageInput: p.SupportsImageInput, IsDefault: p.IsDefault, IsEnabled: p.IsEnabled}
-	if p.ResponsesDialect != nil {
-		dialect := responsesDialect(*p.ResponsesDialect)
+	if p.Kind == "chat" {
+		dialect := adminv1.ResponsesDialect_RESPONSES_DIALECT_ARK
 		result.ResponsesDialect = &dialect
 	}
 	return result
@@ -269,19 +269,6 @@ func providerKindName(value adminv1.ProviderKind) string {
 		return "rerank"
 	default:
 		return ""
-	}
-}
-
-func responsesDialect(value string) adminv1.ResponsesDialect {
-	switch value {
-	case "openai_responses":
-		return adminv1.ResponsesDialect_RESPONSES_DIALECT_OPENAI
-	case "ark_responses":
-		return adminv1.ResponsesDialect_RESPONSES_DIALECT_ARK
-	case "deepseek_responses":
-		return adminv1.ResponsesDialect_RESPONSES_DIALECT_DEEPSEEK
-	default:
-		return adminv1.ResponsesDialect_RESPONSES_DIALECT_UNSPECIFIED
 	}
 }
 

@@ -36,15 +36,20 @@ vi.mock("@repo/ai-elements/conversation", () => ({
     composer,
     issue,
     onToolApproval,
+    onOpenWorkspaceFile,
   }: {
     composer: ReactNode;
     issue: ReactNode;
     onToolApproval: (id: string, approved: boolean) => void;
+    onOpenWorkspaceFile?: (path: string) => void;
   }) => (
     <div>
       {issue}
       {composer}
       <button onClick={() => onToolApproval("approval", true)}>共享授权</button>
+      {onOpenWorkspaceFile ? (
+        <button onClick={() => onOpenWorkspaceFile("output/report.html")}>打开产物文件</button>
+      ) : null}
     </div>
   ),
   ChatPrompt: ({
@@ -218,6 +223,23 @@ test("shared tool approval resumes the local journal without invoking cloud tran
   fireEvent.click(screen.getByText("共享授权"));
   await waitFor(() => expect(f.bridge.approve).toHaveBeenCalledWith("local", "approval", true));
   await waitFor(() => expect(f.bridge.openStream).toHaveBeenCalledWith("local"));
+});
+test("forwards local data-file clicks to the workspace file opener", () => {
+  const f = fixture();
+  const onOpenFile = vi.fn();
+  render(
+    <LocalSession
+      bridge={f.bridge}
+      initial={f.thread}
+      transport={f.transport}
+      onOpenFiles={vi.fn()}
+      onOpenFile={onOpenFile}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "打开产物文件" }));
+
+  expect(onOpenFile).toHaveBeenCalledWith("output/report.html");
 });
 test("navigation detaches the local subscriber without stopping the runtime", () => {
   const f = fixture();

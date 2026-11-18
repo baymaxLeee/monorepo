@@ -12,7 +12,6 @@ const provider = {
   id: "provider-id",
   name: "Provider",
   model: "gpt-test",
-  responsesDialect: "openai_responses" as const,
   baseUrl: "https://8.8.8.8/responses",
   apiKey: "secret",
   extraBody: { safe_extension: { enabled: true }, model: "must-not-win", stream: false },
@@ -26,7 +25,7 @@ test("rejects local and reserved provider addresses before fetch", async () => {
   await assert.rejects(assertPublicProviderUrl("http://[::1]/v1"), /private or reserved/);
 });
 
-test("uses the official Responses model with native compaction while preserving safe body extensions", async () => {
+test("uses the Ark Responses contract while preserving safe body extensions", async () => {
   const originalFetch = globalThis.fetch;
   let requestUrl = "";
   let requestBody: Record<string, unknown> = {};
@@ -62,7 +61,6 @@ test("uses the official Responses model with native compaction while preserving 
   try {
     const model = createProviderModel(provider, {
       parallelToolCalls: true,
-      contextCompactionThreshold: 90_000,
     });
 
     const result = await model.doGenerate({
@@ -76,7 +74,7 @@ test("uses the official Responses model with native compaction while preserving 
     assert.equal(requestBody.store, true);
     assert.equal(requestBody.previous_response_id, "resp_parent");
     assert.equal(requestBody.parallel_tool_calls, false);
-    assert.deepEqual(requestBody.context_management, [{ type: "compaction", compact_threshold: 90_000 }]);
+    assert.equal("context_management" in requestBody, false);
     assert.deepEqual(requestBody.safe_extension, { enabled: true });
     assert.equal(result.content[0]?.type, "text");
   } finally {
@@ -84,7 +82,71 @@ test("uses the official Responses model with native compaction while preserving 
   }
 });
 
-test("limits OpenAI-native context management to the OpenAI Responses dialect", async () => {
+test("uses Ark stored continuation semantics for every configured chat model", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestBodies: Record<string, unknown>[] = [];
+  globalThis.fetch = async (_input, init) => {
+    requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return Response.json({
+      id: "resp_continued",
+      object: "response",
+      created_at: 1_700_000_000,
+      model: "gpt-test",
+      status: "completed",
+      incomplete_details: null,
+      output: [
+        {
+          type: "message",
+          id: "msg_continued",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: "done" }],
+        },
+      ],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        total_tokens: 2,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens_details: { reasoning_tokens: 0 },
+      },
+    });
+  };
+  const continuationPrompt: LanguageModelV4CallOptions["prompt"] = [
+    { role: "system", content: "Follow the agent contract." },
+    {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "call_1",
+          toolName: "code_mode",
+          output: { type: "text", value: "result" },
+        },
+      ],
+    },
+  ];
+
+  try {
+    const model = createProviderModel(provider);
+    await model.doGenerate({
+      prompt: continuationPrompt,
+      providerOptions: { openai: { previousResponseId: "resp_parent" } },
+    });
+
+    assert.equal(requestBodies.length, 1);
+    for (const body of requestBodies) {
+      assert.equal(body.store, true);
+      assert.equal(body.previous_response_id, "resp_parent");
+      assert.equal(body.instructions, "Follow the agent contract.");
+      assert.deepEqual(body.input, [{ type: "function_call_output", call_id: "call_1", output: "result" }]);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("removes caller-supplied context management from Ark requests", async () => {
   const originalFetch = globalThis.fetch;
   const requestBodies: Record<string, unknown>[] = [];
   globalThis.fetch = async (_input, init) => {
@@ -116,72 +178,17 @@ test("limits OpenAI-native context management to the OpenAI Responses dialect", 
   };
 
   try {
-    for (const responsesDialect of ["openai_responses", "ark_responses", "deepseek_responses"] as const) {
-      const model = createProviderModel(
-        { ...provider, responsesDialect },
-        { parallelToolCalls: true, contextCompactionThreshold: 90_000 },
-      );
-      await model.doGenerate({ prompt });
-    }
-
-    assert.equal(requestBodies.length, 3);
-    for (const [index, body] of requestBodies.entries()) {
-      assert.equal(body.parallel_tool_calls, true);
-      if (index === 0) {
-        assert.deepEqual(body.context_management, [{ type: "compaction", compact_threshold: 90_000 }]);
-      } else {
-        assert.equal("context_management" in body, false);
-      }
-    }
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("removes caller-supplied OpenAI context management from non-OpenAI dialects", async () => {
-  const originalFetch = globalThis.fetch;
-  const requestBodies: Record<string, unknown>[] = [];
-  globalThis.fetch = async (_input, init) => {
-    requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-    return Response.json({
-      id: "resp_isolated",
-      object: "response",
-      created_at: 1_700_000_000,
-      model: "gpt-test",
-      status: "completed",
-      incomplete_details: null,
-      output: [
-        {
-          type: "message",
-          id: "msg_isolated",
-          role: "assistant",
-          status: "completed",
-          content: [{ type: "output_text", text: "ok" }],
-        },
-      ],
-      usage: {
-        input_tokens: 1,
-        output_tokens: 1,
-        total_tokens: 2,
-        input_tokens_details: { cached_tokens: 0 },
-        output_tokens_details: { reasoning_tokens: 0 },
+    const model = createProviderModel(provider, { parallelToolCalls: true });
+    await model.doGenerate({
+      prompt,
+      providerOptions: {
+        openai: { contextManagement: [{ type: "compaction", compactThreshold: 123 }] },
       },
     });
-  };
 
-  try {
-    for (const responsesDialect of ["ark_responses", "deepseek_responses"] as const) {
-      const model = createProviderModel({ ...provider, responsesDialect });
-      await model.doGenerate({
-        prompt,
-        providerOptions: {
-          openai: { contextManagement: [{ type: "compaction", compactThreshold: 123 }] },
-        },
-      });
-    }
-
-    assert.equal(requestBodies.length, 2);
+    assert.equal(requestBodies.length, 1);
     for (const body of requestBodies) {
+      assert.equal(body.parallel_tool_calls, true);
       assert.equal("context_management" in body, false);
     }
   } finally {
@@ -345,7 +352,7 @@ test("normalizes Ark function_call added events that omit arguments", async () =
     });
 
   try {
-    const model = createProviderModel({ ...provider, responsesDialect: "ark_responses" });
+    const model = createProviderModel(provider);
     const result = await model.doStream({ prompt });
     const parts = [];
     for await (const part of result.stream) {
@@ -357,80 +364,6 @@ test("normalizes Ark function_call added events that omit arguments", async () =
       parts.some((part) => part.type === "error"),
       false,
     );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("replays DeepSeek reasoning and tool calls without stored-response fields", async () => {
-  const originalFetch = globalThis.fetch;
-  let requestBody: Record<string, unknown> = {};
-  globalThis.fetch = async (_input, init) => {
-    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    return Response.json({
-      id: "resp_deepseek",
-      object: "response",
-      created_at: 1_700_000_000,
-      model: "gpt-test",
-      status: "completed",
-      incomplete_details: null,
-      output: [
-        {
-          type: "message",
-          id: "msg_test",
-          role: "assistant",
-          status: "completed",
-          content: [{ type: "output_text", text: "done" }],
-        },
-      ],
-      usage: {
-        input_tokens: 1,
-        output_tokens: 1,
-        total_tokens: 2,
-        input_tokens_details: { cached_tokens: 0 },
-        output_tokens_details: { reasoning_tokens: 0 },
-      },
-    });
-  };
-  const replayPrompt: LanguageModelV4CallOptions["prompt"] = [
-    { role: "user", content: [{ type: "text", text: "ask" }] },
-    {
-      role: "assistant",
-      content: [
-        { type: "reasoning", text: "think", providerOptions: { openai: { itemId: "reasoning_1" } } },
-        { type: "tool-call", toolCallId: "call_1", toolName: "ask_user", input: { question: "q" } },
-      ],
-    },
-    {
-      role: "tool",
-      content: [
-        {
-          type: "tool-result",
-          toolCallId: "call_1",
-          toolName: "ask_user",
-          output: { type: "text", value: "answer" },
-        },
-      ],
-    },
-  ];
-
-  try {
-    const model = createProviderModel({ ...provider, responsesDialect: "deepseek_responses" });
-    await model.doGenerate({
-      prompt: replayPrompt,
-      providerOptions: { openai: { previousResponseId: "resp_parent" } },
-    });
-
-    assert.equal(requestBody.store, false);
-    assert.equal("previous_response_id" in requestBody, false);
-    const input = requestBody.input as Array<Record<string, unknown>>;
-    assert.deepEqual(
-      input.find((item) => item.type === "reasoning")?.content,
-      [{ type: "reasoning_text", text: "think" }],
-      JSON.stringify(input),
-    );
-    assert.ok(input.some((item) => item.type === "function_call" && item.call_id === "call_1"));
-    assert.ok(input.some((item) => item.type === "function_call_output" && item.call_id === "call_1"));
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -4,12 +4,16 @@ import { FilesIcon, XIcon } from "lucide-react";
 
 import { LocalFiles } from "../pages/local/LocalFiles";
 import { useLocalWorkspaceStore } from "../stores/useLocalWorkspaceStore";
+import { LocalFileArtifactPanel } from "./LocalFileArtifactPanel";
 
 export function LocalWorkspacePanel() {
   const bridge = getDesktopBridge();
-  const { threadId, path, closeBlocked, requestClose, setDirty } = useLocalWorkspaceStore();
+  const { threadId, path, requestClose, openWorkspace } = useLocalWorkspaceStore();
   if (!bridge || !threadId) {
     return <p className="p-4 text-sm text-destructive">本地工作区不可用。</p>;
+  }
+  if (path) {
+    return <LocalFileArtifactPanel bridge={bridge} threadId={threadId} path={path} onClose={requestClose} />;
   }
   return (
     <aside aria-label="本地文件" className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-muted/20">
@@ -25,15 +29,7 @@ export function LocalWorkspacePanel() {
           <XIcon />
         </Button>
       </div>
-      {closeBlocked ? (
-        <p
-          role="alert"
-          className="mx-3 mb-3 shrink-0 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground"
-        >
-          请先保存或撤销草稿，再关闭文件面板。
-        </p>
-      ) : null}
-      <LocalFiles key={threadId} bridge={bridge} id={threadId} initialPath={path} onDirtyChange={setDirty} />
+      <LocalFiles key={threadId} bridge={bridge} id={threadId} onOpen={(next) => openWorkspace(threadId, next)} />
     </aside>
   );
 }

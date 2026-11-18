@@ -220,6 +220,7 @@ test("cloud file data opens the durable conversation file", () => {
   render(
     <ChatMessageView
       {...props}
+      onOpenWorkspaceFile={undefined}
       message={{
         id: "message",
         role: "assistant",
@@ -235,6 +236,7 @@ test("cloud file data opens the durable conversation file", () => {
               kind: "artifact",
               etag: `"${"d".repeat(32)}"`,
               updated: false,
+              workspace_path: "/workspace/report.md",
             },
           },
         ],

@@ -86,9 +86,15 @@ type ResponsesDialect int32
 
 const (
 	ResponsesDialect_RESPONSES_DIALECT_UNSPECIFIED ResponsesDialect = 0
-	ResponsesDialect_RESPONSES_DIALECT_OPENAI      ResponsesDialect = 1
-	ResponsesDialect_RESPONSES_DIALECT_ARK         ResponsesDialect = 2
-	ResponsesDialect_RESPONSES_DIALECT_DEEPSEEK    ResponsesDialect = 3
+	// Retained for wire compatibility. New and updated chat providers must use Ark.
+	//
+	// Deprecated: Marked as deprecated in admin/v1/admin.proto.
+	ResponsesDialect_RESPONSES_DIALECT_OPENAI ResponsesDialect = 1
+	ResponsesDialect_RESPONSES_DIALECT_ARK    ResponsesDialect = 2
+	// Retained for wire compatibility. New and updated chat providers must use Ark.
+	//
+	// Deprecated: Marked as deprecated in admin/v1/admin.proto.
+	ResponsesDialect_RESPONSES_DIALECT_DEEPSEEK ResponsesDialect = 3
 )
 
 // Enum value maps for ResponsesDialect.
@@ -244,22 +250,23 @@ func (x *ProviderPricing) GetUnitPriceMicros() int64 {
 }
 
 type ModelProvider struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	UserId             string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name               string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Model              string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
-	ProviderKind       ProviderKind           `protobuf:"varint,5,opt,name=provider_kind,json=providerKind,proto3,enum=admin.v1.ProviderKind" json:"provider_kind,omitempty"`
-	ResponsesDialect   *ResponsesDialect      `protobuf:"varint,6,opt,name=responses_dialect,json=responsesDialect,proto3,enum=admin.v1.ResponsesDialect,oneof" json:"responses_dialect,omitempty"`
-	BaseUrl            string                 `protobuf:"bytes,7,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
-	ApiKey             string                 `protobuf:"bytes,8,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	ExtraBody          *structpb.Struct       `protobuf:"bytes,9,opt,name=extra_body,json=extraBody,proto3" json:"extra_body,omitempty"`
-	Pricing            *ProviderPricing       `protobuf:"bytes,10,opt,name=pricing,proto3,oneof" json:"pricing,omitempty"`
-	ContextWindow      int32                  `protobuf:"varint,11,opt,name=context_window,json=contextWindow,proto3" json:"context_window,omitempty"`
-	MaxOutputTokens    int32                  `protobuf:"varint,12,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
-	SupportsImageInput bool                   `protobuf:"varint,13,opt,name=supports_image_input,json=supportsImageInput,proto3" json:"supports_image_input,omitempty"`
-	IsDefault          bool                   `protobuf:"varint,14,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
-	IsEnabled          bool                   `protobuf:"varint,15,opt,name=is_enabled,json=isEnabled,proto3" json:"is_enabled,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId       string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name         string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Model        string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	ProviderKind ProviderKind           `protobuf:"varint,5,opt,name=provider_kind,json=providerKind,proto3,enum=admin.v1.ProviderKind" json:"provider_kind,omitempty"`
+	// Chat providers always expose RESPONSES_DIALECT_ARK; absent for non-chat providers.
+	ResponsesDialect   *ResponsesDialect `protobuf:"varint,6,opt,name=responses_dialect,json=responsesDialect,proto3,enum=admin.v1.ResponsesDialect,oneof" json:"responses_dialect,omitempty"`
+	BaseUrl            string            `protobuf:"bytes,7,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	ApiKey             string            `protobuf:"bytes,8,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
+	ExtraBody          *structpb.Struct  `protobuf:"bytes,9,opt,name=extra_body,json=extraBody,proto3" json:"extra_body,omitempty"`
+	Pricing            *ProviderPricing  `protobuf:"bytes,10,opt,name=pricing,proto3,oneof" json:"pricing,omitempty"`
+	ContextWindow      int32             `protobuf:"varint,11,opt,name=context_window,json=contextWindow,proto3" json:"context_window,omitempty"`
+	MaxOutputTokens    int32             `protobuf:"varint,12,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
+	SupportsImageInput bool              `protobuf:"varint,13,opt,name=supports_image_input,json=supportsImageInput,proto3" json:"supports_image_input,omitempty"`
+	IsDefault          bool              `protobuf:"varint,14,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
+	IsEnabled          bool              `protobuf:"varint,15,opt,name=is_enabled,json=isEnabled,proto3" json:"is_enabled,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -3323,12 +3330,12 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\x13PROVIDER_KIND_IMAGE\x10\x02\x12\x17\n" +
 	"\x13PROVIDER_KIND_VIDEO\x10\x03\x12\x1b\n" +
 	"\x17PROVIDER_KIND_EMBEDDING\x10\x04\x12\x18\n" +
-	"\x14PROVIDER_KIND_RERANK\x10\x05*\x8e\x01\n" +
+	"\x14PROVIDER_KIND_RERANK\x10\x05*\x96\x01\n" +
 	"\x10ResponsesDialect\x12!\n" +
-	"\x1dRESPONSES_DIALECT_UNSPECIFIED\x10\x00\x12\x1c\n" +
-	"\x18RESPONSES_DIALECT_OPENAI\x10\x01\x12\x19\n" +
-	"\x15RESPONSES_DIALECT_ARK\x10\x02\x12\x1e\n" +
-	"\x1aRESPONSES_DIALECT_DEEPSEEK\x10\x03*o\n" +
+	"\x1dRESPONSES_DIALECT_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x18RESPONSES_DIALECT_OPENAI\x10\x01\x1a\x02\b\x01\x12\x19\n" +
+	"\x15RESPONSES_DIALECT_ARK\x10\x02\x12\"\n" +
+	"\x1aRESPONSES_DIALECT_DEEPSEEK\x10\x03\x1a\x02\b\x01*o\n" +
 	"\vPricingUnit\x12\x1c\n" +
 	"\x18PRICING_UNIT_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bPRICING_UNIT_GENERATED_ITEM\x10\x01\x12!\n" +

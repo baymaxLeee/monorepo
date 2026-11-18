@@ -86,8 +86,18 @@ export function providerKindToJSON(object: ProviderKind): string {
 
 export enum ResponsesDialect {
   RESPONSES_DIALECT_UNSPECIFIED = 0,
+  /**
+   * RESPONSES_DIALECT_OPENAI - Retained for wire compatibility. New and updated chat providers must use Ark.
+   *
+   * @deprecated
+   */
   RESPONSES_DIALECT_OPENAI = 1,
   RESPONSES_DIALECT_ARK = 2,
+  /**
+   * RESPONSES_DIALECT_DEEPSEEK - Retained for wire compatibility. New and updated chat providers must use Ark.
+   *
+   * @deprecated
+   */
   RESPONSES_DIALECT_DEEPSEEK = 3,
   UNRECOGNIZED = -1,
 }
@@ -180,6 +190,7 @@ export interface ModelProvider {
   name: string;
   model: string;
   providerKind: ProviderKind;
+  /** Chat providers always expose RESPONSES_DIALECT_ARK; absent for non-chat providers. */
   responsesDialect?: ResponsesDialect | undefined;
   baseUrl: string;
   apiKey: string;

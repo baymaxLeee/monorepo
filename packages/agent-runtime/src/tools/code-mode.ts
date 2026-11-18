@@ -93,7 +93,7 @@ export function codeModeFailure(error: unknown): unknown {
 
 export function createAgentCodeModeTool(): ToolSet[string] {
   const base = codeModeTool({
-    toolDiscovery: "conversation",
+    toolDiscovery: "description",
     executionPolicy: { timeoutMs: CODE_MODE_TIMEOUT_MS },
   });
   return transformToolPreservingCaller(base, (definition) => {

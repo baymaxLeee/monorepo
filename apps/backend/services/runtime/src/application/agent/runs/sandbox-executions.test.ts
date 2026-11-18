@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { PgDialect } from "drizzle-orm/pg-core";
+
 import type { SandboxScope } from "../../../infrastructure/clients/sandbox.js";
-import { reconcileSandboxExecutions } from "./sandbox-executions.js";
+import { reconcileSandboxExecutions, sandboxExecutionReconciliationState } from "./sandbox-executions.js";
 
 const first: SandboxScope = {
   tenant_id: "tenant",
@@ -12,6 +14,13 @@ const first: SandboxScope = {
   run_id: "first",
 };
 const second: SandboxScope = { ...first, run_id: "second" };
+
+test("sandbox reconciliation compares expiry with the database clock", () => {
+  const query = new PgDialect().sqlToQuery(sandboxExecutionReconciliationState);
+
+  assert.match(query.sql, /expires_at.*> CURRENT_TIMESTAMP/);
+  assert.deepEqual(query.params, []);
+});
 
 test("sandbox release reconciliation deletes successful rows and retains failed responsibility", async () => {
   const destroyed: string[] = [];

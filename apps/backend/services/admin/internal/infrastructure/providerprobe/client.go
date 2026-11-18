@@ -78,16 +78,13 @@ func apiRoot(raw string) string {
 }
 
 func (c Client) probeChat(ctx context.Context, request application.ProviderProbeRequest) (string, error) {
-	if request.ResponsesDialect == nil {
-		return "", fmt.Errorf("configuration: chat provider requires responses_dialect")
-	}
 	body := filtered(request.ExtraBody, "model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id", "tools", "tool_choice")
 	body["model"] = request.Model
 	body["instructions"] = "You are a helpful assistant."
 	body["input"] = "Call provider_connectivity_probe with value ping."
 	body["max_output_tokens"] = 512
 	body["stream"] = false
-	body["store"] = *request.ResponsesDialect != "deepseek_responses"
+	body["store"] = true
 	body["tools"] = []any{map[string]any{"type": "function", "name": "provider_connectivity_probe", "description": "Return the supplied value.", "parameters": map[string]any{"type": "object", "properties": map[string]any{"value": map[string]any{"type": "string"}}, "required": []string{"value"}, "additionalProperties": false}, "strict": true}}
 	body["tool_choice"] = map[string]any{"type": "function", "name": "provider_connectivity_probe"}
 	first, err := c.doJSON(ctx, http.MethodPost, apiRoot(request.BaseURL)+"/responses", request.APIKey, body)
@@ -112,13 +109,9 @@ func (c Client) probeChat(ctx context.Context, request application.ProviderProbe
 	}
 	functionOutput := map[string]any{"type": "function_call_output", "call_id": call["call_id"], "output": `{"value":"ping"}`}
 	second := filtered(request.ExtraBody, "model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id", "tools", "tool_choice")
-	second["model"], second["max_output_tokens"], second["stream"], second["store"] = request.Model, 512, false, *request.ResponsesDialect != "deepseek_responses"
-	if *request.ResponsesDialect == "deepseek_responses" {
-		second["input"] = append(output, functionOutput)
-	} else {
-		second["input"] = []any{functionOutput}
-		second["previous_response_id"] = first["id"]
-	}
+	second["model"], second["max_output_tokens"], second["stream"], second["store"] = request.Model, 512, false, true
+	second["input"] = []any{functionOutput}
+	second["previous_response_id"] = first["id"]
 	response, err := c.doJSON(ctx, http.MethodPost, apiRoot(request.BaseURL)+"/responses", request.APIKey, second)
 	if err != nil {
 		return "", err

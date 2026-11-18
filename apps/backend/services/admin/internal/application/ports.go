@@ -61,12 +61,11 @@ type ProviderProbe interface {
 }
 
 type ProviderProbeRequest struct {
-	Kind             string
-	ResponsesDialect *string
-	BaseURL          string
-	APIKey           string
-	Model            string
-	ExtraBody        map[string]any
+	Kind      string
+	BaseURL   string
+	APIKey    string
+	Model     string
+	ExtraBody map[string]any
 }
 
 type ProviderProbeResult struct {

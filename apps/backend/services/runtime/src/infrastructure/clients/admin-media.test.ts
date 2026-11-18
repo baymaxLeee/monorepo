@@ -12,7 +12,6 @@ void test("video provider snapshots do not require a Responses dialect", () => {
     name: "Video provider",
     model: "video-model",
     providerKind: ProviderKind.PROVIDER_KIND_VIDEO,
-    responsesDialect: undefined,
     baseUrl: "https://example.com/api/v3",
     apiKey: "secret",
     extraBody: { ratio: "16:9" },

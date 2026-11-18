@@ -36,7 +36,8 @@ test("Code Mode executes isolated ECMAScript and preserves its SDK caller", asyn
   assert.equal(result.data, 6);
   const caller = getToolCaller(definition);
   assert.equal(caller?.type, "local");
-  assert.ok(caller?.type === "local" && caller.prepareModelMessage);
+  assert.ok(caller?.type === "local" && caller.bind);
+  assert.equal(caller.prepareModelMessage, undefined);
 });
 
 test("common web tools describe routing and the QuickJS boundary", () => {

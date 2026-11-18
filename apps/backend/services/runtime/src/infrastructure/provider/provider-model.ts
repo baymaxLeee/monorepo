@@ -14,13 +14,10 @@ import { secureProviderFetch } from "./provider-url.js";
 export const JSON_OBJECT_MODE_INSTRUCTION =
   "Return your entire response as a single JSON object that matches the required schema.";
 
-export type ResponsesDialect = "openai_responses" | "ark_responses" | "deepseek_responses";
-
 export interface LanguageProviderSnapshot {
   id: string;
   name: string;
   model: string;
-  responsesDialect: ResponsesDialect;
   baseUrl: string;
   apiKey: string;
   extraBody: Record<string, unknown>;
@@ -95,10 +92,7 @@ function isJsonValue(value: unknown): value is JSONValue {
 
 function providerBodyOptions(
   provider: LanguageProviderSnapshot,
-  options: {
-    parallelToolCalls?: boolean | null;
-    contextCompactionThreshold?: number | null;
-  },
+  options: { parallelToolCalls?: boolean | null },
 ): { requestBody: JSONObject; providerOptions: OpenAIResponsesProviderOptions } {
   const body: JSONObject = {};
   for (const [key, value] of Object.entries(provider.extraBody)) {
@@ -109,19 +103,13 @@ function providerBodyOptions(
 
   const providerOptions: OpenAIResponsesProviderOptions = {
     parallelToolCalls: options.parallelToolCalls ?? undefined,
-    store: provider.responsesDialect === "deepseek_responses" ? false : true,
-    contextManagement:
-      provider.responsesDialect === "openai_responses" &&
-      options.contextCompactionThreshold !== null &&
-      options.contextCompactionThreshold !== undefined
-        ? [{ type: "compaction", compactThreshold: options.contextCompactionThreshold }]
-        : undefined,
+    store: true,
   };
 
   return { requestBody: body, providerOptions };
 }
 
-function normalizeResponsesEventLine(line: string, dialect: ResponsesDialect): string | null {
+function normalizeResponsesEventLine(line: string): string | null {
   if (!line.startsWith("data:")) {
     return line;
   }
@@ -136,7 +124,6 @@ function normalizeResponsesEventLine(line: string, dialect: ResponsesDialect): s
     return line;
   }
   if (
-    dialect === "ark_responses" &&
     event.type === "response.output_item.added" &&
     event.item &&
     typeof event.item === "object" &&
@@ -171,7 +158,7 @@ function normalizeResponsesEventLine(line: string, dialect: ResponsesDialect): s
   return line;
 }
 
-function normalizeResponsesStream(response: Response, dialect: ResponsesDialect): Response {
+function normalizeResponsesStream(response: Response): Response {
   if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) {
     return response;
   }
@@ -186,7 +173,7 @@ function normalizeResponsesStream(response: Response, dialect: ResponsesDialect)
           buffered = lines.pop() ?? "";
           for (const rawLine of lines) {
             const line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-            const normalized = normalizeResponsesEventLine(line, dialect);
+            const normalized = normalizeResponsesEventLine(line);
             if (normalized != null) {
               controller.enqueue(`${normalized}\n`);
             }
@@ -194,7 +181,7 @@ function normalizeResponsesStream(response: Response, dialect: ResponsesDialect)
         },
         flush(controller) {
           if (buffered) {
-            const normalized = normalizeResponsesEventLine(buffered, dialect);
+            const normalized = normalizeResponsesEventLine(buffered);
             if (normalized != null) {
               controller.enqueue(normalized);
             }
@@ -210,7 +197,7 @@ function normalizeResponsesStream(response: Response, dialect: ResponsesDialect)
   });
 }
 
-async function normalizeResponsesJson(response: Response, dialect: ResponsesDialect): Promise<Response> {
+async function normalizeResponsesJson(response: Response): Promise<Response> {
   if (!response.headers.get("content-type")?.includes("application/json")) {
     return response;
   }
@@ -222,7 +209,6 @@ async function normalizeResponsesJson(response: Response, dialect: ResponsesDial
   if (Array.isArray(output)) {
     for (const item of output) {
       if (
-        dialect === "ark_responses" &&
         item &&
         typeof item === "object" &&
         (item as { type?: unknown }).type === "function_call" &&
@@ -254,41 +240,7 @@ async function normalizeResponsesJson(response: Response, dialect: ResponsesDial
   });
 }
 
-function normalizeDeepSeekRequest(body: JSONObject): void {
-  delete body.previous_response_id;
-  delete body.conversation;
-  delete body.context_management;
-  body.store = false;
-
-  if (!Array.isArray(body.input)) {
-    return;
-  }
-  body.input = body.input.map((item: JSONValue) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      return item;
-    }
-    const record = item as JSONObject;
-    if (record.type !== "reasoning") {
-      return item;
-    }
-    const summary = Array.isArray(record.summary)
-      ? record.summary
-          .filter(
-            (part: JSONValue): part is { type: "summary_text"; text: string } =>
-              !!part &&
-              typeof part === "object" &&
-              !Array.isArray(part) &&
-              (part as JSONObject).type === "summary_text" &&
-              typeof (part as JSONObject).text === "string",
-          )
-          .map((part) => ({ type: "reasoning_text", text: part.text }))
-      : [];
-    const { summary: _summary, encrypted_content: _encryptedContent, ...rest } = record;
-    return { ...rest, content: summary };
-  });
-}
-
-function createResponsesFetch(dialect: ResponsesDialect, extraBody: JSONObject): typeof fetch {
+function createResponsesFetch(extraBody: JSONObject): typeof fetch {
   return async (input, init) => {
     if (typeof init?.body !== "string") {
       return secureProviderFetch(input, init);
@@ -299,51 +251,35 @@ function createResponsesFetch(dialect: ResponsesDialect, extraBody: JSONObject):
     }
     const body = JSON.parse(init.body) as JSONObject;
     Object.assign(body, extraBody);
-    if (dialect !== "openai_responses") {
-      delete body.context_management;
-    }
-    if (dialect === "deepseek_responses") {
-      normalizeDeepSeekRequest(body);
-    }
+    delete body.context_management;
     const response = await secureProviderFetch(input, { ...init, body: JSON.stringify(body) });
     return response.headers.get("content-type")?.includes("text/event-stream")
-      ? normalizeResponsesStream(response, dialect)
-      : normalizeResponsesJson(response, dialect);
+      ? normalizeResponsesStream(response)
+      : normalizeResponsesJson(response);
   };
 }
 
-function prepareDeepSeekReasoningReplay(
+function prepareArkPrompt(
   prompt: LanguageModelV4CallOptions["prompt"],
-): LanguageModelV4CallOptions["prompt"] {
-  return prompt.map((message) =>
-    message.role !== "assistant"
-      ? message
-      : {
-          ...message,
-          content: message.content.map((part) =>
-            part.type !== "reasoning"
-              ? part
-              : {
-                  ...part,
-                  providerOptions: {
-                    ...part.providerOptions,
-                    openai: {
-                      ...part.providerOptions?.openai,
-                      reasoningEncryptedContent: "deepseek-plaintext-replay",
-                    },
-                  },
-                },
-          ),
-        },
+  explicitInstructions: string | null | undefined,
+): { prompt: LanguageModelV4CallOptions["prompt"]; instructions: string | undefined } {
+  const systemInstructions: string[] = [];
+  const input = prompt.filter((message) => {
+    if (message.role !== "system") {
+      return true;
+    }
+    systemInstructions.push(message.content);
+    return false;
+  });
+  const instructions = [explicitInstructions, ...systemInstructions].filter(
+    (value): value is string => typeof value === "string" && value.length > 0,
   );
+  return { prompt: input, instructions: instructions.length > 0 ? instructions.join("\n\n") : undefined };
 }
 
 export function createProviderModel(
   provider: LanguageProviderSnapshot,
-  options: {
-    parallelToolCalls?: boolean | null;
-    contextCompactionThreshold?: number | null;
-  } = {},
+  options: { parallelToolCalls?: boolean | null } = {},
 ): LanguageModelV4 {
   const name = providerName(provider.id);
   const { requestBody, providerOptions: configured } = providerBodyOptions(provider, options);
@@ -351,7 +287,7 @@ export function createProviderModel(
     name,
     baseURL: normalizeOpenAIBaseUrl(provider.baseUrl),
     apiKey: provider.apiKey,
-    fetch: createResponsesFetch(provider.responsesDialect, requestBody),
+    fetch: createResponsesFetch(requestBody),
   });
   const providerSettings: LanguageModelV4Middleware = {
     specificationVersion: "v4",
@@ -359,21 +295,14 @@ export function createProviderModel(
       const openaiOptions = {
         ...configured,
         ...params.providerOptions?.openai,
+        store: true,
       };
-      if (provider.responsesDialect !== "openai_responses") {
-        openaiOptions.contextManagement = undefined;
-      }
-      if (provider.responsesDialect === "deepseek_responses") {
-        openaiOptions.store = false;
-        openaiOptions.previousResponseId = undefined;
-        openaiOptions.conversation = undefined;
-      }
+      openaiOptions.contextManagement = undefined;
+      const arkPrompt = prepareArkPrompt(params.prompt, openaiOptions.instructions);
+      openaiOptions.instructions = arkPrompt.instructions;
       return {
         ...params,
-        prompt:
-          provider.responsesDialect === "deepseek_responses"
-            ? prepareDeepSeekReasoningReplay(params.prompt)
-            : params.prompt,
+        prompt: arkPrompt.prompt,
         providerOptions: {
           ...params.providerOptions,
           openai: openaiOptions,
