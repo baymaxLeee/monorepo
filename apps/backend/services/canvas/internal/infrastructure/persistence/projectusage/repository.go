@@ -2,41 +2,30 @@ package projectusage
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/plugin/soft_delete"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
 	app "github.com/example/monorepo/canvas/internal/application/projectusage"
 	domain "github.com/example/monorepo/canvas/internal/domain/projectusage"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
 const (
 	callReviewReason     = "a provider call requires billing review"
 	currencyReviewReason = "project usage calls have inconsistent currencies"
-	claimScanPageSize    = 32
 )
 
-type snapshotContextKey struct{}
+type Repository struct{ db *persistencetransaction.Store }
 
-type Repository struct{ db *gorm.DB }
-
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
-
-func (repository *Repository) dbFor(ctx context.Context) *gorm.DB {
-	if tx, ok := ctx.Value(snapshotContextKey{}).(*gorm.DB); ok && tx != nil {
-		return tx.WithContext(ctx)
-	}
-	return persistencetransaction.DB(ctx, repository.db)
-}
+func NewRepository(db *persistencetransaction.Store) *Repository { return &Repository{db: db} }
 
 func (repository *Repository) CreateCall(ctx context.Context, call domain.ProviderCall) error {
 	if err := call.Validate(); err != nil || call.BillingStatus != domain.CallBillingPending ||
@@ -47,25 +36,23 @@ func (repository *Repository) CreateCall(ctx context.Context, call domain.Provid
 	if err != nil {
 		return err
 	}
-	return repository.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		state, lockErr := lockTaskRun(tx, row.TaskRunID)
+	return repository.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := repository.db.Queries(ctx)
+		state, lockErr := q.LockTaskRun(ctx, row.TaskRunID)
 		if lockErr != nil {
 			return lockErr
 		}
 		if terminalTaskStatus(state.Status) {
 			return app.ErrTaskRunTerminal
 		}
-		if createErr := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "task_run_id"}, {Name: "call_ordinal"}},
-			DoNothing: true,
-		}).Create(&row).Error; createErr != nil {
+		if createErr := q.InsertUsageCall(ctx, row); createErr != nil {
 			return translateCallWriteError(createErr)
 		}
-		var current providerCallRow
-		if loadErr := tx.Where("task_run_id = ? AND call_ordinal = ?", row.TaskRunID, row.CallOrdinal).First(&current).Error; loadErr != nil {
+		current, loadErr := q.ReadUsageCall(ctx, sqlc.ReadUsageCallParams{ID: row.TaskRunID, Ordinal: row.CallOrdinal})
+		if loadErr != nil {
 			return loadErr
 		}
-		if !sameImmutableCallRow(current, row) {
+		if !sameImmutableCallRow(sqlc.InsertUsageCallParams(current), row) {
 			return app.ErrCallConflict
 		}
 		return nil
@@ -77,44 +64,45 @@ func (repository *Repository) GetCall(ctx context.Context, ref domain.CallRef) (
 	if err != nil || ref.CallOrdinal <= 0 {
 		return domain.ProviderCall{}, app.ErrCallNotFound
 	}
-	var row providerCallRow
-	if err = repository.dbFor(ctx).Where("task_run_id = ? AND call_ordinal = ?", id, ref.CallOrdinal).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := repository.db.Queries(ctx).ReadUsageCall(ctx, sqlc.ReadUsageCallParams{ID: id.String(), Ordinal: ref.CallOrdinal})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.ProviderCall{}, app.ErrCallNotFound
 		}
 		return domain.ProviderCall{}, err
 	}
-	return callFromRow(row)
+	return callFromRow(sqlc.InsertUsageCallParams(row))
 }
 
 func (repository *Repository) UpdateCall(ctx context.Context, expected, updated domain.ProviderCall) (bool, error) {
 	if err := expected.ValidateTransition(updated); err != nil {
 		return false, err
 	}
-	db := repository.dbFor(ctx)
+
 	if expected.RequestStartedAt == nil && updated.RequestStartedAt != nil {
 		var won bool
-		err := db.Transaction(func(tx *gorm.DB) error {
+		err := repository.db.WithinTransaction(ctx, func(ctx context.Context) error {
+			q := repository.db.Queries(ctx)
 			id, parseErr := persistenceid.Parse(expected.TaskRunID)
 			if parseErr != nil {
 				return parseErr
 			}
-			state, lockErr := lockTaskRun(tx, id)
+			state, lockErr := q.LockTaskRun(ctx, id.String())
 			if lockErr != nil {
 				return lockErr
 			}
 			if terminalTaskStatus(state.Status) {
 				return app.ErrTaskRunTerminal
 			}
-			won, lockErr = repository.updateCall(tx, expected, updated)
+			won, lockErr = repository.updateCall(ctx, expected, updated)
 			return lockErr
 		})
 		return won, err
 	}
-	return repository.updateCall(db, expected, updated)
+	return repository.updateCall(ctx, expected, updated)
 }
 
-func (repository *Repository) updateCall(db *gorm.DB, expected, updated domain.ProviderCall) (bool, error) {
+func (repository *Repository) updateCall(ctx context.Context, expected, updated domain.ProviderCall) (bool, error) {
 	id, err := persistenceid.Parse(expected.TaskRunID)
 	if err != nil {
 		return false, err
@@ -123,19 +111,23 @@ func (repository *Repository) updateCall(db *gorm.DB, expected, updated domain.P
 	if err != nil {
 		return false, err
 	}
-	result := db.Model(&providerCallRow{}).Where(
-		"task_run_id = ? AND call_ordinal = ? AND state_version = ?", id, expected.CallOrdinal, expected.StateVersion,
-	).Updates(map[string]any{
-		"request_started_at": row.RequestStartedAt, "request_id": row.RequestID,
-		"capture_result": row.CaptureResult, "billing_status": row.BillingStatus,
-		"settlement_reason": row.SettlementReason, "amount": row.Amount, "currency": row.Currency,
-		"review_reason": row.ReviewReason, "state_version": row.StateVersion, "updated_at": row.UpdatedAt,
-		"finalized_at": row.FinalizedAt,
+	n, err := repository.db.Queries(ctx).UpdateUsageCall(ctx, sqlc.UpdateUsageCallParams{
+		RequestStartedAt: row.RequestStartedAt,
+		RequestID:        row.RequestID,
+		CaptureResult:    row.CaptureResult,
+		BillingStatus:    row.BillingStatus,
+		SettlementReason: row.SettlementReason,
+		Amount:           row.Amount,
+		Currency:         row.Currency,
+		ReviewReason:     row.ReviewReason,
+		StateVersion:     row.StateVersion,
+		UpdatedAt:        row.UpdatedAt,
+		FinalizedAt:      row.FinalizedAt,
+		ID:               id.String(),
+		Ordinal:          expected.CallOrdinal,
+		ExpectedVersion:  expected.StateVersion,
 	})
-	if result.Error != nil {
-		return false, translateCallWriteError(result.Error)
-	}
-	return result.RowsAffected == 1, nil
+	return n == 1, translateCallWriteError(err)
 }
 
 func (repository *Repository) CloseTaskRun(ctx context.Context, input app.CloseInput, now time.Time) error {
@@ -146,21 +138,22 @@ func (repository *Repository) CloseTaskRun(ctx context.Context, input app.CloseI
 	if now.IsZero() {
 		return domain.ErrInvalidRecord
 	}
-	return repository.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		state, lockErr := lockTaskRun(tx, taskRunID)
+	return repository.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := repository.db.Queries(ctx)
+		state, lockErr := q.LockTaskRun(ctx, taskRunID.String())
 		if lockErr != nil {
 			return lockErr
 		}
 		if !terminalTaskStatus(state.Status) {
 			return app.ErrTaskRunNotTerminal
 		}
-		var callRows []providerCallRow
-		if loadErr := tx.Where("task_run_id = ?", taskRunID).Order("call_ordinal ASC").Find(&callRows).Error; loadErr != nil {
+		callRows, loadErr := q.ListUsageCalls(ctx, taskRunID.String())
+		if loadErr != nil {
 			return loadErr
 		}
 		calls := make([]domain.ProviderCall, 0, len(callRows))
 		for index := range callRows {
-			call, convertErr := callFromRow(callRows[index])
+			call, convertErr := callFromRow(sqlc.InsertUsageCallParams(callRows[index]))
 			if convertErr != nil {
 				return convertErr
 			}
@@ -169,7 +162,7 @@ func (repository *Repository) CloseTaskRun(ctx context.Context, input app.CloseI
 				if finalizeErr := updated.FinalizeNotSent(now); finalizeErr != nil {
 					return finalizeErr
 				}
-				won, updateErr := repository.updateCall(tx, call, updated)
+				won, updateErr := repository.updateCall(ctx, call, updated)
 				if updateErr != nil {
 					return updateErr
 				}
@@ -187,21 +180,21 @@ func (repository *Repository) CloseTaskRun(ctx context.Context, input app.CloseI
 		if deriveErr != nil {
 			return deriveErr
 		}
-		if createErr := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "task_run_id"}}, DoNothing: true}).Create(&row).Error; createErr != nil {
+		if createErr := q.InsertUsageRecord(ctx, row); createErr != nil {
 			return createErr
 		}
-		var current usageRecordRow
-		if loadErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("task_run_id = ?", taskRunID).First(&current).Error; loadErr != nil {
+		current, loadErr := q.LockUsageRecord(ctx, taskRunID.String())
+		if loadErr != nil {
 			return loadErr
 		}
-		if !sameFrozenRecord(current, row) {
+		if !sameFrozenRecord(sqlc.InsertUsageRecordParams(current), row) {
 			return app.ErrRecordConflict
 		}
-		return repository.promoteReadyRecord(tx, current, row, now)
+		return repository.promoteReadyRecord(ctx, sqlc.InsertUsageRecordParams(current), row, now)
 	})
 }
 
-func (repository *Repository) promoteReadyRecord(db *gorm.DB, current, derived usageRecordRow, now time.Time) error {
+func (repository *Repository) promoteReadyRecord(ctx context.Context, current, derived sqlc.InsertUsageRecordParams, now time.Time) error {
 	if _, err := recordFromRow(current); err != nil {
 		return err
 	}
@@ -221,7 +214,7 @@ func (repository *Repository) promoteReadyRecord(db *gorm.DB, current, derived u
 	refreshed := current
 	refreshed.FinalCallCount = derived.FinalCallCount
 	refreshed.BillingStatus = derived.BillingStatus
-	refreshed.TotalAmount = cloneString(derived.TotalAmount)
+	refreshed.TotalAmount = derived.TotalAmount
 	refreshed.Currency = cloneString(derived.Currency)
 	refreshed.NoProgressAttempts = 0
 	refreshed.NextAttemptAt = cloneTime(derived.NextAttemptAt)
@@ -234,21 +227,27 @@ func (repository *Repository) promoteReadyRecord(db *gorm.DB, current, derived u
 	if _, err := recordFromRow(refreshed); err != nil {
 		return err
 	}
-	result := db.Model(&usageRecordRow{}).Where(
-		"task_run_id = ? AND state_version = ? AND billing_status = ?",
-		current.TaskRunID, current.StateVersion, current.BillingStatus,
-	).Updates(map[string]any{
-		"final_call_count": refreshed.FinalCallCount, "billing_status": refreshed.BillingStatus,
-		"total_amount": refreshed.TotalAmount, "currency": refreshed.Currency,
-		"no_progress_attempts": refreshed.NoProgressAttempts, "next_attempt_at": refreshed.NextAttemptAt,
-		"lease_owner": refreshed.LeaseOwner, "lease_until": refreshed.LeaseUntil,
-		"review_reason": refreshed.ReviewReason, "billing_finalized_at": refreshed.BillingFinalizedAt,
-		"state_version": refreshed.StateVersion, "updated_at": refreshed.UpdatedAt,
+	n, err := repository.db.Queries(ctx).PromoteUsageRecord(ctx, sqlc.PromoteUsageRecordParams{
+		FinalCallCount:     refreshed.FinalCallCount,
+		BillingStatus:      refreshed.BillingStatus,
+		TotalAmount:        refreshed.TotalAmount,
+		Currency:           refreshed.Currency,
+		NoProgressAttempts: refreshed.NoProgressAttempts,
+		NextAttemptAt:      refreshed.NextAttemptAt,
+		LeaseOwner:         refreshed.LeaseOwner,
+		LeaseUntil:         refreshed.LeaseUntil,
+		ReviewReason:       refreshed.ReviewReason,
+		BillingFinalizedAt: refreshed.BillingFinalizedAt,
+		StateVersion:       refreshed.StateVersion,
+		UpdatedAt:          refreshed.UpdatedAt,
+		ID:                 current.TaskRunID,
+		ExpectedVersion:    current.StateVersion,
+		ExpectedStatus:     current.BillingStatus,
 	})
-	if result.Error != nil {
-		return result.Error
+	if err != nil {
+		return err
 	}
-	if result.RowsAffected != 1 {
+	if n != 1 {
 		return app.ErrRecordConflict
 	}
 	return nil
@@ -261,69 +260,23 @@ func (repository *Repository) ClaimDue(ctx context.Context, now, leaseUntil time
 	if strings.TrimSpace(owner) == "" || !leaseUntil.After(now) {
 		return nil, domain.ErrInvalidRecord
 	}
-	db := repository.dbFor(ctx)
-	claimed := make([]domain.UsageRecord, 0, limit)
-	var cursorTime time.Time
-	var cursorTaskRunID persistenceid.UUID
-	hasCursor := false
-	for len(claimed) < limit {
-		query := db.Where(
-			"billing_status = ? AND next_attempt_at <= ? AND (lease_until IS NULL OR lease_until <= ?)",
-			domain.RecordBillingPending, now, now,
-		)
-		if hasCursor {
-			query = query.Where(
-				"next_attempt_at > ? OR (next_attempt_at = ? AND task_run_id > ?)",
-				cursorTime, cursorTime, cursorTaskRunID,
-			)
-		}
-		pageSize := claimScanPageSize
-		if remaining := limit - len(claimed); remaining > pageSize {
-			pageSize = remaining
-		}
-		var candidates []usageRecordRow
-		if err := query.Order("next_attempt_at ASC").Order("task_run_id ASC").Limit(pageSize).Find(&candidates).Error; err != nil {
-			return nil, err
-		}
-		if len(candidates) == 0 {
-			break
-		}
-		pageClaims, err := repository.claimCandidates(ctx, candidates, now, leaseUntil, owner, limit-len(claimed))
-		if err != nil {
-			return nil, err
-		}
-		claimed = append(claimed, pageClaims...)
-		if len(claimed) == limit || len(candidates) < pageSize {
-			break
-		}
-		last := candidates[len(candidates)-1]
-		if last.NextAttemptAt == nil {
-			return nil, domain.ErrInvalidRecord
-		}
-		cursorTime, cursorTaskRunID, hasCursor = *last.NextAttemptAt, last.TaskRunID, true
-	}
-	return claimed, nil
-}
 
-func (repository *Repository) claimCandidates(
-	ctx context.Context,
-	candidates []usageRecordRow,
-	now, leaseUntil time.Time,
-	owner string,
-	limit int,
-) ([]domain.UsageRecord, error) {
-	claimed := make([]domain.UsageRecord, 0, limit)
-	for index := range candidates {
-		if len(claimed) == limit {
-			break
-		}
-		record, ok, err := repository.claimRecord(ctx, candidates[index], now, leaseUntil, owner)
+	rows, err := repository.db.Queries(ctx).ClaimUsageBatch(ctx, sqlc.ClaimUsageBatchParams{
+		Now:      now,
+		Lease:    leaseUntil,
+		Owner:    owner,
+		PageSize: int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	claimed := make([]domain.UsageRecord, 0, len(rows))
+	for _, row := range rows {
+		record, err := recordFromRow(sqlc.InsertUsageRecordParams(row))
 		if err != nil {
 			return nil, err
 		}
-		if ok {
-			claimed = append(claimed, record)
-		}
+		claimed = append(claimed, record)
 	}
 	return claimed, nil
 }
@@ -333,34 +286,19 @@ func (repository *Repository) ClaimTask(ctx context.Context, taskRunID string, n
 	if err != nil || strings.TrimSpace(owner) == "" || !leaseUntil.After(now) {
 		return domain.UsageRecord{}, false, domain.ErrInvalidRecord
 	}
-	var candidate usageRecordRow
-	err = repository.dbFor(ctx).Where(
-		"task_run_id = ? AND billing_status = ? AND next_attempt_at <= ? AND (lease_until IS NULL OR lease_until <= ?)",
-		id, domain.RecordBillingPending, now, now,
-	).First(&candidate).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := repository.db.Queries(ctx).ClaimOneUsageRecord(ctx, sqlc.ClaimOneUsageRecordParams{
+		ID:    id.String(),
+		Now:   now,
+		Lease: leaseUntil,
+		Owner: owner,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.UsageRecord{}, false, nil
 	}
 	if err != nil {
 		return domain.UsageRecord{}, false, err
 	}
-	return repository.claimRecord(ctx, candidate, now, leaseUntil, owner)
-}
-
-func (repository *Repository) claimRecord(ctx context.Context, candidate usageRecordRow, now, leaseUntil time.Time, owner string) (domain.UsageRecord, bool, error) {
-	result := repository.dbFor(ctx).Model(&usageRecordRow{}).Where(
-		"task_run_id = ? AND billing_status = ? AND state_version = ? AND next_attempt_at <= ? AND (lease_until IS NULL OR lease_until <= ?)",
-		candidate.TaskRunID, domain.RecordBillingPending, candidate.StateVersion, now, now,
-	).Updates(map[string]any{
-		"lease_owner": owner, "lease_until": leaseUntil, "state_version": candidate.StateVersion + 1, "updated_at": now,
-	})
-	if result.Error != nil || result.RowsAffected != 1 {
-		return domain.UsageRecord{}, false, result.Error
-	}
-	candidate.LeaseOwner, candidate.LeaseUntil = owner, &leaseUntil
-	candidate.StateVersion++
-	candidate.UpdatedAt = now
-	record, err := recordFromRow(candidate)
+	record, err := recordFromRow(sqlc.InsertUsageRecordParams(row))
 	return record, err == nil, err
 }
 
@@ -388,15 +326,17 @@ func (repository *Repository) BeginReconciliation(
 	if err != nil {
 		return domain.UsageRecord{}, false, err
 	}
-	result := repository.dbFor(ctx).Model(&usageRecordRow{}).Where(
-		"task_run_id = ? AND billing_status = ? AND state_version = ? AND lease_owner = ? AND lease_until > ?",
-		id, domain.RecordBillingPending, expected.StateVersion, expected.LeaseOwner, now,
-	).Updates(map[string]any{
-		"billing_attempts": updated.BillingAttempts, "no_progress_attempts": updated.NoProgressAttempts,
-		"state_version": updated.StateVersion, "updated_at": now,
+	n, err := repository.db.Queries(ctx).BeginUsageReconciliation(ctx, sqlc.BeginUsageReconciliationParams{
+		BillingAttempts:    updated.BillingAttempts,
+		NoProgressAttempts: updated.NoProgressAttempts,
+		StateVersion:       updated.StateVersion,
+		UpdatedAt:          updated.UpdatedAt,
+		ID:                 id.String(),
+		ExpectedVersion:    expected.StateVersion,
+		ExpectedOwner:      expected.LeaseOwner,
 	})
-	if result.Error != nil || result.RowsAffected != 1 {
-		return domain.UsageRecord{}, false, result.Error
+	if n != 1 || err != nil {
+		return domain.UsageRecord{}, false, err
 	}
 	return updated, true, nil
 }
@@ -406,13 +346,13 @@ func (repository *Repository) ListCalls(ctx context.Context, taskRunID string) (
 	if err != nil {
 		return nil, err
 	}
-	var rows []providerCallRow
-	if err = repository.dbFor(ctx).Where("task_run_id = ?", id).Order("call_ordinal ASC").Find(&rows).Error; err != nil {
+	rows, err := repository.db.Queries(ctx).ListUsageCalls(ctx, id.String())
+	if err != nil {
 		return nil, err
 	}
 	calls := make([]domain.ProviderCall, 0, len(rows))
 	for index := range rows {
-		call, convertErr := callFromRow(rows[index])
+		call, convertErr := callFromRow(sqlc.InsertUsageCallParams(rows[index]))
 		if convertErr != nil {
 			return nil, convertErr
 		}
@@ -429,11 +369,8 @@ func (repository *Repository) GetUnresolvedUserName(
 	if err != nil {
 		return app.UserNameTarget{}, false, domain.ErrInvalidRecord
 	}
-	var row usageRecordRow
-	err = repository.dbFor(ctx).Select("task_run_id", "tenant_id", "created_by").Where(
-		"task_run_id = ? AND created_by_name_resolved_at IS NULL", id,
-	).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := repository.db.Queries(ctx).ReadUsageNameTarget(ctx, id.String())
+	if errors.Is(err, pgx.ErrNoRows) {
 		return app.UserNameTarget{}, false, nil
 	}
 	if err != nil {
@@ -446,15 +383,13 @@ func (repository *Repository) ListUnresolvedUserNames(ctx context.Context, limit
 	if limit <= 0 {
 		return nil, domain.ErrInvalidRecord
 	}
-	var rows []usageRecordRow
-	if err := repository.dbFor(ctx).Select("task_run_id", "tenant_id", "created_by").Where(
-		"created_by_name_resolved_at IS NULL",
-	).Order("created_at ASC").Order("task_run_id ASC").Limit(limit).Find(&rows).Error; err != nil {
+	rows, err := repository.db.Queries(ctx).ListUsageNameTargets(ctx, int64(limit))
+	if err != nil {
 		return nil, err
 	}
 	targets := make([]app.UserNameTarget, 0, len(rows))
 	for index := range rows {
-		targets = append(targets, userNameTarget(rows[index]))
+		targets = append(targets, userNameTarget(sqlc.ReadUsageNameTargetRow(rows[index])))
 	}
 	return targets, nil
 }
@@ -471,16 +406,17 @@ func (repository *Repository) MarkUserNameResolved(
 		name == "" || now.IsZero() {
 		return domain.ErrInvalidRecord
 	}
-	return repository.dbFor(ctx).Model(&usageRecordRow{}).Where(
-		"task_run_id = ? AND tenant_id = ? AND created_by = ? AND created_by_name_resolved_at IS NULL",
-		id, target.TenantID, target.UserID,
-	).Updates(map[string]any{
-		"created_by_name": name, "created_by_name_resolved_at": now, "updated_at": now,
-	}).Error
+	return repository.db.Queries(ctx).ResolveUsageUserName(ctx, sqlc.ResolveUsageUserNameParams{
+		ID:       id.String(),
+		TenantID: target.TenantID,
+		UserID:   target.UserID,
+		Name:     name,
+		Now:      now,
+	})
 }
 
-func userNameTarget(row usageRecordRow) app.UserNameTarget {
-	return app.UserNameTarget{TaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, UserID: row.CreatedBy}
+func userNameTarget(row sqlc.ReadUsageNameTargetRow) app.UserNameTarget {
+	return app.UserNameTarget{TaskRunID: row.TaskRunID, TenantID: row.TenantID, UserID: row.CreatedBy}
 }
 
 func (repository *Repository) FinishReconciliation(ctx context.Context, expected domain.UsageRecord, update domain.ReconciliationUpdate, now time.Time) (bool, error) {
@@ -507,29 +443,32 @@ func (repository *Repository) FinishReconciliation(ctx context.Context, expected
 	if err != nil {
 		return false, err
 	}
-	result := repository.dbFor(ctx).Model(&usageRecordRow{}).Where(
-		"task_run_id = ? AND billing_status = ? AND state_version = ? AND lease_owner = ? AND lease_until > ?",
-		id, domain.RecordBillingPending, expected.StateVersion, expected.LeaseOwner, now,
-	).Updates(map[string]any{
-		"billing_status": update.BillingStatus, "final_call_count": update.FinalCallCount,
-		"total_amount": update.TotalAmount, "currency": update.Currency, "billing_attempts": update.BillingAttempts,
-		"no_progress_attempts": update.NoProgressAttempts, "next_attempt_at": update.NextAttemptAt,
-		"review_reason": update.ReviewReason, "billing_finalized_at": update.BillingFinalizedAt,
-		"lease_owner": "", "lease_until": nil, "state_version": expected.StateVersion + 1, "updated_at": now,
+	n, err := repository.db.Queries(ctx).FinishUsageReconciliation(ctx, sqlc.FinishUsageReconciliationParams{
+		FinalCallCount:     updated.FinalCallCount,
+		BillingStatus:      string(updated.BillingStatus),
+		TotalAmount:        amountText(updated.TotalAmount),
+		Currency:           updated.Currency,
+		NoProgressAttempts: updated.NoProgressAttempts,
+		NextAttemptAt:      updated.NextAttemptAt,
+		LeaseOwner:         updated.LeaseOwner,
+		LeaseUntil:         updated.LeaseUntil,
+		ReviewReason:       updated.ReviewReason,
+		BillingFinalizedAt: updated.BillingFinalizedAt,
+		StateVersion:       updated.StateVersion,
+		UpdatedAt:          updated.UpdatedAt,
+		BillingAttempts:    updated.BillingAttempts,
+		ID:                 id.String(),
+		ExpectedVersion:    expected.StateVersion,
+		ExpectedOwner:      expected.LeaseOwner,
 	})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return n == 1, err
 }
 
 func (repository *Repository) WithReadOnlySnapshot(ctx context.Context, run func(context.Context) error) error {
 	if run == nil {
 		return errors.New("project usage snapshot callback is required")
 	}
-	return repository.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return run(context.WithValue(ctx, snapshotContextKey{}, tx))
-	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	return repository.db.WithTxOptions(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, run)
 }
 
 func (repository *Repository) GetProjectName(ctx context.Context, input app.GetProjectNameInput) (string, error) {
@@ -537,16 +476,15 @@ func (repository *Repository) GetProjectName(ctx context.Context, input app.GetP
 	if err != nil {
 		return "", applicationproject.ErrNotFound
 	}
-	query := repository.dbFor(ctx).Model(&projectNameRow{}).Where("id = ? AND tenant_id = ?", projectID, input.TenantID)
-	query = applyWorkspaceScope(query, input.WorkspaceID)
-	var row projectNameRow
-	if err = query.First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", applicationproject.ErrNotFound
-		}
-		return "", err
+	name, err := repository.db.Queries(ctx).ReadUsageProjectName(ctx, sqlc.ReadUsageProjectNameParams{
+		ProjectID:   projectID.String(),
+		TenantID:    input.TenantID,
+		WorkspaceID: input.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", applicationproject.ErrNotFound
 	}
-	return row.Name, nil
+	return name, err
 }
 
 func (repository *Repository) ListExportPage(ctx context.Context, query app.ExportPageQuery) ([]app.ExportRow, error) {
@@ -554,20 +492,22 @@ func (repository *Repository) ListExportPage(ctx context.Context, query app.Expo
 	if err != nil || query.Limit <= 0 {
 		return nil, domain.ErrInvalidRecord
 	}
-	db := repository.dbFor(ctx).Model(&usageRecordRow{}).Where(
-		"tenant_id = ? AND project_id = ?",
-		query.TenantID, projectID,
-	)
-	db = applyWorkspaceScope(db, query.WorkspaceID)
+	args := sqlc.ListUsageExportPageParams{
+		TenantID:    query.TenantID,
+		WorkspaceID: query.WorkspaceID,
+		ProjectID:   projectID.String(),
+		AfterTime:   query.AfterConsumedAt,
+		PageSize:    int64(query.Limit),
+	}
 	if query.AfterConsumedAt != nil {
-		afterID, parseErr := persistenceid.Parse(query.AfterTaskRunID)
-		if parseErr != nil {
+		afterID, err := persistenceid.Parse(query.AfterTaskRunID)
+		if err != nil {
 			return nil, domain.ErrInvalidRecord
 		}
-		db = db.Where("(consumed_at > ?) OR (consumed_at = ? AND task_run_id > ?)", *query.AfterConsumedAt, *query.AfterConsumedAt, afterID)
+		args.AfterID = afterID.String()
 	}
-	var rows []usageRecordRow
-	if err = db.Order("consumed_at ASC").Order("task_run_id ASC").Limit(query.Limit).Find(&rows).Error; err != nil {
+	rows, err := repository.db.Queries(ctx).ListUsageExportPage(ctx, args)
+	if err != nil {
 		return nil, err
 	}
 	result := make([]app.ExportRow, 0, len(rows))
@@ -578,32 +518,13 @@ func (repository *Repository) ListExportPage(ctx context.Context, query app.Expo
 			createdByName = ptrString(row.CreatedByName)
 		}
 		result = append(result, app.ExportRow{
-			TaskRunID: row.TaskRunID.String(), ConsumedAt: row.ConsumedAt, TaskType: row.TaskType, ResourceType: row.ResourceType,
+			TaskRunID: row.TaskRunID, ConsumedAt: row.ConsumedAt, TaskType: row.RunType, ResourceType: row.ResourceType,
 			ModelID: row.ModelID, ModelSource: row.ModelSource, ModelName: row.ModelName, CreatedBy: row.CreatedBy,
 			CreatedByName: createdByName, BillingStatus: app.BillingStatus(row.BillingStatus),
-			TotalAmount: normalizedAmount(row.TotalAmount), Currency: cloneString(row.Currency),
+			TotalAmount: normalizedAmount(amountPointer(row.TotalAmount)), Currency: cloneString(row.Currency),
 		})
 	}
 	return result, nil
-}
-
-type taskRunStateRow struct {
-	ID          persistenceid.UUID
-	TenantID    string
-	WorkspaceID *string
-	CreatedBy   string
-	RunType     string
-	Status      string
-	StartedAt   *time.Time
-	CreatedAt   time.Time
-}
-
-func (taskRunStateRow) TableName() string { return "task_runs" }
-
-func lockTaskRun(db *gorm.DB, taskRunID persistenceid.UUID) (taskRunStateRow, error) {
-	var row taskRunStateRow
-	err := db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", taskRunID).First(&row).Error
-	return row, err
 }
 
 func terminalTaskStatus(status string) bool {
@@ -615,7 +536,7 @@ func terminalTaskStatus(status string) bool {
 	}
 }
 
-func taskRunConsumedAt(row taskRunStateRow) time.Time {
+func taskRunConsumedAt(row sqlc.TaskRun) time.Time {
 	consumedAt := row.CreatedAt
 	if row.StartedAt != nil {
 		consumedAt = *row.StartedAt
@@ -623,21 +544,21 @@ func taskRunConsumedAt(row taskRunStateRow) time.Time {
 	return consumedAt
 }
 
-func newUsageRecordRow(task taskRunStateRow, calls []domain.ProviderCall, now time.Time) (usageRecordRow, error) {
+func newUsageRecordRow(task sqlc.TaskRun, calls []domain.ProviderCall, now time.Time) (sqlc.InsertUsageRecordParams, error) {
 	if len(calls) == 0 {
-		return usageRecordRow{}, domain.ErrInvalidRecord
+		return sqlc.InsertUsageRecordParams{}, domain.ErrInvalidRecord
 	}
 	projectID, err := persistenceid.Parse(calls[0].ProjectID)
 	if err != nil {
-		return usageRecordRow{}, domain.ErrInvalidRecord
+		return sqlc.InsertUsageRecordParams{}, domain.ErrInvalidRecord
 	}
 	_, resourceType, _, _, ok := app.ExpectedUsageShape(task.RunType)
 	if !ok {
-		return usageRecordRow{}, domain.ErrInvalidRecord
+		return sqlc.InsertUsageRecordParams{}, domain.ErrInvalidRecord
 	}
-	row := usageRecordRow{
-		TaskRunID: task.ID, TenantID: task.TenantID, WorkspaceID: cloneString(task.WorkspaceID), ProjectID: projectID,
-		TaskType: task.RunType, ResourceType: resourceType, ModelID: calls[0].ModelID, ModelName: calls[0].ModelName,
+	row := sqlc.InsertUsageRecordParams{
+		TaskRunID: task.ID, TenantID: task.TenantID, WorkspaceID: cloneString(task.WorkspaceID), ProjectID: projectID.String(),
+		RunType: task.RunType, ResourceType: resourceType, ModelID: calls[0].ModelID, ModelName: calls[0].ModelName,
 		ModelSource: calls[0].ModelSource, CreatedBy: task.CreatedBy, CreatedByName: task.CreatedBy,
 		ConsumedAt: taskRunConsumedAt(task),
 		CallCount:  int32(len(calls)), StateVersion: 1, CreatedAt: now, UpdatedAt: now,
@@ -648,7 +569,7 @@ func newUsageRecordRow(task taskRunStateRow, calls []domain.ProviderCall, now ti
 		}
 	}
 	if reason := app.FrozenCallSetProblem(app.FrozenUsageSnapshot{
-		TaskRunID:   task.ID.String(),
+		TaskRunID:   task.ID,
 		TaskType:    task.RunType,
 		ProjectID:   calls[0].ProjectID,
 		ModelID:     calls[0].ModelID,
@@ -685,7 +606,7 @@ func newUsageRecordRow(task taskRunStateRow, calls []domain.ProviderCall, now ti
 		return row, nil
 	}
 	row.BillingStatus, row.FinalCallCount = string(domain.RecordBillingReady), int32(len(calls))
-	row.TotalAmount, row.Currency, row.BillingFinalizedAt = &total, currency, &now
+	row.TotalAmount, row.Currency, row.BillingFinalizedAt = total, currency, &now
 	return row, nil
 }
 
@@ -716,50 +637,50 @@ func aggregateFinalCalls(calls []domain.ProviderCall) (string, *string, error) {
 	return total, &currency, nil
 }
 
-func callToRow(call domain.ProviderCall) (providerCallRow, error) {
+func callToRow(call domain.ProviderCall) (sqlc.InsertUsageCallParams, error) {
 	id, err := persistenceid.Parse(call.TaskRunID)
 	if err != nil {
-		return providerCallRow{}, err
+		return sqlc.InsertUsageCallParams{}, err
 	}
 	projectID, err := persistenceid.Parse(call.ProjectID)
 	if err != nil {
-		return providerCallRow{}, err
+		return sqlc.InsertUsageCallParams{}, err
 	}
-	return providerCallRow{
-		TaskRunID: id, CallOrdinal: call.CallOrdinal, CallType: call.CallType, ProjectID: projectID,
+	return sqlc.InsertUsageCallParams{
+		TaskRunID: id.String(), CallOrdinal: call.CallOrdinal, CallType: call.CallType, ProjectID: projectID.String(),
 		ModelID: call.ModelID, ModelName: call.ModelName, ModelSource: call.ModelSource,
 		RequestStartedAt: cloneTime(call.RequestStartedAt), RequestID: cloneString(call.RequestID),
 		CaptureResult: captureString(call.CaptureResult), BillingStatus: string(call.BillingStatus),
-		SettlementReason: settlementString(call.SettlementReason), Amount: cloneString(call.Amount), Currency: cloneString(call.Currency),
+		SettlementReason: settlementString(call.SettlementReason), Amount: amountText(call.Amount), Currency: cloneString(call.Currency),
 		ReviewReason: call.ReviewReason, StateVersion: call.StateVersion, CreatedAt: call.CreatedAt, UpdatedAt: call.UpdatedAt,
 		FinalizedAt: cloneTime(call.FinalizedAt),
 	}, nil
 }
 
-func callFromRow(row providerCallRow) (domain.ProviderCall, error) {
+func callFromRow(row sqlc.InsertUsageCallParams) (domain.ProviderCall, error) {
 	call := domain.ProviderCall{
-		TaskRunID: row.TaskRunID.String(), CallOrdinal: row.CallOrdinal, CallType: row.CallType,
-		ProjectID: row.ProjectID.String(), ModelID: row.ModelID, ModelName: row.ModelName, ModelSource: row.ModelSource,
+		TaskRunID: row.TaskRunID, CallOrdinal: row.CallOrdinal, CallType: row.CallType,
+		ProjectID: row.ProjectID, ModelID: row.ModelID, ModelName: row.ModelName, ModelSource: row.ModelSource,
 		RequestStartedAt: cloneTime(row.RequestStartedAt), RequestID: cloneString(row.RequestID),
 		CaptureResult: parseCapture(row.CaptureResult), BillingStatus: domain.CallBillingStatus(row.BillingStatus),
-		SettlementReason: parseSettlement(row.SettlementReason), Amount: normalizedAmount(row.Amount), Currency: cloneString(row.Currency),
+		SettlementReason: parseSettlement(row.SettlementReason), Amount: normalizedAmount(amountPointer(row.Amount)), Currency: cloneString(row.Currency),
 		ReviewReason: row.ReviewReason, StateVersion: row.StateVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		FinalizedAt: cloneTime(row.FinalizedAt),
 	}
 	return call, call.Validate()
 }
 
-func sameImmutableCallRow(left, right providerCallRow) bool {
+func sameImmutableCallRow(left, right sqlc.InsertUsageCallParams) bool {
 	return left.CallType == right.CallType && left.ProjectID == right.ProjectID &&
 		left.ModelID == right.ModelID && left.ModelName == right.ModelName && left.ModelSource == right.ModelSource
 }
 
-func recordFromRow(row usageRecordRow) (domain.UsageRecord, error) {
+func recordFromRow(row sqlc.InsertUsageRecordParams) (domain.UsageRecord, error) {
 	record := domain.UsageRecord{
-		TaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID), ProjectID: row.ProjectID.String(),
-		TaskType: row.TaskType, ResourceType: row.ResourceType, ModelID: row.ModelID, ModelName: row.ModelName, ModelSource: row.ModelSource,
+		TaskRunID: row.TaskRunID, TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID), ProjectID: row.ProjectID,
+		TaskType: row.RunType, ResourceType: row.ResourceType, ModelID: row.ModelID, ModelName: row.ModelName, ModelSource: row.ModelSource,
 		CreatedBy: row.CreatedBy, CreatedByName: row.CreatedByName, ConsumedAt: row.ConsumedAt, CallCount: row.CallCount,
-		FinalCallCount: row.FinalCallCount, BillingStatus: domain.RecordBillingStatus(row.BillingStatus), TotalAmount: normalizedAmount(row.TotalAmount),
+		FinalCallCount: row.FinalCallCount, BillingStatus: domain.RecordBillingStatus(row.BillingStatus), TotalAmount: normalizedAmount(amountPointer(row.TotalAmount)),
 		Currency: cloneString(row.Currency), BillingAttempts: row.BillingAttempts, NoProgressAttempts: row.NoProgressAttempts,
 		NextAttemptAt: cloneTime(row.NextAttemptAt), LeaseOwner: row.LeaseOwner, LeaseUntil: cloneTime(row.LeaseUntil), StateVersion: row.StateVersion,
 		ReviewReason: row.ReviewReason, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, BillingFinalizedAt: cloneTime(row.BillingFinalizedAt),
@@ -767,17 +688,17 @@ func recordFromRow(row usageRecordRow) (domain.UsageRecord, error) {
 	return record, record.Validate()
 }
 
-func sameFrozenRecord(left, right usageRecordRow) bool {
+func sameFrozenRecord(left, right sqlc.InsertUsageRecordParams) bool {
 	return left.TaskRunID == right.TaskRunID && left.TenantID == right.TenantID && equalStrings(left.WorkspaceID, right.WorkspaceID) &&
-		left.ProjectID == right.ProjectID && left.TaskType == right.TaskType && left.ResourceType == right.ResourceType &&
+		left.ProjectID == right.ProjectID && left.RunType == right.RunType && left.ResourceType == right.ResourceType &&
 		left.ModelID == right.ModelID && left.ModelName == right.ModelName && left.ModelSource == right.ModelSource &&
 		left.CreatedBy == right.CreatedBy && left.ConsumedAt.Equal(right.ConsumedAt) &&
 		left.CallCount == right.CallCount
 }
 
-func sameBillingProjection(left, right usageRecordRow) bool {
+func sameBillingProjection(left, right sqlc.InsertUsageRecordParams) bool {
 	return left.FinalCallCount == right.FinalCallCount && left.BillingStatus == right.BillingStatus &&
-		equalAmounts(left.TotalAmount, right.TotalAmount) && equalStrings(left.Currency, right.Currency) &&
+		equalAmounts(amountPointer(left.TotalAmount), amountPointer(right.TotalAmount)) && equalStrings(left.Currency, right.Currency) &&
 		left.ReviewReason == right.ReviewReason
 }
 
@@ -791,7 +712,8 @@ func equalAmounts(left, right *string) bool {
 }
 
 func translateCallWriteError(err error) error {
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return app.ErrCallConflict
 	}
 	return err
@@ -865,19 +787,15 @@ func equalStrings(left, right *string) bool {
 	return *left == *right
 }
 
-func applyWorkspaceScope(db *gorm.DB, workspaceID *string) *gorm.DB {
-	if workspaceID == nil {
-		return db.Where(clause.Eq{Column: clause.Column{Name: "workspace_id"}, Value: nil})
+func amountText(value *string) string {
+	if value == nil {
+		return ""
 	}
-	return db.Where("workspace_id = ?", *workspaceID)
+	return *value
 }
-
-type projectNameRow struct {
-	ID          persistenceid.UUID
-	TenantID    string
-	WorkspaceID *string
-	Name        string
-	DeletedAt   soft_delete.DeletedAt `gorm:"softDelete:milli"`
+func amountPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
-
-func (projectNameRow) TableName() string { return "projects" }

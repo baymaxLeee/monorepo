@@ -101,6 +101,14 @@ function contractOwners(path) {
   if (path === "schemas/openapi/chat-server.json") return ["backend/chat", "frontend/chat"];
   return [];
 }
+function affectsGeneratedSQL(path) {
+  return (
+    path === "apps/backend/justfile" ||
+    /^apps\/backend\/services\/[^/]+\/sqlc\.yaml$/.test(path) ||
+    /^apps\/backend\/services\/[^/]+\/migrations\//.test(path) ||
+    /^apps\/backend\/services\/[^/]+\/internal\/infrastructure\/persistence\/sql\//.test(path)
+  );
+}
 function toolingCodePlan(files) {
   const executable = files.filter((path) => !isDocumentation(path));
   const lintFiles = executable.filter((path) => /\.[cm]?[jt]sx?$/.test(path));
@@ -271,7 +279,8 @@ export function codePlan(base, files, root = ROOT) {
   for (const { id } of shared.filter(({ id }) => targets.get(id)?.files.length)) {
     steps.push([`test-${id}`, "just", "test", id]);
   }
-  if (changes.some(({ contractOwners: owners }) => owners.length)) steps.push(["contracts", "just", "sync-check"]);
+  if (changes.some(({ path, contractOwners: owners }) => owners.length || affectsGeneratedSQL(path)))
+    steps.push(["contracts", "just", "sync-check"]);
   for (const { area, id, path } of affected.filter(({ kind }) => kind === "apps" || kind === "services")) {
     const name = path.split("/").at(-1);
     steps.push([

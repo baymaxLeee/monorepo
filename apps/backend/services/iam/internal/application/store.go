@@ -15,7 +15,7 @@ var (
 
 // Store is the persistence port consumed by IAM use cases. Its types and
 // transaction callback are owned here so application code never depends on the
-// GORM repository implementation.
+// PostgreSQL repository implementation.
 type Store interface {
 	Transaction(context.Context, func(Store) error) error
 	Ping(context.Context) error

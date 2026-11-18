@@ -2,9 +2,10 @@ package bootstrap
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log/slog"
 	"net/http"
 	"time"
@@ -72,15 +73,14 @@ import (
 	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"gorm.io/gorm"
 )
 
 func buildModules(
 	ctx context.Context,
 	role processRole,
 	cfg Config,
-	db *gorm.DB,
-	sql *sql.DB,
+	db *persistencetransaction.Store,
+	pool *pgxpool.Pool,
 	redisClient *redis.Client,
 	rpcService **rpcapi.Server,
 ) (http.Handler, error) {
@@ -91,9 +91,7 @@ func buildModules(
 	log := slog.Default()
 	nodeRepository := canvasnodepersistence.NewRepository(db)
 	canvasJournal := canvasnodepersistence.NewEventJournal(db, nodeRepository)
-	if err := canvasJournal.Register(); err != nil {
-		return nil, err
-	}
+	canvasJournal.Register()
 	canvasRepository := canvaspersistence.NewRepository(db)
 	taskRepository := taskpersistence.NewRepository(db)
 	videoRepository := videogenerationpersistence.NewRepository(db)
@@ -141,7 +139,7 @@ func buildModules(
 	artifacts := artifact.New(storageClient, cfg.PublicGatewayURL)
 	coverImages := coverimagestore.New(storageClient, claimIntents, utcClock{}, cfg.PublicGatewayURL)
 	projectUsageExporter := applicationprojectusage.NewExporter(projectUsageRepository, artifacts, uuidGenerator{}, utcClock{})
-	transactions := persistencetransaction.New(db)
+	transactions := db
 	archiveRepository := canvasarchivepersistence.NewRepository(db)
 	archiveService := applicationcanvasarchive.NewService(
 		archiveRepository, archiveRepository, taskRepository, taskRepository, transactions, uuidGenerator{}, utcClock{},
@@ -479,7 +477,7 @@ func buildModules(
 		maturehttp.NewProjectHandler(projectService), maturehttp.NewProjectUsageHandler(projectUsageExporter), maturehttp.NewCanvasHandler(canvasService), nodeHandler, resourceHandler, maturehttp.NewAssetHandler(reviews, uploadIntents),
 		maturehttp.NewCanvasArchiveHandler(archiveService, archiveRuntime),
 		func(ctx context.Context) error {
-			return errors.Join(sql.PingContext(ctx), redisClient.Ping(ctx).Err())
+			return errors.Join(pool.Ping(ctx), redisClient.Ping(ctx).Err())
 		},
 		access,
 	)
@@ -493,7 +491,7 @@ func buildModules(
 		workerMux.HandleFunc("/readyz", func(w http.ResponseWriter, request *http.Request) {
 			readyCtx, readyCancel := context.WithTimeout(request.Context(), 3*time.Second)
 			defer readyCancel()
-			if err := errors.Join(sql.PingContext(readyCtx), redisClient.Ping(readyCtx).Err()); err != nil {
+			if err := errors.Join(pool.Ping(readyCtx), redisClient.Ping(readyCtx).Err()); err != nil {
 				http.Error(w, `{"status":"degraded"}`, http.StatusServiceUnavailable)
 				return
 			}

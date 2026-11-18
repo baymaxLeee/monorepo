@@ -8,6 +8,7 @@ import (
 	"time"
 
 	rpcapi "github.com/example/monorepo/canvas/internal/api/rpc"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 	canvasv1 "github.com/example/monorepo/inner-api-go/gen/canvas/v1"
 	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
 	"github.com/example/monorepo/observability-go"
@@ -36,15 +37,12 @@ func run(ctx context.Context, role processRole) error {
 		defer cancel()
 		_ = shutdownTelemetry(shutdown)
 	}()
-	db, err := Connect(cfg)
+	pool, err := Connect(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		return err
-	}
-	defer sqlDB.Close()
+	defer pool.Close()
+	db := transaction.New(pool)
 	redisOptions, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		return err
@@ -55,7 +53,7 @@ func run(ctx context.Context, role processRole) error {
 		return err
 	}
 	var rpcService *rpcapi.Server
-	handler, err := buildModules(ctx, role, cfg, db, sqlDB, redisClient, &rpcService)
+	handler, err := buildModules(ctx, role, cfg, db, pool, redisClient, &rpcService)
 	if err != nil {
 		return err
 	}

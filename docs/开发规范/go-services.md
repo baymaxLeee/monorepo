@@ -39,7 +39,7 @@ services/<name>/
 | 配置 | `caarlos0/env/v11` typed struct；dotenv 只负责本地文件加载 | Viper、Koanf、散落 `os.Getenv`/静默 fallback parser |
 | 日志 | 标准库 `log/slog` | Zap、Logrus、Zerolog 及 service-local logger framework |
 | Trace/metrics | `observability-go` + OpenTelemetry HTTP/gRPC instrumentation | 私有 trace header 实现、供应商专用 tracing SDK |
-| PostgreSQL | `pgx/v5` pool/transaction + `sqlc` query codegen | GORM、Bun、Ent、sqlx、database/sql driver 并存 |
+| PostgreSQL | `pgx/v5` pool/transaction + `sqlc` query codegen | 运行时 ORM、sqlx 或并行的 database/sql driver |
 | Redis | `redis/go-redis/v9` | 第二套 Redis client |
 | 内部 RPC | 官方 Proto + gRPC generated types + `inner-api-go` runtime | 手写 JSON RPC DTO、服务源码导入 |
 | 外部 HTTP contract | canonical OpenAPI artifact + 固定版本 generator | 运行时反射生成作为唯一事实源 |

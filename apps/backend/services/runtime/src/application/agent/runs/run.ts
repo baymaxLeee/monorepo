@@ -49,6 +49,7 @@ import {
   createAgentReplayResponse,
   deactivateAgentStream,
 } from "../streams/service.js";
+import { generateConversationTitlePart } from "../title/generator.js";
 import { finalizeCancelledParts } from "./cancellation.js";
 import {
   compactHistoricalSkillOutputs,
@@ -86,6 +87,7 @@ export interface RunAgentInput {
   messageId?: string;
   expectedRevision: number;
   requestId: string;
+  generateTitle?: boolean;
 }
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -335,6 +337,15 @@ export async function createAgentRunResponse(
       updateSessionProvider(session.id, provider.id, provider.model),
     ]);
 
+    const firstPersistedUser = persistedMessages.find((message) => message.role === "user");
+    const titleSourceText = firstPersistedUser
+      ? textFromUiMessage(persistedMessageToUiMessage(firstPersistedUser))
+      : "";
+    const shouldGenerateTitle =
+      input.generateTitle === true &&
+      (operation === "submit-message" || operation === "edit-message") &&
+      titleSourceText.length > 0;
+
     const modelUiMessages = persistedMessagesToModelUiMessages(persistedMessages);
     let continuedSkill: ContinuedSkillReference | null = null;
     if (operation === "tool-continuation") {
@@ -494,8 +505,16 @@ export async function createAgentRunResponse(
             historyRevision: claim.historyRevision,
           } satisfies ChatMessageMetadata,
         });
+        const titlePromise = shouldGenerateTitle
+          ? generateConversationTitlePart({ provider, userText: titleSourceText })
+              .then((part) => {
+                if (part) writer.write(part);
+              })
+              .catch((error) => logger.error({ err: error }, "conversation title stream failed (non-fatal)"))
+          : Promise.resolve();
         writer.merge(agentParts.stream);
         const end = await agentParts.end;
+        await titlePromise;
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
         const aborted =

@@ -6,6 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"sync"
+	"testing"
+	"time"
+
 	reviewapp "github.com/example/monorepo/canvas/internal/application/benefitpackage"
 	archive "github.com/example/monorepo/canvas/internal/application/canvasarchive"
 	textapp "github.com/example/monorepo/canvas/internal/application/canvastextgeneration"
@@ -15,20 +20,14 @@ import (
 	archiverepo "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvasarchive"
 	textrepo "github.com/example/monorepo/canvas/internal/infrastructure/persistence/canvastextgeneration"
 	taskrepo "github.com/example/monorepo/canvas/internal/infrastructure/persistence/task"
-	"os"
-	"sync"
-	"testing"
-	"time"
 
 	app "github.com/example/monorepo/canvas/internal/application/canvas"
 	stream "github.com/example/monorepo/canvas/internal/application/canvasstream"
 	domain "github.com/example/monorepo/canvas/internal/domain/canvas"
-	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	tx "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 	"github.com/google/uuid"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestCanvasJournalPostgres(t *testing.T) {
@@ -36,31 +35,32 @@ func TestCanvasJournalPostgres(t *testing.T) {
 	if dsn == "" {
 		t.Fatal("CANVAS_STREAM_TEST_DSN must point to an isolated database with the Canvas baseline")
 	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sqlDB, _ := db.DB()
-	t.Cleanup(func() { sqlDB.Close() })
-	repo := NewRepository(db)
-	journal := NewEventJournal(db, repo)
-	if err = journal.Register(); err != nil {
-		t.Fatal(err)
+	t.Cleanup(pool.Close)
+	store := tx.New(pool)
+	exec := func(ctx context.Context, stmt string, args ...any) error {
+		return store.WithinTransaction(ctx, func(ctx context.Context) error { _, err := store.DB(ctx).Exec(ctx, stmt, args...); return err })
 	}
+	repo := NewRepository(store)
+	journal := NewEventJournal(store, repo)
+	journal.Register()
 	id := func() string { return uuid.Must(uuid.NewV7()).String() }
 	project, canvas := id(), id()
 	workspace := "sse-test"
 	scope := app.Scope{TenantID: id(), WorkspaceID: &workspace, CallerID: "alice"}
-	ctx := context.Background()
 	now := time.Now().UTC()
 	for _, entry := range []struct {
 		sql  string
 		args []any
 	}{
-		{"INSERT INTO projects(id,tenant_id,workspace_id,name,created_by,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,0)", []any{project, scope.TenantID, workspace, "test", "alice", now, now}},
-		{"INSERT INTO canvases(id,tenant_id,workspace_id,project_id,name,created_by,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,0)", []any{canvas, scope.TenantID, workspace, project, "test", "alice", now, now}},
+		{"INSERT INTO projects(id,tenant_id,workspace_id,name,created_by,created_at,updated_at,deleted_at) VALUES($1,$2,$3,$4,$5,$6,$7,0)", []any{project, scope.TenantID, workspace, "test", "alice", now, now}},
+		{"INSERT INTO canvases(id,tenant_id,workspace_id,project_id,name,created_by,created_at,updated_at,deleted_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,0)", []any{canvas, scope.TenantID, workspace, project, "test", "alice", now, now}},
 	} {
-		if e := db.Exec(entry.sql, entry.args...).Error; e != nil {
+		if _, e := pool.Exec(ctx, entry.sql, entry.args...); e != nil {
 			t.Fatal(e)
 		}
 	}
@@ -71,7 +71,7 @@ func TestCanvasJournalPostgres(t *testing.T) {
 	if initial.Cursor != 1 || len(initial.Nodes) != 0 {
 		t.Fatalf("empty checkpoint: %+v", initial)
 	}
-	manager := tx.New(db)
+
 	rows := []canvasnodeRow{}
 	for range 2 {
 		node, e := domain.NewCanvasNode(domain.CanvasNodeInput{ID: id(), TenantID: scope.TenantID, WorkspaceID: &workspace, ProjectID: project, CanvasID: canvas, CreatedBy: "alice", Type: domain.NodeTypeText, Name: "text", Text: "hello", Now: now})
@@ -84,9 +84,9 @@ func TestCanvasJournalPostgres(t *testing.T) {
 		}
 		rows = append(rows, row)
 	}
-	err = manager.WithinTransaction(ctx, func(ctx context.Context) error {
+	err = store.WithinTransaction(ctx, func(ctx context.Context) error {
 		for i := range rows {
-			if e := tx.DB(ctx, db).Create(&rows[i]).Error; e != nil {
+			if e := insertNode(ctx, store.Queries(ctx), rows[i]); e != nil {
 				return e
 			}
 		}
@@ -103,8 +103,8 @@ func TestCanvasJournalPostgres(t *testing.T) {
 		t.Fatalf("one business transaction must publish one frame: %+v", events)
 	}
 	failure := errors.New("rollback")
-	err = manager.WithinTransaction(ctx, func(ctx context.Context) error {
-		if e := tx.DB(ctx, db).Model(&rows[0]).Update("revision", 2).Error; e != nil {
+	err = store.WithinTransaction(ctx, func(ctx context.Context) error {
+		if e := exec(ctx, "UPDATE canvas_nodes SET revision=2 WHERE id=$1", rows[0].ID); e != nil {
 			return e
 		}
 		return failure
@@ -121,7 +121,7 @@ func TestCanvasJournalPostgres(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			errs <- manager.WithinTransaction(ctx, func(ctx context.Context) error { return tx.DB(ctx, db).Model(&rows[i]).Update("revision", 3).Error })
+			errs <- exec(ctx, "UPDATE canvas_nodes SET revision=3 WHERE id=$1", rows[i].ID)
 		}(i)
 	}
 	wg.Wait()
@@ -131,7 +131,7 @@ func TestCanvasJournalPostgres(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	replica := NewEventJournal(db, repo)
+	replica := NewEventJournal(store, repo)
 	events, err = replica.Events(ctx, scope, project, canvas, 2, 10)
 	if err != nil || len(events) != 2 || events[0].BaseCursor != 2 || events[1].Cursor != 4 {
 		t.Fatalf("cross-replica ordered replay: %+v %v", events, err)
@@ -149,7 +149,7 @@ func TestCanvasJournalPostgres(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = db.Create(&row).Error; e != nil {
+	if e = store.WithinTransaction(ctx, func(ctx context.Context) error { return insertNode(ctx, store.Queries(ctx), row) }); e != nil {
 		t.Fatal(e)
 	}
 	bob := scope
@@ -162,19 +162,19 @@ func TestCanvasJournalPostgres(t *testing.T) {
 	if e != nil || len(state.Nodes) != 2 || len(state.Drafts) != 0 {
 		t.Fatalf("private snapshot: %+v %v", state, e)
 	}
-	// An event storage failure must roll back the business write, including the implicit GORM transaction.
-	if e = db.Exec(fmt.Sprintf("ALTER TABLE canvas_events ADD CONSTRAINT test_reject_next CHECK (canvas_id <> '%s' OR sequence < 6)", canvas)).Error; e != nil {
+	// An event storage failure must roll back the business write, including the revision update.
+	if _, e = pool.Exec(ctx, fmt.Sprintf("ALTER TABLE canvas_events ADD CONSTRAINT test_reject_next CHECK (canvas_id <> '%s' OR sequence < 6)", canvas)); e != nil {
 		t.Fatal(e)
 	}
-	t.Cleanup(func() { db.Exec("ALTER TABLE canvas_events DROP CONSTRAINT IF EXISTS test_reject_next") })
-	if e = db.Model(&rows[0]).Update("revision", 9).Error; e == nil {
+	t.Cleanup(func() { pool.Exec(ctx, "ALTER TABLE canvas_events DROP CONSTRAINT IF EXISTS test_reject_next") })
+	if e = exec(ctx, "UPDATE canvas_nodes SET revision=9 WHERE id=$1", rows[0].ID); e == nil {
 		t.Fatal("expected journal failure")
 	}
-	var saved canvasnodeRow
-	if e = db.First(&saved, "id = ?", rows[0].ID).Error; e != nil || saved.Revision != 3 {
+	saved, e := store.Queries(ctx).NodeGetByID(ctx, sqlc.NodeGetByIDParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ID: rows[0].ID})
+	if e != nil || saved.Revision != 3 {
 		t.Fatalf("journal failure committed business mutation: %d %v", saved.Revision, e)
 	}
-	if e = db.Exec("ALTER TABLE canvas_events DROP CONSTRAINT test_reject_next").Error; e != nil {
+	if _, e = pool.Exec(ctx, "ALTER TABLE canvas_events DROP CONSTRAINT test_reject_next"); e != nil {
 		t.Fatal(e)
 	}
 
@@ -201,14 +201,14 @@ func TestCanvasJournalPostgres(t *testing.T) {
 		}
 		return *found
 	}
-	if e = db.Table("canvases").Where("id = ?", canvas).Updates(map[string]any{"name": "renamed", "revision": 2, "default_view": 2}).Error; e != nil {
+	if e = exec(ctx, "UPDATE canvases SET name='renamed', revision=2, default_view=2 WHERE id=$1", canvas); e != nil {
 		t.Fatal(e)
 	}
 	if metadata := expectPatch(stream.PatchCanvasUpsert).Canvas; metadata.Name != "renamed" || metadata.Revision != 2 {
 		t.Fatalf("metadata: %+v", metadata)
 	}
-	run := task.TaskRun{ID: id(), TenantID: scope.TenantID, WorkspaceID: &workspace, CreatedBy: "alice", RunType: task.RunTypeCanvasNodeTextGeneration, SubjectType: task.SubjectTypeCanvasNode, SubjectID: rows[0].ID.String(), Status: task.StatusRunning, StateVersion: 1, CreatedAt: now, UpdatedAt: now}
-	if e = taskrepo.NewRepository(db).Create(ctx, run); e != nil {
+	run := task.TaskRun{ID: id(), TenantID: scope.TenantID, WorkspaceID: &workspace, CreatedBy: "alice", RunType: task.RunTypeCanvasNodeTextGeneration, SubjectType: task.SubjectTypeCanvasNode, SubjectID: rows[0].ID, Status: task.StatusRunning, StateVersion: 1, CreatedAt: now, UpdatedAt: now}
+	if e = taskrepo.NewRepository(store).Create(ctx, run); e != nil {
 		t.Fatal(e)
 	}
 	if got := expectPatch(stream.PatchTaskUpsert).Task; got.TaskRunID != run.ID || got.Status != "running" {
@@ -218,7 +218,7 @@ func TestCanvasJournalPostgres(t *testing.T) {
 	if e != nil || len(protectedSnapshot.ProtectedNodeIDs) != 1 || protectedSnapshot.ProtectedNodeIDs[0] != run.SubjectID {
 		t.Fatalf("pending task must protect its node after the active slot clears: %+v %v", protectedSnapshot.ProtectedNodeIDs, e)
 	}
-	textStore := textrepo.NewRepository(db)
+	textStore := textrepo.NewRepository(store)
 	if e = textStore.Create(ctx, scope, textapp.Session{ID: run.ID, ProjectID: project, CanvasID: canvas, NodeID: run.SubjectID, Status: task.StatusRunning, CreatedAt: now, UpdatedAt: now}); e != nil {
 		t.Fatal(e)
 	}
@@ -239,12 +239,12 @@ func TestCanvasJournalPostgres(t *testing.T) {
 		t.Fatalf("partial text lost: %+v", terminal)
 	}
 	assetID := id()
-	assetUUID, _ := persistenceid.Parse(assetID)
-	if e = db.Model(&rows[1]).Update("asset_id", assetUUID).Error; e != nil {
+
+	if e = exec(ctx, "UPDATE canvas_nodes SET asset_id=$1 WHERE id=$2", assetID, rows[1].ID); e != nil {
 		t.Fatal(e)
 	}
 	expectPatch(stream.PatchNodeUpsert)
-	reviews := reviewrepo.NewRepository(db)
+	reviews := reviewrepo.NewRepository(store)
 	reviewID, reviewRunID := id(), id()
 	if _, e = reviews.ReplaceAssetReview(ctx, reviewapp.ReserveAssetReviewInput{ID: reviewID, TaskRunID: reviewRunID, TenantID: scope.TenantID, WorkspaceID: &workspace, ProjectID: project, PackageID: "package", PackageName: "Review", AssetID: assetID, ModelIDs: []string{}, Now: now}); e != nil {
 		t.Fatal(e)
@@ -261,7 +261,7 @@ func TestCanvasJournalPostgres(t *testing.T) {
 	if initialReview.NodeReviews.Reviews[0].Status != domainasset.ReviewStatusSubmitting {
 		t.Fatal("replay review was replaced by live state")
 	}
-	archiveStore := archiverepo.NewRepository(db)
+	archiveStore := archiverepo.NewRepository(store)
 	export := archive.Export{TaskRunID: id(), TenantID: scope.TenantID, WorkspaceID: &workspace, ProjectID: project, CanvasID: canvas, CreatedBy: "alice", Status: task.StatusQueued, CreatedAt: now, UpdatedAt: now}
 	if e = archiveStore.Create(ctx, export, nil); e != nil {
 		t.Fatal(e)
@@ -277,8 +277,8 @@ func TestCanvasJournalPostgres(t *testing.T) {
 	if e != nil || final.Cursor != cursor || final.Canvas.Name != "renamed" || len(final.Archives) != 1 || final.Texts[0].Content != "你好" {
 		t.Fatalf("snapshot/replay disagree: %+v %v", final, e)
 	}
-	c, _ := persistenceid.Parse(canvas)
-	if e = db.Where("canvas_id = ? AND sequence = ?", c, 3).Delete(&eventRow{}).Error; e != nil {
+
+	if _, e = pool.Exec(ctx, "DELETE FROM canvas_events WHERE canvas_id=$1 AND sequence=3", canvas); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = replica.Events(ctx, scope, project, canvas, 2, 10); !errors.Is(e, stream.ErrCursorExpired) {

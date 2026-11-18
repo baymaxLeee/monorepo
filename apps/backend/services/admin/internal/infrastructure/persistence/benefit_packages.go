@@ -6,16 +6,17 @@ import (
 
 	"github.com/example/monorepo/admin/internal/application"
 	"github.com/example/monorepo/admin/internal/domain"
+	"github.com/example/monorepo/admin/internal/infrastructure/persistence/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type BenefitPackageRepository struct {
 	Pool *pgxpool.Pool
-	DB   skillDB
+	DB   sqlc.DBTX
 }
 
-func (r BenefitPackageRepository) db() skillDB {
+func (r BenefitPackageRepository) db() sqlc.DBTX {
 	if r.DB != nil {
 		return r.DB
 	}
@@ -37,180 +38,274 @@ func (r BenefitPackageRepository) Transaction(ctx context.Context, fn func(appli
 	return tx.Commit(ctx)
 }
 
-const benefitColumns = `id,tenant_id,workspace_id,is_preset,name,project_name,asset_group_id,access_key_id_enc,secret_access_key_enc,enabled,model_ids_json,material_used,material_limit,revision,created_by,updated_by,created_at,updated_at,deleted_at`
-
-func scanBenefit(row pgx.Row) (domain.BenefitPackage, error) {
-	var value domain.BenefitPackage
-	var models string
-	err := row.Scan(&value.ID, &value.TenantID, &value.WorkspaceID, &value.IsPreset, &value.Name, &value.ProjectName, &value.AssetGroupID, &value.AccessKeyIDEncrypted, &value.SecretKeyEncrypted, &value.Enabled, &models, &value.MaterialUsed, &value.MaterialLimit, &value.Revision, &value.CreatedBy, &value.UpdatedBy, &value.CreatedAt, &value.UpdatedAt, &value.DeletedAt)
-	if err == nil {
-		_ = json.Unmarshal([]byte(models), &value.ModelIDs)
-	}
-	return value, err
-}
-
 func (r BenefitPackageRepository) ListBenefitPackages(ctx context.Context, tenantID, workspaceID string) ([]domain.BenefitPackage, error) {
-	rows, err := r.db().Query(ctx, `SELECT `+benefitColumns+` FROM benefit_packages WHERE tenant_id=$1 AND workspace_id=$2 AND deleted_at IS NULL ORDER BY is_preset DESC,updated_at DESC`, tenantID, workspaceID)
+	rows, err := sqlc.New(r.db()).ListBenefitPackages(ctx, sqlc.ListBenefitPackagesParams{TenantID: tenantID, WorkspaceID: workspaceID})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	values := []domain.BenefitPackage{}
-	for rows.Next() {
-		v, e := scanBenefit(rows)
-		if e != nil {
-			return nil, e
-		}
-		values = append(values, v)
+	out := make([]domain.BenefitPackage, len(rows))
+	for i, row := range rows {
+		out[i] = toBenefitPackage(row)
 	}
-	return values, rows.Err()
+	return out, nil
 }
 
 func (r BenefitPackageRepository) GetBenefitPackage(ctx context.Context, id, tenantID, workspaceID string, lock bool) (domain.BenefitPackage, error) {
-	suffix := ""
 	if lock {
-		suffix = " FOR UPDATE"
+		row, err := sqlc.New(r.db()).GetBenefitPackageForUpdate(ctx, sqlc.GetBenefitPackageForUpdateParams{ID: id, TenantID: tenantID, WorkspaceID: workspaceID})
+		return toBenefitPackage(row), err
 	}
-	return scanBenefit(r.db().QueryRow(ctx, `SELECT `+benefitColumns+` FROM benefit_packages WHERE id=$1 AND tenant_id=$2 AND workspace_id=$3 AND deleted_at IS NULL`+suffix, id, tenantID, workspaceID))
+	row, err := sqlc.New(r.db()).GetBenefitPackage(ctx, sqlc.GetBenefitPackageParams{ID: id, TenantID: tenantID, WorkspaceID: workspaceID})
+	return toBenefitPackage(row), err
 }
 
 func (r BenefitPackageRepository) CreateBenefitPackage(ctx context.Context, v domain.BenefitPackage) error {
 	models, _ := json.Marshal(v.ModelIDs)
-	_, err := r.db().Exec(ctx, `INSERT INTO benefit_packages(id,tenant_id,workspace_id,is_preset,name,project_name,asset_group_id,access_key_id_enc,secret_access_key_enc,enabled,model_ids_json,material_used,material_limit,revision,created_by,updated_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, v.ID, v.TenantID, v.WorkspaceID, v.IsPreset, v.Name, v.ProjectName, v.AssetGroupID, v.AccessKeyIDEncrypted, v.SecretKeyEncrypted, v.Enabled, string(models), v.MaterialUsed, v.MaterialLimit, v.Revision, v.CreatedBy, v.UpdatedBy, v.CreatedAt, v.UpdatedAt)
-	return err
+	return sqlc.New(r.db()).CreateBenefitPackage(ctx, sqlc.CreateBenefitPackageParams{
+		ID:                 v.ID,
+		TenantID:           v.TenantID,
+		WorkspaceID:        v.WorkspaceID,
+		IsPreset:           v.IsPreset,
+		Name:               v.Name,
+		ProjectName:        v.ProjectName,
+		AssetGroupID:       v.AssetGroupID,
+		AccessKeyIDEnc:     v.AccessKeyIDEncrypted,
+		SecretAccessKeyEnc: v.SecretKeyEncrypted,
+		Enabled:            v.Enabled,
+		ModelIdsJson:       string(models),
+		MaterialUsed:       v.MaterialUsed,
+		MaterialLimit:      v.MaterialLimit,
+		Revision:           v.Revision,
+		CreatedBy:          v.CreatedBy,
+		UpdatedBy:          v.UpdatedBy,
+		CreatedAt:          v.CreatedAt,
+		UpdatedAt:          v.UpdatedAt,
+	})
 }
 func (r BenefitPackageRepository) SaveBenefitPackage(ctx context.Context, v domain.BenefitPackage) error {
 	models, _ := json.Marshal(v.ModelIDs)
-	_, err := r.db().Exec(ctx, `UPDATE benefit_packages SET name=$2,project_name=$3,asset_group_id=$4,access_key_id_enc=$5,secret_access_key_enc=$6,enabled=$7,model_ids_json=$8,material_used=$9,material_limit=$10,revision=$11,updated_by=$12,updated_at=$13,deleted_at=$14 WHERE id=$1`, v.ID, v.Name, v.ProjectName, v.AssetGroupID, v.AccessKeyIDEncrypted, v.SecretKeyEncrypted, v.Enabled, string(models), v.MaterialUsed, v.MaterialLimit, v.Revision, v.UpdatedBy, v.UpdatedAt, v.DeletedAt)
-	return err
+	return sqlc.New(r.db()).SaveBenefitPackage(ctx, sqlc.SaveBenefitPackageParams{
+		ID:                 v.ID,
+		Name:               v.Name,
+		ProjectName:        v.ProjectName,
+		AssetGroupID:       v.AssetGroupID,
+		AccessKeyIDEnc:     v.AccessKeyIDEncrypted,
+		SecretAccessKeyEnc: v.SecretKeyEncrypted,
+		Enabled:            v.Enabled,
+		ModelIdsJson:       string(models),
+		MaterialUsed:       v.MaterialUsed,
+		MaterialLimit:      v.MaterialLimit,
+		Revision:           v.Revision,
+		UpdatedBy:          v.UpdatedBy,
+		UpdatedAt:          v.UpdatedAt,
+		DeletedAt:          v.DeletedAt,
+	})
 }
 func (r BenefitPackageRepository) ReplaceBenefitPackageModels(ctx context.Context, v domain.BenefitPackage, ids []string) error {
-	if _, err := r.db().Exec(ctx, `DELETE FROM benefit_package_models WHERE package_id=$1`, v.ID); err != nil {
+	if err := sqlc.New(r.db()).ClearBenefitPackageModels(ctx, v.ID); err != nil {
 		return err
 	}
 	for _, id := range ids {
-		if _, err := r.db().Exec(ctx, `INSERT INTO benefit_package_models(package_id,tenant_id,workspace_id,model_id) VALUES($1,$2,$3,$4)`, v.ID, v.TenantID, v.WorkspaceID, id); err != nil {
+		if err := sqlc.New(r.db()).AddBenefitPackageModel(ctx, sqlc.AddBenefitPackageModelParams{PackageID: v.ID, TenantID: v.TenantID, WorkspaceID: v.WorkspaceID, ModelID: id}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 func (r BenefitPackageRepository) ReviewUsage(ctx context.Context, tenantID, workspaceID string) (map[string][2]int64, error) {
-	rows, err := r.db().Query(ctx, `SELECT benefit_package_id,COUNT(*) FILTER(WHERE status IN('committed','releasing','reacquiring')),COUNT(*) FILTER(WHERE status='reserved') FROM benefit_package_review_reservations WHERE tenant_id=$1 AND workspace_id=$2 GROUP BY benefit_package_id`, tenantID, workspaceID)
+	rows, err := sqlc.New(r.db()).ReviewUsage(ctx, sqlc.ReviewUsageParams{TenantID: tenantID, WorkspaceID: workspaceID})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := map[string][2]int64{}
-	for rows.Next() {
-		var id string
-		var committed, reserved int64
-		if err := rows.Scan(&id, &committed, &reserved); err != nil {
-			return nil, err
-		}
-		out[id] = [2]int64{committed, reserved}
+	out := make(map[string][2]int64, len(rows))
+	for _, row := range rows {
+		out[row.BenefitPackageID] = [2]int64{row.Committed, row.Reserved}
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
-const reservationColumns = `id,tenant_id,workspace_id,benefit_package_id,project_id,asset_id,operation_id,status,created_at,updated_at`
-
-func scanReservation(row pgx.Row) (domain.ReviewReservation, error) {
-	var v domain.ReviewReservation
-	err := row.Scan(&v.ID, &v.TenantID, &v.WorkspaceID, &v.BenefitPackageID, &v.ProjectID, &v.AssetID, &v.OperationID, &v.Status, &v.CreatedAt, &v.UpdatedAt)
-	return v, err
-}
 func (r BenefitPackageRepository) GetReviewReservation(ctx context.Context, id string, lock bool) (domain.ReviewReservation, error) {
-	suffix := ""
 	if lock {
-		suffix = " FOR UPDATE"
+		row, err := sqlc.New(r.db()).GetReviewReservationForUpdate(ctx, id)
+		return toReviewReservation(sqlc.GetReviewReservationRow(row)), err
 	}
-	return scanReservation(r.db().QueryRow(ctx, `SELECT `+reservationColumns+` FROM benefit_package_review_reservations WHERE id=$1`+suffix, id))
+	row, err := sqlc.New(r.db()).GetReviewReservation(ctx, id)
+	return toReviewReservation(row), err
 }
 func (r BenefitPackageRepository) GetReviewReservationByOperation(ctx context.Context, id string, lock bool) (domain.ReviewReservation, error) {
-	suffix := ""
 	if lock {
-		suffix = " FOR UPDATE"
+		row, err := sqlc.New(r.db()).GetReviewReservationByOperationForUpdate(ctx, id)
+		return toReviewReservation(sqlc.GetReviewReservationRow(row)), err
 	}
-	return scanReservation(r.db().QueryRow(ctx, `SELECT `+reservationColumns+` FROM benefit_package_review_reservations WHERE operation_id=$1`+suffix, id))
+	row, err := sqlc.New(r.db()).GetReviewReservationByOperation(ctx, id)
+	return toReviewReservation(sqlc.GetReviewReservationRow(row)), err
 }
 func (r BenefitPackageRepository) GetActiveReviewReservation(ctx context.Context, packageID, projectID, assetID string, lock bool) (domain.ReviewReservation, error) {
-	suffix := ""
 	if lock {
-		suffix = " FOR UPDATE"
+		row, err := sqlc.New(r.db()).GetActiveReviewReservationForUpdate(ctx, sqlc.GetActiveReviewReservationForUpdateParams{BenefitPackageID: packageID, ProjectID: projectID, AssetID: assetID})
+		return toReviewReservation(sqlc.GetReviewReservationRow(row)), err
 	}
-	return scanReservation(r.db().QueryRow(ctx, `SELECT `+reservationColumns+` FROM benefit_package_review_reservations WHERE benefit_package_id=$1 AND project_id=$2 AND asset_id=$3 AND status IN('reserved','committed','releasing','reacquiring')`+suffix, packageID, projectID, assetID))
+	row, err := sqlc.New(r.db()).GetActiveReviewReservation(ctx, sqlc.GetActiveReviewReservationParams{BenefitPackageID: packageID, ProjectID: projectID, AssetID: assetID})
+	return toReviewReservation(sqlc.GetReviewReservationRow(row)), err
 }
 func (r BenefitPackageRepository) CreateReviewReservation(ctx context.Context, v domain.ReviewReservation) error {
-	_, err := r.db().Exec(ctx, `INSERT INTO benefit_package_review_reservations(id,tenant_id,workspace_id,benefit_package_id,project_id,asset_id,operation_id,status,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, v.ID, v.TenantID, v.WorkspaceID, v.BenefitPackageID, v.ProjectID, v.AssetID, v.OperationID, v.Status, v.CreatedAt, v.UpdatedAt)
-	return err
+	return sqlc.New(r.db()).CreateReviewReservation(ctx, sqlc.CreateReviewReservationParams{
+		ID:               v.ID,
+		TenantID:         v.TenantID,
+		WorkspaceID:      v.WorkspaceID,
+		BenefitPackageID: v.BenefitPackageID,
+		ProjectID:        v.ProjectID,
+		AssetID:          v.AssetID,
+		OperationID:      v.OperationID,
+		Status:           v.Status,
+		CreatedAt:        v.CreatedAt,
+		UpdatedAt:        v.UpdatedAt,
+	})
 }
 func (r BenefitPackageRepository) SaveReviewReservation(ctx context.Context, v domain.ReviewReservation) error {
-	_, err := r.db().Exec(ctx, `UPDATE benefit_package_review_reservations SET operation_id=$2,status=$3,updated_at=$4 WHERE id=$1`, v.ID, v.OperationID, v.Status, v.UpdatedAt)
-	return err
+	return sqlc.New(r.db()).SaveReviewReservation(ctx, sqlc.SaveReviewReservationParams{ID: v.ID, OperationID: v.OperationID, Status: v.Status, UpdatedAt: v.UpdatedAt})
 }
 
-func scanReviewCleanup(row pgx.Row) (domain.ReviewCleanup, error) {
-	var v domain.ReviewCleanup
-	err := row.Scan(&v.CleanupID, &v.ReservationID, &v.Status, &v.CreatedAt, &v.CompletedAt)
-	return v, err
-}
 func (r BenefitPackageRepository) GetReviewCleanup(ctx context.Context, id string, lock bool) (domain.ReviewCleanup, error) {
-	suffix := ""
 	if lock {
-		suffix = " FOR UPDATE"
+		row, err := sqlc.New(r.db()).GetReviewCleanupForUpdate(ctx, id)
+		return toReviewCleanup(row), err
 	}
-	return scanReviewCleanup(r.db().QueryRow(ctx, `SELECT cleanup_id,reservation_id,status,created_at,completed_at FROM benefit_package_review_cleanup_claims WHERE cleanup_id=$1`+suffix, id))
+	row, err := sqlc.New(r.db()).GetReviewCleanup(ctx, id)
+	return toReviewCleanup(row), err
 }
 func (r BenefitPackageRepository) CreateReviewCleanup(ctx context.Context, v domain.ReviewCleanup) error {
-	_, err := r.db().Exec(ctx, `INSERT INTO benefit_package_review_cleanup_claims(cleanup_id,reservation_id,status,created_at,completed_at) VALUES($1,$2,$3,$4,$5)`, v.CleanupID, v.ReservationID, v.Status, v.CreatedAt, v.CompletedAt)
-	return err
+	return sqlc.New(r.db()).CreateReviewCleanup(ctx, sqlc.CreateReviewCleanupParams{CleanupID: v.CleanupID, ReservationID: v.ReservationID, Status: v.Status, CreatedAt: v.CreatedAt, CompletedAt: v.CompletedAt})
 }
 func (r BenefitPackageRepository) SaveReviewCleanup(ctx context.Context, v domain.ReviewCleanup) error {
-	_, err := r.db().Exec(ctx, `UPDATE benefit_package_review_cleanup_claims SET status=$2,completed_at=$3 WHERE cleanup_id=$1`, v.CleanupID, v.Status, v.CompletedAt)
-	return err
+	return sqlc.New(r.db()).SaveReviewCleanup(ctx, sqlc.SaveReviewCleanupParams{CleanupID: v.CleanupID, Status: v.Status, CompletedAt: v.CompletedAt})
 }
 func (r BenefitPackageRepository) CountPendingReviewCleanups(ctx context.Context, reservationID string) (int64, error) {
-	var count int64
-	err := r.db().QueryRow(ctx, `SELECT COUNT(*) FROM benefit_package_review_cleanup_claims WHERE reservation_id=$1 AND status='pending'`, reservationID).Scan(&count)
-	return count, err
+	return sqlc.New(r.db()).CountPendingReviewCleanups(ctx, reservationID)
 }
 
-const groupCleanupColumns = `id,tenant_id,workspace_id,benefit_package_id,asset_group_id,project_name,access_key_id_enc,secret_access_key_enc,status,lease_token,lease_until,attempts,last_error,created_at,updated_at,completed_at`
-
-func scanGroupCleanup(row pgx.Row) (domain.AssetGroupCleanup, error) {
-	var v domain.AssetGroupCleanup
-	err := row.Scan(&v.ID, &v.TenantID, &v.WorkspaceID, &v.BenefitPackageID, &v.AssetGroupID, &v.ProjectName, &v.AccessKeyIDEncrypted, &v.SecretKeyEncrypted, &v.Status, &v.LeaseToken, &v.LeaseUntil, &v.Attempts, &v.LastError, &v.CreatedAt, &v.UpdatedAt, &v.CompletedAt)
-	return v, err
-}
 func (r BenefitPackageRepository) ListAssetGroupCleanups(ctx context.Context, tenantID, workspaceID string) ([]domain.AssetGroupCleanup, error) {
-	rows, err := r.db().Query(ctx, `SELECT `+groupCleanupColumns+` FROM benefit_package_asset_group_cleanups WHERE tenant_id=$1 AND workspace_id=$2 ORDER BY updated_at DESC`, tenantID, workspaceID)
+	rows, err := sqlc.New(r.db()).ListAssetGroupCleanups(ctx, sqlc.ListAssetGroupCleanupsParams{TenantID: tenantID, WorkspaceID: workspaceID})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := []domain.AssetGroupCleanup{}
-	for rows.Next() {
-		v, e := scanGroupCleanup(rows)
-		if e != nil {
-			return nil, e
-		}
-		out = append(out, v)
+	out := make([]domain.AssetGroupCleanup, len(rows))
+	for i, row := range rows {
+		out[i] = toAssetGroupCleanup(row)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 func (r BenefitPackageRepository) GetAssetGroupCleanup(ctx context.Context, id, tenantID, workspaceID string, lock bool) (domain.AssetGroupCleanup, error) {
-	suffix := ""
 	if lock {
-		suffix = " FOR UPDATE"
+		row, err := sqlc.New(r.db()).GetAssetGroupCleanupForUpdate(ctx, sqlc.GetAssetGroupCleanupForUpdateParams{ID: id, TenantID: tenantID, WorkspaceID: workspaceID})
+		return toAssetGroupCleanup(row), err
 	}
-	return scanGroupCleanup(r.db().QueryRow(ctx, `SELECT `+groupCleanupColumns+` FROM benefit_package_asset_group_cleanups WHERE id=$1 AND tenant_id=$2 AND workspace_id=$3`+suffix, id, tenantID, workspaceID))
+	row, err := sqlc.New(r.db()).GetAssetGroupCleanup(ctx, sqlc.GetAssetGroupCleanupParams{ID: id, TenantID: tenantID, WorkspaceID: workspaceID})
+	return toAssetGroupCleanup(row), err
 }
 func (r BenefitPackageRepository) CreateAssetGroupCleanup(ctx context.Context, v domain.AssetGroupCleanup) error {
-	_, err := r.db().Exec(ctx, `INSERT INTO benefit_package_asset_group_cleanups(id,tenant_id,workspace_id,benefit_package_id,asset_group_id,project_name,access_key_id_enc,secret_access_key_enc,status,lease_token,lease_until,attempts,last_error,created_at,updated_at,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT(asset_group_id) DO NOTHING`, v.ID, v.TenantID, v.WorkspaceID, v.BenefitPackageID, v.AssetGroupID, v.ProjectName, v.AccessKeyIDEncrypted, v.SecretKeyEncrypted, v.Status, v.LeaseToken, v.LeaseUntil, v.Attempts, v.LastError, v.CreatedAt, v.UpdatedAt, v.CompletedAt)
-	return err
+	return sqlc.New(r.db()).CreateAssetGroupCleanup(ctx, sqlc.CreateAssetGroupCleanupParams{
+		ID:                 v.ID,
+		TenantID:           v.TenantID,
+		WorkspaceID:        v.WorkspaceID,
+		BenefitPackageID:   v.BenefitPackageID,
+		AssetGroupID:       v.AssetGroupID,
+		ProjectName:        v.ProjectName,
+		AccessKeyIDEnc:     v.AccessKeyIDEncrypted,
+		SecretAccessKeyEnc: v.SecretKeyEncrypted,
+		Status:             v.Status,
+		LeaseToken:         v.LeaseToken,
+		LeaseUntil:         v.LeaseUntil,
+		Attempts:           int64(v.Attempts),
+		LastError:          v.LastError,
+		CreatedAt:          v.CreatedAt,
+		UpdatedAt:          v.UpdatedAt,
+		CompletedAt:        v.CompletedAt,
+	})
 }
 func (r BenefitPackageRepository) SaveAssetGroupCleanup(ctx context.Context, v domain.AssetGroupCleanup) error {
-	_, err := r.db().Exec(ctx, `UPDATE benefit_package_asset_group_cleanups SET status=$2,lease_token=$3,lease_until=$4,attempts=$5,last_error=$6,updated_at=$7,completed_at=$8 WHERE id=$1`, v.ID, v.Status, v.LeaseToken, v.LeaseUntil, v.Attempts, v.LastError, v.UpdatedAt, v.CompletedAt)
-	return err
+	return sqlc.New(r.db()).SaveAssetGroupCleanup(ctx, sqlc.SaveAssetGroupCleanupParams{
+		ID:          v.ID,
+		Status:      v.Status,
+		LeaseToken:  v.LeaseToken,
+		LeaseUntil:  v.LeaseUntil,
+		Attempts:    int64(v.Attempts),
+		LastError:   v.LastError,
+		UpdatedAt:   v.UpdatedAt,
+		CompletedAt: v.CompletedAt,
+	})
+}
+
+func toAssetGroupCleanup(row sqlc.BenefitPackageAssetGroupCleanup) domain.AssetGroupCleanup {
+	value := domain.AssetGroupCleanup{
+		ID:                   row.ID,
+		TenantID:             row.TenantID,
+		WorkspaceID:          row.WorkspaceID,
+		BenefitPackageID:     row.BenefitPackageID,
+		AssetGroupID:         row.AssetGroupID,
+		ProjectName:          row.ProjectName,
+		AccessKeyIDEncrypted: row.AccessKeyIDEnc,
+		SecretKeyEncrypted:   row.SecretAccessKeyEnc,
+		Status:               row.Status,
+		LeaseToken:           row.LeaseToken,
+		LeaseUntil:           row.LeaseUntil,
+		Attempts:             int(row.Attempts),
+		LastError:            row.LastError,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+		CompletedAt:          row.CompletedAt,
+	}
+	return value
+}
+
+func toBenefitPackage(row sqlc.BenefitPackage) domain.BenefitPackage {
+	value := domain.BenefitPackage{
+		ID:                   row.ID,
+		TenantID:             row.TenantID,
+		WorkspaceID:          row.WorkspaceID,
+		IsPreset:             row.IsPreset,
+		Name:                 row.Name,
+		ProjectName:          row.ProjectName,
+		AssetGroupID:         row.AssetGroupID,
+		AccessKeyIDEncrypted: row.AccessKeyIDEnc,
+		SecretKeyEncrypted:   row.SecretAccessKeyEnc,
+		Enabled:              row.Enabled,
+		MaterialUsed:         row.MaterialUsed,
+		MaterialLimit:        row.MaterialLimit,
+		Revision:             row.Revision,
+		CreatedBy:            row.CreatedBy,
+		UpdatedBy:            row.UpdatedBy,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+		DeletedAt:            row.DeletedAt,
+	}
+	_ = json.Unmarshal([]byte(row.ModelIdsJson), &value.ModelIDs)
+	return value
+}
+
+func toReviewCleanup(row sqlc.BenefitPackageReviewCleanupClaim) domain.ReviewCleanup {
+	value := domain.ReviewCleanup{
+		CleanupID:     row.CleanupID,
+		ReservationID: row.ReservationID,
+		Status:        row.Status,
+		CreatedAt:     row.CreatedAt,
+		CompletedAt:   row.CompletedAt,
+	}
+	return value
+}
+
+func toReviewReservation(row sqlc.GetReviewReservationRow) domain.ReviewReservation {
+	value := domain.ReviewReservation{
+		ID:               row.ID,
+		TenantID:         row.TenantID,
+		WorkspaceID:      row.WorkspaceID,
+		BenefitPackageID: row.BenefitPackageID,
+		ProjectID:        row.ProjectID,
+		AssetID:          row.AssetID,
+		OperationID:      row.OperationID,
+		Status:           row.Status,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	}
+	return value
 }

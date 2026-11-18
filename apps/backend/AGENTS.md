@@ -109,7 +109,7 @@ and record high-risk extraction decisions before moving code.
   clean under `GOWORK=off go mod tidy -diff`; do not use `replace` as a version catalog.
 - PostgreSQL code uses `pgx/v5`; static SQL defaults to checked-in queries plus
   generated `sqlc` types. Raw pgx is limited to genuinely dynamic query shapes.
-  Do not introduce new GORM repositories or a shared domain repository layer.
+  Keep domain repositories service-local and generate typed queries from versioned SQL.
 - Go process configuration uses typed structs and startup validation. HTTP and
   gRPC entrypoints propagate context, cancellation and OpenTelemetry through the
   shared infrastructure capability; services retain ownership of semantic spans.

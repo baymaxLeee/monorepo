@@ -37,6 +37,9 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 
 	components := object(contract["components"])
 	schemas := object(components["schemas"])
+	// generate_title is an internal Chat -> Runtime orchestration hint. The
+	// browser-facing Chat contract must not let clients select this policy.
+	delete(object(object(schemas["AgentRunRequest"])["properties"]), "generate_title")
 	stringSchema := map[string]any{"type": "string"}
 	schemas["CreateConversationInput"] = map[string]any{
 		"type": "object", "required": []any{"request_id"}, "additionalProperties": false,

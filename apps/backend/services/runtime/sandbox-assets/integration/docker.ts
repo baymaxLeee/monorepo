@@ -184,3 +184,86 @@ test(
     }
   },
 );
+
+test("deployed egress modes apply to environment HTTP clients and always protect metadata", async (t) => {
+  const image = process.env.SANDBOX_PROXY_IMAGE ?? "local/sandbox-proxy:latest";
+  for (const mode of ["disabled", "allowlist", "public"]) {
+    await t.test(mode, async () => {
+      const name = `sandbox-policy-test-${randomUUID()}`;
+      await command("docker", [
+        "run",
+        "-d",
+        "--name",
+        name,
+        "--read-only",
+        "--tmpfs",
+        "/run",
+        "--tmpfs",
+        "/tmp",
+        "-e",
+        `SANDBOX_EGRESS_MODE=${mode}`,
+        "-e",
+        "SANDBOX_EGRESS_EXTRA_DOMAINS=example.org",
+        image,
+      ]);
+      try {
+        // Wait for Squid itself, then check both HTTP and HTTPS policy decisions.
+        await command("docker", [
+          "exec",
+          name,
+          "bash",
+          "-ec",
+          "for attempt in {1..100}; do if (: >/dev/tcp/127.0.0.1/3128) 2>/dev/null; then exit 0; fi; sleep .1; done; exit 1",
+        ]);
+        const curl = (url: string) =>
+          command("docker", [
+            "run",
+            "--rm",
+            "--network",
+            `container:${name}`,
+            "-e",
+            "https_proxy=http://127.0.0.1:3128",
+            "-e",
+            "http_proxy=http://127.0.0.1:3128",
+            "--entrypoint",
+            "curl",
+            config.image,
+            "-fsS",
+            "--max-time",
+            "10",
+            "-o",
+            "/dev/null",
+            url,
+          ]);
+        const python = (url: string) =>
+          command("docker", [
+            "run",
+            "--rm",
+            "--network",
+            `container:${name}`,
+            "-e",
+            "https_proxy=http://127.0.0.1:3128",
+            "-e",
+            "http_proxy=http://127.0.0.1:3128",
+            "--entrypoint",
+            "python3",
+            config.image,
+            "-c",
+            "import sys,urllib.request; urllib.request.urlopen(sys.argv[1], timeout=10).read(1)",
+            url,
+          ]);
+        await assert.rejects(curl("http://169.254.169.254/"), /requested URL returned error: 403/i);
+        if (mode === "disabled")
+          await assert.rejects(curl("https://example.org"), /requested URL returned error: 403/i);
+        else await Promise.all([curl("https://example.org"), python("https://example.com")]);
+        if (mode === "public") await Promise.all([curl("https://example.net"), python("https://example.com")]);
+        else await assert.rejects(curl("https://example.net"), /requested URL returned error: 403/i);
+      } finally {
+        await command("docker", ["rm", "-f", name]);
+      }
+    });
+  }
+  for (const setting of ["SANDBOX_EGRESS_MODE=unknown", "SANDBOX_EGRESS_EXTRA_DOMAINS=example.org,all *"]) {
+    await assert.rejects(command("docker", ["run", "--rm", "-e", setting, image]), /Invalid SANDBOX_EGRESS/);
+  }
+});

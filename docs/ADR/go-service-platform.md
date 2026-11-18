@@ -39,11 +39,9 @@ Version Selection 解析。把版本一致性做成可执行仓库 policy，比�
 | 并发 | `context`、标准 channel、`x/sync/errgroup` | goroutine 必须有 owner、cancel 与 wait，不允许 fire-and-forget |
 | 测试 | 标准 `testing` + race detector；需要真实边界时用 Testcontainers | mock 不替代 SQL、事务、协议和取消语义验证 |
 
-仓库不采用 GORM。GORM 的运行时反射、隐式 query 构造和宽 API 并不适合作为可审计、
-可生成、可被 Agent 精确修改的默认边界。`sqlc/pgx` 本身不是“AI 框架”，但它把 schema、
-SQL、参数、结果和编译错误都变为显式机器可读约束，因此比 ORM magic 更适合
-AI-assisted engineering。所有 GORM consumer 必须按服务边界迁移，不能以历史实现为
-例外，也不能为迁移方便再建立第二套共享 repository abstraction。
+Admin、Canvas、Chat、IAM、Storage 和 Telemetry 各自拥有 PostgreSQL 迁移、命名 SQL 和生成的 Go 类型。
+评审者和 Agent 可以从 SQL 查到参数、结果、作用域约束与锁，从 Go 调用点查到事务边界。
+修改查询后在仓库根目录执行 `just gen-sql <service>`。Node.js 与 Python 服务继续按语言使用各自的持久化工具。
 
 同一约束适用于全部通用能力：相似职责不得因服务作者偏好而并存多套三方库。完整的
 按需矩阵和目录模板在 [Go 微服务模板](../开发规范/go-services.md)。领域专用 SDK 允许只在
@@ -77,6 +75,8 @@ oapi-codegen 2.8.2。精确生效值仍以 manifest 为准，文档日期不构�
 
 主要证据：Go 的 [workspace 教程](https://go.dev/doc/tutorial/workspaces) 与
 [module reference](https://go.dev/ref/mod)、[sqlc 配置](https://docs.sqlc.dev/en/latest/reference/config.html)、
+[OpenAI 的 PostgreSQL 扩展实践](https://openai.com/index/scaling-postgresql/)、
+[Google Cloud 的 pgxpool 建议](https://docs.cloud.google.com/go/docs/reference/cloud.google.com/go/cloudsqlconn/latest)、
 [OpenTelemetry Go instrumentation](https://opentelemetry.io/docs/languages/go/instrumentation/)、
 [MCP 官方 SDK 列表](https://modelcontextprotocol.io/docs/sdk) 及
 [Eino 官方说明](https://github.com/cloudwego/eino/blob/main/llms.txt)。

@@ -227,9 +227,9 @@ class MigrationTest(unittest.TestCase):
         )
         self.assertEqual(
             self.sql("canvas", "SELECT version FROM public.migration WHERE id=1;"),
-            "v1.0.1.1",
+            "v1.0.1.2",
         )
-        self.assertEqual(self.sql("canvas", "SELECT count(*) FROM public.migration_history;"), "3")
+        self.assertEqual(self.sql("canvas", "SELECT count(*) FROM public.migration_history;"), "4")
         self.assertEqual(
             self.sql(
                 "canvas",
@@ -378,12 +378,23 @@ class MigrationTest(unittest.TestCase):
         service = self.fixtures / "canvas_reverse"
         shutil.copytree(ROOT / "apps/backend/services/canvas/migrations", service / "migrations")
         self.success(self.migrate(service))
+        self.success(self.migrate(service, "v1.0.1.1", direction="down"))
+        self.assertEqual(self.sql("canvas_reverse", "SELECT version FROM migration"), "v1.0.1.1")
+        self.assertEqual(
+            self.sql(
+                "canvas_reverse",
+                "SELECT to_regprocedure('capture_canvas_projection_change()') IS NULL",
+            ),
+            "t",
+        )
+        self.success(self.migrate(service))
+        self.assertEqual(self.sql("canvas_reverse", "SELECT version FROM migration"), "v1.0.1.2")
         self.sql("canvas_reverse", "INSERT INTO canvas_events VALUES ('canvas', 1, '{}', NOW());")
         result = self.migrate(service, "v1.0.0", direction="down")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("persisted events", result.stderr)
         self.assertEqual(self.sql("canvas_reverse", "SELECT count(*) FROM canvas_events"), "1")
-        self.assertEqual(self.sql("canvas_reverse", "SELECT version FROM migration"), "v1.0.1.1")
+        self.assertEqual(self.sql("canvas_reverse", "SELECT version FROM migration"), "v1.0.1.2")
         self.sql("canvas_reverse", "DELETE FROM canvas_events;")
         self.success(self.migrate(service, "v1.0.0", direction="down"))
         self.assertEqual(self.sql("canvas_reverse", "SELECT to_regclass('canvas_events') IS NULL"), "t")

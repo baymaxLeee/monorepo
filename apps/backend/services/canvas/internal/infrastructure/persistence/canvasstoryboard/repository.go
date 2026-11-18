@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
+	"github.com/jackc/pgx/v5"
 
 	applicationcanvas "github.com/example/monorepo/canvas/internal/application/canvas"
 	domaincanvas "github.com/example/monorepo/canvas/internal/domain/canvas"
@@ -17,23 +17,11 @@ import (
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
-type Repository struct{ db *gorm.DB }
+type Repository struct{ store *persistencetransaction.Store }
 
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
+func NewRepository(store *persistencetransaction.Store) *Repository { return &Repository{store: store} }
 
-type nodeRow struct {
-	ID          persistenceid.UUID
-	TenantID    string
-	WorkspaceID *string
-	ProjectID   persistenceid.UUID
-	CanvasID    persistenceid.UUID
-	Type        int16
-	NodeData    []byte
-	CreatedBy   string
-	DeletedAt   int64
-}
-
-func (nodeRow) TableName() string { return "canvas_nodes" }
+type nodeRow = sqlc.CanvasNode
 
 type nodeDocument struct {
 	Payload json.RawMessage `json:"payload"`
@@ -46,8 +34,6 @@ type storyboardPayload struct {
 	Generation applicationcanvas.StoryboardGenerationState `json:"generation"`
 }
 
-func (r *Repository) dbFor(ctx context.Context) *gorm.DB { return persistencetransaction.DB(ctx, r.db) }
-
 func (r *Repository) Create(ctx context.Context, scope applicationcanvas.Scope, projectID, canvasID string, state applicationcanvas.StoryboardSession, now time.Time) error {
 	return r.save(ctx, scope, projectID, canvasID, state.ID, state, now)
 }
@@ -57,12 +43,15 @@ func (r *Repository) ListUnresolved(ctx context.Context, scope applicationcanvas
 	if err != nil {
 		return nil, applicationcanvas.ErrStoryboardNotFound
 	}
-	var rows []nodeRow
-	query := scoped(r.dbFor(ctx), scope).Where(
-		"project_id = ? AND canvas_id = ? AND created_by = ? AND type = ? AND deleted_at = 0",
-		project, canvas, scope.CallerID, domaincanvas.NodeTypeStoryboardDraft,
-	).Order("created_at ASC").Order("id ASC")
-	if err = query.Find(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).StoryboardList(ctx, sqlc.StoryboardListParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		CreatedBy:   scope.CallerID,
+		Type:        int16(domaincanvas.NodeTypeStoryboardDraft),
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+	})
+	if err != nil {
 		return nil, err
 	}
 	states := make([]applicationcanvas.StoryboardSession, 0, len(rows))
@@ -142,26 +131,30 @@ func (r *Repository) Resolve(context.Context, applicationcanvas.Scope, string, s
 }
 
 func (r *Repository) mutate(ctx context.Context, scope applicationcanvas.Scope, projectID, canvasID, taskRunID string, now time.Time, update func(*applicationcanvas.StoryboardSession) error) error {
-	row, err := r.get(ctx, scope, projectID, canvasID, taskRunID, true)
-	if err != nil {
-		return err
-	}
-	state, err := decodeState(row)
-	if err != nil {
-		return err
-	}
-	if err = update(&state); err != nil {
-		return err
-	}
-	return r.saveRow(ctx, scope, row, state, now)
+	return r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		row, err := r.get(ctx, scope, projectID, canvasID, taskRunID, true)
+		if err != nil {
+			return err
+		}
+		state, err := decodeState(row)
+		if err != nil {
+			return err
+		}
+		if err = update(&state); err != nil {
+			return err
+		}
+		return r.saveRow(ctx, scope, row, state, now)
+	})
 }
 
 func (r *Repository) save(ctx context.Context, scope applicationcanvas.Scope, projectID, canvasID, taskRunID string, state applicationcanvas.StoryboardSession, now time.Time) error {
-	row, err := r.get(ctx, scope, projectID, canvasID, taskRunID, true)
-	if err != nil {
-		return err
-	}
-	return r.saveRow(ctx, scope, row, state, now)
+	return r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		row, err := r.get(ctx, scope, projectID, canvasID, taskRunID, true)
+		if err != nil {
+			return err
+		}
+		return r.saveRow(ctx, scope, row, state, now)
+	})
 }
 
 func (r *Repository) saveRow(ctx context.Context, scope applicationcanvas.Scope, row nodeRow, state applicationcanvas.StoryboardSession, now time.Time) error {
@@ -178,13 +171,22 @@ func (r *Repository) saveRow(ctx context.Context, scope applicationcanvas.Scope,
 	if err != nil {
 		return err
 	}
-	result := scoped(r.dbFor(ctx).Model(&nodeRow{}), scope).
-		Where("id = ? AND project_id = ? AND canvas_id = ? AND type = ? AND deleted_at = 0", row.ID, row.ProjectID, row.CanvasID, domaincanvas.NodeTypeStoryboardDraft).
-		Updates(map[string]any{"node_data": encoded, "updated_at": now.UTC(), "updated_by": scope.CallerID})
-	if result.Error != nil {
-		return result.Error
+	affected, err := r.store.Queries(ctx).StoryboardSave(ctx, sqlc.StoryboardSaveParams{
+		NodeData:     encoded,
+		UpdatedAt:    now.UTC(),
+		CreatedBy:    scope.CallerID,
+		TenantID:     scope.TenantID,
+		WorkspaceID:  scope.WorkspaceID,
+		Type:         int16(domaincanvas.NodeTypeStoryboardDraft),
+		ID:           row.ID,
+		FilterCanvas: true,
+		ProjectID:    row.ProjectID,
+		CanvasID:     row.CanvasID,
+	})
+	if err != nil {
+		return err
 	}
-	if result.RowsAffected != 1 {
+	if affected != 1 {
 		return applicationcanvas.ErrStoryboardNotFound
 	}
 	return nil
@@ -195,20 +197,30 @@ func (r *Repository) get(ctx context.Context, scope applicationcanvas.Scope, pro
 	if err != nil {
 		return nodeRow{}, applicationcanvas.ErrStoryboardNotFound
 	}
-	query := scoped(r.dbFor(ctx), scope).Where("id = ? AND created_by = ? AND type = ? AND deleted_at = 0", id, scope.CallerID, domaincanvas.NodeTypeStoryboardDraft)
+	args := sqlc.StoryboardGetParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		CreatedBy:   scope.CallerID,
+		Type:        int16(domaincanvas.NodeTypeStoryboardDraft),
+		ID:          id.String(),
+	}
 	if projectID != "" && canvasID != "" {
-		project, canvas, parseErr := parseScopeIDs(projectID, canvasID)
-		if parseErr != nil {
+		p, c, e := parseScopeIDs(projectID, canvasID)
+		if e != nil {
 			return nodeRow{}, applicationcanvas.ErrStoryboardNotFound
 		}
-		query = query.Where("project_id = ? AND canvas_id = ?", project, canvas)
-	}
-	if lock {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		args.FilterCanvas = true
+		args.ProjectID = p.String()
+		args.CanvasID = c.String()
 	}
 	var row nodeRow
-	if err = query.First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	if lock {
+		row, err = r.store.Queries(ctx).StoryboardGetLocked(ctx, sqlc.StoryboardGetLockedParams(args))
+	} else {
+		row, err = r.store.Queries(ctx).StoryboardGet(ctx, args)
+	}
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nodeRow{}, applicationcanvas.ErrStoryboardNotFound
 		}
 		return nodeRow{}, err
@@ -225,8 +237,8 @@ func decodeState(row nodeRow) (applicationcanvas.StoryboardSession, error) {
 	if err := json.Unmarshal(document.Payload, &payload); err != nil {
 		return applicationcanvas.StoryboardSession{}, err
 	}
-	if payload.Version != 1 || payload.Session.ID != row.ID.String() || payload.Session.ProjectID != row.ProjectID.String() ||
-		payload.Session.CanvasID != row.CanvasID.String() {
+	if payload.Version != 1 || payload.Session.ID != row.ID || payload.Session.ProjectID != row.ProjectID ||
+		payload.Session.CanvasID != row.CanvasID {
 		return applicationcanvas.StoryboardSession{}, fmt.Errorf("invalid storyboard draft node payload identity")
 	}
 	state := payload.Session
@@ -241,12 +253,4 @@ func parseScopeIDs(projectID, canvasID string) (persistenceid.UUID, persistencei
 	}
 	canvas, err := persistenceid.Parse(canvasID)
 	return project, canvas, err
-}
-
-func scoped(db *gorm.DB, scope applicationcanvas.Scope) *gorm.DB {
-	query := db.Where("tenant_id = ?", scope.TenantID)
-	if scope.WorkspaceID == nil {
-		return query.Where("workspace_id IS NULL")
-	}
-	return query.Where("workspace_id = ?", *scope.WorkspaceID)
 }

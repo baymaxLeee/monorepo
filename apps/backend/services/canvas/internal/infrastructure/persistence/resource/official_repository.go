@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"gorm.io/gorm"
+	"github.com/jackc/pgx/v5"
 
 	applicationresource "github.com/example/monorepo/canvas/internal/application/resource"
 	domainresource "github.com/example/monorepo/canvas/internal/domain/resource"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
 	scopelifecycle "github.com/example/monorepo/canvas/internal/infrastructure/persistence/scopelifecycle"
-	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 )
 
 // CreateOfficial 写入一条 OFFICIAL Resource 及其唯一 ResourceAsset。
@@ -23,6 +23,7 @@ import (
 //
 // 只由受信对账调用。并发物化由 (owner_type, owner_id, name, deleted_at) 唯一索引兜底：
 // 竞争的失败方收到 ErrNameConflict，重新读取即可看到胜出方物化的记录。
+
 func (r *Repository) CreateOfficial(
 	ctx context.Context, item domainresource.Resource, slot domainresource.ResourceAsset,
 ) error {
@@ -50,38 +51,59 @@ func (r *Repository) CreateOfficial(
 		return domainresource.ErrInvalidResourceAsset
 	}
 	row.ResourceAssetCount = 1
-	primaryID := slotID
-	row.PrimaryResourceAssetID = &primaryID
-	return persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		if err := scopelifecycle.LockActive(tx, item.TenantID, item.WorkspaceID); err != nil {
+	primary := slotID.String()
+	row.PrimaryResourceAssetID = &primary
+	return r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := scopelifecycle.LockActive(ctx, r.db, item.TenantID, item.WorkspaceID); err != nil {
 			return err
 		}
-		if err := tx.Create(&row).Error; err != nil {
+		if err := r.db.Queries(ctx).InsertResource(ctx, sqlc.InsertResourceParams{
+			DeletedAt:              row.DeletedAt,
+			ID:                     row.ID,
+			TenantID:               row.TenantID,
+			WorkspaceID:            row.WorkspaceID,
+			OwnerType:              row.OwnerType,
+			OwnerID:                row.OwnerID,
+			Type:                   row.Type,
+			Name:                   row.Name,
+			Description:            row.Description,
+			PrimaryResourceAssetID: row.PrimaryResourceAssetID,
+			Revision:               row.Revision,
+			ResourceAssetCount:     row.ResourceAssetCount,
+			CreatedBy:              row.CreatedBy,
+			CreatedAt:              row.CreatedAt,
+			UpdatedAt:              row.UpdatedAt,
+		}); err != nil {
 			return translateWriteError(err)
 		}
-		slotRow := resourceAssetRow{
-			ID: slotID, ResourceID: row.ID, Name: slot.Name, SequenceNo: slot.SequenceNo,
-			SourceType: int16(slot.SourceType), CurrentAssetID: currentAssetID,
-			MediaType: int16(slot.MediaType), Revision: slot.Revision,
-			CreatedAt: slot.CreatedAt, UpdatedAt: slot.UpdatedAt,
-		}
-		if err := tx.Create(&slotRow).Error; err != nil {
+		if err := r.db.Queries(ctx).InsertAssetSlot(ctx, sqlc.InsertAssetSlotParams{
+			ID:                     slotID.String(),
+			ResourceID:             row.ID,
+			Name:                   slot.Name,
+			SequenceNo:             slot.SequenceNo,
+			SourceType:             int16(slot.SourceType),
+			CurrentAssetID:         persistenceid.OptionalText(currentAssetID),
+			ImageGenerationDraftID: nil,
+			MediaType:              int16(slot.MediaType),
+			Revision:               slot.Revision,
+			CreatedAt:              slot.CreatedAt,
+			UpdatedAt:              slot.UpdatedAt,
+		}); err != nil {
 			return translateResourceAssetWriteError(err)
 		}
 		if currentAssetID == nil {
 			return nil
 		}
-		return translateResourceAssetWriteError(tx.Create(&resourceAssetRevisionRow{
-			ResourceAssetID: slotID, AssetID: *currentAssetID, MediaType: int16(slot.MediaType),
-			RevisionNo: 1, CreatedAt: slot.CreatedAt,
-		}).Error)
+		return translateResourceAssetWriteError(r.db.Queries(ctx).InsertSlotRevision(ctx, sqlc.InsertSlotRevisionParams{
+			ResourceAssetID: slotID.String(),
+			AssetID:         currentAssetID.String(),
+			MediaType:       int16(slot.MediaType),
+			RevisionNo:      1,
+			CreatedAt:       slot.CreatedAt,
+		}))
 	})
 }
 
-// GetOfficial 按 ID 读取一条 OFFICIAL Resource，不经过 Project 归属条件。
-//
-// 对账按 external asset ID 反查到 resource_id 后用它读取当前状态，因此这里不需要
-// Project 上下文；owner_type 条件确保对账永远不会误读或误改 PROJECT Resource。
 func (r *Repository) GetOfficial(
 	ctx context.Context, scope applicationresource.Scope, resourceID string,
 ) (domainresource.Resource, error) {
@@ -89,25 +111,20 @@ func (r *Repository) GetOfficial(
 	if err != nil {
 		return domainresource.Resource{}, applicationresource.ErrNotFound
 	}
-	var row resourceRow
-	err = persistencetransaction.DB(ctx, r.db).Model(&resourceRow{}).
-		Where("resources.id = ? AND resources.tenant_id = ? AND resources.owner_type = ?",
-			id, scope.TenantID, domainresource.OwnerOfficial).
-		Scopes(workspaceScope(scope.WorkspaceID)).First(&row).Error
+	row, err := r.db.Queries(ctx).ReadOfficialResource(ctx, sqlc.ReadOfficialResourceParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ID:          id.String(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainresource.Resource{}, applicationresource.ErrNotFound
+	}
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return domainresource.Resource{}, applicationresource.ErrNotFound
-		}
 		return domainresource.Resource{}, err
 	}
 	return domainFromRow(row), nil
 }
 
-// UpdateOfficial 就地更新 OFFICIAL Resource 的名称与简介。
-//
-// 只更新元信息：内容变化走 ResourceAsset 换版，不在这里改写。owner_type 条件使该方法
-// 不可能作用到 PROJECT Resource。tenant 和 workspace 条件与 GetOfficial
-// 保持一致，防止调用方传入其他作用域的 Resource 时越权更新。
 func (r *Repository) UpdateOfficial(
 	ctx context.Context, scope applicationresource.Scope, item domainresource.Resource,
 ) error {
@@ -115,19 +132,23 @@ func (r *Repository) UpdateOfficial(
 	if err != nil {
 		return applicationresource.ErrNotFound
 	}
-	result := persistencetransaction.DB(ctx, r.db).Model(&resourceRow{}).
-		Where("id = ? AND tenant_id = ? AND owner_type = ? AND revision = ?",
-			id, scope.TenantID, domainresource.OwnerOfficial, item.Revision-1).
-		Scopes(workspaceScope(scope.WorkspaceID)).
-		Updates(map[string]any{
-			"name": item.Name, "description": item.Description,
-			"revision": item.Revision, "updated_at": item.UpdatedAt,
+	return r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		n, err := r.db.Queries(ctx).ModifyOfficialResource(ctx, sqlc.ModifyOfficialResourceParams{
+			Name:             item.Name,
+			Description:      item.Description,
+			Revision:         item.Revision,
+			UpdatedAt:        item.UpdatedAt,
+			TenantID:         scope.TenantID,
+			WorkspaceID:      scope.WorkspaceID,
+			ID:               id.String(),
+			ExpectedRevision: item.Revision - 1,
 		})
-	if result.Error != nil {
-		return translateWriteError(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return applicationresource.ErrRevisionConflict
-	}
-	return nil
+		if err != nil {
+			return translateWriteError(err)
+		}
+		if n != 1 {
+			return applicationresource.ErrRevisionConflict
+		}
+		return nil
+	})
 }

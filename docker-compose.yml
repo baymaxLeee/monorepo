@@ -29,6 +29,9 @@ services:
       context: .
       dockerfile: apps/backend/services/runtime/sandbox-assets/proxy/Dockerfile
     profiles: [sandbox]
+    environment:
+      SANDBOX_EGRESS_MODE: ${SANDBOX_EGRESS_MODE-allowlist}
+      SANDBOX_EGRESS_EXTRA_DOMAINS: ${SANDBOX_EGRESS_EXTRA_DOMAINS:-}
     volumes:
       - sandbox_egress:/run/egress
     networks: [sandbox_egress]

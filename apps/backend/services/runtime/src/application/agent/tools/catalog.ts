@@ -1,3 +1,4 @@
+import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
 import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@repo/agent-runtime/tools/manifest";
 import { primaryAgentToolProfile, resolveAgentToolProfile } from "@repo/agent-runtime/tools/profile";
@@ -85,6 +86,7 @@ export class ToolCatalog {
     codeModeTools: string[];
     manifests: AgentToolManifest[];
     contributions: InstructionContributions;
+    environment: ExecutionEnvironment;
     dispose: () => Promise<void>;
   }> {
     const portableTools = createPortableToolRegistry({
@@ -173,6 +175,7 @@ export class ToolCatalog {
         codeModeTools,
         manifests,
         contributions: { capabilities, skills },
+        environment: cloudAdapters.environment,
         dispose: async () => {
           await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
         },

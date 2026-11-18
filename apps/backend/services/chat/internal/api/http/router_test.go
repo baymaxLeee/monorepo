@@ -34,6 +34,9 @@ func (stub repositoryStub) Get(_ context.Context, scope application.AuthContext,
 func (repositoryStub) UpdateTitle(context.Context, application.AuthContext, string, string) (*application.Conversation, error) {
 	return nil, nil
 }
+func (repositoryStub) UpdateTitleIfDefault(context.Context, application.AuthContext, string, string) (*application.Conversation, error) {
+	return nil, nil
+}
 func (repositoryStub) Delete(context.Context, application.AuthContext, string) (*application.Conversation, error) {
 	return nil, nil
 }

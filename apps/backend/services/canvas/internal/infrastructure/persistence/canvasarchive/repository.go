@@ -8,27 +8,22 @@ import (
 	"sort"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	app "github.com/example/monorepo/canvas/internal/application/canvasarchive"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domaincanvas "github.com/example/monorepo/canvas/internal/domain/canvas"
 	"github.com/example/monorepo/canvas/internal/domain/task"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Repository struct{ db *gorm.DB }
+type Repository struct{ store *persistencetransaction.Store }
 
 const terminalAssociationCleanupGrace = 30 * time.Minute
 
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
-
-func (r *Repository) dbFor(ctx context.Context) *gorm.DB {
-	return persistencetransaction.DB(ctx, r.db)
-}
-
+func NewRepository(store *persistencetransaction.Store) *Repository { return &Repository{store: store} }
 func (r *Repository) Create(ctx context.Context, export app.Export, inputs []app.Input) error {
 	row, err := exportToRow(export)
 	if err != nil {
@@ -39,11 +34,12 @@ func (r *Repository) Create(ctx context.Context, export app.Export, inputs []app
 	if err != nil {
 		return err
 	}
-	return r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&row).Error; err != nil {
+	return r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		db := r.store.Queries(ctx)
+		if err := db.ArchiveCreate(ctx, sqlc.ArchiveCreateParams(row)); err != nil {
 			return err
 		}
-		return tx.Create(&inputRow).Error
+		return db.ArchiveCreateInputs(ctx, sqlc.ArchiveCreateInputsParams(inputRow))
 	})
 }
 
@@ -60,14 +56,15 @@ func (r *Repository) Get(
 	if projectErr != nil || canvasErr != nil || runErr != nil || scope.TenantID == "" {
 		return app.Export{}, app.ErrNotFound
 	}
-	var row canvasVideoArchiveExportRow
-	query := r.dbFor(ctx).Where(
-		"task_run_id = ? AND tenant_id = ? AND project_id = ? AND canvas_id = ?",
-		run, scope.TenantID, project, canvas,
-	)
-	query = applyWorkspaceScope(query, scope.WorkspaceID)
-	if err := query.First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := r.store.Queries(ctx).ArchiveGet(ctx, sqlc.ArchiveGetParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+		ID:          run.String(),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return app.Export{}, app.ErrNotFound
 		}
 		return app.Export{}, err
@@ -80,9 +77,9 @@ func (r *Repository) GetByTaskRunID(ctx context.Context, taskRunID string) (app.
 	if err != nil {
 		return app.Export{}, app.ErrNotFound
 	}
-	var row canvasVideoArchiveExportRow
-	if err = r.dbFor(ctx).Where("task_run_id = ?", run).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := r.store.Queries(ctx).ArchiveByID(ctx, run.String())
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return app.Export{}, app.ErrNotFound
 		}
 		return app.Export{}, err
@@ -96,7 +93,7 @@ func (r *Repository) BatchGet(ctx context.Context, scope app.Scope, projectID, c
 	if projectErr != nil || canvasErr != nil || scope.TenantID == "" || len(taskRunIDs) == 0 {
 		return []app.Export{}, nil
 	}
-	ids := make([]persistenceid.UUID, 0, len(taskRunIDs))
+	ids := make([]string, 0, len(taskRunIDs))
 	order := make([]string, 0, len(taskRunIDs))
 	seen := make(map[string]struct{}, len(taskRunIDs))
 	for _, value := range taskRunIDs {
@@ -109,18 +106,20 @@ func (r *Repository) BatchGet(ctx context.Context, scope app.Scope, projectID, c
 			continue
 		}
 		seen[key] = struct{}{}
-		ids = append(ids, id)
+		ids = append(ids, key)
 		order = append(order, key)
 	}
 	if len(ids) == 0 {
 		return []app.Export{}, nil
 	}
-	var rows []canvasVideoArchiveExportRow
-	query := r.dbFor(ctx).Where(
-		"tenant_id = ? AND project_id = ? AND canvas_id = ? AND task_run_id IN ?", scope.TenantID, project, canvas, ids,
-	)
-	query = applyWorkspaceScope(query, scope.WorkspaceID)
-	if err := query.Find(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).ArchiveBatch(ctx, sqlc.ArchiveBatchParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+		Ids:         ids,
+	})
+	if err != nil {
 		return nil, err
 	}
 	byID := make(map[string]app.Export, len(rows))
@@ -143,23 +142,30 @@ func (r *Repository) List(ctx context.Context, query app.ListQuery) ([]app.Expor
 	if projectErr != nil || canvasErr != nil || query.TenantID == "" {
 		return nil, 0, app.ErrNotFound
 	}
-	db := r.dbFor(ctx)
-	base := db.Model(&canvasVideoArchiveExportRow{}).Where(
-		"tenant_id = ? AND project_id = ? AND canvas_id = ?", query.TenantID, project, canvas,
-	)
-	base = applyWorkspaceScope(base, query.WorkspaceID)
-	var total int64
-	if err := base.Count(&total).Error; err != nil {
+	total, err := r.store.Queries(ctx).ArchiveCount(ctx, sqlc.ArchiveCountParams{
+		TenantID:    query.TenantID,
+		WorkspaceID: query.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+	})
+	if err != nil {
 		return nil, 0, err
 	}
-	direction := "DESC"
-	if query.SortDirection == app.SortAscending {
-		direction = "ASC"
+	args := sqlc.ArchiveListAscParams{
+		TenantID:    query.TenantID,
+		WorkspaceID: query.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+		PageSize:    int32(query.PageSize),
+		PageOffset:  int32((query.PageNum - 1) * query.PageSize),
 	}
 	var rows []canvasVideoArchiveExportRow
-	offset := (query.PageNum - 1) * query.PageSize
-	if err := base.Order("created_at " + direction).Order("task_run_id " + direction).
-		Offset(offset).Limit(query.PageSize).Find(&rows).Error; err != nil {
+	if query.SortDirection == app.SortAscending {
+		rows, err = r.store.Queries(ctx).ArchiveListAsc(ctx, args)
+	} else {
+		rows, err = r.store.Queries(ctx).ArchiveListDesc(ctx, sqlc.ArchiveListDescParams(args))
+	}
+	if err != nil {
 		return nil, 0, err
 	}
 	items := make([]app.Export, 0, len(rows))
@@ -175,14 +181,14 @@ func (r *Repository) FindActive(ctx context.Context, scope app.Scope, projectID,
 	if projectErr != nil || canvasErr != nil || scope.TenantID == "" {
 		return app.Export{}, app.ErrNotFound
 	}
-	var row canvasVideoArchiveExportRow
-	query := r.dbFor(ctx).Where(
-		"tenant_id = ? AND project_id = ? AND canvas_id = ? AND status IN ?",
-		scope.TenantID, project, canvas, []string{string(task.StatusQueued), string(task.StatusRunning)},
-	)
-	query = applyWorkspaceScope(query, scope.WorkspaceID)
-	if err := query.Order("created_at DESC").First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := r.store.Queries(ctx).ArchiveActive(ctx, sqlc.ArchiveActiveParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return app.Export{}, app.ErrNotFound
 		}
 		return app.Export{}, err
@@ -190,65 +196,42 @@ func (r *Repository) FindActive(ctx context.Context, scope app.Scope, projectID,
 	return exportFromRow(row), nil
 }
 
-func (r *Repository) SnapshotSelectedVideos(ctx context.Context, scope app.Scope, projectID, canvasID string) ([]app.SelectedVideo, error) {
+func (r *Repository) SnapshotSelectedVideos(ctx context.Context, scope app.Scope, projectID, canvasID string) (selected []app.SelectedVideo, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		selected, err = r.snapshotSelectedVideosInTransaction(ctx, scope, projectID, canvasID)
+		return err
+	})
+	return
+}
+
+func (r *Repository) snapshotSelectedVideosInTransaction(ctx context.Context, scope app.Scope, projectID, canvasID string) ([]app.SelectedVideo, error) {
 	project, projectErr := persistenceid.Parse(projectID)
 	canvas, canvasErr := persistenceid.Parse(canvasID)
 	if projectErr != nil || canvasErr != nil || scope.TenantID == "" {
 		return nil, app.ErrNotFound
 	}
-	db := r.dbFor(ctx)
-	lock := db.Model(&archiveCanvasScopeRow{}).Clauses(clause.Locking{Strength: "UPDATE"}).Where(
-		"id = ? AND tenant_id = ? AND project_id = ? AND deleted_at = 0", canvas, scope.TenantID, project,
-	)
-	lock = applyWorkspaceScope(lock, scope.WorkspaceID)
-	var canvasRow archiveCanvasScopeRow
-	if err := lock.First(&canvasRow).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	canvasName, err := r.store.Queries(ctx).ArchiveLockCanvas(ctx, sqlc.ArchiveLockCanvasParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project.String(),
+		ID:          canvas.String(),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, app.ErrNotFound
 		}
 		return nil, err
 	}
-
-	join := "LEFT JOIN canvas_node_generations AS generations ON generations.task_run_id = canvas_nodes.selected_output_id " +
-		"AND generations.tenant_id = canvas_nodes.tenant_id AND generations.project_id = canvas_nodes.project_id " +
-		"AND generations.canvas_id = canvas_nodes.canvas_id AND generations.node_id = canvas_nodes.id"
-	joinArgs := make([]any, 0, 1)
-	if scope.WorkspaceID == nil {
-		join += " AND generations.workspace_id IS NULL"
-	} else {
-		join += " AND generations.workspace_id = ?"
-		joinArgs = append(joinArgs, *scope.WorkspaceID)
-	}
-	assetJoin := "LEFT JOIN assets AS generation_assets ON generation_assets.id = generations.asset_id " +
-		"AND generation_assets.id = canvas_nodes.selected_asset_id " +
-		"AND generation_assets.tenant_id = generations.tenant_id " +
-		"AND generation_assets.owner_type = ? AND generation_assets.owner_id = canvas_nodes.project_id " +
-		"AND generation_assets.media_type = ? AND generation_assets.deleted_at = 0"
-	assetJoinArgs := []any{domainasset.OwnerProject, domainasset.MediaVideo}
-	if scope.WorkspaceID == nil {
-		assetJoin += " AND generation_assets.workspace_id IS NULL"
-	} else {
-		assetJoin += " AND generation_assets.workspace_id = ?"
-		assetJoinArgs = append(assetJoinArgs, *scope.WorkspaceID)
-	}
-	var rows []selectedVideoSnapshotRow
-	query := db.Table("canvas_nodes").Select(
-		"canvas_nodes.id AS node_id, canvas_nodes.selected_output_id AS output_id, "+
-			"canvas_nodes.selected_asset_id AS asset_id, generation_assets.source_asset_id, "+
-			"generation_assets.source_revision_id, generation_assets.size_bytes AS media_size, "+
-			"generations.status AS generation_status",
-	).Joins(
-		join, joinArgs...,
-	).Joins(assetJoin, assetJoinArgs...).Where(
-		"canvas_nodes.tenant_id = ? AND canvas_nodes.project_id = ? AND canvas_nodes.canvas_id = ? AND canvas_nodes.type = ? AND canvas_nodes.deleted_at = 0 AND canvas_nodes.selected_output_id IS NOT NULL",
-		scope.TenantID, project, canvas, domaincanvas.NodeTypeVideoGeneration,
-	)
-	if scope.WorkspaceID == nil {
-		query = query.Where("canvas_nodes.workspace_id IS NULL")
-	} else {
-		query = query.Where("canvas_nodes.workspace_id = ?", *scope.WorkspaceID)
-	}
-	if err := query.Order("canvas_nodes.storyboard_rank ASC").Order("canvas_nodes.id ASC").Scan(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).ArchiveSnapshot(ctx, sqlc.ArchiveSnapshotParams{
+		OwnerType:   int16(domainasset.OwnerProject),
+		MediaType:   int16(domainasset.MediaVideo),
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+		Type:        int16(domaincanvas.NodeTypeVideoGeneration),
+	})
+	if err != nil {
 		return nil, err
 	}
 	selected := make([]app.SelectedVideo, 0, len(rows))
@@ -258,110 +241,123 @@ func (r *Repository) SnapshotSelectedVideos(ctx context.Context, scope app.Scope
 			return nil, app.ErrSelectedVideoUnavailable
 		}
 		selected = append(selected, app.SelectedVideo{
-			CanvasName: canvasRow.Name, NodeID: row.NodeID.String(), OutputID: row.OutputID.String(),
-			AssetID: optionalUUIDString(row.AssetID), SourceAssetID: *row.SourceAssetID,
+			CanvasName: canvasName, NodeID: row.NodeID, OutputID: *row.OutputID,
+			AssetID: nullableStringValue(row.AssetID), SourceAssetID: *row.SourceAssetID,
 			SourceRevisionID: nullableStringValue(row.SourceRevisionID), MediaSize: row.MediaSize,
 		})
 	}
 	return selected, nil
 }
 
-func (r *Repository) UpdateLifecycle(ctx context.Context, taskRunID string, expectedStatus task.Status, update app.LifecycleUpdate, now time.Time) (bool, error) {
-	run, err := persistenceid.Parse(taskRunID)
-	if err != nil {
-		return false, err
-	}
-	updates := map[string]any{
-		"status": update.Status, "error_code": update.ErrorCode, "error_message": update.ErrorMessage,
-		"updated_at": now,
-	}
-	if update.StartedAt != nil {
-		updates["started_at"] = *update.StartedAt
-	}
-	if update.FinishedAt != nil {
-		updates["finished_at"] = *update.FinishedAt
-	}
-	if update.Status == task.StatusFailed || update.Status == task.StatusCancelled {
-		// A LongLive request may have succeeded before the worker could commit a
-		// terminal result. Once the run stops retrying, any persisted association
-		// checkpoint must become immediately eligible for release.
-		updates["cleanup_status"] = gorm.Expr(
-			"CASE WHEN output_sha256 <> '' THEN ? ELSE cleanup_status END", app.CleanupStatusPending,
-		)
-		updates["cleanup_next_at"] = gorm.Expr(
-			"CASE WHEN output_sha256 <> '' THEN ? ELSE cleanup_next_at END", now.Add(terminalAssociationCleanupGrace),
-		)
-	}
-	result := r.dbFor(ctx).Model(&canvasVideoArchiveExportRow{}).Where(
-		"task_run_id = ? AND status = ?", run, string(expectedStatus),
-	).Updates(updates)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
-}
-
-func (r *Repository) RecordOutput(ctx context.Context, taskRunID string, expectedStatus task.Status, result app.SuccessResult, now time.Time) (bool, error) {
-	run, err := persistenceid.Parse(taskRunID)
-	if err != nil {
-		return false, err
-	}
-	update := r.dbFor(ctx).Model(&canvasVideoArchiveExportRow{}).Where(
-		"task_run_id = ? AND status = ? AND output_asset_id = '' AND output_revision_id = ''", run, string(expectedStatus),
-	).Updates(map[string]any{
-		"output_asset_id": result.AssetID, "output_revision_id": result.RevisionID, "output_size": result.Size, "output_sha256": result.SHA256,
-		"upload_id": result.UploadID, "part_size": result.PartSize,
-		"retention_started_at": result.RetentionStartedAt, "updated_at": now,
+func (r *Repository) UpdateLifecycle(ctx context.Context, taskRunID string, expectedStatus task.Status, update app.LifecycleUpdate, now time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.updateLifecycleInTransaction(ctx, taskRunID, expectedStatus, update, now)
+		return err
 	})
-	if update.Error != nil {
-		return false, update.Error
-	}
-	return update.RowsAffected == 1, nil
+	return
 }
 
-func (r *Repository) CommitSuccess(ctx context.Context, taskRunID string, expectedStatus task.Status, result app.SuccessResult, retentionUntil, now time.Time) (bool, error) {
+func (r *Repository) updateLifecycleInTransaction(ctx context.Context, taskRunID string, expectedStatus task.Status, update app.LifecycleUpdate, now time.Time) (bool, error) {
 	run, err := persistenceid.Parse(taskRunID)
 	if err != nil {
 		return false, err
 	}
-	update := r.dbFor(ctx).Model(&canvasVideoArchiveExportRow{}).Where(
-		"task_run_id = ? AND status = ?", run, string(expectedStatus),
-	).Updates(map[string]any{
-		"status": task.StatusSucceeded, "output_asset_id": result.AssetID, "output_revision_id": result.RevisionID, "output_size": result.Size,
-		"output_sha256": result.SHA256, "upload_id": result.UploadID, "part_size": result.PartSize,
-		"retention_started_at": result.RetentionStartedAt, "retention_guaranteed_until": retentionUntil,
-		"cleanup_status": app.CleanupStatusPending, "cleanup_next_at": retentionUntil,
-		"finished_at": now, "updated_at": now,
+	cleanupNext := now.Add(terminalAssociationCleanupGrace)
+	affected, err := r.store.Queries(ctx).ArchiveLifecycle(ctx, sqlc.ArchiveLifecycleParams{
+		Status:        string(update.Status),
+		ErrorCode:     update.ErrorCode,
+		ErrorMessage:  update.ErrorMessage,
+		UpdatedAt:     now,
+		StartedAt:     optionalTime(update.StartedAt),
+		FinishedAt:    optionalTime(update.FinishedAt),
+		CleanupNextAt: &cleanupNext,
+		ID:            run.String(),
+		Expected:      string(expectedStatus),
 	})
-	if update.Error != nil {
-		return false, update.Error
-	}
-	return update.RowsAffected == 1, nil
+	return affected == 1, err
 }
 
-func (r *Repository) ClaimCleanupDue(ctx context.Context, now, leaseUntil time.Time, limit int) ([]app.Export, error) {
+func (r *Repository) RecordOutput(ctx context.Context, taskRunID string, expectedStatus task.Status, result app.SuccessResult, now time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.recordOutputInTransaction(ctx, taskRunID, expectedStatus, result, now)
+		return err
+	})
+	return
+}
+
+func (r *Repository) recordOutputInTransaction(ctx context.Context, taskRunID string, expectedStatus task.Status, result app.SuccessResult, now time.Time) (bool, error) {
+	run, err := persistenceid.Parse(taskRunID)
+	if err != nil {
+		return false, err
+	}
+	affected, err := r.store.Queries(ctx).ArchiveOutput(ctx, sqlc.ArchiveOutputParams{
+		OutputAssetID:      result.AssetID,
+		OutputRevisionID:   result.RevisionID,
+		OutputSize:         result.Size,
+		OutputSha256:       result.SHA256,
+		UploadID:           result.UploadID,
+		PartSize:           result.PartSize,
+		RetentionStartedAt: &result.RetentionStartedAt,
+		UpdatedAt:          now,
+		ID:                 run.String(),
+		Expected:           string(expectedStatus),
+	})
+	return affected == 1, err
+}
+
+func (r *Repository) CommitSuccess(ctx context.Context, taskRunID string, expectedStatus task.Status, result app.SuccessResult, retentionUntil, now time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.commitSuccessInTransaction(ctx, taskRunID, expectedStatus, result, retentionUntil, now)
+		return err
+	})
+	return
+}
+
+func (r *Repository) commitSuccessInTransaction(ctx context.Context, taskRunID string, expectedStatus task.Status, result app.SuccessResult, retentionUntil, now time.Time) (bool, error) {
+	run, err := persistenceid.Parse(taskRunID)
+	if err != nil {
+		return false, err
+	}
+	affected, err := r.store.Queries(ctx).ArchiveSuccess(ctx, sqlc.ArchiveSuccessParams{
+		OutputAssetID:      result.AssetID,
+		OutputRevisionID:   result.RevisionID,
+		OutputSize:         result.Size,
+		OutputSha256:       result.SHA256,
+		UploadID:           result.UploadID,
+		PartSize:           result.PartSize,
+		RetentionStartedAt: &result.RetentionStartedAt,
+		UpdatedAt:          now,
+		Until:              &retentionUntil,
+		ID:                 run.String(),
+		Expected:           string(expectedStatus),
+	})
+	return affected == 1, err
+}
+
+func (r *Repository) ClaimCleanupDue(ctx context.Context, now, leaseUntil time.Time, limit int) (claimed []app.Export, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		claimed, err = r.claimCleanupDueInTransaction(ctx, now, leaseUntil, limit)
+		return err
+	})
+	return
+}
+
+func (r *Repository) claimCleanupDueInTransaction(ctx context.Context, now, leaseUntil time.Time, limit int) ([]app.Export, error) {
 	if limit <= 0 {
 		return []app.Export{}, nil
 	}
-	db := r.dbFor(ctx)
-	var candidates []canvasVideoArchiveExportRow
-	if err := db.Where(
-		"cleanup_status = ? AND cleanup_next_at <= ? AND (cleanup_lease_until IS NULL OR cleanup_lease_until <= ?)",
-		string(app.CleanupStatusPending), now, now,
-	).Order("cleanup_next_at ASC").Order("task_run_id ASC").Limit(limit).Find(&candidates).Error; err != nil {
+	candidates, err := r.store.Queries(ctx).ArchiveDue(ctx, sqlc.ArchiveDueParams{Now: &now, PageSize: int32(limit)})
+	if err != nil {
 		return nil, err
 	}
 	claimed := make([]app.Export, 0, len(candidates))
 	for index := range candidates {
 		row := candidates[index]
-		update := db.Model(&canvasVideoArchiveExportRow{}).Where(
-			"task_run_id = ? AND cleanup_state_version = ? AND cleanup_status = ? AND (cleanup_lease_until IS NULL OR cleanup_lease_until <= ?)",
-			row.TaskRunID, row.CleanupStateVersion, string(app.CleanupStatusPending), now,
-		).Updates(map[string]any{"cleanup_lease_until": leaseUntil, "cleanup_state_version": row.CleanupStateVersion + 1, "updated_at": now})
-		if update.Error != nil {
-			return nil, update.Error
+		affected, err := r.store.Queries(ctx).ArchiveClaim(ctx, sqlc.ArchiveClaimParams{LeaseUntil: &leaseUntil, UpdatedAt: now, ID: row.TaskRunID, Version: row.CleanupStateVersion})
+		if err != nil {
+			return nil, err
 		}
-		if update.RowsAffected != 1 {
+		if affected != 1 {
 			continue
 		}
 		row.CleanupLeaseUntil = &leaseUntil
@@ -372,35 +368,38 @@ func (r *Repository) ClaimCleanupDue(ctx context.Context, now, leaseUntil time.T
 	return claimed, nil
 }
 
-func (r *Repository) CompleteCleanup(ctx context.Context, item app.Export, now time.Time) (bool, error) {
-	run, err := persistenceid.Parse(item.TaskRunID)
-	if err != nil {
-		return false, err
-	}
-	update := r.dbFor(ctx).Model(&canvasVideoArchiveExportRow{}).Where(
-		"task_run_id = ? AND cleanup_state_version = ? AND cleanup_status = ?", run, item.CleanupStateVersion, string(app.CleanupStatusPending),
-	).Updates(map[string]any{"cleanup_status": app.CleanupStatusCompleted, "cleanup_lease_until": nil, "cleanup_state_version": item.CleanupStateVersion + 1, "updated_at": now})
-	if update.Error != nil {
-		return false, update.Error
-	}
-	return update.RowsAffected == 1, nil
+func (r *Repository) CompleteCleanup(ctx context.Context, item app.Export, now time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.completeCleanupInTransaction(ctx, item, now)
+		return err
+	})
+	return
 }
 
-func (r *Repository) RescheduleCleanup(ctx context.Context, item app.Export, next time.Time, message string, now time.Time) (bool, error) {
+func (r *Repository) completeCleanupInTransaction(ctx context.Context, item app.Export, now time.Time) (bool, error) {
 	run, err := persistenceid.Parse(item.TaskRunID)
 	if err != nil {
 		return false, err
 	}
-	update := r.dbFor(ctx).Model(&canvasVideoArchiveExportRow{}).Where(
-		"task_run_id = ? AND cleanup_state_version = ? AND cleanup_status = ?", run, item.CleanupStateVersion, string(app.CleanupStatusPending),
-	).Updates(map[string]any{
-		"cleanup_next_at": next, "cleanup_lease_until": nil, "cleanup_state_version": item.CleanupStateVersion + 1,
-		"cleanup_attempts": item.CleanupAttempts + 1, "cleanup_last_error": message, "updated_at": now,
+	affected, err := r.store.Queries(ctx).ArchiveComplete(ctx, sqlc.ArchiveCompleteParams{UpdatedAt: now, ID: run.String(), Version: item.CleanupStateVersion})
+	return affected == 1, err
+}
+
+func (r *Repository) RescheduleCleanup(ctx context.Context, item app.Export, next time.Time, message string, now time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.rescheduleCleanupInTransaction(ctx, item, next, message, now)
+		return err
 	})
-	if update.Error != nil {
-		return false, update.Error
+	return
+}
+
+func (r *Repository) rescheduleCleanupInTransaction(ctx context.Context, item app.Export, next time.Time, message string, now time.Time) (bool, error) {
+	run, err := persistenceid.Parse(item.TaskRunID)
+	if err != nil {
+		return false, err
 	}
-	return update.RowsAffected == 1, nil
+	affected, err := r.store.Queries(ctx).ArchiveReschedule(ctx, sqlc.ArchiveRescheduleParams{Next: &next, Message: message, UpdatedAt: now, ID: run.String(), Version: item.CleanupStateVersion})
+	return affected == 1, err
 }
 
 func (r *Repository) ListInputs(ctx context.Context, taskRunID string) ([]app.Input, error) {
@@ -408,9 +407,9 @@ func (r *Repository) ListInputs(ctx context.Context, taskRunID string) ([]app.In
 	if err != nil {
 		return []app.Input{}, nil
 	}
-	var row canvasVideoArchiveExportInputRow
-	if err := r.dbFor(ctx).Where("task_run_id = ?", run).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := r.store.Queries(ctx).ArchiveInputs(ctx, run.String())
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return []app.Input{}, nil
 		}
 		return nil, err
@@ -418,11 +417,11 @@ func (r *Repository) ListInputs(ctx context.Context, taskRunID string) ([]app.In
 	return inputsFromRow(row)
 }
 
-func applyWorkspaceScope(query *gorm.DB, workspaceID *string) *gorm.DB {
-	if workspaceID == nil {
-		return query.Where("workspace_id IS NULL")
+func optionalTime(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
 	}
-	return query.Where("workspace_id = ?", *workspaceID)
+	return pgtype.Timestamptz{Time: *t, Valid: true}
 }
 
 func exportToRow(item app.Export) (canvasVideoArchiveExportRow, error) {
@@ -439,11 +438,11 @@ func exportToRow(item app.Export) (canvasVideoArchiveExportRow, error) {
 		return canvasVideoArchiveExportRow{}, err
 	}
 	return canvasVideoArchiveExportRow{
-		TaskRunID: run, TenantID: item.TenantID, WorkspaceID: item.WorkspaceID,
-		ProjectID: project, CanvasID: canvas, Status: string(item.Status),
+		TaskRunID: run.String(), TenantID: item.TenantID, WorkspaceID: item.WorkspaceID,
+		ProjectID: project.String(), CanvasID: canvas.String(), Status: string(item.Status),
 		ErrorCode: item.ErrorCode, ErrorMessage: item.ErrorMessage, InputCount: item.InputCount,
 		OutputFilename: item.OutputFilename, OutputAssetID: item.OutputAssetID, OutputRevisionID: item.OutputRevisionID, OutputSize: item.OutputSize,
-		OutputSHA256: item.OutputSHA256, UploadID: item.UploadID, PartSize: item.PartSize,
+		OutputSha256: item.OutputSHA256, UploadID: item.UploadID, PartSize: item.PartSize,
 		CreatedBy: item.CreatedBy, RetentionStartedAt: item.RetentionStartedAt,
 		RetentionGuaranteedUntil: item.RetentionGuaranteedUntil, CleanupStatus: string(item.CleanupStatus),
 		CleanupNextAt: item.CleanupNextAt, CleanupLeaseUntil: item.CleanupLeaseUntil,
@@ -455,11 +454,11 @@ func exportToRow(item app.Export) (canvasVideoArchiveExportRow, error) {
 
 func exportFromRow(row canvasVideoArchiveExportRow) app.Export {
 	return app.Export{
-		TaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID,
-		ProjectID: row.ProjectID.String(), CanvasID: row.CanvasID.String(), Status: task.Status(row.Status),
+		TaskRunID: row.TaskRunID, TenantID: row.TenantID, WorkspaceID: row.WorkspaceID,
+		ProjectID: row.ProjectID, CanvasID: row.CanvasID, Status: task.Status(row.Status),
 		ErrorCode: row.ErrorCode, ErrorMessage: row.ErrorMessage, InputCount: row.InputCount,
 		OutputFilename: row.OutputFilename, OutputAssetID: row.OutputAssetID, OutputRevisionID: row.OutputRevisionID, OutputSize: row.OutputSize,
-		OutputSHA256: row.OutputSHA256, UploadID: row.UploadID, PartSize: row.PartSize,
+		OutputSHA256: row.OutputSha256, UploadID: row.UploadID, PartSize: row.PartSize,
 		CreatedBy: row.CreatedBy, RetentionStartedAt: row.RetentionStartedAt,
 		RetentionGuaranteedUntil: row.RetentionGuaranteedUntil, CleanupStatus: app.CleanupStatus(row.CleanupStatus),
 		CleanupNextAt: row.CleanupNextAt, CleanupLeaseUntil: row.CleanupLeaseUntil,
@@ -520,16 +519,16 @@ func inputsToRow(taskRunID string, inputs []app.Input, createdAt time.Time) (can
 	if err != nil {
 		return canvasVideoArchiveExportInputRow{}, fmt.Errorf("encode archive input snapshot: %w", err)
 	}
-	return canvasVideoArchiveExportInputRow{TaskRunID: run, Inputs: payload, CreatedAt: createdAt}, nil
+	return canvasVideoArchiveExportInputRow{TaskRunID: run.String(), Inputs: payload, CreatedAt: createdAt}, nil
 }
 
 func inputsFromRow(row canvasVideoArchiveExportInputRow) ([]app.Input, error) {
 	var snapshots []archiveInputSnapshot
 	if err := json.Unmarshal(row.Inputs, &snapshots); err != nil {
-		return nil, fmt.Errorf("decode archive input snapshot for task run %s: %w", row.TaskRunID.String(), err)
+		return nil, fmt.Errorf("decode archive input snapshot for task run %s: %w", row.TaskRunID, err)
 	}
 	if snapshots == nil {
-		return nil, fmt.Errorf("decode archive input snapshot for task run %s: expected JSON array", row.TaskRunID.String())
+		return nil, fmt.Errorf("decode archive input snapshot for task run %s: expected JSON array", row.TaskRunID)
 	}
 	items := make([]app.Input, 0, len(snapshots))
 	ordinals := make(map[int32]struct{}, len(snapshots))
@@ -537,23 +536,23 @@ func inputsFromRow(row canvasVideoArchiveExportInputRow) ([]app.Input, error) {
 	for index := range snapshots {
 		snapshot := snapshots[index]
 		if _, exists := ordinals[snapshot.Ordinal]; exists {
-			return nil, fmt.Errorf("decode archive input snapshot for task run %s: duplicate ordinal %d", row.TaskRunID.String(), snapshot.Ordinal)
+			return nil, fmt.Errorf("decode archive input snapshot for task run %s: duplicate ordinal %d", row.TaskRunID, snapshot.Ordinal)
 		}
 		ordinals[snapshot.Ordinal] = struct{}{}
 		nodeID, err := persistenceid.Parse(snapshot.NodeID)
 		if err != nil {
-			return nil, fmt.Errorf("decode archive input snapshot for task run %s: invalid node ID: %w", row.TaskRunID.String(), err)
+			return nil, fmt.Errorf("decode archive input snapshot for task run %s: invalid node ID: %w", row.TaskRunID, err)
 		}
 		outputID, err := persistenceid.Parse(snapshot.OutputID)
 		if err != nil {
-			return nil, fmt.Errorf("decode archive input snapshot for task run %s: invalid output ID: %w", row.TaskRunID.String(), err)
+			return nil, fmt.Errorf("decode archive input snapshot for task run %s: invalid output ID: %w", row.TaskRunID, err)
 		}
 		assetID, err := persistenceid.ParseOptional(snapshot.AssetID)
 		if err != nil {
-			return nil, fmt.Errorf("decode archive input snapshot for task run %s: invalid asset ID: %w", row.TaskRunID.String(), err)
+			return nil, fmt.Errorf("decode archive input snapshot for task run %s: invalid asset ID: %w", row.TaskRunID, err)
 		}
 		items = append(items, app.Input{
-			TaskRunID: row.TaskRunID.String(), Ordinal: snapshot.Ordinal,
+			TaskRunID: row.TaskRunID, Ordinal: snapshot.Ordinal,
 			NodeID: nodeID.String(), OutputID: outputID.String(), AssetID: optionalUUIDString(assetID),
 			SourceAssetID: snapshot.SourceAssetID, SourceRevisionID: snapshot.SourceRevisionID, EntryName: snapshot.EntryName,
 			MediaSize: snapshot.MediaSize, CreatedAt: snapshot.CreatedAt,
@@ -574,21 +573,4 @@ func nullableStringValue(value *string) string {
 		return ""
 	}
 	return *value
-}
-
-type archiveCanvasScopeRow struct {
-	ID   persistenceid.UUID
-	Name string
-}
-
-func (archiveCanvasScopeRow) TableName() string { return "canvases" }
-
-type selectedVideoSnapshotRow struct {
-	NodeID           persistenceid.UUID
-	OutputID         *persistenceid.UUID
-	AssetID          *persistenceid.UUID
-	SourceAssetID    *string
-	SourceRevisionID *string
-	MediaSize        int64
-	GenerationStatus string
 }

@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"github.com/jackc/pgx/v5"
 
 	app "github.com/example/monorepo/canvas/internal/application/task"
 	asynccontract "github.com/example/monorepo/canvas/internal/contract/asyncexecution"
 	domain "github.com/example/monorepo/canvas/internal/domain/task"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
@@ -22,16 +22,12 @@ const (
 	executionLeaseExpiredErrorMessage = "asynchronous execution lease expired after maximum attempts"
 )
 
-type Repository struct{ db *gorm.DB }
+type Repository struct{ db *persistencetransaction.Store }
 
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
-
-func (r *Repository) dbFor(ctx context.Context) *gorm.DB {
-	return persistencetransaction.DB(ctx, r.db)
-}
+func NewRepository(db *persistencetransaction.Store) *Repository { return &Repository{db: db} }
 
 func (r *Repository) Create(ctx context.Context, run domain.TaskRun) error {
-	return r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
+	return r.db.WithinTransaction(ctx, func(ctx context.Context) error {
 		if run.ParentTaskID == nil {
 			if run.RootTaskID == "" {
 				run.RootTaskID = run.ID
@@ -41,9 +37,9 @@ func (r *Repository) Create(ctx context.Context, run domain.TaskRun) error {
 			if err != nil {
 				return app.ErrInvalidTaskHierarchy
 			}
-			var parent taskRunRow
-			if err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", parentID).Take(&parent).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
+			parent, err := r.db.Queries(ctx).LockTaskRun(ctx, parentID.String())
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
 					return app.ErrInvalidTaskHierarchy
 				}
 				return err
@@ -65,7 +61,7 @@ func (r *Repository) Create(ctx context.Context, run domain.TaskRun) error {
 		if err != nil {
 			return err
 		}
-		return tx.Create(&row).Error
+		return r.db.Queries(ctx).InsertTaskRun(ctx, sqlc.InsertTaskRunParams(row))
 	})
 }
 
@@ -74,56 +70,39 @@ func (r *Repository) CreatePollSchedule(ctx context.Context, schedule domain.Pol
 	if err != nil {
 		return err
 	}
-	db := r.dbFor(ctx)
-	var run taskRunRow
-	if err = db.Select("run_type").Where("id = ?", row.TaskRunID).Take(&run).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	q := r.db.Queries(ctx)
+	runType, err := q.ReadTaskRunType(ctx, row.TaskRunID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return app.ErrNotFound
 		}
 		return err
 	}
-	backend, ok := app.ExecutionBackendForRunType(domain.RunType(run.RunType))
+	backend, ok := app.ExecutionBackendForRunType(domain.RunType(runType))
 	if !ok || backend != app.ExecutionBackendLocalScheduled {
 		return app.ErrExecutionBackendMismatch
 	}
-	return db.Create(&row).Error
+	return q.InsertPollSchedule(ctx, row)
 }
 
 func (r *Repository) ClaimDuePollSchedules(ctx context.Context, runType domain.RunType, now, leaseUntil time.Time, limit int) ([]domain.PollSchedule, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
-	db := r.dbFor(ctx)
-	var candidates []pollScheduleRow
-	query := db.Where(
-		"next_poll_at <= ? AND (lease_until IS NULL OR lease_until <= ?)", now, now,
-	).Where("EXISTS (SELECT 1 FROM task_runs WHERE task_runs.id = poll_schedules.task_run_id AND task_runs.run_type = ? AND task_runs.hidden_at IS NULL)", runType)
-	if err := query.Order("next_poll_at ASC").Order("task_run_id ASC").Limit(limit).Find(&candidates).Error; err != nil {
+	rows, err := r.db.Queries(ctx).ClaimPollSchedules(ctx, sqlc.ClaimPollSchedulesParams{
+		RunType:  string(runType),
+		Now:      now,
+		Lease:    leaseUntil,
+		PageSize: int64(limit),
+	})
+	if err != nil {
 		return nil, err
 	}
-	claimed := make([]domain.PollSchedule, 0, len(candidates))
-	for index := range candidates {
-		row := candidates[index]
-		result := db.Model(&pollScheduleRow{}).Where(
-			"task_run_id = ? AND state_version = ? AND next_poll_at <= ? AND (lease_until IS NULL OR lease_until <= ?)",
-			row.TaskRunID, row.StateVersion, now, now,
-		).Where("EXISTS (SELECT 1 FROM task_runs WHERE task_runs.id = poll_schedules.task_run_id AND task_runs.run_type = ? AND task_runs.hidden_at IS NULL)", runType).Updates(map[string]any{
-			"lease_until":   leaseUntil,
-			"state_version": row.StateVersion + 1,
-			"updated_at":    now,
-		})
-		if result.Error != nil {
-			return nil, result.Error
-		}
-		if result.RowsAffected != 1 {
-			continue
-		}
-		row.LeaseUntil = &leaseUntil
-		row.StateVersion++
-		row.UpdatedAt = now
-		claimed = append(claimed, pollScheduleFromRow(row))
+	items := make([]domain.PollSchedule, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, pollScheduleFromRow(row))
 	}
-	return claimed, nil
+	return items, nil
 }
 
 func (r *Repository) RenewPollSchedule(ctx context.Context, schedule domain.PollSchedule, now, leaseUntil time.Time) (bool, error) {
@@ -131,10 +110,12 @@ func (r *Repository) RenewPollSchedule(ctx context.Context, schedule domain.Poll
 	if err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Model(&pollScheduleRow{}).Where(
-		"task_run_id = ? AND state_version = ? AND lease_until > ?", id, schedule.StateVersion, now,
-	).Updates(map[string]any{"lease_until": leaseUntil, "updated_at": now})
-	return result.RowsAffected == 1, result.Error
+	return changed(r.db.Queries(ctx).RenewPollLease(ctx, sqlc.RenewPollLeaseParams{
+		ID:      id.String(),
+		Version: schedule.StateVersion,
+		Now:     now,
+		Lease:   leaseUntil,
+	}))
 }
 
 func (r *Repository) ReschedulePoll(ctx context.Context, schedule domain.PollSchedule, update domain.PollScheduleUpdate, now time.Time) (bool, error) {
@@ -142,25 +123,15 @@ func (r *Repository) ReschedulePoll(ctx context.Context, schedule domain.PollSch
 	if err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Model(&pollScheduleRow{}).Where(
-		"task_run_id = ? AND state_version = ?", id, schedule.StateVersion,
-	)
-	updates := map[string]any{
-		"next_poll_at":       update.NextPollAt,
-		"lease_until":        nil,
-		"poll_attempts":      update.PollAttempts,
-		"consecutive_errors": update.ConsecutiveErrors,
-		"state_version":      schedule.StateVersion + 1,
-		"updated_at":         now,
-	}
-	if update.DeadlineAt != nil {
-		updates["deadline_at"] = *update.DeadlineAt
-	}
-	result = result.Updates(updates)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return changed(r.db.Queries(ctx).ReschedulePoll(ctx, sqlc.ReschedulePollParams{
+		ID:                id.String(),
+		Version:           schedule.StateVersion,
+		Now:               now,
+		DeadlineAt:        update.DeadlineAt,
+		NextPollAt:        update.NextPollAt,
+		PollAttempts:      update.PollAttempts,
+		ConsecutiveErrors: update.ConsecutiveErrors,
+	}))
 }
 
 func (r *Repository) CompletePollSchedule(ctx context.Context, schedule domain.PollSchedule) (bool, error) {
@@ -168,13 +139,7 @@ func (r *Repository) CompletePollSchedule(ctx context.Context, schedule domain.P
 	if err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Where(
-		"task_run_id = ? AND state_version = ?", id, schedule.StateVersion,
-	).Delete(&pollScheduleRow{})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return changed(r.db.Queries(ctx).CompletePoll(ctx, sqlc.CompletePollParams{ID: id.String(), Version: schedule.StateVersion}))
 }
 
 func (r *Repository) DeletePollSchedule(ctx context.Context, taskRunID string) error {
@@ -182,7 +147,7 @@ func (r *Repository) DeletePollSchedule(ctx context.Context, taskRunID string) e
 	if err != nil {
 		return err
 	}
-	return r.dbFor(ctx).Where("task_run_id = ?", id).Delete(&pollScheduleRow{}).Error
+	return r.db.Queries(ctx).DeletePoll(ctx, id.String())
 }
 
 func (r *Repository) CreateAsyncDispatch(ctx context.Context, dispatch domain.AsyncDispatch) error {
@@ -190,7 +155,7 @@ func (r *Repository) CreateAsyncDispatch(ctx context.Context, dispatch domain.As
 	if err != nil {
 		return err
 	}
-	return r.dbFor(ctx).Create(&row).Error
+	return r.db.Queries(ctx).InsertAsyncDispatch(ctx, sqlc.InsertAsyncDispatchParams(row))
 }
 
 func (r *Repository) DeleteAsyncDispatch(ctx context.Context, taskRunID string) error {
@@ -198,25 +163,12 @@ func (r *Repository) DeleteAsyncDispatch(ctx context.Context, taskRunID string) 
 	if err != nil {
 		return err
 	}
-	now := time.Now().UTC()
-	return r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		if err = tx.Model(&asyncExecutionEventRow{}).Where(
-			"task_run_id = ? AND consume_status IN ?",
-			id,
-			[]asynccontract.ConsumeStatus{
-				asynccontract.ConsumeStatusPending,
-				asynccontract.ConsumeStatusConsuming,
-			},
-		).Updates(map[string]any{
-			"consume_status":      asynccontract.ConsumeStatusDiscarded,
-			"consume_lease_until": nil,
-			"consumed_at":         now,
-			"updated_at":          now,
-			"state_version":       gorm.Expr("state_version + 1"),
-		}).Error; err != nil {
+	return r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		if err := q.DiscardTaskEvents(ctx, sqlc.DiscardTaskEventsParams{ID: id.String(), Now: time.Now().UTC()}); err != nil {
 			return err
 		}
-		return tx.Where("task_run_id = ?", id).Delete(&asyncDispatchRow{}).Error
+		return q.DeleteTaskDispatch(ctx, id.String())
 	})
 }
 
@@ -225,7 +177,7 @@ func (r *Repository) CreateAsyncExecutionEvent(ctx context.Context, event asyncc
 	if err != nil {
 		return err
 	}
-	return r.dbFor(ctx).Create(&row).Error
+	return r.db.Queries(ctx).InsertAsyncExecutionEvent(ctx, sqlc.InsertAsyncExecutionEventParams(row))
 }
 
 func (r *Repository) GetAsyncExecutionEvent(ctx context.Context, eventID string) (asynccontract.Event, error) {
@@ -233,8 +185,8 @@ func (r *Repository) GetAsyncExecutionEvent(ctx context.Context, eventID string)
 	if err != nil {
 		return asynccontract.Event{}, err
 	}
-	var row asyncExecutionEventRow
-	if err = r.dbFor(ctx).Where("id = ?", id).First(&row).Error; err != nil {
+	row, err := r.db.Queries(ctx).ReadTaskEvent(ctx, id.String())
+	if err != nil {
 		return asynccontract.Event{}, err
 	}
 	return asyncExecutionEventFromRow(row), nil
@@ -245,17 +197,7 @@ func (r *Repository) HasUnfinishedAsyncExecutionEventBefore(
 	executionToken string,
 	sequence int32,
 ) (bool, error) {
-	var count int64
-	err := r.dbFor(ctx).Model(&asyncExecutionEventRow{}).Where(
-		"execution_token = ? AND sequence < ? AND consume_status NOT IN ?",
-		executionToken,
-		sequence,
-		[]asynccontract.ConsumeStatus{
-			asynccontract.ConsumeStatusConsumed,
-			asynccontract.ConsumeStatusDiscarded,
-		},
-	).Limit(1).Count(&count).Error
-	return count > 0, err
+	return r.db.Queries(ctx).HasEarlierTaskEvent(ctx, sqlc.HasEarlierTaskEventParams{Token: executionToken, Sequence: sequence})
 }
 
 func (r *Repository) GetAsyncDispatch(ctx context.Context, taskRunID string) (domain.AsyncDispatch, error) {
@@ -263,8 +205,8 @@ func (r *Repository) GetAsyncDispatch(ctx context.Context, taskRunID string) (do
 	if err != nil {
 		return domain.AsyncDispatch{}, err
 	}
-	var row asyncDispatchRow
-	if err = r.dbFor(ctx).Where("task_run_id = ?", id).First(&row).Error; err != nil {
+	row, err := r.db.Queries(ctx).ReadTaskDispatch(ctx, id.String())
+	if err != nil {
 		return domain.AsyncDispatch{}, readErr(err)
 	}
 	return asyncDispatchFromRow(row), nil
@@ -279,53 +221,15 @@ func (r *Repository) ClaimDueAsyncExecutionEvents(
 	if limit <= 0 {
 		return nil, nil
 	}
-	db := r.dbFor(ctx)
-	var candidates []asyncExecutionEventRow
-	if err := db.Where(
-		"(consume_status = ? AND next_consume_at <= ?) OR "+
-			"(consume_status = ? AND consume_lease_until <= ?)",
-		asynccontract.ConsumeStatusPending,
-		now,
-		asynccontract.ConsumeStatusConsuming,
-		now,
-	).Order("next_consume_at ASC").Order("id ASC").Limit(limit).Find(&candidates).Error; err != nil {
+	rows, err := r.db.Queries(ctx).ClaimDueTaskEvents(ctx, sqlc.ClaimDueTaskEventsParams{Now: now, Lease: leaseUntil, PageSize: int64(limit)})
+	if err != nil {
 		return nil, err
 	}
-	claimed := make([]asynccontract.Event, 0, len(candidates))
-	for index := range candidates {
-		row := candidates[index]
-		where := db.Model(&asyncExecutionEventRow{}).Where(
-			"id = ? AND state_version = ? AND consume_status = ?",
-			row.ID,
-			row.StateVersion,
-			row.ConsumeStatus,
-		)
-		if asynccontract.ConsumeStatus(row.ConsumeStatus) == asynccontract.ConsumeStatusPending {
-			where = where.Where("next_consume_at <= ?", now)
-		} else {
-			where = where.Where("consume_lease_until <= ?", now)
-		}
-		result := where.Updates(map[string]any{
-			"consume_status":      asynccontract.ConsumeStatusConsuming,
-			"consume_lease_until": leaseUntil,
-			"consume_attempts":    row.ConsumeAttempts + 1,
-			"state_version":       row.StateVersion + 1,
-			"updated_at":          now,
-		})
-		if result.Error != nil {
-			return nil, result.Error
-		}
-		if result.RowsAffected != 1 {
-			continue
-		}
-		row.ConsumeStatus = string(asynccontract.ConsumeStatusConsuming)
-		row.ConsumeLeaseUntil = &leaseUntil
-		row.ConsumeAttempts++
-		row.StateVersion++
-		row.UpdatedAt = now
-		claimed = append(claimed, asyncExecutionEventFromRow(row))
+	items := make([]asynccontract.Event, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, asyncExecutionEventFromRow(sqlc.AsyncExecutionEvent(row)))
 	}
-	return claimed, nil
+	return items, nil
 }
 
 func (r *Repository) MarkAsyncExecutionEventConsumed(
@@ -354,22 +258,12 @@ func (r *Repository) finishAsyncExecutionEvent(
 	if err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncExecutionEventRow{}).Where(
-		"id = ? AND state_version = ? AND consume_status = ?",
-		id,
-		event.StateVersion,
-		asynccontract.ConsumeStatusConsuming,
-	).Updates(map[string]any{
-		"consume_status":      status,
-		"consume_lease_until": nil,
-		"state_version":       event.StateVersion + 1,
-		"updated_at":          now,
-		"consumed_at":         now,
-	})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return changed(r.db.Queries(ctx).FinishTaskEvent(ctx, sqlc.FinishTaskEventParams{
+		ID:      id.String(),
+		Version: event.StateVersion,
+		Status:  string(status),
+		Now:     &now,
+	}))
 }
 
 func (r *Repository) RescheduleAsyncExecutionEvent(
@@ -384,25 +278,14 @@ func (r *Repository) RescheduleAsyncExecutionEvent(
 	if err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncExecutionEventRow{}).Where(
-		"id = ? AND state_version = ? AND consume_status = ?",
-		id,
-		event.StateVersion,
-		asynccontract.ConsumeStatusConsuming,
-	).Updates(map[string]any{
-		"consume_status":      asynccontract.ConsumeStatusPending,
-		"next_consume_at":     nextConsumeAt,
-		"consume_lease_until": nil,
-		"state_version":       event.StateVersion + 1,
-		"last_error_code":     errorCode,
-		"last_error_message":  errorMessage,
-		"updated_at":          now,
-		"consumed_at":         nil,
-	})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return changed(r.db.Queries(ctx).RetryTaskEvent(ctx, sqlc.RetryTaskEventParams{
+		ID:      id.String(),
+		Version: event.StateVersion,
+		Due:     nextConsumeAt,
+		Code:    errorCode,
+		Message: errorMessage,
+		Now:     now,
+	}))
 }
 
 func (r *Repository) ClaimDueAsyncDispatches(
@@ -414,201 +297,101 @@ func (r *Repository) ClaimDueAsyncDispatches(
 	if limit <= 0 {
 		return nil, nil
 	}
-	db := r.dbFor(ctx)
-	var candidates []asyncDispatchRow
-	if err := db.Where(
-		"(execution_state = ? AND next_dispatch_at <= ? AND (publish_lease_until IS NULL OR publish_lease_until <= ?)) OR "+
-			"(execution_state = ? AND next_dispatch_at <= ? AND (execution_lease_until IS NULL OR execution_lease_until <= ?)) OR "+
-			"(execution_state = ? AND execution_lease_until <= ?)",
-		domain.AsyncExecutionWaiting,
-		now,
-		now,
-		domain.AsyncExecutionFailurePending,
-		now,
-		now,
-		domain.AsyncExecutionExecuting,
-		now,
-	).Order("next_dispatch_at ASC").Order("task_run_id ASC").Limit(limit).Find(&candidates).Error; err != nil {
+	q := r.db.Queries(ctx)
+	rows, err := q.DueTaskDispatches(ctx, sqlc.DueTaskDispatchesParams{Now: now, PageSize: int64(limit)})
+	if err != nil {
 		return nil, err
 	}
-	claimed := make([]domain.AsyncDispatch, 0, len(candidates))
-	for index := range candidates {
-		row := candidates[index]
-		if domain.AsyncExecutionState(row.ExecutionState) == domain.AsyncExecutionExecuting {
-			recovered, ok, recoverErr := r.recoverExpiredAsyncExecution(db, row, now, leaseUntil)
-			if recoverErr != nil {
-				return nil, recoverErr
-			}
-			if ok {
-				claimed = append(claimed, recovered)
-			}
-			continue
+	items := make([]domain.AsyncDispatch, 0, len(rows))
+	for _, row := range rows {
+		var item domain.AsyncDispatch
+		var ok bool
+		switch domain.AsyncExecutionState(row.ExecutionState) {
+		case domain.AsyncExecutionExecuting:
+			item, ok, err = r.recoverExpiredAsyncExecution(ctx, row, now, leaseUntil)
+		case domain.AsyncExecutionFailurePending:
+			item, ok, err = claimedDispatch(q.ClaimFailureDispatch(ctx, sqlc.ClaimFailureDispatchParams{
+				ID:      row.TaskRunID,
+				Version: row.ExecutionVersion,
+				Now:     now,
+				Lease:   leaseUntil,
+			}))
+		default:
+			item, ok, err = claimedDispatch(q.ClaimWaitingDispatch(ctx, sqlc.ClaimWaitingDispatchParams{
+				ID:      row.TaskRunID,
+				Version: row.DeliveryVersion,
+				Now:     now,
+				Lease:   leaseUntil,
+			}))
 		}
-		failurePending := domain.AsyncExecutionState(row.ExecutionState) == domain.AsyncExecutionFailurePending
-		where := db.Model(&asyncDispatchRow{}).Where("task_run_id = ?", row.TaskRunID)
-		updates := map[string]any{"updated_at": now}
-		if failurePending {
-			where = where.Where(
-				"execution_version = ? AND execution_state = ? AND next_dispatch_at <= ? "+
-					"AND (execution_lease_until IS NULL OR execution_lease_until <= ?)",
-				row.ExecutionVersion, row.ExecutionState, now, now,
-			)
-			updates["execution_lease_until"] = leaseUntil
-			updates["execution_version"] = row.ExecutionVersion + 1
-		} else {
-			where = where.Where(
-				"delivery_version = ? AND execution_state = ? AND next_dispatch_at <= ? "+
-					"AND (publish_lease_until IS NULL OR publish_lease_until <= ?)",
-				row.DeliveryVersion, domain.AsyncExecutionWaiting, now, now,
-			)
-			updates["publish_lease_until"] = leaseUntil
-			updates["delivery_version"] = row.DeliveryVersion + 1
+		if err != nil {
+			return nil, err
 		}
-		result := where.Updates(updates)
-		if result.Error != nil {
-			return nil, result.Error
+		if ok {
+			items = append(items, item)
 		}
-		if result.RowsAffected != 1 {
-			continue
-		}
-		if failurePending {
-			row.ExecutionLeaseUntil = &leaseUntil
-			row.ExecutionVersion++
-		} else {
-			row.PublishLeaseUntil = &leaseUntil
-			row.DeliveryVersion++
-		}
-		row.UpdatedAt = now
-		claimed = append(claimed, asyncDispatchFromRow(row))
 	}
-	return claimed, nil
+	return items, nil
 }
 
 func (r *Repository) recoverExpiredAsyncExecution(
-	db *gorm.DB,
-	candidate asyncDispatchRow,
+	ctx context.Context,
+	candidate sqlc.AsyncDispatch,
 	now time.Time,
 	publishLeaseUntil time.Time,
 ) (domain.AsyncDispatch, bool, error) {
-	var recovered domain.AsyncDispatch
-	var claimed bool
-	err := db.Transaction(func(tx *gorm.DB) error {
-		var row asyncDispatchRow
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
-			"task_run_id = ? AND execution_version = ? AND execution_state = ? AND execution_lease_until <= ?",
-			candidate.TaskRunID,
-			candidate.ExecutionVersion,
-			domain.AsyncExecutionExecuting,
-			now,
-		).First(&row).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
-		}
-		var terminal asyncExecutionEventRow
-		terminalErr := tx.Where(
-			"execution_token = ? AND terminal_slot = ?",
-			row.ExecutionToken,
-			1,
-		).First(&terminal).Error
-		switch {
-		case terminalErr == nil &&
-			(asynccontract.ConsumeStatus(terminal.ConsumeStatus) == asynccontract.ConsumeStatusConsumed ||
-				asynccontract.ConsumeStatus(terminal.ConsumeStatus) == asynccontract.ConsumeStatusDiscarded):
-			return tx.Where(
-				"task_run_id = ? AND execution_version = ? AND execution_state = ?",
-				row.TaskRunID,
-				row.ExecutionVersion,
-				domain.AsyncExecutionExecuting,
-			).Delete(&asyncDispatchRow{}).Error
-		case terminalErr == nil:
-			return tx.Model(&asyncExecutionEventRow{}).Where(
-				"id = ? AND consume_status = ?",
-				terminal.ID,
-				asynccontract.ConsumeStatusPending,
-			).Updates(map[string]any{
-				"next_consume_at": now,
-				"updated_at":      now,
-			}).Error
-		case !errors.Is(terminalErr, gorm.ErrRecordNotFound):
-			return terminalErr
-		}
-		var unfinishedEvents int64
-		if err := tx.Model(&asyncExecutionEventRow{}).Where(
-			"execution_token = ? AND consume_status IN ?",
-			row.ExecutionToken,
-			[]asynccontract.ConsumeStatus{
-				asynccontract.ConsumeStatusPending,
-				asynccontract.ConsumeStatusConsuming,
-			},
-		).Count(&unfinishedEvents).Error; err != nil {
-			return err
-		}
-		if unfinishedEvents > 0 {
-			return tx.Model(&asyncExecutionEventRow{}).Where(
-				"execution_token = ? AND consume_status = ?",
-				row.ExecutionToken,
-				asynccontract.ConsumeStatusPending,
-			).Updates(map[string]any{
-				"next_consume_at": now,
-				"updated_at":      now,
-			}).Error
-		}
-		recoveries := row.LeaseRecoveries + 1
-		recoveryExpired := recoveries >= 10 ||
-			asyncDispatchFromRow(row).RecoveryExpired(now)
-		updates := map[string]any{
-			"delivery_state":        domain.AsyncDeliveryPending,
-			"publish_lease_until":   publishLeaseUntil,
-			"delivery_version":      row.DeliveryVersion + 1,
-			"execution_state":       domain.AsyncExecutionWaiting,
-			"execution_lease_until": nil,
-			"execution_token":       "",
-			"lease_recoveries":      recoveries,
-			"execution_version":     row.ExecutionVersion + 1,
-			"updated_at":            now,
-		}
-		if recoveryExpired {
-			updates["execution_state"] = domain.AsyncExecutionFailurePending
-			updates["execution_lease_until"] = publishLeaseUntil
-			updates["publish_lease_until"] = nil
-			updates["last_error_code"] = executionLeaseExpiredErrorCode
-			updates["last_error_message"] = executionLeaseExpiredErrorMessage
-		}
-		result := tx.Model(&asyncDispatchRow{}).Where(
-			"task_run_id = ? AND execution_version = ? AND execution_state = ?",
-			row.TaskRunID,
-			row.ExecutionVersion,
-			domain.AsyncExecutionExecuting,
-		).Updates(updates)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
+	var result domain.AsyncDispatch
+	var ok bool
+	err := r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		row, err := q.LockExpiredDispatch(ctx, sqlc.LockExpiredDispatchParams{
+			ID:      candidate.TaskRunID,
+			Version: candidate.ExecutionVersion,
+			Now:     now,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
-		row.DeliveryState = string(domain.AsyncDeliveryPending)
-		row.ExecutionState = string(domain.AsyncExecutionWaiting)
-		row.PublishLeaseUntil = &publishLeaseUntil
-		row.ExecutionLeaseUntil = nil
-		row.ExecutionToken = ""
-		row.LeaseRecoveries = recoveries
-		row.DeliveryVersion++
-		row.ExecutionVersion++
-		row.UpdatedAt = now
-		if recoveryExpired {
-			row.ExecutionState = string(domain.AsyncExecutionFailurePending)
-			row.ExecutionLeaseUntil = &publishLeaseUntil
-			row.PublishLeaseUntil = nil
-			row.LastErrorCode = executionLeaseExpiredErrorCode
-			row.LastErrorMessage = executionLeaseExpiredErrorMessage
+		if err != nil {
+			return err
 		}
-		recovered = asyncDispatchFromRow(row)
-		claimed = true
-		return nil
+		terminal, err := q.ReadTerminalEvent(ctx, row.ExecutionToken)
+		switch {
+		case err == nil:
+			if terminal.ConsumeStatus == string(asynccontract.ConsumeStatusConsumed) || terminal.ConsumeStatus == string(asynccontract.ConsumeStatusDiscarded) {
+				return q.CompleteExpiredDispatch(ctx, sqlc.CompleteExpiredDispatchParams{ID: row.TaskRunID, Version: row.ExecutionVersion})
+			}
+			return q.ExpediteTerminalEvent(ctx, sqlc.ExpediteTerminalEventParams{ID: terminal.ID, Now: now})
+		case !errors.Is(err, pgx.ErrNoRows):
+			return err
+		}
+		unfinished, err := q.HasUnfinishedTaskEvents(ctx, row.ExecutionToken)
+		if err != nil {
+			return err
+		}
+		if unfinished {
+			return q.ExpeditePendingEvents(ctx, sqlc.ExpeditePendingEventsParams{Token: row.ExecutionToken, Now: now})
+		}
+		args := sqlc.RecoverExpiredDispatchParams{
+			ID:                row.TaskRunID,
+			Version:           row.ExecutionVersion,
+			State:             string(domain.AsyncExecutionWaiting),
+			PublishLeaseUntil: &publishLeaseUntil,
+			Now:               now,
+			Code:              row.LastErrorCode,
+			Message:           row.LastErrorMessage,
+		}
+		if row.LeaseRecoveries+1 >= 10 || asyncDispatchFromRow(row).RecoveryExpired(now) {
+			args.State = string(domain.AsyncExecutionFailurePending)
+			args.PublishLeaseUntil = nil
+			args.ExecutionLeaseUntil = &publishLeaseUntil
+			args.Code = executionLeaseExpiredErrorCode
+			args.Message = executionLeaseExpiredErrorMessage
+		}
+		result, ok, err = claimedDispatch(q.RecoverExpiredDispatch(ctx, args))
+		return err
 	})
-	return recovered, claimed, err
+	return result, ok, err
 }
 
 func (r *Repository) RescheduleAsyncDispatch(
@@ -623,32 +406,14 @@ func (r *Repository) RescheduleAsyncDispatch(
 	if err != nil {
 		return domain.AsyncDispatch{}, false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND delivery_version = ?",
-		id, dispatch.DeliveryVersion,
-	).Updates(map[string]any{
-		"next_dispatch_at":    nextDispatchAt,
-		"publish_lease_until": nil,
-		"publish_attempts":    dispatch.PublishAttempts + 1,
-		"last_error_code":     errorCode,
-		"last_error_message":  errorMessage,
-		"delivery_version":    dispatch.DeliveryVersion + 1,
-		"updated_at":          now,
-	})
-	if result.Error != nil {
-		return domain.AsyncDispatch{}, false, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return domain.AsyncDispatch{}, false, nil
-	}
-	dispatch.NextDispatchAt = nextDispatchAt
-	dispatch.PublishLeaseUntil = nil
-	dispatch.PublishAttempts++
-	dispatch.LastErrorCode = errorCode
-	dispatch.LastErrorMessage = errorMessage
-	dispatch.DeliveryVersion++
-	dispatch.UpdatedAt = now
-	return dispatch, true, nil
+	return claimedDispatch(r.db.Queries(ctx).RescheduleTaskDispatch(ctx, sqlc.RescheduleTaskDispatchParams{
+		ID:      id.String(),
+		Now:     now,
+		Due:     nextDispatchAt,
+		Code:    errorCode,
+		Message: errorMessage,
+		Version: dispatch.DeliveryVersion,
+	}))
 }
 
 func (r *Repository) MarkAsyncDispatchDelivered(
@@ -660,21 +425,13 @@ func (r *Repository) MarkAsyncDispatchDelivered(
 	if err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND delivery_version = ?", id, dispatch.DeliveryVersion,
-	)
-	result = result.Updates(map[string]any{
-		"delivery_state":      domain.AsyncDeliveryDelivered,
-		"next_dispatch_at":    now.Add(asyncDeliveryClaimWindow),
-		"publish_lease_until": nil,
-		"publish_attempts":    dispatch.PublishAttempts + 1,
-		"delivery_version":    dispatch.DeliveryVersion + 1,
-		"updated_at":          now,
-	})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	_, ok, err := claimedDispatch(r.db.Queries(ctx).DeliverTaskDispatch(ctx, sqlc.DeliverTaskDispatchParams{
+		ID:      id.String(),
+		Now:     now,
+		Due:     now.Add(asyncDeliveryClaimWindow),
+		Version: dispatch.DeliveryVersion,
+	}))
+	return ok, err
 }
 
 func (r *Repository) MarkAsyncDispatchFailurePending(
@@ -688,34 +445,14 @@ func (r *Repository) MarkAsyncDispatchFailurePending(
 	if err != nil {
 		return domain.AsyncDispatch{}, false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND delivery_version = ? AND execution_version = ? AND execution_state = ?",
-		id, dispatch.DeliveryVersion, dispatch.ExecutionVersion, domain.AsyncExecutionWaiting,
-	).Updates(map[string]any{
-		"execution_state":       domain.AsyncExecutionFailurePending,
-		"execution_lease_until": dispatch.PublishLeaseUntil,
-		"publish_lease_until":   nil,
-		"last_error_code":       errorCode,
-		"last_error_message":    errorMessage,
-		"delivery_version":      gorm.Expr("delivery_version + 1"),
-		"execution_version":     dispatch.ExecutionVersion + 1,
-		"updated_at":            now,
-	})
-	if result.Error != nil {
-		return domain.AsyncDispatch{}, false, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return domain.AsyncDispatch{}, false, nil
-	}
-	dispatch.ExecutionState = domain.AsyncExecutionFailurePending
-	dispatch.ExecutionLeaseUntil = dispatch.PublishLeaseUntil
-	dispatch.PublishLeaseUntil = nil
-	dispatch.LastErrorCode = errorCode
-	dispatch.LastErrorMessage = errorMessage
-	dispatch.DeliveryVersion++
-	dispatch.ExecutionVersion++
-	dispatch.UpdatedAt = now
-	return dispatch, true, nil
+	return claimedDispatch(r.db.Queries(ctx).FailTaskDispatch(ctx, sqlc.FailTaskDispatchParams{
+		ID:               id.String(),
+		Now:              now,
+		Code:             errorCode,
+		Message:          errorMessage,
+		Version:          dispatch.DeliveryVersion,
+		ExecutionVersion: dispatch.ExecutionVersion,
+	}))
 }
 
 func (r *Repository) ClaimAsyncExecution(
@@ -729,32 +466,12 @@ func (r *Repository) ClaimAsyncExecution(
 	if err != nil {
 		return domain.AsyncDispatch{}, false, err
 	}
-	db := r.dbFor(ctx)
-	updates := map[string]any{
-		"execution_state":       domain.AsyncExecutionExecuting,
-		"execution_lease_until": leaseUntil,
-		"execution_attempts":    gorm.Expr("execution_attempts + 1"),
-		"execution_token":       executionToken,
-		"execution_version":     gorm.Expr("execution_version + 1"),
-		"first_started_at":      gorm.Expr("COALESCE(first_started_at, ?)", now),
-		"updated_at":            now,
-	}
-	result := db.Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND execution_state = ? AND "+
-			"(delivery_state = ? OR publish_lease_until > ?)",
-		id, domain.AsyncExecutionWaiting, domain.AsyncDeliveryDelivered, now,
-	).Updates(updates)
-	if result.Error != nil {
-		return domain.AsyncDispatch{}, false, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return domain.AsyncDispatch{}, false, nil
-	}
-	var row asyncDispatchRow
-	if err = db.Where("task_run_id = ?", id).First(&row).Error; err != nil {
-		return domain.AsyncDispatch{}, false, readErr(err)
-	}
-	return asyncDispatchFromRow(row), true, nil
+	return claimedDispatch(r.db.Queries(ctx).StartTaskExecution(ctx, sqlc.StartTaskExecutionParams{
+		ID:    id.String(),
+		Now:   now,
+		Token: executionToken,
+		Lease: leaseUntil,
+	}))
 }
 
 func (r *Repository) HeartbeatAsyncExecution(
@@ -767,24 +484,13 @@ func (r *Repository) HeartbeatAsyncExecution(
 	if err != nil {
 		return domain.AsyncDispatch{}, false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND execution_version = ? AND execution_state = ? AND execution_token = ?",
-		id, dispatch.ExecutionVersion, domain.AsyncExecutionExecuting, dispatch.ExecutionToken,
-	).Updates(map[string]any{
-		"execution_lease_until": leaseUntil,
-		"execution_version":     dispatch.ExecutionVersion + 1,
-		"updated_at":            now,
-	})
-	if result.Error != nil {
-		return domain.AsyncDispatch{}, false, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return domain.AsyncDispatch{}, false, nil
-	}
-	dispatch.ExecutionLeaseUntil = &leaseUntil
-	dispatch.ExecutionVersion++
-	dispatch.UpdatedAt = now
-	return dispatch, true, nil
+	return claimedDispatch(r.db.Queries(ctx).RenewTaskExecution(ctx, sqlc.RenewTaskExecutionParams{
+		ID:      id.String(),
+		Now:     now,
+		Version: dispatch.ExecutionVersion,
+		Token:   dispatch.ExecutionToken,
+		Lease:   leaseUntil,
+	}))
 }
 
 func (r *Repository) ReleaseAsyncExecution(
@@ -799,33 +505,15 @@ func (r *Repository) ReleaseAsyncExecution(
 	if err != nil {
 		return domain.AsyncDispatch{}, false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND execution_version = ? AND execution_state = ? AND execution_token = ?",
-		id, dispatch.ExecutionVersion, domain.AsyncExecutionExecuting, dispatch.ExecutionToken,
-	).Updates(map[string]any{
-		"delivery_state":        domain.AsyncDeliveryPending,
-		"next_dispatch_at":      nextDispatchAt,
-		"publish_lease_until":   nil,
-		"delivery_version":      gorm.Expr("delivery_version + 1"),
-		"execution_state":       domain.AsyncExecutionWaiting,
-		"execution_lease_until": nil,
-		"execution_token":       "",
-		"last_error_code":       errorCode,
-		"last_error_message":    errorMessage,
-		"execution_version":     dispatch.ExecutionVersion + 1,
-		"updated_at":            now,
-	})
-	if result.Error != nil {
-		return domain.AsyncDispatch{}, false, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return domain.AsyncDispatch{}, false, nil
-	}
-	var row asyncDispatchRow
-	if err = r.dbFor(ctx).Where("task_run_id = ?", id).First(&row).Error; err != nil {
-		return domain.AsyncDispatch{}, false, readErr(err)
-	}
-	return asyncDispatchFromRow(row), true, nil
+	return claimedDispatch(r.db.Queries(ctx).ReleaseTaskExecution(ctx, sqlc.ReleaseTaskExecutionParams{
+		ID:      id.String(),
+		Now:     now,
+		Version: dispatch.ExecutionVersion,
+		Token:   dispatch.ExecutionToken,
+		Due:     nextDispatchAt,
+		Code:    errorCode,
+		Message: errorMessage,
+	}))
 }
 
 func (r *Repository) AdvanceAsyncExecution(
@@ -837,22 +525,12 @@ func (r *Repository) AdvanceAsyncExecution(
 	if err != nil {
 		return domain.AsyncDispatch{}, false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND execution_version = ? AND execution_state = ? AND execution_token = ?",
-		id, dispatch.ExecutionVersion, domain.AsyncExecutionExecuting, dispatch.ExecutionToken,
-	).Updates(map[string]any{
-		"execution_version": dispatch.ExecutionVersion + 1,
-		"updated_at":        now,
-	})
-	if result.Error != nil {
-		return domain.AsyncDispatch{}, false, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return domain.AsyncDispatch{}, false, nil
-	}
-	dispatch.ExecutionVersion++
-	dispatch.UpdatedAt = now
-	return dispatch, true, nil
+	return claimedDispatch(r.db.Queries(ctx).AdvanceTaskExecution(ctx, sqlc.AdvanceTaskExecutionParams{
+		ID:      id.String(),
+		Now:     now,
+		Version: dispatch.ExecutionVersion,
+		Token:   dispatch.ExecutionToken,
+	}))
 }
 
 func (r *Repository) RetryAsyncExecution(
@@ -867,34 +545,16 @@ func (r *Repository) RetryAsyncExecution(
 	if err != nil {
 		return domain.AsyncDispatch{}, false, err
 	}
-	result := r.dbFor(ctx).Model(&asyncDispatchRow{}).Where(
-		"task_run_id = ? AND execution_version = ? AND execution_state = ? AND execution_token = ?",
-		id, dispatch.ExecutionVersion, domain.AsyncExecutionExecuting, dispatch.ExecutionToken,
-	).Updates(map[string]any{
-		"delivery_state":        domain.AsyncDeliveryPending,
-		"next_dispatch_at":      nextDispatchAt,
-		"publish_lease_until":   nil,
-		"delivery_version":      gorm.Expr("delivery_version + 1"),
-		"execution_state":       domain.AsyncExecutionWaiting,
-		"execution_lease_until": nil,
-		"execution_token":       "",
-		"execution_failures":    dispatch.ExecutionFailures + 1,
-		"last_error_code":       errorCode,
-		"last_error_message":    errorMessage,
-		"execution_version":     dispatch.ExecutionVersion + 1,
-		"updated_at":            now,
-	})
-	if result.Error != nil {
-		return domain.AsyncDispatch{}, false, result.Error
-	}
-	if result.RowsAffected != 1 {
-		return domain.AsyncDispatch{}, false, nil
-	}
-	var row asyncDispatchRow
-	if err = r.dbFor(ctx).Where("task_run_id = ?", id).First(&row).Error; err != nil {
-		return domain.AsyncDispatch{}, false, readErr(err)
-	}
-	return asyncDispatchFromRow(row), true, nil
+	return claimedDispatch(r.db.Queries(ctx).ReleaseTaskExecution(ctx, sqlc.ReleaseTaskExecutionParams{
+		ID:       id.String(),
+		Now:      now,
+		Version:  dispatch.ExecutionVersion,
+		Token:    dispatch.ExecutionToken,
+		Due:      nextDispatchAt,
+		Code:     errorCode,
+		Message:  errorMessage,
+		Failures: 1,
+	}))
 }
 
 func (r *Repository) CompleteAsyncExecution(ctx context.Context, dispatch domain.AsyncDispatch) (bool, error) {
@@ -902,16 +562,10 @@ func (r *Repository) CompleteAsyncExecution(ctx context.Context, dispatch domain
 	if err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Where(
-		"task_run_id = ? AND execution_version = ? AND execution_state IN ?",
-		id,
-		dispatch.ExecutionVersion,
-		[]string{string(domain.AsyncExecutionExecuting), string(domain.AsyncExecutionFailurePending)},
-	).Delete(&asyncDispatchRow{})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return changed(r.db.Queries(ctx).FinishTaskExecution(ctx, sqlc.FinishTaskExecutionParams{
+		ID:      id.String(),
+		Version: dispatch.ExecutionVersion,
+	}))
 }
 
 func (r *Repository) Get(ctx context.Context, scope app.Scope, runType domain.RunType, subjectType domain.SubjectType, subjectID, taskRunID string) (domain.TaskRun, error) {
@@ -919,11 +573,15 @@ func (r *Repository) Get(ctx context.Context, scope app.Scope, runType domain.Ru
 	if err != nil || runType == "" || subjectType == "" || subjectID == "" {
 		return domain.TaskRun{}, app.ErrNotFound
 	}
-	var row taskRunRow
-	if err := visibleScopeQuery(r.dbFor(ctx), scope).Where(
-		"id = ? AND run_type = ? AND subject_type = ? AND subject_id = ?",
-		id, runType, subjectType, subjectID,
-	).First(&row).Error; err != nil {
+	row, err := r.db.Queries(ctx).ReadVisibleTaskRun(ctx, sqlc.ReadVisibleTaskRunParams{
+		ID:          id.String(),
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		RunType:     string(runType),
+		SubjectType: string(subjectType),
+		SubjectID:   subjectID,
+	})
+	if err != nil {
 		return domain.TaskRun{}, readErr(err)
 	}
 	return fromRow(row), nil
@@ -936,7 +594,7 @@ func (r *Repository) GetTaskRun(ctx context.Context, taskRunID string) (domain.T
 }
 
 func (r *Repository) BatchGetTaskRuns(ctx context.Context, scope app.Scope, taskRunIDs []string) ([]domain.TaskRun, error) {
-	return batchGetTaskRuns(visibleScopeQuery(r.dbFor(ctx), scope), taskRunIDs)
+	return r.batchGetTaskRuns(ctx, scope, taskRunIDs, true)
 }
 
 func (r *Repository) ListTaskRunsByRoot(ctx context.Context, scope app.Scope, rootTaskRunID string) ([]domain.TaskRun, error) {
@@ -944,9 +602,11 @@ func (r *Repository) ListTaskRunsByRoot(ctx context.Context, scope app.Scope, ro
 	if err != nil {
 		return nil, app.ErrInvalidTaskHierarchy
 	}
-	return listTaskRuns(scopeQuery(r.dbFor(ctx), scope).Where(
-		"root_task_id = ? OR (root_task_id IS NULL AND id = ?)", id, id,
-	))
+	return listTaskRuns(r.db.Queries(ctx).ListRootTaskRuns(ctx, sqlc.ListRootTaskRunsParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		RelatedID:   id.String(),
+	}))
 }
 
 func (r *Repository) ListTaskRunsByParent(ctx context.Context, scope app.Scope, parentTaskRunID string) ([]domain.TaskRun, error) {
@@ -954,12 +614,15 @@ func (r *Repository) ListTaskRunsByParent(ctx context.Context, scope app.Scope, 
 	if err != nil {
 		return nil, app.ErrInvalidTaskHierarchy
 	}
-	return listTaskRuns(scopeQuery(r.dbFor(ctx), scope).Where("parent_task_id = ?", id))
+	return listTaskRuns(r.db.Queries(ctx).ListChildTaskRuns(ctx, sqlc.ListChildTaskRunsParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		RelatedID:   id.String(),
+	}))
 }
 
-func listTaskRuns(query *gorm.DB) ([]domain.TaskRun, error) {
-	var rows []taskRunRow
-	if err := query.Order("created_at ASC").Order("id ASC").Find(&rows).Error; err != nil {
+func listTaskRuns(rows []sqlc.TaskRun, err error) ([]domain.TaskRun, error) {
+	if err != nil {
 		return nil, err
 	}
 	items := make([]domain.TaskRun, 0, len(rows))
@@ -970,12 +633,12 @@ func listTaskRuns(query *gorm.DB) ([]domain.TaskRun, error) {
 }
 
 func (r *Repository) BatchGetScopedTaskRuns(ctx context.Context, scope app.Scope, taskRunIDs []string) ([]domain.TaskRun, error) {
-	return batchGetTaskRuns(scopeQuery(r.dbFor(ctx), scope), taskRunIDs)
+	return r.batchGetTaskRuns(ctx, scope, taskRunIDs, false)
 }
 
 func (r *Repository) BatchGetLatestTaskRunsBySubjects(ctx context.Context, scope app.Scope, subjects []app.TaskRunSubject) ([]domain.TaskRun, error) {
 	unique := make([]app.TaskRunSubject, 0, len(subjects))
-	tuples := make([][]any, 0, len(subjects))
+	args := sqlc.ReadLatestTaskSubjectsParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID}
 	seen := make(map[app.TaskRunSubject]struct{}, len(subjects))
 	for _, subject := range subjects {
 		if subject.RunType == "" || subject.SubjectType == "" || strings.TrimSpace(subject.SubjectID) == "" {
@@ -986,30 +649,15 @@ func (r *Repository) BatchGetLatestTaskRunsBySubjects(ctx context.Context, scope
 		}
 		seen[subject] = struct{}{}
 		unique = append(unique, subject)
-		tuples = append(tuples, []any{subject.RunType, subject.SubjectType, subject.SubjectID})
+		args.RunTypes = append(args.RunTypes, string(subject.RunType))
+		args.SubjectTypes = append(args.SubjectTypes, string(subject.SubjectType))
+		args.SubjectIds = append(args.SubjectIds, subject.SubjectID)
 	}
 	if len(unique) == 0 {
 		return []domain.TaskRun{}, nil
 	}
-	latestTimes := visibleScopeQuery(r.dbFor(ctx), scope).
-		Select("tenant_id, workspace_id, run_type, subject_type, subject_id, MAX(created_at) AS latest_created_at").
-		Where("(run_type, subject_type, subject_id) IN ?", tuples).
-		Group("tenant_id, workspace_id, run_type, subject_type, subject_id")
-	latestIDs := r.dbFor(ctx).Table("task_runs AS latest_candidate").
-		Select("MAX(latest_candidate.id)").
-		Joins(`JOIN (?) AS latest_time
-  ON latest_time.tenant_id = latest_candidate.tenant_id
- AND (latest_time.workspace_id = latest_candidate.workspace_id OR (latest_time.workspace_id IS NULL AND latest_candidate.workspace_id IS NULL))
- AND latest_time.run_type = latest_candidate.run_type
- AND latest_time.subject_type = latest_candidate.subject_type
- AND latest_time.subject_id = latest_candidate.subject_id
- AND latest_time.latest_created_at = latest_candidate.created_at`, latestTimes).
-		Where("latest_candidate.is_internal = ? AND latest_candidate.hidden_at IS NULL", false).
-		Group("latest_candidate.tenant_id, latest_candidate.workspace_id, latest_candidate.run_type, latest_candidate.subject_type, latest_candidate.subject_id, latest_candidate.created_at")
-	var rows []taskRunRow
-	if err := visibleScopeQuery(r.dbFor(ctx), scope).
-		Where("id IN (?)", latestIDs).
-		Find(&rows).Error; err != nil {
+	rows, err := r.db.Queries(ctx).ReadLatestTaskSubjects(ctx, args)
+	if err != nil {
 		return nil, err
 	}
 	bySubject := make(map[app.TaskRunSubject]domain.TaskRun, len(rows))
@@ -1026,13 +674,17 @@ func (r *Repository) BatchGetLatestTaskRunsBySubjects(ctx context.Context, scope
 	return items, nil
 }
 
-func batchGetTaskRuns(query *gorm.DB, taskRunIDs []string) ([]domain.TaskRun, error) {
+func (r *Repository) batchGetTaskRuns(ctx context.Context, scope app.Scope, taskRunIDs []string, visibleOnly bool) ([]domain.TaskRun, error) {
 	ids := persistenceid.ParseValid(taskRunIDs)
 	if len(ids) == 0 {
 		return []domain.TaskRun{}, nil
 	}
-	var rows []taskRunRow
-	if err := query.Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	args := sqlc.ReadTaskRunsByIDsParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, VisibleOnly: visibleOnly}
+	for _, id := range ids {
+		args.Ids = append(args.Ids, id.String())
+	}
+	rows, err := r.db.Queries(ctx).ReadTaskRunsByIDs(ctx, args)
+	if err != nil {
 		return nil, err
 	}
 	byID := make(map[string]domain.TaskRun, len(rows))
@@ -1063,12 +715,12 @@ func (r *Repository) getTaskRun(ctx context.Context, taskRunID string, lock bool
 	if err != nil {
 		return domain.TaskRun{}, app.ErrNotFound
 	}
-	var row taskRunRow
-	query := r.dbFor(ctx).Where("id = ?", id)
+	get := r.db.Queries(ctx).ReadTaskRun
 	if lock {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		get = r.db.Queries(ctx).LockTaskRun
 	}
-	if err = query.First(&row).Error; err != nil {
+	row, err := get(ctx, id.String())
+	if err != nil {
 		return domain.TaskRun{}, readErr(err)
 	}
 	return fromRow(row), nil
@@ -1078,33 +730,36 @@ func (r *Repository) UpdateTaskRun(ctx context.Context, run domain.TaskRun, upda
 	if !run.Status.CanTransitionTo(update.Status) {
 		return false, domain.ErrInvalidTaskTransition
 	}
-	if update.Status == domain.StatusWaitingSubtasks || update.Status == domain.StatusPartialSuccess {
-		id, err := persistenceid.Parse(run.ID)
-		if err != nil {
-			return false, err
+	id, err := persistenceid.Parse(run.ID)
+	if err != nil {
+		return false, err
+	}
+	var updated bool
+	err = r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		if update.Status == domain.StatusWaitingSubtasks || update.Status == domain.StatusPartialSuccess {
+			children, err := q.HasTaskChildren(ctx, ptr(id.String()))
+			if err != nil {
+				return err
+			}
+			if !children {
+				return domain.ErrInvalidTaskTransition
+			}
 		}
-		var childCount int64
-		if err = r.dbFor(ctx).Model(&taskRunRow{}).Where("parent_task_id = ?", id).Limit(1).Count(&childCount).Error; err != nil {
-			return false, err
-		}
-		if childCount == 0 {
-			return false, domain.ErrInvalidTaskTransition
-		}
-	}
-	updates := map[string]any{
-		"status": update.Status, "error_message": update.ErrorMessage,
-		"state_version": run.StateVersion + 1, "updated_at": now,
-	}
-	if update.StartedAt != nil {
-		updates["started_at"] = *update.StartedAt
-	}
-	if update.FinishedAt != nil {
-		updates["finished_at"] = *update.FinishedAt
-	}
-	if update.ErrorCode != "" {
-		updates["error_code"] = update.ErrorCode
-	}
-	return r.update(ctx, run.ID, run.StateVersion, updates)
+		var err error
+		updated, err = changed(q.ChangeTaskRun(ctx, sqlc.ChangeTaskRunParams{
+			ID:           id.String(),
+			StateVersion: run.StateVersion,
+			UpdatedAt:    now,
+			Status:       string(update.Status),
+			ErrorCode:    update.ErrorCode,
+			ErrorMessage: update.ErrorMessage,
+			StartedAt:    update.StartedAt,
+			FinishedAt:   update.FinishedAt,
+		}))
+		return err
+	})
+	return updated, err
 }
 
 func (r *Repository) HideTaskRunsBySubjects(
@@ -1134,60 +789,57 @@ func (r *Repository) HideTaskRunsBySubjects(
 	if len(ids) == 0 {
 		return nil
 	}
-	return scopeQuery(r.dbFor(ctx).Model(&taskRunRow{}), scope).
-		Where("run_type = ? AND subject_type = ? AND subject_id IN ? AND hidden_at IS NULL", runType, subjectType, ids).
-		Updates(map[string]any{"hidden_at": hiddenAt, "state_version": gorm.Expr("state_version + 1"), "updated_at": hiddenAt}).Error
+	return r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		return r.db.Queries(ctx).HideTaskRuns(ctx, sqlc.HideTaskRunsParams{
+			TenantID:    scope.TenantID,
+			WorkspaceID: scope.WorkspaceID,
+			RunType:     string(runType),
+			SubjectType: string(subjectType),
+			SubjectIds:  ids,
+			Now:         hiddenAt,
+		})
+	})
 }
 
-func (r *Repository) update(ctx context.Context, taskRunID string, expectedVersion int64, updates map[string]any) (bool, error) {
-	id, err := persistenceid.Parse(taskRunID)
+func changed(n int64, err error) (bool, error) { return n == 1, err }
+func claimedDispatch(row sqlc.AsyncDispatch, err error) (domain.AsyncDispatch, bool, error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.AsyncDispatch{}, false, nil
+	}
 	if err != nil {
-		return false, err
+		return domain.AsyncDispatch{}, false, err
 	}
-	result := r.dbFor(ctx).Model(&taskRunRow{}).Where(
-		"id = ? AND state_version = ? AND status IN ?", id, expectedVersion,
-		[]string{domain.StatusQueued, domain.StatusRunning, domain.StatusWaitingSubtasks},
-	).Updates(updates)
-	if result.Error != nil {
-		return false, result.Error
+	return asyncDispatchFromRow(row), true, nil
+}
+func ptr[T any](value T) *T { return &value }
+func convertTerminalSlot[T, U ~int8 | ~int16](v *T) *U {
+	if v == nil {
+		return nil
 	}
-	return result.RowsAffected == 1, nil
+	return ptr(U(*v))
 }
-
-func scopeQuery(db *gorm.DB, scope app.Scope) *gorm.DB {
-	query := db.Model(&taskRunRow{}).Where("tenant_id = ?", scope.TenantID)
-	if scope.WorkspaceID == nil {
-		return query.Where("workspace_id IS NULL")
-	}
-	return query.Where("workspace_id = ?", *scope.WorkspaceID)
-}
-
-func visibleScopeQuery(db *gorm.DB, scope app.Scope) *gorm.DB {
-	return scopeQuery(db, scope).Where("is_internal = ? AND hidden_at IS NULL", false)
-}
-
 func readErr(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return app.ErrNotFound
 	}
 	return err
 }
 
-func toRow(run domain.TaskRun) (taskRunRow, error) {
+func toRow(run domain.TaskRun) (sqlc.TaskRun, error) {
 	id, err := persistenceid.Parse(run.ID)
 	if err != nil || run.Validate() != nil {
-		return taskRunRow{}, errors.New("invalid task run")
+		return sqlc.TaskRun{}, errors.New("invalid task run")
 	}
 	rootTaskID, err := parseOptionalTaskRunID(run.RootTaskID)
 	if err != nil {
-		return taskRunRow{}, errors.New("invalid task run")
+		return sqlc.TaskRun{}, errors.New("invalid task run")
 	}
 	parentTaskID, err := parseOptionalTaskRunIDPointer(run.ParentTaskID)
 	if err != nil {
-		return taskRunRow{}, errors.New("invalid task run")
+		return sqlc.TaskRun{}, errors.New("invalid task run")
 	}
-	return taskRunRow{
-		ID: id, TenantID: run.TenantID, WorkspaceID: run.WorkspaceID,
+	return sqlc.TaskRun{
+		ID: id.String(), TenantID: run.TenantID, WorkspaceID: run.WorkspaceID,
 		RootTaskID: rootTaskID, ParentTaskID: parentTaskID,
 		CreatedBy: run.CreatedBy, RunType: string(run.RunType),
 		SubjectType: string(run.SubjectType), SubjectID: run.SubjectID,
@@ -1198,10 +850,10 @@ func toRow(run domain.TaskRun) (taskRunRow, error) {
 	}, nil
 }
 
-func fromRow(row taskRunRow) domain.TaskRun {
+func fromRow(row sqlc.TaskRun) domain.TaskRun {
 	run := domain.TaskRun{
-		ID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID,
-		RootTaskID: optionalTaskRunID(row.RootTaskID), ParentTaskID: optionalTaskRunIDPointer(row.ParentTaskID),
+		ID: row.ID, TenantID: row.TenantID, WorkspaceID: row.WorkspaceID,
+		RootTaskID: optionalTaskRunID(row.RootTaskID), ParentTaskID: row.ParentTaskID,
 		CreatedBy: row.CreatedBy, RunType: domain.RunType(row.RunType),
 		SubjectType: domain.SubjectType(row.SubjectType), SubjectID: row.SubjectID,
 		IsInternal: row.IsInternal, HiddenAt: row.HiddenAt,
@@ -1212,7 +864,7 @@ func fromRow(row taskRunRow) domain.TaskRun {
 	return run
 }
 
-func parseOptionalTaskRunID(value string) (*persistenceid.UUID, error) {
+func parseOptionalTaskRunID(value string) (*string, error) {
 	if value == "" {
 		return nil, nil
 	}
@@ -1220,29 +872,21 @@ func parseOptionalTaskRunID(value string) (*persistenceid.UUID, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &id, nil
+	return ptr(id.String()), nil
 }
 
-func parseOptionalTaskRunIDPointer(value *string) (*persistenceid.UUID, error) {
+func parseOptionalTaskRunIDPointer(value *string) (*string, error) {
 	if value == nil {
 		return nil, nil
 	}
 	return parseOptionalTaskRunID(*value)
 }
 
-func optionalTaskRunID(value *persistenceid.UUID) string {
+func optionalTaskRunID(value *string) string {
 	if value == nil {
 		return ""
 	}
-	return value.String()
-}
-
-func optionalTaskRunIDPointer(value *persistenceid.UUID) *string {
-	if value == nil {
-		return nil
-	}
-	id := value.String()
-	return &id
+	return *value
 }
 
 func sameWorkspace(left, right *string) bool {
@@ -1252,35 +896,35 @@ func sameWorkspace(left, right *string) bool {
 	return *left == *right
 }
 
-func pollScheduleToRow(schedule domain.PollSchedule) (pollScheduleRow, error) {
+func pollScheduleToRow(schedule domain.PollSchedule) (sqlc.InsertPollScheduleParams, error) {
 	id, err := persistenceid.Parse(schedule.TaskRunID)
 	if err != nil || schedule.NextPollAt.IsZero() || schedule.DeadlineAt.IsZero() {
-		return pollScheduleRow{}, errors.New("invalid poll schedule")
+		return sqlc.InsertPollScheduleParams{}, errors.New("invalid poll schedule")
 	}
-	return pollScheduleRow{
-		TaskRunID: id, NextPollAt: schedule.NextPollAt,
+	return sqlc.InsertPollScheduleParams{
+		TaskRunID: id.String(), NextPollAt: schedule.NextPollAt,
 		LeaseUntil: schedule.LeaseUntil, StateVersion: schedule.StateVersion,
 		PollAttempts: schedule.PollAttempts, ConsecutiveErrors: schedule.ConsecutiveErrors,
 		DeadlineAt: schedule.DeadlineAt, CreatedAt: schedule.CreatedAt, UpdatedAt: schedule.UpdatedAt,
 	}, nil
 }
 
-func pollScheduleFromRow(row pollScheduleRow) domain.PollSchedule {
+func pollScheduleFromRow(row sqlc.ClaimPollSchedulesRow) domain.PollSchedule {
 	return domain.PollSchedule{
-		TaskRunID:  row.TaskRunID.String(),
+		TaskRunID:  row.TaskRunID,
 		NextPollAt: row.NextPollAt, LeaseUntil: row.LeaseUntil, StateVersion: row.StateVersion,
 		PollAttempts: row.PollAttempts, ConsecutiveErrors: row.ConsecutiveErrors,
 		DeadlineAt: row.DeadlineAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 
-func asyncDispatchToRow(dispatch domain.AsyncDispatch) (asyncDispatchRow, error) {
+func asyncDispatchToRow(dispatch domain.AsyncDispatch) (sqlc.AsyncDispatch, error) {
 	id, err := persistenceid.Parse(dispatch.TaskRunID)
 	if err != nil || dispatch.Validate() != nil {
-		return asyncDispatchRow{}, errors.New("invalid async dispatch")
+		return sqlc.AsyncDispatch{}, errors.New("invalid async dispatch")
 	}
-	return asyncDispatchRow{
-		TaskRunID:           id,
+	return sqlc.AsyncDispatch{
+		TaskRunID:           id.String(),
 		RunType:             string(dispatch.RunType),
 		DeliveryState:       string(dispatch.DeliveryState),
 		ExecutionState:      string(dispatch.ExecutionState),
@@ -1302,9 +946,9 @@ func asyncDispatchToRow(dispatch domain.AsyncDispatch) (asyncDispatchRow, error)
 	}, nil
 }
 
-func asyncDispatchFromRow(row asyncDispatchRow) domain.AsyncDispatch {
+func asyncDispatchFromRow(row sqlc.AsyncDispatch) domain.AsyncDispatch {
 	return domain.AsyncDispatch{
-		TaskRunID:           row.TaskRunID.String(),
+		TaskRunID:           row.TaskRunID,
 		RunType:             domain.RunType(row.RunType),
 		DeliveryState:       domain.AsyncDeliveryState(row.DeliveryState),
 		ExecutionState:      domain.AsyncExecutionState(row.ExecutionState),
@@ -1326,24 +970,24 @@ func asyncDispatchFromRow(row asyncDispatchRow) domain.AsyncDispatch {
 	}
 }
 
-func asyncExecutionEventToRow(event asynccontract.Event) (asyncExecutionEventRow, error) {
+func asyncExecutionEventToRow(event asynccontract.Event) (sqlc.AsyncExecutionEvent, error) {
 	if err := event.Validate(); err != nil {
-		return asyncExecutionEventRow{}, err
+		return sqlc.AsyncExecutionEvent{}, err
 	}
 	id, err := persistenceid.Parse(event.ID)
 	if err != nil {
-		return asyncExecutionEventRow{}, err
+		return sqlc.AsyncExecutionEvent{}, err
 	}
 	taskRunID, err := persistenceid.Parse(event.TaskRunID)
 	if err != nil {
-		return asyncExecutionEventRow{}, err
+		return sqlc.AsyncExecutionEvent{}, err
 	}
-	return asyncExecutionEventRow{
-		ID: id, TaskRunID: taskRunID, RunType: event.RunType,
+	return sqlc.AsyncExecutionEvent{
+		ID: id.String(), TaskRunID: taskRunID.String(), RunType: event.RunType,
 		ExecutionToken: event.ExecutionToken, Sequence: event.Sequence,
 		EventType: string(event.EventType), PayloadVersion: event.PayloadVersion,
-		Payload: append([]byte(nil), event.Payload...), PayloadSHA256: event.PayloadSHA256,
-		TerminalSlot: event.TerminalSlot, ConsumeStatus: string(event.ConsumeStatus),
+		Payload: append([]byte(nil), event.Payload...), PayloadSha256: event.PayloadSHA256,
+		TerminalSlot: convertTerminalSlot[int8, int16](event.TerminalSlot), ConsumeStatus: string(event.ConsumeStatus),
 		NextConsumeAt: event.NextConsumeAt, ConsumeLeaseUntil: event.ConsumeLeaseUntil,
 		ConsumeAttempts: event.ConsumeAttempts, StateVersion: event.StateVersion,
 		LastErrorCode: event.LastErrorCode, LastErrorMessage: event.LastErrorMessage,
@@ -1351,13 +995,13 @@ func asyncExecutionEventToRow(event asynccontract.Event) (asyncExecutionEventRow
 	}, nil
 }
 
-func asyncExecutionEventFromRow(row asyncExecutionEventRow) asynccontract.Event {
+func asyncExecutionEventFromRow(row sqlc.AsyncExecutionEvent) asynccontract.Event {
 	return asynccontract.Event{
-		ID: row.ID.String(), TaskRunID: row.TaskRunID.String(), RunType: row.RunType,
+		ID: row.ID, TaskRunID: row.TaskRunID, RunType: row.RunType,
 		ExecutionToken: row.ExecutionToken, Sequence: row.Sequence,
 		EventType: asynccontract.EventType(row.EventType), PayloadVersion: row.PayloadVersion,
-		Payload: append([]byte(nil), row.Payload...), PayloadSHA256: row.PayloadSHA256,
-		TerminalSlot: row.TerminalSlot, ConsumeStatus: asynccontract.ConsumeStatus(row.ConsumeStatus),
+		Payload: append([]byte(nil), row.Payload...), PayloadSHA256: row.PayloadSha256,
+		TerminalSlot: convertTerminalSlot[int16, int8](row.TerminalSlot), ConsumeStatus: asynccontract.ConsumeStatus(row.ConsumeStatus),
 		NextConsumeAt: row.NextConsumeAt, ConsumeLeaseUntil: row.ConsumeLeaseUntil,
 		ConsumeAttempts: row.ConsumeAttempts, StateVersion: row.StateVersion,
 		LastErrorCode: row.LastErrorCode, LastErrorMessage: row.LastErrorMessage,

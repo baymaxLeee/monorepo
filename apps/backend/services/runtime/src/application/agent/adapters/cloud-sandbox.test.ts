@@ -197,16 +197,7 @@ test("lazy run allocation is single-flight; original binary bytes survive import
   assert.equal(f.calls.filter((c) => c === "create").length, 1);
   assert.deepEqual(f.imported, [bytes]);
   assert.ok(!f.calls.includes("publish"));
-  const saved = await run.save(
-    {
-      operation: "create",
-      path: "/workspace/outputs/output.bin",
-      filename: "output.bin",
-      media_type: "application/octet-stream",
-      title: "Output",
-    },
-    "save",
-  );
+  const saved = await run.save("/workspace/outputs/output.bin", "save");
   assert.equal(saved.file_id, "saved");
   assert.deepEqual(f.calls.slice(-2), ["upload", "publish"]);
   await Promise.all([run.dispose(), run.dispose()]);
@@ -407,19 +398,7 @@ test("failed exports are never registered as artifacts, and later runs import pe
       },
     });
   const run = new RunSandbox(context, f.deps);
-  await assert.rejects(
-    run.save(
-      {
-        operation: "create",
-        path: "/workspace/outputs/x",
-        filename: "x",
-        media_type: "application/octet-stream",
-        title: "X",
-      },
-      "a",
-    ),
-    /truncated/,
-  );
+  await assert.rejects(run.save("/workspace/outputs/x", "a"), /truncated/);
   assert.ok(!f.calls.includes("publish"));
   await run.dispose();
   const next = new RunSandbox({ ...context, runId: "next" }, f.deps);
@@ -474,7 +453,7 @@ test("Runtime-owned saved files import exact Storage bytes including trailing ne
   await run.dispose();
 });
 
-test("agent updates preserve file identity, validate UTF-8, and advance only that work copy baseline", async () => {
+test("agent updates preserve file identity, use the imported revision and advance only that work copy baseline", async () => {
   const f = fixture();
   const original = new TextEncoder().encode("old\n");
   const updated = new TextEncoder().encode("new\n");
@@ -523,29 +502,16 @@ test("agent updates preserve file identity, validate UTF-8, and advance only tha
   f.client.download = async () => new Blob([updated]).stream();
   const run = new RunSandbox(context, f.deps);
   await run.refresh();
-  const saved = await run.save(
-    {
-      operation: "update",
-      path: "/workspace/notes.md",
-      file_id: "file",
-      etag: '"11111111111111111111111111111111"',
-    },
-    "save-update",
-  );
+  const saved = await run.save("/workspace/notes.md", "save-update");
   assert.equal(saved.file_id, "file");
   assert.equal(saved.etag, '"22222222222222222222222222222222"');
-  await assert.rejects(
-    run.save(
-      {
-        operation: "update",
-        path: "/workspace/notes.md",
-        file_id: "file",
-        etag: '"11111111111111111111111111111111"',
-      },
-      "stale-update",
-    ),
-    /working copy/i,
-  );
+  f.deps.update = async (input) => {
+    assert.equal(input.expectedEtag, saved.etag);
+    assert.equal(input.expectedPathGeneration, 1);
+    throw new Error("concurrent workspace edit");
+  };
+  await assert.rejects(run.save("/workspace/notes.md", "stale-update"), /concurrent workspace edit/);
+  await assert.rejects(run.save("/workspace/sources/x", "source"), /imported sources/);
   await run.dispose();
 });
 

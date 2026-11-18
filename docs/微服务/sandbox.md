@@ -17,7 +17,7 @@
 
 - `bash`：模型可见的 command/workdir 工具，通过当前 run 的官方 AI SDK `SandboxSession.run` 执行并等待终态，Stop 传播 AbortSignal。
 - SDK sandbox adapter 同时实现 binary/text read/write 和 `spawn`。SDK 可写业务树但不能写 `.home/sources`；当前 transport 不支持 writable spawn stdin，必须在启动前明确拒绝 `stdin: true`。
-- 首次 Bash 自动导入当前会话 source；`refresh_conversation_sources` 只导入并返回本轮其他工具随后新增或更新的路径。
+- 首次 Bash 自动导入当前会话 source；`refresh_session_sources` 只导入并返回本轮其他工具随后新增或更新的路径。
 - run finalizer 先停止所有写进程并取得按 path/size/SHA-256 排序的完整业务文件清单，再自动提交新增、
   修改和删除。修改追加同一 Asset 的不可变 revision；删除写 tombstone 并推进路径 generation；同路径
   重建产生新文件身份。watcher 不是完整性依据。
@@ -70,9 +70,9 @@ etag、原子替换同一路径、提交 Storage/Runtime。提交失败恢复原
 Runtime 在每个后续受控模型 step 对账文件 etag，并通知 Agent 重读用户已提交的变更路径。
 
 Docker guest 使用 `--network none`，只挂只读 Unix socket 目录连接 Squid 出口。
-**这不是业务卷，也不能换成 Docker socket。** proxy 独占出网网络，默认只允许镜像内
-`proxy/allowed-domains.txt` 的域名及 80/443，并拒绝私网、回环、链路本地、metadata。
-自定义 CLI 必须支持 HTTP(S) proxy；不能绕过代理直连。定制 CLI/库放进运营构建的
+**这不是业务卷，也不能换成 Docker socket。** proxy 独占出网网络。支持 HTTP(S) 代理的命令自动使用环境出口。代理部署读取 `SANDBOX_EGRESS_MODE`：缺省 `allowlist` 保留内置域名，可用 `SANDBOX_EGRESS_EXTRA_DOMAINS=api.example.org,.example.net` 追加精确域名或域名后缀；`public` 允许公开 HTTP(S)；`disabled` 拒绝请求。所有模式限制 80/443、拒绝私网、回环和元数据地址。一个代理实例服务的 guest 共用策略。
+Compose 修改这些变量后重建代理容器即可生效；Kubernetes 在执行 namespace 的 overlay 合并 `sandbox-egress-policy` 生成器的 literals 后发布，配置哈希触发滚动更新。代理访问日志记录目标主机和代理结果，不记录 URL 路径或查询参数。自定义 CLI 需要支持 HTTP(S) 代理。
+定制 CLI/库放进运营构建的
 runtime 镜像，镜像预拉取后才接收请求。
 
 K8s guest 在独立执行 namespace，每 run 一个 Pod，不挂 service account token。
@@ -108,7 +108,7 @@ SANDBOX_RUNTIME=runsc just test-sandbox-integration
 ```
 
 部署脚本预拉 runtime 镜像，Compose 部署 manager/proxy；镜像清理保留被标记的闲置
-runtime。代理域名变更通过受审查的配置/镜像发布。单台 VPS 不能提供宿主机级高可用；
+runtime。代理网络策略由部署配置管理。单台 VPS 不能提供宿主机级高可用；
 Docker 模式只部署一个 controller 管理同一 daemon，不跨多台 Docker 主机做随机负载均衡。
 
 ## Kubernetes 与运维

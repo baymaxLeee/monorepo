@@ -2,79 +2,49 @@ package deletion
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	application "github.com/example/monorepo/canvas/internal/application/deletion"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	transaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
-type jobRow struct {
-	ID            string          `gorm:"size:64;primaryKey"`
-	TenantID      string          `gorm:"size:255;not null;index"`
-	Kind          string          `gorm:"size:64;not null"`
-	Payload       json.RawMessage `gorm:"type:json;not null"`
-	NextAttemptAt time.Time       `gorm:"not null;index:idx_deletion_jobs_due,priority:2"`
-	LeaseUntil    *time.Time
-	StateVersion  int64      `gorm:"not null"`
-	Attempts      int32      `gorm:"not null"`
-	CompletedAt   *time.Time `gorm:"index:idx_deletion_jobs_due,priority:1"`
-	LastError     string     `gorm:"type:text;not null"`
-	CreatedAt     time.Time  `gorm:"not null"`
-	UpdatedAt     time.Time  `gorm:"not null"`
-}
+type Repository struct{ db *transaction.Store }
 
-func (jobRow) TableName() string { return "deletion_jobs" }
-func Models() []any              { return []any{&jobRow{}} }
-
-type Repository struct{ db *gorm.DB }
-
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
-
+func NewRepository(db *transaction.Store) *Repository { return &Repository{db: db} }
 func (r *Repository) Enqueue(ctx context.Context, job application.Job) error {
-	row := jobRow{ID: job.ID, TenantID: job.TenantID, Kind: job.Kind, Payload: job.Payload, NextAttemptAt: job.NextAttemptAt, StateVersion: 1}
-	return transaction.DB(ctx, r.db).Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error
+	return r.db.Queries(ctx).EnqueueCanvasDeletionJob(ctx, sqlc.EnqueueCanvasDeletionJobParams{
+		ID: job.ID, TenantID: job.TenantID, Kind: job.Kind, Payload: job.Payload, NextAttemptAt: job.NextAttemptAt,
+	})
 }
 
 func (r *Repository) Claim(ctx context.Context, now, until time.Time, limit int) ([]application.Job, error) {
-	var jobs []application.Job
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var rows []jobRow
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
-			Where("completed_at IS NULL AND next_attempt_at <= ? AND (lease_until IS NULL OR lease_until <= ?)", now, now).
-			Order("next_attempt_at ASC, id ASC").Limit(limit).Find(&rows).Error; err != nil {
-			return err
-		}
-		for _, row := range rows {
-			update := tx.Model(&jobRow{}).Where(
-				"id = ? AND state_version = ? AND completed_at IS NULL AND next_attempt_at <= ? AND (lease_until IS NULL OR lease_until <= ?)",
-				row.ID, row.StateVersion, now, now,
-			).
-				Updates(map[string]any{"lease_until": until, "state_version": row.StateVersion + 1})
-			if update.Error != nil {
-				return update.Error
-			}
-			if update.RowsAffected != 1 {
-				return errors.New("deletion job claim lost")
-			}
-			jobs = append(jobs, application.Job{ID: row.ID, TenantID: row.TenantID, Kind: row.Kind, Payload: row.Payload, LeaseUntil: &until, StateVersion: row.StateVersion + 1, Attempts: row.Attempts})
-		}
-		return nil
+	rows, err := r.db.Queries(ctx).ClaimDeletionJobs(ctx, sqlc.ClaimDeletionJobsParams{
+		ClaimTime:  now,
+		LeaseUntil: until,
+		BatchSize:  int64(limit),
 	})
-	return jobs, err
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]application.Job, len(rows))
+	for i, row := range rows {
+		jobs[i] = application.Job{ID: row.ID, TenantID: row.TenantID, Kind: row.Kind, Payload: row.Payload, LeaseUntil: &until, StateVersion: row.StateVersion, Attempts: row.Attempts}
+	}
+	return jobs, nil
 }
 
 func (r *Repository) Finish(ctx context.Context, job application.Job, now time.Time, failure error) error {
-	values := map[string]any{"lease_until": nil, "state_version": job.StateVersion + 1, "attempts": job.Attempts + 1, "last_error": ""}
+	var count int64
+	var err error
 	if failure == nil {
-		values["completed_at"] = now
+		count, err = r.db.Queries(ctx).FinishDeletionJob(ctx, sqlc.FinishDeletionJobParams{
+			ID:           job.ID,
+			StateVersion: job.StateVersion,
+			FinishTime:   now,
+		})
 	} else {
-		// Persist only a safe category; raw causes belong to structured logs.
-		values["last_error"] = "deletion effect failed; retry pending"
 		delay := time.Minute
 		for attempt := int32(0); attempt < job.Attempts && delay < time.Hour; attempt++ {
 			delay *= 2
@@ -82,14 +52,17 @@ func (r *Repository) Finish(ctx context.Context, job application.Job, now time.T
 		if delay > time.Hour {
 			delay = time.Hour
 		}
-		values["next_attempt_at"] = now.Add(delay)
+		count, err = r.db.Queries(ctx).RetryDeletionJob(ctx, sqlc.RetryDeletionJobParams{
+			ID:            job.ID,
+			StateVersion:  job.StateVersion,
+			FinishTime:    now,
+			NextAttemptAt: now.Add(delay),
+		})
 	}
-	update := r.db.WithContext(ctx).Model(&jobRow{}).
-		Where("id = ? AND state_version = ? AND completed_at IS NULL AND lease_until > ?", job.ID, job.StateVersion, now).Updates(values)
-	if update.Error != nil {
-		return update.Error
+	if err != nil {
+		return err
 	}
-	if update.RowsAffected != 1 {
+	if count != 1 {
 		return errors.New("deletion job completion lease lost")
 	}
 	return nil

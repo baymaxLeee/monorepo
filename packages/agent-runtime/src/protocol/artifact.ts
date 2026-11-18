@@ -2,31 +2,23 @@ import { tool, type ToolExecutionOptions, type UIMessageChunk } from "ai";
 import { z } from "zod";
 
 import { defineAgentTool } from "../tools/manifest.js";
-import { toolOutcomeData } from "../tools/outcome.js";
+import {
+  normalizeToolIssue,
+  shouldRethrowToolError,
+  toolCompleted,
+  toolOutcomeData,
+  toolPartial,
+  type ToolEmission,
+} from "../tools/outcome.js";
 
-export const uploadArtifactInputSchema = z.object({
-  operation: z.enum(["create", "update"]),
-  path: z.string().min(1).describe("Completed file path in the authorized writable workspace."),
-  filename: z
-    .string()
+const uploadArtifactsInputSchema = z.object({
+  paths: z
+    .array(z.string().min(1))
     .min(1)
-    .max(255)
-    .regex(/^[^/\\\x00-\x1f]+$/)
-    .nullable()
-    .describe("Required for create; null for update."),
-  media_type: z.string().min(1).max(255).nullable().describe("Required for create; null for update."),
-  title: z.string().min(1).max(255).nullable().describe("Required for create; null for update."),
-  file_id: z.string().length(32).nullable().describe("Required for update; null for create."),
-  etag: z
-    .string()
-    .regex(/^"[a-f0-9]{32}"$/)
-    .nullable()
-    .describe("Read baseline for update; null for create."),
+    .describe("Completed deliverable paths, absolute or relative to the default Bash working directory."),
 });
+type UploadArtifactsInput = z.infer<typeof uploadArtifactsInputSchema>;
 
-export const uploadArtifactsInputSchema = z.object({ artifacts: z.array(uploadArtifactInputSchema).min(1) });
-export type UploadArtifactInput = z.infer<typeof uploadArtifactInputSchema>;
-export type UploadArtifactsInput = z.infer<typeof uploadArtifactsInputSchema>;
 export interface PublishedWorkspaceFile {
   file_id: string;
   filename: string;
@@ -42,49 +34,30 @@ export interface UploadedArtifacts {
   files: PublishedWorkspaceFile[];
 }
 
-function validatedArtifact(input: UploadArtifactInput) {
-  if (input.operation === "create") {
-    if (!input.filename || !input.media_type || !input.title || input.file_id !== null || input.etag !== null) {
-      throw new Error("Create requires filename, media_type and title; file_id and etag must be null.");
-    }
-    return {
-      operation: "create" as const,
-      path: input.path,
-      filename: input.filename,
-      media_type: input.media_type,
-      title: input.title,
-    };
-  }
-  if (!input.file_id || !input.etag || input.filename !== null || input.media_type !== null || input.title !== null) {
-    throw new Error("Update requires file_id and etag; filename, media_type and title must be null.");
-  }
-  return { operation: "update" as const, path: input.path, file_id: input.file_id, etag: input.etag };
-}
-
 export function createUploadArtifactsTool<CONTEXT extends Record<string, unknown> = Record<string, unknown>>(
-  publish: (
-    input:
-      | { operation: "create"; path: string; filename: string; media_type: string; title: string }
-      | { operation: "update"; path: string; file_id: string; etag: string },
-    options: ToolExecutionOptions<CONTEXT>,
-  ) => Promise<PublishedWorkspaceFile>,
+  publish: (path: string, options: ToolExecutionOptions<CONTEXT>) => Promise<PublishedWorkspaceFile>,
   options: { contextSchema?: z.ZodType<CONTEXT> } = {},
 ) {
   return defineAgentTool(
     "upload_artifacts",
-    tool<UploadArtifactsInput, UploadedArtifacts, CONTEXT>({
+    tool<UploadArtifactsInput, ToolEmission<UploadedArtifacts>, CONTEXT>({
       description:
-        "Upload one or more completed cloud workspace files into the conversation as durable inline deliverables. Submit every completed file in one batch. Use operation=create for a newly published file. Use update with the restored file_id and ETag after editing a previously published file. Never turn a conflict into create automatically.",
+        "Present completed workspace files in the conversation. Submit their paths in a single batch. Include only requested deliverables; leave drafts and intermediate files in the workspace.",
       inputSchema: uploadArtifactsInputSchema,
       ...(options.contextSchema ? { contextSchema: options.contextSchema } : {}),
       execute: async (input, execution) => {
-        const artifacts = input.artifacts.map(validatedArtifact);
-        const files = await Promise.all(
-          artifacts.map((artifact, index) =>
-            publish(artifact, { ...execution, toolCallId: `${execution.toolCallId}:${index}` }),
-          ),
-        );
-        return { files };
+        const paths = [...new Set(input.paths)];
+        const files: PublishedWorkspaceFile[] = [];
+        for (const [index, path] of paths.entries()) {
+          try {
+            execution.abortSignal?.throwIfAborted();
+            files.push(await publish(path, { ...execution, toolCallId: `${execution.toolCallId}:${index}` }));
+          } catch (error) {
+            if (!files.length || shouldRethrowToolError(error, execution.abortSignal)) throw error;
+            return toolPartial({ files }, normalizeToolIssue(error, { details: { failedPath: path } }));
+          }
+        }
+        return toolCompleted({ files });
       },
     }),
     {
@@ -95,7 +68,40 @@ export function createUploadArtifactsTool<CONTEXT extends Record<string, unknown
       modes: ["normal", "plan"],
       uiKind: "artifact",
     },
-    { summary: "Upload completed cloud workspace files as inline conversation files, preserving updates with CAS." },
+    { summary: "Present selected workspace files as inline deliverables." },
+  );
+}
+
+export function workspaceMediaType(path: string): string {
+  const extension = path.split(".").at(-1)?.toLowerCase();
+  return (
+    {
+      css: "text/css",
+      csv: "text/csv",
+      html: "text/html",
+      js: "text/javascript",
+      json: "application/json",
+      jsx: "text/jsx",
+      md: "text/markdown",
+      mjs: "text/javascript",
+      py: "text/x-python",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      zip: "application/zip",
+      pdf: "application/pdf",
+      png: "image/png",
+      svg: "image/svg+xml",
+      ts: "text/typescript",
+      tsx: "text/tsx",
+      txt: "text/plain",
+      webp: "image/webp",
+      yaml: "application/yaml",
+      yml: "application/yaml",
+    }[extension ?? ""] ?? "application/octet-stream"
   );
 }
 

@@ -8,9 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/plugin/soft_delete"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
+	"github.com/jackc/pgx/v5"
 
 	app "github.com/example/monorepo/canvas/internal/application/canvas"
 	applicationresource "github.com/example/monorepo/canvas/internal/application/resource"
@@ -19,51 +18,62 @@ import (
 	domainresource "github.com/example/monorepo/canvas/internal/domain/resource"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const maxCanvasNodes = 100
 
-type Repository struct{ db *gorm.DB }
+type Repository struct{ store *persistencetransaction.Store }
 
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
-
-func (r *Repository) dbFor(ctx context.Context) *gorm.DB {
-	return persistencetransaction.DB(ctx, r.db)
-}
-
+func NewRepository(store *persistencetransaction.Store) *Repository { return &Repository{store: store} }
 func (r *Repository) BindCanvasNodeAsset(
 	ctx context.Context,
 	input applicationresource.CanvasNodeAssetBindingInput,
+) (binding applicationresource.CanvasNodeAssetBinding, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		binding, err = r.bindCanvasNodeAssetInTransaction(ctx, input)
+		return err
+	})
+	return
+}
+
+func (r *Repository) bindCanvasNodeAssetInTransaction(
+	ctx context.Context,
+	input applicationresource.CanvasNodeAssetBindingInput,
 ) (applicationresource.CanvasNodeAssetBinding, error) {
-	projectID, err := persistenceid.Parse(input.ProjectID)
+	projectID, err := parseID(input.ProjectID)
 	if err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
-	canvasID, err := persistenceid.Parse(input.CanvasID)
+	canvasID, err := parseID(input.CanvasID)
 	if err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
-	nodeID, err := persistenceid.Parse(input.CanvasNodeID)
+	nodeID, err := parseID(input.CanvasNodeID)
 	if err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
-	_, err = persistenceid.Parse(input.AssetID)
+	_, err = parseID(input.AssetID)
 	if err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
-	resourceAssetID, err := persistenceid.Parse(input.ResourceAssetID)
+	resourceAssetID, err := parseID(input.ResourceAssetID)
 	if err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
 	scope := app.Scope{TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, CallerID: input.CallerID}
-	db := r.dbFor(ctx)
-	if err = lockCanvas(db, input.TenantID, input.WorkspaceID, input.ProjectID, canvasID); err != nil {
+	db := r.store.Queries(ctx)
+	if err = lockCanvas(ctx, db, input.TenantID, input.WorkspaceID, input.ProjectID, canvasID); err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
-	var row canvasnodeRow
-	if err = scopeQuery(db.Clauses(clause.Locking{Strength: "UPDATE"}), scope).
-		Where("id = ? AND project_id = ? AND canvas_id = ?", nodeID, projectID, canvasID).
-		First(&row).Error; err != nil {
+	row, err := db.NodeGetLocked(ctx, sqlc.NodeGetLockedParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   projectID,
+		CanvasID:    canvasID,
+		ID:          nodeID,
+	})
+	if err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
 	item, err := r.decodeRow(ctx, row)
@@ -85,16 +95,22 @@ func (r *Repository) BindCanvasNodeAsset(
 	if err != nil {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
-	result := db.Model(&row).Where("revision = ?", item.Revision).Updates(map[string]any{
-		"asset_id": nil, "resource_id": nil, "resource_asset_id": resourceAssetID,
-		"node_data":          nodeData,
-		"selected_output_id": nil, "selected_asset_id": nil,
-		"revision": nextRevision, "updated_by": input.CallerID, "updated_at": input.UpdatedAt.UTC(),
+	affected, err := db.NodeBindResource(ctx, sqlc.NodeBindResourceParams{
+		ResourceAssetID: &resourceAssetID,
+		NodeData:        nodeData,
+		UpdatedBy:       scope.CallerID,
+		UpdatedAt:       input.UpdatedAt.UTC(),
+		TenantID:        scope.TenantID,
+		WorkspaceID:     scope.WorkspaceID,
+		ProjectID:       projectID,
+		CanvasID:        canvasID,
+		ID:              nodeID,
+		Revision:        item.Revision,
 	})
-	if result.Error != nil {
-		return applicationresource.CanvasNodeAssetBinding{}, result.Error
+	if err != nil {
+		return applicationresource.CanvasNodeAssetBinding{}, err
 	}
-	if result.RowsAffected != 1 {
+	if affected != 1 {
 		return applicationresource.CanvasNodeAssetBinding{}, applicationresource.ErrCanvasNodeAssetNotBindable
 	}
 	return applicationresource.CanvasNodeAssetBinding{
@@ -102,6 +118,7 @@ func (r *Repository) BindCanvasNodeAsset(
 		CanvasNodeRevision: nextRevision,
 	}, nil
 }
+
 func (r *Repository) List(ctx context.Context, scope app.Scope, projectID, canvasID string) ([]domain.CanvasNode, error) {
 	return r.list(ctx, scope, projectID, canvasID, false)
 }
@@ -111,23 +128,25 @@ func (r *Repository) ListForUpdate(ctx context.Context, scope app.Scope, project
 }
 
 func (r *Repository) list(ctx context.Context, scope app.Scope, projectID, canvasID string, forUpdate bool) ([]domain.CanvasNode, error) {
-	p, e := persistenceid.Parse(projectID)
+	p, e := parseID(projectID)
 	if e != nil {
 		return nil, app.ErrNotFound
 	}
-	ep, e := persistenceid.Parse(canvasID)
+	ep, e := parseID(canvasID)
 	if e != nil {
 		return nil, app.ErrNotFound
 	}
-	if e = findCanvas(r.dbFor(ctx), scope, p, ep, false); e != nil {
+	if e = findCanvas(ctx, r.store.Queries(ctx), scope, p, ep, false); e != nil {
 		return nil, readErr(e)
 	}
+	args := sqlc.NodeListParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ProjectID: p, CanvasID: ep}
 	var rows []canvasnodeRow
-	query := scopeQuery(r.dbFor(ctx), scope)
 	if forUpdate {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		rows, e = r.store.Queries(ctx).NodeListLocked(ctx, sqlc.NodeListLockedParams(args))
+	} else {
+		rows, e = r.store.Queries(ctx).NodeList(ctx, args)
 	}
-	if e = query.Where("project_id = ? AND canvas_id = ?", p, ep).Order("storyboard_rank ASC").Order("id ASC").Find(&rows).Error; e != nil {
+	if e != nil {
 		return nil, e
 	}
 	out := make([]domain.CanvasNode, 0, len(rows))
@@ -138,36 +157,31 @@ func (r *Repository) list(ctx context.Context, scope app.Scope, projectID, canva
 		}
 		out = append(out, item)
 	}
-	if e = loadSelectedOutputMetadata(r.dbFor(ctx), scope, out); e != nil {
+	if e = loadSelectedOutputMetadata(ctx, r.store.Queries(ctx), scope, out); e != nil {
 		return nil, e
 	}
 	return out, nil
 }
 
 func (r *Repository) ListIDs(ctx context.Context, scope app.Scope, projectID, canvasID string) ([]string, error) {
-	p, err := persistenceid.Parse(projectID)
+	p, err := parseID(projectID)
 	if err != nil {
 		return nil, app.ErrNotFound
 	}
-	ep, err := persistenceid.Parse(canvasID)
+	ep, err := parseID(canvasID)
 	if err != nil {
 		return nil, app.ErrNotFound
 	}
-	if err = findCanvas(r.dbFor(ctx), scope, p, ep, false); err != nil {
+	if err = findCanvas(ctx, r.store.Queries(ctx), scope, p, ep, false); err != nil {
 		return nil, readErr(err)
 	}
-	var ids []persistenceid.UUID
-	if err = scopeQuery(r.dbFor(ctx).Model(&canvasnodeRow{}), scope).
-		Where("project_id = ? AND canvas_id = ? AND type = ?", p, ep, domain.NodeTypeVideoGeneration).
-		Order("storyboard_rank ASC").Order("id ASC").
-		Pluck("id", &ids).Error; err != nil {
-		return nil, err
-	}
-	out := make([]string, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, id.String())
-	}
-	return out, nil
+	return r.store.Queries(ctx).NodeVideoIDs(ctx, sqlc.NodeVideoIDsParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   p,
+		CanvasID:    ep,
+		Type:        int16(domain.NodeTypeVideoGeneration),
+	})
 }
 
 func (r *Repository) BatchGet(
@@ -176,25 +190,28 @@ func (r *Repository) BatchGet(
 	projectID, canvasID string,
 	canvasnodeIDs []string,
 ) ([]domain.CanvasNode, error) {
-	p, err := persistenceid.Parse(projectID)
+	p, err := parseID(projectID)
 	if err != nil {
 		return nil, app.ErrNotFound
 	}
-	ep, err := persistenceid.Parse(canvasID)
+	ep, err := parseID(canvasID)
 	if err != nil {
 		return nil, app.ErrNotFound
 	}
-	if err = findCanvas(r.dbFor(ctx), scope, p, ep, false); err != nil {
+	if err = findCanvas(ctx, r.store.Queries(ctx), scope, p, ep, false); err != nil {
 		return nil, readErr(err)
 	}
-	ids := persistenceid.ParseValid(canvasnodeIDs)
-	if len(ids) == 0 {
+	if len(canvasnodeIDs) == 0 {
 		return []domain.CanvasNode{}, nil
 	}
-	var rows []canvasnodeRow
-	if err = scopeQuery(r.dbFor(ctx), scope).
-		Where("project_id = ? AND canvas_id = ? AND id IN ?", p, ep, ids).
-		Find(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).NodeBatch(ctx, sqlc.NodeBatchParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   p,
+		CanvasID:    ep,
+		Ids:         validIDs(canvasnodeIDs),
+	})
+	if err != nil {
 		return nil, err
 	}
 	items := make([]domain.CanvasNode, 0, len(rows))
@@ -205,7 +222,7 @@ func (r *Repository) BatchGet(
 		}
 		items = append(items, item)
 	}
-	if err = loadSelectedOutputMetadata(r.dbFor(ctx), scope, items); err != nil {
+	if err = loadSelectedOutputMetadata(ctx, r.store.Queries(ctx), scope, items); err != nil {
 		return nil, err
 	}
 	byID := make(map[string]domain.CanvasNode, len(items))
@@ -232,13 +249,13 @@ func (r *Repository) BatchFirstFrameAssets(
 	projectID string,
 	canvasIDs []string,
 ) (map[string]app.FallbackFrameAsset, error) {
-	projectUUID, err := persistenceid.Parse(projectID)
+	projectUUID, err := parseID(projectID)
 	if err != nil {
 		return nil, err
 	}
-	canvasUUIDs := make([]persistenceid.UUID, 0, len(canvasIDs))
+	canvasUUIDs := make([]string, 0, len(canvasIDs))
 	for _, canvasID := range canvasIDs {
-		canvasUUID, parseErr := persistenceid.Parse(canvasID)
+		canvasUUID, parseErr := parseID(canvasID)
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -247,47 +264,25 @@ func (r *Repository) BatchFirstFrameAssets(
 	if len(canvasUUIDs) == 0 {
 		return map[string]app.FallbackFrameAsset{}, nil
 	}
-	var canvasnodeRows []canvasnodeRow
-	if err = scopeQuery(r.dbFor(ctx), scope).
-		Where("project_id = ? AND canvas_id IN ? AND type = ?", projectUUID, canvasUUIDs, domain.NodeTypeVideoGeneration).
-		Order("canvas_id ASC").Order("storyboard_rank ASC").Order("id ASC").
-		Find(&canvasnodeRows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).NodeFirstFrames(ctx, sqlc.NodeFirstFramesParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   projectUUID,
+		CanvasIds:   canvasUUIDs,
+		Type:        int16(domain.NodeTypeVideoGeneration),
+	})
+	if err != nil {
 		return nil, err
 	}
-	firstByCanvas := make(map[string]canvasnodeRow, len(canvasUUIDs))
-	selectedIDs := make([]persistenceid.UUID, 0, len(canvasUUIDs))
-	for _, row := range canvasnodeRows {
-		canvasID := row.CanvasID.String()
-		if _, exists := firstByCanvas[canvasID]; exists {
-			continue
+	result := make(map[string]app.FallbackFrameAsset, len(rows))
+	for _, row := range rows {
+		if row.FirstFrameAssetID != nil {
+			result[row.CanvasID] = app.FallbackFrameAsset{AssetID: *row.FirstFrameAssetID, TaskRunID: row.TaskRunID}
 		}
-		firstByCanvas[canvasID] = row
-		if row.SelectedOutputID != nil {
-			selectedIDs = append(selectedIDs, *row.SelectedOutputID)
-		}
-	}
-	if len(selectedIDs) == 0 {
-		return map[string]app.FallbackFrameAsset{}, nil
-	}
-	var generationRows []selectedOutputMetadataRow
-	if err = scopeQuery(r.dbFor(ctx).Model(&selectedOutputMetadataRow{}), scope).
-		Select("task_run_id", "canvas_id", "node_id", "first_frame_asset_id").
-		Where("project_id = ? AND canvas_id IN ? AND task_run_id IN ?", projectUUID, canvasUUIDs, selectedIDs).
-		Find(&generationRows).Error; err != nil {
-		return nil, err
-	}
-	result := make(map[string]app.FallbackFrameAsset, len(generationRows))
-	for _, generation := range generationRows {
-		canvasID := generation.CanvasID.String()
-		first, exists := firstByCanvas[canvasID]
-		if !exists || first.SelectedOutputID == nil || *first.SelectedOutputID != generation.TaskRunID ||
-			first.ID != generation.NodeID || generation.FirstFrameAssetID == nil {
-			continue
-		}
-		result[canvasID] = app.FallbackFrameAsset{AssetID: generation.FirstFrameAssetID.String(), TaskRunID: generation.TaskRunID.String()}
 	}
 	return result, nil
 }
+
 func (r *Repository) Get(ctx context.Context, scope app.Scope, projectID, canvasID, canvasnodeID string) (domain.CanvasNode, error) {
 	return r.get(ctx, scope, projectID, canvasID, canvasnodeID, false)
 }
@@ -297,27 +292,23 @@ func (r *Repository) GetForUpdate(ctx context.Context, scope app.Scope, projectI
 }
 
 func (r *Repository) get(ctx context.Context, scope app.Scope, projectID, canvasID, canvasnodeID string, forUpdate bool) (domain.CanvasNode, error) {
-	p, e := persistenceid.Parse(projectID)
+	p, e := parseID(projectID)
 	if e != nil {
 		return domain.CanvasNode{}, app.ErrNotFound
 	}
-	ep, e := persistenceid.Parse(canvasID)
+	ep, e := parseID(canvasID)
 	if e != nil {
 		return domain.CanvasNode{}, app.ErrNotFound
 	}
-	id, e := persistenceid.Parse(canvasnodeID)
+	id, e := parseID(canvasnodeID)
 	if e != nil {
 		return domain.CanvasNode{}, app.ErrNotFound
 	}
-	if e = findCanvas(r.dbFor(ctx), scope, p, ep, forUpdate); e != nil {
+	if e = findCanvas(ctx, r.store.Queries(ctx), scope, p, ep, forUpdate); e != nil {
 		return domain.CanvasNode{}, readErr(e)
 	}
-	var row canvasnodeRow
-	query := scopeQuery(r.dbFor(ctx), scope)
-	if forUpdate {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
-	}
-	if e = query.Where("id = ? AND project_id = ? AND canvas_id = ?", id, p, ep).First(&row).Error; e != nil {
+	row, e := r.getRow(ctx, scope, p, ep, id, forUpdate)
+	if e != nil {
 		return domain.CanvasNode{}, readErr(e)
 	}
 	item, e := r.decodeRow(ctx, row)
@@ -325,65 +316,84 @@ func (r *Repository) get(ctx context.Context, scope app.Scope, projectID, canvas
 		return domain.CanvasNode{}, e
 	}
 	items := []domain.CanvasNode{item}
-	if e = loadSelectedOutputMetadata(r.dbFor(ctx), scope, items); e != nil {
+	if e = loadSelectedOutputMetadata(ctx, r.store.Queries(ctx), scope, items); e != nil {
 		return domain.CanvasNode{}, e
 	}
 	return items[0], nil
 }
 
 func (r *Repository) Number(ctx context.Context, scope app.Scope, projectID, canvasID, canvasnodeID string) (int32, error) {
-	p, err := persistenceid.Parse(projectID)
+	p, err := parseID(projectID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	ep, err := persistenceid.Parse(canvasID)
+	ep, err := parseID(canvasID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	id, err := persistenceid.Parse(canvasnodeID)
+	id, err := parseID(canvasnodeID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	var current canvasnodeRow
-	if err = scopeQuery(r.dbFor(ctx), scope).Where("id = ? AND project_id = ? AND canvas_id = ?", id, p, ep).First(&current).Error; err != nil {
+	current, err := r.getRow(ctx, scope, p, ep, id, false)
+	if err != nil {
 		return 0, readErr(err)
 	}
-	var preceding int64
-	if err = scopeQuery(r.dbFor(ctx).Model(&canvasnodeRow{}), scope).
-		Where("project_id = ? AND canvas_id = ? AND storyboard_rank < ?", p, ep, current.StoryboardRank).
-		Count(&preceding).Error; err != nil {
+	preceding, err := r.store.Queries(ctx).NodeCountPreceding(ctx, sqlc.NodeCountPrecedingParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   p,
+		CanvasID:    ep,
+		Rank:        current.StoryboardRank,
+	})
+	if err != nil {
 		return 0, err
 	}
 	return int32(preceding + 1), nil
 }
 
 func (r *Repository) GetByID(ctx context.Context, scope app.Scope, canvasnodeID string) (domain.CanvasNode, error) {
-	id, err := persistenceid.Parse(canvasnodeID)
+	id, err := parseID(canvasnodeID)
 	if err != nil {
 		return domain.CanvasNode{}, app.ErrNotFound
 	}
-	var row canvasnodeRow
-	if err = scopeQuery(r.dbFor(ctx), scope).Where("id = ?", id).First(&row).Error; err != nil {
+	row, err := r.store.Queries(ctx).NodeGetByID(ctx, sqlc.NodeGetByIDParams{
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ID: id,
+	})
+	if err != nil {
 		return domain.CanvasNode{}, readErr(err)
 	}
 	return r.decodeRow(ctx, row)
 }
-func (r *Repository) Create(ctx context.Context, item domain.CanvasNode, after *string) (int32, error) {
-	db := r.dbFor(ctx)
-	canvasID, err := persistenceid.Parse(item.CanvasID)
+
+func (r *Repository) Create(ctx context.Context, item domain.CanvasNode, after *string) (number int32, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		number, err = r.createInTransaction(ctx, item, after)
+		return err
+	})
+	return
+}
+
+func (r *Repository) createInTransaction(ctx context.Context, item domain.CanvasNode, after *string) (int32, error) {
+	db := r.store.Queries(ctx)
+	canvasID, err := parseID(item.CanvasID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	if err = lockCanvas(db, item.TenantID, item.WorkspaceID, item.ProjectID, canvasID); err != nil {
+	if err = lockCanvas(ctx, db, item.TenantID, item.WorkspaceID, item.ProjectID, canvasID); err != nil {
 		return 0, readErr(err)
 	}
-	projectID, err := persistenceid.Parse(item.ProjectID)
+	projectID, err := parseID(item.ProjectID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	var nodeCount int64
-	base := scopeQuery(db.Model(&canvasnodeRow{}), app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID}).Where("project_id = ? AND canvas_id = ?", projectID, canvasID)
-	if err = base.Count(&nodeCount).Error; err != nil {
+	nodeCount, err := db.NodeCount(ctx, sqlc.NodeCountParams{
+		TenantID:    item.TenantID,
+		WorkspaceID: item.WorkspaceID,
+		ProjectID:   projectID,
+		CanvasID:    canvasID,
+	})
+	if err != nil {
 		return 0, err
 	}
 	if nodeCount >= maxCanvasNodes {
@@ -395,14 +405,19 @@ func (r *Repository) Create(ctx context.Context, item domain.CanvasNode, after *
 		if mapErr != nil {
 			return 0, mapErr
 		}
-		if createErr := db.Create(&row).Error; createErr != nil {
+		if createErr := insertNode(ctx, db, row); createErr != nil {
 			return 0, createErr
 		}
 		return 0, nil
 	}
-	var rows []canvasnodeRow
-	query := base.Where("type = ?", domain.NodeTypeVideoGeneration).Order("storyboard_rank ASC").Order("id ASC").Clauses(clause.Locking{Strength: "UPDATE"})
-	if err = query.Find(&rows).Error; err != nil {
+	rows, err := db.NodeVideoNodesLocked(ctx, sqlc.NodeVideoNodesLockedParams{
+		TenantID:    item.TenantID,
+		WorkspaceID: item.WorkspaceID,
+		ProjectID:   projectID,
+		CanvasID:    canvasID,
+		Type:        int16(domain.NodeTypeVideoGeneration),
+	})
+	if err != nil {
 		return 0, err
 	}
 	key := int64(1024)
@@ -411,7 +426,7 @@ func (r *Repository) Create(ctx context.Context, item domain.CanvasNode, after *
 		key = rows[len(rows)-1].StoryboardRank + 1024
 	}
 	if after != nil {
-		anchor, parseErr := persistenceid.Parse(*after)
+		anchor, parseErr := parseID(*after)
 		if parseErr != nil {
 			return 0, app.ErrNotFound
 		}
@@ -429,7 +444,7 @@ func (r *Repository) Create(ctx context.Context, item domain.CanvasNode, after *
 		if index+1 < len(rows) {
 			key = (rows[index].StoryboardRank + rows[index+1].StoryboardRank) / 2
 			if key == rows[index].StoryboardRank {
-				if err = rebalanceRows(db, rows); err != nil {
+				if err = rebalanceRows(ctx, db, rows); err != nil {
 					return 0, err
 				}
 				key = (rows[index].StoryboardRank + rows[index+1].StoryboardRank) / 2
@@ -443,22 +458,32 @@ func (r *Repository) Create(ctx context.Context, item domain.CanvasNode, after *
 	if err != nil {
 		return 0, err
 	}
-	if err = db.Create(&row).Error; err != nil {
+	if err = insertNode(ctx, db, row); err != nil {
 		return 0, err
 	}
 	return canvasnodeNo, nil
 }
-func (r *Repository) Update(ctx context.Context, item domain.CanvasNode, patch domain.UpdatePatch) (int32, int64, string, error) {
+
+func (r *Repository) Update(ctx context.Context, item domain.CanvasNode, patch domain.UpdatePatch) (number int32, revision int64, revokedRunID string, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		number, revision, revokedRunID, err = r.updateInTransaction(ctx, item, patch)
+		return err
+	})
+	return
+}
+
+func (r *Repository) updateInTransaction(ctx context.Context, item domain.CanvasNode, patch domain.UpdatePatch) (int32, int64, string, error) {
 	row, err := toRow(item)
 	if err != nil {
 		return 0, 0, "", err
 	}
-	db := r.dbFor(ctx)
-	if err = lockCanvas(db, item.TenantID, item.WorkspaceID, item.ProjectID, row.CanvasID); err != nil {
+	db := r.store.Queries(ctx)
+	if err = lockCanvas(ctx, db, item.TenantID, item.WorkspaceID, item.ProjectID, row.CanvasID); err != nil {
 		return 0, 0, "", readErr(err)
 	}
-	var current canvasnodeRow
-	if err = scopeQuery(db.Clauses(clause.Locking{Strength: "UPDATE"}), app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID}).Where("id = ? AND project_id = ? AND canvas_id = ?", row.ID, row.ProjectID, row.CanvasID).First(&current).Error; err != nil {
+	scope := app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID}
+	current, err := r.getRow(ctx, scope, row.ProjectID, row.CanvasID, row.ID, true)
+	if err != nil {
 		return 0, 0, "", readErr(err)
 	}
 	if current.Revision != patch.ExpectedRevision {
@@ -470,21 +495,34 @@ func (r *Repository) Update(ctx context.Context, item domain.CanvasNode, patch d
 	}
 	revokedTaskRunID := optionalUUIDString(current.ActiveTaskRunID)
 	revision := current.Revision + 1
-	updates := map[string]any{
-		"node_data": row.NodeData, "revision": revision, "updated_by": item.UpdatedBy, "updated_at": item.UpdatedAt,
-	}
 	definitionChanged := patch.Prompt != nil || patch.Text != nil || patch.IncomingEdges != nil ||
 		patch.VideoInputMode != nil || !patch.GenerationConfig.Empty()
-	if definitionChanged {
-		updates["active_task_run_id"] = nil
-	} else {
+	if !definitionChanged {
 		revokedTaskRunID = ""
 	}
-	if err = db.Model(&current).Updates(updates).Error; err != nil {
+	_, err = db.NodePatch(ctx, sqlc.NodePatchParams{
+		NodeData:    row.NodeData,
+		UpdatedBy:   item.UpdatedBy,
+		UpdatedAt:   item.UpdatedAt,
+		Revoke:      definitionChanged,
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   row.ProjectID,
+		CanvasID:    row.CanvasID,
+		ID:          row.ID,
+		Revision:    current.Revision,
+	})
+	if err != nil {
 		return 0, 0, "", err
 	}
-	var preceding int64
-	if err = scopeQuery(db.Model(&canvasnodeRow{}), app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID}).Where("project_id = ? AND canvas_id = ? AND storyboard_rank < ?", row.ProjectID, row.CanvasID, current.StoryboardRank).Count(&preceding).Error; err != nil {
+	preceding, err := db.NodeCountPreceding(ctx, sqlc.NodeCountPrecedingParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   row.ProjectID,
+		CanvasID:    row.CanvasID,
+		Rank:        current.StoryboardRank,
+	})
+	if err != nil {
 		return 0, 0, "", err
 	}
 	canvasnodeNo := int32(preceding + 1)
@@ -493,86 +531,131 @@ func (r *Repository) Update(ctx context.Context, item domain.CanvasNode, patch d
 
 // ClaimTaskRun 用条件更新抢占单分镜的生成槽位。生成不改变内容，所以这里不递增
 // revision；并发请求只有一个能把 NULL 改成自己的 TaskRunID，避免重复创建计费任务。
-func (r *Repository) ClaimTaskRun(ctx context.Context, item domain.CanvasNode) (bool, error) {
+func (r *Repository) ClaimTaskRun(ctx context.Context, item domain.CanvasNode) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.claimTaskRunInTransaction(ctx, item)
+		return err
+	})
+	return
+}
+
+func (r *Repository) claimTaskRunInTransaction(ctx context.Context, item domain.CanvasNode) (bool, error) {
 	row, err := toRow(item)
 	if err != nil {
 		return false, err
 	}
-	db := r.dbFor(ctx)
-	if err = lockCanvas(db, item.TenantID, item.WorkspaceID, item.ProjectID, row.CanvasID); err != nil {
+	db := r.store.Queries(ctx)
+	if err = lockCanvas(ctx, db, item.TenantID, item.WorkspaceID, item.ProjectID, row.CanvasID); err != nil {
 		return false, readErr(err)
 	}
-	query := scopeQuery(db.Model(&canvasnodeRow{}), app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID})
-	result := query.Where("id = ? AND project_id = ? AND canvas_id = ? AND revision = ? AND active_task_run_id IS NULL", row.ID, row.ProjectID, row.CanvasID, row.Revision).
-		Update("active_task_run_id", row.ActiveTaskRunID)
-	return result.RowsAffected == 1, result.Error
+	affected, err := r.store.Queries(ctx).NodeClaim(ctx, sqlc.NodeClaimParams{
+		RunID:       row.ActiveTaskRunID,
+		TenantID:    item.TenantID,
+		WorkspaceID: item.WorkspaceID,
+		ProjectID:   row.ProjectID,
+		CanvasID:    row.CanvasID,
+		ID:          row.ID,
+		Revision:    row.Revision,
+	})
+	return affected == 1, err
 }
 
 // ReleaseTaskRun 也使用条件更新，只释放仍指向 expectedRunID 的槽位，不能误清掉
 // 另一个请求刚发起的新运行。
-func (r *Repository) ReleaseTaskRun(ctx context.Context, item domain.CanvasNode, expectedRunID string) (bool, error) {
+func (r *Repository) ReleaseTaskRun(ctx context.Context, item domain.CanvasNode, expectedRunID string) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.releaseTaskRunInTransaction(ctx, item, expectedRunID)
+		return err
+	})
+	return
+}
+
+func (r *Repository) releaseTaskRunInTransaction(ctx context.Context, item domain.CanvasNode, expectedRunID string) (bool, error) {
 	row, err := toRow(item)
 	if err != nil {
 		return false, err
 	}
-	expected, err := persistenceid.Parse(expectedRunID)
+	expected, err := parseID(expectedRunID)
 	if err != nil {
 		return false, err
 	}
-	query := scopeQuery(r.dbFor(ctx).Model(&canvasnodeRow{}), app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID})
-	result := query.Where("id = ? AND project_id = ? AND canvas_id = ? AND active_task_run_id = ?", row.ID, row.ProjectID, row.CanvasID, expected).
-		Update("active_task_run_id", nil)
-	return result.RowsAffected == 1, result.Error
+	affected, err := r.store.Queries(ctx).NodeRelease(ctx, sqlc.NodeReleaseParams{
+		TenantID:    item.TenantID,
+		WorkspaceID: item.WorkspaceID,
+		ProjectID:   row.ProjectID,
+		CanvasID:    row.CanvasID,
+		ID:          row.ID,
+		RunID:       &expected,
+	})
+	return affected == 1, err
 }
 
 // BindGeneratedAsset atomically releases a generation slot and selects its
 // successful image/video Asset on the generation node. Generated Assets are
 // project-owned storage facts and are never materialized as ResourceAssets.
-func (r *Repository) BindGeneratedAsset(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, assetID string, nodeType domain.NodeType, updatedAt time.Time) (bool, error) {
-	project, err := persistenceid.Parse(projectID)
+func (r *Repository) BindGeneratedAsset(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, assetID string, nodeType domain.NodeType, updatedAt time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.bindGeneratedAssetInTransaction(ctx, scope, projectID, canvasID, nodeID, taskRunID, assetID, nodeType, updatedAt)
+		return err
+	})
+	return
+}
+
+func (r *Repository) bindGeneratedAssetInTransaction(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, assetID string, nodeType domain.NodeType, updatedAt time.Time) (bool, error) {
+	project, err := parseID(projectID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	node, err := persistenceid.Parse(nodeID)
+	node, err := parseID(nodeID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	run, err := persistenceid.Parse(taskRunID)
+	run, err := parseID(taskRunID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	asset, err := persistenceid.Parse(assetID)
+	asset, err := parseID(assetID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	db := r.dbFor(ctx)
-	if err = lockCanvas(db, scope.TenantID, scope.WorkspaceID, projectID, canvas); err != nil {
+	db := r.store.Queries(ctx)
+	if err = lockCanvas(ctx, db, scope.TenantID, scope.WorkspaceID, projectID, canvas); err != nil {
 		return false, readErr(err)
 	}
-	result := scopeQuery(db.Model(&canvasnodeRow{}), scope).
-		Where("id = ? AND project_id = ? AND canvas_id = ? AND type = ? AND active_task_run_id = ?", node, project, canvas, nodeType, run).
-		Updates(map[string]any{"active_task_run_id": nil, "resource_id": nil, "resource_asset_id": nil, "selected_output_id": run, "selected_asset_id": asset, "updated_by": scope.CallerID, "updated_at": updatedAt.UTC()})
-	return result.RowsAffected == 1, result.Error
+	affected, err := r.store.Queries(ctx).NodeSelectAsset(ctx, sqlc.NodeSelectAssetParams{
+		RunID:       &run,
+		AssetID:     &asset,
+		UpdatedBy:   scope.CallerID,
+		UpdatedAt:   updatedAt.UTC(),
+		Bind:        true,
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project,
+		CanvasID:    canvas,
+		ID:          node,
+		Type:        int16(nodeType),
+	})
+	return affected == 1, err
 }
 
 func (r *Repository) BindGeneratedText(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, content string, updatedAt time.Time) (bool, error) {
-	project, err := persistenceid.Parse(projectID)
+	project, err := parseID(projectID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	node, err := persistenceid.Parse(nodeID)
+	node, err := parseID(nodeID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	run, err := persistenceid.Parse(taskRunID)
+	run, err := parseID(taskRunID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
@@ -580,81 +663,98 @@ func (r *Repository) BindGeneratedText(ctx context.Context, scope app.Scope, pro
 }
 
 func (r *Repository) SelectGeneratedText(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, content string, updatedAt time.Time) (bool, error) {
-	project, err := persistenceid.Parse(projectID)
+	project, err := parseID(projectID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	node, err := persistenceid.Parse(nodeID)
+	node, err := parseID(nodeID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	run, err := persistenceid.Parse(taskRunID)
+	run, err := parseID(taskRunID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
 	return r.updateSelectedOutputText(ctx, scope, project, canvas, node, nil, run, content, updatedAt)
 }
 
-func (r *Repository) SelectGeneratedAsset(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, assetID string, nodeType domain.NodeType, updatedAt time.Time) (bool, error) {
-	project, err := persistenceid.Parse(projectID)
+func (r *Repository) SelectGeneratedAsset(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, assetID string, nodeType domain.NodeType, updatedAt time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.selectGeneratedAssetInTransaction(ctx, scope, projectID, canvasID, nodeID, taskRunID, assetID, nodeType, updatedAt)
+		return err
+	})
+	return
+}
+
+func (r *Repository) selectGeneratedAssetInTransaction(ctx context.Context, scope app.Scope, projectID, canvasID, nodeID, taskRunID, assetID string, nodeType domain.NodeType, updatedAt time.Time) (bool, error) {
+	project, err := parseID(projectID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	node, err := persistenceid.Parse(nodeID)
+	node, err := parseID(nodeID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	run, err := persistenceid.Parse(taskRunID)
+	run, err := parseID(taskRunID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	asset, err := persistenceid.Parse(assetID)
+	asset, err := parseID(assetID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	db := r.dbFor(ctx)
-	if err = lockCanvas(db, scope.TenantID, scope.WorkspaceID, projectID, canvas); err != nil {
+	db := r.store.Queries(ctx)
+	if err = lockCanvas(ctx, db, scope.TenantID, scope.WorkspaceID, projectID, canvas); err != nil {
 		return false, readErr(err)
 	}
-	result := scopeQuery(db.Model(&canvasnodeRow{}), scope).
-		Where("id = ? AND project_id = ? AND canvas_id = ? AND type = ?", node, project, canvas, nodeType).
-		Updates(map[string]any{"resource_id": nil, "resource_asset_id": nil, "selected_output_id": run, "selected_asset_id": asset, "updated_by": scope.CallerID, "updated_at": updatedAt.UTC()})
-	return result.RowsAffected == 1, result.Error
+	affected, err := r.store.Queries(ctx).NodeSelectAsset(ctx, sqlc.NodeSelectAssetParams{
+		RunID:       &run,
+		AssetID:     &asset,
+		UpdatedBy:   scope.CallerID,
+		UpdatedAt:   updatedAt.UTC(),
+		Bind:        false,
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project,
+		CanvasID:    canvas,
+		ID:          node,
+		Type:        int16(nodeType),
+	})
+	return affected == 1, err
 }
 
 func (r *Repository) updateSelectedOutputText(
 	ctx context.Context,
 	scope app.Scope,
-	project, canvas, node persistenceid.UUID,
-	expectedActiveRun *persistenceid.UUID,
-	selectedOutputID persistenceid.UUID,
+	project, canvas, node string,
+	expectedActiveRun *string,
+	selectedOutputID string,
 	content string,
 	updatedAt time.Time,
 ) (bool, error) {
 	matched := false
-	err := r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		if lockErr := lockCanvas(tx, scope.TenantID, scope.WorkspaceID, project.String(), canvas); lockErr != nil {
+	err := r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		tx := r.store.Queries(ctx)
+		if lockErr := lockCanvas(ctx, tx, scope.TenantID, scope.WorkspaceID, project, canvas); lockErr != nil {
 			return readErr(lockErr)
 		}
-		var current canvasnodeRow
-		query := scopeQuery(tx.Clauses(clause.Locking{Strength: "UPDATE"}), scope).
-			Where("id = ? AND project_id = ? AND canvas_id = ? AND type = ?", node, project, canvas, domain.NodeTypeTextGeneration)
-		if expectedActiveRun != nil {
-			query = query.Where("active_task_run_id = ?", *expectedActiveRun)
-		}
-		if err := query.First(&current).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+		current, err := r.getRow(ctx, scope, project, canvas, node, true)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return nil
 			}
 			return err
+		}
+		if current.Type != int16(domain.NodeTypeTextGeneration) || (expectedActiveRun != nil && (current.ActiveTaskRunID == nil || *current.ActiveTaskRunID != *expectedActiveRun)) {
+			return nil
 		}
 		item, err := fromRow(current)
 		if err != nil {
@@ -665,55 +765,70 @@ func (r *Repository) updateSelectedOutputText(
 		if err != nil {
 			return err
 		}
-		updates := map[string]any{
-			"node_data": encoded, "selected_output_id": selectedOutputID, "selected_asset_id": nil,
-			"updated_by": scope.CallerID, "updated_at": updatedAt.UTC(),
+		affected, err := tx.NodeSelectText(ctx, sqlc.NodeSelectTextParams{
+			RunID:       &selectedOutputID,
+			NodeData:    encoded,
+			UpdatedBy:   scope.CallerID,
+			UpdatedAt:   updatedAt.UTC(),
+			Bind:        expectedActiveRun != nil,
+			TenantID:    scope.TenantID,
+			WorkspaceID: scope.WorkspaceID,
+			ProjectID:   project,
+			CanvasID:    canvas,
+			ID:          node,
+		})
+		if err != nil {
+			return err
 		}
-		if expectedActiveRun != nil {
-			updates["active_task_run_id"] = nil
-		}
-		result := tx.Model(&current).Updates(updates)
-		if result.Error != nil {
-			return result.Error
-		}
-		matched = result.RowsAffected == 1
+		matched = affected == 1
 		return nil
 	})
 	return matched, err
 }
 
-func (r *Repository) Delete(ctx context.Context, item domain.CanvasNode) (string, []string, error) {
+func (r *Repository) Delete(ctx context.Context, item domain.CanvasNode) (revokedRunID string, releasedAssets []string, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		revokedRunID, releasedAssets, err = r.deleteInTransaction(ctx, item)
+		return err
+	})
+	return
+}
+
+func (r *Repository) deleteInTransaction(ctx context.Context, item domain.CanvasNode) (string, []string, error) {
 	row, err := toRow(item)
 	if err != nil {
 		return "", nil, err
 	}
-	db := r.dbFor(ctx)
-	if err = lockCanvas(db, item.TenantID, item.WorkspaceID, item.ProjectID, row.CanvasID); err != nil {
+	db := r.store.Queries(ctx)
+	if err = lockCanvas(ctx, db, item.TenantID, item.WorkspaceID, item.ProjectID, row.CanvasID); err != nil {
 		return "", nil, readErr(err)
 	}
-	var current canvasnodeRow
-	query := scopeQuery(db.Clauses(clause.Locking{Strength: "UPDATE"}), app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID}).
-		Where("id = ? AND project_id = ? AND canvas_id = ?", row.ID, row.ProjectID, row.CanvasID)
-	if err = query.First(&current).Error; err != nil {
+	scope := app.Scope{TenantID: item.TenantID, WorkspaceID: item.WorkspaceID}
+	current, err := r.getRow(ctx, scope, row.ProjectID, row.CanvasID, row.ID, true)
+	if err != nil {
 		return "", nil, readErr(err)
 	}
 	revokedTaskRunID := optionalUUIDString(current.ActiveTaskRunID)
 	releasedAssetIDs := make([]string, 0, 2)
 	if current.SelectedAssetID != nil && (current.Type == int16(domain.NodeTypeImageGeneration) ||
 		(current.Type == int16(domain.NodeTypeVideoGeneration) && current.SelectedOutputID == nil)) {
-		releasedAssetIDs = append(releasedAssetIDs, current.SelectedAssetID.String())
+		releasedAssetIDs = append(releasedAssetIDs, *current.SelectedAssetID)
 	}
 	if current.AssetID != nil {
-		releasedAssetIDs = append(releasedAssetIDs, current.AssetID.String())
+		releasedAssetIDs = append(releasedAssetIDs, *current.AssetID)
 	}
-	result := db.Model(&current).Updates(map[string]any{
-		"active_task_run_id": nil,
-		"updated_by":         item.UpdatedBy,
-		"updated_at":         item.UpdatedAt,
-		"deleted_at":         row.DeletedAt,
+	_, err = db.NodeDelete(ctx, sqlc.NodeDeleteParams{
+		UpdatedBy:   item.UpdatedBy,
+		UpdatedAt:   item.UpdatedAt,
+		DeletedAt:   row.DeletedAt,
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   row.ProjectID,
+		CanvasID:    row.CanvasID,
+		Ids:         []string{row.ID},
 	})
-	if result.Error != nil {
-		return "", nil, result.Error
+	if err != nil {
+		return "", nil, err
 	}
 	return revokedTaskRunID, releasedAssetIDs, nil
 }
@@ -725,23 +840,28 @@ func (r *Repository) DeletionMatches(
 	revision int64,
 	deletedAt time.Time,
 ) (bool, error) {
-	project, err := persistenceid.Parse(projectID)
+	project, err := parseID(projectID)
 	if err != nil {
 		return false, nil
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return false, nil
 	}
-	node, err := persistenceid.Parse(nodeID)
+	node, err := parseID(nodeID)
 	if err != nil {
 		return false, nil
 	}
-	query := scopeQuery(r.dbFor(ctx).Unscoped().Model(&canvasnodeRow{}), scope).
-		Where("id = ? AND project_id = ? AND canvas_id = ? AND revision = ? AND deleted_at = ?",
-			node, project, canvas, revision, deletedAt.UnixMilli())
-	var count int64
-	if err = query.Count(&count).Error; err != nil {
+	count, err := r.store.Queries(ctx).NodeDeletionMatches(ctx, sqlc.NodeDeletionMatchesParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		DeletedAt:   ptr(deletedAt.UnixMilli()),
+		ProjectID:   project,
+		CanvasID:    canvas,
+		ID:          node,
+		Revision:    revision,
+	})
+	if err != nil {
 		return false, err
 	}
 	return count == 1, nil
@@ -752,36 +872,41 @@ func (r *Repository) DeleteByCanvas(
 	scope app.Scope,
 	projectID, canvasID string,
 	now time.Time,
-) ([]domain.CanvasNode, []string, error) {
-	project, err := persistenceid.Parse(projectID)
-	if err != nil {
-		return nil, nil, app.ErrNotFound
-	}
-	canvas, err := persistenceid.Parse(canvasID)
-	if err != nil {
-		return nil, nil, app.ErrNotFound
-	}
-	return r.deleteScopedCanvasNodes(ctx, scope, now, "project_id = ? AND canvas_id = ?", project, canvas)
+) (deleted []domain.CanvasNode, releasedAssets []string, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		deleted, releasedAssets, err = r.deleteByCanvasInTransaction(ctx, scope, projectID, canvasID, now)
+		return err
+	})
+	return
 }
 
-func (r *Repository) deleteScopedCanvasNodes(
+func (r *Repository) deleteByCanvasInTransaction(
 	ctx context.Context,
 	scope app.Scope,
+	projectID, canvasID string,
 	now time.Time,
-	where string,
-	args ...any,
 ) ([]domain.CanvasNode, []string, error) {
-	db := r.dbFor(ctx)
-	var rows []canvasnodeRow
-	query := scopeQuery(db.Clauses(clause.Locking{Strength: "UPDATE"}), scope).Where(where, args...).
-		Order("canvas_id ASC").Order("storyboard_rank ASC").Order("id ASC")
-	if err := query.Find(&rows).Error; err != nil {
+	project, err := parseID(projectID)
+	if err != nil {
+		return nil, nil, app.ErrNotFound
+	}
+	canvas, err := parseID(canvasID)
+	if err != nil {
+		return nil, nil, app.ErrNotFound
+	}
+	rows, err := r.store.Queries(ctx).NodeListLocked(ctx, sqlc.NodeListLockedParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project,
+		CanvasID:    canvas,
+	})
+	if err != nil {
 		return nil, nil, err
 	}
 	if len(rows) == 0 {
 		return nil, nil, nil
 	}
-	ids := make([]persistenceid.UUID, 0, len(rows))
+	ids := make([]string, 0, len(rows))
 	deleted := make([]domain.CanvasNode, 0, len(rows))
 	deletedAt := now.UTC()
 	for index := range rows {
@@ -798,23 +923,27 @@ func (r *Repository) deleteScopedCanvasNodes(
 	releasedAssetIDs := make([]string, 0, len(rows)*2)
 	for index := range rows {
 		if rows[index].AssetID != nil {
-			releasedAssetIDs = append(releasedAssetIDs, rows[index].AssetID.String())
+			releasedAssetIDs = append(releasedAssetIDs, *rows[index].AssetID)
 		}
 		if rows[index].SelectedAssetID != nil && (rows[index].Type == int16(domain.NodeTypeImageGeneration) ||
 			(rows[index].Type == int16(domain.NodeTypeVideoGeneration) && rows[index].SelectedOutputID == nil)) {
-			releasedAssetIDs = append(releasedAssetIDs, rows[index].SelectedAssetID.String())
+			releasedAssetIDs = append(releasedAssetIDs, *rows[index].SelectedAssetID)
 		}
 	}
-	result := scopeQuery(db.Model(&canvasnodeRow{}), scope).Where("id IN ?", ids).Updates(map[string]any{
-		"active_task_run_id": nil,
-		"updated_by":         scope.CallerID,
-		"updated_at":         deletedAt,
-		"deleted_at":         soft_delete.DeletedAt(deletedAt.UnixMilli()),
+	affected, err := r.store.Queries(ctx).NodeDelete(ctx, sqlc.NodeDeleteParams{
+		UpdatedBy:   scope.CallerID,
+		UpdatedAt:   deletedAt,
+		DeletedAt:   ptr(deletedAt.UnixMilli()),
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project,
+		CanvasID:    canvas,
+		Ids:         ids,
 	})
-	if result.Error != nil {
-		return nil, nil, result.Error
+	if err != nil {
+		return nil, nil, err
 	}
-	if result.RowsAffected != int64(len(rows)) {
+	if affected != int64(len(rows)) {
 		return nil, nil, errors.New("delete scoped canvas_nodes lost locked rows")
 	}
 	return deleted, releasedAssetIDs, nil
@@ -826,20 +955,26 @@ func (r *Repository) ListProjectAssets(
 	projectID string,
 	limit int,
 ) ([]app.ProjectAssetCandidate, error) {
-	projectUUID, err := persistenceid.Parse(projectID)
+	projectUUID, err := parseID(projectID)
 	if err != nil {
 		return nil, app.ErrNotFound
 	}
 	if limit < 1 {
 		return []app.ProjectAssetCandidate{}, nil
 	}
-	var rows []projectLibraryAssetRow
-	if err = r.projectLibraryAssetsQuery(ctx, scope, projectUUID, "", 0, 0, limit).Scan(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).NodeLibraryAssets(ctx, sqlc.NodeLibraryAssetsParams{
+		TenantID:     scope.TenantID,
+		WorkspaceID:  scope.WorkspaceID,
+		ProjectOwner: int16(domainresource.OwnerProject),
+		ProjectID:    projectUUID,
+		PageSize:     int32(limit),
+	})
+	if err != nil {
 		return nil, err
 	}
 	out := make([]app.ProjectAssetCandidate, 0, len(rows))
 	for _, row := range rows {
-		if item, ok := projectAssetCandidateFromRow(scope, row); ok {
+		if item, ok := projectAssetCandidateFromRow(scope, projectLibraryAssetRow(row)); ok {
 			out = append(out, item)
 		}
 	}
@@ -855,7 +990,7 @@ func (r *Repository) SearchCanvasNodeAssets(
 	limit int,
 ) (app.CanvasNodeAvailableAssetWindow, error) {
 	empty := app.CanvasNodeAvailableAssetWindow{}
-	projectUUID, err := persistenceid.Parse(projectID)
+	projectUUID, err := parseID(projectID)
 	if err != nil {
 		return empty, app.ErrNotFound
 	}
@@ -870,26 +1005,39 @@ func (r *Repository) SearchCanvasNodeAssets(
 	candidates := make([]candidate, 0, fetchLimit)
 	var scanCursor *app.CanvasNodeAssetSearchCursor
 	if cursor != nil {
-		if _, parseErr := persistenceid.Parse(cursor.ID); parseErr != nil {
+		if _, parseErr := parseID(cursor.ID); parseErr != nil {
 			return empty, app.ErrNotFound
 		}
 		position := *cursor
 		scanCursor = &position
 	}
 	for len(candidates) < fetchLimit {
-		var resourceRows []projectLibraryResourceRow
-		resourceQuery := r.projectLibraryResourcesQuery(ctx, scope, projectUUID, keyword)
-		if len(resourceTypes) > 0 {
-			resourceQuery = resourceQuery.Where("resources.type IN ?", resourceTypes)
+		types := make([]int16, 0, len(resourceTypes))
+		for _, t := range resourceTypes {
+			types = append(types, int16(t))
 		}
+		var cursorTime pgtype.Timestamptz
+		var cursorID string
 		if scanCursor != nil {
-			cursorID, parseErr := persistenceid.Parse(scanCursor.ID)
-			if parseErr != nil {
+			cursorTime = pgtype.Timestamptz{Time: scanCursor.CreatedAt, Valid: true}
+			cursorID, err = parseID(scanCursor.ID)
+			if err != nil {
 				return empty, app.ErrNotFound
 			}
-			resourceQuery = resourceQuery.Where("resources.created_at < ? OR (resources.created_at = ? AND resources.id < ?)", scanCursor.CreatedAt, scanCursor.CreatedAt, cursorID)
 		}
-		if err = resourceQuery.Select("resources.id AS resource_id, resources.type, resources.name, resources.description, resources.primary_resource_asset_id, resources.revision, resources.created_at, resources.updated_at").Order("resources.created_at DESC").Order("resources.id DESC").Limit(fetchLimit).Scan(&resourceRows).Error; err != nil {
+		resourceRows, err := r.store.Queries(ctx).NodeLibrarySearch(ctx, sqlc.NodeLibrarySearchParams{
+			TenantID:      scope.TenantID,
+			WorkspaceID:   scope.WorkspaceID,
+			ProjectOwner:  int16(domainresource.OwnerProject),
+			ProjectID:     projectUUID,
+			OfficialOwner: int16(domainresource.OwnerOfficial),
+			Pattern:       "%" + keyword + "%",
+			Types:         types,
+			CursorTime:    cursorTime,
+			CursorID:      cursorID,
+			PageSize:      int32(fetchLimit),
+		})
+		if err != nil {
 			return empty, err
 		}
 		if len(resourceRows) == 0 {
@@ -900,12 +1048,12 @@ func (r *Repository) SearchCanvasNodeAssets(
 			return empty, looksErr
 		}
 		for _, row := range resourceRows {
-			children := make([]app.CanvasNodeAvailableAssetItem, 0, len(looks[row.ResourceID.String()]))
-			for _, look := range looks[row.ResourceID.String()] {
+			children := make([]app.CanvasNodeAvailableAssetItem, 0, len(looks[row.ResourceID]))
+			for _, look := range looks[row.ResourceID] {
 				if look.CurrentAssetID == nil {
 					children = append(children, app.CanvasNodeAvailableAssetItem{
 						Asset:           domainasset.Asset{MediaType: domainasset.MediaType(look.SlotMediaType)},
-						ResourceAssetID: look.ResourceAssetID.String(), Name: look.Name,
+						ResourceAssetID: look.ResourceAssetID, Name: look.Name,
 						Primary:    look.PrimaryResourceAssetID != nil && *look.PrimaryResourceAssetID == look.ResourceAssetID,
 						Generating: look.ActiveTaskRunID != nil,
 					})
@@ -919,19 +1067,18 @@ func (r *Repository) SearchCanvasNodeAssets(
 			if len(children) == 0 {
 				continue
 			}
-			resourceID := row.ResourceID.String()
+			resourceID := row.ResourceID
 			candidates = append(candidates, candidate{
 				item:   app.CanvasNodeAvailableAsset{Source: app.CanvasNodeAssetSourceProjectResource, Name: row.Name, Description: row.Description, ResourceID: resourceID, ResourceType: domainresource.Type(row.Type), Assets: children},
 				cursor: app.CanvasNodeAssetSearchCursor{CreatedAt: row.CreatedAt, ID: resourceID},
 			})
 		}
 		last := resourceRows[len(resourceRows)-1]
-		scanCursor = &app.CanvasNodeAssetSearchCursor{CreatedAt: last.CreatedAt, ID: last.ResourceID.String()}
+		scanCursor = &app.CanvasNodeAssetSearchCursor{CreatedAt: last.CreatedAt, ID: last.ResourceID}
 		if len(resourceRows) < fetchLimit {
 			break
 		}
 	}
-
 	result := make([]app.CanvasNodeAvailableAsset, 0, min(limit, len(candidates)))
 	for _, item := range candidates[:min(limit, len(candidates))] {
 		result = append(result, item.item)
@@ -944,16 +1091,7 @@ func (r *Repository) SearchCanvasNodeAssets(
 	return app.CanvasNodeAvailableAssetWindow{Items: result, NextCursor: nextCursor}, nil
 }
 
-type projectLibraryResourceRow struct {
-	ResourceID             persistenceid.UUID
-	Type                   int16
-	Name                   string
-	Description            string
-	PrimaryResourceAssetID *persistenceid.UUID
-	Revision               int64
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
-}
+type projectLibraryResourceRow = sqlc.NodeLibrarySearchRow
 
 func (r *Repository) ResolveCurrentResourceAsset(
 	ctx context.Context,
@@ -961,42 +1099,39 @@ func (r *Repository) ResolveCurrentResourceAsset(
 	projectID string,
 	resourceAssetID string,
 ) (app.CanvasResourceAssetReference, error) {
-	projectUUID, err := persistenceid.Parse(projectID)
+	projectUUID, err := parseID(projectID)
 	if err != nil {
 		return app.CanvasResourceAssetReference{}, err
 	}
-	resourceAssetUUID, err := persistenceid.Parse(resourceAssetID)
+	resourceAssetUUID, err := parseID(resourceAssetID)
 	if err != nil {
 		return app.CanvasResourceAssetReference{}, err
 	}
-	var rows []projectLibraryAssetRow
-	query := qualifiedScopeQuery(
-		r.db.WithContext(ctx).Table("resource_assets").
-			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
-			Joins("JOIN resources ON resources.id = resource_assets.resource_id AND resources.deleted_at = 0").
-			Joins("JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0").
-			Where("resource_assets.id = ? AND resource_assets.deleted_at = 0", resourceAssetUUID).
-			Where("(resources.owner_type = ? AND resources.owner_id = ?) OR resources.owner_type = ?", int16(domainresource.OwnerProject), projectUUID, int16(domainresource.OwnerOfficial)),
-		"resources",
-		scope,
-	)
-	query = qualifiedScopeQuery(query, "assets", scope)
-	if err = query.Limit(1).Scan(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).NodeLibraryResolve(ctx, sqlc.NodeLibraryResolveParams{
+		TenantID:      scope.TenantID,
+		WorkspaceID:   scope.WorkspaceID,
+		ProjectOwner:  int16(domainresource.OwnerProject),
+		ProjectID:     projectUUID,
+		OfficialOwner: int16(domainresource.OwnerOfficial),
+		PrimaryOnly:   false,
+		Ids:           []string{resourceAssetUUID},
+	})
+	if err != nil {
 		return app.CanvasResourceAssetReference{}, err
 	}
 	if len(rows) != 1 {
 		return app.CanvasResourceAssetReference{}, app.ErrNotFound
 	}
-	candidate, ok := projectAssetCandidateFromRow(scope, rows[0])
+	candidate, ok := projectAssetCandidateFromRow(scope, projectLibraryAssetRow(rows[0]))
 	if !ok {
 		return app.CanvasResourceAssetReference{}, app.ErrNotFound
 	}
 	return app.CanvasResourceAssetReference{
-		ResourceID:      rows[0].ResourceID.String(),
+		ResourceID:      rows[0].ResourceID,
 		ResourceAssetID: resourceAssetID,
 		Revision:        rows[0].ResourceAssetRevision,
 		Name:            candidate.Name,
-		IsPrimary:       rows[0].PrimaryResourceAssetID != nil && rows[0].PrimaryResourceAssetID.String() == resourceAssetID,
+		IsPrimary:       rows[0].PrimaryResourceAssetID != nil && *rows[0].PrimaryResourceAssetID == resourceAssetID,
 		Asset:           candidate.Asset,
 	}, nil
 }
@@ -1007,18 +1142,18 @@ func (r *Repository) BatchResolveCurrentResourceAssets(
 	projectID string,
 	resourceAssetIDs []string,
 ) (map[string]app.CanvasResourceAssetReference, error) {
-	projectUUID, err := persistenceid.Parse(projectID)
+	projectUUID, err := parseID(projectID)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]persistenceid.UUID, 0, len(resourceAssetIDs))
+	ids := make([]string, 0, len(resourceAssetIDs))
 	seen := make(map[string]struct{}, len(resourceAssetIDs))
 	for _, id := range resourceAssetIDs {
-		parsed, parseErr := persistenceid.Parse(id)
+		parsed, parseErr := parseID(id)
 		if parseErr != nil {
 			return nil, parseErr
 		}
-		canonicalID := parsed.String()
+		canonicalID := parsed
 		if _, exists := seen[canonicalID]; exists {
 			continue
 		}
@@ -1029,33 +1164,30 @@ func (r *Repository) BatchResolveCurrentResourceAssets(
 	if len(ids) == 0 {
 		return result, nil
 	}
-	var rows []projectLibraryAssetRow
-	query := qualifiedScopeQuery(
-		r.db.WithContext(ctx).Table("resource_assets").
-			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
-			Joins("JOIN resources ON resources.id = resource_assets.resource_id AND resources.deleted_at = 0").
-			Joins("JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0").
-			Where("resource_assets.id IN ? AND resource_assets.deleted_at = 0", ids).
-			Where("(resources.owner_type = ? AND resources.owner_id = ?) OR resources.owner_type = ?", int16(domainresource.OwnerProject), projectUUID, int16(domainresource.OwnerOfficial)),
-		"resources",
-		scope,
-	)
-	query = qualifiedScopeQuery(query, "assets", scope)
-	if err = query.Scan(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).NodeLibraryResolve(ctx, sqlc.NodeLibraryResolveParams{
+		TenantID:      scope.TenantID,
+		WorkspaceID:   scope.WorkspaceID,
+		ProjectOwner:  int16(domainresource.OwnerProject),
+		ProjectID:     projectUUID,
+		OfficialOwner: int16(domainresource.OwnerOfficial),
+		PrimaryOnly:   false,
+		Ids:           ids,
+	})
+	if err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		candidate, ok := projectAssetCandidateFromRow(scope, row)
+		candidate, ok := projectAssetCandidateFromRow(scope, projectLibraryAssetRow(row))
 		if !ok {
 			continue
 		}
-		id := row.ResourceAssetID.String()
+		id := row.ResourceAssetID
 		result[id] = app.CanvasResourceAssetReference{
-			ResourceID:      row.ResourceID.String(),
+			ResourceID:      row.ResourceID,
 			ResourceAssetID: id,
 			Revision:        row.ResourceAssetRevision,
 			Name:            candidate.Name,
-			IsPrimary:       row.PrimaryResourceAssetID != nil && row.PrimaryResourceAssetID.String() == id,
+			IsPrimary:       row.PrimaryResourceAssetID != nil && *row.PrimaryResourceAssetID == id,
 			Asset:           candidate.Asset,
 		}
 	}
@@ -1085,18 +1217,18 @@ func (r *Repository) BatchResolvePrimaryResourceAssets(
 	projectID string,
 	resourceIDs []string,
 ) (map[string]app.CanvasResourceAssetReference, error) {
-	projectUUID, err := persistenceid.Parse(projectID)
+	projectUUID, err := parseID(projectID)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]persistenceid.UUID, 0, len(resourceIDs))
+	ids := make([]string, 0, len(resourceIDs))
 	seen := make(map[string]struct{}, len(resourceIDs))
 	for _, id := range resourceIDs {
-		parsed, parseErr := persistenceid.Parse(id)
+		parsed, parseErr := parseID(id)
 		if parseErr != nil {
 			return nil, parseErr
 		}
-		canonicalID := parsed.String()
+		canonicalID := parsed
 		if _, exists := seen[canonicalID]; exists {
 			continue
 		}
@@ -1107,75 +1239,34 @@ func (r *Repository) BatchResolvePrimaryResourceAssets(
 	if len(ids) == 0 {
 		return result, nil
 	}
-	var rows []projectLibraryAssetRow
-	query := qualifiedScopeQuery(
-		r.db.WithContext(ctx).Table("resources").
-			Select("assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
-			Joins("JOIN resource_assets ON resource_assets.id = resources.primary_resource_asset_id AND resource_assets.deleted_at = 0").
-			Joins("JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0").
-			Where("resources.id IN ? AND resources.deleted_at = 0", ids).
-			Where("(resources.owner_type = ? AND resources.owner_id = ?) OR resources.owner_type = ?", int16(domainresource.OwnerProject), projectUUID, int16(domainresource.OwnerOfficial)),
-		"resources",
-		scope,
-	)
-	query = qualifiedScopeQuery(query, "assets", scope)
-	if err = query.Scan(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).NodeLibraryResolve(ctx, sqlc.NodeLibraryResolveParams{
+		TenantID:      scope.TenantID,
+		WorkspaceID:   scope.WorkspaceID,
+		ProjectOwner:  int16(domainresource.OwnerProject),
+		ProjectID:     projectUUID,
+		OfficialOwner: int16(domainresource.OwnerOfficial),
+		PrimaryOnly:   true,
+		Ids:           ids,
+	})
+	if err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		candidate, ok := projectAssetCandidateFromRow(scope, row)
+		candidate, ok := projectAssetCandidateFromRow(scope, projectLibraryAssetRow(row))
 		if !ok {
 			continue
 		}
-		resourceID := row.ResourceID.String()
+		resourceID := row.ResourceID
 		result[resourceID] = app.CanvasResourceAssetReference{
-			ResourceID: resourceID, ResourceAssetID: row.ResourceAssetID.String(), Revision: row.ResourceAssetRevision,
+			ResourceID: resourceID, ResourceAssetID: row.ResourceAssetID, Revision: row.ResourceAssetRevision,
 			Name: candidate.Name, IsPrimary: true, Asset: candidate.Asset,
 		}
 	}
 	return result, nil
 }
 
-func (r *Repository) projectLibraryResourcesQuery(
-	ctx context.Context,
-	scope app.Scope,
-	projectUUID persistenceid.UUID,
-	keyword string,
-) *gorm.DB {
-	base := r.db.WithContext(ctx)
-	projectVisible := base.Session(&gorm.Session{NewDB: true}).
-		Table("projects").
-		Select("1").
-		Where("projects.id = ? AND projects.tenant_id = ? AND projects.deleted_at = 0", projectUUID, scope.TenantID)
-	if scope.WorkspaceID == nil {
-		projectVisible = projectVisible.Where("projects.workspace_id IS NULL")
-	} else {
-		projectVisible = projectVisible.Where("projects.workspace_id = ?", *scope.WorkspaceID)
-	}
-	q := qualifiedScopeQuery(
-		base.Table("resources"),
-		"resources",
-		scope,
-	)
-	q = q.Where("resources.deleted_at = 0").
-		Where("EXISTS (?)", projectVisible).
-		Where(
-			base.Session(&gorm.Session{NewDB: true}).
-				Where("resources.owner_type = ? AND resources.owner_id = ?", int16(domainresource.OwnerProject), projectUUID).
-				Or("resources.owner_type = ?", int16(domainresource.OwnerOfficial)),
-		)
-	q = q.Where(`EXISTS (SELECT 1 FROM resource_assets
-        WHERE resource_assets.resource_id = resources.id AND resource_assets.deleted_at = 0
-        AND TRIM(resource_assets.name) <> '')`)
-	if keyword != "" {
-		pattern := "%" + keyword + "%"
-		q = q.Where("resources.name LIKE ? OR resources.description LIKE ?", pattern, pattern)
-	}
-	return q
-}
-
-func resourceIDsOf(rows []projectLibraryResourceRow) []persistenceid.UUID {
-	ids := make([]persistenceid.UUID, 0, len(rows))
+func resourceIDsOf(rows []projectLibraryResourceRow) []string {
+	ids := make([]string, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ResourceID)
 	}
@@ -1192,152 +1283,31 @@ func (r *Repository) availableLooksByResourceIDs(
 	if len(ids) == 0 {
 		return out, nil
 	}
-	var rows []projectLibraryAssetRow
-	q := qualifiedScopeQuery(
-		r.db.WithContext(ctx).Table("resource_assets").
-			Select("resource_assets.current_asset_id, resource_assets.media_type AS slot_media_type, drafts.active_task_run_id, assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resource_assets.revision AS resource_asset_revision, resources.primary_resource_asset_id").
-			Joins("JOIN resources ON resources.id = resource_assets.resource_id AND resources.deleted_at = 0").
-			Joins(`LEFT JOIN assets ON assets.id = resource_assets.current_asset_id AND assets.deleted_at = 0 AND (
-				(resources.owner_type = ? AND assets.owner_type = ? AND assets.owner_id = resources.id)
-				OR
-				(resources.owner_type = ? AND assets.owner_type = ? AND assets.owner_id = resources.owner_id)
-			)`,
-				int16(domainresource.OwnerProject), int16(domainasset.OwnerResource),
-				int16(domainresource.OwnerOfficial), int16(domainasset.OwnerOfficial),
-			).
-			Joins("LEFT JOIN resource_asset_image_generation_drafts AS drafts ON drafts.id = resource_assets.image_generation_draft_id AND drafts.resource_asset_id = resource_assets.id AND drafts.resource_id = resources.id AND drafts.tenant_id = resources.tenant_id AND drafts.deleted_at = 0").
-			Where("resource_assets.resource_id IN ? AND resource_assets.deleted_at = 0 AND TRIM(resource_assets.name) <> '' AND resource_assets.media_type IN ?", ids, []int16{
-				int16(domainasset.MediaImage),
-				int16(domainasset.MediaVideo),
-				int16(domainasset.MediaAudio),
-			}).
-			Order("CASE WHEN resources.primary_resource_asset_id = resource_assets.id THEN 0 ELSE 1 END").
-			Order("resource_assets.sequence_no ASC").
-			Order("resource_assets.id ASC"),
-		"resources",
-		scope,
-	)
-	// A missing current result is a visible slot, never an authorized Asset.
-	// Nonempty references must still pass the complete Asset scope/owner guard.
-	assetVisible := qualifiedScopeQuery(r.db.Session(&gorm.Session{NewDB: true}), "assets", scope).Where("assets.id IS NOT NULL")
-	q = q.Where(r.db.Session(&gorm.Session{NewDB: true}).Where("resource_assets.current_asset_id IS NULL").Or(assetVisible))
-	if err := q.Scan(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).NodeLibraryLooks(ctx, sqlc.NodeLibraryLooksParams{
+		ProjectOwner:       int16(domainresource.OwnerProject),
+		ResourceAssetOwner: int16(domainasset.OwnerResource),
+		OfficialOwner:      int16(domainresource.OwnerOfficial),
+		OfficialAssetOwner: int16(domainasset.OwnerOfficial),
+		TenantID:           scope.TenantID,
+		WorkspaceID:        scope.WorkspaceID,
+		Ids:                ids,
+		MediaTypes:         []int16{int16(domainasset.MediaImage), int16(domainasset.MediaVideo), int16(domainasset.MediaAudio)},
+	})
+	if err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		resourceID := row.ResourceID.String()
+		resourceID := row.ResourceID
 		out[resourceID] = append(out[resourceID], row)
 	}
 	return out, nil
 }
 
-const projectLibraryAssetRefColumns = "resource_assets.current_asset_id, resources.id AS resource_id, resources.type, resources.name AS resource_name, resources.description, resource_assets.id AS resource_asset_id, resource_assets.name, resources.primary_resource_asset_id, resources.updated_at AS resource_updated_at, resource_assets.sequence_no"
-
-const projectLibraryAssetColumns = "assets.id AS asset_id, assets.owner_type, assets.owner_id, assets.file_name, assets.media_type, assets.content_type, assets.size_bytes, assets.source_asset_id, assets.source_revision_id, assets.created_by, assets.created_at, library_assets.resource_id, library_assets.type, library_assets.resource_name, library_assets.description, library_assets.resource_asset_id, library_assets.name, library_assets.primary_resource_asset_id"
-
-type projectLibraryAssetRow struct {
-	CurrentAssetID         *persistenceid.UUID
-	SlotMediaType          int16
-	ActiveTaskRunID        *persistenceid.UUID
-	AssetID                persistenceid.UUID
-	OwnerType              int16
-	OwnerID                persistenceid.UUID
-	FileName               string
-	MediaType              int16
-	ContentType            string
-	SizeBytes              int64
-	SourceAssetID          string
-	SourceRevisionID       string
-	CreatedBy              string
-	CreatedAt              time.Time
-	ResourceID             persistenceid.UUID
-	Type                   int16
-	ResourceName           string
-	Description            string
-	ResourceAssetID        persistenceid.UUID
-	ResourceAssetRevision  int64
-	Name                   string
-	PrimaryResourceAssetID *persistenceid.UUID
-}
-
-func (r *Repository) projectLibraryAssetsQuery(
-	ctx context.Context,
-	scope app.Scope,
-	projectUUID persistenceid.UUID,
-	keyword string,
-	resourceType domainresource.Type,
-	offset, limit int,
-) *gorm.DB {
-	refs := r.projectLibraryAssetRefsQuery(ctx, scope, projectUUID, keyword, resourceType).
-		Select(projectLibraryAssetRefColumns).
-		Offset(offset).
-		Limit(limit)
-	return qualifiedScopeQuery(
-		r.db.WithContext(ctx).
-			Table("(?) AS library_assets", refs).
-			Select(projectLibraryAssetColumns).
-			Joins("JOIN assets ON assets.id = library_assets.current_asset_id AND assets.deleted_at = 0"),
-		"assets",
-		scope,
-	).
-		Order("library_assets.resource_updated_at DESC").
-		Order("library_assets.resource_id DESC").
-		Order("CASE WHEN library_assets.primary_resource_asset_id = library_assets.resource_asset_id THEN 0 ELSE 1 END").
-		Order("library_assets.sequence_no ASC").
-		Order("library_assets.resource_asset_id ASC")
-}
-
-func (r *Repository) projectLibraryAssetRefsBase(
-	ctx context.Context,
-	scope app.Scope,
-	projectUUID persistenceid.UUID,
-	keyword string,
-	resourceType domainresource.Type,
-) *gorm.DB {
-	q := qualifiedScopeQuery(
-		r.db.WithContext(ctx).Table("projects").
-			Joins("JOIN resources ON resources.owner_type = ? AND resources.owner_id = projects.id AND resources.deleted_at = 0", int16(domainresource.OwnerProject)).
-			Joins("JOIN resource_assets ON resource_assets.resource_id = resources.id AND resource_assets.deleted_at = 0"),
-		"resources",
-		scope,
-	)
-	q = q.Where("projects.id = ? AND projects.tenant_id = ? AND projects.deleted_at = 0", projectUUID, scope.TenantID)
-	if scope.WorkspaceID == nil {
-		q = q.Where("projects.workspace_id IS NULL")
-	} else {
-		q = q.Where("projects.workspace_id = ?", *scope.WorkspaceID)
-	}
-	if keyword != "" {
-		pattern := "%" + keyword + "%"
-		q = q.Where(
-			"resources.name LIKE ? OR resources.description LIKE ? OR resource_assets.name LIKE ?",
-			pattern, pattern, pattern,
-		)
-	}
-	if resourceType.Valid() {
-		q = q.Where("resources.type = ?", int16(resourceType))
-	}
-	return q
-}
-
-func (r *Repository) projectLibraryAssetRefsQuery(
-	ctx context.Context,
-	scope app.Scope,
-	projectUUID persistenceid.UUID,
-	keyword string,
-	resourceType domainresource.Type,
-) *gorm.DB {
-	return r.projectLibraryAssetRefsBase(ctx, scope, projectUUID, keyword, resourceType).
-		Order("resources.updated_at DESC").
-		Order("resources.id DESC").
-		Order("CASE WHEN resources.primary_resource_asset_id = resource_assets.id THEN 0 ELSE 1 END").
-		Order("resource_assets.sequence_no ASC").
-		Order("resource_assets.id ASC")
-}
+type projectLibraryAssetRow = sqlc.NodeLibraryLooksRow
 
 func projectAssetCandidateFromRow(scope app.Scope, row projectLibraryAssetRow) (app.ProjectAssetCandidate, bool) {
 	name := strings.TrimSpace(row.Name)
-	assetID := row.AssetID.String()
+	assetID := row.AssetID
 	if name == "" || assetID == "" || !domainasset.MediaType(row.MediaType).Valid() {
 		return app.ProjectAssetCandidate{}, false
 	}
@@ -1345,87 +1315,104 @@ func projectAssetCandidateFromRow(scope app.Scope, row projectLibraryAssetRow) (
 	return app.ProjectAssetCandidate{
 		Asset: domainasset.Asset{
 			ID: assetID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
-			OwnerType: domainasset.OwnerType(row.OwnerType), OwnerID: row.OwnerID.String(),
+			OwnerType: domainasset.OwnerType(row.OwnerType), OwnerID: row.OwnerID,
 			FileName: row.FileName, MediaType: domainasset.MediaType(row.MediaType),
 			ContentType: row.ContentType, SizeBytes: row.SizeBytes, SourceAssetID: row.SourceAssetID, SourceRevisionID: row.SourceRevisionID,
-			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt,
+			CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt.Time,
 		},
-		Name: name, ResourceAssetID: row.ResourceAssetID.String(), ResourceID: row.ResourceID.String(), ResourceName: row.ResourceName,
+		Name: name, ResourceAssetID: row.ResourceAssetID, ResourceID: row.ResourceID, ResourceName: row.ResourceName,
 		Description: row.Description, Primary: primary,
 	}, true
 }
 
-func scopeQuery(db *gorm.DB, scope app.Scope) *gorm.DB {
-	q := db.Where("tenant_id = ?", scope.TenantID)
-	if scope.WorkspaceID == nil {
-		return q.Where("workspace_id IS NULL")
+func parseID(raw string) (string, error) {
+	id, err := persistenceid.Parse(raw)
+	if err != nil {
+		return "", err
 	}
-	return q.Where("workspace_id = ?", *scope.WorkspaceID)
+	return id.String(), nil
 }
 
-func qualifiedScopeQuery(db *gorm.DB, table string, scope app.Scope) *gorm.DB {
-	q := db.Where(table+".tenant_id = ?", scope.TenantID)
-	if scope.WorkspaceID == nil {
-		return q.Where(table + ".workspace_id IS NULL")
+func optionalID(raw string) (*string, error) {
+	if raw == "" {
+		return nil, nil
 	}
-	return q.Where(table+".workspace_id = ?", *scope.WorkspaceID)
+	id, err := parseID(raw)
+	return &id, err
 }
 
-type canvasScopeRow struct {
-	ID          persistenceid.UUID
-	TenantID    string
-	WorkspaceID *string
-	ProjectID   persistenceid.UUID
-	Revision    int64
-	DeletedAt   soft_delete.DeletedAt
+func ptr[T any](v T) *T { return &v }
+func validIDs(raw []string) []string {
+	ids := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if id, e := parseID(v); e == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
-func (canvasScopeRow) TableName() string { return "canvases" }
-
-type projectScopeRow struct {
-	ID          persistenceid.UUID
-	TenantID    string
-	WorkspaceID *string
-	DeletedAt   soft_delete.DeletedAt
-}
-
-func (projectScopeRow) TableName() string { return "projects" }
-
-type assetScopeRow struct {
-	ID          persistenceid.UUID
-	TenantID    string
-	WorkspaceID *string
-	OwnerType   int16
-	OwnerID     persistenceid.UUID
-	MediaType   int16
-}
-
-func (assetScopeRow) TableName() string { return "assets" }
-func lockCanvas(db *gorm.DB, tenant string, workspace *string, project string, canvas persistenceid.UUID) error {
-	p, e := persistenceid.Parse(project)
+func lockCanvas(ctx context.Context, db *sqlc.Queries, tenant string, workspace *string, project, canvas string) error {
+	p, e := parseID(project)
 	if e != nil {
 		return app.ErrNotFound
 	}
-	return findCanvas(db, app.Scope{TenantID: tenant, WorkspaceID: workspace}, p, canvas, true)
+	return findCanvas(ctx, db, app.Scope{TenantID: tenant, WorkspaceID: workspace}, p, canvas, true)
 }
 
-func findCanvas(db *gorm.DB, scope app.Scope, project, canvas persistenceid.UUID, lock bool) error {
-	// Lock in parent-to-child order so deletion cannot commit between admission
-	// and the caller's node write. Async cleanup may leave child rows temporarily.
-	parent := scopeQuery(db.Model(&projectScopeRow{}), scope)
+func findCanvas(ctx context.Context, db *sqlc.Queries, scope app.Scope, project, canvas string, lock bool) error {
+	p := sqlc.NodeFindProjectParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ID: project}
+	c := sqlc.NodeFindCanvasParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ProjectID: project, ID: canvas}
 	if lock {
-		parent = parent.Clauses(clause.Locking{Strength: "SHARE"})
+		if _, e := db.NodeFindProjectLocked(ctx, sqlc.NodeFindProjectLockedParams(p)); e != nil {
+			return e
+		}
+		_, e := db.NodeFindCanvasLocked(ctx, sqlc.NodeFindCanvasLockedParams(c))
+		return e
 	}
-	var projectRow projectScopeRow
-	if err := parent.Where("id = ?", project).First(&projectRow).Error; err != nil {
-		return err
+	if _, e := db.NodeFindProject(ctx, p); e != nil {
+		return e
 	}
-	query := scopeQuery(db.Model(&canvasScopeRow{}), scope)
+	_, e := db.NodeFindCanvas(ctx, c)
+	return e
+}
+
+func (r *Repository) getRow(ctx context.Context, scope app.Scope, project, canvas, node string, lock bool) (canvasnodeRow, error) {
+	args := sqlc.NodeGetParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project,
+		CanvasID:    canvas,
+		ID:          node,
+	}
 	if lock {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		return r.store.Queries(ctx).NodeGetLocked(ctx, sqlc.NodeGetLockedParams(args))
 	}
-	var row canvasScopeRow
-	return query.Where("id = ? AND project_id = ?", canvas, project).First(&row).Error
+	return r.store.Queries(ctx).NodeGet(ctx, args)
+}
+
+func insertNode(ctx context.Context, db *sqlc.Queries, row canvasnodeRow) error {
+	return db.NodeInsert(ctx, sqlc.NodeInsertParams{
+		ID:               row.ID,
+		TenantID:         row.TenantID,
+		WorkspaceID:      row.WorkspaceID,
+		ProjectID:        row.ProjectID,
+		CanvasID:         row.CanvasID,
+		Type:             row.Type,
+		StoryboardRank:   row.StoryboardRank,
+		AssetID:          row.AssetID,
+		ResourceID:       row.ResourceID,
+		ResourceAssetID:  row.ResourceAssetID,
+		Revision:         row.Revision,
+		ActiveTaskRunID:  row.ActiveTaskRunID,
+		SelectedOutputID: row.SelectedOutputID,
+		SelectedAssetID:  row.SelectedAssetID,
+		CreatedBy:        row.CreatedBy,
+		UpdatedBy:        row.UpdatedBy,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+		NodeData:         row.NodeData,
+	})
 }
 
 func (r *Repository) LockCanvas(
@@ -1433,23 +1420,21 @@ func (r *Repository) LockCanvas(
 	scope app.Scope,
 	projectID, canvasID string,
 ) (int64, error) {
-	project, err := persistenceid.Parse(projectID)
+	project, err := parseID(projectID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	if err = findCanvas(r.dbFor(ctx), scope, project, canvas, true); err != nil {
+	if err = findCanvas(ctx, r.store.Queries(ctx), scope, project, canvas, true); err != nil {
 		return 0, readErr(err)
 	}
-	var row canvasScopeRow
-	query := scopeQuery(r.dbFor(ctx).Model(&canvasScopeRow{}).Clauses(clause.Locking{Strength: "UPDATE"}), scope)
-	if err = query.Where("id = ? AND project_id = ?", canvas, project).First(&row).Error; err != nil {
-		return 0, readErr(err)
-	}
-	return row.Revision, nil
+	revision, err := r.store.Queries(ctx).NodeFindCanvasLocked(ctx, sqlc.NodeFindCanvasLockedParams{
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ID: canvas, ProjectID: project,
+	})
+	return revision, readErr(err)
 }
 
 func (r *Repository) AdvanceCanvasRevision(
@@ -1458,22 +1443,41 @@ func (r *Repository) AdvanceCanvasRevision(
 	projectID, canvasID string,
 	expectedRevision int64,
 	now time.Time,
+) (revision int64, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		revision, err = r.advanceCanvasRevisionInTransaction(ctx, scope, projectID, canvasID, expectedRevision, now)
+		return err
+	})
+	return
+}
+
+func (r *Repository) advanceCanvasRevisionInTransaction(
+	ctx context.Context,
+	scope app.Scope,
+	projectID, canvasID string,
+	expectedRevision int64,
+	now time.Time,
 ) (int64, error) {
-	project, err := persistenceid.Parse(projectID)
+	project, err := parseID(projectID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	result := scopeQuery(r.dbFor(ctx).Model(&canvasScopeRow{}), scope).
-		Where("id = ? AND project_id = ? AND revision = ?", canvas, project, expectedRevision).
-		Updates(map[string]any{"revision": expectedRevision + 1, "updated_at": now.UTC()})
-	if result.Error != nil {
-		return 0, result.Error
+	affected, err := r.store.Queries(ctx).NodeAdvanceRevision(ctx, sqlc.NodeAdvanceRevisionParams{
+		UpdatedAt:   now.UTC(),
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project,
+		ID:          canvas,
+		Revision:    expectedRevision,
+	})
+	if err != nil {
+		return 0, err
 	}
-	if result.RowsAffected != 1 {
+	if affected != 1 {
 		return 0, app.ErrRevisionConflict
 	}
 	return expectedRevision + 1, nil
@@ -1485,71 +1489,88 @@ func (r *Repository) UpdateStoryboardRanks(
 	projectID, canvasID string,
 	ranks map[string]int64,
 	now time.Time,
+) (err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		return r.updateStoryboardRanksInTransaction(ctx, scope, projectID, canvasID, ranks, now)
+	})
+	return
+}
+
+func (r *Repository) updateStoryboardRanksInTransaction(
+	ctx context.Context,
+	scope app.Scope,
+	projectID, canvasID string,
+	ranks map[string]int64,
+	now time.Time,
 ) error {
-	project, err := persistenceid.Parse(projectID)
+	project, err := parseID(projectID)
 	if err != nil {
 		return app.ErrNotFound
 	}
-	canvas, err := persistenceid.Parse(canvasID)
+	canvas, err := parseID(canvasID)
 	if err != nil {
 		return app.ErrNotFound
 	}
 	for rawID, rank := range ranks {
-		id, parseErr := persistenceid.Parse(rawID)
+		id, parseErr := parseID(rawID)
 		if parseErr != nil {
 			return app.ErrNotFound
 		}
-		result := scopeQuery(r.dbFor(ctx).Model(&canvasnodeRow{}), scope).
-			Where("id = ? AND project_id = ? AND canvas_id = ? AND type = ?", id, project, canvas, domain.NodeTypeVideoGeneration).
-			Updates(map[string]any{
-				"storyboard_rank": rank,
-				"revision":        gorm.Expr("revision + 1"),
-				"updated_by":      scope.CallerID,
-				"updated_at":      now.UTC(),
-			})
-		if result.Error != nil {
-			return result.Error
+		affected, err := r.store.Queries(ctx).NodeUpdateRank(ctx, sqlc.NodeUpdateRankParams{
+			Rank:        rank,
+			UpdatedBy:   scope.CallerID,
+			UpdatedAt:   now.UTC(),
+			TenantID:    scope.TenantID,
+			WorkspaceID: scope.WorkspaceID,
+			ProjectID:   project,
+			CanvasID:    canvas,
+			ID:          id,
+			Type:        int16(domain.NodeTypeVideoGeneration),
+		})
+		if err != nil {
+			return err
 		}
-		if result.RowsAffected != 1 {
+		if affected != 1 {
 			return app.ErrNotFound
 		}
 	}
 	return nil
 }
+
 func toRow(s domain.CanvasNode) (canvasnodeRow, error) {
-	id, e := persistenceid.Parse(s.ID)
+	id, e := parseID(s.ID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	p, e := persistenceid.Parse(s.ProjectID)
+	p, e := parseID(s.ProjectID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	ep, e := persistenceid.Parse(s.CanvasID)
+	ep, e := parseID(s.CanvasID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	activeRunID, e := persistenceid.ParseOptional(s.ActiveTaskRunID)
+	activeRunID, e := optionalID(s.ActiveTaskRunID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	selectedOutputID, e := persistenceid.ParseOptional(s.SelectedOutputID)
+	selectedOutputID, e := optionalID(s.SelectedOutputID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	selectedAssetID, e := persistenceid.ParseOptional(s.SelectedAssetID)
+	selectedAssetID, e := optionalID(s.SelectedAssetID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	assetID, e := persistenceid.ParseOptional(s.AssetID)
+	assetID, e := optionalID(s.AssetID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	resourceAssetID, e := persistenceid.ParseOptional(s.ResourceAssetID)
+	resourceAssetID, e := optionalID(s.ResourceAssetID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
-	resourceID, e := persistenceid.ParseOptional(s.ResourceID)
+	resourceID, e := optionalID(s.ResourceID)
 	if e != nil {
 		return canvasnodeRow{}, e
 	}
@@ -1564,41 +1585,42 @@ func toRow(s domain.CanvasNode) (canvasnodeRow, error) {
 		SelectedOutputID: selectedOutputID, SelectedAssetID: selectedAssetID, CreatedBy: s.CreatedBy,
 		UpdatedBy: s.UpdatedBy, CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt}
 	if s.DeletedAt != nil {
-		row.DeletedAt = soft_delete.DeletedAt(s.DeletedAt.UnixMilli())
+		row.DeletedAt = ptr(s.DeletedAt.UnixMilli())
 	}
 	return row, nil
 }
+
 func fromRow(r canvasnodeRow) (domain.CanvasNode, error) {
 	nodeType := domain.NodeType(r.Type)
 	if !nodeType.Valid() {
-		return domain.CanvasNode{}, fmt.Errorf("canvas node %s has invalid type %d", r.ID.String(), r.Type)
+		return domain.CanvasNode{}, fmt.Errorf("canvas node %s has invalid type %d", r.ID, r.Type)
 	}
 	document, payload, err := decodeCanvasNodeData(nodeType, r.NodeData)
 	if err != nil {
-		return domain.CanvasNode{}, fmt.Errorf("decode canvas node %s node_data: %w", r.ID.String(), err)
+		return domain.CanvasNode{}, fmt.Errorf("decode canvas node %s node_data: %w", r.ID, err)
 	}
 	position := domain.Position{PositionX: document.Position.X, PositionY: document.Position.Y}
 	if !position.Valid() {
-		return domain.CanvasNode{}, fmt.Errorf("canvas node %s has invalid position", r.ID.String())
+		return domain.CanvasNode{}, fmt.Errorf("canvas node %s has invalid position", r.ID)
 	}
-	item := domain.CanvasNode{ID: r.ID.String(), TenantID: r.TenantID, WorkspaceID: r.WorkspaceID,
-		ProjectID: r.ProjectID.String(), CanvasID: r.CanvasID.String(), Type: nodeType, Name: canvasNodeDataName(document, nodeType), HasPersistedName: document.Name != nil,
+	item := domain.CanvasNode{ID: r.ID, TenantID: r.TenantID, WorkspaceID: r.WorkspaceID,
+		ProjectID: r.ProjectID, CanvasID: r.CanvasID, Type: nodeType, Name: canvasNodeDataName(document, nodeType), HasPersistedName: document.Name != nil,
 		Position: position, IncomingEdges: document.IncomingEdges,
 		StoryboardRank: r.StoryboardRank, AssetID: optionalUUIDString(r.AssetID),
 		ResourceID: optionalUUIDString(r.ResourceID), ResourceAssetID: optionalUUIDString(r.ResourceAssetID),
 		Revision: r.Revision, ActiveTaskRunID: optionalUUIDString(r.ActiveTaskRunID), SelectedOutputID: optionalUUIDString(r.SelectedOutputID),
 		SelectedAssetID: optionalUUIDString(r.SelectedAssetID), CreatedBy: r.CreatedBy, UpdatedBy: r.UpdatedBy,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt}
-	if r.DeletedAt != 0 {
-		deletedAt := time.UnixMilli(int64(r.DeletedAt)).UTC()
+	if r.DeletedAt != nil && *r.DeletedAt != 0 {
+		deletedAt := time.UnixMilli(*r.DeletedAt).UTC()
 		item.DeletedAt = &deletedAt
 	}
 	if err = applyCanvasNodePayload(&item, payload); err != nil {
-		return domain.CanvasNode{}, fmt.Errorf("apply canvas node %s payload: %w", r.ID.String(), err)
+		return domain.CanvasNode{}, fmt.Errorf("apply canvas node %s payload: %w", r.ID, err)
 	}
 	if nodeType == domain.NodeTypeImageAsset || nodeType == domain.NodeTypeVideoAsset || nodeType == domain.NodeTypeAudioAsset {
 		if !domain.ValidMaterialReference(item) {
-			return domain.CanvasNode{}, fmt.Errorf("canvas node %s has inconsistent material reference", r.ID.String())
+			return domain.CanvasNode{}, fmt.Errorf("canvas node %s has inconsistent material reference", r.ID)
 		}
 	}
 	return item, nil
@@ -1608,35 +1630,21 @@ func (r *Repository) decodeRow(_ context.Context, row canvasnodeRow) (domain.Can
 	return fromRow(row)
 }
 
-func optionalUUIDString(value *persistenceid.UUID) string {
+func optionalUUIDString(value *string) string {
 	if value == nil {
 		return ""
 	}
-	return value.String()
+	return *value
 }
 
-type selectedOutputMetadataRow struct {
-	TaskRunID             persistenceid.UUID `gorm:"primaryKey"`
-	TenantID              string
-	WorkspaceID           *string
-	ProjectID             persistenceid.UUID
-	CanvasID              persistenceid.UUID
-	NodeID                persistenceid.UUID
-	FirstFrameAssetID     *persistenceid.UUID
-	LastFrameAssetID      *persistenceid.UUID
-	OutputDurationSeconds *int32
-}
-
-func (selectedOutputMetadataRow) TableName() string { return "canvas_node_generations" }
-
-func loadSelectedOutputMetadata(db *gorm.DB, scope app.Scope, items []domain.CanvasNode) error {
-	selectedIDs := make([]persistenceid.UUID, 0, len(items))
+func loadSelectedOutputMetadata(ctx context.Context, db *sqlc.Queries, scope app.Scope, items []domain.CanvasNode) error {
+	selectedIDs := make([]string, 0, len(items))
 	indexByOutputID := make(map[string]int, len(items))
 	for index := range items {
 		if items[index].SelectedOutputID == "" {
 			continue
 		}
-		id, err := persistenceid.Parse(items[index].SelectedOutputID)
+		id, err := parseID(items[index].SelectedOutputID)
 		if err != nil {
 			return err
 		}
@@ -1646,24 +1654,22 @@ func loadSelectedOutputMetadata(db *gorm.DB, scope app.Scope, items []domain.Can
 	if len(selectedIDs) == 0 {
 		return nil
 	}
-
-	var rows []selectedOutputMetadataRow
-	if err := scopeQuery(db.Model(&selectedOutputMetadataRow{}), scope).
-		Select("task_run_id", "node_id", "first_frame_asset_id", "last_frame_asset_id", "output_duration_seconds").
-		Where("task_run_id IN ?", selectedIDs).
-		Find(&rows).Error; err != nil {
+	rows, err := db.NodeMetadata(ctx, sqlc.NodeMetadataParams{
+		TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, Ids: selectedIDs,
+	})
+	if err != nil {
 		return err
 	}
 	for _, row := range rows {
-		index, exists := indexByOutputID[row.TaskRunID.String()]
-		if !exists || items[index].ID != row.NodeID.String() {
+		index, exists := indexByOutputID[row.TaskRunID]
+		if !exists || items[index].ID != row.NodeID {
 			continue
 		}
 		if row.FirstFrameAssetID != nil {
-			items[index].FirstFrameAssetID = row.FirstFrameAssetID.String()
+			items[index].FirstFrameAssetID = *row.FirstFrameAssetID
 		}
 		if row.LastFrameAssetID != nil {
-			items[index].LastFrameAssetID = row.LastFrameAssetID.String()
+			items[index].LastFrameAssetID = *row.LastFrameAssetID
 		}
 		if row.OutputDurationSeconds != nil {
 			duration := *row.OutputDurationSeconds
@@ -1673,24 +1679,29 @@ func loadSelectedOutputMetadata(db *gorm.DB, scope app.Scope, items []domain.Can
 	return nil
 }
 
-func rebalanceRows(tx *gorm.DB, rows []canvasnodeRow) error {
+func rebalanceRows(ctx context.Context, tx *sqlc.Queries, rows []canvasnodeRow) error {
 	for index := range rows {
 		temporaryKey := math.MinInt64 + int64(index) + 1
-		if err := tx.Model(&canvasnodeRow{}).Where("id = ?", rows[index].ID).UpdateColumn("storyboard_rank", temporaryKey).Error; err != nil {
+		if _, err := tx.NodeRebalance(ctx, sqlc.NodeRebalanceParams{
+			Rank: temporaryKey, ID: rows[index].ID,
+		}); err != nil {
 			return err
 		}
 	}
 	for index := range rows {
 		stableKey := int64(index+1) * 1024
-		if err := tx.Model(&canvasnodeRow{}).Where("id = ?", rows[index].ID).UpdateColumn("storyboard_rank", stableKey).Error; err != nil {
+		if _, err := tx.NodeRebalance(ctx, sqlc.NodeRebalanceParams{
+			Rank: stableKey, ID: rows[index].ID,
+		}); err != nil {
 			return err
 		}
 		rows[index].StoryboardRank = stableKey
 	}
 	return nil
 }
+
 func readErr(e error) error {
-	if errors.Is(e, gorm.ErrRecordNotFound) {
+	if errors.Is(e, pgx.ErrNoRows) {
 		return app.ErrNotFound
 	}
 	return e

@@ -6,42 +6,63 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"gorm.io/plugin/soft_delete"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
 	domainproject "github.com/example/monorepo/canvas/internal/domain/project"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
 	scopelifecycle "github.com/example/monorepo/canvas/internal/infrastructure/persistence/scopelifecycle"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
-type Repository struct {
-	db *gorm.DB
-}
+type Repository struct{ db *persistencetransaction.Store }
 
-func NewRepository(db *gorm.DB) *Repository {
-	return &Repository{db: db}
-}
+func NewRepository(db *persistencetransaction.Store) *Repository { return &Repository{db: db} }
 
 func (r *Repository) Create(ctx context.Context, project domainproject.Project) error {
 	row, err := rowFromDomain(project)
 	if err != nil {
 		return err
 	}
-	members := memberRowsFromDomain(project, row.ID)
-	err = persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		if err := scopelifecycle.LockActive(tx, project.TenantID, project.WorkspaceID); err != nil {
+	err = r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := scopelifecycle.LockActive(ctx, r.db, project.TenantID, project.WorkspaceID); err != nil {
 			return err
 		}
-		if err := tx.Create(&row).Error; err != nil {
+		if err := r.db.Queries(ctx).InsertProject(ctx, sqlc.InsertProjectParams{
+			DeletedAt:                   row.DeletedAt,
+			ID:                          row.ID,
+			TenantID:                    row.TenantID,
+			WorkspaceID:                 row.WorkspaceID,
+			Name:                        row.Name,
+			CreatedBy:                   row.CreatedBy,
+			CoverImageRevisionID:        row.CoverImageRevisionID,
+			CoverImageAssetID:           row.CoverImageAssetID,
+			CoverImageSha256:            row.CoverImageSha256,
+			CoverImageContentType:       row.CoverImageContentType,
+			CoverImageSizeBytes:         row.CoverImageSizeBytes,
+			CoverImageClaimGeneration:   row.CoverImageClaimGeneration,
+			CanvasCount:                 row.CanvasCount,
+			SelectedVideoDurationMillis: row.SelectedVideoDurationMillis,
+			ResourceCount:               row.ResourceCount,
+			CreatedAt:                   row.CreatedAt,
+			UpdatedAt:                   row.UpdatedAt,
+		}); err != nil {
 			return err
 		}
-		if len(members) == 0 {
-			return nil
+		for _, id := range project.MemberIDs {
+			if err := r.db.Queries(ctx).InsertProjectMember(ctx, sqlc.InsertProjectMemberParams{
+				TenantID:    row.TenantID,
+				WorkspaceID: row.WorkspaceID,
+				ProjectID:   row.ID,
+				UserID:      id,
+				CreatedAt:   row.UpdatedAt,
+			}); err != nil {
+				return err
+			}
 		}
-		return tx.Create(&members).Error
+		return nil
 	})
 	return translateWriteError(err)
 }
@@ -51,71 +72,49 @@ func (r *Repository) Update(ctx context.Context, project domainproject.Project) 
 	if err != nil {
 		return err
 	}
-	members := memberRowsFromDomain(project, row.ID)
-	err = persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		var current projectRow
-		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND tenant_id = ?", row.ID, project.TenantID)
-		query = applyWorkspaceScope(query, clause.Column{Name: "workspace_id"}, project.WorkspaceID)
-		if err := query.First(&current).Error; err != nil {
+	err = r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		if _, err := r.db.Queries(ctx).LockScopedProject(ctx, sqlc.LockScopedProjectParams{
+			TenantID:    row.TenantID,
+			WorkspaceID: row.WorkspaceID,
+			ID:          row.ID,
+		}); err != nil {
 			return err
 		}
-
-		if err := tx.Model(&current).Updates(map[string]any{
-			"name":                         project.Name,
-			"cover_image_revision_id":      nullableString(project.CoverImageRevisionID),
-			"cover_image_asset_id":         row.CoverImageAssetID,
-			"cover_image_sha256":           nullableString(project.CoverImageSHA256),
-			"cover_image_content_type":     nullableString(project.CoverImageContentType),
-			"cover_image_size_bytes":       project.CoverImageSizeBytes,
-			"cover_image_claim_generation": project.CoverImageClaimGeneration,
-			"updated_at":                   project.UpdatedAt,
-		}).Error; err != nil {
+		if err := r.db.Queries(ctx).ModifyProject(ctx, sqlc.ModifyProjectParams{
+			Name:                      row.Name,
+			CoverImageRevisionID:      row.CoverImageRevisionID,
+			CoverImageAssetID:         row.CoverImageAssetID,
+			CoverImageSha256:          row.CoverImageSha256,
+			CoverImageContentType:     row.CoverImageContentType,
+			CoverImageSizeBytes:       row.CoverImageSizeBytes,
+			CoverImageClaimGeneration: row.CoverImageClaimGeneration,
+			UpdatedAt:                 row.UpdatedAt,
+			TenantID:                  row.TenantID,
+			WorkspaceID:               row.WorkspaceID,
+			ID:                        row.ID,
+		}); err != nil {
 			return err
 		}
-		if err := tx.Where("project_id = ?", row.ID).Delete(&projectMemberRow{}).Error; err != nil {
+		if err := r.db.Queries(ctx).RetireProjectMembers(ctx, sqlc.RetireProjectMembersParams{
+			RetiredAt: time.Now().UnixMilli(),
+			ProjectID: row.ID,
+		}); err != nil {
 			return err
 		}
-		if len(members) == 0 {
-			return nil
+		for _, id := range project.MemberIDs {
+			if err := r.db.Queries(ctx).InsertProjectMember(ctx, sqlc.InsertProjectMemberParams{
+				TenantID:    row.TenantID,
+				WorkspaceID: row.WorkspaceID,
+				ProjectID:   row.ID,
+				UserID:      id,
+				CreatedAt:   row.UpdatedAt,
+			}); err != nil {
+				return err
+			}
 		}
-		return tx.Create(&members).Error
+		return nil
 	})
 	return translateWriteError(err)
-}
-
-func (r *Repository) UpdateByMember(ctx context.Context, project domainproject.Project) error {
-	row, err := rowFromDomain(project)
-	if err != nil {
-		return err
-	}
-	db := persistencetransaction.DB(ctx, r.db)
-	result := r.scopeQuery(db, row.TenantID, row.WorkspaceID).
-		Where("projects.id = ?", row.ID).
-		Updates(map[string]any{
-			"cover_image_revision_id":      row.CoverImageRevisionID,
-			"cover_image_asset_id":         row.CoverImageAssetID,
-			"cover_image_sha256":           row.CoverImageSHA256,
-			"cover_image_content_type":     row.CoverImageContentType,
-			"cover_image_size_bytes":       row.CoverImageSizeBytes,
-			"cover_image_claim_generation": row.CoverImageClaimGeneration,
-			"updated_at":                   row.UpdatedAt,
-		})
-	if result.Error != nil {
-		return translateWriteError(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		var count int64
-		if err = r.scopeQuery(db, row.TenantID, row.WorkspaceID).
-			Where("projects.id = ?", row.ID).
-			Count(&count).Error; err != nil {
-			return translateWriteError(err)
-		}
-		if count == 0 {
-			return applicationproject.ErrNotFound
-		}
-	}
-	return nil
 }
 
 func (r *Repository) Delete(ctx context.Context, project domainproject.Project) error {
@@ -126,26 +125,55 @@ func (r *Repository) Delete(ctx context.Context, project domainproject.Project) 
 	if err != nil {
 		return err
 	}
-	err = persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		var current projectRow
-		query := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND tenant_id = ?", row.ID, project.TenantID)
-		query = applyWorkspaceScope(query, clause.Column{Name: "workspace_id"}, project.WorkspaceID)
-		if err := query.First(&current).Error; err != nil {
+	err = r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		if _, err := r.db.Queries(ctx).LockScopedProject(ctx, sqlc.LockScopedProjectParams{
+			TenantID:    row.TenantID,
+			WorkspaceID: row.WorkspaceID,
+			ID:          row.ID,
+		}); err != nil {
 			return err
 		}
-		if err := tx.Where("project_id = ?", row.ID).Delete(&projectMemberRow{}).Error; err != nil {
+		if err := r.db.Queries(ctx).RetireProjectMembers(ctx, sqlc.RetireProjectMembersParams{
+			RetiredAt: time.Now().UnixMilli(),
+			ProjectID: row.ID,
+		}); err != nil {
 			return err
 		}
-		return tx.Model(&current).Updates(map[string]any{
-			"cover_image_revision_id": nil, "cover_image_asset_id": nil, "cover_image_sha256": nil,
-			"cover_image_content_type":     nil,
-			"cover_image_size_bytes":       0,
-			"cover_image_claim_generation": 0,
-			"updated_at":                   project.UpdatedAt, "deleted_at": project.DeletedAt.UnixMilli(),
-		}).Error
+		return r.db.Queries(ctx).RetireProject(ctx, sqlc.RetireProjectParams{
+			UpdatedAt:   row.UpdatedAt,
+			RetiredAt:   project.DeletedAt.UnixMilli(),
+			TenantID:    row.TenantID,
+			WorkspaceID: row.WorkspaceID,
+			ID:          row.ID,
+		})
 	})
 	return translateWriteError(err)
+}
+
+func (r *Repository) UpdateByMember(ctx context.Context, project domainproject.Project) error {
+	row, err := rowFromDomain(project)
+	if err != nil {
+		return err
+	}
+	n, err := r.db.Queries(ctx).ModifyProjectCover(ctx, sqlc.ModifyProjectCoverParams{
+		CoverImageRevisionID:      row.CoverImageRevisionID,
+		CoverImageAssetID:         row.CoverImageAssetID,
+		CoverImageSha256:          row.CoverImageSha256,
+		CoverImageContentType:     row.CoverImageContentType,
+		CoverImageSizeBytes:       row.CoverImageSizeBytes,
+		CoverImageClaimGeneration: row.CoverImageClaimGeneration,
+		UpdatedAt:                 row.UpdatedAt,
+		TenantID:                  row.TenantID,
+		WorkspaceID:               row.WorkspaceID,
+		ID:                        row.ID,
+	})
+	if err != nil {
+		return translateWriteError(err)
+	}
+	if n == 0 {
+		return applicationproject.ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repository) Get(ctx context.Context, scope applicationproject.Scope, projectID string) (domainproject.Project, error) {
@@ -153,43 +181,47 @@ func (r *Repository) Get(ctx context.Context, scope applicationproject.Scope, pr
 	if err != nil {
 		return domainproject.Project{}, applicationproject.ErrNotFound
 	}
-	query := r.scopeQuery(r.db.WithContext(ctx), scope.TenantID, scope.WorkspaceID)
-	query = applyProjectAccess(query, scope.CallerID, scope.Access)
-	var row projectRow
-	if err := query.Where("projects.id = ?", id).First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return domainproject.Project{}, applicationproject.ErrNotFound
-		}
-		return domainproject.Project{}, err
+	row, err := r.db.Queries(ctx).ReadProject(ctx, sqlc.ReadProjectParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		Admin:       scope.Access == applicationproject.AccessAdmin,
+		Member:      scope.Access == applicationproject.AccessMember,
+		CallerID:    scope.CallerID,
+		ID:          id.String(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainproject.Project{}, applicationproject.ErrNotFound
 	}
-	members, err := r.loadMembers(ctx, []persistenceid.UUID{row.ID})
 	if err != nil {
 		return domainproject.Project{}, err
 	}
-	return domainFromRow(row, members[row.ID.String()]), nil
+	items, err := r.hydrate(ctx, []sqlc.Project{row})
+	if err != nil {
+		return domainproject.Project{}, err
+	}
+	return items[0], nil
 }
 
-// GetByTenant verifies project ownership without applying workspace scope. Project model
-// permissions are tenant/project scoped and deliberately independent from workspaces.
 func (r *Repository) GetByTenant(ctx context.Context, tenantID string, projectID string) (domainproject.Project, error) {
 	id, err := persistenceid.Parse(projectID)
 	if err != nil {
 		return domainproject.Project{}, applicationproject.ErrNotFound
 	}
-	var row projectRow
-	if err := r.db.WithContext(ctx).Model(&projectRow{}).
-		Where("projects.tenant_id = ? AND projects.id = ?", tenantID, id).
-		First(&row).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return domainproject.Project{}, applicationproject.ErrNotFound
-		}
-		return domainproject.Project{}, err
+	row, err := r.db.Queries(ctx).ReadTenantProject(ctx, sqlc.ReadTenantProjectParams{
+		TenantID: tenantID,
+		ID:       id.String(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainproject.Project{}, applicationproject.ErrNotFound
 	}
-	members, err := r.loadMembers(ctx, []persistenceid.UUID{row.ID})
 	if err != nil {
 		return domainproject.Project{}, err
 	}
-	return domainFromRow(row, members[row.ID.String()]), nil
+	items, err := r.hydrate(ctx, []sqlc.Project{row})
+	if err != nil {
+		return domainproject.Project{}, err
+	}
+	return items[0], nil
 }
 
 func (r *Repository) BatchGet(
@@ -197,66 +229,63 @@ func (r *Repository) BatchGet(
 	scope applicationproject.Scope,
 	projectIDs []string,
 ) ([]domainproject.Project, error) {
-	ids := persistenceid.ParseValid(projectIDs)
+	ids := persistenceid.ParseValidStrings(projectIDs)
 	if len(ids) == 0 {
 		return []domainproject.Project{}, nil
 	}
-	var rows []projectRow
-	if err := r.scopeQuery(r.db.WithContext(ctx), scope.TenantID, scope.WorkspaceID).
-		Scopes(func(db *gorm.DB) *gorm.DB { return applyProjectAccess(db, scope.CallerID, scope.Access) }).
-		Where("projects.id IN ?", ids).
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	members, err := r.loadMembers(ctx, rowIDs(rows))
+	rows, err := r.db.Queries(ctx).ReadProjects(ctx, sqlc.ReadProjectsParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		Admin:       scope.Access == applicationproject.AccessAdmin,
+		Member:      scope.Access == applicationproject.AccessMember,
+		CallerID:    scope.CallerID,
+		Ids:         ids,
+	})
 	if err != nil {
 		return nil, err
 	}
-	items := make([]domainproject.Project, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, domainFromRow(row, members[row.ID.String()]))
-	}
-	return items, nil
+	return r.hydrate(ctx, rows)
 }
 
 func (r *Repository) List(ctx context.Context, query applicationproject.ListQuery) ([]domainproject.Project, int64, error) {
-	db := r.scopeQuery(r.db.WithContext(ctx), query.TenantID, query.WorkspaceID)
-	db = applyProjectAccess(db, query.CallerID, query.Access)
-	if query.Keyword != "" {
-		db = db.Where("projects.name LIKE ?", "%"+query.Keyword+"%")
-	}
-
-	var total int64
-	if err := db.Distinct("projects.id").Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	direction := "DESC"
-	if query.SortDirection == applicationproject.SortAscending {
-		direction = "ASC"
-	}
-	var rows []projectRow
-	if err := db.Select("projects.*").Distinct().
-		Order("projects.updated_at " + direction).
-		Order("projects.id " + direction).
-		Limit(query.PageSize).
-		Offset((query.PageNum - 1) * query.PageSize).
-		Find(&rows).Error; err != nil {
-		return nil, 0, err
-	}
-	ids := rowIDs(rows)
-	members, err := r.loadMembers(ctx, ids)
+	total, err := r.db.Queries(ctx).CountProjects(ctx, sqlc.CountProjectsParams{
+		TenantID:    query.TenantID,
+		WorkspaceID: query.WorkspaceID,
+		Admin:       query.Access == applicationproject.AccessAdmin,
+		Member:      query.Access == applicationproject.AccessMember,
+		CallerID:    query.CallerID,
+		Keyword:     query.Keyword,
+	})
 	if err != nil {
 		return nil, 0, err
 	}
-	projects := make([]domainproject.Project, 0, len(rows))
-	for _, row := range rows {
-		projects = append(projects, domainFromRow(row, members[row.ID.String()]))
+	rows, err := r.db.Queries(ctx).PageProjects(ctx, sqlc.PageProjectsParams{
+		TenantID:    query.TenantID,
+		WorkspaceID: query.WorkspaceID,
+		Admin:       query.Access == applicationproject.AccessAdmin,
+		Member:      query.Access == applicationproject.AccessMember,
+		CallerID:    query.CallerID,
+		Keyword:     query.Keyword,
+		Ascending:   query.SortDirection == applicationproject.SortAscending,
+		PageOffset:  int64(query.PageNum-1) * int64(query.PageSize),
+		PageSize:    int32(query.PageSize),
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	return projects, total, nil
+	items, err := r.hydrate(ctx, rows)
+	return items, total, err
 }
 
 func (r *Repository) ListByTenant(ctx context.Context, tenantID string) ([]domainproject.Project, error) {
-	return r.listForCleanup(ctx, r.db.WithContext(ctx).Where("projects.tenant_id = ?", tenantID))
+	rows, err := r.db.Queries(ctx).CleanupProjects(ctx, sqlc.CleanupProjectsParams{
+		TenantID:    tenantID,
+		WorkspaceID: nil,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.hydrate(ctx, rows)
 }
 
 func (r *Repository) ListByWorkspace(
@@ -264,121 +293,67 @@ func (r *Repository) ListByWorkspace(
 	tenantID string,
 	workspaceID string,
 ) ([]domainproject.Project, error) {
-	return r.listForCleanup(ctx, r.db.WithContext(ctx).
-		Where("projects.tenant_id = ? AND projects.workspace_id = ?", tenantID, workspaceID))
-}
-
-func (r *Repository) listForCleanup(ctx context.Context, db *gorm.DB) ([]domainproject.Project, error) {
-	var rows []projectRow
-	if err := db.Model(&projectRow{}).Order("projects.id ASC").Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	members, err := r.loadMembers(ctx, rowIDs(rows))
+	rows, err := r.db.Queries(ctx).CleanupProjects(ctx, sqlc.CleanupProjectsParams{
+		TenantID:    tenantID,
+		WorkspaceID: &workspaceID,
+	})
 	if err != nil {
 		return nil, err
 	}
+	return r.hydrate(ctx, rows)
+}
+
+func (r *Repository) hydrate(ctx context.Context, rows []sqlc.Project) ([]domainproject.Project, error) {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	members, err := r.db.Queries(ctx).ReadProjectMembers(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byProject := make(map[string][]string, len(ids))
+	for _, member := range members {
+		byProject[member.ProjectID] = append(byProject[member.ProjectID], member.UserID)
+	}
 	items := make([]domainproject.Project, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, domainFromRow(row, members[row.ID.String()]))
+		items = append(items, domainFromRow(row, byProject[row.ID]))
 	}
 	return items, nil
 }
 
-func (r *Repository) scopeQuery(db *gorm.DB, tenantID string, workspaceID *string) *gorm.DB {
-	db = db.Model(&projectRow{}).Where("projects.tenant_id = ?", tenantID)
-	return applyWorkspaceScope(db, clause.Column{Table: "projects", Name: "workspace_id"}, workspaceID)
-}
-
-func applyWorkspaceScope(db *gorm.DB, column clause.Column, workspaceID *string) *gorm.DB {
-	if workspaceID == nil {
-		return db.Where(clause.Eq{Column: column, Value: nil})
-	}
-	return db.Where(clause.Eq{Column: column, Value: *workspaceID})
-}
-
-func applyProjectAccess(db *gorm.DB, callerID string, access applicationproject.Access) *gorm.DB {
-	switch access {
-	case applicationproject.AccessAdmin:
-		return db
-	case applicationproject.AccessMember:
-		memberProjects := db.Session(&gorm.Session{NewDB: true}).
-			Model(&projectMemberRow{}).
-			Select("project_id").
-			Where("user_id = ?", callerID)
-		return db.Where("projects.id IN (?)", memberProjects)
-	default:
-		return db.Where("1 = 0")
-	}
-}
-
-func (r *Repository) loadMembers(ctx context.Context, projectIDs []persistenceid.UUID) (map[string][]string, error) {
-	result := make(map[string][]string, len(projectIDs))
-	if len(projectIDs) == 0 {
-		return result, nil
-	}
-	var rows []projectMemberRow
-	if err := r.db.WithContext(ctx).
-		Where("project_id IN ?", projectIDs).
-		Order("id ASC").
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		projectID := row.ProjectID.String()
-		result[projectID] = append(result[projectID], row.UserID)
-	}
-	return result, nil
-}
-
-func rowIDs(rows []projectRow) []persistenceid.UUID {
-	ids := make([]persistenceid.UUID, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.ID)
-	}
-	return ids
-}
-
-func rowFromDomain(project domainproject.Project) (projectRow, error) {
+func rowFromDomain(project domainproject.Project) (sqlc.Project, error) {
 	id, err := persistenceid.Parse(project.ID)
 	if err != nil {
-		return projectRow{}, fmt.Errorf("map Project ID: %w", err)
+		return sqlc.Project{}, fmt.Errorf("map Project ID: %w", err)
 	}
 	coverImageID, err := persistenceid.ParseOptional(project.CoverImageAssetID)
 	if err != nil {
-		return projectRow{}, fmt.Errorf("map Project cover image ID: %w", err)
+		return sqlc.Project{}, fmt.Errorf("map Project cover image ID: %w", err)
 	}
-	row := projectRow{
-		ID: id, TenantID: project.TenantID, WorkspaceID: cloneString(project.WorkspaceID),
+	row := sqlc.Project{
+		ID: id.String(), TenantID: project.TenantID, WorkspaceID: cloneString(project.WorkspaceID),
 		Name: project.Name, CreatedBy: project.CreatedBy,
-		CoverImageRevisionID: nullableString(project.CoverImageRevisionID), CoverImageAssetID: coverImageID,
-		CoverImageSHA256:          nullableString(project.CoverImageSHA256),
+		CoverImageRevisionID: nullableString(project.CoverImageRevisionID), CoverImageAssetID: persistenceid.OptionalText(coverImageID),
+		CoverImageSha256:          nullableString(project.CoverImageSHA256),
 		CoverImageContentType:     nullableString(project.CoverImageContentType),
 		CoverImageSizeBytes:       project.CoverImageSizeBytes,
 		CoverImageClaimGeneration: project.CoverImageClaimGeneration,
 		CreatedAt:                 project.CreatedAt, UpdatedAt: project.UpdatedAt,
 	}
 	if project.DeletedAt != nil {
-		row.DeletedAt = soft_delete.DeletedAt(project.DeletedAt.UnixMilli())
+		millis := project.DeletedAt.UnixMilli()
+		row.DeletedAt = &millis
 	}
 	return row, nil
 }
 
-func memberRowsFromDomain(project domainproject.Project, projectID persistenceid.UUID) []projectMemberRow {
-	rows := make([]projectMemberRow, 0, len(project.MemberIDs))
-	for _, memberID := range project.MemberIDs {
-		rows = append(rows, projectMemberRow{
-			TenantID: project.TenantID, WorkspaceID: cloneString(project.WorkspaceID),
-			ProjectID: projectID, UserID: memberID, CreatedAt: project.UpdatedAt,
-		})
-	}
-	return rows
-}
-
-func domainFromRow(row projectRow, memberIDs []string) domainproject.Project {
+func domainFromRow(row sqlc.Project, memberIDs []string) domainproject.Project {
 	return domainproject.Project{
-		ID: row.ID.String(), TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID),
+		ID: row.ID, TenantID: row.TenantID, WorkspaceID: cloneString(row.WorkspaceID),
 		Name: row.Name, CreatedBy: row.CreatedBy, CoverImageRevisionID: stringValue(row.CoverImageRevisionID),
-		CoverImageAssetID: uuidStringValue(row.CoverImageAssetID), CoverImageSHA256: stringValue(row.CoverImageSHA256),
+		CoverImageAssetID: stringValue(row.CoverImageAssetID), CoverImageSHA256: stringValue(row.CoverImageSha256),
 		CoverImageContentType:     stringValue(row.CoverImageContentType),
 		CoverImageSizeBytes:       row.CoverImageSizeBytes,
 		CoverImageClaimGeneration: row.CoverImageClaimGeneration,
@@ -388,19 +363,12 @@ func domainFromRow(row projectRow, memberIDs []string) domainproject.Project {
 	}
 }
 
-func deletedAt(value soft_delete.DeletedAt) *time.Time {
-	if value == 0 {
+func deletedAt(value *int64) *time.Time {
+	if value == nil || *value == 0 {
 		return nil
 	}
-	deletedAt := time.UnixMilli(int64(value)).UTC()
+	deletedAt := time.UnixMilli(*value).UTC()
 	return &deletedAt
-}
-
-func uuidStringValue(value *persistenceid.UUID) string {
-	if value == nil {
-		return ""
-	}
-	return value.String()
 }
 
 func cloneString(value *string) *string {
@@ -426,10 +394,11 @@ func stringValue(value *string) string {
 }
 
 func translateWriteError(err error) error {
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) && databaseError.Code == "23505" {
 		return applicationproject.ErrNameConflict
 	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return applicationproject.ErrNotFound
 	}
 	return err

@@ -17,7 +17,7 @@ func TestDecodeStateRequiresCanvasNodeIdentity(t *testing.T) {
 		CanvasID:  mustParseID(t, "01a0c7ee-2e16-70a4-9c83-5c28f1de4af9"),
 	}
 	state := applicationcanvas.StoryboardSession{
-		ID: row.ID.String(), ProjectID: row.ProjectID.String(), CanvasID: row.CanvasID.String(), Plot: "plot",
+		ID: row.ID, ProjectID: row.ProjectID, CanvasID: row.CanvasID, Plot: "plot",
 	}
 	payload, err := json.Marshal(storyboardPayload{Version: 1, Plot: state.Plot, Session: state})
 	if err != nil {
@@ -31,7 +31,7 @@ func TestDecodeStateRequiresCanvasNodeIdentity(t *testing.T) {
 		t.Fatalf("decodeState() error = %v", err)
 	}
 
-	state.CanvasID = mustParseID(t, "01a0c7ee-2e16-70a4-9c83-5c28f1de4afa").String()
+	state.CanvasID = mustParseID(t, "01a0c7ee-2e16-70a4-9c83-5c28f1de4afa")
 	payload, err = json.Marshal(storyboardPayload{Version: 1, Plot: state.Plot, Session: state})
 	if err != nil {
 		t.Fatal(err)
@@ -45,11 +45,11 @@ func TestDecodeStateRequiresCanvasNodeIdentity(t *testing.T) {
 	}
 }
 
-func mustParseID(t *testing.T, value string) persistenceid.UUID {
+func mustParseID(t *testing.T, value string) string {
 	t.Helper()
 	id, err := persistenceid.Parse(value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return id
+	return id.String()
 }

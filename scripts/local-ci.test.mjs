@@ -200,6 +200,19 @@ test("the chat stream contract selects chat producers and consumers instead of t
   assert.ok(steps.some((step) => step[0] === "frontend-tests"));
   assert.ok(!steps.some((step) => step[0] === "all-tests" || step[0] === "build"));
 });
+test("SQL sources and migrations verify checked-in sqlc output", () => {
+  for (const path of [
+    "apps/backend/services/canvas/sqlc.yaml",
+    "apps/backend/services/canvas/migrations/v1.0.1/v1.0.1.2.up.sql",
+    "apps/backend/services/canvas/internal/infrastructure/persistence/sql/canvas_repository.sql",
+  ]) {
+    const steps = codePlan("base-sha", [path]);
+    assert.ok(
+      steps.some((step) => step[0] === "contracts"),
+      path,
+    );
+  }
+});
 test("area-level configuration changes widen only to their owning stack", () => {
   const steps = codePlan("base-sha", ["apps/frontend/vitest.config.mts"]);
   assert.ok(steps.some((step) => step[0] === "build-frontend/chat"));

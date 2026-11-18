@@ -8,11 +8,13 @@ Accepted.
 
 Canvas 从 multix-app 迁入后，正式图、任务轮询、单节点文本 SSE、审核轮询和命令响应回填各自更新页面，无法可靠呈现其他窗口或后台任务的写入。
 
-采用原仓库 ADR-043 的事务日志、连续 cursor、UTF-8 文本 checkpoint 和 keyed patch 思路，并参考 llmops-web Studio 的顶层投影与组件草稿分工。原仓库独有的 generation batch 不迁入；本仓库的元信息、私有故事板、审核与导出记录纳入同一个投影。传输参考 [WHATWG SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html)，持久化参考 [GORM transaction](https://gorm.io/docs/transactions.html)。
+采用原仓库 ADR-043 的事务日志、连续 cursor、UTF-8 文本 checkpoint 和 keyed patch 思路，并参考 llmops-web Studio 的顶层投影与组件草稿分工。原仓库独有的 generation batch 不迁入；本仓库的元信息、私有故事板、审核与导出记录纳入同一个投影。传输参考 [WHATWG SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html)，事务内变更跟踪使用 [PostgreSQL 事务局部设置](https://www.postgresql.org/docs/current/sql-set.html)。
 
 ## 决策与取舍
 
 保留 `getCanvasGraph` HTTP 全量快照承担初始化和恢复，SSE 只发送增量，避免大画布快照超过 SSE 帧大小限制。数据库事务内记录有序事件，使任意服务副本和后台生产者都能提供同一提交顺序；相较进程内广播，多承担日志存储与读取开销，换取可重放和跨副本一致性。
+
+服务端和 worker 的投影相关写入均经过同一 pgx 事务管理器。增量迁移 `v1.0.1.2` 在来源表安装触发器，按行变更收集涉及的画布。事务管理器在外层提交前用 sqlc 读取完整投影，每个发生变化的画布记录一次事件。保存点回滚也会撤销对应的变更记录，事件写入失败会回滚业务写入。
 
 每个画布由一个顶层投影持有正式事实，命令完成需要观察到对应 cursor。组件只保存交互状态和未提交草稿，删除轮询、旧文本流、Redis 文本缓冲及响应回填，避免多写入者争夺状态。连接恢复不能决定生成任务的存活，文本生产者独立持久化 checkpoint。Chat 仍使用 AI SDK UIMessage，不承载 Canvas 复制协议。
 

@@ -39,6 +39,13 @@ WHERE id = $2 AND user_id = $3 AND tenant_id = $4 AND workspace_id = $5
 RETURNING id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
     title, project_id, canvas_id, created_at, updated_at;
 
+-- name: UpdateConversationTitleIfDefault :one
+UPDATE conversations SET title = $1, updated_at = NOW()
+WHERE id = $2 AND user_id = $3 AND tenant_id = $4 AND workspace_id = $5
+    AND (btrim(title) = '' OR title = '新对话')
+RETURNING id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
+    title, project_id, canvas_id, created_at, updated_at;
+
 -- name: DeleteConversation :one
 DELETE FROM conversations
 WHERE id = $1 AND user_id = $2 AND tenant_id = $3 AND workspace_id = $4

@@ -12,8 +12,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
 	golang.org/x/crypto v0.59.0
-	gorm.io/driver/postgres v1.6.3
-	gorm.io/gorm v1.31.2
 )
 
 require (
@@ -27,8 +25,6 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.3 // indirect
-	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/jinzhu/now v1.1.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect

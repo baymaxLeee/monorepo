@@ -4,7 +4,7 @@ import test from "node:test";
 import { asSchema } from "@ai-sdk/provider-utils";
 import type { Tool, ToolExecutionOptions } from "ai";
 
-import { createCloudToolAdapters } from "./cloud-tools.js";
+import { CLOUD_EXECUTION_ENVIRONMENT, createCloudToolAdapters } from "./cloud-tools.js";
 
 function executable(runtime: Awaited<ReturnType<typeof createCloudToolAdapters>>, name: string) {
   const definition = runtime.manifests.find((manifest) => manifest.name === name)?.tool as
@@ -45,8 +45,8 @@ test("session source refresh remains a Runtime-only incremental import adapter",
   const runtime = await createCloudToolAdapters();
   const refresh = runtime.manifests.find((manifest) => manifest.name === "refresh_session_sources");
   assert.deepEqual(refresh?.policy.modes, ["normal"]);
-  assert.match(staticDescription(refresh?.tool), /after another tool publishes/i);
-  assert.match(staticDescription(refresh?.tool), /only newly imported or updated source paths/i);
+  assert.match(staticDescription(refresh?.tool), /after another tool adds or updates/i);
+  assert.match(staticDescription(refresh?.tool), /workspace files are preserved/i);
 });
 
 test("cloud Bash adapter propagates cancellation", async () => {
@@ -56,4 +56,10 @@ test("cloud Bash adapter propagates cancellation", async () => {
   await assert.rejects(async () => bash({ command: "echo ignored" }, { ...options, abortSignal: signal }), {
     name: "AbortError",
   });
+});
+
+test("cloud execution environment describes behavior without exposing transport details", () => {
+  assert.equal(CLOUD_EXECUTION_ENVIRONMENT.network.access, "environment");
+  assert.equal(CLOUD_EXECUTION_ENVIRONMENT.workspace.persistence, "session");
+  assert.doesNotMatch(JSON.stringify(CLOUD_EXECUTION_ENVIRONMENT), /proxy|squid|socket/i);
 });

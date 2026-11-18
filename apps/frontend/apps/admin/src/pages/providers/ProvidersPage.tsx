@@ -583,9 +583,9 @@ function ProviderFormDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            base_url 为 API 前缀（火山 Ark：
-            https://ark.cn-beijing.volces.com/api/v3）。图片测试会实际生成图片并可能计费； 视频测试只验证 Ark API
-            鉴权，不创建生成任务。
+            {
+              "base_url 为 API 前缀（火山 Ark：https://ark.cn-beijing.volces.com/api/v3）。图片和视频测试只验证 Ark API 鉴权与链路，不调用模型、不创建生成任务。"
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="scrollbar-thin -mx-4 min-h-0 flex-1 overflow-y-auto px-4">

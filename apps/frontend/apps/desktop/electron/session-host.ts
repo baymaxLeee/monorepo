@@ -5,14 +5,15 @@ import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 import { createAgentHarness } from "@repo/agent-runtime";
+import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
+import { createExecutionHostManifests } from "@repo/agent-runtime/agent/execution-host";
 import { createAgentSteering, type AgentSteering } from "@repo/agent-runtime/agent/steering";
-import type { PublishedWorkspaceFile } from "@repo/agent-runtime/protocol/artifact";
+import { fileDataChunks, workspaceMediaType, type PublishedWorkspaceFile } from "@repo/agent-runtime/protocol/artifact";
 import {
   applyToolApprovalResponse,
   finalizeInterruptedMessages,
   hasPendingToolApprovals,
 } from "@repo/agent-runtime/protocol/lifecycle";
-import { createBashTool } from "@repo/agent-runtime/tools/bash";
 import { DIRECT_TOOL_CALL } from "@repo/agent-runtime/tools/code-mode";
 import { manifestsToTools } from "@repo/agent-runtime/tools/manifest";
 import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
@@ -55,30 +56,6 @@ function publishedArtifacts(messages: UIMessage[]): Map<string, PublishedWorkspa
     }
   }
   return artifacts;
-}
-
-function mediaType(path: string): string {
-  const extension = path.split(".").at(-1)?.toLowerCase();
-  return (
-    {
-      css: "text/css",
-      csv: "text/csv",
-      html: "text/html",
-      js: "text/javascript",
-      json: "application/json",
-      jsx: "text/jsx",
-      md: "text/markdown",
-      pdf: "application/pdf",
-      png: "image/png",
-      svg: "image/svg+xml",
-      ts: "text/typescript",
-      tsx: "text/tsx",
-      txt: "text/plain",
-      webp: "image/webp",
-      yaml: "application/yaml",
-      yml: "application/yaml",
-    }[extension ?? ""] ?? "application/octet-stream"
-  );
 }
 
 export interface SessionHostOptions {
@@ -357,7 +334,6 @@ export class LocalSessionHost {
       const config = await this.options.config(thread.agentId, signal);
       const model = relayModel(config, this.options.call);
       let modelEpoch = runWorkspace.epoch;
-      const artifactEpoch = runWorkspace.epoch;
       const artifacts = publishedArtifacts(thread.messages);
       const portableTools = createPortableToolRegistry({
         mode: "normal",
@@ -372,35 +348,81 @@ export class LocalSessionHost {
         // a host protocol gap, not a separately curated portable default set.
         clientInteraction: false,
       });
+      const environment = {
+        location: "local",
+        workspace: {
+          root: thread.workspace,
+          access: "read-write",
+          isolation: "direct",
+          persistence: "host",
+          externalSources: "unavailable",
+        },
+        network: { access: "public", protocols: ["http", "https"] },
+        process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
+        deliverables: "workspace-reference",
+        approvals: thread.approvalMode,
+      } as const satisfies ExecutionEnvironment;
+      const executionManifests = createExecutionHostManifests({
+        environment,
+        deliver: async (candidate, options) => {
+          const path = localWorkspacePath(thread.workspace, candidate);
+          const inspection = await this.access(thread, (current) =>
+            current.sandbox.file({ operation: "inspect", path }, options.abortSignal),
+          );
+          if (
+            !inspection ||
+            typeof inspection !== "object" ||
+            !("size" in inspection) ||
+            !Number.isSafeInteger(inspection.size) ||
+            !("etag" in inspection) ||
+            typeof inspection.etag !== "string" ||
+            !/^"[a-f0-9]{32}"$/.test(inspection.etag)
+          ) {
+            throw new Error("无法检查待交付文件");
+          }
+          const fileId = createHash("sha256").update(`${thread.id}\0${path}`).digest("hex").slice(0, 32);
+          const previous = artifacts.get(fileId);
+          const data: PublishedWorkspaceFile = {
+            file_id: fileId,
+            filename: previous?.filename ?? basename(path),
+            title: previous?.title ?? basename(path),
+            media_type: previous?.media_type ?? workspaceMediaType(path),
+            kind: previous?.kind ?? (path.toLowerCase().endsWith("-plan.md") ? "plan" : "artifact"),
+            etag: inspection.etag,
+            updated: Boolean(previous),
+            workspace_path: path,
+          };
+          artifacts.set(fileId, data);
+          return data;
+        },
+        run: (input, options) =>
+          this.access(thread, async (w) => {
+            if (w.epoch !== modelEpoch) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
+            const result = await w.sandbox.execute(
+              "/bin/bash",
+              [
+                "--noprofile",
+                "--norc",
+                "-c",
+                'cd -- "$1" && eval "$2"',
+                "bash",
+                input.workdir ?? thread.workspace,
+                input.command,
+              ],
+              undefined,
+              options.abortSignal,
+            );
+            await new Promise<void>((resolve) => {
+              setImmediate(resolve);
+            });
+            w.flushChanges();
+            return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
+          }),
+      });
       const manifests = resolveAgentToolProfile({
         defaults: portableTools.defaults,
         profile: primaryAgentToolProfile,
-        additions: [
-          createBashTool((input, options) =>
-            this.access(thread, async (w) => {
-              if (w.epoch !== modelEpoch) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
-              const result = await w.sandbox.execute(
-                "/bin/bash",
-                [
-                  "--noprofile",
-                  "--norc",
-                  "-c",
-                  'cd -- "$1" && eval "$2"',
-                  "bash",
-                  input.workdir ?? thread.workspace,
-                  input.command,
-                ],
-                undefined,
-                options.abortSignal,
-              );
-              await new Promise<void>((resolve) => {
-                setImmediate(resolve);
-              });
-              w.flushChanges();
-              return { exitCode: result.code, stdout: result.stdout, stderr: result.stderr };
-            }),
-          ),
-        ],
+        additions: executionManifests,
       });
       const tools = manifestsToTools(manifests);
       const activeTools = Object.keys(tools);
@@ -412,13 +434,14 @@ export class LocalSessionHost {
       const agent = createAgentHarness({
         model,
         mode: "normal",
+        environment,
         tools,
         toolApproval: createToolApprovalPolicy("normal", { getApprovalMode: () => thread.approvalMode }),
         activeTools,
         toolOrder: [...activeTools].sort(),
         experimental_toolCallers: codeModeToolCallers as never,
         maxOutputTokens: config.maxOutputTokens,
-        instructions: `${config.instructions}\n<workspace_environment>${JSON.stringify({ root: thread.workspace, storage: "local disk", network: "enabled", isolation: "Seatbelt", approval_mode: thread.approvalMode, upload: "unavailable" })}</workspace_environment>`,
+        instructions: config.instructions,
         workspace: {
           consumeChanges: () => {
             workspace!.flushChanges();
@@ -447,68 +470,20 @@ export class LocalSessionHost {
       let bytes = 0;
       const observed = stream.pipeThrough(
         new TransformStream<UIMessageChunk, UIMessageChunk>({
-          transform: async (chunk, controller) => {
-            if (chunk.type === "finish") {
-              runWorkspace.flushChanges();
-              const changed = [...runWorkspace.changed]
-                .filter(([, epoch]) => epoch > artifactEpoch)
-                .map(([path]) => path)
-                .filter((path) => path !== ".")
-                .sort();
-              for (const candidate of changed) {
-                const path = localWorkspacePath(thread.workspace, candidate);
-                const inspection = await this.access(thread, (current) =>
-                  current.sandbox.file({ operation: "inspect", path }, signal),
-                ).catch(() => null);
-                if (
-                  !inspection ||
-                  typeof inspection !== "object" ||
-                  !("size" in inspection) ||
-                  !Number.isSafeInteger(inspection.size) ||
-                  !("etag" in inspection) ||
-                  typeof inspection.etag !== "string" ||
-                  !/^"[a-f0-9]{32}"$/.test(inspection.etag)
-                ) {
-                  continue;
-                }
-                const fileId = createHash("sha256").update(`${thread.id}\0${path}`).digest("hex").slice(0, 32);
-                const previous = artifacts.get(fileId);
-                const data: PublishedWorkspaceFile = {
-                  file_id: fileId,
-                  filename: previous?.filename ?? basename(path),
-                  title: previous?.title ?? basename(path),
-                  media_type: previous?.media_type ?? mediaType(path),
-                  kind: previous?.kind ?? (path.toLowerCase().endsWith("-plan.md") ? "plan" : "artifact"),
-                  etag: inspection.etag,
-                  updated: Boolean(previous),
-                  workspace_path: path,
-                };
-                artifacts.set(fileId, data);
-                const file = { type: "data-file", id: fileId, data } as UIMessageChunk;
-                bytes += Buffer.byteLength(JSON.stringify(file));
-                if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
-                segment.chunks.push(file);
-                this.options.emit({
-                  type: "stream",
-                  threadId: thread.id,
-                  segmentId: segment.id,
-                  index: segment.chunks.length - 1,
-                  chunk: file,
-                });
-                controller.enqueue(file);
-              }
+          transform: (incoming, controller) => {
+            for (const chunk of [incoming, ...fileDataChunks(incoming)]) {
+              bytes += Buffer.byteLength(JSON.stringify(chunk));
+              if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
+              segment.chunks.push(chunk);
+              this.options.emit({
+                type: "stream",
+                threadId: thread.id,
+                segmentId: segment.id,
+                index: segment.chunks.length - 1,
+                chunk,
+              });
+              controller.enqueue(chunk);
             }
-            bytes += Buffer.byteLength(JSON.stringify(chunk));
-            if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
-            segment.chunks.push(chunk);
-            this.options.emit({
-              type: "stream",
-              threadId: thread.id,
-              segmentId: segment.id,
-              index: segment.chunks.length - 1,
-              chunk,
-            });
-            controller.enqueue(chunk);
           },
         }),
       );

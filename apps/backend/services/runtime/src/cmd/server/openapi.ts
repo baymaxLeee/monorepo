@@ -579,6 +579,7 @@ const openapi = {
           messageId: { type: "string", minLength: 1, maxLength: 32 },
           expected_revision: { type: "integer", minimum: 0 },
           request_id: { type: "string", minLength: 8, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" },
+          generate_title: { type: "boolean" },
           agent_id: { type: "string", maxLength: 32, nullable: true },
           mode: { type: "string", enum: ["normal", "plan"] },
           host_context: {

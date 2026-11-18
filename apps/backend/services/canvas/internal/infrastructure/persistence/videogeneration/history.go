@@ -5,38 +5,41 @@ import (
 	"errors"
 	"time"
 
-	"gorm.io/gorm"
-
 	app "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	domainvideo "github.com/example/monorepo/canvas/internal/domain/videogeneration"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
+	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) UpdateGeneration(ctx context.Context, taskRunID string, update app.GenerationUpdate) error {
+func (r *Repository) UpdateGeneration(ctx context.Context, taskRunID string, update app.GenerationUpdate) (err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error { return r.updateGenerationInTransaction(ctx, taskRunID, update) })
+	return
+}
+
+func (r *Repository) updateGenerationInTransaction(ctx context.Context, taskRunID string, update app.GenerationUpdate) error {
 	id, err := persistenceid.Parse(taskRunID)
 	if err != nil {
 		return app.ErrNotFound
 	}
-	updates := map[string]any{
-		"status":        update.Status,
-		"error_message": update.ErrorMessage,
-		"completed_at":  update.CompletedAt,
-		"updated_at":    update.UpdatedAt,
+	asset, err := nullableUUID(update.AssetID)
+	if err != nil {
+		return err
 	}
-	if update.AssetID != "" {
-		assetID, parseErr := persistenceid.Parse(update.AssetID)
-		if parseErr != nil {
-			return parseErr
-		}
-		updates["asset_id"] = assetID
+	affected, err := r.store.Queries(ctx).VideoGenUpdate(ctx, sqlc.VideoGenUpdateParams{
+		ID:           id.String(),
+		Status:       string(update.Status),
+		ErrorMessage: update.ErrorMessage,
+		CompletedAt:  update.CompletedAt,
+		UpdatedAt:    update.UpdatedAt,
+		AssetID:      asset,
+	})
+	if err != nil {
+		return err
 	}
-	result := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).Where("task_run_id = ?", id).Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return r.ensureCanvasNodeVideoGenerationExists(ctx, id)
+	if affected == 0 {
+		return app.ErrNotFound
 	}
 	return nil
 }
@@ -50,24 +53,41 @@ func (r *Repository) ListGenerations(
 	if err != nil {
 		return nil, app.ErrNotFound
 	}
-	var rows []canvasnodeVideoGenerationRow
-	query := scopeQuery(r.dbFor(ctx), scope).Where(
-		"project_id = ? AND canvas_id = ? AND node_id = ?",
-		project,
-		canvas,
-		canvasnode,
-	).Where("hidden_at IS NULL")
-	if err = query.Order("created_at DESC").Order("task_run_id DESC").Limit(100).Find(&rows).Error; err != nil {
+	rows, err := r.store.Queries(ctx).VideoGenList(ctx, sqlc.VideoGenListParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+		NodeID:      canvasnode.String(),
+	})
+	if err != nil {
 		return nil, err
 	}
 	items := make([]domainvideo.Generation, 0, len(rows))
 	for index := range rows {
-		items = append(items, fromCanvasNodeVideoGenerationRow(rows[index]))
+		item, err := fromCanvasNodeVideoGenerationRow(rows[index])
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
 	}
 	return items, nil
 }
 
 func (r *Repository) SelectGeneration(
+	ctx context.Context,
+	scope app.Scope,
+	projectID, canvasID, canvasnodeID, historyID, updatedBy string,
+	updatedAt time.Time,
+) (generation domainvideo.Generation, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		generation, err = r.selectGenerationInTransaction(ctx, scope, projectID, canvasID, canvasnodeID, historyID, updatedBy, updatedAt)
+		return err
+	})
+	return
+}
+
+func (r *Repository) selectGenerationInTransaction(
 	ctx context.Context,
 	scope app.Scope,
 	projectID, canvasID, canvasnodeID, historyID, updatedBy string,
@@ -81,53 +101,42 @@ func (r *Repository) SelectGeneration(
 	if err != nil {
 		return domainvideo.Generation{}, app.ErrNotFound
 	}
-	var row canvasnodeVideoGenerationRow
-	query := scopeQuery(r.dbFor(ctx), scope).Where("hidden_at IS NULL")
-	if err = query.Where(
-		"task_run_id = ? AND project_id = ? AND canvas_id = ? AND node_id = ?",
-		history,
-		project,
-		canvas,
-		canvasnode,
-	).First(&row).Error; err != nil {
+	row, err := r.store.Queries(ctx).VideoGenHistory(ctx, sqlc.VideoGenHistoryParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
+		NodeID:      canvasnode.String(),
+		ID:          history.String(),
+	})
+	if err != nil {
 		return domainvideo.Generation{}, readHistoryErr(err)
 	}
 	if row.Status != string(domaintask.StatusSucceeded) || row.AssetID == nil {
 		return domainvideo.Generation{}, app.ErrHistoryNotSelectable
 	}
-	db := r.dbFor(ctx)
-	update := scopeQuery(db.Model(&canvasCanvasNodeRow{}), scope).Where(
-		"id = ? AND project_id = ? AND canvas_id = ?",
-		canvasnode,
-		project,
-		canvas,
-	).Updates(map[string]any{
-		"resource_id":        nil,
-		"resource_asset_id":  nil,
-		"selected_output_id": row.TaskRunID,
-		"selected_asset_id":  row.AssetID,
-		"updated_by":         updatedBy,
-		"updated_at":         updatedAt,
+	affected, err := r.store.Queries(ctx).VideoGenSelect(ctx, sqlc.VideoGenSelectParams{
+		RunID:       &row.TaskRunID,
+		AssetID:     row.AssetID,
+		UpdatedBy:   updatedBy,
+		UpdatedAt:   updatedAt,
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		NodeID:      canvasnode.String(),
+		ProjectID:   project.String(),
+		CanvasID:    canvas.String(),
 	})
-	if update.Error != nil {
-		return domainvideo.Generation{}, update.Error
+	if err != nil {
+		return domainvideo.Generation{}, err
 	}
-	if update.RowsAffected == 0 {
-		var count int64
-		if err = scopeQuery(r.dbFor(ctx).Model(&canvasCanvasNodeRow{}), scope).Where(
-			"id = ? AND project_id = ? AND canvas_id = ?", canvasnode, project, canvas,
-		).Count(&count).Error; err != nil {
-			return domainvideo.Generation{}, err
-		}
-		if count == 0 {
-			return domainvideo.Generation{}, app.ErrNotFound
-		}
+	if affected == 0 {
+		return domainvideo.Generation{}, app.ErrNotFound
 	}
-	return fromCanvasNodeVideoGenerationRow(row), nil
+	return fromCanvasNodeVideoGenerationRow(row)
 }
 
 func readHistoryErr(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return app.ErrNotFound
 	}
 	return err

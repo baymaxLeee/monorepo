@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
+import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
 import type { SandboxProcess, SandboxSession as SandboxResource } from "#runtime/transport";
@@ -14,7 +15,6 @@ import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructur
 import { storageClient, type StorageClient } from "../../../infrastructure/clients/storage.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { persistCloudWorkspace } from "../../cloud-workspace.js";
-import { assertEditableFileSize } from "../../file-edit-limits.js";
 import {
   deleteWorkspaceSessionFile,
   listSessionFiles,
@@ -22,6 +22,7 @@ import {
   saveSessionFile,
   type SessionFile,
 } from "../../session-files.js";
+import { isValidWorkspacePath } from "../../workspace-paths.js";
 import { sandboxExecutionLifecycle, type SandboxExecutionLifecycle } from "../runs/sandbox-executions.js";
 import type { ArtifactToolContext } from "../tools/context.js";
 
@@ -111,7 +112,6 @@ export class RunSandbox implements Experimental_SandboxSession {
     string,
     { fingerprint: string; source: { path: string; document_id?: string; file_id?: string } }
   >();
-  private readonly workFileEtags = new Map<string, { fileId: string; etag: string }>();
   private readonly workspaceBaseline = new Map<string, SessionFile>();
   private readonly observedFileEtags = new Map<string, string>();
   private fileObservationInitialized = false;
@@ -233,7 +233,6 @@ export class RunSandbox implements Experimental_SandboxSession {
         if (!body.locked) await body.cancel().catch(() => {});
       }
       this.sources.set(key, { fingerprint, source });
-      this.workFileEtags.set(path, { fileId: file.id, etag: file.etag });
       this.workspaceBaseline.set(file.workspace_path, file);
       imported.push(source);
     }
@@ -600,45 +599,23 @@ rm -- ${shellQuote(absolute)}`,
     };
   }
 
-  async save(
-    input:
-      | { operation: "create"; path: string; filename: string; media_type: string; title: string }
-      | { operation: "update"; path: string; file_id: string; etag: string },
-    requestId: string,
-    signal?: AbortSignal,
-  ) {
+  async save(candidate: string, requestId: string, signal?: AbortSignal) {
+    const path = writableSandboxPath(candidate);
+    const workspacePath = `/workspace/${path}`;
+    if (!isValidWorkspacePath(workspacePath)) throw new Error("Invalid workspace file path.");
     const session = await this.ensure(signal);
-    if (!input.path.startsWith("/workspace/")) {
-      throw new Error("Published files must use an absolute path under /workspace.");
-    }
-    const path = sandboxRelativePath(input.path);
-    if (input.operation === "update") {
-      writableSandboxPath(input.path);
-      const pathBaseline = this.workFileEtags.get(path);
-      const baselineKnown = pathBaseline?.fileId === input.file_id && pathBaseline.etag === input.etag;
-      if (!baselineKnown) {
-        throw new Error("The update ETag was not imported for this file or recorded for this working copy.");
-      }
+    const baseline = this.workspaceBaseline.get(workspacePath);
+    const filename = path.split("/").at(-1)!;
+    if (baseline) {
       const firstBody = await this.deps.sandbox().download(session.id, this.scope, path, this.operationSignal(signal));
       const hash = createHash("sha256");
-      const decoder = new TextDecoder("utf-8", { fatal: true });
       const reader = firstBody.getReader();
-      let size = 0;
       try {
         while (true) {
           const chunk = await reader.read();
           if (chunk.done) break;
-          size += chunk.value.byteLength;
-          assertEditableFileSize(size);
           hash.update(chunk.value);
-          decoder.decode(chunk.value, { stream: true });
         }
-        decoder.decode();
-      } catch (error) {
-        if (error instanceof TypeError) {
-          throw new Error("Updated session files must contain valid UTF-8 text.", { cause: error });
-        }
-        throw error;
       } finally {
         await reader.cancel().catch(() => {});
         reader.releaseLock();
@@ -650,8 +627,10 @@ rm -- ${shellQuote(absolute)}`,
           tenantId: this.context.tenantId,
           workspaceId: this.context.workspaceId,
           sessionId: this.context.sessionId,
-          fileId: input.file_id,
-          expectedEtag: input.etag,
+          fileId: baseline.id,
+          expectedEtag: baseline.etag,
+          workspacePath,
+          expectedPathGeneration: baseline.path_generation,
           contentSha256: hash.digest("hex"),
           operationId: createHash("sha256").update(`${this.context.runId}:${requestId}`).digest("hex"),
           writerType: "agent",
@@ -689,10 +668,10 @@ rm -- ${shellQuote(absolute)}`,
           }
         },
       );
-      this.workFileEtags.set(path, { fileId: file.id, etag: file.etag });
-      this.workspaceBaseline.set(`/workspace/${path}`, file);
+      this.workspaceBaseline.set(workspacePath, file);
       return {
         file_id: file.id,
+        workspace_path: workspacePath,
         filename: file.filename,
         title: file.title,
         media_type: file.mime_type,
@@ -705,8 +684,8 @@ rm -- ${shellQuote(absolute)}`,
     try {
       const asset = await this.deps.asset().upload({
         ...this.context,
-        filename: input.filename,
-        mediaType: input.media_type,
+        filename,
+        mediaType: workspaceMediaType(filename),
         category: "sandbox-artifact",
         body,
         idempotencyKey: `${this.context.runId}:${requestId}`,
@@ -718,7 +697,7 @@ rm -- ${shellQuote(absolute)}`,
         tenantId: this.context.tenantId,
         workspaceId: this.context.workspaceId,
         sessionId: this.context.sessionId,
-        title: input.title,
+        title: filename,
         assetId: asset.assetId,
         revisionId: asset.revisionId,
         filename: asset.filename,
@@ -726,13 +705,14 @@ rm -- ${shellQuote(absolute)}`,
         sizeBytes: asset.sizeBytes,
         sha256: asset.sha256,
         idempotencyKey: `${this.context.runId}:${requestId}`,
-        workspacePath: input.path,
+        workspacePath,
         writerType: "agent",
         writerId: this.context.runId,
       });
-      this.workspaceBaseline.set(input.path, file);
+      this.workspaceBaseline.set(workspacePath, file);
       return {
         file_id: file.id,
+        workspace_path: workspacePath,
         filename: file.filename,
         title: file.title,
         media_type: file.mime_type,

@@ -2,11 +2,10 @@ package imagegeneration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
-
-	"gorm.io/gorm"
 
 	applicationimagegeneration "github.com/example/monorepo/canvas/internal/application/imagegeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
@@ -14,26 +13,29 @@ import (
 	domainimagegeneration "github.com/example/monorepo/canvas/internal/domain/imagegeneration"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Repository struct{ db *gorm.DB }
+type Repository struct{ store *persistencetransaction.Store }
 
-const maxHistoryItems = 100
-
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
-
+func NewRepository(store *persistencetransaction.Store) *Repository { return &Repository{store: store} }
 func (repository *Repository) CreateRun(ctx context.Context, run domainimagegeneration.Run) error {
 	row, inputs, err := runRowsFromDomain(run)
 	if err != nil {
 		return err
 	}
-	return persistencetransaction.DB(ctx, repository.db).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&row).Error; err != nil {
+	return repository.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		db := repository.store.Queries(ctx)
+		if err := db.ImageRunCreate(ctx, row); err != nil {
 			return err
 		}
-		if len(inputs) > 0 {
-			return tx.Create(&inputs).Error
+		for _, input := range inputs {
+			if err := db.ImageRunCreateInput(ctx, sqlc.ImageRunCreateInputParams(input)); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -44,16 +46,16 @@ func (repository *Repository) GetRun(ctx context.Context, scope applicationimage
 	if err != nil {
 		return domainimagegeneration.Run{}, applicationimagegeneration.ErrNotFound
 	}
-	db := persistencetransaction.DB(ctx, repository.db)
-	var row runRow
-	if err = scopedRunQuery(db, scope).Where("task_run_id = ?", id).First(&row).Error; err != nil {
+	db := repository.store.Queries(ctx)
+	row, err := db.ImageRunGet(ctx, sqlc.ImageRunGetParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ID: id.String()})
+	if err != nil {
 		return domainimagegeneration.Run{}, readError(err)
 	}
-	var inputs []runInputRow
-	if err = db.Where("task_run_id = ?", id).Order("position").Find(&inputs).Error; err != nil {
+	inputs, err := db.ImageRunInputs(ctx, []string{id.String()})
+	if err != nil {
 		return domainimagegeneration.Run{}, err
 	}
-	return runDomainFromRows(row, inputs), nil
+	return runDomainFromRows(row, inputs)
 }
 
 func (repository *Repository) ListRuns(ctx context.Context, scope applicationimagegeneration.Scope, targetType domainimagegeneration.TargetType, targetID string) ([]domainimagegeneration.Run, error) {
@@ -61,83 +63,94 @@ func (repository *Repository) ListRuns(ctx context.Context, scope applicationima
 	if err != nil {
 		return nil, applicationimagegeneration.ErrNotFound
 	}
-	db := persistencetransaction.DB(ctx, repository.db)
-	var rows []runRow
-	if err = scopedRunQuery(db, scope).Where("target_type = ? AND target_id = ? AND created_by = ?", targetType, target, scope.CallerID).Order("created_at DESC, task_run_id DESC").Limit(maxHistoryItems).Find(&rows).Error; err != nil {
+	db := repository.store.Queries(ctx)
+	rows, err := db.ImageRunHistory(ctx, sqlc.ImageRunHistoryParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		TargetType:  string(targetType),
+		TargetID:    target.String(),
+		CreatedBy:   scope.CallerID,
+	})
+	if err != nil {
 		return nil, err
 	}
-	ids := make([]persistenceid.UUID, 0, len(rows))
+	ids := make([]string, 0, len(rows))
 	for _, item := range rows {
 		ids = append(ids, item.TaskRunID)
 	}
 	var inputRows []runInputRow
 	if len(ids) > 0 {
-		if err = db.Where("task_run_id IN ?", ids).Order("task_run_id, position").Find(&inputRows).Error; err != nil {
+		if inputRows, err = db.ImageRunInputs(ctx, ids); err != nil {
 			return nil, err
 		}
 	}
-	inputsByRun := make(map[persistenceid.UUID][]runInputRow, len(rows))
+	inputsByRun := make(map[string][]runInputRow, len(rows))
 	for _, input := range inputRows {
 		inputsByRun[input.TaskRunID] = append(inputsByRun[input.TaskRunID], input)
 	}
 	result := make([]domainimagegeneration.Run, 0, len(rows))
 	for _, item := range rows {
-		result = append(result, runDomainFromRows(item, inputsByRun[item.TaskRunID]))
+		run, err := runDomainFromRows(item, inputsByRun[item.TaskRunID])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, run)
 	}
 	return result, nil
 }
 
 func (repository *Repository) ListRunIDsByTargets(ctx context.Context, scope applicationimagegeneration.Scope, targetType domainimagegeneration.TargetType, targetIDs []string) ([]string, error) {
-	targets := make([]persistenceid.UUID, 0, len(targetIDs))
-	seen := make(map[persistenceid.UUID]struct{}, len(targetIDs))
+	targets := make([]string, 0, len(targetIDs))
+	seen := make(map[string]struct{}, len(targetIDs))
 	for _, targetID := range targetIDs {
 		target, err := persistenceid.Parse(targetID)
 		if err != nil {
 			return nil, applicationimagegeneration.ErrNotFound
 		}
-		if _, exists := seen[target]; exists {
+		if _, exists := seen[target.String()]; exists {
 			continue
 		}
-		seen[target] = struct{}{}
-		targets = append(targets, target)
+		seen[target.String()] = struct{}{}
+		targets = append(targets, target.String())
 	}
 	if len(targets) == 0 {
 		return []string{}, nil
 	}
-	var ids []persistenceid.UUID
-	if err := scopedRunQuery(persistencetransaction.DB(ctx, repository.db), scope).
-		Model(&runRow{}).Where("target_type = ? AND target_id IN ?", targetType, targets).
-		Order("task_run_id ASC").Pluck("task_run_id", &ids).Error; err != nil {
-		return nil, err
-	}
-	result := make([]string, len(ids))
-	for index := range ids {
-		result[index] = ids[index].String()
-	}
-	return result, nil
+	return repository.store.Queries(ctx).ImageRunIDs(ctx, sqlc.ImageRunIDsParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		TargetType:  string(targetType),
+		Ids:         targets,
+	})
 }
 
 func (repository *Repository) ListLatestRuns(ctx context.Context, scope applicationimagegeneration.Scope, targetType domainimagegeneration.TargetType, targetIDs []string) ([]domainimagegeneration.Run, error) {
-	targets := make([]persistenceid.UUID, 0, len(targetIDs))
+	targets := make([]string, 0, len(targetIDs))
 	for _, targetID := range targetIDs {
 		target, err := persistenceid.Parse(targetID)
 		if err != nil {
 			return nil, applicationimagegeneration.ErrNotFound
 		}
-		targets = append(targets, target)
+		targets = append(targets, target.String())
 	}
-	var rows []runRow
-	if err := scopedRunQuery(persistencetransaction.DB(ctx, repository.db), scope).
-		Where("target_type = ? AND target_id IN ? AND created_by = ?", targetType, targets, scope.CallerID).
-		Order("created_at DESC, task_run_id DESC").Find(&rows).Error; err != nil {
+	rows, err := repository.store.Queries(ctx).ImageRunLatest(ctx, sqlc.ImageRunLatestParams{
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		TargetType:  string(targetType),
+		Ids:         targets,
+		CreatedBy:   scope.CallerID,
+	})
+	if err != nil {
 		return nil, err
 	}
 	latestByTarget := make(map[string]domainimagegeneration.Run, len(targets))
 	for _, row := range rows {
-		key := row.TargetID.String()
-		if _, exists := latestByTarget[key]; !exists {
-			latestByTarget[key] = runDomainFromRows(row, nil)
+		key := row.TargetID
+		run, e := runDomainFromRows(row, nil)
+		if e != nil {
+			return nil, e
 		}
+		latestByTarget[key] = run
 	}
 	result := make([]domainimagegeneration.Run, 0, len(latestByTarget))
 	for _, targetID := range targetIDs {
@@ -166,18 +179,29 @@ func (repository *Repository) saveRun(ctx context.Context, run domainimagegenera
 	if err != nil {
 		return false, fmt.Errorf("save image generation output Asset ID: %w", err)
 	}
-	query := persistencetransaction.DB(ctx, repository.db).Model(&runRow{}).Where("task_run_id = ?", id)
+	var version int64
 	if schedule != nil {
-		query = query.Where("EXISTS (SELECT 1 FROM poll_schedules WHERE poll_schedules.task_run_id = image_generation_runs.task_run_id AND poll_schedules.state_version = ? AND poll_schedules.lease_until > ?)", schedule.StateVersion, now)
+		version = schedule.StateVersion
 	}
-	result := query.Updates(map[string]any{
-		"binding_outcome": run.BindingOutcome, "stage": run.Stage, "provider_attempt": run.ProviderAttempt,
-		"provider_image_url": run.ProviderImageURL, "source_asset_id": run.SourceAssetID, "source_revision_id": run.SourceRevisionID,
-		"artifact_size_bytes": run.ArtifactSizeBytes, "output_asset_id": outputAssetID,
-		"error_code": run.ErrorCode, "error_message": run.ErrorMessage,
-		"updated_at": run.UpdatedAt, "completed_at": run.CompletedAt,
+	affected, err := repository.store.Queries(ctx).ImageRunUpdate(ctx, sqlc.ImageRunUpdateParams{
+		TaskRunID:         id.String(),
+		Fenced:            schedule != nil,
+		Version:           version,
+		Now:               pgtype.Timestamptz{Time: now, Valid: true},
+		OutputAssetID:     optionalString(outputAssetID),
+		BindingOutcome:    string(run.BindingOutcome),
+		Stage:             run.Stage,
+		ProviderAttempt:   run.ProviderAttempt,
+		ProviderImageUrl:  run.ProviderImageURL,
+		SourceAssetID:     run.SourceAssetID,
+		SourceRevisionID:  run.SourceRevisionID,
+		ArtifactSizeBytes: run.ArtifactSizeBytes,
+		ErrorCode:         run.ErrorCode,
+		ErrorMessage:      run.ErrorMessage,
+		UpdatedAt:         run.UpdatedAt,
+		CompletedAt:       run.CompletedAt,
 	})
-	return result.RowsAffected == 1, result.Error
+	return affected == 1, err
 }
 
 func runRowsFromDomain(run domainimagegeneration.Run) (runRow, []runInputRow, error) {
@@ -197,15 +221,19 @@ func runRowsFromDomain(run domainimagegeneration.Run) (runRow, []runInputRow, er
 	if err != nil {
 		return runRow{}, nil, fmt.Errorf("map image generation output Asset ID: %w", err)
 	}
+	snapshots, err := json.Marshal(run.InputSnapshots)
+	if err != nil {
+		return runRow{}, nil, err
+	}
 	row := runRow{
-		TaskRunID: taskRunID, TargetType: string(run.Target.Type), TargetID: targetID, TargetRevision: run.Target.Revision,
+		TaskRunID: taskRunID.String(), TargetType: string(run.Target.Type), TargetID: targetID.String(), TargetRevision: run.Target.Revision,
 		TenantID: run.TenantID, InvocationProjectID: run.ProjectID, WorkspaceID: run.WorkspaceID,
 		Prompt: run.Config.Prompt, ModelID: run.Config.ModelID,
 		Resolution: string(run.Config.Resolution), AspectRatio: string(run.Config.AspectRatio), Watermark: run.Config.Watermark,
-		InputSnapshots:  run.InputSnapshots,
-		OutputOwnerType: int16(run.OutputOwner.Type), OutputOwnerID: ownerID, BindingOutcome: string(run.BindingOutcome),
-		Stage: run.Stage, ProviderAttempt: run.ProviderAttempt, ProviderImageURL: run.ProviderImageURL,
-		SourceAssetID: run.SourceAssetID, SourceRevisionID: run.SourceRevisionID, ArtifactSizeBytes: run.ArtifactSizeBytes, OutputAssetID: outputAssetID,
+		InputSnapshots:  snapshots,
+		OutputOwnerType: int16(run.OutputOwner.Type), OutputOwnerID: ownerID.String(), BindingOutcome: string(run.BindingOutcome),
+		Stage: run.Stage, ProviderAttempt: run.ProviderAttempt, ProviderImageUrl: run.ProviderImageURL,
+		SourceAssetID: run.SourceAssetID, SourceRevisionID: run.SourceRevisionID, ArtifactSizeBytes: run.ArtifactSizeBytes, OutputAssetID: optionalString(outputAssetID),
 		ErrorCode: run.ErrorCode, ErrorMessage: run.ErrorMessage,
 		CreatedBy: run.CreatedBy, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt, CompletedAt: run.CompletedAt,
 	}
@@ -215,43 +243,49 @@ func runRowsFromDomain(run domainimagegeneration.Run) (runRow, []runInputRow, er
 		if parseErr != nil {
 			return runRow{}, nil, fmt.Errorf("map image generation run input Asset ID: %w", parseErr)
 		}
-		inputs = append(inputs, runInputRow{TaskRunID: taskRunID, Position: input.Position, SourceType: string(input.SourceType), AssetID: assetID})
+		inputs = append(inputs, runInputRow{TaskRunID: taskRunID.String(), Position: input.Position, SourceType: string(input.SourceType), AssetID: assetID.String()})
 	}
 	return row, inputs, nil
 }
 
-func runDomainFromRows(row runRow, inputs []runInputRow) domainimagegeneration.Run {
+func runDomainFromRows(row sqlc.ImageGenerationRun, inputs []runInputRow) (domainimagegeneration.Run, error) {
+	var snapshots []domaingenerationinput.Input
+	if len(row.InputSnapshots) > 0 {
+		if err := json.Unmarshal(row.InputSnapshots, &snapshots); err != nil {
+			return domainimagegeneration.Run{}, err
+		}
+	}
 	run := domainimagegeneration.Run{
-		TaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, ProjectID: row.InvocationProjectID, WorkspaceID: row.WorkspaceID,
-		Target:         domainimagegeneration.TargetRef{Type: domainimagegeneration.TargetType(row.TargetType), ID: row.TargetID.String(), Revision: row.TargetRevision},
+		TaskRunID: row.TaskRunID, TenantID: row.TenantID, ProjectID: row.InvocationProjectID, WorkspaceID: row.WorkspaceID,
+		Target:         domainimagegeneration.TargetRef{Type: domainimagegeneration.TargetType(row.TargetType), ID: row.TargetID, Revision: row.TargetRevision},
 		Config:         domainimagegeneration.Config{Prompt: row.Prompt, ModelID: row.ModelID, Resolution: domainimagegeneration.Resolution(row.Resolution), AspectRatio: domainimagegeneration.AspectRatio(row.AspectRatio), Watermark: row.Watermark},
-		InputSnapshots: append([]domaingenerationinput.Input(nil), row.InputSnapshots...),
-		OutputOwner:    domainimagegeneration.OutputAssetOwner{Type: domainasset.OwnerType(row.OutputOwnerType), ID: row.OutputOwnerID.String()},
+		InputSnapshots: snapshots,
+		OutputOwner:    domainimagegeneration.OutputAssetOwner{Type: domainasset.OwnerType(row.OutputOwnerType), ID: row.OutputOwnerID},
 		BindingOutcome: domainimagegeneration.BindingOutcome(row.BindingOutcome), Stage: row.Stage,
-		ProviderAttempt: row.ProviderAttempt, ProviderImageURL: row.ProviderImageURL,
+		ProviderAttempt: row.ProviderAttempt, ProviderImageURL: row.ProviderImageUrl,
 		SourceAssetID: row.SourceAssetID, SourceRevisionID: row.SourceRevisionID, ArtifactSizeBytes: row.ArtifactSizeBytes,
 		ErrorCode: row.ErrorCode, ErrorMessage: row.ErrorMessage,
 		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, CompletedAt: row.CompletedAt,
 	}
 	if row.OutputAssetID != nil {
-		run.OutputAssetID = row.OutputAssetID.String()
+		run.OutputAssetID = *row.OutputAssetID
 	}
 	for _, input := range inputs {
-		run.Inputs = append(run.Inputs, domainimagegeneration.ResolvedInput{Position: input.Position, SourceType: domainimagegeneration.InputSourceType(input.SourceType), AssetID: input.AssetID.String()})
+		run.Inputs = append(run.Inputs, domainimagegeneration.ResolvedInput{Position: input.Position, SourceType: domainimagegeneration.InputSourceType(input.SourceType), AssetID: input.AssetID})
 	}
-	return run
+	return run, nil
 }
 
-func scopedRunQuery(db *gorm.DB, scope applicationimagegeneration.Scope) *gorm.DB {
-	query := db.Where("tenant_id = ?", scope.TenantID)
-	if scope.WorkspaceID == nil {
-		return query.Where("workspace_id IS NULL")
+func optionalString(id *persistenceid.UUID) *string {
+	if id == nil {
+		return nil
 	}
-	return query.Where("workspace_id = ?", *scope.WorkspaceID)
+	s := id.String()
+	return &s
 }
 
 func readError(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return applicationimagegeneration.ErrNotFound
 	}
 	return err

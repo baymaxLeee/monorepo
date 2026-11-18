@@ -7,3 +7,8 @@ resources:
   - proxy.yaml
   - quota.yaml
   - host-boundary.yaml
+configMapGenerator:
+  - name: sandbox-egress-policy
+    literals:
+      - SANDBOX_EGRESS_MODE=allowlist
+      - SANDBOX_EGRESS_EXTRA_DOMAINS=

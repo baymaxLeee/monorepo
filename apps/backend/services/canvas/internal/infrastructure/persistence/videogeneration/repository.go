@@ -1,41 +1,13 @@
 package videogeneration
 
 import (
-	"context"
-
-	"gorm.io/gorm"
-	"gorm.io/plugin/soft_delete"
-
-	app "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
-type Repository struct{ db *gorm.DB }
+type Repository struct{ store *persistencetransaction.Store }
 
-func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
-
-func (r *Repository) dbFor(ctx context.Context) *gorm.DB {
-	return persistencetransaction.DB(ctx, r.db)
-}
-
-func scopeQuery(db *gorm.DB, scope app.Scope) *gorm.DB {
-	query := db.Where("tenant_id = ?", scope.TenantID)
-	if scope.WorkspaceID == nil {
-		return query.Where("workspace_id IS NULL")
-	}
-	return query.Where("workspace_id = ?", *scope.WorkspaceID)
-}
-
-// canvasCanvasNodeRow is only used so Select can honor canvas_nodes soft-delete
-// while writing selected_output_id. Generation facts stay in this package.
-type canvasCanvasNodeRow struct {
-	SelectedAssetID *persistenceid.UUID
-	DeletedAt       soft_delete.DeletedAt `gorm:"softDelete:milli"`
-}
-
-func (canvasCanvasNodeRow) TableName() string { return "canvas_nodes" }
-
+func NewRepository(store *persistencetransaction.Store) *Repository { return &Repository{store: store} }
 func parseHistoryScopeIDs(projectID, canvasID, canvasnodeID string) (
 	persistenceid.UUID,
 	persistenceid.UUID,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/example/monorepo/storage/internal/application"
+	"github.com/example/monorepo/storage/internal/infrastructure/persistence/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -29,12 +30,7 @@ func TestSelectAssetBlobsForUpdateQuery(t *testing.T) {
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
 
-	rows, err := tx.Query(context.Background(), selectAssetBlobsForUpdateSQL, uuid.NewString())
-	if err != nil {
-		t.Fatal(err)
-	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
+	if _, err := sqlc.New(tx).LockAssetBlobs(context.Background(), uuid.NewString()); err != nil {
 		t.Fatal(err)
 	}
 }

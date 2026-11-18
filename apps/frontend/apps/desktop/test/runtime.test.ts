@@ -195,17 +195,29 @@ describe.skipIf(process.platform !== "darwin")("local Agent owns execution and r
             type: "tool-call",
             toolCallId: "write",
             toolName: "bash",
-            input: JSON.stringify({ command: "printf 'export default 1' > demo.js" }),
+            input: JSON.stringify({ command: "touch draft.txt && printf 'export default 1' > demo.js" }),
           },
         ]);
       }
+      if (calls === 2)
+        return reply([
+          {
+            type: "tool-call",
+            toolCallId: "deliver",
+            toolName: "upload_artifacts",
+            input: JSON.stringify({ paths: ["demo.js"] }),
+          },
+        ]);
       return reply(text());
     });
     f.runtime.send(f.thread.id, "create", randomUUID());
     const completed = await done(f.runtime, f.thread.id);
     expect(completed.status).toBe("idle");
-    expect(calls).toBe(2);
-    expect(requests[0]?.options.tools?.map((candidate) => candidate.name)).not.toContain("upload_artifacts");
+    expect(calls).toBe(3);
+    expect(requests[0]?.options.tools?.map((candidate) => candidate.name)).toContain("upload_artifacts");
+    expect(
+      completed.messages.flatMap((message) => message.parts).filter((part) => part.type === "data-file"),
+    ).toHaveLength(1);
     expect(
       completed.messages.flatMap((message) => message.parts).find((part) => part.type === "data-file"),
     ).toMatchObject({

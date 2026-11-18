@@ -6,23 +6,18 @@ import (
 
 	"github.com/example/monorepo/admin/internal/application"
 	"github.com/example/monorepo/admin/internal/domain"
+	"github.com/example/monorepo/admin/internal/infrastructure/persistence/sqlc"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type skillDB interface {
-	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
-	Query(context.Context, string, ...any) (pgx.Rows, error)
-	QueryRow(context.Context, string, ...any) pgx.Row
-}
-
 type SkillRepository struct {
 	Pool *pgxpool.Pool
-	DB   skillDB
+	DB   sqlc.DBTX
 }
 
-func (r SkillRepository) db() skillDB {
+func (r SkillRepository) db() sqlc.DBTX {
 	if r.DB != nil {
 		return r.DB
 	}
@@ -44,157 +39,256 @@ func (r SkillRepository) Transaction(ctx context.Context, fn func(application.Sk
 	return tx.Commit(ctx)
 }
 
-const skillColumns = `id,user_id,workspace_id,tenant_id,username,name,description,status,is_enabled,workspace_seq,workspace_sha256,published_sha256,published_at,published_name,published_description,source_archive_asset_id::text,source_archive_revision_id::text,created_at,updated_at`
-
-func scanSkill(row pgx.Row) (domain.Skill, error) {
-	var value domain.Skill
-	err := row.Scan(&value.ID, &value.UserID, &value.WorkspaceID, &value.TenantID, &value.Username, &value.Name, &value.Description, &value.Status, &value.IsEnabled, &value.WorkspaceSeq, &value.WorkspaceSHA256, &value.PublishedSHA256, &value.PublishedAt, &value.PublishedName, &value.PublishedDescription, &value.SourceArchiveAssetID, &value.SourceArchiveRevisionID, &value.CreatedAt, &value.UpdatedAt)
-	return value, err
-}
-
-func scanSkills(rows pgx.Rows) ([]domain.Skill, error) {
-	defer rows.Close()
-	values := []domain.Skill{}
-	for rows.Next() {
-		value, err := scanSkill(rows)
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, value)
-	}
-	return values, rows.Err()
-}
-
 func (r SkillRepository) ListSkills(ctx context.Context, workspaceID, tenantID string) ([]domain.Skill, error) {
-	rows, err := r.db().Query(ctx, `SELECT `+skillColumns+` FROM skills WHERE workspace_id=$1 AND tenant_id=$2 ORDER BY updated_at DESC`, workspaceID, tenantID)
+	rows, err := sqlc.New(r.db()).ListSkills(ctx, sqlc.ListSkillsParams{WorkspaceID: workspaceID, TenantID: tenantID})
 	if err != nil {
 		return nil, err
 	}
-	return scanSkills(rows)
+	out := make([]domain.Skill, len(rows))
+	for i, row := range rows {
+		out[i] = toSkill(sqlc.GetSkillRow(row))
+	}
+	return out, nil
 }
 
 func (r SkillRepository) ListSkillsByIDs(ctx context.Context, ids []string, workspaceID, tenantID string) ([]domain.Skill, error) {
-	rows, err := r.db().Query(ctx, `SELECT `+skillColumns+` FROM skills WHERE id=ANY($1) AND workspace_id=$2 AND tenant_id=$3 FOR UPDATE`, ids, workspaceID, tenantID)
+	rows, err := sqlc.New(r.db()).ListSkillsByIDs(ctx, sqlc.ListSkillsByIDsParams{Ids: ids, WorkspaceID: workspaceID, TenantID: tenantID})
 	if err != nil {
 		return nil, err
 	}
-	return scanSkills(rows)
+	out := make([]domain.Skill, len(rows))
+	for i, row := range rows {
+		out[i] = toSkill(sqlc.GetSkillRow(row))
+	}
+	return out, nil
 }
 
 func (r SkillRepository) GetSkill(ctx context.Context, id, workspaceID, tenantID string, lock bool) (domain.Skill, error) {
-	suffix := ""
 	if lock {
-		suffix = " FOR UPDATE"
+		row, err := sqlc.New(r.db()).GetSkillForUpdate(ctx, sqlc.GetSkillForUpdateParams{ID: id, WorkspaceID: workspaceID, TenantID: tenantID})
+		return toSkill(sqlc.GetSkillRow(row)), err
 	}
-	return scanSkill(r.db().QueryRow(ctx, `SELECT `+skillColumns+` FROM skills WHERE id=$1 AND workspace_id=$2 AND tenant_id=$3`+suffix, id, workspaceID, tenantID))
+	row, err := sqlc.New(r.db()).GetSkill(ctx, sqlc.GetSkillParams{ID: id, WorkspaceID: workspaceID, TenantID: tenantID})
+	return toSkill(row), err
 }
 
 func (r SkillRepository) GetSkillByName(ctx context.Context, name, workspaceID, tenantID string) (domain.Skill, error) {
-	return scanSkill(r.db().QueryRow(ctx, `SELECT `+skillColumns+` FROM skills WHERE name=$1 AND workspace_id=$2 AND tenant_id=$3`, name, workspaceID, tenantID))
+	row, err := sqlc.New(r.db()).GetSkillByName(ctx, sqlc.GetSkillByNameParams{Name: name, WorkspaceID: workspaceID, TenantID: tenantID})
+	return toSkill(sqlc.GetSkillRow(row)), err
 }
 
 func (r SkillRepository) CreateSkill(ctx context.Context, value domain.Skill) (domain.Skill, error) {
-	_, err := r.db().Exec(ctx, `INSERT INTO skills(id,user_id,workspace_id,tenant_id,username,name,description,status,is_enabled,workspace_seq,workspace_sha256,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, value.ID, value.UserID, value.WorkspaceID, value.TenantID, value.Username, value.Name, value.Description, value.Status, value.IsEnabled, value.WorkspaceSeq, value.WorkspaceSHA256, value.CreatedAt, value.UpdatedAt)
+	err := sqlc.New(r.db()).CreateSkill(ctx, sqlc.CreateSkillParams{
+		ID:              value.ID,
+		UserID:          value.UserID,
+		WorkspaceID:     value.WorkspaceID,
+		TenantID:        value.TenantID,
+		Username:        value.Username,
+		Name:            value.Name,
+		Description:     value.Description,
+		Status:          value.Status,
+		IsEnabled:       value.IsEnabled,
+		WorkspaceSeq:    int64(value.WorkspaceSeq),
+		WorkspaceSha256: value.WorkspaceSHA256,
+		CreatedAt:       value.CreatedAt,
+		UpdatedAt:       value.UpdatedAt,
+	})
 	return value, err
 }
 
 func (r SkillRepository) SaveSkill(ctx context.Context, value domain.Skill) (domain.Skill, error) {
-	_, err := r.db().Exec(ctx, `UPDATE skills SET name=$2,description=$3,status=$4,is_enabled=$5,workspace_seq=$6,workspace_sha256=$7,published_sha256=$8,published_at=$9,published_name=$10,published_description=$11,source_archive_asset_id=$12,source_archive_revision_id=$13,updated_at=$14 WHERE id=$1`, value.ID, value.Name, value.Description, value.Status, value.IsEnabled, value.WorkspaceSeq, value.WorkspaceSHA256, value.PublishedSHA256, value.PublishedAt, value.PublishedName, value.PublishedDescription, value.SourceArchiveAssetID, value.SourceArchiveRevisionID, value.UpdatedAt)
+	err := sqlc.New(r.db()).SaveSkill(ctx, sqlc.SaveSkillParams{
+		ID:                      value.ID,
+		Name:                    value.Name,
+		Description:             value.Description,
+		Status:                  value.Status,
+		IsEnabled:               value.IsEnabled,
+		WorkspaceSeq:            int64(value.WorkspaceSeq),
+		WorkspaceSha256:         value.WorkspaceSHA256,
+		PublishedSha256:         value.PublishedSHA256,
+		PublishedAt:             value.PublishedAt,
+		PublishedName:           value.PublishedName,
+		PublishedDescription:    value.PublishedDescription,
+		SourceArchiveAssetID:    value.SourceArchiveAssetID,
+		SourceArchiveRevisionID: value.SourceArchiveRevisionID,
+		UpdatedAt:               value.UpdatedAt,
+	})
 	return value, err
 }
 
 func (r SkillRepository) DeleteSkill(ctx context.Context, id string) error {
-	_, err := r.db().Exec(ctx, `DELETE FROM skills WHERE id=$1`, id)
-	return err
+	return sqlc.New(r.db()).DeleteSkill(ctx, id)
 }
 
 func (r SkillRepository) BulkDeleteSkills(ctx context.Context, ids []string, workspaceID, tenantID string) (int64, error) {
-	result, err := r.db().Exec(ctx, `DELETE FROM skills WHERE id=ANY($1) AND workspace_id=$2 AND tenant_id=$3`, ids, workspaceID, tenantID)
-	return result.RowsAffected(), err
-}
-
-const skillNodeColumns = `id,skill_id,parent_id,name,node_type,mime_type,content,storage_kind,asset_id::text,revision_id::text,size_bytes,sha256,sort_order,created_at,updated_at`
-
-func scanSkillNode(row pgx.Row) (domain.SkillNode, error) {
-	var value domain.SkillNode
-	err := row.Scan(&value.ID, &value.SkillID, &value.ParentID, &value.Name, &value.NodeType, &value.MimeType, &value.Content, &value.StorageKind, &value.AssetID, &value.RevisionID, &value.SizeBytes, &value.SHA256, &value.SortOrder, &value.CreatedAt, &value.UpdatedAt)
-	return value, err
+	result, err := sqlc.New(r.db()).BulkDeleteSkills(ctx, sqlc.BulkDeleteSkillsParams{Ids: ids, WorkspaceID: workspaceID, TenantID: tenantID})
+	return result, err
 }
 
 func (r SkillRepository) ListSkillNodes(ctx context.Context, skillID string) ([]domain.SkillNode, error) {
-	rows, err := r.db().Query(ctx, `SELECT `+skillNodeColumns+` FROM skill_nodes WHERE skill_id=$1 ORDER BY sort_order,name,id`, skillID)
+	rows, err := sqlc.New(r.db()).ListSkillNodes(ctx, skillID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	values := []domain.SkillNode{}
-	for rows.Next() {
-		value, err := scanSkillNode(rows)
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, value)
+	out := make([]domain.SkillNode, len(rows))
+	for i, row := range rows {
+		out[i] = toSkillNode(sqlc.GetSkillNodeRow(row))
 	}
-	return values, rows.Err()
+	return out, nil
 }
 
 func (r SkillRepository) GetSkillNode(ctx context.Context, skillID, nodeID string) (domain.SkillNode, error) {
-	return scanSkillNode(r.db().QueryRow(ctx, `SELECT `+skillNodeColumns+` FROM skill_nodes WHERE skill_id=$1 AND id=$2`, skillID, nodeID))
+	row, err := sqlc.New(r.db()).GetSkillNode(ctx, sqlc.GetSkillNodeParams{SkillID: skillID, ID: nodeID})
+	return toSkillNode(row), err
 }
 
 func (r SkillRepository) CreateSkillNode(ctx context.Context, value domain.SkillNode) error {
-	_, err := r.db().Exec(ctx, `INSERT INTO skill_nodes(id,skill_id,parent_id,name,node_type,mime_type,content,storage_kind,asset_id,revision_id,size_bytes,sha256,sort_order,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, value.ID, value.SkillID, value.ParentID, value.Name, value.NodeType, value.MimeType, value.Content, value.StorageKind, value.AssetID, value.RevisionID, value.SizeBytes, value.SHA256, value.SortOrder, value.CreatedAt, value.UpdatedAt)
-	return err
+	return sqlc.New(r.db()).CreateSkillNode(ctx, sqlc.CreateSkillNodeParams{
+		ID:          value.ID,
+		SkillID:     value.SkillID,
+		ParentID:    value.ParentID,
+		Name:        value.Name,
+		NodeType:    value.NodeType,
+		MimeType:    value.MimeType,
+		Content:     value.Content,
+		StorageKind: value.StorageKind,
+		AssetID:     value.AssetID,
+		RevisionID:  value.RevisionID,
+		SizeBytes:   value.SizeBytes,
+		Sha256:      value.SHA256,
+		SortOrder:   int64(value.SortOrder),
+		CreatedAt:   value.CreatedAt,
+		UpdatedAt:   value.UpdatedAt,
+	})
 }
 
 func (r SkillRepository) SaveSkillNode(ctx context.Context, value domain.SkillNode) error {
-	_, err := r.db().Exec(ctx, `UPDATE skill_nodes SET parent_id=$3,name=$4,node_type=$5,mime_type=$6,content=$7,storage_kind=$8,asset_id=$9,revision_id=$10,size_bytes=$11,sha256=$12,sort_order=$13,updated_at=$14 WHERE skill_id=$1 AND id=$2`, value.SkillID, value.ID, value.ParentID, value.Name, value.NodeType, value.MimeType, value.Content, value.StorageKind, value.AssetID, value.RevisionID, value.SizeBytes, value.SHA256, value.SortOrder, value.UpdatedAt)
-	return err
+	return sqlc.New(r.db()).SaveSkillNode(ctx, sqlc.SaveSkillNodeParams{
+		SkillID:     value.SkillID,
+		ID:          value.ID,
+		ParentID:    value.ParentID,
+		Name:        value.Name,
+		NodeType:    value.NodeType,
+		MimeType:    value.MimeType,
+		Content:     value.Content,
+		StorageKind: value.StorageKind,
+		AssetID:     value.AssetID,
+		RevisionID:  value.RevisionID,
+		SizeBytes:   value.SizeBytes,
+		Sha256:      value.SHA256,
+		SortOrder:   int64(value.SortOrder),
+		UpdatedAt:   value.UpdatedAt,
+	})
 }
 
 func (r SkillRepository) DeleteSkillNode(ctx context.Context, skillID, nodeID string) error {
-	_, err := r.db().Exec(ctx, `DELETE FROM skill_nodes WHERE skill_id=$1 AND id=$2`, skillID, nodeID)
-	return err
+	return sqlc.New(r.db()).DeleteSkillNode(ctx, sqlc.DeleteSkillNodeParams{SkillID: skillID, ID: nodeID})
 }
 
 func (r SkillRepository) DeleteAllSkillNodes(ctx context.Context, skillID string) error {
-	_, err := r.db().Exec(ctx, `DELETE FROM skill_nodes WHERE skill_id=$1`, skillID)
-	return err
+	return sqlc.New(r.db()).DeleteAllSkillNodes(ctx, skillID)
 }
 
 func (r SkillRepository) SiblingNameExists(ctx context.Context, skillID string, parentID *string, name, excludingID string) (bool, error) {
-	var exists bool
-	err := r.db().QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM skill_nodes WHERE skill_id=$1 AND parent_id IS NOT DISTINCT FROM $2 AND name=$3 AND ($4='' OR id<>$4))`, skillID, parentID, name, excludingID).Scan(&exists)
-	return exists, err
+	return sqlc.New(r.db()).SiblingNameExists(ctx, sqlc.SiblingNameExistsParams{SkillID: skillID, ParentID: parentID, Name: name, ExcludingID: excludingID})
 }
 
 func (r SkillRepository) ListPublishedSkillNodes(ctx context.Context, skillID string) ([]domain.PublishedSkillNode, error) {
-	rows, err := r.db().Query(ctx, `SELECT skill_id,node_id,parent_node_id,name,node_type,mime_type,content,storage_kind,asset_id::text,revision_id::text,size_bytes,sha256,sort_order FROM skill_published_nodes WHERE skill_id=$1 ORDER BY sort_order,name,node_id`, skillID)
+	rows, err := sqlc.New(r.db()).ListPublishedSkillNodes(ctx, skillID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	values := []domain.PublishedSkillNode{}
-	for rows.Next() {
-		var value domain.PublishedSkillNode
-		if err := rows.Scan(&value.SkillID, &value.NodeID, &value.ParentNodeID, &value.Name, &value.NodeType, &value.MimeType, &value.Content, &value.StorageKind, &value.AssetID, &value.RevisionID, &value.SizeBytes, &value.SHA256, &value.SortOrder); err != nil {
-			return nil, err
-		}
-		values = append(values, value)
+	out := make([]domain.PublishedSkillNode, len(rows))
+	for i, row := range rows {
+		out[i] = toPublishedSkillNode(row)
 	}
-	return values, rows.Err()
+	return out, nil
 }
 
 func (r SkillRepository) ReplacePublishedSkillNodes(ctx context.Context, skillID string) error {
-	if _, err := r.db().Exec(ctx, `DELETE FROM skill_published_nodes WHERE skill_id=$1`, skillID); err != nil {
+	if err := sqlc.New(r.db()).ClearPublishedSkillNodes(ctx, skillID); err != nil {
 		return err
 	}
-	_, err := r.db().Exec(ctx, `INSERT INTO skill_published_nodes(skill_id,node_id,parent_node_id,name,node_type,mime_type,content,storage_kind,asset_id,revision_id,size_bytes,sha256,sort_order) SELECT skill_id,id,parent_id,name,node_type,mime_type,content,storage_kind,asset_id,revision_id,size_bytes,sha256,sort_order FROM skill_nodes WHERE skill_id=$1`, skillID)
-	return err
+	return sqlc.New(r.db()).CopyPublishedSkillNodes(ctx, skillID)
 }
 
 func (r SkillRepository) UpsertAssetClaim(ctx context.Context, claim application.AssetClaim) error {
 	now := time.Now().UTC()
-	_, err := r.db().Exec(ctx, `INSERT INTO asset_claim_intents(tenant_id,workspace_id,owner_type,owner_id,slot,asset_id,revision_id,kind,generation,desired_state,next_attempt_at,state_version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,1,$9,$10,1,$10,$10) ON CONFLICT(tenant_id,workspace_id,owner_type,owner_id,slot) DO UPDATE SET asset_id=EXCLUDED.asset_id,revision_id=EXCLUDED.revision_id,kind=EXCLUDED.kind,generation=asset_claim_intents.generation+1,desired_state=EXCLUDED.desired_state,delivered_at=NULL,attempt_count=0,next_attempt_at=EXCLUDED.next_attempt_at,lease_until=NULL,state_version=asset_claim_intents.state_version+1,last_error=NULL,updated_at=EXCLUDED.updated_at`, claim.TenantID, claim.WorkspaceID, claim.OwnerType, claim.OwnerID, claim.Slot, claim.AssetID, claim.RevisionID, claim.Kind, claim.DesiredState, now)
-	return err
+	return sqlc.New(r.db()).UpsertAssetClaim(ctx, sqlc.UpsertAssetClaimParams{
+		TenantID:      claim.TenantID,
+		WorkspaceID:   claim.WorkspaceID,
+		OwnerType:     claim.OwnerType,
+		OwnerID:       claim.OwnerID,
+		Slot:          claim.Slot,
+		AssetID:       claim.AssetID,
+		RevisionID:    claim.RevisionID,
+		Kind:          claim.Kind,
+		DesiredState:  claim.DesiredState,
+		NextAttemptAt: now,
+	})
+}
+
+func toPublishedSkillNode(row sqlc.ListPublishedSkillNodesRow) domain.PublishedSkillNode {
+	value := domain.PublishedSkillNode{
+		SkillID:      row.SkillID,
+		NodeID:       row.NodeID,
+		ParentNodeID: row.ParentNodeID,
+		Name:         row.Name,
+		NodeType:     row.NodeType,
+		MimeType:     row.MimeType,
+		Content:      row.Content,
+		StorageKind:  row.StorageKind,
+		AssetID:      row.AssetID,
+		RevisionID:   row.RevisionID,
+		SizeBytes:    row.SizeBytes,
+		SHA256:       row.Sha256,
+		SortOrder:    int(row.SortOrder),
+	}
+	return value
+}
+
+func toSkill(row sqlc.GetSkillRow) domain.Skill {
+	value := domain.Skill{
+		ID:                      row.ID,
+		UserID:                  row.UserID,
+		WorkspaceID:             row.WorkspaceID,
+		TenantID:                row.TenantID,
+		Username:                row.Username,
+		Name:                    row.Name,
+		Description:             row.Description,
+		Status:                  row.Status,
+		IsEnabled:               row.IsEnabled,
+		WorkspaceSeq:            int(row.WorkspaceSeq),
+		WorkspaceSHA256:         row.WorkspaceSha256,
+		PublishedSHA256:         row.PublishedSha256,
+		PublishedAt:             row.PublishedAt,
+		PublishedName:           row.PublishedName,
+		PublishedDescription:    row.PublishedDescription,
+		SourceArchiveAssetID:    row.SourceArchiveAssetID,
+		SourceArchiveRevisionID: row.SourceArchiveRevisionID,
+		CreatedAt:               row.CreatedAt,
+		UpdatedAt:               row.UpdatedAt,
+	}
+	return value
+}
+
+func toSkillNode(row sqlc.GetSkillNodeRow) domain.SkillNode {
+	value := domain.SkillNode{
+		ID:          row.ID,
+		SkillID:     row.SkillID,
+		ParentID:    row.ParentID,
+		Name:        row.Name,
+		NodeType:    row.NodeType,
+		MimeType:    row.MimeType,
+		Content:     row.Content,
+		StorageKind: row.StorageKind,
+		AssetID:     row.AssetID,
+		RevisionID:  row.RevisionID,
+		SizeBytes:   row.SizeBytes,
+		SHA256:      row.Sha256,
+		SortOrder:   int(row.SortOrder),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+	return value
 }

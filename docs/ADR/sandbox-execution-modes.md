@@ -74,9 +74,17 @@
 
 `packages/agent-runtime` 是两个执行位置的唯一主循环实现，使用官方 AI SDK 的工具执行、审批与流原语。Bash 定义、网页读取、网页检索契约、Code Mode、tool search、Ask User、Todo、Skill loader 与 subagent 核心等非业务原子能力均归该包；其中 `createPortableToolRegistry` 是所有宿主复用的唯一公共定义注册表，公共默认 profile 由共享包维护，宿主不能维护第二份默认名单。具体 Agent 先以 profile 选取默认能力，再追加自己的宿主/领域/MCP manifests；本地与云端 Bash 以同一逻辑槽绑定各自 executor，而不是分叉 Agent 能力模型。Runtime 只保留 Knowledge、Canvas、Memory、Media、Storage 发布及 provider 等服务适配。Runtime server `createToolLoopAgent` 负责注入云端资源和观测；Electron `session-host.ts` 负责注入本地资源和 journal。宿主不自定义第二套 `prepareStep`、终止策略或工具结果协议；暂不支持 SDK client-tool continuation 的宿主必须显式声明该协议差异，而不是复制其余公共工具。
 
-两端文件操作共用 `createBashTool` 的 schema、说明、manifest、审批策略与 `ToolOutcome`，以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染。本地没有独立的 `list_files/read_file/write_file` 模型工具；原生文件 helper 仅用于文件编辑器受限 I/O。云端必须通过共享 `createUploadArtifactsTool` 一次批量把完成文件发布为 Chat/Storage 身份，并把成功结果逐文件投影为 `data-file`。本地磁盘已经是持久化边界，因此不向模型暴露上传工具；本地 runtime 在 turn 的 `finish` 前验证本轮真实变更文件，直接生成同构 `data-file`。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
+两端文件操作共用 `createBashTool` 的 schema、说明、manifest、审批策略与 `ToolOutcome`，以 `toolMetadata.agent.uiKind=terminal` 交给同一个 ChatStream 渲染。本地没有独立的 `list_files/read_file/write_file` 模型工具；原生文件 helper 仅用于文件编辑器受限 I/O。两端用同一 `upload_artifacts({ paths })` 指定交付文件。云端基于工作区导入时的文件身份、ETag 和路径代际提交；本地校验授权目录中的普通文件并生成本地引用。两个宿主将工具结果投影为同一 `data-file`，草稿留在工作区。两端由同一个正文 `ChatFileTag` 渲染，不把模型生成的 HTML/XML 字符串当 UI 协议。其他服务能力由已授权 catalog 提供；能力缺失不意味着另一套工具协议。
 
 固定提示词组装器共用核心策略和执行协议；工作区路径、网络与文件持久化/发布能力是环境事实。变更提示仅作为一次性临时上下文，不写成新用户请求。普通能力问答直接回答，不因工具存在或目录监听而启动检查循环。
+
+### 执行环境是宿主契约
+
+共享 Agent 核心只消费一个结构化 `ExecutionEnvironment` 和由 `ExecutionHost` 生成的工具 manifests。环境描述只包含 Agent 需要据此行动的事实：执行位置、工作区根与持久化、外部 source、网络可用性、进程寿命、交付方式和审批模式。Docker 网络、Squid、Unix socket、Kubernetes Service、Electron IPC、Seatbelt profile、Storage claim 和文件代际均属于宿主实现，不进入模型契约。
+
+本地与云端都通过 `createExecutionHostManifests` 绑定同名 `bash`、`upload_artifacts`，云端按已声明的只读外部 source 能力追加 `refresh_session_sources`。工厂拒绝宿主回调与环境声明不一致。`createAgentHarness` 在每个 model step 统一注入 `<execution_environment>`，宿主不能再拼接自己的环境提示词。Runtime contract 不按 local/cloud 维护两套执行说明。
+
+这个边界借鉴 Codex 公开产品把 Project/Environment、Task workspace、权限与审批分开管理的做法。环境拥有仓库与依赖准备、工具和服务、文件与网络访问策略；Thread/Task 选择执行位置并在该边界内运行；Agent 决定任务步骤并观察工具结果。当前云端仍只有部署级默认环境，尚未提供可发布、共享和按会话选择的环境资源；后续增加环境产品能力时必须扩展环境 owner 与绑定关系，不能把 setup script、域名、凭据或镜像选择塞回 Agent 提示词或 Bash 工具 schema。[Codex Cloud environments](https://learn.chatgpt.com/docs/environments/cloud-environments)、[Codex permissions](https://learn.chatgpt.com/docs/permissions)、[Codex worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees)。
 
 `application/local-inference` 已移除。`application/inference/provider.ts` 统一模型构造，服务端直连与原生 relay 共用 provider 设置；relay 只传输单次推理，不拥有 Agent-loop。现有 `/local-inference/*` HTTP 地址是 Runtime 的受限传输入口，由 Chat 保留产品侧代理，不对应独立运行时。
 

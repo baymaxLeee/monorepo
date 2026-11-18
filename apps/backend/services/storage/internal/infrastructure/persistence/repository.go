@@ -8,16 +8,12 @@ import (
 
 	"github.com/example/monorepo/storage/internal/application"
 	"github.com/example/monorepo/storage/internal/domain"
+	"github.com/example/monorepo/storage/internal/infrastructure/persistence/sqlc"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct{ pool *pgxpool.Pool }
-
-const selectAssetBlobsForUpdateSQL = `SELECT b.id,b.storage_key,b.state,COALESCE(b.deletion_owner_asset_id::text,'')
-	FROM blobs b WHERE EXISTS (
-	  SELECT 1 FROM asset_revisions r WHERE r.blob_id=b.id AND r.asset_id=$1
-	) ORDER BY b.id FOR UPDATE OF b`
 
 func Connect(ctx context.Context, databaseURL string) (*Repository, error) {
 	pool, err := pgxpool.New(ctx, databaseURL)
@@ -42,12 +38,19 @@ func (r *Repository) BeginUpload(ctx context.Context, input application.CreateUp
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var insertedID string
-	err = tx.QueryRow(ctx, `INSERT INTO upload_sessions
-        (id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,state,expires_at,created_at,updated_at)
-        VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9,'uploading',$10,$11,$11)
-        ON CONFLICT DO NOTHING RETURNING id`,
-		id, input.TenantID, input.WorkspaceID, input.UserID, input.CallerService, input.IdempotencyKey,
-		input.Category, input.Filename, input.MediaType, expiresAt, now).Scan(&insertedID)
+	insertedID, err = sqlc.New(tx).InsertUpload(ctx, sqlc.InsertUploadParams{
+		ID:                id,
+		TenantID:          input.TenantID,
+		WorkspaceID:       input.WorkspaceID,
+		UserID:            input.UserID,
+		CallerService:     input.CallerService,
+		IdempotencyKey:    input.IdempotencyKey,
+		Category:          input.Category,
+		Filename:          input.Filename,
+		DeclaredMediaType: input.MediaType,
+		ExpiresAt:         expiresAt,
+		CreatedAt:         now,
+	})
 	if err == nil {
 		if err = tx.Commit(ctx); err != nil {
 			return application.BeginUploadResult{}, err
@@ -58,36 +61,39 @@ func (r *Repository) BeginUpload(ctx context.Context, input application.CreateUp
 		return application.BeginUploadResult{}, classify(err)
 	}
 
-	var uploadID, userID, category, filename, mediaType, state, assetID, revisionID string
-	err = tx.QueryRow(ctx, `SELECT id,user_id,category,filename,declared_media_type,state,COALESCE(asset_id::text,''),COALESCE(revision_id::text,'')
-        FROM upload_sessions
-        WHERE tenant_id=$1 AND workspace_id=$2 AND caller_service=$3 AND idempotency_key=$4
-        FOR UPDATE`, input.TenantID, input.WorkspaceID, input.CallerService, input.IdempotencyKey).
-		Scan(&uploadID, &userID, &category, &filename, &mediaType, &state, &assetID, &revisionID)
+	existing, err := sqlc.New(tx).LockExistingUpload(ctx, sqlc.LockExistingUploadParams{
+		TenantID:       input.TenantID,
+		WorkspaceID:    input.WorkspaceID,
+		CallerService:  input.CallerService,
+		IdempotencyKey: &input.IdempotencyKey,
+	})
 	if err != nil {
 		return application.BeginUploadResult{}, classify(err)
 	}
-	if userID != input.UserID || category != input.Category || filename != input.Filename || mediaType != input.MediaType {
+	if existing.UserID != input.UserID || existing.Category != input.Category || existing.Filename != input.Filename || existing.DeclaredMediaType != input.MediaType {
 		return application.BeginUploadResult{}, application.ErrConflict
 	}
-	switch state {
+	switch existing.State {
 	case "completed":
-		if assetID == "" || revisionID == "" {
+		if existing.AssetID == "" || existing.RevisionID == "" {
 			return application.BeginUploadResult{}, application.ErrConflict
 		}
 		if err = tx.Commit(ctx); err != nil {
 			return application.BeginUploadResult{}, err
 		}
-		return application.BeginUploadResult{UploadID: uploadID, AssetID: assetID, RevisionID: revisionID, Completed: true}, nil
+		return application.BeginUploadResult{UploadID: existing.ID, AssetID: existing.AssetID, RevisionID: existing.RevisionID, Completed: true}, nil
 	case "failed":
-		if _, err = tx.Exec(ctx, `UPDATE upload_sessions
-            SET state='uploading',error_code=NULL,expires_at=$2,updated_at=$3 WHERE id=$1`, uploadID, expiresAt, now); err != nil {
+		if err = sqlc.New(tx).RestartUpload(ctx, sqlc.RestartUploadParams{
+			ID:        existing.ID,
+			ExpiresAt: expiresAt,
+			UpdatedAt: now,
+		}); err != nil {
 			return application.BeginUploadResult{}, err
 		}
 		if err = tx.Commit(ctx); err != nil {
 			return application.BeginUploadResult{}, err
 		}
-		return application.BeginUploadResult{UploadID: uploadID}, nil
+		return application.BeginUploadResult{UploadID: existing.ID}, nil
 	default:
 		return application.BeginUploadResult{}, application.ErrConflict
 	}
@@ -101,50 +107,55 @@ func (r *Repository) BeginRevisionAppend(ctx context.Context, input application.
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var insertedID string
-	err = tx.QueryRow(ctx, `INSERT INTO upload_sessions
-        (id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,
-         state,expires_at,created_at,updated_at,target_asset_id,base_revision_id,claim_owner_type,claim_owner_id,claim_slot,claim_generation)
-        VALUES ($1,$2,$3,$4,$5,$6,'revision-append',$7,$8,'uploading',$9,$10,$10,$11,$12,$13,$14,$15,$16)
-        ON CONFLICT DO NOTHING RETURNING id`,
-		id, input.TenantID, input.WorkspaceID, input.UserID, input.CallerService, input.IdempotencyKey,
-		input.Filename, input.MediaType, expiresAt, now, input.AssetID, input.BaseRevisionID,
-		input.OwnerType, input.OwnerID, input.Slot, input.Generation).Scan(&insertedID)
+	insertedID, err = sqlc.New(tx).InsertAppendUpload(ctx, sqlc.InsertAppendUploadParams{
+		ID:                id,
+		TenantID:          input.TenantID,
+		WorkspaceID:       input.WorkspaceID,
+		UserID:            input.UserID,
+		CallerService:     input.CallerService,
+		IdempotencyKey:    &input.IdempotencyKey,
+		Filename:          input.Filename,
+		DeclaredMediaType: input.MediaType,
+		ExpiresAt:         expiresAt,
+		CreatedAt:         now,
+		TargetAssetID:     &input.AssetID,
+		BaseRevisionID:    &input.BaseRevisionID,
+		ClaimOwnerType:    &input.OwnerType,
+		ClaimOwnerID:      &input.OwnerID,
+		ClaimSlot:         &input.Slot,
+		ClaimGeneration:   &input.Generation,
+	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return application.BeginUploadResult{}, classify(err)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		var uploadID, userID, filename, mediaType, state, targetAssetID, baseRevisionID string
-		var ownerType, ownerID, slot, assetID, revisionID string
-		var generation int64
-		var attemptExpiresAt time.Time
-		err = tx.QueryRow(ctx, `SELECT id,user_id,filename,declared_media_type,state,COALESCE(target_asset_id::text,''),COALESCE(base_revision_id::text,''),
-			COALESCE(claim_owner_type,''),COALESCE(claim_owner_id,''),COALESCE(claim_slot,''),COALESCE(claim_generation,0),COALESCE(asset_id::text,''),COALESCE(revision_id::text,''),expires_at
-            FROM upload_sessions
-            WHERE tenant_id=$1 AND workspace_id=$2 AND caller_service=$3 AND idempotency_key=$4 FOR UPDATE`,
-			input.TenantID, input.WorkspaceID, input.CallerService, input.IdempotencyKey).
-			Scan(&uploadID, &userID, &filename, &mediaType, &state, &targetAssetID, &baseRevisionID,
-				&ownerType, &ownerID, &slot, &generation, &assetID, &revisionID, &attemptExpiresAt)
-		if err != nil {
-			return application.BeginUploadResult{}, classify(err)
+		existing, readErr := sqlc.New(tx).LockExistingAppend(ctx, sqlc.LockExistingAppendParams{
+			TenantID:       input.TenantID,
+			WorkspaceID:    input.WorkspaceID,
+			CallerService:  input.CallerService,
+			IdempotencyKey: &input.IdempotencyKey,
+		})
+		if readErr != nil {
+			return application.BeginUploadResult{}, classify(readErr)
 		}
-		if userID != input.UserID || filename != input.Filename || mediaType != input.MediaType ||
-			targetAssetID != input.AssetID || baseRevisionID != input.BaseRevisionID || ownerType != input.OwnerType ||
-			ownerID != input.OwnerID || slot != input.Slot || generation != input.Generation {
+		if existing.UserID != input.UserID || existing.Filename != input.Filename || existing.DeclaredMediaType != input.MediaType ||
+			existing.TargetAssetID != input.AssetID || existing.BaseRevisionID != input.BaseRevisionID || existing.ClaimOwnerType != input.OwnerType ||
+			existing.ClaimOwnerID != input.OwnerID || existing.ClaimSlot != input.Slot || existing.ClaimGeneration != input.Generation {
 			return application.BeginUploadResult{}, application.ErrConflict
 		}
-		if state == "completed" {
-			if assetID == "" || revisionID == "" {
+		if existing.State == "completed" {
+			if existing.AssetID == "" || existing.RevisionID == "" {
 				return application.BeginUploadResult{}, application.ErrConflict
 			}
 			if err = tx.Commit(ctx); err != nil {
 				return application.BeginUploadResult{}, err
 			}
-			return application.BeginUploadResult{UploadID: uploadID, AssetID: assetID, RevisionID: revisionID, Completed: true}, nil
+			return application.BeginUploadResult{UploadID: existing.ID, AssetID: existing.AssetID, RevisionID: existing.RevisionID, Completed: true}, nil
 		}
-		if state != "failed" && !(state == "uploading" && !attemptExpiresAt.After(now)) {
+		if existing.State != "failed" && !(existing.State == "uploading" && !existing.ExpiresAt.After(now)) {
 			return application.BeginUploadResult{}, application.ErrConflict
 		}
-		insertedID = uploadID
+		insertedID = existing.ID
 	}
 
 	if err = authorizeRevisionAppend(ctx, tx, input.TenantID, input.WorkspaceID, input.CallerService,
@@ -154,15 +165,19 @@ func (r *Repository) BeginRevisionAppend(ctx context.Context, input application.
 	if insertedID != id {
 		// Retire the old attempt instead of reusing its staging name. A late
 		// worker can neither commit nor fail the replacement upload.
-		if _, err = tx.Exec(ctx, `UPDATE upload_sessions SET state='aborted',idempotency_key='retired:' || id::text,expires_at=$2,updated_at=$2 WHERE id=$1`, insertedID, now); err != nil {
+		if err = sqlc.New(tx).RetireUpload(ctx, sqlc.RetireUploadParams{
+			ID:        insertedID,
+			ExpiresAt: now,
+		}); err != nil {
 			return application.BeginUploadResult{}, err
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO upload_sessions
-          (id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,
-           state,expires_at,created_at,updated_at,target_asset_id,base_revision_id,claim_owner_type,claim_owner_id,claim_slot,claim_generation)
-          SELECT $2,tenant_id,workspace_id,user_id,caller_service,$3,category,filename,declared_media_type,
-           'uploading',$4,$5,$5,target_asset_id,base_revision_id,claim_owner_type,claim_owner_id,claim_slot,claim_generation
-          FROM upload_sessions WHERE id=$1`, insertedID, id, input.IdempotencyKey, expiresAt, now); err != nil {
+		if err = sqlc.New(tx).ReplaceAppendUpload(ctx, sqlc.ReplaceAppendUploadParams{
+			PreviousUploadID: insertedID,
+			UploadID:         id,
+			IdempotencyKey:   input.IdempotencyKey,
+			ExpiresAt:        expiresAt,
+			UpdatedAt:        now,
+		}); err != nil {
 			return application.BeginUploadResult{}, err
 		}
 		insertedID = id
@@ -174,27 +189,27 @@ func (r *Repository) BeginRevisionAppend(ctx context.Context, input application.
 }
 
 func authorizeRevisionAppend(ctx context.Context, tx pgx.Tx, tenantID, workspaceID, ownerService, assetID, baseRevisionID, ownerType, ownerID, slot string, generation int64) error {
-	var state string
-	var baseExists, claimExists bool
-	err := tx.QueryRow(ctx, `SELECT a.state,
-        EXISTS(SELECT 1 FROM asset_revisions r WHERE r.id=$4 AND r.asset_id=a.id),
-        EXISTS(SELECT 1 FROM asset_claims c
-          WHERE c.tenant_id=$1 AND c.workspace_id=$2 AND c.owner_service=$5 AND c.owner_type=$6
-            AND c.owner_id=$7 AND c.slot=$8 AND c.generation=$9 AND c.asset_id=a.id
-            AND c.revision_id=$4 AND c.kind='strong' AND c.status IN ('pending','active'))
-        FROM assets a WHERE a.id=$3 AND a.tenant_id=$1 AND a.workspace_id=$2`,
-		tenantID, workspaceID, assetID, baseRevisionID, ownerService, ownerType, ownerID, slot, generation).
-		Scan(&state, &baseExists, &claimExists)
+	result, err := sqlc.New(tx).CheckAppendAuthorization(ctx, sqlc.CheckAppendAuthorizationParams{
+		TenantID:       tenantID,
+		WorkspaceID:    workspaceID,
+		AssetID:        assetID,
+		BaseRevisionID: baseRevisionID,
+		OwnerService:   ownerService,
+		OwnerType:      ownerType,
+		OwnerID:        ownerID,
+		Slot:           slot,
+		Generation:     generation,
+	})
 	if err != nil {
 		return classify(err)
 	}
-	if state == "deleting" || state == "deleted" || state == "quarantined" {
+	if result.State == "deleting" || result.State == "deleted" || result.State == "quarantined" {
 		return application.ErrConflict
 	}
-	if !baseExists {
+	if !result.BaseExists {
 		return application.ErrInvalidInput
 	}
-	if !claimExists {
+	if !result.ClaimExists {
 		return application.ErrConflict
 	}
 	return nil
@@ -213,12 +228,20 @@ func (r *Repository) CreateUploadSession(
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var insertedID string
-	err = tx.QueryRow(ctx, `INSERT INTO upload_sessions
-        (id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,category,filename,declared_media_type,declared_size_bytes,state,expires_at,created_at,updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12,$12)
-        ON CONFLICT DO NOTHING RETURNING id`,
-		id, input.TenantID, input.WorkspaceID, input.UserID, input.CallerService, input.IdempotencyKey,
-		input.Category, input.Filename, input.MediaType, input.SizeBytes, expiresAt, now).Scan(&insertedID)
+	insertedID, err = sqlc.New(tx).InsertPendingUpload(ctx, sqlc.InsertPendingUploadParams{
+		ID:                id,
+		TenantID:          input.TenantID,
+		WorkspaceID:       input.WorkspaceID,
+		UserID:            input.UserID,
+		CallerService:     input.CallerService,
+		IdempotencyKey:    &input.IdempotencyKey,
+		Category:          input.Category,
+		Filename:          input.Filename,
+		DeclaredMediaType: input.MediaType,
+		DeclaredSizeBytes: &input.SizeBytes,
+		ExpiresAt:         expiresAt,
+		CreatedAt:         now,
+	})
 	if err == nil {
 		if err = tx.Commit(ctx); err != nil {
 			return application.UploadSession{}, err
@@ -233,12 +256,12 @@ func (r *Repository) CreateUploadSession(
 		return application.UploadSession{}, classify(err)
 	}
 
-	session, err := scanUploadSession(tx.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,
-        category,filename,declared_media_type,COALESCE(declared_size_bytes,-1),state,
-        COALESCE(asset_id::text,''),COALESCE(revision_id::text,''),expires_at
-        FROM upload_sessions
-        WHERE tenant_id=$1 AND workspace_id=$2 AND caller_service=$3 AND idempotency_key=$4
-        FOR UPDATE`, input.TenantID, input.WorkspaceID, input.CallerService, input.IdempotencyKey))
+	session, err := uploadFromLockScopedUpload(sqlc.New(tx).LockScopedUpload(ctx, sqlc.LockScopedUploadParams{
+		TenantID:       input.TenantID,
+		WorkspaceID:    input.WorkspaceID,
+		CallerService:  input.CallerService,
+		IdempotencyKey: &input.IdempotencyKey,
+	}))
 	if err != nil {
 		return application.UploadSession{}, classify(err)
 	}
@@ -258,16 +281,16 @@ func (r *Repository) ClaimUploadSession(ctx context.Context, id string, now time
 		return application.UploadSession{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	session, err := scanUploadSession(tx.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,
-        category,filename,declared_media_type,COALESCE(declared_size_bytes,-1),state,
-        COALESCE(asset_id::text,''),COALESCE(revision_id::text,''),expires_at
-        FROM upload_sessions WHERE id=$1 FOR UPDATE`, id))
+	session, err := uploadFromLockUpload(sqlc.New(tx).LockUpload(ctx, id))
 	if err != nil {
 		return application.UploadSession{}, classify(err)
 	}
 	if !session.ExpiresAt.After(now) {
 		if session.State != "completed" {
-			_, _ = tx.Exec(ctx, `UPDATE upload_sessions SET state='aborted',error_code='upload_expired',updated_at=$2 WHERE id=$1`, id, now)
+			_ = sqlc.New(tx).AbortExpiredUpload(ctx, sqlc.AbortExpiredUploadParams{
+				ID:        id,
+				UpdatedAt: now,
+			})
 			_ = tx.Commit(ctx)
 		}
 		return application.UploadSession{}, application.ErrConflict
@@ -281,7 +304,10 @@ func (r *Repository) ClaimUploadSession(ctx context.Context, id string, now time
 	if session.State != "pending" && session.State != "failed" {
 		return application.UploadSession{}, application.ErrConflict
 	}
-	if _, err = tx.Exec(ctx, `UPDATE upload_sessions SET state='uploading',error_code=NULL,updated_at=$2 WHERE id=$1`, id, now); err != nil {
+	if err = sqlc.New(tx).StartUpload(ctx, sqlc.StartUploadParams{
+		ID:        id,
+		UpdatedAt: now,
+	}); err != nil {
 		return application.UploadSession{}, err
 	}
 	session.State = "uploading"
@@ -295,31 +321,36 @@ func (r *Repository) GetUploadSession(
 	ctx context.Context,
 	callerService, tenantID, workspaceID, id string,
 ) (application.UploadSession, error) {
-	session, err := scanUploadSession(r.pool.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,user_id,caller_service,idempotency_key,
-        category,filename,declared_media_type,COALESCE(declared_size_bytes,-1),state,
-        COALESCE(asset_id::text,''),COALESCE(revision_id::text,''),expires_at
-        FROM upload_sessions WHERE id=$1 AND caller_service=$2 AND tenant_id=$3 AND workspace_id=$4`,
-		id, callerService, tenantID, workspaceID))
+	session, err := uploadFromRow(sqlc.New(r.pool).GetUpload(ctx, sqlc.GetUploadParams{
+		ID:            id,
+		CallerService: callerService,
+		TenantID:      tenantID,
+		WorkspaceID:   workspaceID,
+	}))
 	if err != nil {
 		return application.UploadSession{}, classify(err)
 	}
 	return session, nil
 }
 
-type uploadSessionRow interface{ Scan(...any) error }
-
-func scanUploadSession(row uploadSessionRow) (application.UploadSession, error) {
-	var session application.UploadSession
-	err := row.Scan(
-		&session.ID, &session.TenantID, &session.WorkspaceID, &session.UserID, &session.CallerService,
-		&session.IdempotencyKey, &session.Category, &session.Filename, &session.MediaType, &session.SizeBytes,
-		&session.State, &session.AssetID, &session.RevisionID, &session.ExpiresAt,
-	)
-	return session, err
+func uploadFromRow(row sqlc.GetUploadRow, err error) (application.UploadSession, error) {
+	if err != nil {
+		return application.UploadSession{}, err
+	}
+	return application.UploadSession{ID: row.ID, TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, UserID: row.UserID, CallerService: row.CallerService, IdempotencyKey: row.IdempotencyKey, Category: row.Category, Filename: row.Filename, MediaType: row.DeclaredMediaType, SizeBytes: row.SizeBytes, State: row.State, AssetID: row.AssetID, RevisionID: row.RevisionID, ExpiresAt: row.ExpiresAt}, nil
 }
-
+func uploadFromLockUpload(row sqlc.LockUploadRow, err error) (application.UploadSession, error) {
+	return uploadFromRow(sqlc.GetUploadRow(row), err)
+}
+func uploadFromLockScopedUpload(row sqlc.LockScopedUploadRow, err error) (application.UploadSession, error) {
+	return uploadFromRow(sqlc.GetUploadRow(row), err)
+}
 func (r *Repository) FailUpload(ctx context.Context, id, code string, now time.Time) error {
-	_, err := r.pool.Exec(ctx, `UPDATE upload_sessions SET state='failed', error_code=$2, updated_at=$3 WHERE id=$1 AND state='uploading'`, id, code, now)
+	err := sqlc.New(r.pool).FailUpload(ctx, sqlc.FailUploadParams{
+		ID:        id,
+		ErrorCode: &code,
+		UpdatedAt: now,
+	})
 	return err
 }
 
@@ -331,45 +362,71 @@ func (r *Repository) CompleteUpload(ctx context.Context, input application.Compl
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var state string
-	if err = tx.QueryRow(ctx, `SELECT state FROM upload_sessions WHERE id=$1 FOR UPDATE`, input.UploadID).Scan(&state); err != nil {
+	if state, err = sqlc.New(tx).LockUploadState(ctx, input.UploadID); err != nil {
 		return application.CompleteUploadResult{}, classify(err)
 	}
 	if state != "uploading" {
 		return application.CompleteUploadResult{}, application.ErrConflict
 	}
 
-	blobID := input.BlobID
-	canonicalStorageKey := input.StorageKey
-	err = tx.QueryRow(ctx, `INSERT INTO blobs
-        (id,tenant_id,sha256,size_bytes,storage_key,state,created_at)
-        VALUES ($1,$2,$3,$4,$5,'active',$6)
-        ON CONFLICT (tenant_id,sha256,size_bytes) WHERE state='active'
-        DO UPDATE SET state=blobs.state
-        RETURNING id,storage_key`,
-		input.BlobID, input.TenantID, input.SHA256, input.SizeBytes, input.StorageKey, input.Now).Scan(&blobID, &canonicalStorageKey)
+	blob, err := sqlc.New(tx).UpsertBlob(ctx, sqlc.UpsertBlobParams{
+		ID:         input.BlobID,
+		TenantID:   input.TenantID,
+		Sha256:     input.SHA256,
+		SizeBytes:  input.SizeBytes,
+		StorageKey: input.StorageKey,
+		CreatedAt:  input.Now,
+	})
 	if err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO assets
-        (id,tenant_id,workspace_id,category,state,blocking_claim_count,state_version,created_by,created_at,updated_at)
-		VALUES ($1,$2,$3,$4,'active',1,1,$5,$6,$6)`, input.AssetID, input.TenantID, input.WorkspaceID, input.Category, input.UserID, input.Now); err != nil {
+	if err = sqlc.New(tx).CreateAsset(ctx, sqlc.CreateAssetParams{
+		ID:          input.AssetID,
+		TenantID:    input.TenantID,
+		WorkspaceID: input.WorkspaceID,
+		Category:    input.Category,
+		CreatedBy:   input.UserID,
+		CreatedAt:   input.Now,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO asset_revisions
-        (id,asset_id,blob_id,revision_number,filename,media_type,size_bytes,sha256,created_by,created_at)
-        VALUES ($1,$2,$3,1,$4,$5,$6,$7,$8,$9)`, input.RevisionID, input.AssetID, blobID, input.Filename, input.MediaType, input.SizeBytes, input.SHA256, input.UserID, input.Now); err != nil {
+	if err = sqlc.New(tx).CreateFirstRevision(ctx, sqlc.CreateFirstRevisionParams{
+		ID:        input.RevisionID,
+		AssetID:   input.AssetID,
+		BlobID:    blob.ID,
+		Filename:  input.Filename,
+		MediaType: input.MediaType,
+		SizeBytes: input.SizeBytes,
+		Sha256:    input.SHA256,
+		CreatedBy: input.UserID,
+		CreatedAt: input.Now,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE assets SET current_revision_id=$2 WHERE id=$1`, input.AssetID, input.RevisionID); err != nil {
+	if err = sqlc.New(tx).SetCurrentRevision(ctx, sqlc.SetCurrentRevisionParams{
+		ID:                input.AssetID,
+		CurrentRevisionID: &input.RevisionID,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO asset_claims
-		(id,tenant_id,workspace_id,owner_service,owner_type,owner_id,slot,asset_id,revision_id,kind,status,generation,expires_at,created_at,updated_at)
-		VALUES ($1,$2,$3,'asset','upload_session',$4,'uploaded-bytes',$5,$6,'lease','active',1,$7,$8,$8)`,
-		input.UploadClaimID, input.TenantID, input.WorkspaceID, input.UploadID, input.AssetID, input.RevisionID, input.UploadLeaseExpiresAt, input.Now); err != nil {
+	if err = sqlc.New(tx).CreateUploadLease(ctx, sqlc.CreateUploadLeaseParams{
+		ID:          input.UploadClaimID,
+		TenantID:    input.TenantID,
+		WorkspaceID: input.WorkspaceID,
+		OwnerID:     input.UploadID,
+		AssetID:     input.AssetID,
+		RevisionID:  &input.RevisionID,
+		ExpiresAt:   &input.UploadLeaseExpiresAt,
+		CreatedAt:   input.Now,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE upload_sessions SET state='completed',asset_id=$2,revision_id=$3,updated_at=$4 WHERE id=$1`, input.UploadID, input.AssetID, input.RevisionID, input.Now); err != nil {
+	if err = sqlc.New(tx).CompleteUpload(ctx, sqlc.CompleteUploadParams{
+		ID:         input.UploadID,
+		AssetID:    &input.AssetID,
+		RevisionID: &input.RevisionID,
+		UpdatedAt:  input.Now,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -377,9 +434,9 @@ func (r *Repository) CompleteUpload(ctx context.Context, input application.Compl
 	}
 
 	asset := domain.Asset{ID: input.AssetID, TenantID: input.TenantID, WorkspaceID: input.WorkspaceID, Category: input.Category, CurrentRevisionID: input.RevisionID, State: "active", BlockingClaimCount: 1, StateVersion: 1, CreatedBy: input.UserID, CreatedAt: input.Now, UpdatedAt: input.Now}
-	revision := domain.Revision{ID: input.RevisionID, AssetID: input.AssetID, BlobID: blobID, RevisionNumber: 1, Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes, SHA256: input.SHA256, CreatedBy: input.UserID, CreatedAt: input.Now}
+	revision := domain.Revision{ID: input.RevisionID, AssetID: input.AssetID, BlobID: blob.ID, RevisionNumber: 1, Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes, SHA256: input.SHA256, CreatedBy: input.UserID, CreatedAt: input.Now}
 	result := application.CompleteUploadResult{Asset: asset, Revision: revision}
-	if canonicalStorageKey != input.StorageKey {
+	if blob.StorageKey != input.StorageKey {
 		result.UnusedStorageKey = input.StorageKey
 	}
 	return result, nil
@@ -392,30 +449,30 @@ func (r *Repository) CompleteRevisionAppend(ctx context.Context, input applicati
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var asset domain.Asset
-	err = tx.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,category,state,COALESCE(current_revision_id::text,''),
-        blocking_claim_count,state_version,created_by,created_at,updated_at
-        FROM assets WHERE id=$1 AND tenant_id=$2 AND workspace_id=$3 FOR UPDATE`,
-		input.AssetID, input.TenantID, input.WorkspaceID).
-		Scan(&asset.ID, &asset.TenantID, &asset.WorkspaceID, &asset.Category, &asset.State, &asset.CurrentRevisionID,
-			&asset.BlockingClaimCount, &asset.StateVersion, &asset.CreatedBy, &asset.CreatedAt, &asset.UpdatedAt)
+	lockedAsset, err := sqlc.New(tx).LockAsset(ctx, sqlc.LockAssetParams{
+		ID:          input.AssetID,
+		TenantID:    input.TenantID,
+		WorkspaceID: input.WorkspaceID,
+	})
 	if err != nil {
 		return application.CompleteUploadResult{}, classify(err)
+	}
+	asset := domain.Asset{
+		ID: lockedAsset.ID, TenantID: lockedAsset.TenantID, WorkspaceID: lockedAsset.WorkspaceID,
+		Category: lockedAsset.Category, State: lockedAsset.State, CurrentRevisionID: lockedAsset.CurrentRevisionID,
+		BlockingClaimCount: lockedAsset.BlockingClaimCount, StateVersion: lockedAsset.StateVersion,
+		CreatedBy: lockedAsset.CreatedBy, CreatedAt: lockedAsset.CreatedAt, UpdatedAt: lockedAsset.UpdatedAt,
 	}
 	if asset.State == "deleting" || asset.State == "deleted" || asset.State == "quarantined" {
 		return application.CompleteUploadResult{}, application.ErrConflict
 	}
 
-	var state, targetAssetID, baseRevisionID, ownerType, ownerID, slot string
-	var generation int64
-	err = tx.QueryRow(ctx, `SELECT state,target_asset_id::text,base_revision_id::text,claim_owner_type,claim_owner_id,claim_slot,claim_generation
-        FROM upload_sessions WHERE id=$1 FOR UPDATE`, input.UploadID).
-		Scan(&state, &targetAssetID, &baseRevisionID, &ownerType, &ownerID, &slot, &generation)
+	upload, err := sqlc.New(tx).LockAppendUpload(ctx, input.UploadID)
 	if err != nil {
 		return application.CompleteUploadResult{}, classify(err)
 	}
-	if state != "uploading" || targetAssetID != input.AssetID || baseRevisionID != input.BaseRevisionID ||
-		ownerType != input.OwnerType || ownerID != input.OwnerID || slot != input.Slot || generation != input.Generation {
+	if upload.State != "uploading" || upload.TargetAssetID != input.AssetID || upload.BaseRevisionID != input.BaseRevisionID ||
+		upload.ClaimOwnerType != input.OwnerType || upload.ClaimOwnerID != input.OwnerID || upload.ClaimSlot != input.Slot || upload.ClaimGeneration != input.Generation {
 		return application.CompleteUploadResult{}, application.ErrConflict
 	}
 	if err = authorizeRevisionAppend(ctx, tx, input.TenantID, input.WorkspaceID, input.OwnerService,
@@ -423,75 +480,104 @@ func (r *Repository) CompleteRevisionAppend(ctx context.Context, input applicati
 		return application.CompleteUploadResult{}, err
 	}
 
-	blobID := input.BlobID
-	canonicalStorageKey := input.StorageKey
-	err = tx.QueryRow(ctx, `INSERT INTO blobs
-        (id,tenant_id,sha256,size_bytes,storage_key,state,created_at)
-        VALUES ($1,$2,$3,$4,$5,'active',$6)
-        ON CONFLICT (tenant_id,sha256,size_bytes) WHERE state='active'
-        DO UPDATE SET state=blobs.state RETURNING id,storage_key`,
-		input.BlobID, input.TenantID, input.SHA256, input.SizeBytes, input.StorageKey, input.Now).
-		Scan(&blobID, &canonicalStorageKey)
+	blob, err := sqlc.New(tx).UpsertBlob(ctx, sqlc.UpsertBlobParams{
+		ID:         input.BlobID,
+		TenantID:   input.TenantID,
+		Sha256:     input.SHA256,
+		SizeBytes:  input.SizeBytes,
+		StorageKey: input.StorageKey,
+		CreatedAt:  input.Now,
+	})
 	if err != nil {
 		return application.CompleteUploadResult{}, err
 	}
 	var revisionNumber int64
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(MAX(revision_number),0)+1 FROM asset_revisions WHERE asset_id=$1`, input.AssetID).Scan(&revisionNumber); err != nil {
+	if revisionNumber, err = sqlc.New(tx).NextRevisionNumber(ctx, input.AssetID); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO asset_revisions
-        (id,asset_id,blob_id,revision_number,filename,media_type,size_bytes,sha256,created_by,created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, input.RevisionID, input.AssetID, blobID, revisionNumber,
-		input.Filename, input.MediaType, input.SizeBytes, input.SHA256, input.UserID, input.Now); err != nil {
+	if err = sqlc.New(tx).AppendRevision(ctx, sqlc.AppendRevisionParams{
+		ID:             input.RevisionID,
+		AssetID:        input.AssetID,
+		BlobID:         blob.ID,
+		RevisionNumber: revisionNumber,
+		Filename:       input.Filename,
+		MediaType:      input.MediaType,
+		SizeBytes:      input.SizeBytes,
+		Sha256:         input.SHA256,
+		CreatedBy:      input.UserID,
+		CreatedAt:      input.Now,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO asset_claims
-        (id,tenant_id,workspace_id,owner_service,owner_type,owner_id,slot,asset_id,revision_id,kind,status,generation,expires_at,created_at,updated_at)
-        VALUES ($1,$2,$3,'asset','upload_session',$4,'uploaded-bytes',$5,$6,'lease','active',1,$7,$8,$8)`,
-		input.UploadClaimID, input.TenantID, input.WorkspaceID, input.UploadID, input.AssetID, input.RevisionID,
-		input.UploadLeaseExpiresAt, input.Now); err != nil {
+	if err = sqlc.New(tx).CreateUploadLease(ctx, sqlc.CreateUploadLeaseParams{
+		ID:          input.UploadClaimID,
+		TenantID:    input.TenantID,
+		WorkspaceID: input.WorkspaceID,
+		OwnerID:     input.UploadID,
+		AssetID:     input.AssetID,
+		RevisionID:  &input.RevisionID,
+		ExpiresAt:   &input.UploadLeaseExpiresAt,
+		CreatedAt:   input.Now,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
-	err = tx.QueryRow(ctx, `UPDATE assets SET current_revision_id=$2,state='active',candidate_at=NULL,delete_after=NULL,
-        blocking_claim_count=blocking_claim_count+1,state_version=state_version+1,updated_at=$3 WHERE id=$1
-        RETURNING state,blocking_claim_count,state_version,updated_at`, input.AssetID, input.RevisionID, input.Now).
-		Scan(&asset.State, &asset.BlockingClaimCount, &asset.StateVersion, &asset.UpdatedAt)
+	advanced, err := sqlc.New(tx).AdvanceRevision(ctx, sqlc.AdvanceRevisionParams{
+		ID:                input.AssetID,
+		CurrentRevisionID: &input.RevisionID,
+		UpdatedAt:         input.Now,
+	})
 	if err != nil {
 		return application.CompleteUploadResult{}, err
 	}
+	asset.State = advanced.State
+	asset.BlockingClaimCount = advanced.BlockingClaimCount
+	asset.StateVersion = advanced.StateVersion
+	asset.UpdatedAt = advanced.UpdatedAt
 	asset.CurrentRevisionID = input.RevisionID
-	if _, err = tx.Exec(ctx, `UPDATE upload_sessions SET state='completed',asset_id=$2,revision_id=$3,updated_at=$4,expires_at=$5 WHERE id=$1`,
-		input.UploadID, input.AssetID, input.RevisionID, input.Now, input.UploadLeaseExpiresAt); err != nil {
+	if err = sqlc.New(tx).CompleteAppendUpload(ctx, sqlc.CompleteAppendUploadParams{
+		ID:         input.UploadID,
+		AssetID:    &input.AssetID,
+		RevisionID: &input.RevisionID,
+		UpdatedAt:  input.Now,
+		ExpiresAt:  input.UploadLeaseExpiresAt,
+	}); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return application.CompleteUploadResult{}, err
 	}
 
-	revision := domain.Revision{ID: input.RevisionID, AssetID: input.AssetID, BlobID: blobID, RevisionNumber: revisionNumber,
+	revision := domain.Revision{ID: input.RevisionID, AssetID: input.AssetID, BlobID: blob.ID, RevisionNumber: revisionNumber,
 		Filename: input.Filename, MediaType: input.MediaType, SizeBytes: input.SizeBytes, SHA256: input.SHA256,
 		CreatedBy: input.UserID, CreatedAt: input.Now}
 	result := application.CompleteUploadResult{Asset: asset, Revision: revision}
-	if canonicalStorageKey != input.StorageKey {
+	if blob.StorageKey != input.StorageKey {
 		result.UnusedStorageKey = input.StorageKey
 	}
 	return result, nil
 }
 
 func (r *Repository) GetRevision(ctx context.Context, tenantID, workspaceID, assetID, revisionID string) (domain.Asset, domain.Revision, string, error) {
-	var asset domain.Asset
-	var revision domain.Revision
-	var storageKey string
-	err := r.pool.QueryRow(ctx, `SELECT a.id,a.tenant_id,a.workspace_id,a.category,a.state,a.current_revision_id,a.blocking_claim_count,a.state_version,a.created_by,a.created_at,a.updated_at,
-        r.id,r.blob_id,r.revision_number,r.filename,r.media_type,r.size_bytes,r.sha256,r.created_by,r.created_at,b.storage_key
-        FROM assets a JOIN asset_revisions r ON r.asset_id=a.id JOIN blobs b ON b.id=r.blob_id
-        WHERE a.id=$1 AND r.id=$2 AND a.tenant_id=$3 AND a.workspace_id=$4 AND a.state IN ('active','candidate') AND b.state='active'`,
-		assetID, revisionID, tenantID, workspaceID).Scan(&asset.ID, &asset.TenantID, &asset.WorkspaceID, &asset.Category, &asset.State, &asset.CurrentRevisionID, &asset.BlockingClaimCount, &asset.StateVersion, &asset.CreatedBy, &asset.CreatedAt, &asset.UpdatedAt, &revision.ID, &revision.BlobID, &revision.RevisionNumber, &revision.Filename, &revision.MediaType, &revision.SizeBytes, &revision.SHA256, &revision.CreatedBy, &revision.CreatedAt, &storageKey)
+	row, err := sqlc.New(r.pool).GetRevision(ctx, sqlc.GetRevisionParams{
+		AssetID:     assetID,
+		RevisionID:  revisionID,
+		TenantID:    tenantID,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return domain.Asset{}, domain.Revision{}, "", classify(err)
 	}
-	revision.AssetID = asset.ID
-	return asset, revision, storageKey, nil
+	asset := domain.Asset{
+		ID: row.ID, TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, Category: row.Category,
+		State: row.State, CurrentRevisionID: row.CurrentRevisionID, BlockingClaimCount: row.BlockingClaimCount,
+		StateVersion: row.StateVersion, CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+	revision := domain.Revision{
+		ID: row.RevisionID, AssetID: row.ID, BlobID: row.BlobID, RevisionNumber: row.RevisionNumber,
+		Filename: row.Filename, MediaType: row.MediaType, SizeBytes: row.SizeBytes, SHA256: row.Sha256,
+		CreatedBy: row.RevisionCreator, CreatedAt: row.RevisionCreatedAt,
+	}
+	return asset, revision, row.StorageKey, nil
 }
 
 func claimBlocks(kind domain.ClaimKind, status string) bool {
@@ -506,21 +592,35 @@ func (r *Repository) PrepareClaim(ctx context.Context, input application.Prepare
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// A stable DB lock closes the no-row race before the unique Claim exists.
-	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(concat_ws(E'\x1f',$1::text,$2::text,$3::text,$4::text,$5::text,$6::text),0))`, input.TenantID, input.WorkspaceID, input.OwnerService, input.OwnerType, input.OwnerID, input.Slot); err != nil {
+	if err = sqlc.New(tx).LockClaimSlot(ctx, sqlc.LockClaimSlotParams{
+		TenantID:     input.TenantID,
+		WorkspaceID:  input.WorkspaceID,
+		OwnerService: input.OwnerService,
+		OwnerType:    input.OwnerType,
+		OwnerID:      input.OwnerID,
+		Slot:         input.Slot,
+	}); err != nil {
 		return domain.Claim{}, err
 	}
 
-	var existing domain.Claim
-	var existingKind string
-	err = tx.QueryRow(ctx, `SELECT id,asset_id,COALESCE(revision_id::text,''),kind,status,generation,expires_at FROM asset_claims
-        WHERE tenant_id=$1 AND workspace_id=$2 AND owner_service=$3 AND owner_type=$4 AND owner_id=$5 AND slot=$6 FOR UPDATE`,
-		input.TenantID, input.WorkspaceID, input.OwnerService, input.OwnerType, input.OwnerID, input.Slot).Scan(&existing.ID, &existing.AssetID, &existing.RevisionID, &existingKind, &existing.Status, &existing.Generation, &existing.ExpiresAt)
+	row, err := sqlc.New(tx).LockExistingClaim(ctx, sqlc.LockExistingClaimParams{
+		TenantID:     input.TenantID,
+		WorkspaceID:  input.WorkspaceID,
+		OwnerService: input.OwnerService,
+		OwnerType:    input.OwnerType,
+		OwnerID:      input.OwnerID,
+		Slot:         input.Slot,
+	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return domain.Claim{}, err
 	}
 	hasExisting := err == nil
+	existing := domain.Claim{}
 	if hasExisting {
-		existing.Kind = domain.ClaimKind(existingKind)
+		existing = domain.Claim{
+			ID: row.ID, AssetID: row.AssetID, RevisionID: row.RevisionID, Kind: domain.ClaimKind(row.Kind),
+			Status: row.Status, Generation: row.Generation, ExpiresAt: row.ExpiresAt,
+		}
 		if existing.Generation > input.Generation {
 			return domain.Claim{}, application.ErrConflict
 		}
@@ -537,24 +637,18 @@ func (r *Repository) PrepareClaim(ctx context.Context, input application.Prepare
 	if hasExisting {
 		oldAssetID = existing.AssetID
 	}
-	rows, err := tx.Query(ctx, `SELECT id::text,state FROM assets
-        WHERE (id=$1 OR id=NULLIF($2,'')::uuid) AND tenant_id=$3 AND workspace_id=$4
-        ORDER BY id FOR UPDATE`, input.AssetID, oldAssetID, input.TenantID, input.WorkspaceID)
+	rows, err := sqlc.New(tx).LockClaimAssets(ctx, sqlc.LockClaimAssetsParams{
+		AssetID:         input.AssetID,
+		PreviousAssetID: oldAssetID,
+		TenantID:        input.TenantID,
+		WorkspaceID:     input.WorkspaceID,
+	})
 	if err != nil {
 		return domain.Claim{}, err
 	}
 	states := map[string]string{}
-	for rows.Next() {
-		var assetID, state string
-		if err = rows.Scan(&assetID, &state); err != nil {
-			rows.Close()
-			return domain.Claim{}, err
-		}
-		states[assetID] = state
-	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
-		return domain.Claim{}, err
+	for _, row := range rows {
+		states[row.ID] = row.State
 	}
 	targetState, found := states[input.AssetID]
 	if !found {
@@ -565,7 +659,10 @@ func (r *Repository) PrepareClaim(ctx context.Context, input application.Prepare
 	}
 	if input.RevisionID != "" {
 		var exists bool
-		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM asset_revisions WHERE id=$1 AND asset_id=$2)`, input.RevisionID, input.AssetID).Scan(&exists); err != nil {
+		if exists, err = sqlc.New(tx).RevisionExists(ctx, sqlc.RevisionExistsParams{
+			ID:      input.RevisionID,
+			AssetID: input.AssetID,
+		}); err != nil {
 			return domain.Claim{}, err
 		}
 		if !exists {
@@ -573,12 +670,21 @@ func (r *Repository) PrepareClaim(ctx context.Context, input application.Prepare
 		}
 	}
 
-	_, err = tx.Exec(ctx, `INSERT INTO asset_claims
-        (id,tenant_id,workspace_id,owner_service,owner_type,owner_id,slot,asset_id,revision_id,kind,status,generation,expires_at,created_at,updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,'')::uuid,$10,'pending',$11,$12,$13,$13)
-        ON CONFLICT (tenant_id,workspace_id,owner_service,owner_type,owner_id,slot) DO UPDATE SET
-          asset_id=EXCLUDED.asset_id,revision_id=EXCLUDED.revision_id,kind=EXCLUDED.kind,status='pending',generation=EXCLUDED.generation,expires_at=EXCLUDED.expires_at,updated_at=EXCLUDED.updated_at,released_at=NULL`,
-		id, input.TenantID, input.WorkspaceID, input.OwnerService, input.OwnerType, input.OwnerID, input.Slot, input.AssetID, input.RevisionID, string(input.Kind), input.Generation, input.ExpiresAt, now)
+	err = sqlc.New(tx).UpsertClaim(ctx, sqlc.UpsertClaimParams{
+		ID:           id,
+		TenantID:     input.TenantID,
+		WorkspaceID:  input.WorkspaceID,
+		OwnerService: input.OwnerService,
+		OwnerType:    input.OwnerType,
+		OwnerID:      input.OwnerID,
+		Slot:         input.Slot,
+		AssetID:      input.AssetID,
+		RevisionID:   input.RevisionID,
+		Kind:         string(input.Kind),
+		Generation:   input.Generation,
+		ExpiresAt:    input.ExpiresAt,
+		CreatedAt:    now,
+	})
 	if err != nil {
 		return domain.Claim{}, err
 	}
@@ -586,7 +692,10 @@ func (r *Repository) PrepareClaim(ctx context.Context, input application.Prepare
 	oldBlocking := hasExisting && claimBlocks(existing.Kind, existing.Status)
 	newBlocking := input.Kind.Blocking()
 	if oldBlocking && existing.AssetID != input.AssetID {
-		if _, err = tx.Exec(ctx, `UPDATE assets SET blocking_claim_count=blocking_claim_count-1,state_version=state_version+1,updated_at=$2 WHERE id=$1`, existing.AssetID, now); err != nil {
+		if err = sqlc.New(tx).DecrementBlockingClaims(ctx, sqlc.DecrementBlockingClaimsParams{
+			ID:        existing.AssetID,
+			UpdatedAt: now,
+		}); err != nil {
 			return domain.Claim{}, err
 		}
 	}
@@ -598,9 +707,12 @@ func (r *Repository) PrepareClaim(ctx context.Context, input application.Prepare
 		delta++
 	}
 	if delta != 0 || newBlocking {
-		_, err = tx.Exec(ctx, `UPDATE assets SET blocking_claim_count=blocking_claim_count+$2,
-          state=CASE WHEN $3 THEN 'active' ELSE state END,candidate_at=CASE WHEN $3 THEN NULL ELSE candidate_at END,
-          delete_after=CASE WHEN $3 THEN NULL ELSE delete_after END,state_version=state_version+1,updated_at=$4 WHERE id=$1`, input.AssetID, delta, newBlocking, now)
+		err = sqlc.New(tx).ApplyClaimDelta(ctx, sqlc.ApplyClaimDeltaParams{
+			ID:            input.AssetID,
+			BlockingDelta: delta,
+			Reactivate:    newBlocking,
+			UpdatedAt:     now,
+		})
 		if err != nil {
 			return domain.Claim{}, err
 		}
@@ -640,14 +752,23 @@ func (r *Repository) mutateClaim(ctx context.Context, input application.ClaimMut
 		return domain.Claim{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var claim domain.Claim
-	var kind string
-	err = tx.QueryRow(ctx, `SELECT id,tenant_id,workspace_id,owner_service,owner_type,owner_id,slot,asset_id,COALESCE(revision_id::text,''),kind,status,generation,expires_at FROM asset_claims
-      WHERE tenant_id=$1 AND workspace_id=$2 AND owner_service=$3 AND owner_type=$4 AND owner_id=$5 AND slot=$6 FOR UPDATE`, input.TenantID, input.WorkspaceID, input.OwnerService, input.OwnerType, input.OwnerID, input.Slot).Scan(&claim.ID, &claim.TenantID, &claim.WorkspaceID, &claim.OwnerService, &claim.OwnerType, &claim.OwnerID, &claim.Slot, &claim.AssetID, &claim.RevisionID, &kind, &claim.Status, &claim.Generation, &claim.ExpiresAt)
+	row, err := sqlc.New(tx).LockClaim(ctx, sqlc.LockClaimParams{
+		TenantID:     input.TenantID,
+		WorkspaceID:  input.WorkspaceID,
+		OwnerService: input.OwnerService,
+		OwnerType:    input.OwnerType,
+		OwnerID:      input.OwnerID,
+		Slot:         input.Slot,
+	})
 	if err != nil {
 		return domain.Claim{}, classify(err)
 	}
-	claim.Kind = domain.ClaimKind(kind)
+	claim := domain.Claim{
+		ID: row.ID, TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, OwnerService: row.OwnerService,
+		OwnerType: row.OwnerType, OwnerID: row.OwnerID, Slot: row.Slot, AssetID: row.AssetID,
+		RevisionID: row.RevisionID, Kind: domain.ClaimKind(row.Kind), Status: row.Status,
+		Generation: row.Generation, ExpiresAt: row.ExpiresAt,
+	}
 	if claim.Generation != input.Generation {
 		return domain.Claim{}, application.ErrConflict
 	}
@@ -664,11 +785,19 @@ func (r *Repository) mutateClaim(ctx context.Context, input application.ClaimMut
 	if target == "released" && claimBlocks(claim.Kind, claim.Status) {
 		delta = -1
 	}
-	if _, err = tx.Exec(ctx, `UPDATE asset_claims SET status=$2::varchar,updated_at=$3::timestamptz,released_at=CASE WHEN $2::text='released' THEN $3::timestamptz ELSE NULL::timestamptz END WHERE id=$1`, claim.ID, target, now); err != nil {
+	if err = sqlc.New(tx).SetClaimStatus(ctx, sqlc.SetClaimStatusParams{
+		ID:        claim.ID,
+		Status:    target,
+		UpdatedAt: now,
+	}); err != nil {
 		return domain.Claim{}, err
 	}
 	if delta != 0 {
-		if _, err = tx.Exec(ctx, `UPDATE assets SET blocking_claim_count=blocking_claim_count+$2,state_version=state_version+1,updated_at=$3 WHERE id=$1`, claim.AssetID, delta, now); err != nil {
+		if err = sqlc.New(tx).UpdateClaimCount(ctx, sqlc.UpdateClaimCountParams{
+			ID:            claim.AssetID,
+			BlockingDelta: delta,
+			UpdatedAt:     now,
+		}); err != nil {
 			return domain.Claim{}, err
 		}
 	}
@@ -682,58 +811,42 @@ func (r *Repository) ExpireLeases(ctx context.Context, now time.Time, limit int)
 		return 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	rows, err := tx.Query(ctx, `SELECT id,asset_id FROM asset_claims WHERE kind='lease' AND status IN ('pending','active') AND expires_at <= $1 ORDER BY expires_at,id FOR UPDATE SKIP LOCKED LIMIT $2`, now, limit)
+	rows, err := sqlc.New(tx).LockExpiredLeases(ctx, sqlc.LockExpiredLeasesParams{
+		ExpiresAt: &now,
+		BatchSize: int32(limit),
+	})
 	if err != nil {
 		return 0, err
 	}
-	type pair struct{ id, asset string }
-	var pairs []pair
-	for rows.Next() {
-		var p pair
-		if err = rows.Scan(&p.id, &p.asset); err != nil {
-			rows.Close()
+	for _, p := range rows {
+		if err = sqlc.New(tx).ReleaseExpiredLease(ctx, sqlc.ReleaseExpiredLeaseParams{
+			ID:         p.ID,
+			ReleasedAt: &now,
+		}); err != nil {
 			return 0, err
 		}
-		pairs = append(pairs, p)
-	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
-		return 0, err
-	}
-	for _, p := range pairs {
-		if _, err = tx.Exec(ctx, `UPDATE asset_claims SET status='released',released_at=$2,updated_at=$2 WHERE id=$1`, p.id, now); err != nil {
-			return 0, err
-		}
-		if _, err = tx.Exec(ctx, `UPDATE assets SET blocking_claim_count=blocking_claim_count-1,state_version=state_version+1,updated_at=$2 WHERE id=$1`, p.asset, now); err != nil {
+		if err = sqlc.New(tx).DecrementBlockingClaims(ctx, sqlc.DecrementBlockingClaimsParams{
+			ID:        p.AssetID,
+			UpdatedAt: now,
+		}); err != nil {
 			return 0, err
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return 0, err
 	}
-	return len(pairs), nil
+	return len(rows), nil
 }
 
 func (r *Repository) ReconcileBlockingClaimCounts(ctx context.Context, now time.Time, limit int) (int, error) {
-	result, err := r.pool.Exec(ctx, `WITH drifted AS (
-      SELECT a.id, (SELECT count(*)::bigint FROM asset_claims c WHERE c.asset_id=a.id
-        AND c.status IN ('pending','active') AND c.kind IN ('strong','snapshot','lease')) AS actual_count
-      FROM assets a
-      WHERE a.state NOT IN ('deleted','quarantined')
-      AND a.blocking_claim_count <> (SELECT count(*)::bigint FROM asset_claims c WHERE c.asset_id=a.id
-        AND c.status IN ('pending','active') AND c.kind IN ('strong','snapshot','lease'))
-      ORDER BY a.id FOR UPDATE OF a SKIP LOCKED LIMIT $1
-    ) UPDATE assets a SET
-      blocking_claim_count=d.actual_count,
-      state=CASE WHEN d.actual_count > 0 AND a.state='candidate' THEN 'active' ELSE a.state END,
-      candidate_at=CASE WHEN d.actual_count > 0 AND a.state='candidate' THEN NULL ELSE a.candidate_at END,
-      delete_after=CASE WHEN d.actual_count > 0 AND a.state='candidate' THEN NULL ELSE a.delete_after END,
-      state_version=a.state_version+1,updated_at=$2
-      FROM drifted d WHERE a.id=d.id`, limit, now)
+	result, err := sqlc.New(r.pool).ReconcileClaimCounts(ctx, sqlc.ReconcileClaimCountsParams{
+		BatchSize: int32(limit),
+		UpdatedAt: now,
+	})
 	if err != nil {
 		return 0, err
 	}
-	return int(result.RowsAffected()), nil
+	return int(result), nil
 }
 
 func (r *Repository) ClaimExpiredUploads(ctx context.Context, now, leaseUntil time.Time, limit int) ([]application.ExpiredUpload, error) {
@@ -742,29 +855,23 @@ func (r *Repository) ClaimExpiredUploads(ctx context.Context, now, leaseUntil ti
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	rows, err := tx.Query(ctx, `SELECT id FROM upload_sessions
-      WHERE state IN ('pending','uploading','failed','completed','aborted') AND expires_at <= $1
-      ORDER BY expires_at,id FOR UPDATE SKIP LOCKED LIMIT $2`, now, limit)
+	rows, err := sqlc.New(tx).LockExpiredUploads(ctx, sqlc.LockExpiredUploadsParams{
+		ExpiresAt: now,
+		BatchSize: int32(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
 	var uploads []application.ExpiredUpload
-	for rows.Next() {
-		var upload application.ExpiredUpload
-		if err = rows.Scan(&upload.ID); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		uploads = append(uploads, upload)
-	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
-		return nil, err
+	for _, id := range rows {
+		uploads = append(uploads, application.ExpiredUpload{ID: id})
 	}
 	for _, upload := range uploads {
-		if _, err = tx.Exec(ctx, `UPDATE upload_sessions SET state='aborted',
-          error_code=COALESCE(error_code,'upload_expired'),expires_at=$2,updated_at=$1 WHERE id=$3`,
-			now, leaseUntil, upload.ID); err != nil {
+		if err = sqlc.New(tx).LeaseUploadCleanup(ctx, sqlc.LeaseUploadCleanupParams{
+			UpdatedAt: now,
+			ExpiresAt: leaseUntil,
+			ID:        upload.ID,
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -775,27 +882,27 @@ func (r *Repository) ClaimExpiredUploads(ctx context.Context, now, leaseUntil ti
 }
 
 func (r *Repository) CompleteUploadCleanup(ctx context.Context, upload application.ExpiredUpload) error {
-	result, err := r.pool.Exec(ctx, `DELETE FROM upload_sessions WHERE id=$1 AND state='aborted'`, upload.ID)
+	result, err := sqlc.New(r.pool).DeleteAbortedUpload(ctx, upload.ID)
 	if err != nil {
 		return err
 	}
-	if result.RowsAffected() != 1 {
+	if result != 1 {
 		return application.ErrConflict
 	}
 	return nil
 }
 
 func (r *Repository) MarkCandidates(ctx context.Context, cutoff, now, deleteAfter time.Time, limit int) (int, error) {
-	result, err := r.pool.Exec(ctx, `WITH candidates AS (
-      SELECT a.id FROM assets a WHERE a.state='active' AND a.blocking_claim_count=0 AND a.updated_at <= $1
-      AND NOT EXISTS (SELECT 1 FROM asset_claims c WHERE c.asset_id=a.id AND c.status IN ('pending','active') AND c.kind IN ('strong','snapshot','lease'))
-      ORDER BY a.updated_at,a.id FOR UPDATE SKIP LOCKED LIMIT $2
-    ) UPDATE assets a SET state='candidate',candidate_at=$3,delete_after=$4,state_version=state_version+1,updated_at=$3
-      FROM candidates c WHERE a.id=c.id`, cutoff, limit, now, deleteAfter)
+	result, err := sqlc.New(r.pool).MarkCandidates(ctx, sqlc.MarkCandidatesParams{
+		UpdatedAt:   cutoff,
+		BatchSize:   int32(limit),
+		CandidateAt: &now,
+		DeleteAfter: &deleteAfter,
+	})
 	if err != nil {
 		return 0, err
 	}
-	return int(result.RowsAffected()), nil
+	return int(result), nil
 }
 
 func (r *Repository) ClaimDeletions(ctx context.Context, now, leaseUntil time.Time, limit int) ([]application.DeletionCandidate, error) {
@@ -804,79 +911,62 @@ func (r *Repository) ClaimDeletions(ctx context.Context, now, leaseUntil time.Ti
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	rows, err := tx.Query(ctx, `SELECT a.id,a.tenant_id,a.state_version FROM assets a
-      WHERE ((a.state='candidate' AND a.delete_after <= $1) OR (a.state='deleting' AND a.delete_after <= $1))
-      AND NOT EXISTS (SELECT 1 FROM asset_claims c WHERE c.asset_id=a.id AND c.status IN ('pending','active') AND c.kind IN ('strong','snapshot','lease'))
-      ORDER BY a.delete_after,a.id FOR UPDATE SKIP LOCKED LIMIT $2`, now, limit)
+	rows, err := sqlc.New(tx).LockDeletionCandidates(ctx, sqlc.LockDeletionCandidatesParams{
+		DeleteAfter: &now,
+		BatchSize:   int32(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
 	var candidates []application.DeletionCandidate
-	for rows.Next() {
-		var candidate application.DeletionCandidate
-		if err = rows.Scan(&candidate.AssetID, &candidate.TenantID, &candidate.StateVersion); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		candidates = append(candidates, candidate)
+	for _, row := range rows {
+		candidates = append(candidates, application.DeletionCandidate{AssetID: row.ID, TenantID: row.TenantID, StateVersion: row.StateVersion})
 	}
-	rows.Close()
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
 	for i := range candidates {
 		candidate := &candidates[i]
-		tag, updateErr := tx.Exec(ctx, `UPDATE assets SET state='deleting',delete_after=$2,state_version=state_version+1,updated_at=$1
-        WHERE id=$3 AND state_version=$4 AND state IN ('candidate','deleting')`, now, leaseUntil, candidate.AssetID, candidate.StateVersion)
+		tag, updateErr := sqlc.New(tx).StartDeletion(ctx, sqlc.StartDeletionParams{
+			UpdatedAt:    now,
+			DeleteAfter:  &leaseUntil,
+			ID:           candidate.AssetID,
+			StateVersion: candidate.StateVersion,
+		})
 		if updateErr != nil {
 			return nil, updateErr
 		}
-		if tag.RowsAffected() != 1 {
+		if tag != 1 {
 			return nil, application.ErrConflict
 		}
 		candidate.StateVersion++
 
-		blobRows, blobErr := tx.Query(ctx, selectAssetBlobsForUpdateSQL, candidate.AssetID)
+		blobRows, blobErr := sqlc.New(tx).LockAssetBlobs(ctx, candidate.AssetID)
 		if blobErr != nil {
 			return nil, blobErr
 		}
-		type blobState struct{ id, key, state, owner string }
-		var blobs []blobState
-		for blobRows.Next() {
-			var blob blobState
-			if err = blobRows.Scan(&blob.id, &blob.key, &blob.state, &blob.owner); err != nil {
-				blobRows.Close()
-				return nil, err
-			}
-			blobs = append(blobs, blob)
-		}
-		blobRows.Close()
-		if err = blobRows.Err(); err != nil {
-			return nil, err
-		}
-		for _, blob := range blobs {
-			if blob.state == "deleting" && blob.owner == candidate.AssetID {
-				candidate.Blobs = append(candidate.Blobs, application.DeletionBlob{ID: blob.id, StorageKey: blob.key})
+		for _, blob := range blobRows {
+			if blob.State == "deleting" && blob.DeletionOwnerAssetID == candidate.AssetID {
+				candidate.Blobs = append(candidate.Blobs, application.DeletionBlob{ID: blob.ID, StorageKey: blob.StorageKey})
 				continue
 			}
-			if blob.state != "active" {
+			if blob.State != "active" {
 				continue
 			}
 			var hasReadableReference bool
-			if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM asset_revisions r JOIN assets a ON a.id=r.asset_id
-          WHERE r.blob_id=$1 AND a.state NOT IN ('deleting','deleted'))`, blob.id).Scan(&hasReadableReference); err != nil {
+			if hasReadableReference, err = sqlc.New(tx).HasReadableReference(ctx, blob.ID); err != nil {
 				return nil, err
 			}
 			if hasReadableReference {
 				continue
 			}
-			tag, err = tx.Exec(ctx, `UPDATE blobs SET state='deleting',deleting_at=$2,deletion_owner_asset_id=$1,state_version=state_version+1 WHERE id=$3 AND state='active'`, candidate.AssetID, now, blob.id)
+			tag, err = sqlc.New(tx).StartBlobDeletion(ctx, sqlc.StartBlobDeletionParams{
+				DeletionOwnerAssetID: &candidate.AssetID,
+				DeletingAt:           &now,
+				ID:                   blob.ID,
+			})
 			if err != nil {
 				return nil, err
 			}
-			if tag.RowsAffected() == 1 {
-				candidate.Blobs = append(candidate.Blobs, application.DeletionBlob{ID: blob.id, StorageKey: blob.key})
+			if tag == 1 {
+				candidate.Blobs = append(candidate.Blobs, application.DeletionBlob{ID: blob.ID, StorageKey: blob.StorageKey})
 			}
 		}
 	}
@@ -892,18 +982,23 @@ func (r *Repository) CompleteDeletion(ctx context.Context, candidate application
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	tag, err := tx.Exec(ctx, `UPDATE assets SET state='deleted',state_version=state_version+1,updated_at=$3,last_error_code=NULL
-      WHERE id=$1 AND state_version=$2 AND state='deleting'
-      AND NOT EXISTS (SELECT 1 FROM asset_claims WHERE asset_id=$1 AND status IN ('pending','active') AND kind IN ('strong','snapshot','lease'))`, candidate.AssetID, candidate.StateVersion, now)
+	tag, err := sqlc.New(tx).CompleteDeletion(ctx, sqlc.CompleteDeletionParams{
+		ID:           candidate.AssetID,
+		StateVersion: candidate.StateVersion,
+		UpdatedAt:    now,
+	})
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() != 1 {
+	if tag != 1 {
 		return application.ErrConflict
 	}
 	for _, blob := range candidate.Blobs {
-		if _, err = tx.Exec(ctx, `UPDATE blobs SET state='deleted',deleted_at=$3,deletion_owner_asset_id=NULL,state_version=state_version+1
-        WHERE id=$1 AND deletion_owner_asset_id=$2 AND state='deleting'`, blob.ID, candidate.AssetID, now); err != nil {
+		if err = sqlc.New(tx).CompleteBlobDeletion(ctx, sqlc.CompleteBlobDeletionParams{
+			ID:                   blob.ID,
+			DeletionOwnerAssetID: &candidate.AssetID,
+			DeletedAt:            &now,
+		}); err != nil {
 			return err
 		}
 	}
@@ -913,14 +1008,16 @@ func (r *Repository) CompleteDeletion(ctx context.Context, candidate application
 func (r *Repository) RetryDeletion(ctx context.Context, candidate application.DeletionCandidate, now time.Time, code string) error {
 	// The row itself is the durable job. A bounded exponential delay avoids a
 	// separate queue whose transaction could drift from lifecycle state.
-	tag, err := r.pool.Exec(ctx, `UPDATE assets SET state='deleting',
-      delete_after=$3 + make_interval(secs => LEAST(3600, (power(2, LEAST(deletion_attempts, 10)) * 15)::int)),
-      deletion_attempts=deletion_attempts+1,last_error_code=$4,state_version=state_version+1,updated_at=$3
-      WHERE id=$1 AND state_version=$2 AND state='deleting'`, candidate.AssetID, candidate.StateVersion, now, code)
+	tag, err := sqlc.New(r.pool).RetryDeletion(ctx, sqlc.RetryDeletionParams{
+		ID:            candidate.AssetID,
+		StateVersion:  candidate.StateVersion,
+		UpdatedAt:     now,
+		LastErrorCode: &code,
+	})
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() != 1 {
+	if tag != 1 {
 		return fmt.Errorf("retry deletion: %w", application.ErrConflict)
 	}
 	return nil

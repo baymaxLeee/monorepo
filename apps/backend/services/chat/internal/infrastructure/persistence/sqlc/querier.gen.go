@@ -15,6 +15,7 @@ type Querier interface {
 	GetConversation(ctx context.Context, arg GetConversationParams) (Conversation, error)
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]Conversation, error)
 	UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (Conversation, error)
+	UpdateConversationTitleIfDefault(ctx context.Context, arg UpdateConversationTitleIfDefaultParams) (Conversation, error)
 }
 
 var _ Querier = (*Queries)(nil)

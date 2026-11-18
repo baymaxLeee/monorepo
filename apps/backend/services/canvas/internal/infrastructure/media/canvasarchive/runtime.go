@@ -20,13 +20,13 @@ type Runtime struct {
 	service  *applicationcanvasarchive.Service
 	repo     *canvasarchivepersistence.Repository
 	runs     *taskpersistence.Repository
-	tx       *persistencetransaction.Manager
+	tx       *persistencetransaction.Store
 	assets   *storageclient.Client
 	clock    applicationcanvasarchive.Clock
 	tempRoot string
 }
 
-func NewRuntime(service *applicationcanvasarchive.Service, repo *canvasarchivepersistence.Repository, runs *taskpersistence.Repository, tx *persistencetransaction.Manager, assets *storageclient.Client, clock applicationcanvasarchive.Clock, tempRoot string) *Runtime {
+func NewRuntime(service *applicationcanvasarchive.Service, repo *canvasarchivepersistence.Repository, runs *taskpersistence.Repository, tx *persistencetransaction.Store, assets *storageclient.Client, clock applicationcanvasarchive.Clock, tempRoot string) *Runtime {
 	return &Runtime{service: service, repo: repo, runs: runs, tx: tx, assets: assets, clock: clock, tempRoot: tempRoot}
 }
 

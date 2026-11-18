@@ -20,7 +20,6 @@ export async function resolveInferenceProvider(auth: AuthContext, agentId: strin
       maxOutputTokens: provider.maxOutputTokens,
       instructions: assembleInstructions({
         mode: "normal",
-        storage: "local",
         memories: [],
         botProfile: agent?.profile,
       }),

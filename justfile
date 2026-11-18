@@ -130,6 +130,10 @@ publish-images-local target tag *args:
 build-sandbox-runtime registry="local" tag="latest":
     docker build -t {{ registry }}/sandbox-runtime:{{ tag }} -f apps/backend/services/runtime/sandbox-assets/runtime/Dockerfile .
 
+# Regenerate the service's typed PostgreSQL queries from its migrations and SQL.
+gen-sql service:
+    cd apps/backend && just gen-sql {{service}}
+
 # ─── Cross-stack ────────────────────────────────────────────
 sync:
     node schemas/codegen/generate-chat-ui.mjs
@@ -256,7 +260,8 @@ sync-check:
     cd apps/backend && just gen-transport-all
     cd apps/backend && just gen-sql-all
     cd apps/frontend && just gen-client
-    @git diff --exit-code schemas/openapi/ apps/backend/libs/inner-api-go/gen/ apps/backend/libs/inner-api-ts/src/gen/ apps/backend/libs/inner-api-py/generated/ apps/backend/services/admin/internal/api/generated/ apps/backend/services/chat/internal/infrastructure/persistence/sqlc/ apps/backend/services/telemetry/internal/infrastructure/persistence/sqlc/ apps/frontend/packages/api/src/ apps/frontend/packages/api/index.ts \
+    @untracked=$(git ls-files --others --exclude-standard -- 'apps/backend/services/*/internal/infrastructure/persistence/sqlc/*'); if [ -n "$untracked" ]; then echo "Untracked generated SQL bindings:"; echo "$untracked"; exit 1; fi
+    @git diff --exit-code schemas/openapi/ apps/backend/libs/inner-api-go/gen/ apps/backend/libs/inner-api-ts/src/gen/ apps/backend/libs/inner-api-py/generated/ apps/backend/services/admin/internal/api/generated/ 'apps/backend/services/*/internal/infrastructure/persistence/sqlc/*' apps/frontend/packages/api/src/ apps/frontend/packages/api/index.ts \
       || (echo "ERROR: generated contracts out of sync — run 'just sync'" && exit 1)
 
 status:

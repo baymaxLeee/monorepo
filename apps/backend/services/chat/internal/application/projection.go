@@ -65,10 +65,16 @@ func RuntimeRunBody(product Conversation, body map[string]any) (map[string]any, 
 		result[key] = value
 	}
 	result["id"] = product.RuntimeSessionID
+	result["generate_title"] = isAutoNamableTitle(product.Title)
 	if product.ProjectID != nil && product.CanvasID != nil {
 		result["host_context"] = map[string]any{"project_id": *product.ProjectID, "canvas_id": *product.CanvasID}
 	}
 	return result, nil
+}
+
+func isAutoNamableTitle(title string) bool {
+	trimmed := strings.TrimSpace(title)
+	return trimmed == "" || trimmed == "新对话"
 }
 
 func numericValue(value any) (float64, bool) {

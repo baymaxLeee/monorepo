@@ -21,6 +21,8 @@ spec:
       containers:
         - name: proxy
           image: ghcr.io/example/sandbox-proxy:latest
+          envFrom:
+            - configMapRef: { name: sandbox-egress-policy }
           ports:
             - { name: proxy, containerPort: 3128 }
           securityContext:

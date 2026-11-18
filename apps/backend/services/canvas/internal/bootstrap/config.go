@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -8,10 +9,8 @@ import (
 	"time"
 
 	envconfig "github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 type Config struct {
@@ -101,18 +100,21 @@ func Load() (Config, error) {
 		DatabaseURL:      fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", raw.PostgresHost, raw.PostgresPort, raw.PostgresUser, raw.PostgresPassword, raw.PostgresDatabase, raw.PostgresSSLMode),
 	}, nil
 }
-func Connect(cfg Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+func Connect(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
 		return nil, err
 	}
-	sqlDB, err := db.DB()
+	config.MaxConns = 16
+	config.MaxConnLifetime = 30 * time.Minute
+	config.MaxConnIdleTime = 5 * time.Minute
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, err
 	}
-	sqlDB.SetMaxOpenConns(16)
-	sqlDB.SetMaxIdleConns(8)
-	sqlDB.SetConnMaxLifetime(30 * time.Minute)
-	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
-	return db, nil
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return pool, nil
 }

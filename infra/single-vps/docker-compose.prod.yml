@@ -439,6 +439,9 @@ services:
 
   sandbox-proxy:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/sandbox-proxy:${IMAGE_TAG:-main}
+    environment:
+      SANDBOX_EGRESS_MODE: ${SANDBOX_EGRESS_MODE-allowlist}
+      SANDBOX_EGRESS_EXTRA_DOMAINS: ${SANDBOX_EGRESS_EXTRA_DOMAINS:-}
     volumes:
       - sandbox_egress:/run/egress
     networks: [sandbox_egress]

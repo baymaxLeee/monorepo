@@ -6,7 +6,7 @@ PY_SERVICES := "knowledge"
 NODE_SERVICES := "runtime"
 GO_SERVICES := "gateway iam admin canvas chat storage telemetry"
 OPENAPI_SERVICES := "admin knowledge chat iam canvas storage telemetry"
-SQLC_SERVICES := "chat telemetry"
+SQLC_SERVICES := "admin canvas chat iam storage telemetry"
 SQLC_VERSION := "v1.31.1"
 OAPI_CODEGEN_VERSION := "v2.8.2"
 

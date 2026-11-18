@@ -109,22 +109,9 @@ Claim intent 的 generation 随内容切换递增并绑定同 Asset 的新精确
 
 ## Sandbox 与 Agent 契约
 
-保留现有目录和生命周期：`sources/` 导入原始附件及已发布文件，只读；Agent 复制到 `work/` 或 `outputs/` 后编辑，使用保存工具明确提交。业务上的“原地修改”表示更新同一 file_id，不要求原地修改 sources inode，也不要求覆盖 Storage 字节。
+云端在稳定的工作区路径恢复会话文件。外部 Knowledge 原件放在只读 `sources/`。模型用 Bash 操作业务文件，通过 `upload_artifacts({ paths })` 指定交付物。Runtime 依据本轮导入或发布的路径基准解析文件身份，已有文件按 ETag 与路径代际更新，新路径登记新身份。冲突保留修改并报告失败；另存需要显式选择新路径。运行收尾负责持久化其余工作文件。
 
-`upload_artifacts` 的每个批次项具有明确的“更新已有文件”和“创建文件”两种互斥意图。具体 schema 放在工具所属代码与生成契约中，遵循当前 SDK 严格 schema 支持方式。语义要求：
-
-- 创建用于首次发布或另存为，沿用 path/filename/title/media_type；返回新 file_id。
-- 更新必须指定已存在 file_id 和本次读取对应的基准，内容来自明确 sandbox path；返回原 file_id。禁止文件不存在时退化创建。
-- 不按同名、标题、最近活跃产物或模型猜测决定覆盖目标。
-- 更新前必须通过 `checkout_conversation_file` 把指定导入 ETag 的精确 bytes 复制到目标工作路径。它会替换目标草稿；冲突后须先保留自己的修改，refresh 后重新 checkout 并重做修改。
-- RunSandbox 在导入时记录 file_id 对应的 revision/generation；保存必须使用该已读取基准。不得在提交前偷偷取最新令牌为旧工作副本“升级”基准。
-- 成功更新后，记录该工作副本的新基准，允许同一 run 再次编辑并保存；其他旧副本仍保持旧基准，不能因同 file_id 被保存过就获得新令牌。
-- 冲突作为可解释的业务失败返回。Agent 可显式刷新 sources、读取新内容、重新应用修改，再保存；不能只换令牌重传旧内容。另存为仍是 Agent 有意选择的独立操作，不能作为冲突自动降级。
-- 正常结束、Stop、异常均沿用现有资源释放；文件写入本身不触发自动发布。
-
-每次新 run 导入 Runtime 当时当前的文件内容，天然包含用户前次保存。运行中的 sources 不实时变化；`refresh_conversation_sources` 保留显式刷新能力，不能覆盖 work/outputs 中未保存修改。若改动刷新语义，必须保持上传是完整文件替换，不能让命令读到半份导入文件。
-
-不增加持久工作区、文件 watcher、后台同步进程或全局 Agent 调度锁。文件 CAS 只保护文件提交，不串行化整个工具循环。
+运行中用户保存仍经过工作区写屏障和 CAS。审批、回收、恢复和并发协调见 [Sandbox 双模式决策](sandbox-execution-modes.md)。
 
 ## 前端编辑行为
 

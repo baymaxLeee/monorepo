@@ -7,8 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	app "github.com/example/monorepo/canvas/internal/application/canvas"
 	archive "github.com/example/monorepo/canvas/internal/application/canvasarchive"
@@ -24,40 +25,40 @@ import (
 type eventScope struct {
 	TenantID            string
 	WorkspaceID         *string
-	ProjectID, CanvasID persistenceid.UUID
+	ProjectID, CanvasID string
 }
 type EventJournal struct {
-	db    *gorm.DB
+	db    *tx.Store
 	nodes *Repository
 }
 
-func NewEventJournal(db *gorm.DB, nodes *Repository) *EventJournal { return &EventJournal{db, nodes} }
-func (j *EventJournal) collect(db *gorm.DB, s eventScope) (stream.State, error) {
-	var rows []canvasnodeRow
+func NewEventJournal(db *tx.Store, nodes *Repository) *EventJournal { return &EventJournal{db, nodes} }
+func (j *EventJournal) collect(ctx context.Context, s eventScope) (stream.State, error) {
+	q := j.db.Queries(ctx)
 	scope := app.Scope{TenantID: s.TenantID, WorkspaceID: s.WorkspaceID}
-	if err := scopeQuery(db, scope).Where("project_id = ? AND canvas_id = ?", s.ProjectID, s.CanvasID).Order("storyboard_rank ASC").Order("id ASC").Find(&rows).Error; err != nil {
-		return stream.State{}, err
-	}
 	state := stream.State{Drafts: map[string]app.StoryboardSession{}, PrivateNodeOwners: map[string]string{}, Nodes: []domain.CanvasNode{}, NodeNumbers: map[string]int32{}, Tasks: []stream.TaskState{}, Texts: []stream.TextCheckpoint{}, ProtectedNodeIDs: []string{}}
 
-	metadata, err := canvasrepo.NewRepository(db).Get(db.Statement.Context, scope, s.ProjectID.String(), s.CanvasID.String())
+	metadata, err := canvasrepo.NewRepository(j.db).Get(ctx, scope, s.ProjectID, s.CanvasID)
 	if err != nil {
 		return state, err
 	}
 	state.Canvas = &metadata
-	state.Archives, _, err = archiverepo.NewRepository(db).List(db.Statement.Context, archive.ListQuery{Scope: archive.Scope{TenantID: s.TenantID, WorkspaceID: s.WorkspaceID}, ProjectID: s.ProjectID.String(), CanvasID: s.CanvasID.String(), PageSize: -1, PageNum: 1})
+	state.Archives, _, err = archiverepo.NewRepository(j.db).List(ctx, archive.ListQuery{Scope: archive.Scope{TenantID: s.TenantID, WorkspaceID: s.WorkspaceID}, ProjectID: s.ProjectID, CanvasID: s.CanvasID, PageSize: -1, PageNum: 1})
 	if err != nil {
 		return state, err
 	}
 	ids := []string{}
 	var videoNumber int32
+	rows, err := q.NodeList(ctx, sqlc.NodeListParams{TenantID: s.TenantID, WorkspaceID: s.WorkspaceID, ProjectID: s.ProjectID, CanvasID: s.CanvasID})
+	if err != nil {
+		return state, err
+	}
 	for _, row := range rows {
 		node, err := fromRow(row)
 		if err != nil {
 			return state, err
 		}
 		if node.Type == domain.NodeTypeStoryboardDraft {
-			state.PrivateNodeOwners[node.ID] = node.CreatedBy
 			var document struct {
 				Payload struct {
 					Session app.StoryboardSession `json:"session"`
@@ -66,7 +67,8 @@ func (j *EventJournal) collect(db *gorm.DB, s eventScope) (stream.State, error) 
 			if err := json.Unmarshal(row.NodeData, &document); err != nil {
 				return state, err
 			}
-			state.Drafts[node.ID] = document.Payload.Session
+			state.Drafts[row.ID] = document.Payload.Session
+			state.PrivateNodeOwners[node.ID] = node.CreatedBy
 		}
 		if node.Type == domain.NodeTypeVideoGeneration {
 			videoNumber++
@@ -86,17 +88,17 @@ func (j *EventJournal) collect(db *gorm.DB, s eventScope) (stream.State, error) 
 	}
 	primary := map[string]app.CanvasResourceAssetReference{}
 	looks := map[string]app.CanvasResourceAssetReference{}
-	repo := NewRepository(db)
+	repo := j.nodes
 	if len(resources) > 0 {
 		var err error
-		primary, err = repo.BatchResolvePrimaryResourceAssets(db.Statement.Context, scope, s.ProjectID.String(), resources)
+		primary, err = repo.BatchResolvePrimaryResourceAssets(ctx, scope, s.ProjectID, resources)
 		if err != nil {
 			return state, err
 		}
 	}
 	if len(slots) > 0 {
 		var err error
-		looks, err = repo.BatchResolveCurrentResourceAssets(db.Statement.Context, scope, s.ProjectID.String(), slots)
+		looks, err = repo.BatchResolveCurrentResourceAssets(ctx, scope, s.ProjectID, slots)
 		if err != nil {
 			return state, err
 		}
@@ -126,24 +128,12 @@ func (j *EventJournal) collect(db *gorm.DB, s eventScope) (stream.State, error) 
 		}
 		n.CurrentAssetID, n.ResourceAssetID, n.ResourceAssetRevision, n.ResourceAssetIsPrimary = ref.Asset.ID, ref.ResourceAssetID, ref.Revision, ref.IsPrimary
 	}
-	if err := loadSelectedOutputMetadata(db, scope, state.Nodes); err != nil {
+	if err := loadSelectedOutputMetadata(ctx, q, scope, state.Nodes); err != nil {
 		return state, err
 	}
 	if len(ids) > 0 {
-		var tasks []struct {
-			ID                      string
-			SubjectID               string
-			Status                  string
-			ErrorCode, ErrorMessage string
-			RunType                 string
-		}
-		query := db.Table("task_runs").Select("id,subject_id,status,error_code,error_message,run_type").Where("tenant_id = ? AND subject_id IN ? AND hidden_at IS NULL AND parent_task_id IS NULL", s.TenantID, ids).Order("created_at DESC,id DESC")
-		if s.WorkspaceID == nil {
-			query = query.Where("workspace_id IS NULL")
-		} else {
-			query = query.Where("workspace_id = ?", *s.WorkspaceID)
-		}
-		if err := query.Find(&tasks).Error; err != nil {
+		tasks, err := q.JournalTasks(ctx, sqlc.JournalTasksParams{TenantID: s.TenantID, WorkspaceID: s.WorkspaceID, NodeIds: ids})
+		if err != nil {
 			return state, err
 		}
 		seen := map[string]bool{}
@@ -158,13 +148,13 @@ func (j *EventJournal) collect(db *gorm.DB, s eventScope) (stream.State, error) 
 			seen[key] = true
 			state.Tasks = append(state.Tasks, stream.TaskState{NodeID: t.SubjectID, TaskRunID: t.ID, Status: t.Status, ErrorCode: t.ErrorCode, ErrorMessage: t.ErrorMessage, TaskType: t.RunType})
 		}
-		var videoFacts []struct{ TaskRunID, ProviderStatus, RealTaskID, ProviderErrorCode string }
-		if err := db.Table("canvas_node_generations").Select("task_run_id,provider_status,provider_task_id AS real_task_id,provider_error_code").Where("canvas_id = ? AND node_id IN ? AND hidden_at IS NULL", s.CanvasID, ids).Find(&videoFacts).Error; err != nil {
+		videoFacts, err := q.JournalVideoFacts(ctx, sqlc.JournalVideoFactsParams{CanvasID: s.CanvasID, NodeIds: ids})
+		if err != nil {
 			return state, err
 		}
 		facts := map[string]struct{ status, id, code string }{}
 		for _, v := range videoFacts {
-			facts[v.TaskRunID] = struct{ status, id, code string }{v.ProviderStatus, v.RealTaskID, v.ProviderErrorCode}
+			facts[v.TaskRunID] = struct{ status, id, code string }{v.ProviderStatus, v.ProviderTaskID, v.ProviderErrorCode}
 		}
 		for i := range state.Tasks {
 			state.Tasks[i].ProviderStatus = facts[state.Tasks[i].TaskRunID].status
@@ -173,8 +163,8 @@ func (j *EventJournal) collect(db *gorm.DB, s eventScope) (stream.State, error) 
 				state.Tasks[i].ErrorCode = facts[state.Tasks[i].TaskRunID].code
 			}
 		}
-		var texts []struct{ NodeID, TaskRunID, Content, Status string }
-		if err := db.Table("canvas_text_generations").Select("node_id,task_run_id,content,status").Where("canvas_id = ? AND node_id IN ?", s.CanvasID, ids).Order("created_at DESC,task_run_id DESC").Find(&texts).Error; err != nil {
+		texts, err := q.JournalTexts(ctx, sqlc.JournalTextsParams{CanvasID: s.CanvasID, NodeIds: ids})
+		if err != nil {
 			return state, err
 		}
 		seen = map[string]bool{}
@@ -201,26 +191,21 @@ func (j *EventJournal) collect(db *gorm.DB, s eventScope) (stream.State, error) 
 		state.ProtectedNodeIDs = append(state.ProtectedNodeIDs, id)
 	}
 	sort.Strings(state.ProtectedNodeIDs)
-	if err := j.collectNodeReviews(db, s, &state); err != nil {
+	if err := j.collectNodeReviews(ctx, s, &state); err != nil {
 		return state, err
 	}
 	return state, nil
 }
-func (j *EventJournal) record(ctx context.Context, db *gorm.DB, s eventScope, _ bool) error {
-	db = db.WithContext(ctx).Session(&gorm.Session{NewDB: true, Initialized: true}).Session(&gorm.Session{NewDB: true})
-	if err := lockCanvas(db, s.TenantID, s.WorkspaceID, s.ProjectID.String(), s.CanvasID); err != nil {
-		if errors.Is(readErr(err), app.ErrNotFound) {
-			return nil
-		}
-		return readErr(err)
-	}
-	var head eventHeadRow
-	err := db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("canvas_id = ?", s.CanvasID).First(&head).Error
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+
+// record writes the checkpoint while its caller holds the scoped canvas lock.
+func (j *EventJournal) record(ctx context.Context, s eventScope) error {
+	q := j.db.Queries(ctx)
+	head, err := q.LockEventHead(ctx, s.CanvasID)
+	fresh := errors.Is(err, pgx.ErrNoRows)
+	if err != nil && !fresh {
 		return err
 	}
-	fresh := errors.Is(err, gorm.ErrRecordNotFound)
-	state, err := j.collect(db, s)
+	state, err := j.collect(ctx, s)
 	if err != nil {
 		return err
 	}
@@ -254,34 +239,32 @@ func (j *EventJournal) record(ctx context.Context, db *gorm.DB, s eventScope, _ 
 	if err != nil {
 		return err
 	}
-	if err = db.Create(&eventRow{CanvasID: s.CanvasID, Sequence: event.Cursor, Data: payload, CreatedAt: now}).Error; err != nil {
+	stamp := pgtype.Timestamptz{Time: now, Valid: true}
+	if err = q.InsertCanvasEvent(ctx, sqlc.InsertCanvasEventParams{CanvasID: s.CanvasID, Sequence: event.Cursor, Data: payload, CreatedAt: stamp}); err != nil {
 		return err
 	}
-	if fresh {
-		return db.Create(&eventHeadRow{CanvasID: s.CanvasID, Sequence: event.Cursor, Data: encoded, UpdatedAt: now}).Error
-	}
-	return db.Model(&head).Updates(map[string]any{"sequence": event.Cursor, "data": json.RawMessage(encoded), "updated_at": now}).Error
+	return q.SaveEventHead(ctx, sqlc.SaveEventHeadParams{CanvasID: s.CanvasID, Sequence: event.Cursor, Data: encoded, UpdatedAt: stamp})
 }
 func (j *EventJournal) Snapshot(ctx context.Context, scope app.Scope, project, canvas string) (stream.State, error) {
 	var state stream.State
-	err := tx.New(j.db).WithinTransaction(ctx, func(ctx context.Context) error {
+	p, err := parseID(project)
+	if err != nil {
+		return state, app.ErrNotFound
+	}
+	c, err := parseID(canvas)
+	if err != nil {
+		return state, app.ErrNotFound
+	}
+	project, canvas = p, c
+	err = j.db.WithinTransaction(ctx, func(ctx context.Context) error {
 		if _, err := j.nodes.LockCanvas(ctx, scope, project, canvas); err != nil {
 			return err
 		}
-		p, err := persistenceid.Parse(project)
+		if err := j.record(ctx, eventScope{scope.TenantID, scope.WorkspaceID, project, canvas}); err != nil {
+			return err
+		}
+		head, err := j.db.Queries(ctx).GetEventHead(ctx, canvas)
 		if err != nil {
-			return err
-		}
-		c, err := persistenceid.Parse(canvas)
-		if err != nil {
-			return err
-		}
-		db := tx.DB(ctx, j.db)
-		if err = j.record(ctx, db, eventScope{scope.TenantID, scope.WorkspaceID, p, c}, true); err != nil {
-			return err
-		}
-		var head eventHeadRow
-		if err = db.Where("canvas_id = ?", c).First(&head).Error; err != nil {
 			return err
 		}
 		if err = json.Unmarshal(head.Data, &state); err != nil {
@@ -302,32 +285,22 @@ func (j *EventJournal) Events(ctx context.Context, scope app.Scope, project, can
 	if err != nil {
 		return nil, app.ErrNotFound
 	}
-	var head struct{ Sequence int64 }
-	db := tx.DB(ctx, j.db)
-	// Idle subscribers only need the scoped sequence. Reading the checkpoint
-	// JSON or taking graph write locks at 10 Hz would amplify I/O and contend
-	// with mutations on every open canvas. ADR-0077.
-	query := db.Table("canvas_event_heads AS h").
-		Select("h.sequence").
-		Joins("JOIN canvases AS c ON c.id = h.canvas_id AND c.deleted_at = 0").
-		Joins("JOIN projects AS p ON p.id = c.project_id AND p.deleted_at = 0").
-		Where("h.canvas_id = ? AND c.project_id = ?", c, p)
-	query = qualifiedScopeQuery(query, "c", scope)
-	query = qualifiedScopeQuery(query, "p", scope)
-	if err = query.Take(&head).Error; err != nil {
+	q := j.db.Queries(ctx)
+	head, err := q.ScopedEventCursor(ctx, sqlc.ScopedEventCursorParams{CanvasID: c.String(), ProjectID: p.String(), TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID})
+	if err != nil {
 		return nil, readErr(err)
 	}
-	if cursor > head.Sequence {
+	if cursor > head {
 		return nil, stream.ErrCursorExpired
 	}
-	if cursor == head.Sequence {
+	if cursor == head {
 		return []stream.Event{}, nil
 	}
-	var rows []eventRow
-	if err = db.Where("canvas_id = ? AND sequence > ?", c, cursor).Order("sequence").Limit(limit).Find(&rows).Error; err != nil {
+	rows, err := q.ListCanvasEvents(ctx, sqlc.ListCanvasEventsParams{CanvasID: c.String(), Sequence: cursor, PageSize: int64(limit)})
+	if err != nil {
 		return nil, err
 	}
-	if len(rows) == 0 && cursor < head.Sequence {
+	if len(rows) == 0 {
 		return nil, stream.ErrCursorExpired
 	}
 	result := []stream.Event{}
@@ -359,21 +332,11 @@ func (j *EventJournal) Cursor(ctx context.Context, scope app.Scope, project, can
 	if err != nil {
 		return 0, app.ErrNotFound
 	}
-	read := func(db *gorm.DB) (int64, error) {
-		var head struct{ Sequence int64 }
-		query := db.Table("canvas_event_heads AS h").
-			Select("h.sequence").
-			Joins("JOIN canvases AS c ON c.id = h.canvas_id AND c.deleted_at = 0").
-			Joins("JOIN projects AS p ON p.id = c.project_id AND p.deleted_at = 0").
-			Where("h.canvas_id = ? AND c.project_id = ?", c, p)
-		query = qualifiedScopeQuery(query, "c", scope)
-		query = qualifiedScopeQuery(query, "p", scope)
-		if readError := query.Take(&head).Error; readError != nil {
-			return 0, readErr(readError)
-		}
-		return head.Sequence, nil
+	read := func(ctx context.Context) (int64, error) {
+		value, err := j.db.Queries(ctx).ScopedEventCursor(ctx, sqlc.ScopedEventCursorParams{CanvasID: c.String(), ProjectID: p.String(), TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID})
+		return value, readErr(err)
 	}
-	if cursor, readError := read(tx.DB(ctx, j.db)); readError == nil {
+	if cursor, readError := read(ctx); readError == nil {
 		return cursor, nil
 	} else if !errors.Is(readError, app.ErrNotFound) {
 		return 0, readError
@@ -384,16 +347,15 @@ func (j *EventJournal) Cursor(ctx context.Context, scope app.Scope, project, can
 	// the durable journal checkpoint instead of conflating a missing head with
 	// a missing or unauthorized Canvas.
 	var cursor int64
-	err = tx.New(j.db).WithinTransaction(ctx, func(ctx context.Context) error {
+	err = j.db.WithinTransaction(ctx, func(ctx context.Context) error {
 		if _, lockError := j.nodes.LockCanvas(ctx, scope, project, canvas); lockError != nil {
 			return lockError
 		}
-		db := tx.DB(ctx, j.db)
-		if recordError := j.record(ctx, db, eventScope{scope.TenantID, scope.WorkspaceID, p, c}, true); recordError != nil {
+		if recordError := j.record(ctx, eventScope{scope.TenantID, scope.WorkspaceID, p.String(), c.String()}); recordError != nil {
 			return recordError
 		}
 		var readError error
-		cursor, readError = read(db)
+		cursor, readError = read(ctx)
 		return readError
 	})
 	if err != nil {
@@ -476,5 +438,5 @@ func filterEvent(event *stream.Event, user string) {
 // Events are a bounded replay journal. The latest checkpoint remains durable;
 // clients older than the retained range receive a fresh snapshot.
 func (j *EventJournal) Prune(ctx context.Context) error {
-	return j.db.WithContext(ctx).Where("created_at < ?", time.Now().UTC().Add(-24*time.Hour)).Delete(&eventRow{}).Error
+	return j.db.Queries(ctx).PruneCanvasEvents(ctx, pgtype.Timestamptz{Time: time.Now().UTC().Add(-24 * time.Hour), Valid: true})
 }

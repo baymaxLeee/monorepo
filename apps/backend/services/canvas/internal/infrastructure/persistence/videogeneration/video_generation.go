@@ -2,28 +2,32 @@ package videogeneration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	applicationfirstlastframe "github.com/example/monorepo/canvas/internal/application/firstlastframe"
 	app "github.com/example/monorepo/canvas/internal/application/videogeneration"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
-	domaingenerationinput "github.com/example/monorepo/canvas/internal/domain/generationinput"
 	domaintask "github.com/example/monorepo/canvas/internal/domain/task"
 	domainvideo "github.com/example/monorepo/canvas/internal/domain/videogeneration"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
+	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) CreateGeneration(ctx context.Context, generation domainvideo.Generation) error {
+func (r *Repository) CreateGeneration(ctx context.Context, generation domainvideo.Generation) (err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error { return r.createGenerationInTransaction(ctx, generation) })
+	return
+}
+
+func (r *Repository) createGenerationInTransaction(ctx context.Context, generation domainvideo.Generation) error {
 	row, err := toCanvasNodeVideoGenerationRow(generation)
 	if err != nil {
 		return err
 	}
-	return r.dbFor(ctx).Create(&row).Error
+	return r.store.Queries(ctx).VideoGenCreate(ctx, sqlc.VideoGenCreateParams(row))
 }
 
 func (r *Repository) GetGeneration(ctx context.Context, scope app.Scope, taskRunID string) (domainvideo.Generation, error) {
@@ -47,38 +51,34 @@ func (r *Repository) getByFirstLastFrameTaskRunID(ctx context.Context, taskRunID
 		return applicationfirstlastframe.Generation{}, app.ErrNotFound
 	}
 	var row canvasnodeVideoGenerationRow
-	query := r.dbFor(ctx).Where("first_last_frame_task_run_id = ? AND hidden_at IS NULL", taskRunID)
+	var err error
 	if lock {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		row, err = r.store.Queries(ctx).VideoGenByFrameLocked(ctx, &taskRunID)
+	} else {
+		row, err = r.store.Queries(ctx).VideoGenByFrame(ctx, &taskRunID)
 	}
-	if err := query.First(&row).Error; err != nil {
+	if err != nil {
 		return applicationfirstlastframe.Generation{}, canvasnodeVideoGenerationReadErr(err)
 	}
-	assetLocator := struct {
-		SourceAssetID    string
-		SourceRevisionID string
-	}{}
 	if row.AssetID == nil {
 		return applicationfirstlastframe.Generation{}, app.ErrNotFound
 	}
-	assetQuery := r.dbFor(ctx).Table("assets").Select("source_asset_id, source_revision_id").Where(
-		"id = ? AND tenant_id = ? AND owner_type = ? AND owner_id = ? AND media_type = ? AND deleted_at = 0",
-		*row.AssetID, row.TenantID, domainasset.OwnerProject, row.ProjectID, domainasset.MediaVideo,
-	)
-	if row.WorkspaceID == nil {
-		assetQuery = assetQuery.Where("workspace_id IS NULL")
-	} else {
-		assetQuery = assetQuery.Where("workspace_id = ?", *row.WorkspaceID)
-	}
-	result := assetQuery.Scan(&assetLocator)
-	if result.Error != nil {
-		return applicationfirstlastframe.Generation{}, result.Error
+	assetLocator, err := r.store.Queries(ctx).VideoGenLocator(ctx, sqlc.VideoGenLocatorParams{
+		TenantID:    row.TenantID,
+		WorkspaceID: row.WorkspaceID,
+		ID:          *row.AssetID,
+		OwnerType:   int16(domainasset.OwnerProject),
+		OwnerID:     row.ProjectID,
+		MediaType:   int16(domainasset.MediaVideo),
+	})
+	if err != nil {
+		return applicationfirstlastframe.Generation{}, canvasnodeVideoGenerationReadErr(err)
 	}
 	if strings.TrimSpace(assetLocator.SourceAssetID) == "" {
 		return applicationfirstlastframe.Generation{}, app.ErrNotFound
 	}
 	generation := applicationfirstlastframe.Generation{
-		GenerationTaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, ProjectID: row.ProjectID.String(),
+		GenerationTaskRunID: row.TaskRunID, TenantID: row.TenantID, ProjectID: row.ProjectID,
 		WorkspaceID: row.WorkspaceID, CreatedBy: row.CreatedBy,
 		SourceSourceAssetID: assetLocator.SourceAssetID, SourceSourceRevisionID: assetLocator.SourceRevisionID,
 		FirstLastFrameTaskRunID:        nullableStringValue(row.FirstLastFrameTaskRunID),
@@ -87,41 +87,41 @@ func (r *Repository) getByFirstLastFrameTaskRunID(ctx context.Context, taskRunID
 		LastFrameCheckpointAssetID:     nullableStringValue(row.LastFrameCheckpointAssetID),
 		LastFrameCheckpointRevisionID:  nullableStringValue(row.LastFrameCheckpointRevisionID),
 		FirstFrameCheckpointSizeBytes:  row.FirstFrameCheckpointSizeBytes, LastFrameCheckpointSizeBytes: row.LastFrameCheckpointSizeBytes,
-		FirstFrameAssetID: nullableUUIDValue(row.FirstFrameAssetID), LastFrameAssetID: nullableUUIDValue(row.LastFrameAssetID),
+		FirstFrameAssetID: nullableStringValue(row.FirstFrameAssetID), LastFrameAssetID: nullableStringValue(row.LastFrameAssetID),
 		GenerationStatus: domaintask.Status(row.Status),
 	}
 	return generation, nil
 }
 
-func (r *Repository) RecordArtifactCheckpoint(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, checkpoint applicationfirstlastframe.Result, updatedAt time.Time) (bool, error) {
+func (r *Repository) RecordArtifactCheckpoint(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, checkpoint applicationfirstlastframe.Result, updatedAt time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.recordArtifactCheckpointInTransaction(ctx, generationTaskRunID, firstLastFrameTaskRunID, checkpoint, updatedAt)
+		return err
+	})
+	return
+}
+
+func (r *Repository) recordArtifactCheckpointInTransaction(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, checkpoint applicationfirstlastframe.Result, updatedAt time.Time) (bool, error) {
 	generationID, err := persistenceid.Parse(generationTaskRunID)
 	if err != nil {
 		return false, app.ErrNotFound
 	}
-	updates := map[string]any{"updated_at": updatedAt}
-	query := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).
-		Where("task_run_id = ? AND first_last_frame_task_run_id = ? AND hidden_at IS NULL AND first_frame_asset_id IS NULL AND last_frame_asset_id IS NULL", generationID, firstLastFrameTaskRunID)
-	if checkpoint.FirstFrameSourceAssetID != "" {
-		query = query.Where("first_frame_checkpoint_asset_id IS NULL OR (first_frame_checkpoint_asset_id = ? AND first_frame_checkpoint_revision_id = ? AND first_frame_checkpoint_size_bytes = ?)", checkpoint.FirstFrameSourceAssetID, checkpoint.FirstFrameSourceRevisionID, checkpoint.FirstFrameSizeBytes)
-		updates["first_frame_checkpoint_asset_id"] = checkpoint.FirstFrameSourceAssetID
-		updates["first_frame_checkpoint_revision_id"] = checkpoint.FirstFrameSourceRevisionID
-		updates["first_frame_checkpoint_size_bytes"] = checkpoint.FirstFrameSizeBytes
+	affected, err := r.store.Queries(ctx).VideoGenCheckpoint(ctx, sqlc.VideoGenCheckpointParams{
+		UpdatedAt:     updatedAt,
+		FirstAsset:    nullableString(checkpoint.FirstFrameSourceAssetID),
+		FirstRevision: &checkpoint.FirstFrameSourceRevisionID,
+		FirstSize:     checkpoint.FirstFrameSizeBytes,
+		LastAsset:     nullableString(checkpoint.LastFrameSourceAssetID),
+		LastRevision:  &checkpoint.LastFrameSourceRevisionID,
+		LastSize:      checkpoint.LastFrameSizeBytes,
+		ID:            generationID.String(),
+		FrameTaskID:   &firstLastFrameTaskRunID,
+	})
+	if err != nil || affected == 1 {
+		return affected == 1, err
 	}
-	if checkpoint.LastFrameSourceAssetID != "" {
-		query = query.Where("last_frame_checkpoint_asset_id IS NULL OR (last_frame_checkpoint_asset_id = ? AND last_frame_checkpoint_revision_id = ? AND last_frame_checkpoint_size_bytes = ?)", checkpoint.LastFrameSourceAssetID, checkpoint.LastFrameSourceRevisionID, checkpoint.LastFrameSizeBytes)
-		updates["last_frame_checkpoint_asset_id"] = checkpoint.LastFrameSourceAssetID
-		updates["last_frame_checkpoint_revision_id"] = checkpoint.LastFrameSourceRevisionID
-		updates["last_frame_checkpoint_size_bytes"] = checkpoint.LastFrameSizeBytes
-	}
-	result := query.Updates(updates)
-	affected := result.RowsAffected
-	if result.Error != nil || affected == 1 {
-		return affected == 1, result.Error
-	}
-	var row canvasnodeVideoGenerationRow
-	if err = r.dbFor(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("task_run_id = ? AND first_last_frame_task_run_id = ?", generationID, firstLastFrameTaskRunID).
-		First(&row).Error; err != nil {
+	row, err := r.store.Queries(ctx).VideoGenCheckpointLocked(ctx, sqlc.VideoGenCheckpointLockedParams{ID: generationID.String(), FrameTaskID: &firstLastFrameTaskRunID})
+	if err != nil {
 		return false, canvasnodeVideoGenerationReadErr(err)
 	}
 	return (checkpoint.FirstFrameSourceAssetID == "" || nullableStringValue(row.FirstFrameCheckpointAssetID) == checkpoint.FirstFrameSourceAssetID) &&
@@ -133,7 +133,15 @@ func (r *Repository) RecordArtifactCheckpoint(ctx context.Context, generationTas
 		row.FirstFrameAssetID == nil && row.LastFrameAssetID == nil, nil
 }
 
-func (r *Repository) CommitAssets(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, result applicationfirstlastframe.Result, firstAssetID, lastAssetID string, updatedAt time.Time) (bool, error) {
+func (r *Repository) CommitAssets(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, result applicationfirstlastframe.Result, firstAssetID, lastAssetID string, updatedAt time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.commitAssetsInTransaction(ctx, generationTaskRunID, firstLastFrameTaskRunID, result, firstAssetID, lastAssetID, updatedAt)
+		return err
+	})
+	return
+}
+
+func (r *Repository) commitAssetsInTransaction(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, result applicationfirstlastframe.Result, firstAssetID, lastAssetID string, updatedAt time.Time) (bool, error) {
 	generationID, err := persistenceid.Parse(generationTaskRunID)
 	if err != nil {
 		return false, app.ErrNotFound
@@ -146,14 +154,20 @@ func (r *Repository) CommitAssets(ctx context.Context, generationTaskRunID, firs
 	if err != nil {
 		return false, err
 	}
-	update := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).
-		Where("task_run_id = ? AND first_last_frame_task_run_id = ? AND hidden_at IS NULL AND first_frame_checkpoint_asset_id = ? AND first_frame_checkpoint_revision_id = ? AND first_frame_checkpoint_size_bytes = ? AND last_frame_checkpoint_asset_id = ? AND last_frame_checkpoint_revision_id = ? AND last_frame_checkpoint_size_bytes = ? AND first_frame_asset_id IS NULL AND last_frame_asset_id IS NULL", generationID, firstLastFrameTaskRunID, result.FirstFrameSourceAssetID, result.FirstFrameSourceRevisionID, result.FirstFrameSizeBytes, result.LastFrameSourceAssetID, result.LastFrameSourceRevisionID, result.LastFrameSizeBytes).
-		Updates(map[string]any{
-			"first_frame_asset_id": firstID,
-			"last_frame_asset_id":  lastID,
-			"updated_at":           updatedAt,
-		})
-	return update.RowsAffected == 1, update.Error
+	affected, err := r.store.Queries(ctx).VideoGenCommitFrames(ctx, sqlc.VideoGenCommitFramesParams{
+		FirstID:       nullableString(firstID.String()),
+		LastID:        nullableString(lastID.String()),
+		UpdatedAt:     updatedAt,
+		ID:            generationID.String(),
+		FrameTaskID:   &firstLastFrameTaskRunID,
+		FirstAsset:    nullableString(result.FirstFrameSourceAssetID),
+		FirstRevision: &result.FirstFrameSourceRevisionID,
+		FirstSize:     result.FirstFrameSizeBytes,
+		LastAsset:     nullableString(result.LastFrameSourceAssetID),
+		LastRevision:  &result.LastFrameSourceRevisionID,
+		LastSize:      result.LastFrameSizeBytes,
+	})
+	return affected == 1, err
 }
 
 func (r *Repository) getCanvasNodeVideoGeneration(ctx context.Context, scope app.Scope, taskRunID string, visibleOnly bool) (domainvideo.Generation, error) {
@@ -161,22 +175,26 @@ func (r *Repository) getCanvasNodeVideoGeneration(ctx context.Context, scope app
 	if err != nil {
 		return domainvideo.Generation{}, app.ErrNotFound
 	}
-	var row canvasnodeVideoGenerationRow
-	query := scopeQuery(r.dbFor(ctx), scope).Where("task_run_id = ?", id)
-	if visibleOnly {
-		query = query.Where("hidden_at IS NULL")
-	}
-	if err = query.First(&row).Error; err != nil {
+	row, err := r.store.Queries(ctx).VideoGenGet(ctx, sqlc.VideoGenGetParams{TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, ID: id.String(), VisibleOnly: visibleOnly})
+	if err != nil {
 		return domainvideo.Generation{}, canvasnodeVideoGenerationReadErr(err)
 	}
-	return fromCanvasNodeVideoGenerationRow(row), nil
+	return fromCanvasNodeVideoGenerationRow(row)
 }
 
-func (r *Repository) HideGenerations(ctx context.Context, scope app.Scope, canvasnodeIDs []string, hiddenAt time.Time) ([]string, error) {
+func (r *Repository) HideGenerations(ctx context.Context, scope app.Scope, canvasnodeIDs []string, hiddenAt time.Time) (ids []string, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		ids, err = r.hideGenerationsInTransaction(ctx, scope, canvasnodeIDs, hiddenAt)
+		return err
+	})
+	return
+}
+
+func (r *Repository) hideGenerationsInTransaction(ctx context.Context, scope app.Scope, canvasnodeIDs []string, hiddenAt time.Time) ([]string, error) {
 	if hiddenAt.IsZero() {
 		return nil, errors.New("invalid canvasnode video generation visibility update")
 	}
-	ids := make([]persistenceid.UUID, 0, len(canvasnodeIDs))
+	ids := make([]string, 0, len(canvasnodeIDs))
 	seen := make(map[persistenceid.UUID]struct{}, len(canvasnodeIDs))
 	for _, raw := range canvasnodeIDs {
 		id, err := persistenceid.Parse(raw)
@@ -187,56 +205,50 @@ func (r *Repository) HideGenerations(ctx context.Context, scope app.Scope, canva
 			continue
 		}
 		seen[id] = struct{}{}
-		ids = append(ids, id)
+		ids = append(ids, id.String())
 	}
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	var hiddenRunIDs []string
-	err := r.dbFor(ctx).Transaction(func(tx *gorm.DB) error {
-		var rows []canvasnodeVideoGenerationRow
-		if err := scopeQuery(tx, scope).
-			Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("node_id IN ? AND hidden_at IS NULL", ids).
-			Find(&rows).Error; err != nil {
-			return err
-		}
-		if len(rows) == 0 {
-			return nil
-		}
-		rowIDs := make([]persistenceid.UUID, 0, len(rows))
-		for index := range rows {
-			rowIDs = append(rowIDs, rows[index].TaskRunID)
-			hiddenRunIDs = append(hiddenRunIDs, rows[index].TaskRunID.String())
-		}
-		return tx.Model(&canvasnodeVideoGenerationRow{}).
-			Where("task_run_id IN ? AND hidden_at IS NULL", rowIDs).
-			Update("hidden_at", hiddenAt).Error
-	})
-	if err != nil {
-		return nil, err
-	}
-	return hiddenRunIDs, nil
+	return r.store.Queries(ctx).VideoGenHide(ctx, sqlc.VideoGenHideParams{HiddenAt: &hiddenAt, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID, Ids: ids})
 }
 
-func (r *Repository) MarkGenerationSubmitted(ctx context.Context, taskRunID, taskID string, updatedAt time.Time) error {
+func (r *Repository) MarkGenerationSubmitted(ctx context.Context, taskRunID, taskID string, updatedAt time.Time) (err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		return r.markGenerationSubmittedInTransaction(ctx, taskRunID, taskID, updatedAt)
+	})
+	return
+}
+
+func (r *Repository) markGenerationSubmittedInTransaction(ctx context.Context, taskRunID, taskID string, updatedAt time.Time) error {
 	id, err := persistenceid.Parse(taskRunID)
 	if err != nil {
 		return app.ErrNotFound
 	}
-	result := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).Where("task_run_id = ?", id).Updates(map[string]any{
-		"provider_task_id": nullableString(taskID), "provider_status": domainvideo.ProviderStatusQueued, "updated_at": updatedAt,
+	affected, err := r.store.Queries(ctx).VideoGenSubmit(ctx, sqlc.VideoGenSubmitParams{
+		ProviderTaskID: nullableString(taskID),
+		ProviderStatus: string(domainvideo.ProviderStatusQueued),
+		UpdatedAt:      updatedAt,
+		ID:             id.String(),
 	})
-	if result.Error != nil {
-		return result.Error
+	if err != nil {
+		return err
 	}
-	if result.RowsAffected == 0 {
-		return r.ensureCanvasNodeVideoGenerationExists(ctx, id)
+	if affected == 0 {
+		return app.ErrNotFound
 	}
 	return nil
 }
 
-func (r *Repository) AttachFirstLastFrameTask(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, updatedAt time.Time) (bool, error) {
+func (r *Repository) AttachFirstLastFrameTask(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, updatedAt time.Time) (matched bool, err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		matched, err = r.attachFirstLastFrameTaskInTransaction(ctx, generationTaskRunID, firstLastFrameTaskRunID, updatedAt)
+		return err
+	})
+	return
+}
+
+func (r *Repository) attachFirstLastFrameTaskInTransaction(ctx context.Context, generationTaskRunID, firstLastFrameTaskRunID string, updatedAt time.Time) (bool, error) {
 	generationID, err := persistenceid.Parse(generationTaskRunID)
 	if err != nil {
 		return false, app.ErrNotFound
@@ -244,13 +256,26 @@ func (r *Repository) AttachFirstLastFrameTask(ctx context.Context, generationTas
 	if _, err = persistenceid.Parse(firstLastFrameTaskRunID); err != nil {
 		return false, err
 	}
-	result := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).
-		Where("task_run_id = ? AND first_last_frame_task_run_id IS NULL", generationID).
-		Updates(map[string]any{"first_last_frame_task_run_id": firstLastFrameTaskRunID, "updated_at": updatedAt})
-	return result.RowsAffected == 1, result.Error
+	affected, err := r.store.Queries(ctx).VideoGenAttach(ctx, sqlc.VideoGenAttachParams{FrameTaskID: &firstLastFrameTaskRunID, UpdatedAt: updatedAt, ID: generationID.String()})
+	return affected == 1, err
 }
 
 func (r *Repository) UpdateGenerationProviderObservation(
+	ctx context.Context,
+	taskRunID string,
+	status domainvideo.ProviderStatus,
+	videoURL string,
+	outputDurationSeconds *int32,
+	errorCode, errorMessage, seedanceTaskID string,
+	updatedAt time.Time,
+) (err error) {
+	err = r.store.WithinTransaction(ctx, func(ctx context.Context) error {
+		return r.updateGenerationProviderObservationInTransaction(ctx, taskRunID, status, videoURL, outputDurationSeconds, errorCode, errorMessage, seedanceTaskID, updatedAt)
+	})
+	return
+}
+
+func (r *Repository) updateGenerationProviderObservationInTransaction(
 	ctx context.Context,
 	taskRunID string,
 	status domainvideo.ProviderStatus,
@@ -263,37 +288,20 @@ func (r *Repository) UpdateGenerationProviderObservation(
 	if err != nil {
 		return app.ErrNotFound
 	}
-	updates := map[string]any{
-		"provider_status": status, "provider_error_code": errorCode,
-		"provider_error_message": errorMessage, "updated_at": updatedAt,
-	}
-	if videoURL != "" {
-		updates["provider_video_url"] = videoURL
-	}
-	if outputDurationSeconds != nil {
-		updates["output_duration_seconds"] = *outputDurationSeconds
-	}
-	if seedanceTaskID = strings.TrimSpace(seedanceTaskID); seedanceTaskID != "" {
-		updates["real_task_id"] = seedanceTaskID
-	}
-	result := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).Where("task_run_id = ?", id).Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return r.ensureCanvasNodeVideoGenerationExists(ctx, id)
-	}
-	return nil
-}
-
-func (r *Repository) ensureCanvasNodeVideoGenerationExists(ctx context.Context, id persistenceid.UUID) error {
-	var count int64
-	if err := r.dbFor(ctx).Model(&canvasnodeVideoGenerationRow{}).
-		Where("task_run_id = ?", id).
-		Count(&count).Error; err != nil {
+	affected, err := r.store.Queries(ctx).VideoGenObserve(ctx, sqlc.VideoGenObserveParams{
+		Status:       string(status),
+		ErrorCode:    errorCode,
+		ErrorMessage: errorMessage,
+		UpdatedAt:    updatedAt,
+		Url:          nullableString(videoURL),
+		Duration:     outputDurationSeconds,
+		RealTaskID:   nullableString(strings.TrimSpace(seedanceTaskID)),
+		ID:           id.String(),
+	})
+	if err != nil {
 		return err
 	}
-	if count == 0 {
+	if affected == 0 {
 		return app.ErrNotFound
 	}
 	return nil
@@ -323,9 +331,13 @@ func toCanvasNodeVideoGenerationRow(generation domainvideo.Generation) (canvasno
 	if err != nil {
 		return canvasnodeVideoGenerationRow{}, err
 	}
+	inputs, err := json.Marshal(generation.Inputs)
+	if err != nil {
+		return canvasnodeVideoGenerationRow{}, err
+	}
 	return canvasnodeVideoGenerationRow{
-		TaskRunID: taskRunID, TenantID: generation.TenantID, WorkspaceID: generation.WorkspaceID,
-		ProjectID: projectID, CanvasID: canvasID, NodeID: canvasnodeID,
+		TaskRunID: taskRunID.String(), TenantID: generation.TenantID, WorkspaceID: generation.WorkspaceID,
+		ProjectID: projectID.String(), CanvasID: canvasID.String(), NodeID: canvasnodeID.String(),
 		Status:         generation.Status,
 		ProviderStatus: string(generation.ProviderStatus),
 		ModelServiceID: generation.ModelServiceID,
@@ -333,8 +345,8 @@ func toCanvasNodeVideoGenerationRow(generation domainvideo.Generation) (canvasno
 		DurationSeconds: generation.DurationSeconds, GenerateAudio: generation.GenerateAudio, Watermark: generation.Watermark,
 		OutputDurationSeconds: generation.OutputDurationSeconds,
 		Prompt:                generation.Prompt, ProviderWorkspaceID: generation.ProviderWorkspaceID,
-		ProviderTaskID: nullableString(generation.ProviderTaskID), SeedanceTaskID: nullableString(generation.SeedanceTaskID),
-		ProviderVideoURL:  generation.ProviderVideoURL,
+		ProviderTaskID: nullableString(generation.ProviderTaskID), RealTaskID: nullableString(generation.SeedanceTaskID),
+		ProviderVideoUrl:  generation.ProviderVideoURL,
 		ProviderErrorCode: generation.ProviderErrorCode, ProviderErrorMessage: generation.ProviderErrorMessage,
 		AssetID:                        assetID,
 		FirstLastFrameTaskRunID:        nullableString(generation.FirstLastFrameTaskRunID),
@@ -345,24 +357,24 @@ func toCanvasNodeVideoGenerationRow(generation domainvideo.Generation) (canvasno
 		FirstFrameCheckpointSizeBytes:  generation.FirstFrameCheckpointSizeBytes,
 		LastFrameCheckpointSizeBytes:   generation.LastFrameCheckpointSizeBytes,
 		FirstFrameAssetID:              firstFrameAssetID, LastFrameAssetID: lastFrameAssetID,
-		Inputs:       generation.Inputs,
+		Inputs:       inputs,
 		ErrorMessage: generation.ErrorMessage,
 		CreatedBy:    generation.CreatedBy, CompletedAt: generation.CompletedAt,
 		CreatedAt: generation.CreatedAt, UpdatedAt: generation.UpdatedAt,
 	}, nil
 }
 
-func fromCanvasNodeVideoGenerationRow(row canvasnodeVideoGenerationRow) domainvideo.Generation {
+func fromCanvasNodeVideoGenerationRow(row canvasnodeVideoGenerationRow) (domainvideo.Generation, error) {
 	generation := domainvideo.Generation{
-		TaskRunID: row.TaskRunID.String(), TenantID: row.TenantID, WorkspaceID: row.WorkspaceID,
-		ProjectID: row.ProjectID.String(), CanvasID: row.CanvasID.String(), NodeID: row.NodeID.String(),
+		TaskRunID: row.TaskRunID, TenantID: row.TenantID, WorkspaceID: row.WorkspaceID,
+		ProjectID: row.ProjectID, CanvasID: row.CanvasID, NodeID: row.NodeID,
 		Status:         row.Status,
 		ProviderStatus: domainvideo.ProviderStatus(row.ProviderStatus),
 		ModelServiceID: row.ModelServiceID,
 		Prompt:         row.Prompt, Resolution: domainvideo.Resolution(row.Resolution), AspectRatio: domainvideo.AspectRatio(row.AspectRatio),
 		DurationSeconds: row.DurationSeconds, GenerateAudio: row.GenerateAudio, Watermark: row.Watermark,
 		OutputDurationSeconds: row.OutputDurationSeconds,
-		ProviderWorkspaceID:   row.ProviderWorkspaceID, ProviderVideoURL: row.ProviderVideoURL,
+		ProviderWorkspaceID:   row.ProviderWorkspaceID, ProviderVideoURL: row.ProviderVideoUrl,
 		ProviderErrorCode: row.ProviderErrorCode, ProviderErrorMessage: row.ProviderErrorMessage,
 		ErrorMessage: row.ErrorMessage, CreatedBy: row.CreatedBy, CompletedAt: row.CompletedAt,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
@@ -370,10 +382,10 @@ func fromCanvasNodeVideoGenerationRow(row canvasnodeVideoGenerationRow) domainvi
 	if row.ProviderTaskID != nil {
 		generation.ProviderTaskID = *row.ProviderTaskID
 	}
-	if row.SeedanceTaskID != nil {
-		generation.SeedanceTaskID = *row.SeedanceTaskID
+	if row.RealTaskID != nil {
+		generation.SeedanceTaskID = *row.RealTaskID
 	}
-	generation.AssetID = nullableUUIDValue(row.AssetID)
+	generation.AssetID = nullableStringValue(row.AssetID)
 	if row.FirstLastFrameTaskRunID != nil {
 		generation.FirstLastFrameTaskRunID = *row.FirstLastFrameTaskRunID
 	}
@@ -391,13 +403,17 @@ func fromCanvasNodeVideoGenerationRow(row canvasnodeVideoGenerationRow) domainvi
 	}
 	generation.FirstFrameCheckpointSizeBytes = row.FirstFrameCheckpointSizeBytes
 	generation.LastFrameCheckpointSizeBytes = row.LastFrameCheckpointSizeBytes
-	generation.FirstFrameAssetID = nullableUUIDValue(row.FirstFrameAssetID)
-	generation.LastFrameAssetID = nullableUUIDValue(row.LastFrameAssetID)
-	generation.Inputs = append([]domaingenerationinput.Input(nil), row.Inputs...)
-	return generation
+	generation.FirstFrameAssetID = nullableStringValue(row.FirstFrameAssetID)
+	generation.LastFrameAssetID = nullableStringValue(row.LastFrameAssetID)
+	if len(row.Inputs) > 0 {
+		if err := json.Unmarshal(row.Inputs, &generation.Inputs); err != nil {
+			return domainvideo.Generation{}, err
+		}
+	}
+	return generation, nil
 }
 
-func nullableUUID(value string) (*persistenceid.UUID, error) {
+func nullableUUID(value string) (*string, error) {
 	if value == "" {
 		return nil, nil
 	}
@@ -405,18 +421,11 @@ func nullableUUID(value string) (*persistenceid.UUID, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &parsed, nil
-}
-
-func nullableUUIDValue(value *persistenceid.UUID) string {
-	if value == nil {
-		return ""
-	}
-	return value.String()
+	return nullableString(parsed.String()), nil
 }
 
 func canvasnodeVideoGenerationReadErr(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return app.ErrNotFound
 	}
 	return err

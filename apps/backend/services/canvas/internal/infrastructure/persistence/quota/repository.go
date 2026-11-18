@@ -4,22 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"log/slog"
+	"github.com/jackc/pgx/v5"
 
 	applicationquota "github.com/example/monorepo/canvas/internal/application/quota"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
 type Repository struct {
-	db  *gorm.DB
+	db  *persistencetransaction.Store
 	log *slog.Logger
 }
 
-func NewRepository(db *gorm.DB, log *slog.Logger) *Repository {
+func NewRepository(db *persistencetransaction.Store, log *slog.Logger) *Repository {
 	return &Repository{db: db, log: log}
 }
 
@@ -28,12 +28,12 @@ func (r *Repository) Usage(
 	tenantID string,
 	resource applicationquota.ResourceType,
 ) (applicationquota.Usage, error) {
-	var row usageCounterRow
-	err := persistencetransaction.DB(ctx, r.db).Where(
-		"scope_type = ? AND scope_id = ? AND resource_type = ?",
-		applicationquota.ScopeTenant, tenantID, resource,
-	).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := r.db.Queries(ctx).ReadQuotaCounter(ctx, sqlc.ReadQuotaCounterParams{
+		ScopeType:    applicationquota.ScopeTenant,
+		ScopeID:      tenantID,
+		ResourceType: string(resource),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return applicationquota.Usage{}, nil
 	}
 	if err != nil {
@@ -47,17 +47,13 @@ func (r *Repository) Reserve(
 	request applicationquota.ReserveRequest,
 ) (applicationquota.Reservation, error) {
 	var result applicationquota.Reservation
-	err := persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		var existing reservationRow
-		// Probe without a locking read first. InnoDB takes a gap lock for a missing
-		// unique key under REPEATABLE READ; concurrent new reservations would then
-		// deadlock when each transaction tries to insert into the locked gaps. An
-		// existing reservation is re-read by primary key with FOR UPDATE below.
-		err := tx.Where("idempotency_key = ?", request.IdempotencyKey).First(&existing).Error
-		if err == nil {
-			err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("id = ?", existing.ID).First(&existing).Error
+	err := r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		// Serialize retries of a logical reservation, including its first insertion.
+		if err := q.SerializeQuotaReservationKey(ctx, request.IdempotencyKey); err != nil {
+			return err
 		}
+		existing, err := q.LockQuotaReservationByKey(ctx, request.IdempotencyKey)
 		existingFound := err == nil
 		if err == nil {
 			if existing.TenantID != request.TenantID ||
@@ -85,7 +81,7 @@ func (r *Repository) Reserve(
 				existing.ExpiresAt = request.ExpiresAt
 				existing.StateVersion++
 				existing.UpdatedAt = request.Now
-				if err = tx.Save(&existing).Error; err != nil {
+				if err = saveReservation(ctx, q, existing); err != nil {
 					return err
 				}
 				result = reservationFromRow(existing)
@@ -97,26 +93,26 @@ func (r *Repository) Reserve(
 				return fmt.Errorf("quota reservation %s has unsupported status %q", existing.ID, existing.Status)
 			}
 		}
-		if !existingFound && !errors.Is(err, gorm.ErrRecordNotFound) {
+		if !existingFound && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
 		if usesPlatform(request.Resource) {
-			if err = ensureCounter(tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, request.Resource, request.Now); err != nil {
+			if err = ensureCounter(ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, request.Resource, request.Now); err != nil {
 				return err
 			}
 		}
-		if err = ensureCounter(tx, applicationquota.ScopeTenant, request.TenantID, request.Resource, request.Now); err != nil {
+		if err = ensureCounter(ctx, q, applicationquota.ScopeTenant, request.TenantID, request.Resource, request.Now); err != nil {
 			return err
 		}
-		var platform *usageCounterRow
+		var platform *sqlc.ResourceUsageCounter
 		if usesPlatform(request.Resource) {
-			row, lockErr := lockCounter(tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, request.Resource)
+			row, lockErr := lockCounter(ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, request.Resource)
 			if lockErr != nil {
 				return lockErr
 			}
 			platform = &row
 		}
-		tenant, err := lockCounter(tx, applicationquota.ScopeTenant, request.TenantID, request.Resource)
+		tenant, err := lockCounter(ctx, q, applicationquota.ScopeTenant, request.TenantID, request.Resource)
 		if err != nil {
 			return err
 		}
@@ -127,7 +123,7 @@ func (r *Repository) Reserve(
 		}
 		row := existing
 		if !existingFound {
-			row = reservationRow{
+			row = sqlc.ResourceQuotaReservation{
 				ID: request.ID, TenantID: request.TenantID, ResourceType: string(request.Resource),
 				IdempotencyKey: request.IdempotencyKey, ReservedValue: request.Value,
 				WouldReject: !request.LimitAvailable || exceeded,
@@ -135,7 +131,7 @@ func (r *Repository) Reserve(
 				TargetType: request.TargetType, TargetID: request.TargetID,
 				ExpiresAt: request.ExpiresAt, CreatedAt: request.Now, UpdatedAt: request.Now,
 			}
-			if err = tx.Create(&row).Error; err != nil {
+			if err = q.InsertQuotaReservation(ctx, sqlc.InsertQuotaReservationParams(row)); err != nil {
 				return err
 			}
 		} else {
@@ -146,16 +142,16 @@ func (r *Repository) Reserve(
 			row.ExpiresAt = request.ExpiresAt
 			row.StateVersion++
 			row.UpdatedAt = request.Now
-			if err = tx.Save(&row).Error; err != nil {
+			if err = saveReservation(ctx, q, row); err != nil {
 				return err
 			}
 		}
 		if platform != nil {
-			if err = addReserved(tx, platform, request.Value, request.Now); err != nil {
+			if err = addReserved(ctx, q, platform, request.Value, request.Now); err != nil {
 				return err
 			}
 		}
-		if err = addReserved(tx, &tenant, request.Value, request.Now); err != nil {
+		if err = addReserved(ctx, q, &tenant, request.Value, request.Now); err != nil {
 			return err
 		}
 		result = reservationFromRow(row)
@@ -190,10 +186,10 @@ func (r *Repository) transition(
 	now time.Time,
 	commit bool,
 ) error {
-	err := persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		var row reservationRow
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", reservation.ID).First(&row).Error; err != nil {
+	err := r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		row, err := q.LockQuotaReservation(ctx, reservation.ID)
+		if err != nil {
 			return err
 		}
 		if row.Status == status {
@@ -205,21 +201,21 @@ func (r *Repository) transition(
 				row.Status = applicationquota.ReservationCommitted
 				row.StateVersion++
 				row.UpdatedAt = now
-				return tx.Save(&row).Error
+				return saveReservation(ctx, q, row)
 			case !commit && row.Status == applicationquota.ReservationReacquiring:
 				if row.PendingCleanupCount > 0 {
 					row.Status = applicationquota.ReservationReleasing
 					row.StateVersion++
 					row.UpdatedAt = now
-					return tx.Save(&row).Error
+					return saveReservation(ctx, q, row)
 				}
-				if err := decrementPresetEntitlementCounters(tx, &row, now); err != nil {
+				if err := decrementPresetEntitlementCounters(ctx, q, &row, now); err != nil {
 					return err
 				}
 				row.Status = applicationquota.ReservationReleased
 				row.StateVersion++
 				row.UpdatedAt = now
-				return tx.Save(&row).Error
+				return saveReservation(ctx, q, row)
 			case !commit && (row.Status == applicationquota.ReservationCommitted ||
 				row.Status == applicationquota.ReservationReleasing):
 				return nil
@@ -229,15 +225,15 @@ func (r *Repository) transition(
 			return fmt.Errorf("reservation %s is already %s", row.ID, row.Status)
 		}
 		resource := applicationquota.ResourceType(row.ResourceType)
-		var platform *usageCounterRow
+		var platform *sqlc.ResourceUsageCounter
 		if usesPlatform(resource) {
-			counter, lockErr := lockCounter(tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource)
+			counter, lockErr := lockCounter(ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource)
 			if lockErr != nil {
 				return lockErr
 			}
 			platform = &counter
 		}
-		tenant, err := lockCounter(tx, applicationquota.ScopeTenant, row.TenantID, resource)
+		tenant, err := lockCounter(ctx, q, applicationquota.ScopeTenant, row.TenantID, resource)
 		if err != nil {
 			return err
 		}
@@ -246,16 +242,17 @@ func (r *Repository) transition(
 			return errors.New("quota reserved value would become negative")
 		}
 		if platform != nil {
-			if err = applyTransition(tx, platform, row.ReservedValue, commit, false, now); err != nil {
+			if err = applyTransition(ctx, q, platform, row.ReservedValue, commit, false, now); err != nil {
 				return err
 			}
 		}
-		if err = applyTransition(tx, &tenant, row.ReservedValue, commit, commit, now); err != nil {
+		if err = applyTransition(ctx, q, &tenant, row.ReservedValue, commit, commit, now); err != nil {
 			return err
 		}
-		return tx.Model(&row).Updates(map[string]any{
-			"status": status, "state_version": row.StateVersion + 1, "updated_at": now,
-		}).Error
+		row.Status = status
+		row.StateVersion++
+		row.UpdatedAt = now
+		return saveReservation(ctx, q, row)
 	})
 	if err != nil {
 		return fmt.Errorf("%s quota reservation: %w", status, err)
@@ -268,10 +265,10 @@ func (r *Repository) BeginPresetEntitlementRelease(
 	reservationID string,
 	now time.Time,
 ) error {
-	err := persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		var row reservationRow
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", reservationID).First(&row).Error; err != nil {
+	err := r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		row, err := q.LockQuotaReservation(ctx, reservationID)
+		if err != nil {
 			return err
 		}
 		if row.ResourceType != string(applicationquota.ResourcePresetEntitlement) {
@@ -287,7 +284,7 @@ func (r *Repository) BeginPresetEntitlementRelease(
 		row.PendingCleanupCount++
 		row.StateVersion++
 		row.UpdatedAt = now
-		return tx.Save(&row).Error
+		return saveReservation(ctx, q, row)
 	})
 	if err != nil {
 		return fmt.Errorf("begin preset entitlement release: %w", err)
@@ -301,10 +298,10 @@ func (r *Repository) CompletePresetEntitlementCleanup(
 	now time.Time,
 ) (bool, error) {
 	released := false
-	err := persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
-		var row reservationRow
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", reservationID).First(&row).Error; err != nil {
+	err := r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		row, err := q.LockQuotaReservation(ctx, reservationID)
+		if err != nil {
 			return err
 		}
 		if row.ResourceType != string(applicationquota.ResourcePresetEntitlement) {
@@ -315,7 +312,7 @@ func (r *Repository) CompletePresetEntitlementCleanup(
 		}
 		row.PendingCleanupCount--
 		if row.PendingCleanupCount == 0 && row.Status == applicationquota.ReservationReleasing {
-			if err := decrementPresetEntitlementCounters(tx, &row, now); err != nil {
+			if err := decrementPresetEntitlementCounters(ctx, q, &row, now); err != nil {
 				return err
 			}
 			row.Status = applicationquota.ReservationReleased
@@ -323,7 +320,7 @@ func (r *Repository) CompletePresetEntitlementCleanup(
 		}
 		row.StateVersion++
 		row.UpdatedAt = now
-		return tx.Save(&row).Error
+		return saveReservation(ctx, q, row)
 	})
 	if err != nil {
 		return false, fmt.Errorf("complete preset entitlement cleanup: %w", err)
@@ -331,16 +328,16 @@ func (r *Repository) CompletePresetEntitlementCleanup(
 	return released, nil
 }
 
-func decrementPresetEntitlementCounters(tx *gorm.DB, reservation *reservationRow, now time.Time) error {
+func decrementPresetEntitlementCounters(ctx context.Context, q *sqlc.Queries, reservation *sqlc.ResourceQuotaReservation, now time.Time) error {
 	platform, err := lockCounter(
-		tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID,
+		ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID,
 		applicationquota.ResourcePresetEntitlement,
 	)
 	if err != nil {
 		return err
 	}
 	tenant, err := lockCounter(
-		tx, applicationquota.ScopeTenant, reservation.TenantID,
+		ctx, q, applicationquota.ScopeTenant, reservation.TenantID,
 		applicationquota.ResourcePresetEntitlement,
 	)
 	if err != nil {
@@ -352,14 +349,14 @@ func decrementPresetEntitlementCounters(tx *gorm.DB, reservation *reservationRow
 	platform.UsedValue -= reservation.ReservedValue
 	platform.Revision++
 	platform.UpdatedAt = now
-	if err = tx.Save(&platform).Error; err != nil {
+	if err = saveCounter(ctx, q, platform); err != nil {
 		return err
 	}
 	tenant.UsedValue -= reservation.ReservedValue
 	tenant.Revision++
 	tenant.ReportDirty = true
 	tenant.UpdatedAt = now
-	return tx.Save(&tenant).Error
+	return saveCounter(ctx, q, tenant)
 }
 
 func (r *Repository) Decrement(
@@ -369,24 +366,25 @@ func (r *Repository) Decrement(
 	value int64,
 	now time.Time,
 ) error {
-	err := persistencetransaction.DB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
+	err := r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
 		if usesPlatform(resource) {
-			if err := ensureCounter(tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource, now); err != nil {
+			if err := ensureCounter(ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource, now); err != nil {
 				return err
 			}
 		}
-		if err := ensureCounter(tx, applicationquota.ScopeTenant, tenantID, resource, now); err != nil {
+		if err := ensureCounter(ctx, q, applicationquota.ScopeTenant, tenantID, resource, now); err != nil {
 			return err
 		}
-		var platform *usageCounterRow
+		var platform *sqlc.ResourceUsageCounter
 		if usesPlatform(resource) {
-			counter, lockErr := lockCounter(tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource)
+			counter, lockErr := lockCounter(ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource)
 			if lockErr != nil {
 				return lockErr
 			}
 			platform = &counter
 		}
-		tenant, err := lockCounter(tx, applicationquota.ScopeTenant, tenantID, resource)
+		tenant, err := lockCounter(ctx, q, applicationquota.ScopeTenant, tenantID, resource)
 		if err != nil {
 			return err
 		}
@@ -394,7 +392,7 @@ func (r *Repository) Decrement(
 			platform.UsedValue = max(0, platform.UsedValue-value)
 			platform.Revision++
 			platform.UpdatedAt = now
-			if err = tx.Save(platform).Error; err != nil {
+			if err = saveCounter(ctx, q, *platform); err != nil {
 				return err
 			}
 		}
@@ -402,7 +400,7 @@ func (r *Repository) Decrement(
 		tenant.Revision++
 		tenant.ReportDirty = true
 		tenant.UpdatedAt = now
-		return tx.Save(&tenant).Error
+		return saveCounter(ctx, q, tenant)
 	})
 	if err != nil {
 		return fmt.Errorf("decrement %s quota: %w", resource, err)
@@ -411,34 +409,30 @@ func (r *Repository) Decrement(
 }
 
 func ensureCounter(
-	tx *gorm.DB,
+	ctx context.Context, q *sqlc.Queries,
 	scopeType string,
 	scopeID string,
 	resource applicationquota.ResourceType,
 	now time.Time,
 ) error {
-	row := usageCounterRow{
-		ScopeType: scopeType, ScopeID: scopeID, ResourceType: string(resource),
-		UpdatedAt: now,
-	}
-	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error
+	return q.EnsureQuotaCounter(ctx, sqlc.EnsureQuotaCounterParams{
+		ScopeType:    scopeType,
+		ScopeID:      scopeID,
+		ResourceType: string(resource),
+		UpdatedAt:    now,
+	})
 }
 
 func lockCounter(
-	tx *gorm.DB,
+	ctx context.Context, q *sqlc.Queries,
 	scopeType string,
 	scopeID string,
 	resource applicationquota.ResourceType,
-) (usageCounterRow, error) {
-	var row usageCounterRow
-	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("scope_type = ? AND scope_id = ? AND resource_type = ?",
-			scopeType, scopeID, resource).
-		First(&row).Error
-	return row, err
+) (sqlc.ResourceUsageCounter, error) {
+	return q.LockQuotaCounter(ctx, sqlc.LockQuotaCounterParams{ScopeType: scopeType, ScopeID: scopeID, ResourceType: string(resource)})
 }
 
-func exceeds(counter usageCounterRow, limit *int64, delta int64) bool {
+func exceeds(counter sqlc.ResourceUsageCounter, limit *int64, delta int64) bool {
 	if limit == nil {
 		return false
 	}
@@ -449,16 +443,16 @@ func exceeds(counter usageCounterRow, limit *int64, delta int64) bool {
 	return counter.ReservedValue > remaining || delta > remaining-counter.ReservedValue
 }
 
-func addReserved(tx *gorm.DB, counter *usageCounterRow, value int64, now time.Time) error {
+func addReserved(ctx context.Context, q *sqlc.Queries, counter *sqlc.ResourceUsageCounter, value int64, now time.Time) error {
 	counter.ReservedValue += value
 	counter.Revision++
 	counter.UpdatedAt = now
-	return tx.Save(counter).Error
+	return saveCounter(ctx, q, *counter)
 }
 
 func applyTransition(
-	tx *gorm.DB,
-	counter *usageCounterRow,
+	ctx context.Context, q *sqlc.Queries,
+	counter *sqlc.ResourceUsageCounter,
 	value int64,
 	commit bool,
 	dirty bool,
@@ -471,10 +465,10 @@ func applyTransition(
 	counter.Revision++
 	counter.ReportDirty = counter.ReportDirty || dirty
 	counter.UpdatedAt = now
-	return tx.Save(counter).Error
+	return saveCounter(ctx, q, *counter)
 }
 
-func reservationFromRow(row reservationRow) applicationquota.Reservation {
+func reservationFromRow(row sqlc.ResourceQuotaReservation) applicationquota.Reservation {
 	return applicationquota.Reservation{
 		ID: row.ID, TenantID: row.TenantID, Resource: applicationquota.ResourceType(row.ResourceType),
 		Value: row.ReservedValue, WouldReject: row.WouldReject,
@@ -493,47 +487,21 @@ func (r *Repository) ClaimDirty(
 	leaseUntil time.Time,
 	limit int,
 ) ([]applicationquota.ReportClaim, error) {
-	var candidates []usageCounterRow
-	err := r.db.WithContext(ctx).
-		Where("scope_type = ? AND report_dirty = ?", applicationquota.ScopeTenant, true).
-		Where("report_lease_until IS NULL OR report_lease_until <= ?", now).
-		Order("scope_id ASC, resource_type ASC").Limit(limit).Find(&candidates).Error
+	if limit <= 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Queries(ctx).ClaimDirtyQuotaReports(ctx, sqlc.ClaimDirtyQuotaReportsParams{
+		Now:      now,
+		Lease:    leaseUntil,
+		Owner:    owner,
+		PageSize: int64(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
-	claims := make([]applicationquota.ReportClaim, 0, len(candidates))
-	for _, candidate := range candidates {
-		var claim applicationquota.ReportClaim
-		err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			current, lockErr := lockCounter(
-				tx, candidate.ScopeType, candidate.ScopeID,
-				applicationquota.ResourceType(candidate.ResourceType),
-			)
-			if lockErr != nil {
-				return lockErr
-			}
-			if !current.ReportDirty ||
-				(current.ReportLeaseUntil != nil && current.ReportLeaseUntil.After(now)) {
-				return nil
-			}
-			current.ReportLeaseToken = owner
-			current.ReportLeaseUntil = &leaseUntil
-			if saveErr := tx.Save(&current).Error; saveErr != nil {
-				return saveErr
-			}
-			claim = applicationquota.ReportClaim{
-				TenantID: current.ScopeID, Resource: applicationquota.ResourceType(current.ResourceType),
-				Value:    current.UsedValue,
-				Revision: current.Revision, LeaseToken: owner,
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
-		if claim.TenantID != "" {
-			claims = append(claims, claim)
-		}
+	claims := make([]applicationquota.ReportClaim, 0, len(rows))
+	for _, row := range rows {
+		claims = append(claims, applicationquota.ReportClaim{TenantID: row.ScopeID, Resource: applicationquota.ResourceType(row.ResourceType), Value: row.UsedValue, Revision: row.Revision, LeaseToken: owner})
 	}
 	return claims, nil
 }
@@ -543,26 +511,24 @@ func (r *Repository) CompleteReport(
 	claim applicationquota.ReportClaim,
 	now time.Time,
 ) (bool, error) {
-	result := r.db.WithContext(ctx).Model(&usageCounterRow{}).
-		Where("scope_type = ? AND scope_id = ? AND resource_type = ? AND revision = ? AND report_lease_token = ?",
-			applicationquota.ScopeTenant, claim.TenantID, claim.Resource,
-			claim.Revision, claim.LeaseToken).
-		Updates(map[string]any{
-			"report_dirty": false, "last_reported_value": claim.Value, "last_reported_at": now,
-			"report_lease_token": "", "report_lease_until": nil,
-		})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	n, err := r.db.Queries(ctx).FinishQuotaReport(ctx, sqlc.FinishQuotaReportParams{
+		Now:      now,
+		TenantID: claim.TenantID,
+		Resource: string(claim.Resource),
+		Revision: claim.Revision,
+		Owner:    claim.LeaseToken,
+		Value:    claim.Value,
+	})
+	return n == 1, err
 }
 
 func (r *Repository) ReconcileAll(ctx context.Context, now time.Time, forceReport bool) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := releaseExpiredReservations(tx, now); err != nil {
+	return r.db.WithinTransaction(ctx, func(ctx context.Context) error {
+		q := r.db.Queries(ctx)
+		if err := releaseExpiredReservations(ctx, q, now); err != nil {
 			return err
 		}
-		facts, platformFacts, err := loadUsageFacts(tx)
+		facts, platformFacts, err := loadUsageFacts(ctx, q)
 		if err != nil {
 			return err
 		}
@@ -571,12 +537,12 @@ func (r *Repository) ReconcileAll(ctx context.Context, now time.Time, forceRepor
 			applicationquota.ResourcePresetEntitlement,
 			applicationquota.ResourceStorage,
 		} {
-			if err = addMissingCounterFacts(tx, resource, facts[resource]); err != nil {
+			if err = addMissingCounterFacts(ctx, q, resource, facts[resource]); err != nil {
 				return err
 			}
 			if usesPlatform(resource) {
 				if err = reconcileCounter(
-					tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID,
+					ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID,
 					resource, platformFacts[resource], now, false,
 				); err != nil {
 					return err
@@ -584,7 +550,7 @@ func (r *Repository) ReconcileAll(ctx context.Context, now time.Time, forceRepor
 			}
 			for tenantID, total := range facts[resource] {
 				if err = reconcileCounter(
-					tx, applicationquota.ScopeTenant, tenantID, resource,
+					ctx, q, applicationquota.ScopeTenant, tenantID, resource,
 					total, now, forceReport,
 				); err != nil {
 					return err
@@ -596,12 +562,8 @@ func (r *Repository) ReconcileAll(ctx context.Context, now time.Time, forceRepor
 }
 
 func loadUsageFacts(
-	db *gorm.DB,
+	ctx context.Context, q *sqlc.Queries,
 ) (map[applicationquota.ResourceType]map[string]int64, map[applicationquota.ResourceType]int64, error) {
-	type tenantUsage struct {
-		TenantID string
-		Total    int64
-	}
 	facts := map[applicationquota.ResourceType]map[string]int64{
 		applicationquota.ResourceProject:           {},
 		applicationquota.ResourcePresetEntitlement: {},
@@ -609,11 +571,8 @@ func loadUsageFacts(
 	}
 	platformFacts := map[applicationquota.ResourceType]int64{}
 
-	var projects []tenantUsage
-	if err := db.Table("projects").
-		Select("tenant_id, COUNT(*) AS total").
-		Where("deleted_at = 0").
-		Group("tenant_id").Scan(&projects).Error; err != nil {
+	projects, err := q.AggregateQuotaProjects(ctx)
+	if err != nil {
 		return nil, nil, fmt.Errorf("aggregate project quota facts: %w", err)
 	}
 	for _, item := range projects {
@@ -621,19 +580,8 @@ func loadUsageFacts(
 		platformFacts[applicationquota.ResourceProject] += item.Total
 	}
 
-	var presets []tenantUsage
-	if err := db.Table("resource_quota_reservations").
-		Select("tenant_id, COALESCE(SUM(reserved_value), 0) AS total").
-		Where(
-			"resource_type = ? AND status IN ?",
-			applicationquota.ResourcePresetEntitlement,
-			[]string{
-				applicationquota.ReservationCommitted,
-				applicationquota.ReservationReleasing,
-				applicationquota.ReservationReacquiring,
-			},
-		).
-		Group("tenant_id").Scan(&presets).Error; err != nil {
+	presets, err := q.AggregateQuotaPresets(ctx, string(applicationquota.ResourcePresetEntitlement))
+	if err != nil {
 		return nil, nil, fmt.Errorf("aggregate preset entitlement quota facts: %w", err)
 	}
 	for _, item := range presets {
@@ -641,15 +589,8 @@ func loadUsageFacts(
 		platformFacts[applicationquota.ResourcePresetEntitlement] += item.Total
 	}
 
-	var storage []tenantUsage
-	if err := db.Table("tenant_storage_usage_ledger").
-		Select("tenant_id, COALESCE(SUM(size_bytes), 0) AS total").
-		Where(
-			"billing_class = ? AND status IN ?",
-			applicationquota.BillingBillable,
-			[]string{applicationquota.StorageActive, applicationquota.StorageReleasing},
-		).
-		Group("tenant_id").Scan(&storage).Error; err != nil {
+	storage, err := q.AggregateQuotaStorage(ctx)
+	if err != nil {
 		return nil, nil, fmt.Errorf("aggregate storage quota facts: %w", err)
 	}
 	for _, item := range storage {
@@ -659,41 +600,28 @@ func loadUsageFacts(
 }
 
 func addMissingCounterFacts(
-	tx *gorm.DB,
+	ctx context.Context, q *sqlc.Queries,
 	resource applicationquota.ResourceType,
 	facts map[string]int64,
 ) error {
-	var existing []usageCounterRow
-	if err := tx.Where(
-		"scope_type = ? AND resource_type = ?",
-		applicationquota.ScopeTenant, resource,
-	).Find(&existing).Error; err != nil {
+	existing, err := q.QuotaCounterTenants(ctx, string(resource))
+	if err != nil {
 		return err
 	}
-	for _, row := range existing {
-		if _, ok := facts[row.ScopeID]; !ok {
-			facts[row.ScopeID] = 0
+	for _, scopeID := range existing {
+		if _, ok := facts[scopeID]; !ok {
+			facts[scopeID] = 0
 		}
 	}
 	return nil
 }
 
-func releaseExpiredReservations(tx *gorm.DB, now time.Time) error {
-	var expired []reservationRow
-	if err := tx.Where(
-		"status IN ? AND expires_at <= ?",
-		[]string{applicationquota.ReservationPending, applicationquota.ReservationReacquiring},
-		now,
-	).
-		Order("tenant_id ASC, id ASC").Find(&expired).Error; err != nil {
+func releaseExpiredReservations(ctx context.Context, q *sqlc.Queries, now time.Time) error {
+	expired, err := q.LockExpiredQuotaReservations(ctx, now)
+	if err != nil {
 		return err
 	}
-	for _, reservation := range expired {
-		var current reservationRow
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", reservation.ID).First(&current).Error; err != nil {
-			return err
-		}
+	for _, current := range expired {
 		if current.ExpiresAt.After(now) {
 			continue
 		}
@@ -701,14 +629,14 @@ func releaseExpiredReservations(tx *gorm.DB, now time.Time) error {
 			if current.PendingCleanupCount > 0 {
 				current.Status = applicationquota.ReservationReleasing
 			} else {
-				if err := decrementPresetEntitlementCounters(tx, &current, now); err != nil {
+				if err := decrementPresetEntitlementCounters(ctx, q, &current, now); err != nil {
 					return err
 				}
 				current.Status = applicationquota.ReservationReleased
 			}
 			current.StateVersion++
 			current.UpdatedAt = now
-			if err := tx.Save(&current).Error; err != nil {
+			if err := saveReservation(ctx, q, current); err != nil {
 				return err
 			}
 			continue
@@ -716,7 +644,7 @@ func releaseExpiredReservations(tx *gorm.DB, now time.Time) error {
 		if current.Status != applicationquota.ReservationPending {
 			continue
 		}
-		exists, err := reservationTargetExists(tx, current)
+		exists, err := reservationTargetExists(ctx, q, current)
 		if err != nil {
 			return err
 		}
@@ -724,15 +652,15 @@ func releaseExpiredReservations(tx *gorm.DB, now time.Time) error {
 			continue
 		}
 		resource := applicationquota.ResourceType(current.ResourceType)
-		var platform *usageCounterRow
+		var platform *sqlc.ResourceUsageCounter
 		if usesPlatform(resource) {
-			counter, lockErr := lockCounter(tx, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource)
+			counter, lockErr := lockCounter(ctx, q, applicationquota.ScopePlatform, applicationquota.PlatformScopeID, resource)
 			if lockErr != nil {
 				return lockErr
 			}
 			platform = &counter
 		}
-		tenant, err := lockCounter(tx, applicationquota.ScopeTenant, current.TenantID, resource)
+		tenant, err := lockCounter(ctx, q, applicationquota.ScopeTenant, current.TenantID, resource)
 		if err != nil {
 			return err
 		}
@@ -741,57 +669,42 @@ func releaseExpiredReservations(tx *gorm.DB, now time.Time) error {
 			return errors.New("expired quota reservation would make reserved value negative")
 		}
 		if platform != nil {
-			if err = applyTransition(tx, platform, current.ReservedValue, false, false, now); err != nil {
+			if err = applyTransition(ctx, q, platform, current.ReservedValue, false, false, now); err != nil {
 				return err
 			}
 		}
-		if err = applyTransition(tx, &tenant, current.ReservedValue, false, false, now); err != nil {
+		if err = applyTransition(ctx, q, &tenant, current.ReservedValue, false, false, now); err != nil {
 			return err
 		}
-		if err = tx.Model(&current).Updates(map[string]any{
-			"status":        applicationquota.ReservationReleased,
-			"state_version": current.StateVersion + 1,
-			"updated_at":    now,
-		}).Error; err != nil {
+		current.Status = applicationquota.ReservationReleased
+		current.UpdatedAt = now
+		current.StateVersion++
+		if err = saveReservation(ctx, q, current); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func reservationTargetExists(tx *gorm.DB, reservation reservationRow) (bool, error) {
-	var count int64
-	var query *gorm.DB
+func reservationTargetExists(ctx context.Context, q *sqlc.Queries, reservation sqlc.ResourceQuotaReservation) (bool, error) {
 	switch reservation.TargetType {
 	case "project":
-		query = tx.Table("projects").Where(
-			"id = ? AND tenant_id = ? AND deleted_at = 0",
-			reservation.TargetID, reservation.TenantID,
-		)
+		return q.QuotaProjectExists(ctx, sqlc.QuotaProjectExistsParams{ID: reservation.TargetID, TenantID: reservation.TenantID})
 	case "asset_review":
-		query = tx.Table("asset_reviews").Where(
-			"id = ? AND tenant_id = ? AND submitted_at IS NOT NULL AND deleted_at = 0",
-			reservation.TargetID, reservation.TenantID,
-		)
+		return q.QuotaReviewExists(ctx, sqlc.QuotaReviewExistsParams{ID: reservation.TargetID, TenantID: reservation.TenantID})
 	case "asset", "project_cover", "canvas_cover", "canvas_archive":
-		query = tx.Table("tenant_storage_usage_ledger").Where(
-			"tenant_id = ? AND owner_type = ? AND owner_id = ? AND status IN ?",
-			reservation.TenantID, reservation.TargetType, reservation.TargetID,
-			[]string{applicationquota.StorageActive, applicationquota.StorageReleasing},
-		)
+		return q.QuotaTargetObjectExists(ctx, sqlc.QuotaTargetObjectExistsParams{
+			ID:        reservation.TargetID,
+			TenantID:  reservation.TenantID,
+			OwnerType: reservation.TargetType,
+		})
 	default:
-		// A new target type must define its fact lookup before expired reservations
-		// can be released without risking quota oversell.
 		return true, nil
 	}
-	if err := query.Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
 }
 
 func reconcileCounter(
-	tx *gorm.DB,
+	ctx context.Context, q *sqlc.Queries,
 	scopeType string,
 	scopeID string,
 	resource applicationquota.ResourceType,
@@ -799,10 +712,10 @@ func reconcileCounter(
 	now time.Time,
 	forceReport bool,
 ) error {
-	if err := ensureCounter(tx, scopeType, scopeID, resource, now); err != nil {
+	if err := ensureCounter(ctx, q, scopeType, scopeID, resource, now); err != nil {
 		return err
 	}
-	row, err := lockCounter(tx, scopeType, scopeID, resource)
+	row, err := lockCounter(ctx, q, scopeType, scopeID, resource)
 	if err != nil {
 		return err
 	}
@@ -813,8 +726,35 @@ func reconcileCounter(
 	row.Revision++
 	row.ReportDirty = row.ReportDirty || scopeType == applicationquota.ScopeTenant
 	row.UpdatedAt = now
-	return tx.Save(&row).Error
+	return saveCounter(ctx, q, row)
 }
 
 var _ applicationquota.Store = (*Repository)(nil)
 var _ applicationquota.ReportingStore = (*Repository)(nil)
+
+func saveReservation(ctx context.Context, q *sqlc.Queries, row sqlc.ResourceQuotaReservation) error {
+	return q.SaveQuotaReservation(ctx, sqlc.SaveQuotaReservationParams{
+		Status:              row.Status,
+		StateVersion:        row.StateVersion,
+		TargetType:          row.TargetType,
+		TargetID:            row.TargetID,
+		ExpiresAt:           row.ExpiresAt,
+		UpdatedAt:           row.UpdatedAt,
+		WouldReject:         row.WouldReject,
+		PendingCleanupCount: row.PendingCleanupCount,
+		ID:                  row.ID,
+	})
+}
+
+func saveCounter(ctx context.Context, q *sqlc.Queries, row sqlc.ResourceUsageCounter) error {
+	return q.SaveQuotaCounter(ctx, sqlc.SaveQuotaCounterParams{
+		UsedValue:     row.UsedValue,
+		ReservedValue: row.ReservedValue,
+		Revision:      row.Revision,
+		ReportDirty:   row.ReportDirty,
+		UpdatedAt:     row.UpdatedAt,
+		ScopeType:     row.ScopeType,
+		ScopeID:       row.ScopeID,
+		ResourceType:  row.ResourceType,
+	})
+}

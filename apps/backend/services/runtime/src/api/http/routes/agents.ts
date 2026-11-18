@@ -40,6 +40,7 @@ const runSchema = z.object({
     .min(8)
     .max(64)
     .regex(/^[a-zA-Z0-9_-]+$/),
+  generate_title: z.boolean().optional(),
   agent_id: z.string().max(32).optional().nullable(),
   host_context: z
     .object({
@@ -106,6 +107,7 @@ agentsRoutes.post(
       messageId: payload.messageId,
       expectedRevision: payload.expected_revision,
       requestId: payload.request_id,
+      generateTitle: payload.generate_title,
     });
   },
 );

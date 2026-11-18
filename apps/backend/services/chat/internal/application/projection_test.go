@@ -46,9 +46,21 @@ func TestRuntimeRunBodyRejectsMismatchedConversationAndBindsCanvas(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]any{"id": product.RuntimeSessionID, "request_id": "retry", "host_context": map[string]any{"project_id": project, "canvas_id": canvas}}
+	want := map[string]any{
+		"id": product.RuntimeSessionID, "request_id": "retry", "generate_title": false,
+		"host_context": map[string]any{"project_id": project, "canvas_id": canvas},
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("run body = %#v, want %#v", got, want)
+	}
+
+	product.Title = "新对话"
+	got, err = RuntimeRunBody(product, map[string]any{"request_id": "first", "generate_title": false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["generate_title"] != true {
+		t.Fatalf("new conversation generate_title = %#v, want true", got["generate_title"])
 	}
 }
 

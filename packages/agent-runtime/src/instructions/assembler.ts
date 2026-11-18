@@ -16,7 +16,7 @@ import { escapeXmlText, xmlSection } from "./xml.js";
 export function assembleInstructions(input: InstructionInput, contributions: InstructionContributions = {}): string {
   const sections = [
     xmlSection(INSTRUCTION_SECTION_TAGS.corePolicy, CORE_POLICY),
-    renderRuntimeContract(input.mode, input.storage),
+    renderRuntimeContract(input.mode),
     renderExecutionProtocol(),
     xmlSection(INSTRUCTION_SECTION_TAGS.capabilityContract, contributions.capabilities ?? null),
     renderAvailableSkills(contributions.skills),

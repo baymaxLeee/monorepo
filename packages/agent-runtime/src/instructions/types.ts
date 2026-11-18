@@ -31,7 +31,6 @@ export interface ActivatedSkillInstruction {
 /** Non-tool-derived inputs to the instruction assembler, gathered per run. */
 export interface InstructionInput {
   mode: AgentMode;
-  storage?: "cloud" | "local";
   botProfile?: BotProfileSnapshot | null;
   memories: MemoryDatum[];
   activatedSkill?: ActivatedSkillInstruction | null;

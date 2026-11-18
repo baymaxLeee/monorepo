@@ -17,60 +17,39 @@ const published = {
   workspace_path: "demo.js",
 };
 
-test("cloud upload tool batches files and enforces create/update invariants", async () => {
+test("deliverables use workspace paths and publish each selected file once", async () => {
   const calls: string[] = [];
-  const manifest = createUploadArtifactsTool(async (input, options) => {
+  const manifest = createUploadArtifactsTool(async (path, options) => {
     calls.push(options.toolCallId);
-    return { ...published, filename: input.operation === "create" ? input.filename : published.filename };
+    return { ...published, filename: path };
   });
   const definition = manifest.tool as Tool<unknown, unknown>;
   assert.ok(definition.execute);
   const result = await definition.execute(
-    {
-      artifacts: [
-        {
-          operation: "create",
-          path: "demo.js",
-          filename: "demo.js",
-          media_type: "text/javascript",
-          title: "demo.js",
-          file_id: null,
-          etag: null,
-        },
-        {
-          operation: "update",
-          path: "other.js",
-          filename: null,
-          media_type: null,
-          title: null,
-          file_id: published.file_id,
-          etag: published.etag,
-        },
-      ],
-    },
+    { paths: ["demo.js", "other.js", "demo.js"] },
     { toolCallId: "save", messages: [], context: {} },
   );
   assert.ok(isToolOutcome(result) && result.status === "completed");
-  assert.deepEqual(result.data, { files: [published, published] });
+  assert.deepEqual(result.data, { files: [published, { ...published, filename: "other.js" }] });
   assert.deepEqual(calls, ["save:0", "save:1"]);
+});
 
-  const invalid = await definition.execute(
-    {
-      artifacts: [
-        {
-          operation: "update",
-          path: "demo.js",
-          filename: "demo.js",
-          media_type: null,
-          title: null,
-          file_id: published.file_id,
-          etag: published.etag,
-        },
-      ],
-    },
+test("a failed batch reports already published files and stops before the remaining drafts", async () => {
+  const calls: string[] = [];
+  const manifest = createUploadArtifactsTool(async (path) => {
+    calls.push(path);
+    if (path === "missing") throw new Error("file missing");
+    return published;
+  });
+  const definition = manifest.tool as Tool<unknown, unknown>;
+  assert.ok(definition.execute);
+  const result = await definition.execute(
+    { paths: ["demo.js", "missing", "later"] },
     { toolCallId: "save", messages: [], context: {} },
   );
-  assert.ok(isToolOutcome(invalid) && invalid.status === "failed");
+  assert.ok(isToolOutcome(result) && result.status === "partial");
+  assert.deepEqual(result.data, { files: [published] });
+  assert.deepEqual(calls, ["demo.js", "missing"]);
 });
 
 test("terminal artifact tool output becomes an ordered persistent data part", () => {

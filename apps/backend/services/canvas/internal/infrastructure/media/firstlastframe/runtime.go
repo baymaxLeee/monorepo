@@ -17,7 +17,7 @@ import (
 type Runtime struct {
 	service  *applicationfirstlastframe.Service
 	runs     *taskpersistence.Repository
-	tx       *persistencetransaction.Manager
+	tx       *persistencetransaction.Store
 	assets   *storageclient.Client
 	clock    applicationfirstlastframe.Clock
 	tempRoot string
@@ -30,7 +30,7 @@ type ExecutionResult struct {
 func NewRuntime(
 	service *applicationfirstlastframe.Service,
 	runs *taskpersistence.Repository,
-	tx *persistencetransaction.Manager,
+	tx *persistencetransaction.Store,
 	assets *storageclient.Client,
 	clock applicationfirstlastframe.Clock,
 	tempRoot string,

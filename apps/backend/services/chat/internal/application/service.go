@@ -184,7 +184,14 @@ func (service *Service) ProxyConversation(ctx context.Context, scope AuthContext
 	if err != nil {
 		return nil, err
 	}
-	return ProjectRuntimeResponse(*product, response)
+	projected, err := ProjectRuntimeResponse(*product, response)
+	if err != nil {
+		return nil, err
+	}
+	if suffix == "/agents/run/stream" {
+		service.observeConversationTitle(ctx, scope, *product, projected)
+	}
+	return projected, nil
 }
 
 func (service *Service) ProxyRuntime(ctx context.Context, headers http.Header, method, path, rawQuery string, body io.Reader) (*http.Response, error) {

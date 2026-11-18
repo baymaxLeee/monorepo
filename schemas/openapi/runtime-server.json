@@ -2467,6 +2467,9 @@
             "maxLength": 64,
             "pattern": "^[a-zA-Z0-9_-]+$"
           },
+          "generate_title": {
+            "type": "boolean"
+          },
           "agent_id": {
             "type": "string",
             "maxLength": 32,

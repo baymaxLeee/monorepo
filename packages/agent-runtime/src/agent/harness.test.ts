@@ -8,6 +8,7 @@ import { assembleInstructions } from "../instructions/index.js";
 import { createBashTool } from "../tools/bash.js";
 import { manifestsToTools } from "../tools/manifest.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
+import type { ExecutionEnvironment } from "./execution-environment.js";
 import { createAgentHarness } from "./harness.js";
 import { createAgentSteering } from "./steering.js";
 
@@ -51,6 +52,37 @@ function model(
   };
 }
 const request: UIMessage[] = [{ id: "user", role: "user", parts: [{ type: "text", text: "能帮我干啥" }] }];
+function environment(storage: "cloud" | "local"): ExecutionEnvironment {
+  return storage === "cloud"
+    ? {
+        location: "cloud",
+        workspace: {
+          root: "/workspace",
+          access: "read-write",
+          isolation: "ephemeral",
+          persistence: "session",
+          externalSources: "read-only",
+        },
+        network: { access: "environment", protocols: ["http", "https"] },
+        process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
+        deliverables: "session-file",
+        approvals: "policy",
+      }
+    : {
+        location: "local",
+        workspace: {
+          root: "/project",
+          access: "read-write",
+          isolation: "direct",
+          persistence: "host",
+          externalSources: "unavailable",
+        },
+        network: { access: "public", protocols: ["http", "https"] },
+        process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
+        deliverables: "workspace-reference",
+        approvals: "auto",
+      };
+}
 async function consume(agent: ReturnType<typeof createAgentHarness>, messages = request) {
   const result = await agent.stream({ messages: await convertToModelMessages(messages) });
   let answer: UIMessage | undefined;
@@ -78,11 +110,14 @@ for (const storage of ["cloud", "local"] as const) {
     ]);
     const agent = createAgentHarness({
       mode: "normal",
+      environment: environment(storage),
       tools,
-      instructions: assembleInstructions({ mode: "normal", storage, memories: [] }),
+      instructions: assembleInstructions({ mode: "normal", memories: [] }),
       model: model((options) => {
         calls++;
         assert.equal(options.prompt.filter((m) => m.role === "user").length, 1);
+        assert.match(JSON.stringify(options.prompt), /execution_environment/);
+        assert.match(JSON.stringify(options.prompt), new RegExp(environment(storage).workspace.root));
         assert.doesNotMatch(JSON.stringify(options.prompt), /external_workspace_changes/);
         return text;
       }),
@@ -99,9 +134,10 @@ for (const storage of ["cloud", "local"] as const) {
     ]);
     const agent = createAgentHarness({
       mode: "normal",
+      environment: environment(storage),
       tools,
       toolApproval: createToolApprovalPolicy("normal"),
-      instructions: assembleInstructions({ mode: "normal", storage, memories: [] }),
+      instructions: assembleInstructions({ mode: "normal", memories: [] }),
       workspace: { consumeChanges: () => (consumed ? [] : ((consumed = true), ["external.txt"])) },
       model: model((options) => {
         calls++;
@@ -141,6 +177,7 @@ for (const approved of [false, true]) {
     tools.bash = { ...tools.bash!, needsApproval: true };
     const agent = createAgentHarness({
       mode: "normal",
+      environment: environment("cloud"),
       tools,
       model: model(() =>
         ++calls === 1
@@ -165,6 +202,7 @@ test("SDK steering is delivered, streamed as an official part, and replayed into
   const outcomePromise = steering.steer("改成巴黎德州。", { id: "steer-client-message" });
   const agent = createAgentHarness({
     mode: "normal",
+    environment: environment("cloud"),
     tools: {},
     model: model((options) => {
       assert.deepEqual(
@@ -227,6 +265,7 @@ test("stored-response continuation keeps steering sent during a tool in the next
   const steering = createAgentSteering();
   const agent = createAgentHarness({
     mode: "normal",
+    environment: environment("cloud"),
     tools,
     model: model((options) => {
       calls++;

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,16 @@ import (
 )
 
 const maxResponseBytes = 1 << 20
+
+type apiResponseError struct {
+	statusCode int
+	method     string
+	body       string
+}
+
+func (e *apiResponseError) Error() string {
+	return fmt.Sprintf("api: HTTP %d %s: %s", e.statusCode, e.method, e.body)
+}
 
 type Client struct {
 	HTTP *http.Client
@@ -70,7 +81,7 @@ func (c Client) probeChat(ctx context.Context, request application.ProviderProbe
 	if request.ResponsesDialect == nil {
 		return "", fmt.Errorf("configuration: chat provider requires responses_dialect")
 	}
-	body := filtered(request.ExtraBody, "model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id", "reasoning_effort", "tools", "tool_choice")
+	body := filtered(request.ExtraBody, "model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id", "tools", "tool_choice")
 	body["model"] = request.Model
 	body["instructions"] = "You are a helpful assistant."
 	body["input"] = "Call provider_connectivity_probe with value ping."
@@ -80,6 +91,10 @@ func (c Client) probeChat(ctx context.Context, request application.ProviderProbe
 	body["tools"] = []any{map[string]any{"type": "function", "name": "provider_connectivity_probe", "description": "Return the supplied value.", "parameters": map[string]any{"type": "object", "properties": map[string]any{"value": map[string]any{"type": "string"}}, "required": []string{"value"}, "additionalProperties": false}, "strict": true}}
 	body["tool_choice"] = map[string]any{"type": "function", "name": "provider_connectivity_probe"}
 	first, err := c.doJSON(ctx, http.MethodPost, apiRoot(request.BaseURL)+"/responses", request.APIKey, body)
+	if thinkingToolChoiceUnsupported(err) {
+		delete(body, "tool_choice")
+		first, err = c.doJSON(ctx, http.MethodPost, apiRoot(request.BaseURL)+"/responses", request.APIKey, body)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -96,7 +111,7 @@ func (c Client) probeChat(ctx context.Context, request application.ProviderProbe
 		return "", fmt.Errorf("api: Responses function calling returned no function_call")
 	}
 	functionOutput := map[string]any{"type": "function_call_output", "call_id": call["call_id"], "output": `{"value":"ping"}`}
-	second := filtered(request.ExtraBody, "model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id", "reasoning_effort", "tools", "tool_choice")
+	second := filtered(request.ExtraBody, "model", "input", "instructions", "max_output_tokens", "stream", "store", "previous_response_id", "tools", "tool_choice")
 	second["model"], second["max_output_tokens"], second["stream"], second["store"] = request.Model, 512, false, *request.ResponsesDialect != "deepseek_responses"
 	if *request.ResponsesDialect == "deepseek_responses" {
 		second["input"] = append(output, functionOutput)
@@ -114,34 +129,34 @@ func (c Client) probeChat(ctx context.Context, request application.ProviderProbe
 	return "Responses API function-call round trip succeeded", nil
 }
 
+func thinkingToolChoiceUnsupported(err error) bool {
+	var responseError *apiResponseError
+	if !errors.As(err, &responseError) || responseError.statusCode != http.StatusBadRequest {
+		return false
+	}
+	body := strings.ToLower(responseError.body)
+	return strings.Contains(body, "tool_choice") &&
+		strings.Contains(body, "thinking") &&
+		(strings.Contains(body, "required or object") || strings.Contains(body, "incompatible"))
+}
+
 func (c Client) probeImage(ctx context.Context, request application.ProviderProbeRequest) (string, error) {
-	body := filtered(request.ExtraBody, "model", "prompt", "response_format", "n", "test_prompt")
-	body["model"] = request.Model
-	body["prompt"] = stringValue(request.ExtraBody["test_prompt"], "连通性测试: 一只简笔画风格的小猫。")
-	body["size"] = stringValue(request.ExtraBody["size"], "2K")
-	body["response_format"] = stringValue(request.ExtraBody["response_format"], "url")
-	response, err := c.doJSON(ctx, http.MethodPost, apiRoot(request.BaseURL)+"/images/generations", request.APIKey, body)
-	if err != nil {
+	if err := c.probeArkDataPlane(ctx, request); err != nil {
 		return "", err
 	}
-	data, _ := response["data"].([]any)
-	if len(data) == 0 {
-		return "", nil
-	}
-	first, _ := data[0].(map[string]any)
-	if value, _ := first["url"].(string); value != "" {
-		return value, nil
-	}
-	value, _ := first["b64_json"].(string)
-	return value, nil
+	return fmt.Sprintf("Ark API authenticated; image model %s was not invoked", request.Model), nil
 }
 
 func (c Client) probeVideo(ctx context.Context, request application.ProviderProbeRequest) (string, error) {
-	_, err := c.doJSON(ctx, http.MethodGet, apiRoot(request.BaseURL)+"/contents/generations/tasks?page_num=1&page_size=1", request.APIKey, nil)
-	if err != nil {
+	if err := c.probeArkDataPlane(ctx, request); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("Ark video API authenticated; model %s was not invoked", request.Model), nil
+}
+
+func (c Client) probeArkDataPlane(ctx context.Context, request application.ProviderProbeRequest) error {
+	_, err := c.doJSON(ctx, http.MethodGet, apiRoot(request.BaseURL)+"/contents/generations/tasks?page_num=1&page_size=1", request.APIKey, nil)
+	return err
 }
 
 func (c Client) probeEmbedding(ctx context.Context, request application.ProviderProbeRequest) (string, error) {
@@ -191,7 +206,7 @@ func (c Client) doJSON(ctx context.Context, method, target, apiKey string, body 
 		return nil, fmt.Errorf("authentication: invalid API key")
 	}
 	if response.StatusCode >= 400 {
-		return nil, fmt.Errorf("api: HTTP %d %s: %s", response.StatusCode, method, strings.TrimSpace(string(raw)))
+		return nil, &apiResponseError{statusCode: response.StatusCode, method: method, body: strings.TrimSpace(string(raw))}
 	}
 	value := map[string]any{}
 	if len(raw) > 0 {
@@ -214,13 +229,6 @@ func filtered(source map[string]any, reserved ...string) map[string]any {
 		}
 	}
 	return result
-}
-
-func stringValue(value any, fallback string) string {
-	if text, ok := value.(string); ok && text != "" {
-		return text
-	}
-	return fallback
 }
 
 func embeddingDimension(data any) int {

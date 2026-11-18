@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
+
 import { sandboxClient } from "../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter } from "../infrastructure/clients/sandbox.js";
 import type { StorageClient } from "../infrastructure/clients/storage.js";
@@ -32,27 +34,6 @@ const defaults: CloudWorkspaceDependencies = {
   update: saveSessionFile,
   delete: deleteWorkspaceSessionFile,
 };
-
-function mediaType(path: string): string {
-  const extension = path.toLowerCase().split(".").at(-1);
-  return (
-    {
-      css: "text/css",
-      csv: "text/csv",
-      html: "text/html",
-      js: "text/javascript",
-      json: "application/json",
-      md: "text/markdown",
-      mjs: "text/javascript",
-      py: "text/x-python",
-      ts: "text/typescript",
-      tsx: "text/typescript",
-      txt: "text/plain",
-      yaml: "application/yaml",
-      yml: "application/yaml",
-    }[extension ?? ""] ?? "application/octet-stream"
-  );
-}
 
 export async function persistCloudWorkspace(
   context: CloudWorkspaceScope,
@@ -144,7 +125,7 @@ export async function persistCloudWorkspace(
       const asset = await deps.asset().upload({
         ...context,
         filename,
-        mediaType: mediaType(filename),
+        mediaType: workspaceMediaType(filename),
         category: "sandbox-workspace",
         body,
         idempotencyKey,

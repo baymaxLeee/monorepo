@@ -5,18 +5,17 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"log/slog"
 
 	"github.com/example/monorepo/canvas/internal/application/logcontext"
 	applicationprojectaccess "github.com/example/monorepo/canvas/internal/application/projectaccess"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 	platformlogger "github.com/example/monorepo/canvas/pkg/platform/logger"
 )
@@ -56,19 +55,19 @@ var ErrProjectNotFound = applicationprojectaccess.ErrProjectNotFound
 var ErrForbidden = applicationprojectaccess.ErrForbidden
 
 type Checker struct {
-	db    *gorm.DB
+	db    *persistencetransaction.Store
 	cache redis.UniversalClient
 	log   *slog.Logger
 	draw  func(int64) int64
 }
 
-func NewChecker(db *gorm.DB, cache redis.UniversalClient, log *slog.Logger) *Checker {
+func NewChecker(db *persistencetransaction.Store, cache redis.UniversalClient, log *slog.Logger) *Checker {
 	checker := newChecker(db, cache, rand.Int64N)
 	checker.log = log
 	return checker
 }
 
-func newChecker(db *gorm.DB, cache redis.UniversalClient, draw func(int64) int64) *Checker {
+func newChecker(db *persistencetransaction.Store, cache redis.UniversalClient, draw func(int64) int64) *Checker {
 	return &Checker{db: db, cache: cache, draw: draw}
 }
 
@@ -85,6 +84,14 @@ func (c *Checker) Check(
 	projectUUID, err := persistenceid.Parse(projectID)
 	if err != nil {
 		return ErrProjectNotFound
+	}
+	// Membership visible only in this transaction must never populate the shared Redis cache.
+	if c.db.InTransaction(ctx) {
+		members, err := c.loadMembers(ctx, tenantID, workspaceID, projectUUID)
+		if err != nil {
+			return err
+		}
+		return membershipResult(members, userID)
 	}
 	canonicalProjectID := projectUUID.String()
 	keys := c.cacheKeys(tenantID, workspaceID, canonicalProjectID)
@@ -138,26 +145,21 @@ func (c *Checker) loadMembers(
 	workspaceID *string,
 	projectUUID persistenceid.UUID,
 ) ([]string, error) {
-	db := persistencetransaction.DB(ctx, c.db)
-	projectQuery := db.Table("projects").Select("id").
-		Where("id = ? AND tenant_id = ? AND deleted_at = 0", projectUUID, tenantID)
-	projectQuery = applyWorkspaceScope(projectQuery, "projects", workspaceID)
-	var project struct{ ID persistenceid.UUID }
-	if err := projectQuery.Take(&project).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrProjectNotFound
-		}
+	q := c.db.Queries(ctx)
+	id := projectUUID.String()
+	exists, err := q.ActiveProjectExists(ctx, sqlc.ActiveProjectExistsParams{ProjectID: id, TenantID: tenantID, WorkspaceID: workspaceID})
+	if err != nil {
 		return nil, fmt.Errorf("check project access: find project: %w", err)
 	}
-
-	memberQuery := db.Table("project_members").Select("user_id").
-		Where("project_id = ? AND tenant_id = ? AND deleted_at = 0", projectUUID, tenantID)
-	memberQuery = applyWorkspaceScope(memberQuery, "project_members", workspaceID)
-	var members []string
-	if err := memberQuery.Order("id ASC").Scan(&members).Error; err != nil {
+	if !exists {
+		return nil, ErrProjectNotFound
+	}
+	members, err := q.ListProjectMemberIDs(ctx, sqlc.ListProjectMemberIDsParams{ProjectID: id, TenantID: tenantID, WorkspaceID: workspaceID})
+	if err != nil {
 		return nil, fmt.Errorf("check project access: list members: %w", err)
 	}
 	return members, nil
+
 }
 
 type cacheKeys struct {
@@ -272,12 +274,4 @@ func (c *Checker) logCacheError(
 		TenantID: tenantID, WorkspaceID: workspaceID, ProjectID: projectID,
 	})), slog.String("operation", operation))
 	platformlogger.Error(c.log, "project member cache operation failed", err, fields...)
-}
-
-func applyWorkspaceScope(db *gorm.DB, table string, workspaceID *string) *gorm.DB {
-	column := clause.Column{Table: table, Name: "workspace_id"}
-	if workspaceID == nil {
-		return db.Where(clause.Eq{Column: column, Value: nil})
-	}
-	return db.Where(clause.Eq{Column: column, Value: *workspaceID})
 }

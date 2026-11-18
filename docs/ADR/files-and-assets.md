@@ -22,7 +22,7 @@ Claim 的 strong/snapshot/lease/weak 语义分别表达当前所有权、固定�
 
 会话文件编辑与保存的完整状态机见 [会话产物原文件编辑与保存](editable-conversation-files.md)。首次发布或 Agent 另存为创建新的 Chat `file_id` 与 Storage Asset；更新已有文本文件保持 `file_id + asset_id`，向同一 Asset 追加不可变 revision，并由 Runtime generation CAS 切换精确 `revision_id`。
 
-模型用 `bash` 在每 run 的 Linux 工作区操作真实文件；不会自动同步临时修改。 `upload_artifacts` 以一个 `artifacts[]` 批次发布完成文件：create 项流式上传原始字节并登记新 `conversation_file`，update 项携带已导入文件的 ETag，把工作副本提交到同一文件。正常结束、Stop 或异常回收沙箱；下一 run 的首次 Bash 自动从原始文档和 Runtime 当前精确文件 revision 导入只读 `sources/`。同一 run 中其他工具新增或更新会话资源后，`refresh_conversation_sources` 只导入并返回发生变化的 source；它不承担文件发现或读取。大文本的可选预览不阻断原件发布下载。执行资源与网络边界见 [Sandbox](../微服务/sandbox.md)。
+Agent 用 Bash 在稳定路径操作文件，通过 `upload_artifacts({ paths })` 按路径批量交付。宿主解析身份与版本，保留既有文件的并发校验。云端收尾自动持久化草稿，下一轮按原路径恢复。外部原件保留在只读 `sources/`。大文本的可选预览不阻断原件发布下载。执行资源与网络边界见 [Sandbox](../微服务/sandbox.md)。
 
 普通文件由主 Agent 在 Sandbox 中完成并逐个发布。HTML 内容与脚本归产物本身；预览宿主不按页数裁剪或改写模型文档。iframe 使用存储服务临时 URL 加载 HTML 并允许脚本执行，通过不授予 allow-same-origin 隔离宿主页面权限。
 

@@ -41,6 +41,7 @@ type Repository interface {
 	List(context.Context, AuthContext) ([]Conversation, error)
 	Get(context.Context, AuthContext, string) (*Conversation, error)
 	UpdateTitle(context.Context, AuthContext, string, string) (*Conversation, error)
+	UpdateTitleIfDefault(context.Context, AuthContext, string, string) (*Conversation, error)
 	Delete(context.Context, AuthContext, string) (*Conversation, error)
 	Close()
 }

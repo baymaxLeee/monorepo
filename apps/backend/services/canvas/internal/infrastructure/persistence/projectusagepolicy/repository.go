@@ -5,26 +5,16 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	applicationproject "github.com/example/monorepo/canvas/internal/application/project"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
-type Repository struct{ db *gorm.DB }
+type Repository struct{ db *persistencetransaction.Store }
 
-func New(db *gorm.DB) *Repository { return &Repository{db: db} }
-
-type row struct {
-	ProjectID        string `gorm:"column:project_id;primaryKey"`
-	TenantID         string `gorm:"column:tenant_id"`
-	WorkspaceID      string `gorm:"column:workspace_id"`
-	UsageLimitMicros *int64 `gorm:"column:usage_limit_micros"`
-	UsedAmountMicros int64  `gorm:"column:used_amount_micros"`
-	Currency         string `gorm:"column:currency"`
-}
-
-func (row) TableName() string { return "project_usage_policies" }
+func New(db *persistencetransaction.Store) *Repository { return &Repository{db: db} }
 
 func workspace(scope applicationproject.Scope) (string, error) {
 	if scope.WorkspaceID == nil || strings.TrimSpace(*scope.WorkspaceID) == "" {
@@ -38,12 +28,11 @@ func (repository *Repository) Create(ctx context.Context, scope applicationproje
 	if err != nil {
 		return applicationproject.ProjectUsagePolicy{}, err
 	}
-	item := row{ProjectID: projectID, TenantID: scope.TenantID, WorkspaceID: workspaceID, UsageLimitMicros: limit, Currency: "CNY"}
-	err = persistencetransaction.DB(ctx, repository.db).Clauses(clause.OnConflict{DoNothing: true}).Create(&item).Error
+	err = repository.db.Queries(ctx).CreateProjectUsagePolicy(ctx, sqlc.CreateProjectUsagePolicyParams{ProjectID: projectID, TenantID: scope.TenantID, WorkspaceID: workspaceID, UsageLimitMicros: limit})
 	if err != nil {
 		return applicationproject.ProjectUsagePolicy{}, err
 	}
-	return repository.value(item), nil
+	return applicationproject.ProjectUsagePolicy{ID: projectID, ProjectID: projectID, Limit: limit}, nil
 }
 
 func (repository *Repository) Find(ctx context.Context, scope applicationproject.Scope, projectID string) (*applicationproject.ProjectUsagePolicy, error) {
@@ -51,15 +40,14 @@ func (repository *Repository) Find(ctx context.Context, scope applicationproject
 	if err != nil {
 		return nil, err
 	}
-	var item row
-	err = persistencetransaction.DB(ctx, repository.db).Where("project_id = ? AND tenant_id = ? AND workspace_id = ?", projectID, scope.TenantID, workspaceID).Take(&item).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	item, err := repository.db.Queries(ctx).FindProjectUsagePolicy(ctx, sqlc.FindProjectUsagePolicyParams{ProjectID: projectID, TenantID: scope.TenantID, WorkspaceID: workspaceID})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	value := repository.value(item)
+	value := applicationproject.ProjectUsagePolicy{ID: item.ProjectID, ProjectID: item.ProjectID, Limit: item.UsageLimitMicros, UsedAmount: float64(item.UsedAmountMicros)}
 	return &value, nil
 }
 
@@ -68,14 +56,12 @@ func (repository *Repository) Update(ctx context.Context, scope applicationproje
 	if err != nil {
 		return applicationproject.ProjectUsagePolicy{}, err
 	}
-	result := persistencetransaction.DB(ctx, repository.db).Model(&row{}).
-		Where("project_id = ? AND tenant_id = ? AND workspace_id = ?", current.ProjectID, scope.TenantID, workspaceID).
-		Update("usage_limit_micros", limit)
-	if result.Error != nil {
-		return applicationproject.ProjectUsagePolicy{}, result.Error
+	count, err := repository.db.Queries(ctx).UpdateProjectUsageLimit(ctx, sqlc.UpdateProjectUsageLimitParams{ProjectID: current.ProjectID, TenantID: scope.TenantID, WorkspaceID: workspaceID, UsageLimitMicros: limit})
+	if err != nil {
+		return applicationproject.ProjectUsagePolicy{}, err
 	}
-	if result.RowsAffected == 0 {
-		return applicationproject.ProjectUsagePolicy{}, gorm.ErrRecordNotFound
+	if count == 0 {
+		return applicationproject.ProjectUsagePolicy{}, pgx.ErrNoRows
 	}
 	current.Limit = limit
 	return current, nil
@@ -86,11 +72,7 @@ func (repository *Repository) Delete(ctx context.Context, scope applicationproje
 	if err != nil {
 		return err
 	}
-	return persistencetransaction.DB(ctx, repository.db).Where("project_id = ? AND tenant_id = ? AND workspace_id = ?", id, scope.TenantID, workspaceID).Delete(&row{}).Error
-}
-
-func (*Repository) value(item row) applicationproject.ProjectUsagePolicy {
-	return applicationproject.ProjectUsagePolicy{ID: item.ProjectID, ProjectID: item.ProjectID, Limit: item.UsageLimitMicros, UsedAmount: float64(item.UsedAmountMicros)}
+	return repository.db.Queries(ctx).DeleteProjectUsagePolicy(ctx, sqlc.DeleteProjectUsagePolicyParams{ProjectID: id, TenantID: scope.TenantID, WorkspaceID: workspaceID})
 }
 
 var _ applicationproject.ProjectUsagePolicyGateway = (*Repository)(nil)

@@ -21,8 +21,9 @@ refresh tokens, and user profile preferences.
 - `internal/api/http/middleware/` — HTTP middleware
 - `internal/application/` — auth, session, and role business logic
 - `internal/domain/` — identity, organization, and membership value rules
-- `internal/infrastructure/persistence/repositories/` — ORM persistence operations
-- `internal/infrastructure/persistence/models/` — GORM table models
+- `internal/infrastructure/persistence/repositories/` — transaction boundaries, record mapping and database error translation
+- `internal/infrastructure/persistence/sql/` — named PostgreSQL queries
+- `internal/infrastructure/persistence/sqlc/` — generated pgx query bindings
 - `internal/infrastructure/security/` — password hashing and token primitives
 
 ## Does not own

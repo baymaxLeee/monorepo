@@ -184,6 +184,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     id: "chat-agent",
     model: providerModel,
     mode: input.mode,
+    environment: resolvedTools.environment,
     middleware: [contextCaptureMiddleware],
     workspace: {
       consumeChanges: async () => (await sandbox.consumeExternalFileChanges()).map((change) => change.path),

@@ -119,6 +119,17 @@ func (repository *Repository) UpdateTitle(ctx context.Context, scope application
 	return &conversation, err
 }
 
+func (repository *Repository) UpdateTitleIfDefault(ctx context.Context, scope application.AuthContext, id, title string) (*application.Conversation, error) {
+	row, err := repository.queries.UpdateConversationTitleIfDefault(ctx, sqlc.UpdateConversationTitleIfDefaultParams{
+		Title: title, ID: id, UserID: scope.UserID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	conversation := conversationFromRow(row)
+	return &conversation, err
+}
+
 func (repository *Repository) Delete(ctx context.Context, scope application.AuthContext, id string) (*application.Conversation, error) {
 	row, err := repository.queries.DeleteConversation(ctx, sqlc.DeleteConversationParams{
 		ID: id, UserID: scope.UserID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,

@@ -21,7 +21,7 @@ from directories or create a shared library for symmetry.
 Run `./scripts/new-service.sh <name>` for the minimal Python shape. For Go, follow
 the canonical [`Go service template`](../../docs/开发规范/go-services.md) and copy
 the closest compliant Go service only after comparing its dependencies with the
-platform matrix; do not copy legacy GORM, Zap, manual-env, or local tracing code.
+platform matrix; do not copy runtime ORM, Zap, manual-env, or local tracing code.
 
 For Python, use the repository's resource-oriented layers:
 

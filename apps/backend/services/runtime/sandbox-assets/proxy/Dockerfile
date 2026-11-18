@@ -7,5 +7,6 @@ COPY apps/backend/services/runtime/sandbox-assets/proxy/squid.conf /etc/squid/sq
 COPY apps/backend/services/runtime/sandbox-assets/proxy/allowed-domains.txt /etc/squid/allowed-domains.txt
 COPY apps/backend/services/runtime/sandbox-assets/proxy/start.sh /usr/local/bin/start-proxy
 RUN chmod 0555 /usr/local/bin/start-proxy
+COPY apps/backend/services/runtime/sandbox-assets/proxy/ERR_ACCESS_DENIED /usr/share/squid/errors/en/ERR_ACCESS_DENIED
 EXPOSE 3128
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/start-proxy"]

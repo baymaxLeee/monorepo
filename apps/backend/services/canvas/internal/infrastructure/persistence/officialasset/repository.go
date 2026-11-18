@@ -6,32 +6,46 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	applicationofficialasset "github.com/example/monorepo/canvas/internal/application/officialasset"
 	domainasset "github.com/example/monorepo/canvas/internal/domain/asset"
 	domainofficialasset "github.com/example/monorepo/canvas/internal/domain/officialasset"
 	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/persistenceid"
+	"github.com/example/monorepo/canvas/internal/infrastructure/persistence/sqlc"
 	persistencetransaction "github.com/example/monorepo/canvas/internal/infrastructure/persistence/transaction"
 )
 
-type Repository struct {
-	db *gorm.DB
-}
+type Repository struct{ db *persistencetransaction.Store }
 
-func NewRepository(db *gorm.DB) *Repository {
-	return &Repository{db: db}
-}
+func NewRepository(db *persistencetransaction.Store) *Repository { return &Repository{db: db} }
 
-// Create 登记一条官方清单条目。scope 唯一索引使重跑同一份清单命中冲突并返回
-// ErrAlreadyExists，无需额外的 creation key。
 func (r *Repository) Create(ctx context.Context, item domainofficialasset.OfficialAsset) error {
 	row, err := rowFromDomain(item)
 	if err != nil {
 		return err
 	}
-	err = persistencetransaction.DB(ctx, r.db).Create(&row).Error
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
+	err = r.db.Queries(ctx).InsertOfficialAsset(ctx, sqlc.InsertOfficialAssetParams{
+		Slug:             row.Slug,
+		TenantID:         row.TenantID,
+		WorkspaceID:      row.WorkspaceID,
+		WorkspaceKey:     row.WorkspaceKey,
+		SourceAssetID:    row.SourceAssetID,
+		SourceRevisionID: row.SourceRevisionID,
+		InternalAssetID:  row.InternalAssetID,
+		ResourceID:       row.ResourceID,
+		ResourceAssetID:  row.ResourceAssetID,
+		LongLiveStatus:   row.LongLiveStatus,
+		FileSha256:       row.FileSha256,
+		FileName:         row.FileName,
+		MediaType:        row.MediaType,
+		SizeBytes:        row.SizeBytes,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
+	})
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) && databaseError.Code == "23505" {
 		return applicationofficialasset.ErrAlreadyExists
 	}
 	return err
@@ -40,10 +54,12 @@ func (r *Repository) Create(ctx context.Context, item domainofficialasset.Offici
 func (r *Repository) Get(
 	ctx context.Context, scope domainofficialasset.Scope, slug string,
 ) (domainofficialasset.OfficialAsset, error) {
-	var row officialAssetRow
-	err := scopedQuery(persistencetransaction.DB(ctx, r.db), scope).
-		Where("slug = ?", slug).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := r.db.Queries(ctx).ReadOfficialAsset(ctx, sqlc.ReadOfficialAssetParams{
+		TenantID:     scope.TenantID,
+		WorkspaceKey: workspaceKey(scope.WorkspaceID),
+		Slug:         slug,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return domainofficialasset.OfficialAsset{}, applicationofficialasset.ErrNotFound
 	}
 	if err != nil {
@@ -52,7 +68,6 @@ func (r *Repository) Get(
 	return domainFromRow(row), nil
 }
 
-// GetByInternalAssetID 是 scope 内 1:1 映射的反查方向，走 internal_asset_id 唯一索引。
 func (r *Repository) GetByInternalAssetID(
 	ctx context.Context, scope domainofficialasset.Scope, internalAssetID string,
 ) (domainofficialasset.OfficialAsset, error) {
@@ -60,10 +75,12 @@ func (r *Repository) GetByInternalAssetID(
 	if err != nil {
 		return domainofficialasset.OfficialAsset{}, applicationofficialasset.ErrNotFound
 	}
-	var row officialAssetRow
-	err = scopedQuery(persistencetransaction.DB(ctx, r.db), scope).
-		Where("internal_asset_id = ?", parsed).First(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	row, err := r.db.Queries(ctx).ReadOfficialAssetByInternalID(ctx, sqlc.ReadOfficialAssetByInternalIDParams{
+		TenantID:     scope.TenantID,
+		WorkspaceKey: workspaceKey(scope.WorkspaceID),
+		InternalID:   parsed.String(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return domainofficialasset.OfficialAsset{}, applicationofficialasset.ErrNotFound
 	}
 	if err != nil {
@@ -72,60 +89,53 @@ func (r *Repository) GetByInternalAssetID(
 	return domainFromRow(row), nil
 }
 
-// Save 覆盖注册状态、内容摘要与物化结果。绑定内部 Asset 时唯一索引冲突意味着该
-// Asset 在本 scope 下已被另一条清单条目占用。
 func (r *Repository) Save(ctx context.Context, item domainofficialasset.OfficialAsset) error {
 	row, err := rowFromDomain(item)
 	if err != nil {
 		return err
 	}
-	result := scopedQuery(persistencetransaction.DB(ctx, r.db), item.Scope).
-		Where("slug = ?", row.Slug).
-		Updates(map[string]any{
-			"internal_asset_id":  row.InternalAssetID,
-			"resource_id":        row.ResourceID,
-			"resource_asset_id":  row.ResourceAssetID,
-			"long_live_status":   row.LongLiveStatus,
-			"source_asset_id":    row.SourceAssetID,
-			"source_revision_id": row.SourceRevisionID,
-			"file_sha256":        row.FileSHA256,
-			"file_name":          row.FileName,
-			"media_type":         row.MediaType,
-			"size_bytes":         row.SizeBytes,
-			"updated_at":         row.UpdatedAt,
-		})
-	if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
+	n, err := r.db.Queries(ctx).ModifyOfficialAsset(ctx, sqlc.ModifyOfficialAssetParams{
+		InternalAssetID:  row.InternalAssetID,
+		ResourceID:       row.ResourceID,
+		ResourceAssetID:  row.ResourceAssetID,
+		LongLiveStatus:   row.LongLiveStatus,
+		SourceAssetID:    row.SourceAssetID,
+		SourceRevisionID: row.SourceRevisionID,
+		FileSha256:       row.FileSha256,
+		FileName:         row.FileName,
+		MediaType:        row.MediaType,
+		SizeBytes:        row.SizeBytes,
+		UpdatedAt:        row.UpdatedAt,
+		TenantID:         row.TenantID,
+		WorkspaceKey:     row.WorkspaceKey,
+		Slug:             row.Slug,
+	})
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) && databaseError.Code == "23505" {
 		return applicationofficialasset.ErrInternalAssetConflict
 	}
-	if result.Error != nil {
-		return result.Error
+	if err == nil && n == 0 {
+		return applicationofficialasset.ErrNotFound
 	}
-	// MySQL 对内容完全相同的更新报告零行受影响，因此这里用存在性查询区分
-	// 「重复写入同一状态」与「该 scope 下不存在该 slug」。
-	if result.RowsAffected == 0 {
-		if _, err := r.Get(ctx, item.Scope, item.Slug); err != nil {
-			return err
-		}
-	}
-	return nil
+	return err
 }
 
-// ListByScope 返回该 scope 下全部未删除条目，按 external asset ID 稳定排序。
 func (r *Repository) ListByScope(
 	ctx context.Context, scope domainofficialasset.Scope,
 ) ([]domainofficialasset.OfficialAsset, error) {
 	if !scope.Valid() {
 		return nil, nil
 	}
-	var rows []officialAssetRow
-	if err := scopedQuery(persistencetransaction.DB(ctx, r.db), scope).
-		Order("slug ASC").Find(&rows).Error; err != nil {
+	rows, err := r.db.Queries(ctx).ReadOfficialAssets(ctx, sqlc.ReadOfficialAssetsParams{
+		TenantID:     scope.TenantID,
+		WorkspaceKey: workspaceKey(scope.WorkspaceID),
+	})
+	if err != nil {
 		return nil, err
 	}
 	return domainsFromRows(rows), nil
 }
 
-// ListByLongLiveStatus 供运维任务按状态挑选待上传或需重试的官方素材。
 func (r *Repository) ListByLongLiveStatus(
 	ctx context.Context, scope domainofficialasset.Scope,
 	status domainofficialasset.LongLiveStatus, limit int32,
@@ -133,47 +143,37 @@ func (r *Repository) ListByLongLiveStatus(
 	if !scope.Valid() || !status.Valid() || limit <= 0 {
 		return nil, nil
 	}
-	var rows []officialAssetRow
-	if err := scopedQuery(persistencetransaction.DB(ctx, r.db), scope).
-		Where("long_live_status = ?", int16(status)).
-		Order("slug ASC").Limit(int(limit)).Find(&rows).Error; err != nil {
+	rows, err := r.db.Queries(ctx).ReadOfficialAssetsByStatus(ctx, sqlc.ReadOfficialAssetsByStatusParams{
+		TenantID:       scope.TenantID,
+		WorkspaceKey:   workspaceKey(scope.WorkspaceID),
+		LongLiveStatus: int16(status),
+		PageSize:       limit,
+	})
+	if err != nil {
 		return nil, err
 	}
 	return domainsFromRows(rows), nil
 }
 
-// SoftDelete 下线一条官方清单条目。deletedAtMilli 参与 scope 唯一索引，因此同一条目
-// 之后可以在同一 scope 重新上架。
 func (r *Repository) SoftDelete(
 	ctx context.Context, scope domainofficialasset.Scope, slug string, deletedAtMilli int64,
 ) error {
 	if deletedAtMilli <= 0 {
 		return domainofficialasset.ErrInvalidOfficialAsset
 	}
-	result := scopedQuery(persistencetransaction.DB(ctx, r.db), scope).
-		Where("slug = ?", slug).
-		Updates(map[string]any{
-			"deleted_at": deletedAtMilli,
-			"updated_at": time.UnixMilli(deletedAtMilli).UTC(),
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
+	n, err := r.db.Queries(ctx).RetireOfficialAsset(ctx, sqlc.RetireOfficialAssetParams{
+		RetiredAt:    deletedAtMilli,
+		UpdatedAt:    time.UnixMilli(deletedAtMilli).UTC(),
+		TenantID:     scope.TenantID,
+		WorkspaceKey: workspaceKey(scope.WorkspaceID),
+		Slug:         slug,
+	})
+	if err == nil && n == 0 {
 		return applicationofficialasset.ErrNotFound
 	}
-	return nil
+	return err
 }
 
-// scopedQuery 把查询限制在单个 scope 内。workspace 用 workspace_key 归一化列比较，
-// 与唯一索引保持同一套语义，避免 NULL 比较的三值逻辑。
-func scopedQuery(db *gorm.DB, scope domainofficialasset.Scope) *gorm.DB {
-	return db.Model(&officialAssetRow{}).
-		Where("tenant_id = ? AND workspace_key = ?", scope.TenantID, workspaceKey(scope.WorkspaceID))
-}
-
-// workspaceKey 把可空 workspace 归一化为 NOT NULL 索引键：MySQL 唯一索引不对 NULL
-// 去重，若直接用可空列参与索引，所有「无 workspace」的行会互不冲突。
 func workspaceKey(workspaceID *string) string {
 	if workspaceID == nil {
 		return ""
@@ -181,31 +181,31 @@ func workspaceKey(workspaceID *string) string {
 	return *workspaceID
 }
 
-func rowFromDomain(item domainofficialasset.OfficialAsset) (officialAssetRow, error) {
+func rowFromDomain(item domainofficialasset.OfficialAsset) (sqlc.OfficialAsset, error) {
 	internalAssetID, err := persistenceid.ParseOptional(item.InternalAssetID)
 	if err != nil {
-		return officialAssetRow{}, fmt.Errorf("map official asset internal Asset ID: %w", err)
+		return sqlc.OfficialAsset{}, fmt.Errorf("map official asset internal Asset ID: %w", err)
 	}
 	resourceID, err := persistenceid.ParseOptional(item.ResourceID)
 	if err != nil {
-		return officialAssetRow{}, fmt.Errorf("map official asset Resource ID: %w", err)
+		return sqlc.OfficialAsset{}, fmt.Errorf("map official asset Resource ID: %w", err)
 	}
 	resourceAssetID, err := persistenceid.ParseOptional(item.ResourceAssetID)
 	if err != nil {
-		return officialAssetRow{}, fmt.Errorf("map official asset ResourceAsset ID: %w", err)
+		return sqlc.OfficialAsset{}, fmt.Errorf("map official asset ResourceAsset ID: %w", err)
 	}
-	return officialAssetRow{
+	return sqlc.OfficialAsset{
 		Slug:             item.Slug,
 		TenantID:         item.Scope.TenantID,
 		WorkspaceID:      cloneString(item.Scope.WorkspaceID),
 		WorkspaceKey:     workspaceKey(item.Scope.WorkspaceID),
-		InternalAssetID:  internalAssetID,
-		ResourceID:       resourceID,
-		ResourceAssetID:  resourceAssetID,
+		InternalAssetID:  persistenceid.OptionalText(internalAssetID),
+		ResourceID:       persistenceid.OptionalText(resourceID),
+		ResourceAssetID:  persistenceid.OptionalText(resourceAssetID),
 		LongLiveStatus:   int16(item.LongLiveStatus),
 		SourceAssetID:    nullableString(item.SourceAssetID),
 		SourceRevisionID: nullableString(item.SourceRevisionID),
-		FileSHA256:       nullableString(item.FileSHA256),
+		FileSha256:       nullableString(item.FileSHA256),
 		FileName:         item.FileName,
 		MediaType:        int16(item.MediaType),
 		SizeBytes:        item.SizeBytes,
@@ -214,7 +214,7 @@ func rowFromDomain(item domainofficialasset.OfficialAsset) (officialAssetRow, er
 	}, nil
 }
 
-func domainFromRow(row officialAssetRow) domainofficialasset.OfficialAsset {
+func domainFromRow(row sqlc.OfficialAsset) domainofficialasset.OfficialAsset {
 	return domainofficialasset.OfficialAsset{
 		Slug: row.Slug,
 		Scope: domainofficialasset.Scope{
@@ -222,11 +222,11 @@ func domainFromRow(row officialAssetRow) domainofficialasset.OfficialAsset {
 		},
 		SourceAssetID:    stringValue(row.SourceAssetID),
 		SourceRevisionID: stringValue(row.SourceRevisionID),
-		InternalAssetID:  uuidString(row.InternalAssetID),
-		ResourceID:       uuidString(row.ResourceID),
-		ResourceAssetID:  uuidString(row.ResourceAssetID),
+		InternalAssetID:  stringValue(row.InternalAssetID),
+		ResourceID:       stringValue(row.ResourceID),
+		ResourceAssetID:  stringValue(row.ResourceAssetID),
 		LongLiveStatus:   domainofficialasset.LongLiveStatus(row.LongLiveStatus),
-		FileSHA256:       stringValue(row.FileSHA256),
+		FileSHA256:       stringValue(row.FileSha256),
 		FileName:         row.FileName,
 		MediaType:        domainasset.MediaType(row.MediaType),
 		SizeBytes:        row.SizeBytes,
@@ -235,19 +235,12 @@ func domainFromRow(row officialAssetRow) domainofficialasset.OfficialAsset {
 	}
 }
 
-func domainsFromRows(rows []officialAssetRow) []domainofficialasset.OfficialAsset {
+func domainsFromRows(rows []sqlc.OfficialAsset) []domainofficialasset.OfficialAsset {
 	items := make([]domainofficialasset.OfficialAsset, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, domainFromRow(row))
 	}
 	return items
-}
-
-func uuidString(value *persistenceid.UUID) string {
-	if value == nil {
-		return ""
-	}
-	return value.String()
 }
 
 func nullableString(value string) *string {
@@ -272,16 +265,8 @@ func cloneString(value *string) *string {
 	return &cloned
 }
 
-// ListScopes 枚举已有官方记录的全部 scope。
-//
-// 用 Unscoped 并包含软删除行：清单清空后该 scope 下的记录已全部下线，但启动对账仍需访问
-// 它才能确认已收敛；只看未删除行会让下线过的 scope 永远不再被对账。
 func (r *Repository) ListScopes(ctx context.Context) ([]domainofficialasset.Scope, error) {
-	var rows []officialAssetRow
-	err := persistencetransaction.DB(ctx, r.db).Unscoped().
-		Model(&officialAssetRow{}).
-		Select("DISTINCT tenant_id, workspace_id, workspace_key").
-		Order("tenant_id ASC, workspace_key ASC").Find(&rows).Error
+	rows, err := r.db.Queries(ctx).ReadOfficialAssetScopes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -292,4 +277,5 @@ func (r *Repository) ListScopes(ctx context.Context) ([]domainofficialasset.Scop
 		})
 	}
 	return scopes, nil
+
 }

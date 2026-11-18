@@ -9,4 +9,5 @@ export const INSTRUCTION_SECTION_TAGS = {
   botProfile: "bot_profile",
   userMemoryData: "user_memory_data",
   environment: "environment",
+  executionEnvironment: "execution_environment",
 } as const;

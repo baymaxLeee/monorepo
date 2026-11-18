@@ -11,3 +11,8 @@ steps:
       files:
         v1.0.1.1.down.sql: f5ecc431f37f271c7e764d1ce5f6307730ee83db5fed113cbe3824c69f43fa42
         v1.0.1.1.up.sql: 0494c0de52b43db20b6629730ef46054da440d60695da5b483f085a866cbebba
+    - version: v1.0.1.2
+      checksum: 42b0f8146d855c86d81e1b338a863b80dbe882071b539a85df5feee09c685a0f
+      files:
+        v1.0.1.2.down.sql: 5380dfd8d214d2b488f66144fd17165471c7de88eea41108fba91bd001ecdc3e
+        v1.0.1.2.up.sql: f4fb2814d56dfe51385f997e162474b31dc215ff12dac5f71bd67488a057ddfc
