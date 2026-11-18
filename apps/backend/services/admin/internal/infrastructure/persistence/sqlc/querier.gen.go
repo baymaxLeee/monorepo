@@ -10,7 +10,6 @@ import (
 
 type Querier interface {
 	AddBenefitPackageModel(ctx context.Context, arg AddBenefitPackageModelParams) error
-	AttachBotSkill(ctx context.Context, arg AttachBotSkillParams) error
 	BulkDeleteSkills(ctx context.Context, arg BulkDeleteSkillsParams) (int64, error)
 	ClearBenefitPackageModels(ctx context.Context, packageID string) error
 	ClearDefaultProvider(ctx context.Context, arg ClearDefaultProviderParams) error
@@ -20,7 +19,6 @@ type Querier interface {
 	CreateApp(ctx context.Context, arg CreateAppParams) (App, error)
 	CreateAssetGroupCleanup(ctx context.Context, arg CreateAssetGroupCleanupParams) error
 	CreateBenefitPackage(ctx context.Context, arg CreateBenefitPackageParams) error
-	CreateBot(ctx context.Context, arg CreateBotParams) (CreateBotRow, error)
 	CreateCanvasSettings(ctx context.Context, arg CreateCanvasSettingsParams) (int64, error)
 	CreateProvider(ctx context.Context, arg CreateProviderParams) (CreateProviderRow, error)
 	CreateReviewCleanup(ctx context.Context, arg CreateReviewCleanupParams) error
@@ -29,12 +27,10 @@ type Querier interface {
 	CreateSkillNode(ctx context.Context, arg CreateSkillNodeParams) error
 	DeleteAllSkillNodes(ctx context.Context, skillID string) error
 	DeleteApp(ctx context.Context, id string) (int64, error)
-	DeleteBot(ctx context.Context, arg DeleteBotParams) (int64, error)
 	DeleteProvider(ctx context.Context, arg DeleteProviderParams) (int64, error)
 	DeleteProviders(ctx context.Context, arg DeleteProvidersParams) (int64, error)
 	DeleteSkill(ctx context.Context, id string) error
 	DeleteSkillNode(ctx context.Context, arg DeleteSkillNodeParams) error
-	DetachBotSkill(ctx context.Context, arg DetachBotSkillParams) error
 	GetActiveReviewReservation(ctx context.Context, arg GetActiveReviewReservationParams) (GetActiveReviewReservationRow, error)
 	GetActiveReviewReservationForUpdate(ctx context.Context, arg GetActiveReviewReservationForUpdateParams) (GetActiveReviewReservationForUpdateRow, error)
 	GetApp(ctx context.Context, id string) (App, error)
@@ -42,7 +38,6 @@ type Querier interface {
 	GetAssetGroupCleanupForUpdate(ctx context.Context, arg GetAssetGroupCleanupForUpdateParams) (BenefitPackageAssetGroupCleanup, error)
 	GetBenefitPackage(ctx context.Context, arg GetBenefitPackageParams) (BenefitPackage, error)
 	GetBenefitPackageForUpdate(ctx context.Context, arg GetBenefitPackageForUpdateParams) (BenefitPackage, error)
-	GetBot(ctx context.Context, arg GetBotParams) (GetBotRow, error)
 	GetCanvasSettings(ctx context.Context, arg GetCanvasSettingsParams) (GetCanvasSettingsRow, error)
 	GetDefaultProvider(ctx context.Context, arg GetDefaultProviderParams) (GetDefaultProviderRow, error)
 	GetProvider(ctx context.Context, arg GetProviderParams) (GetProviderRow, error)
@@ -60,8 +55,6 @@ type Querier interface {
 	ListApps(ctx context.Context, arg ListAppsParams) ([]App, error)
 	ListAssetGroupCleanups(ctx context.Context, arg ListAssetGroupCleanupsParams) ([]BenefitPackageAssetGroupCleanup, error)
 	ListBenefitPackages(ctx context.Context, arg ListBenefitPackagesParams) ([]BenefitPackage, error)
-	ListBotSkills(ctx context.Context, arg ListBotSkillsParams) ([]ListBotSkillsRow, error)
-	ListBots(ctx context.Context, arg ListBotsParams) ([]ListBotsRow, error)
 	ListProviders(ctx context.Context, arg ListProvidersParams) ([]ListProvidersRow, error)
 	ListPublishedSkillNodes(ctx context.Context, skillID string) ([]ListPublishedSkillNodesRow, error)
 	ListSkillNodes(ctx context.Context, skillID string) ([]ListSkillNodesRow, error)
@@ -72,7 +65,6 @@ type Querier interface {
 	ReviewUsage(ctx context.Context, arg ReviewUsageParams) ([]ReviewUsageRow, error)
 	SaveAssetGroupCleanup(ctx context.Context, arg SaveAssetGroupCleanupParams) error
 	SaveBenefitPackage(ctx context.Context, arg SaveBenefitPackageParams) error
-	SaveBot(ctx context.Context, arg SaveBotParams) (SaveBotRow, error)
 	SaveProvider(ctx context.Context, arg SaveProviderParams) (SaveProviderRow, error)
 	SaveReviewCleanup(ctx context.Context, arg SaveReviewCleanupParams) error
 	SaveReviewReservation(ctx context.Context, arg SaveReviewReservationParams) error
@@ -80,7 +72,6 @@ type Querier interface {
 	SaveSkillNode(ctx context.Context, arg SaveSkillNodeParams) error
 	SetDefaultProvider(ctx context.Context, id string) (SetDefaultProviderRow, error)
 	SiblingNameExists(ctx context.Context, arg SiblingNameExistsParams) (bool, error)
-	SkillExists(ctx context.Context, arg SkillExistsParams) (bool, error)
 	UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error)
 	UpdateCanvasSettings(ctx context.Context, arg UpdateCanvasSettingsParams) (int64, error)
 	UpsertAssetClaim(ctx context.Context, arg UpsertAssetClaimParams) error

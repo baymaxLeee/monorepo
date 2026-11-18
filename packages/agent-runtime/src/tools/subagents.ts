@@ -418,7 +418,6 @@ export function createSubagentsManifest<CONTEXT extends Record<string, unknown> 
       effect: "read",
       trust: "open-world",
       execution: "inline",
-      modes: ["normal", "plan"],
       uiKind: "subagent",
     },
     {

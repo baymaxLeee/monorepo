@@ -22,7 +22,6 @@ const file: SessionFile = {
   asset_id: "asset",
   revision_id: "revision",
   sha256: sha(oldContent),
-  kind: "artifact",
   editable: true,
   edit_max_bytes: 1_000_000,
   etag: '"0123456789abcdef0123456789abcdef"',

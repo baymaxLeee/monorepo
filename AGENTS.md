@@ -63,7 +63,10 @@ Read only relevant routes and every closer AGENTS file. See the
   current primary sources. Do not invent limits or orchestration policy.
 - Refactor systemic problems directly while preserving stored data and deployment
   compatibility. Database changes require new versioned migrations, never edits
-  to applied baselines or data resets. Follow
+  to applied baselines or data resets. Unless the user explicitly opens a new
+  release, append the next contiguous step inside that service's highest existing
+  three-part migration directory; never create a new major, minor or patch
+  migration directory on your own. Follow
   [database migrations](docs/开发规范/database-migrations.md).
   Preserve unrelated working-tree changes.
 

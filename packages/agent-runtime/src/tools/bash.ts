@@ -42,7 +42,6 @@ export function createBashTool(run: (input: BashInput, options: ToolExecutionOpt
       effect: "write",
       trust: "private-untrusted",
       execution: "inline",
-      modes: ["normal", "plan"],
       uiKind: "terminal",
     },
     { summary: "Execute CLI programs and manipulate real files in the authorized sandbox." },

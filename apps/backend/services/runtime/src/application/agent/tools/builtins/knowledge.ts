@@ -72,7 +72,6 @@ export function createKnowledgeToolManifests() {
         effect: "read",
         trust: "private-untrusted",
         execution: "inline",
-        modes: ["normal", "plan"],
       },
       { summary: "Search uploaded and workspace-private knowledge." },
     ),

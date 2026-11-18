@@ -20,12 +20,6 @@ export const DEFAULT_SLASH_COMMANDS: PromptSlashCommand[] = [
     keywords: ["skill", "skills", "技能"],
   },
   {
-    id: "plan",
-    title: "规划",
-    description: "先制定计划再执行",
-    keywords: ["plan", "规划"],
-  },
-  {
     id: "search",
     title: "联网搜索",
     description: "启用实时网页检索",
@@ -71,7 +65,7 @@ export function buildSlashExtension(options: {
     char: "/",
     pluginKey: slashPluginKey,
     allowSpaces: false,
-    emptyLabel: "没有可用技能（请在智能体设置中启用技能）",
+    emptyLabel: "没有可用技能（请在工作区管理中启用并发布技能）",
     items: async (query, signal) => {
       const onSkillsLoad = options.getOnSkillsLoad();
       if (onSkillsLoad) {

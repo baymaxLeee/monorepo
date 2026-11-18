@@ -169,7 +169,6 @@ export function defineAgentTool(
     ...(resolvedPolicy.callableByCodeMode ? { callableByCodeMode: true } : {}),
     effect: resolvedPolicy.effect,
     execution: resolvedPolicy.execution,
-    modes: resolvedPolicy.modes,
     source: resolvedPolicy.source,
     trust: resolvedPolicy.trust,
     ...(resolvedPolicy.uiKind ? { uiKind: resolvedPolicy.uiKind } : {}),
@@ -213,35 +212,6 @@ export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {
   return Object.fromEntries(manifests.flatMap((manifest) => (manifest.tool ? [[manifest.name, manifest.tool]] : [])));
 }
 
-export function renderExecutionCapabilities(manifests: AgentToolManifest[]): string {
-  const executionCapabilities = manifests.filter(
-    (manifest) =>
-      manifest.policy.modes.includes("normal") &&
-      !manifest.policy.modes.includes("plan") &&
-      manifest.policy.capability !== "planning",
-  );
-  if (executionCapabilities.length === 0) {
-    return "";
-  }
-
-  const lines = executionCapabilities.map((manifest) => {
-    const details = [
-      manifest.planning.summary,
-      manifest.planning.parallelizable ? "May run alongside independent deliverables." : null,
-      ...(manifest.planning.constraints ?? []),
-      ...(manifest.planning.prerequisites ?? []).map((value) => `Prerequisite: ${value}`),
-    ].filter((value): value is string => Boolean(value));
-    return `- ${manifest.name} [${manifest.availability}]: ${details.join(" ")}`;
-  });
-
-  return [
-    "<execution_capabilities>",
-    "These tools are available only after the plan is approved. Include them in the plan when appropriate; do not call them in plan mode.",
-    ...lines,
-    "</execution_capabilities>",
-  ].join("\n");
-}
-
 export function toolPolicyFromMetadata(metadata: unknown): AgentToolPolicy | null {
   if (!metadata || typeof metadata !== "object") {
     return null;
@@ -256,8 +226,7 @@ export function toolPolicyFromMetadata(metadata: unknown): AgentToolPolicy | nul
     typeof value.effect !== "string" ||
     typeof value.capability !== "string" ||
     typeof value.trust !== "string" ||
-    typeof value.execution !== "string" ||
-    !Array.isArray(value.modes)
+    typeof value.execution !== "string"
   ) {
     return null;
   }

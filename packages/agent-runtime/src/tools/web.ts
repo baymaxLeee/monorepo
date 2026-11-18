@@ -40,7 +40,6 @@ const readPolicy = {
   effect: "read" as const,
   trust: "open-world" as const,
   execution: "inline" as const,
-  modes: ["normal", "plan"] as const,
 };
 
 export function createWebSearchManifest(
@@ -55,7 +54,7 @@ export function createWebSearchManifest(
       outputSchema: webSearchOutputSchema,
       execute: search,
     }),
-    { ...readPolicy, callableByCodeMode: true, modes: [...readPolicy.modes] },
+    { ...readPolicy, callableByCodeMode: true },
     { summary: "Search current and public web sources." },
   );
 }
@@ -84,7 +83,7 @@ export function createWebFetchManifest() {
           : toolCompleted(result);
       },
     },
-    { ...readPolicy, callableByCodeMode: true, modes: [...readPolicy.modes] },
+    { ...readPolicy, callableByCodeMode: true },
     { summary: "Read a public web page or text URL as Markdown.", parallelizable: true },
   );
 }

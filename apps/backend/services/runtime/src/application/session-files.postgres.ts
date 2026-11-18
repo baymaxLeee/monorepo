@@ -75,7 +75,6 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
         mediaType: "text/markdown",
         sizeBytes: 4,
         sha256: sha("old\n"),
-        kind: "artifact",
         idempotencyKey: `seed:${fileId}`,
         createdAt: now,
         updatedAt: now,

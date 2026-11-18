@@ -12,11 +12,11 @@ function call(toolCallId: string, toolName: string): LanguageModelV4Content {
 test("retains independent ordinary tool calls from one model response", () => {
   const content = [call("call_search", "web_search"), call("call_fetch", "web_fetch")];
 
-  assert.deepEqual(filterToolBatch("normal", content), content);
+  assert.deepEqual(filterToolBatch(content), content);
 });
 
 test("keeps load_skill as a batch barrier", () => {
   const loadSkill = call("call_skill", "load_skill");
 
-  assert.deepEqual(filterToolBatch("normal", [loadSkill, call("call_fetch", "web_fetch")]), [loadSkill]);
+  assert.deepEqual(filterToolBatch([loadSkill, call("call_fetch", "web_fetch")]), [loadSkill]);
 });

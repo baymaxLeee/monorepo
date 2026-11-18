@@ -53,9 +53,6 @@ function compactPart(part: AnyUIMessage["parts"][number]): unknown | null {
       error: typeof record.errorText === "string" ? record.errorText.slice(0, 1_000) : undefined,
     };
   }
-  if (part.type === "data-plan-execution") {
-    return { type: part.type, data: part.data };
-  }
   return null;
 }
 

@@ -18,19 +18,18 @@ import (
 
 type Server struct {
 	adminv1.UnimplementedProviderServiceServer
-	adminv1.UnimplementedAgentConfigurationServiceServer
+	adminv1.UnimplementedConfigurationServiceServer
 	adminv1.UnimplementedBenefitPackageServiceServer
 	Providers application.ProviderService
-	Bots      application.BotService
 	Canvas    application.CanvasSettingsService
 	Skills    *application.SkillService
 	Benefits  application.BenefitPackageService
 }
 
-func Register(server *grpc.Server, providers application.ProviderService, bots application.BotService, canvas application.CanvasSettingsService, skills *application.SkillService, benefits application.BenefitPackageService) {
-	adapter := &Server{Providers: providers, Bots: bots, Canvas: canvas, Skills: skills, Benefits: benefits}
+func Register(server *grpc.Server, providers application.ProviderService, canvas application.CanvasSettingsService, skills *application.SkillService, benefits application.BenefitPackageService) {
+	adapter := &Server{Providers: providers, Canvas: canvas, Skills: skills, Benefits: benefits}
 	adminv1.RegisterProviderServiceServer(server, adapter)
-	adminv1.RegisterAgentConfigurationServiceServer(server, adapter)
+	adminv1.RegisterConfigurationServiceServer(server, adapter)
 	adminv1.RegisterBenefitPackageServiceServer(server, adapter)
 }
 
@@ -46,7 +45,7 @@ func Authorizer() innerruntime.Authorizer {
 		if strings.HasPrefix(method, "/admin.v1.BenefitPackageService/") {
 			return caller == "canvas"
 		}
-		return strings.HasPrefix(method, "/admin.v1.ProviderService/") || strings.HasPrefix(method, "/admin.v1.AgentConfigurationService/")
+		return strings.HasPrefix(method, "/admin.v1.ProviderService/") || strings.HasPrefix(method, "/admin.v1.ConfigurationService/")
 	})
 }
 
@@ -130,37 +129,26 @@ func (s *Server) ListProviderCatalog(ctx context.Context, request *adminv1.ListP
 	return &adminv1.ListProviderCatalogResponse{Providers: result}, nil
 }
 
-func (s *Server) GetResolvedAgent(ctx context.Context, request *adminv1.GetResolvedAgentRequest) (*adminv1.GetResolvedAgentResponse, error) {
+func (s *Server) ListSkills(ctx context.Context, request *adminv1.ListSkillsRequest) (*adminv1.ListSkillsResponse, error) {
+	if s.Skills == nil {
+		return nil, status.Error(codes.Unavailable, "skill service is not configured")
+	}
 	a := actor(request.GetActor())
-	if a.WorkspaceID == "" || a.TenantID == "" || a.UserID == "" {
-		return nil, status.Error(codes.InvalidArgument, "actor user_id, workspace_id and tenant_id are required")
+	if a.WorkspaceID == "" || a.TenantID == "" {
+		return nil, status.Error(codes.InvalidArgument, "actor workspace_id and tenant_id are required")
 	}
-	bot, err := s.Bots.Get(ctx, a, request.GetAgentId())
+	values, err := s.Skills.List(ctx, a)
 	if err != nil {
 		return nil, rpcError(err)
 	}
-	skills, err := s.Bots.Skills(ctx, a, bot.ID, true)
-	if err != nil {
-		return nil, rpcError(err)
-	}
-	result := &adminv1.ResolvedAgent{Id: bot.ID, Name: bot.Name, RoleDescription: bot.RoleDescription, DomainDescription: bot.DomainDescription, Audience: bot.Audience, Tone: bot.Tone}
-	for _, skill := range skills {
-		result.Skills = append(result.Skills, &adminv1.AgentSkill{Id: skill.ID, Name: skill.Name, Description: skill.Description})
-	}
-	resolve := func(id *string) *adminv1.ModelProvider {
-		if id == nil {
-			return nil
+	result := make([]*adminv1.SkillSummary, 0, len(values))
+	for _, value := range values {
+		if !value.IsEnabled || value.Status != "published" {
+			continue
 		}
-		value, lookupErr := s.Providers.GetInternal(ctx, *id, a.WorkspaceID, a.TenantID, false)
-		if lookupErr != nil {
-			return nil
-		}
-		return provider(value)
+		result = append(result, &adminv1.SkillSummary{Id: value.ID, Name: value.Name, Description: value.Description})
 	}
-	result.TextProvider = resolve(bot.TextProviderID)
-	result.ImageProvider = resolve(bot.ImageProviderID)
-	result.VideoProvider = resolve(bot.VideoProviderID)
-	return &adminv1.GetResolvedAgentResponse{Agent: result}, nil
+	return &adminv1.ListSkillsResponse{Skills: result}, nil
 }
 
 func (s *Server) GetSkill(ctx context.Context, request *adminv1.GetSkillRequest) (*adminv1.GetSkillResponse, error) {

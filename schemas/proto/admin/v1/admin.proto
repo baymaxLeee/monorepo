@@ -16,8 +16,8 @@ service ProviderService {
   rpc ListProviderCatalog(ListProviderCatalogRequest) returns (ListProviderCatalogResponse);
 }
 
-service AgentConfigurationService {
-  rpc GetResolvedAgent(GetResolvedAgentRequest) returns (GetResolvedAgentResponse);
+service ConfigurationService {
+  rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
   rpc GetSkill(GetSkillRequest) returns (GetSkillResponse);
   rpc GetSkillFile(GetSkillFileRequest) returns (GetSkillFileResponse);
   rpc GetCanvasSettings(GetCanvasSettingsRequest) returns (GetCanvasSettingsResponse);
@@ -136,32 +136,18 @@ message ListProviderCatalogResponse {
   repeated ProviderCatalogItem providers = 1;
 }
 
-message AgentSkill {
+message SkillSummary {
   string id = 1;
   string name = 2;
   string description = 3;
 }
 
-message ResolvedAgent {
-  string id = 1;
-  string name = 2;
-  optional string role_description = 3;
-  optional string domain_description = 4;
-  optional string audience = 5;
-  string tone = 6;
-  optional ModelProvider text_provider = 7;
-  optional ModelProvider image_provider = 8;
-  optional ModelProvider video_provider = 9;
-  repeated AgentSkill skills = 10;
-}
-
-message GetResolvedAgentRequest {
+message ListSkillsRequest {
   common.v1.ActorContext actor = 1;
-  string agent_id = 2;
 }
 
-message GetResolvedAgentResponse {
-  ResolvedAgent agent = 1;
+message ListSkillsResponse {
+  repeated SkillSummary skills = 1;
 }
 
 message Skill {

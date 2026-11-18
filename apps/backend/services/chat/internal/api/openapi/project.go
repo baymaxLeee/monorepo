@@ -47,6 +47,7 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 			"request_id":  map[string]any{"type": "string", "minLength": float64(8), "maxLength": float64(64)},
 			"title":       map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(200)},
 			"provider_id": map[string]any{"type": "string", "maxLength": float64(32), "nullable": true},
+			"reasoning_effort": map[string]any{"$ref": "#/components/schemas/ReasoningEffort", "nullable": true},
 			"project_id":  map[string]any{"type": "string", "maxLength": float64(36)},
 			"canvas_id":   map[string]any{"type": "string", "maxLength": float64(36)},
 		},

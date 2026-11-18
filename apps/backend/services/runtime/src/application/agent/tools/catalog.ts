@@ -1,6 +1,6 @@
 import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
-import { defineAgentTool, manifestsToTools, renderExecutionCapabilities } from "@repo/agent-runtime/tools/manifest";
+import { defineAgentTool, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
 import { primaryAgentToolProfile, resolveAgentToolProfile } from "@repo/agent-runtime/tools/profile";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { AdminSkillSource } from "@repo/agent-runtime/tools/skills";
@@ -9,7 +9,6 @@ import type { ToolSet } from "ai";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
-import type { ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import { createCloudToolAdapters } from "../adapters/cloud-tools.js";
 import { createRuntimePortableToolModel } from "../adapters/core-tools.js";
 import { webSearch } from "../adapters/web-search.js";
@@ -21,17 +20,12 @@ import { createMemoryToolManifests } from "./builtins/memory.js";
 
 export interface AgentToolProviders {
   textProvider: LanguageProviderSnapshot;
-  imageProvider: ProviderSnapshot | null;
-  videoProviderId: string | null;
 }
 
 function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
   return [
     ...createKnowledgeToolManifests(),
-    ...createMediaToolManifests({
-      imageProvider: providers.imageProvider,
-      videoProviderId: providers.videoProviderId,
-    }),
+    ...createMediaToolManifests(),
     ...createMemoryToolManifests(),
   ];
 }
@@ -90,7 +84,6 @@ export class ToolCatalog {
     dispose: () => Promise<void>;
   }> {
     const portableTools = createPortableToolRegistry({
-      mode: context.mode,
       model: createRuntimePortableToolModel(providers.textProvider),
       webSearch,
       skillSource,
@@ -104,7 +97,6 @@ export class ToolCatalog {
         ...(context.projectId && context.canvasId
           ? createCanvasToolManifests({
               textProviderId: providers.textProvider.id,
-              videoProviderId: providers.videoProviderId,
             })
           : []),
       ];
@@ -127,7 +119,6 @@ export class ToolCatalog {
                 effect: "unknown",
                 trust: "unknown",
                 execution: "inline",
-                modes: ["normal"],
                 source,
               },
               {
@@ -148,13 +139,7 @@ export class ToolCatalog {
         profile: primaryAgentToolProfile,
       });
 
-      // Capability projection is code-generated from resolved manifests and only
-      // in plan mode; normal mode relies on the callable tool schemas directly.
-      const capabilities = context.mode === "plan" ? renderExecutionCapabilities(manifests) || null : null;
-
-      const activeManifests = manifests.filter(
-        (manifest) => manifest.tool && manifest.policy.modes.includes(context.mode),
-      );
+      const activeManifests = manifests.filter((manifest) => manifest.tool);
       const tools = manifestsToTools(activeManifests);
       const activeTools = Object.keys(tools);
       const codeModeManifests = activeManifests.filter((manifest) => manifest.policy.callableByCodeMode);
@@ -174,7 +159,7 @@ export class ToolCatalog {
         activeTools,
         codeModeTools,
         manifests,
-        contributions: { capabilities, skills },
+        contributions: { skills },
         environment: cloudAdapters.environment,
         dispose: async () => {
           await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));

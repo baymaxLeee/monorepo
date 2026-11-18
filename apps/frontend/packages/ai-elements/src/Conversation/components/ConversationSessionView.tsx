@@ -16,9 +16,7 @@ export function ConversationSessionView({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center justify-center px-14">
-        <h1 className="max-w-full truncate text-sm font-medium text-foreground">{title}</h1>
-      </header>
+      <h1 className="sr-only">{title}</h1>
       <ChatStream {...stream} />
       {issue}
       {composer}

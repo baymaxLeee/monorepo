@@ -28,7 +28,7 @@ const state = vi.hoisted(() => ({
   listSteering: vi.fn(),
   promptClear: vi.fn(),
   action: vi.fn(),
-  loadAgents: vi.fn(),
+  updateModel: vi.fn(),
   documents: [] as unknown[],
   suspendedText: null as string | null,
   pendingRender: new Promise<void>(() => {}),
@@ -76,6 +76,9 @@ vi.mock("@repo/api/chat", () => ({
     revision: 0,
     active_run_id: state.serverActiveRunId,
     latest_run_id: "run",
+    provider_id: "provider",
+    model: "model",
+    reasoning_effort: "medium",
     documents: state.documents,
     messages: state.messages.map((message) => ({
       id: message.id,
@@ -83,18 +86,20 @@ vi.mock("@repo/api/chat", () => ({
       content: { parts: message.parts },
     })),
   }),
+  updateConversationModel: state.updateModel,
 }));
-vi.mock("@repo/api/admin", () => ({ listBotSkills: vi.fn() }));
+vi.mock("@repo/api/admin", () => ({
+  listProviders: vi.fn(async () => [
+    { id: "provider", name: "Model", model: "model", provider_kind: "chat", is_enabled: true },
+  ]),
+  listSkills: vi.fn(async () => []),
+}));
 vi.mock("@repo/api/knowledge", () => ({ ingestDocuments: vi.fn(), prepareIngest: vi.fn() }));
 vi.mock("../../lib/transport", () => ({ createConversationTransport: vi.fn(() => ({})) }));
 vi.mock("../../store/useChatStore", () => {
   const store = {
-    agents: [],
-    selectedAgentId: null,
     traceRefreshKey: 0,
     traceRunId: "run",
-    loadAgents: state.loadAgents,
-    setSelectedAgentId: state.action,
     setTraceRun: state.action,
     clearTraceRun: state.action,
     bumpTraceRefresh: state.action,
@@ -130,14 +135,12 @@ vi.mock("../../components/ChatMessageView", () => ({
   ChatMessageView: ({
     message,
     onToolApproval,
-    planExecutedIds,
-    planBusy,
+    busy,
     onEditMessage,
   }: {
     message: UIMessage;
     onToolApproval: (id: string, approved: boolean) => void;
-    planExecutedIds: ReadonlySet<string>;
-    planBusy: boolean;
+    busy: boolean;
     onEditMessage: ChatMessageViewProps["onEditMessage"];
   }) => {
     state.editMessage = onEditMessage;
@@ -145,7 +148,7 @@ vi.mock("../../components/ChatMessageView", () => ({
     const text = message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
     if (text === state.suspendedText) throw state.pendingRender;
     return (
-      <div data-testid={message.id} data-plans={[...planExecutedIds].join(",")} data-busy={planBusy}>
+      <div data-testid={message.id} data-busy={busy}>
         {text}
         <button onClick={() => onToolApproval("approval", true)}>授权</button>
       </div>
@@ -154,11 +157,7 @@ vi.mock("../../components/ChatMessageView", () => ({
 }));
 vi.mock("../../components/ChatImagePreview", () => ({ ChatImagePreview: () => null }));
 vi.mock("../../components/ChatComposerControls", () => ({
-  ChatComposerControls: ({ onModeChange, disabled }: { onModeChange: (mode: "plan") => void; disabled: boolean }) => (
-    <button disabled={disabled} onClick={() => onModeChange("plan")}>
-      切换模式
-    </button>
-  ),
+  ChatComposerControls: () => null,
 }));
 vi.mock("../../components/ChatContextUsage", () => ({ ChatContextUsage: () => null }));
 vi.mock("@repo/ai-elements/prompt-input", () => ({
@@ -244,7 +243,7 @@ async function mount() {
   return view;
 }
 
-test("first request preserves composer parts and mode after conversation creation", async () => {
+test("first request preserves composer parts after conversation creation", async () => {
   state.status = "ready";
   state.serverActiveRunId = null;
   const parts = [
@@ -254,12 +253,12 @@ test("first request preserves composer parts and mode after conversation creatio
 
   render(
     <MemoryRouter>
-      <ChatSession conversationId="conversation" externalRequest={{ id: "initial-request", parts, mode: "plan" }} />
+      <ChatSession conversationId="conversation" externalRequest={{ id: "initial-request", parts }} />
     </MemoryRouter>,
   );
 
   await waitFor(() =>
-    expect(state.sendMessage).toHaveBeenCalledWith({ parts }, { body: { agent_id: null, mode: "plan" } }),
+    expect(state.sendMessage).toHaveBeenCalledWith({ parts }, { body: {} }),
   );
 });
 
@@ -272,7 +271,7 @@ test("editing a message on HTTP preserves its target and generates a new message
   await act(async () => state.editMessage!("original-user", parts));
   expect(state.sendMessage).toHaveBeenCalledWith(
     { id: expect.stringMatching(/^[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$/), messageId: "original-user", parts },
-    { body: { agent_id: null, mode: "normal" } },
+    { body: {} },
   );
 });
 
@@ -309,7 +308,7 @@ test("a running submission clears only after durable admission and renders above
     reason: null,
   });
   await mount();
-  expect(screen.getByRole("button", { name: "切换模式" }).hasAttribute("disabled")).toBe(false);
+  expect(screen.getByRole("textbox").hasAttribute("disabled")).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "发送补充" }));
   await waitFor(() => expect(state.steer).toHaveBeenCalledOnce());
   expect(state.promptClear).not.toHaveBeenCalled();
@@ -367,6 +366,10 @@ test("a live text delta does not render unchanged historical messages", async ()
   }));
   state.messages = [...history, ...state.messages];
   await mount();
+  // Let conversation hydration and composer-side model discovery settle, then
+  // measure only the render caused by the live SDK snapshot below.
+  await publish();
+  state.messageRenders = [];
   state.messages = [
     ...state.messages.slice(0, -1),
     { id: "live", role: "assistant", parts: [{ type: "text", text: "新内容" }] },
@@ -384,25 +387,12 @@ test("ready status and changed request options reach memoized controls and tool 
   await publish();
   expect(screen.getByRole("textbox").getAttribute("data-loading")).toBe("false");
   expect(screen.getByTestId("live").getAttribute("data-busy")).toBe("false");
-  fireEvent.click(screen.getByRole("button", { name: "切换模式" }));
   fireEvent.click(screen.getByRole("button", { name: "授权" }));
   expect(state.addToolApprovalResponse).toHaveBeenCalledWith({
     id: "approval",
     approved: true,
-    options: { body: { agent_id: null, mode: "plan" } },
+    options: { body: {} },
   });
-});
-
-test("plan execution context still updates an unchanged historical row", async () => {
-  const history = state.messages[0];
-  const planFileId = "11111111111111111111111111111111";
-  await mount();
-  state.messages = [
-    history,
-    { id: "execution", role: "user", parts: [{ type: "data-plan-execution", data: { file_id: planFileId } }] },
-  ];
-  await publish();
-  expect(screen.getByTestId("live").getAttribute("data-plans")).toBe(planFileId);
 });
 
 test("a suspended transcript update does not block edits or cancellation", async () => {

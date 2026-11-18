@@ -25,6 +25,8 @@ export interface LanguageProviderSnapshot {
   maxOutputTokens: number;
 }
 
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
 const PROVIDER_BODY_RESERVED_KEYS = new Set([
   "model",
   "input",
@@ -92,7 +94,7 @@ function isJsonValue(value: unknown): value is JSONValue {
 
 function providerBodyOptions(
   provider: LanguageProviderSnapshot,
-  options: { parallelToolCalls?: boolean | null },
+  options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null },
 ): { requestBody: JSONObject; providerOptions: OpenAIResponsesProviderOptions } {
   const body: JSONObject = {};
   for (const [key, value] of Object.entries(provider.extraBody)) {
@@ -103,6 +105,7 @@ function providerBodyOptions(
 
   const providerOptions: OpenAIResponsesProviderOptions = {
     parallelToolCalls: options.parallelToolCalls ?? undefined,
+    reasoningEffort: options.reasoningEffort ?? undefined,
     store: true,
   };
 
@@ -279,7 +282,7 @@ function prepareArkPrompt(
 
 export function createProviderModel(
   provider: LanguageProviderSnapshot,
-  options: { parallelToolCalls?: boolean | null } = {},
+  options: { parallelToolCalls?: boolean | null; reasoningEffort?: ReasoningEffort | null } = {},
 ): LanguageModelV4 {
   const name = providerName(provider.id);
   const { requestBody, providerOptions: configured } = providerBodyOptions(provider, options);

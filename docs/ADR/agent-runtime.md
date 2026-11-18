@@ -8,7 +8,7 @@
 
 ## 执行与传输
 
-Runtime 使用 AI SDK 7 的 `Agent` interface 和一个主 `ToolLoopAgent`；normal/plan 是行为配置，不是互相交接的独立角色。主 agent 持有用户意图、计划、交付顺序和最终综合权。 `subagents` 可作为普通 tool 并行创建 1–3 个短时、只读、独立 context 的 child `ToolLoopAgent`，但 child 不继承父会话或 response lineage，也不成为第二个规划权威。SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、显式 Plan 引用、取消、上下文与持久化。主模型在同一个 ReAct loop 中根据工具描述自行决定直接回答、调用普通工具或委派 child；harness 不增加意图分类器、难度分级、router、planner 或预先任务拆解。
+Runtime 使用 AI SDK 7 的 `Agent` interface 和一个主 `ToolLoopAgent`。主 agent 持有用户意图、任务状态、交付顺序和最终综合权。 `subagents` 可作为普通 tool 并行创建 1–3 个短时、只读、独立 context 的 child `ToolLoopAgent`，但 child 不继承父会话或 response lineage，也不成为第二个规划权威。SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、取消、上下文与持久化。主模型在同一个 ReAct loop 中根据工具描述自行决定直接回答、调用普通工具或委派 child；harness 不增加意图分类器、难度分级、router、planner 或预先任务拆解。
 
 ToolLoopAgent 使用 50 个 model step 的安全上限，并保留最后一步做禁止工具调用的真实结果总结；这高于 SDK 的 20 步保守默认值，适配长任务，同时仍有明确成本边界。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 把 `load_skill` 作为屏障并保持 `ask_user` 独占，独立读取可在同一步并行，生成和有依赖的副作用继续串行。
 
@@ -22,13 +22,13 @@ Runtime worker 状态经内部 SSE 汇入原生 preliminary tool results，浏�
 
 ## 上下文与权限
 
-Instructions 使用代码拥有的固定层次：稳定策略、模式/执行契约、能力投影、Skill、结构化 Bot profile、已批准记忆与服务端环境。Tool schema 是输入契约；历史会话、todo、Plan 内容不伪装成系统指令。配置字符串的转义不等于权限控制，可用工具、scope 和审批仍由代码验证。
+Instructions 使用代码拥有的固定层次：稳定策略、执行契约、Skill、结构化 Bot profile、已批准记忆与服务端环境。Tool schema 是输入契约；历史会话和 todo 内容不伪装成系统指令。配置字符串的转义不等于权限控制，可用工具、scope 和审批仍由代码验证。
 
 UIMessage 到 ModelMessage 的投影保留近期原生语义，预算不足才增量压缩旧前缀。摘要记录覆盖位置并以 revision CAS 写入；失败不推进未完成的覆盖范围。历史文件写入保留路径、SHA、结果和失败事实，不重复大正文与旧工具参数。
 
 所有文本模型统一通过火山 Ark Responses 接入，PostgreSQL UIMessage journal 始终是可重建的业务事实源。有效 lineage 固定使用 Ark 的 `store: true` 与 `previous_response_id`：同一 run 的后续 step 只发送新产生的 `function_call_output` 和真实 steering，不能重复发送已存储的 system/user/assistant 输入，也不能插入工具目录等合成 user message。Stored continuation 只允许连接同 provider/model 且紧邻当前 journal 输入的最后一个已完成输出；切换模型、切换分支、cursor 缺失或最后一步 usage 不可观测时都必须从完整 journal 重建。每个已完成 run 的最后一个 model step input usage 达到有效输入预算（扣除最大输出与 harness/tool 预留）的 80% 水位时，下一次 HTTP run 断开 `previous_response_id` lineage，增量摘要旧前缀并保留近期原生消息。Runtime 不向 Ark 请求注入 OpenAI 私有 `context_management`，也不按模型名称或厂商推断 continuation/reasoning 能力。断链重放会移除 provider stored item reference，不能把它误当成跨 provider 的会话事实。摘要模型、结构化输出或批次处理失败时，本次主模型调用失败且不推进 coverage；不得用“内容已省略”占位符静默丢弃未压缩历史，已经成功的压缩批次 usage 仍计入失败 run。
 
-Plan 是 Chat 注册的稳定 conversation file，已保存内容指向精确 Asset revision；首次 Bash 自动导入当前会话 source，显式执行按 `file_id` 解析 run 开始时的当前 revision，自然语言执行由 agent 用 Bash 发现候选。运行中的工作副本不会随其他保存实时漂移。只有其他工具在同一 run 新增或更新会话资源后才调用 `refresh_conversation_sources`。每个 run 仍从所属服务读取已发布 Skill 和配置等可变权威信息。历史搜索结果是证据，只有刷新/最新需求且现有证据不足时重新查询。Skill 初始仅暴露名称/描述，激活后按需读取资源；草稿不进入执行上下文。显式 Plan 执行必须先完整读取选中文件。
+首次 Bash 自动导入当前会话 source，运行中的工作副本不会随其他保存实时漂移。只有其他工具在同一 run 新增或更新会话资源后才调用 `refresh_conversation_sources`。每个 run 仍从所属服务读取已发布 Skill 和配置等可变权威信息。历史搜索结果是证据，只有刷新/最新需求且现有证据不足时重新查询。Skill 初始仅暴露名称/描述，激活后按需读取资源；草稿不进入执行上下文。
 
 ## 工具与模型
 

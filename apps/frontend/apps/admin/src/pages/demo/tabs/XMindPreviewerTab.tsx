@@ -9,7 +9,7 @@ const demoMindMapData: NonNullable<XMindPreviewerProps["data"]> = {
   },
   root: {
     data: {
-      text: "智能体上线检查",
+      text: "应用上线检查",
       expand: true,
     },
     children: [
@@ -31,7 +31,7 @@ const demoMindMapData: NonNullable<XMindPreviewerProps["data"]> = {
 
 export function XMindPreviewerTab() {
   return (
-    <DemoCard title="XMindPreviewer" description="simple-mind-map 预览，示例数据为智能体上线检查清单" fill>
+    <DemoCard title="XMindPreviewer" description="simple-mind-map 预览，示例数据为应用上线检查清单" fill>
       <div className="flex min-h-0 flex-1 overflow-hidden min-w-100 min-h-100 rounded-md border">
         <XMindPreviewer data={demoMindMapData} height="100%" layout="mindMap" theme="default" toolbar />
       </div>

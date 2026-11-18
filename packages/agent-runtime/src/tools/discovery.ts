@@ -8,7 +8,6 @@ export function createToolSearchManifest(): AgentToolManifest {
     effect: "none",
     trust: "closed",
     execution: "inline",
-    modes: ["normal", "plan"],
     source: "builtin",
   };
   return {

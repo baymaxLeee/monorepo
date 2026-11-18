@@ -1,7 +1,7 @@
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import type { GenericToolApprovalFunction, ToolSet } from "ai";
 
-import type { AgentMode, ApprovalMode } from "../agent/types.js";
+import type { ApprovalMode } from "../agent/types.js";
 import { toolPolicyFromMetadata } from "./manifest.js";
 
 const NETWORK_COMMAND =
@@ -16,16 +16,12 @@ export function bashNeedsApproval(command: string, approvalMode: ApprovalMode): 
 }
 
 export function createToolApprovalPolicy(
-  mode: AgentMode,
   options: { approvalMode?: ApprovalMode; getApprovalMode?: () => ApprovalMode } = {},
 ): GenericToolApprovalFunction<ToolSet, InferToolSetContext<ToolSet>, Record<string, unknown>> {
   return ({ toolCall }) => {
     const approvalMode = options.getApprovalMode?.() ?? options.approvalMode;
     const policy = toolPolicyFromMetadata(toolCall.toolMetadata);
 
-    if (mode === "plan" && (!policy || !policy.modes.includes("plan"))) {
-      return { type: "denied", reason: "This capability is unavailable in plan mode." };
-    }
     if (!policy) {
       return approvalMode === "full" ? "not-applicable" : "user-approval";
     }

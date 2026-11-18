@@ -26,24 +26,8 @@ export function referencedDocumentIdsFromParts(parts: ChatPart[]): string[] {
       const id = documentIdFromFilePart(part);
       return id ? [id] : [];
     }
-    if (part.type === "data-plan-execution") {
-      return [];
-    }
     return [];
   });
-}
-
-export function planExecutionFileIdFromParts(parts: ChatPart[]): string | null {
-  for (const part of parts) {
-    if (part.type !== "data-plan-execution") {
-      continue;
-    }
-    const fileId = (part.data as { file_id?: unknown } | undefined)?.file_id;
-    if (typeof fileId === "string" && fileId.length === 32) {
-      return fileId;
-    }
-  }
-  return null;
 }
 
 export function hasUntrustedFilePart(parts: ChatPart[]): boolean {

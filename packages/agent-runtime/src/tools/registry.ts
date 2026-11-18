@@ -1,7 +1,6 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { FlexibleSchema } from "ai";
 
-import type { AgentMode } from "../agent/types.js";
 import { createCodeModeManifest } from "./code-mode.js";
 import { createToolSearchManifest } from "./discovery.js";
 import { createInteractionToolManifests } from "./interaction.js";
@@ -21,7 +20,6 @@ export interface PortableToolModel<CONTEXT extends Record<string, unknown>> {
 }
 
 export interface PortableToolBindings<CONTEXT extends Record<string, unknown>> {
-  mode: AgentMode;
   model: PortableToolModel<CONTEXT>;
   webSearch(input: WebSearchInput, options: { abortSignal?: AbortSignal }): Promise<WebSearchOutput>;
   skillSource?: AdminSkillSource | null;
@@ -34,7 +32,6 @@ export interface PortableToolBindings<CONTEXT extends Record<string, unknown>> {
  * these defaults through an AgentToolProfile and add only that agent's tools.
  */
 export function createPortableToolRegistry<CONTEXT extends Record<string, unknown> = Record<string, never>>({
-  mode,
   model,
   webSearch,
   skillSource,
@@ -56,7 +53,7 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
       createCodeModeManifest(),
       createToolSearchManifest(),
       ...createPlanningToolManifests(),
-      ...(clientInteraction ? createInteractionToolManifests(mode) : []),
+      ...(clientInteraction ? createInteractionToolManifests() : []),
       createSubagentsManifest({
         modelName: model.name,
         model: model.model,

@@ -84,31 +84,31 @@ class ProviderServiceServicer(metaclass=_abc_1.ABCMeta):
 
 def add_ProviderServiceServicer_to_server(servicer: ProviderServiceServicer, server: _typing.Union[_grpc.Server, _aio.Server]) -> None: ...
 
-class AgentConfigurationServiceStub:
+class ConfigurationServiceStub:
     @_typing.overload
     def __new__(cls, channel: _grpc.Channel) -> _Self: ...
     @_typing.overload
-    def __new__(cls, channel: _aio.Channel) -> AgentConfigurationServiceAsyncStub: ...
-    GetResolvedAgent: _grpc.UnaryUnaryMultiCallable[_admin_pb2.GetResolvedAgentRequest, _admin_pb2.GetResolvedAgentResponse]
+    def __new__(cls, channel: _aio.Channel) -> ConfigurationServiceAsyncStub: ...
+    ListSkills: _grpc.UnaryUnaryMultiCallable[_admin_pb2.ListSkillsRequest, _admin_pb2.ListSkillsResponse]
     GetSkill: _grpc.UnaryUnaryMultiCallable[_admin_pb2.GetSkillRequest, _admin_pb2.GetSkillResponse]
     GetSkillFile: _grpc.UnaryUnaryMultiCallable[_admin_pb2.GetSkillFileRequest, _admin_pb2.GetSkillFileResponse]
     GetCanvasSettings: _grpc.UnaryUnaryMultiCallable[_admin_pb2.GetCanvasSettingsRequest, _admin_pb2.GetCanvasSettingsResponse]
 
 @_typing.type_check_only
-class AgentConfigurationServiceAsyncStub(AgentConfigurationServiceStub):
+class ConfigurationServiceAsyncStub(ConfigurationServiceStub):
     def __init__(self, channel: _aio.Channel) -> None: ...
-    GetResolvedAgent: _aio.UnaryUnaryMultiCallable[_admin_pb2.GetResolvedAgentRequest, _admin_pb2.GetResolvedAgentResponse]  # type: ignore[assignment]
+    ListSkills: _aio.UnaryUnaryMultiCallable[_admin_pb2.ListSkillsRequest, _admin_pb2.ListSkillsResponse]  # type: ignore[assignment]
     GetSkill: _aio.UnaryUnaryMultiCallable[_admin_pb2.GetSkillRequest, _admin_pb2.GetSkillResponse]  # type: ignore[assignment]
     GetSkillFile: _aio.UnaryUnaryMultiCallable[_admin_pb2.GetSkillFileRequest, _admin_pb2.GetSkillFileResponse]  # type: ignore[assignment]
     GetCanvasSettings: _aio.UnaryUnaryMultiCallable[_admin_pb2.GetCanvasSettingsRequest, _admin_pb2.GetCanvasSettingsResponse]  # type: ignore[assignment]
 
-class AgentConfigurationServiceServicer(metaclass=_abc_1.ABCMeta):
+class ConfigurationServiceServicer(metaclass=_abc_1.ABCMeta):
     @_abc_1.abstractmethod
-    def GetResolvedAgent(
+    def ListSkills(
         self,
-        request: _admin_pb2.GetResolvedAgentRequest,
+        request: _admin_pb2.ListSkillsRequest,
         context: _ServicerContext,
-    ) -> _typing.Union[_admin_pb2.GetResolvedAgentResponse, _abc.Awaitable[_admin_pb2.GetResolvedAgentResponse]]: ...
+    ) -> _typing.Union[_admin_pb2.ListSkillsResponse, _abc.Awaitable[_admin_pb2.ListSkillsResponse]]: ...
 
     @_abc_1.abstractmethod
     def GetSkill(
@@ -131,7 +131,7 @@ class AgentConfigurationServiceServicer(metaclass=_abc_1.ABCMeta):
         context: _ServicerContext,
     ) -> _typing.Union[_admin_pb2.GetCanvasSettingsResponse, _abc.Awaitable[_admin_pb2.GetCanvasSettingsResponse]]: ...
 
-def add_AgentConfigurationServiceServicer_to_server(servicer: AgentConfigurationServiceServicer, server: _typing.Union[_grpc.Server, _aio.Server]) -> None: ...
+def add_ConfigurationServiceServicer_to_server(servicer: ConfigurationServiceServicer, server: _typing.Union[_grpc.Server, _aio.Server]) -> None: ...
 
 class BenefitPackageServiceStub:
     @_typing.overload

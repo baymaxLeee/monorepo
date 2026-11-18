@@ -56,7 +56,6 @@ export function forkMessageContent(
     if (!record(part)) return [part];
     // Execution requests and approval continuations are historical in a fork.
     // Preserve their visible context without carrying an executable request.
-    if (part.type === "data-plan-execution") return [{ type: "text", text: "（原会话中的计划执行请求）" }];
     const copy = remap(part) as RecordValue;
     if (part.type === "text" || part.type === "reasoning") copy.state = "done";
     if (typeof part.type === "string" && (part.type.startsWith("tool-") || part.type === "dynamic-tool")) {

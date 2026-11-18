@@ -256,32 +256,18 @@ export interface ListProviderCatalogResponse {
   providers: ProviderCatalogItem[];
 }
 
-export interface AgentSkill {
+export interface SkillSummary {
   id: string;
   name: string;
   description: string;
 }
 
-export interface ResolvedAgent {
-  id: string;
-  name: string;
-  roleDescription?: string | undefined;
-  domainDescription?: string | undefined;
-  audience?: string | undefined;
-  tone: string;
-  textProvider?: ModelProvider | undefined;
-  imageProvider?: ModelProvider | undefined;
-  videoProvider?: ModelProvider | undefined;
-  skills: AgentSkill[];
-}
-
-export interface GetResolvedAgentRequest {
+export interface ListSkillsRequest {
   actor?: ActorContext | undefined;
-  agentId: string;
 }
 
-export interface GetResolvedAgentResponse {
-  agent?: ResolvedAgent | undefined;
+export interface ListSkillsResponse {
+  skills: SkillSummary[];
 }
 
 export interface Skill {
@@ -1856,12 +1842,12 @@ export const ListProviderCatalogResponse: MessageFns<ListProviderCatalogResponse
   },
 };
 
-function createBaseAgentSkill(): AgentSkill {
+function createBaseSkillSummary(): SkillSummary {
   return { id: "", name: "", description: "" };
 }
 
-export const AgentSkill: MessageFns<AgentSkill> = {
-  encode(message: AgentSkill, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const SkillSummary: MessageFns<SkillSummary> = {
+  encode(message: SkillSummary, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.id !== "") {
       writer.uint32(10).string(message.id);
     }
@@ -1874,7 +1860,7 @@ export const AgentSkill: MessageFns<AgentSkill> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): AgentSkill {
+  decode(input: BinaryReader | Uint8Array, length?: number): SkillSummary {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
     if (previousRecursionDepth >= 100) {
@@ -1883,7 +1869,7 @@ export const AgentSkill: MessageFns<AgentSkill> = {
     (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
     try {
       const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseAgentSkill();
+      const message = createBaseSkillSummary();
       while (reader.pos < end) {
         const tag = reader.uint32();
         switch (tag >>> 3) {
@@ -1923,7 +1909,7 @@ export const AgentSkill: MessageFns<AgentSkill> = {
     }
   },
 
-  fromJSON(object: any): AgentSkill {
+  fromJSON(object: any): SkillSummary {
     return {
       id: isSet(object.id) ? globalThis.String(object.id) : "",
       name: isSet(object.name) ? globalThis.String(object.name) : "",
@@ -1931,7 +1917,7 @@ export const AgentSkill: MessageFns<AgentSkill> = {
     };
   },
 
-  toJSON(message: AgentSkill): unknown {
+  toJSON(message: SkillSummary): unknown {
     const obj: any = {};
     if (message.id !== "") {
       obj.id = message.id;
@@ -1945,11 +1931,11 @@ export const AgentSkill: MessageFns<AgentSkill> = {
     return obj;
   },
 
-  create(base?: DeepPartial<AgentSkill>): AgentSkill {
-    return AgentSkill.fromPartial(base ?? {});
+  create(base?: DeepPartial<SkillSummary>): SkillSummary {
+    return SkillSummary.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<AgentSkill>): AgentSkill {
-    const message = createBaseAgentSkill();
+  fromPartial(object: DeepPartial<SkillSummary>): SkillSummary {
+    const message = createBaseSkillSummary();
     message.id = object.id ?? "";
     message.name = object.name ?? "";
     message.description = object.description ?? "";
@@ -1957,275 +1943,19 @@ export const AgentSkill: MessageFns<AgentSkill> = {
   },
 };
 
-function createBaseResolvedAgent(): ResolvedAgent {
-  return {
-    id: "",
-    name: "",
-    roleDescription: undefined,
-    domainDescription: undefined,
-    audience: undefined,
-    tone: "",
-    textProvider: undefined,
-    imageProvider: undefined,
-    videoProvider: undefined,
-    skills: [],
-  };
+function createBaseListSkillsRequest(): ListSkillsRequest {
+  return { actor: undefined };
 }
 
-export const ResolvedAgent: MessageFns<ResolvedAgent> = {
-  encode(message: ResolvedAgent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.id !== "") {
-      writer.uint32(10).string(message.id);
-    }
-    if (message.name !== "") {
-      writer.uint32(18).string(message.name);
-    }
-    if (message.roleDescription !== undefined) {
-      writer.uint32(26).string(message.roleDescription);
-    }
-    if (message.domainDescription !== undefined) {
-      writer.uint32(34).string(message.domainDescription);
-    }
-    if (message.audience !== undefined) {
-      writer.uint32(42).string(message.audience);
-    }
-    if (message.tone !== "") {
-      writer.uint32(50).string(message.tone);
-    }
-    if (message.textProvider !== undefined) {
-      ModelProvider.encode(message.textProvider, writer.uint32(58).fork()).join();
-    }
-    if (message.imageProvider !== undefined) {
-      ModelProvider.encode(message.imageProvider, writer.uint32(66).fork()).join();
-    }
-    if (message.videoProvider !== undefined) {
-      ModelProvider.encode(message.videoProvider, writer.uint32(74).fork()).join();
-    }
-    for (const v of message.skills) {
-      AgentSkill.encode(v!, writer.uint32(82).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): ResolvedAgent {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
-    if (previousRecursionDepth >= 100) {
-      throw new globalThis.Error("protobuf decode recursion limit exceeded");
-    }
-    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
-    try {
-      const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseResolvedAgent();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.id = reader.string();
-            continue;
-          }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
-
-            message.name = reader.string();
-            continue;
-          }
-          case 3: {
-            if (tag !== 26) {
-              break;
-            }
-
-            message.roleDescription = reader.string();
-            continue;
-          }
-          case 4: {
-            if (tag !== 34) {
-              break;
-            }
-
-            message.domainDescription = reader.string();
-            continue;
-          }
-          case 5: {
-            if (tag !== 42) {
-              break;
-            }
-
-            message.audience = reader.string();
-            continue;
-          }
-          case 6: {
-            if (tag !== 50) {
-              break;
-            }
-
-            message.tone = reader.string();
-            continue;
-          }
-          case 7: {
-            if (tag !== 58) {
-              break;
-            }
-
-            message.textProvider = ModelProvider.decode(reader, reader.uint32());
-            continue;
-          }
-          case 8: {
-            if (tag !== 66) {
-              break;
-            }
-
-            message.imageProvider = ModelProvider.decode(reader, reader.uint32());
-            continue;
-          }
-          case 9: {
-            if (tag !== 74) {
-              break;
-            }
-
-            message.videoProvider = ModelProvider.decode(reader, reader.uint32());
-            continue;
-          }
-          case 10: {
-            if (tag !== 82) {
-              break;
-            }
-
-            message.skills.push(AgentSkill.decode(reader, reader.uint32()));
-            continue;
-          }
-        }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
-      }
-      return message;
-    } finally {
-      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
-    }
-  },
-
-  fromJSON(object: any): ResolvedAgent {
-    return {
-      id: isSet(object.id) ? globalThis.String(object.id) : "",
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      roleDescription: isSet(object.roleDescription)
-        ? globalThis.String(object.roleDescription)
-        : isSet(object.role_description)
-          ? globalThis.String(object.role_description)
-          : undefined,
-      domainDescription: isSet(object.domainDescription)
-        ? globalThis.String(object.domainDescription)
-        : isSet(object.domain_description)
-          ? globalThis.String(object.domain_description)
-          : undefined,
-      audience: isSet(object.audience) ? globalThis.String(object.audience) : undefined,
-      tone: isSet(object.tone) ? globalThis.String(object.tone) : "",
-      textProvider: isSet(object.textProvider)
-        ? ModelProvider.fromJSON(object.textProvider)
-        : isSet(object.text_provider)
-          ? ModelProvider.fromJSON(object.text_provider)
-          : undefined,
-      imageProvider: isSet(object.imageProvider)
-        ? ModelProvider.fromJSON(object.imageProvider)
-        : isSet(object.image_provider)
-          ? ModelProvider.fromJSON(object.image_provider)
-          : undefined,
-      videoProvider: isSet(object.videoProvider)
-        ? ModelProvider.fromJSON(object.videoProvider)
-        : isSet(object.video_provider)
-          ? ModelProvider.fromJSON(object.video_provider)
-          : undefined,
-      skills: globalThis.Array.isArray(object?.skills) ? object.skills.map((e: any) => AgentSkill.fromJSON(e)) : [],
-    };
-  },
-
-  toJSON(message: ResolvedAgent): unknown {
-    const obj: any = {};
-    if (message.id !== "") {
-      obj.id = message.id;
-    }
-    if (message.name !== "") {
-      obj.name = message.name;
-    }
-    if (message.roleDescription !== undefined) {
-      obj.roleDescription = message.roleDescription;
-    }
-    if (message.domainDescription !== undefined) {
-      obj.domainDescription = message.domainDescription;
-    }
-    if (message.audience !== undefined) {
-      obj.audience = message.audience;
-    }
-    if (message.tone !== "") {
-      obj.tone = message.tone;
-    }
-    if (message.textProvider !== undefined) {
-      obj.textProvider = ModelProvider.toJSON(message.textProvider);
-    }
-    if (message.imageProvider !== undefined) {
-      obj.imageProvider = ModelProvider.toJSON(message.imageProvider);
-    }
-    if (message.videoProvider !== undefined) {
-      obj.videoProvider = ModelProvider.toJSON(message.videoProvider);
-    }
-    if (message.skills?.length) {
-      obj.skills = message.skills.map((e) => AgentSkill.toJSON(e));
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<ResolvedAgent>): ResolvedAgent {
-    return ResolvedAgent.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<ResolvedAgent>): ResolvedAgent {
-    const message = createBaseResolvedAgent();
-    message.id = object.id ?? "";
-    message.name = object.name ?? "";
-    message.roleDescription = object.roleDescription ?? undefined;
-    message.domainDescription = object.domainDescription ?? undefined;
-    message.audience = object.audience ?? undefined;
-    message.tone = object.tone ?? "";
-    message.textProvider =
-      object.textProvider !== undefined && object.textProvider !== null
-        ? ModelProvider.fromPartial(object.textProvider)
-        : undefined;
-    message.imageProvider =
-      object.imageProvider !== undefined && object.imageProvider !== null
-        ? ModelProvider.fromPartial(object.imageProvider)
-        : undefined;
-    message.videoProvider =
-      object.videoProvider !== undefined && object.videoProvider !== null
-        ? ModelProvider.fromPartial(object.videoProvider)
-        : undefined;
-    message.skills = object.skills?.map((e) => AgentSkill.fromPartial(e)) || [];
-    return message;
-  },
-};
-
-function createBaseGetResolvedAgentRequest(): GetResolvedAgentRequest {
-  return { actor: undefined, agentId: "" };
-}
-
-export const GetResolvedAgentRequest: MessageFns<GetResolvedAgentRequest> = {
-  encode(message: GetResolvedAgentRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const ListSkillsRequest: MessageFns<ListSkillsRequest> = {
+  encode(message: ListSkillsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.actor !== undefined) {
       ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
     }
-    if (message.agentId !== "") {
-      writer.uint32(18).string(message.agentId);
-    }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): GetResolvedAgentRequest {
+  decode(input: BinaryReader | Uint8Array, length?: number): ListSkillsRequest {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
     if (previousRecursionDepth >= 100) {
@@ -2234,7 +1964,7 @@ export const GetResolvedAgentRequest: MessageFns<GetResolvedAgentRequest> = {
     (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
     try {
       const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseGetResolvedAgentRequest();
+      const message = createBaseListSkillsRequest();
       while (reader.pos < end) {
         const tag = reader.uint32();
         switch (tag >>> 3) {
@@ -2246,14 +1976,6 @@ export const GetResolvedAgentRequest: MessageFns<GetResolvedAgentRequest> = {
             message.actor = ActorContext.decode(reader, reader.uint32());
             continue;
           }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
-
-            message.agentId = reader.string();
-            continue;
-          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -2266,53 +1988,42 @@ export const GetResolvedAgentRequest: MessageFns<GetResolvedAgentRequest> = {
     }
   },
 
-  fromJSON(object: any): GetResolvedAgentRequest {
-    return {
-      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
-      agentId: isSet(object.agentId)
-        ? globalThis.String(object.agentId)
-        : isSet(object.agent_id)
-          ? globalThis.String(object.agent_id)
-          : "",
-    };
+  fromJSON(object: any): ListSkillsRequest {
+    return { actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined };
   },
 
-  toJSON(message: GetResolvedAgentRequest): unknown {
+  toJSON(message: ListSkillsRequest): unknown {
     const obj: any = {};
     if (message.actor !== undefined) {
       obj.actor = ActorContext.toJSON(message.actor);
     }
-    if (message.agentId !== "") {
-      obj.agentId = message.agentId;
-    }
     return obj;
   },
 
-  create(base?: DeepPartial<GetResolvedAgentRequest>): GetResolvedAgentRequest {
-    return GetResolvedAgentRequest.fromPartial(base ?? {});
+  create(base?: DeepPartial<ListSkillsRequest>): ListSkillsRequest {
+    return ListSkillsRequest.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<GetResolvedAgentRequest>): GetResolvedAgentRequest {
-    const message = createBaseGetResolvedAgentRequest();
+  fromPartial(object: DeepPartial<ListSkillsRequest>): ListSkillsRequest {
+    const message = createBaseListSkillsRequest();
     message.actor =
       object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
-    message.agentId = object.agentId ?? "";
     return message;
   },
 };
 
-function createBaseGetResolvedAgentResponse(): GetResolvedAgentResponse {
-  return { agent: undefined };
+function createBaseListSkillsResponse(): ListSkillsResponse {
+  return { skills: [] };
 }
 
-export const GetResolvedAgentResponse: MessageFns<GetResolvedAgentResponse> = {
-  encode(message: GetResolvedAgentResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.agent !== undefined) {
-      ResolvedAgent.encode(message.agent, writer.uint32(10).fork()).join();
+export const ListSkillsResponse: MessageFns<ListSkillsResponse> = {
+  encode(message: ListSkillsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.skills) {
+      SkillSummary.encode(v!, writer.uint32(10).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): GetResolvedAgentResponse {
+  decode(input: BinaryReader | Uint8Array, length?: number): ListSkillsResponse {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
     if (previousRecursionDepth >= 100) {
@@ -2321,7 +2032,7 @@ export const GetResolvedAgentResponse: MessageFns<GetResolvedAgentResponse> = {
     (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
     try {
       const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseGetResolvedAgentResponse();
+      const message = createBaseListSkillsResponse();
       while (reader.pos < end) {
         const tag = reader.uint32();
         switch (tag >>> 3) {
@@ -2330,7 +2041,7 @@ export const GetResolvedAgentResponse: MessageFns<GetResolvedAgentResponse> = {
               break;
             }
 
-            message.agent = ResolvedAgent.decode(reader, reader.uint32());
+            message.skills.push(SkillSummary.decode(reader, reader.uint32()));
             continue;
           }
         }
@@ -2345,25 +2056,26 @@ export const GetResolvedAgentResponse: MessageFns<GetResolvedAgentResponse> = {
     }
   },
 
-  fromJSON(object: any): GetResolvedAgentResponse {
-    return { agent: isSet(object.agent) ? ResolvedAgent.fromJSON(object.agent) : undefined };
+  fromJSON(object: any): ListSkillsResponse {
+    return {
+      skills: globalThis.Array.isArray(object?.skills) ? object.skills.map((e: any) => SkillSummary.fromJSON(e)) : [],
+    };
   },
 
-  toJSON(message: GetResolvedAgentResponse): unknown {
+  toJSON(message: ListSkillsResponse): unknown {
     const obj: any = {};
-    if (message.agent !== undefined) {
-      obj.agent = ResolvedAgent.toJSON(message.agent);
+    if (message.skills?.length) {
+      obj.skills = message.skills.map((e) => SkillSummary.toJSON(e));
     }
     return obj;
   },
 
-  create(base?: DeepPartial<GetResolvedAgentResponse>): GetResolvedAgentResponse {
-    return GetResolvedAgentResponse.fromPartial(base ?? {});
+  create(base?: DeepPartial<ListSkillsResponse>): ListSkillsResponse {
+    return ListSkillsResponse.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<GetResolvedAgentResponse>): GetResolvedAgentResponse {
-    const message = createBaseGetResolvedAgentResponse();
-    message.agent =
-      object.agent !== undefined && object.agent !== null ? ResolvedAgent.fromPartial(object.agent) : undefined;
+  fromPartial(object: DeepPartial<ListSkillsResponse>): ListSkillsResponse {
+    const message = createBaseListSkillsResponse();
+    message.skills = object.skills?.map((e) => SkillSummary.fromPartial(e)) || [];
     return message;
   },
 };
@@ -5805,21 +5517,19 @@ export const ProviderServiceClient = makeGenericClientConstructor(
   serviceName: string;
 };
 
-export type AgentConfigurationServiceService = typeof AgentConfigurationServiceService;
-export const AgentConfigurationServiceService = {
-  getResolvedAgent: {
-    path: "/admin.v1.AgentConfigurationService/GetResolvedAgent" as const,
+export type ConfigurationServiceService = typeof ConfigurationServiceService;
+export const ConfigurationServiceService = {
+  listSkills: {
+    path: "/admin.v1.ConfigurationService/ListSkills" as const,
     requestStream: false as const,
     responseStream: false as const,
-    requestSerialize: (value: GetResolvedAgentRequest): Buffer =>
-      Buffer.from(GetResolvedAgentRequest.encode(value).finish()),
-    requestDeserialize: (value: Buffer): GetResolvedAgentRequest => GetResolvedAgentRequest.decode(value),
-    responseSerialize: (value: GetResolvedAgentResponse): Buffer =>
-      Buffer.from(GetResolvedAgentResponse.encode(value).finish()),
-    responseDeserialize: (value: Buffer): GetResolvedAgentResponse => GetResolvedAgentResponse.decode(value),
+    requestSerialize: (value: ListSkillsRequest): Buffer => Buffer.from(ListSkillsRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ListSkillsRequest => ListSkillsRequest.decode(value),
+    responseSerialize: (value: ListSkillsResponse): Buffer => Buffer.from(ListSkillsResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ListSkillsResponse => ListSkillsResponse.decode(value),
   },
   getSkill: {
-    path: "/admin.v1.AgentConfigurationService/GetSkill" as const,
+    path: "/admin.v1.ConfigurationService/GetSkill" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: GetSkillRequest): Buffer => Buffer.from(GetSkillRequest.encode(value).finish()),
@@ -5828,7 +5538,7 @@ export const AgentConfigurationServiceService = {
     responseDeserialize: (value: Buffer): GetSkillResponse => GetSkillResponse.decode(value),
   },
   getSkillFile: {
-    path: "/admin.v1.AgentConfigurationService/GetSkillFile" as const,
+    path: "/admin.v1.ConfigurationService/GetSkillFile" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: GetSkillFileRequest): Buffer => Buffer.from(GetSkillFileRequest.encode(value).finish()),
@@ -5838,7 +5548,7 @@ export const AgentConfigurationServiceService = {
     responseDeserialize: (value: Buffer): GetSkillFileResponse => GetSkillFileResponse.decode(value),
   },
   getCanvasSettings: {
-    path: "/admin.v1.AgentConfigurationService/GetCanvasSettings" as const,
+    path: "/admin.v1.ConfigurationService/GetCanvasSettings" as const,
     requestStream: false as const,
     responseStream: false as const,
     requestSerialize: (value: GetCanvasSettingsRequest): Buffer =>
@@ -5850,28 +5560,28 @@ export const AgentConfigurationServiceService = {
   },
 } as const;
 
-export interface AgentConfigurationServiceServer extends UntypedServiceImplementation {
-  getResolvedAgent: handleUnaryCall<GetResolvedAgentRequest, GetResolvedAgentResponse>;
+export interface ConfigurationServiceServer extends UntypedServiceImplementation {
+  listSkills: handleUnaryCall<ListSkillsRequest, ListSkillsResponse>;
   getSkill: handleUnaryCall<GetSkillRequest, GetSkillResponse>;
   getSkillFile: handleUnaryCall<GetSkillFileRequest, GetSkillFileResponse>;
   getCanvasSettings: handleUnaryCall<GetCanvasSettingsRequest, GetCanvasSettingsResponse>;
 }
 
-export interface AgentConfigurationServiceClient extends Client {
-  getResolvedAgent(
-    request: GetResolvedAgentRequest,
-    callback: (error: ServiceError | null, response: GetResolvedAgentResponse) => void,
+export interface ConfigurationServiceClient extends Client {
+  listSkills(
+    request: ListSkillsRequest,
+    callback: (error: ServiceError | null, response: ListSkillsResponse) => void,
   ): ClientUnaryCall;
-  getResolvedAgent(
-    request: GetResolvedAgentRequest,
+  listSkills(
+    request: ListSkillsRequest,
     metadata: Metadata,
-    callback: (error: ServiceError | null, response: GetResolvedAgentResponse) => void,
+    callback: (error: ServiceError | null, response: ListSkillsResponse) => void,
   ): ClientUnaryCall;
-  getResolvedAgent(
-    request: GetResolvedAgentRequest,
+  listSkills(
+    request: ListSkillsRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
-    callback: (error: ServiceError | null, response: GetResolvedAgentResponse) => void,
+    callback: (error: ServiceError | null, response: ListSkillsResponse) => void,
   ): ClientUnaryCall;
   getSkill(
     request: GetSkillRequest,
@@ -5920,16 +5630,12 @@ export interface AgentConfigurationServiceClient extends Client {
   ): ClientUnaryCall;
 }
 
-export const AgentConfigurationServiceClient = makeGenericClientConstructor(
-  AgentConfigurationServiceService,
-  "admin.v1.AgentConfigurationService",
+export const ConfigurationServiceClient = makeGenericClientConstructor(
+  ConfigurationServiceService,
+  "admin.v1.ConfigurationService",
 ) as unknown as {
-  new (
-    address: string,
-    credentials: ChannelCredentials,
-    options?: Partial<ClientOptions>,
-  ): AgentConfigurationServiceClient;
-  service: typeof AgentConfigurationServiceService;
+  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): ConfigurationServiceClient;
+  service: typeof ConfigurationServiceService;
   serviceName: string;
 };
 

@@ -97,7 +97,7 @@ export async function claimAgentRunOperation(input: {
   operation: AgentRunOperation;
   targetMessageId?: string | null;
   continuationMessage?: UIMessage<unknown, any, any>;
-  requestContext?: { agentId?: string | null; mode: "normal" | "plan" };
+  requestContext?: { reasoningEffort?: string };
   inputMessage?: {
     id: string;
     role: "user";

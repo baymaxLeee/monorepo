@@ -23,6 +23,7 @@ import {
 } from "../infrastructure/persistence/schema.js";
 import { coordinateCloudWorkspaceUserEdit } from "./cloud-workspace-edit.js";
 import { ConflictError, NotFoundError } from "./errors.js";
+import type { ReasoningEffort } from "../infrastructure/provider/provider-model.js";
 import { getSessionFile, releaseSessionFileClaims, saveSessionFile } from "./session-files.js";
 
 export { getSessionFile } from "./session-files.js";
@@ -97,7 +98,7 @@ export interface Session {
   workspace_id: string;
   model: string;
   provider_id: string;
-  active_plan_file_id: string | null;
+  reasoning_effort: ReasoningEffort;
   created_at: string;
   updated_at: string;
   revision: number;
@@ -196,7 +197,7 @@ function toSession(row: typeof sessions.$inferSelect): Session {
     workspace_id: row.workspaceId,
     model: row.model,
     provider_id: row.providerId,
-    active_plan_file_id: row.activePlanFileId,
+    reasoning_effort: row.reasoningEffort as ReasoningEffort,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
     revision: Number(row.historyRevision),
@@ -339,7 +340,12 @@ export async function getSession(auth: AuthContext, sessionId: string): Promise<
 
 export async function createSession(
   auth: AuthContext,
-  input: { request_id: string; provider_id?: string | null },
+  input: {
+    request_id: string;
+    provider_id?: string | null;
+    model?: string | null;
+    reasoning_effort?: ReasoningEffort | null;
+  },
 ): Promise<Session> {
   const db = getDb();
   const now = new Date();
@@ -349,8 +355,9 @@ export async function createSession(
     userId: auth.userId,
     tenantId: auth.tenantId,
     workspaceId: auth.workspaceId,
-    model: "",
+    model: input.model ?? "",
     providerId: input.provider_id ?? "",
+    reasoningEffort: input.reasoning_effort ?? "medium",
     createRequestId: input.request_id,
     createdAt: now,
     updatedAt: now,
@@ -369,7 +376,11 @@ export async function createSession(
       ),
     );
   if (!row) throw new ConflictError("session creation conflict");
-  if (row.providerId !== (input.provider_id ?? "")) {
+  if (
+    row.providerId !== (input.provider_id ?? "") ||
+    row.model !== (input.model ?? "") ||
+    row.reasoningEffort !== (input.reasoning_effort ?? "medium")
+  ) {
     throw new ConflictError("request_id was already used with different session input");
   }
   return toSession(row);
@@ -628,9 +639,25 @@ export async function updateMessageContent(input: {
     .where(and(eq(messages.id, input.id), eq(messages.sessionId, input.sessionId)));
 }
 
-export async function updateSessionProvider(sessionId: string, providerId: string, model: string): Promise<void> {
+export async function updateSessionModel(
+  auth: AuthContext,
+  sessionId: string,
+  input: { providerId: string; model: string; reasoningEffort: ReasoningEffort },
+): Promise<Session> {
+  await getSessionRow(auth, sessionId);
   const db = getDb();
-  await db.update(sessions).set({ providerId, model, updatedAt: new Date() }).where(eq(sessions.id, sessionId));
+  const [row] = await db
+    .update(sessions)
+    .set({
+      providerId: input.providerId,
+      model: input.model,
+      reasoningEffort: input.reasoningEffort,
+      updatedAt: new Date(),
+    })
+    .where(eq(sessions.id, sessionId))
+    .returning();
+  if (!row) throw new NotFoundError("session not found");
+  return toSession(row);
 }
 
 export async function authorizeDocumentDelivery(

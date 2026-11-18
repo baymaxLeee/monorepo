@@ -8,7 +8,6 @@ import { createCanvasToolManifests } from "./canvas.js";
 test("storyboard tool submits planning input instead of Chat-prepared shots", () => {
   const manifest = createCanvasToolManifests({
     textProviderId: "text-provider",
-    videoProviderId: "video-provider",
   }).find(({ name }) => name === "create_canvas_storyboard_drafts");
   assert.ok(manifest?.tool);
   const tool = manifest.tool;
@@ -20,11 +19,13 @@ test("storyboard tool submits planning input instead of Chat-prepared shots", ()
     "aspect_ratio",
     "canvas_node_duration_max_seconds",
     "canvas_node_duration_min_seconds",
+    "confirmation_id",
     "generate_audio",
     "plot",
     "resolution",
     "total_duration_max_seconds",
     "total_duration_min_seconds",
+    "video_provider_id",
     "watermark",
   ]);
 });

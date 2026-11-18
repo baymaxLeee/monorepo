@@ -1,9 +1,9 @@
 # admin service
 
-The admin (智能体) microservice. Manages bot lifecycle, ownership, publishing.
+The admin configuration microservice. Manages providers, skills, applications and publishing.
 
 ## Owns
-- DB tables for bots, skills, model providers, and the platform app registry
+- DB tables for skills, model providers, and the platform app registry
 - HTTP APIs externally exposed by gateway under `/api/admin-server/*`
 
 ## Does NOT own

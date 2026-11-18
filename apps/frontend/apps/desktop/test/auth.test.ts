@@ -27,7 +27,9 @@ it("refresh is single-flight and logout fences a late refresh result", async () 
   expect((await outcome).every((result) => result.status === "rejected")).toBe(true);
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(scopes.at(-1)).toBe(null);
-  await expect(auth.fetch("/api/chat-server/local-inference/config")).rejects.toThrow("登录");
+  await expect(
+    auth.fetch("/api/chat-server/local-inference/config?provider_id=provider&reasoning_effort=medium"),
+  ).rejects.toThrow("登录");
 });
 it("unapproved accounts keep Web auth but receive no local scope", async () => {
   const change = vi.fn(async () => {}),
@@ -37,7 +39,9 @@ it("unapproved accounts keep Web auth but receive no local scope", async () => {
   );
   expect((await auth.refresh()).accessToken).toBe("new");
   expect(change).not.toHaveBeenCalled();
-  await expect(auth.fetch("/api/chat-server/local-inference/config")).rejects.toThrow("工作区");
+  await expect(
+    auth.fetch("/api/chat-server/local-inference/config?provider_id=provider&reasoning_effort=medium"),
+  ).rejects.toThrow("工作区");
 });
 it("cannot act as a generic authenticated proxy", async () => {
   const auth = new DesktopAuth("https://platform.test", async () => {});

@@ -51,8 +51,9 @@ async function fixture(call: SessionHostOptions["call"]) {
     executable: process.execPath,
     fileWorker: resolve(import.meta.dirname, "../dist/file-worker.cjs"),
     config: async () => ({
-      agentId: null,
-      agentName: "test",
+      providerId: "provider",
+      providerName: "test",
+      reasoningEffort: "medium",
       model: "test",
       contextWindow: 100_000,
       maxOutputTokens: 4000,
@@ -64,7 +65,7 @@ async function fixture(call: SessionHostOptions["call"]) {
   };
   const runtime = new LocalSessionHost(options);
   runtimes.push(runtime);
-  const thread = await runtime.create(workspace, null, "auto");
+  const thread = await runtime.create(workspace, "provider", "medium", "auto");
   return { runtime, thread, options };
 }
 async function done(runtime: LocalSessionHost, id: string) {
@@ -72,7 +73,7 @@ async function done(runtime: LocalSessionHost, id: string) {
   return runtime.get(id);
 }
 
-describe.skipIf(process.platform !== "darwin")("local Agent owns execution and recovery", () => {
+describe.skipIf(process.platform !== "darwin")("local assistant owns execution and recovery", () => {
   it("does not invent workspace changes for a capability question", async () => {
     const requests: InferenceRequest[] = [];
     const f = await fixture(async (request) => {

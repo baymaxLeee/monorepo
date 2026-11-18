@@ -24,13 +24,12 @@ type Handler struct {
 	Providers application.ProviderService
 	Apps      application.AppService
 	Canvas    application.CanvasSettingsService
-	Bots      application.BotService
 	Skills    application.SkillService
 	Benefits  application.BenefitPackageService
 }
 
-func New(readiness Readiness, providers application.ProviderService, apps application.AppService, canvas application.CanvasSettingsService, bots application.BotService, skills application.SkillService, benefits application.BenefitPackageService) http.Handler {
-	h := &Handler{Readiness: readiness, Providers: providers, Apps: apps, Canvas: canvas, Bots: bots, Skills: skills, Benefits: benefits}
+func New(readiness Readiness, providers application.ProviderService, apps application.AppService, canvas application.CanvasSettingsService, skills application.SkillService, benefits application.BenefitPackageService) http.Handler {
+	h := &Handler{Readiness: readiness, Providers: providers, Apps: apps, Canvas: canvas, Skills: skills, Benefits: benefits}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer, requestLog)
 	return adminapi.HandlerWithOptions(h, adminapi.ChiServerOptions{BaseRouter: r, ErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {

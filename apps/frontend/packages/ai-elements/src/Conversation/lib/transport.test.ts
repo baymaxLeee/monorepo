@@ -45,8 +45,6 @@ test("the official transport request preserves operation identity and concurrenc
     messages,
     abortSignal: undefined,
     body: {
-      agent_id: "agent",
-      mode: "normal",
       expected_revision: 7,
       request_id: "logical-request",
     },
@@ -54,8 +52,6 @@ test("the official transport request preserves operation identity and concurrenc
 
   const [, init] = fetch.mock.calls[0]!;
   expect(JSON.parse(String(init?.body))).toEqual({
-    agent_id: "agent",
-    mode: "normal",
     expected_revision: 7,
     request_id: "logical-request",
     id: "conversation",
@@ -104,7 +100,7 @@ test("an explicit retry preserves the entire original operation and request id",
     messageId: "target",
     messages: [{ id: "user", role: "user" as const, parts: [{ type: "text" as const, text: "question" }] }],
     abortSignal: undefined,
-    body: { mode: "plan" },
+    body: { client_context: "original" },
   };
   await transport.sendMessages(original);
   const first = JSON.parse(String(fetch.mock.calls[0]![1]?.body));
@@ -116,7 +112,7 @@ test("an explicit retry preserves the entire original operation and request id",
     trigger: "submit-message",
     messageId: "new-local",
     messages: [],
-    body: { mode: "normal" },
+    body: { client_context: "changed" },
   });
   expect(JSON.parse(String(fetch.mock.calls[1]![1]?.body))).toEqual(first);
   transport.clearPendingRequest();

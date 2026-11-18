@@ -11,8 +11,8 @@ const demoFileTree: FileNode[] = [
     parent_id: null,
     children: [
       {
-        id: "bot-config",
-        name: "bot.config.json",
+        id: "skill-config",
+        name: "skill.config.json",
         type: "file",
         parent_id: "src",
         content: JSON.stringify(
@@ -43,7 +43,7 @@ const demoFileTree: FileNode[] = [
     name: "README.md",
     type: "file",
     parent_id: null,
-    content: "# Bot Workspace\n\n这个目录演示 FileWorkspace 的目录树、多标签和代码编辑能力。",
+    content: "# Skill Workspace\n\n这个目录演示 FileWorkspace 的目录树、多标签和代码编辑能力。",
   },
 ];
 
@@ -55,7 +55,7 @@ export function FileWorkspaceTab() {
       <div className="flex min-h-0 w-full flex-1 overflow-hidden rounded-md border">
         <FileWorkspace
           defaultValue={demoFileTree}
-          defaultSelectedFileId="bot-config"
+          defaultSelectedFileId="skill-config"
           height="100%"
           onChange={(change) => setLastFileChange(change)}
         />

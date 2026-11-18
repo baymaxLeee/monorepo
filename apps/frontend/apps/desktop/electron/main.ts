@@ -127,7 +127,7 @@ async function start() {
         const permission = await dialog.showMessageBox(window, {
           type: "question",
           title: "授权本地工作目录",
-          message: "允许 Agent 读取和修改此目录？",
+          message: "允许本地助手读取和修改此目录？",
           detail: `${selected.filePaths[0]}\n\n文件和会话保存在本机。用于推理的内容会发送给平台配置的模型；命令可以联网，但始终只能访问此授权目录。`,
           buttons: ["取消", "允许使用此项目"],
           defaultId: 0,
@@ -143,7 +143,8 @@ async function start() {
         const p = z
           .strictObject({
             workspace: z.string().min(1).max(4096),
-            agentId: z.string().min(1).max(32).nullable(),
+            providerId: z.string().min(1).max(32),
+            reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
             approvalMode: z.enum(["request", "auto", "full"]),
           })
           .parse(payload);

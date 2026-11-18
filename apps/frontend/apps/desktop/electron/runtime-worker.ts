@@ -60,7 +60,8 @@ async function dispatch(method: string, payload: unknown) {
       .parse(payload);
     runtime = new LocalSessionHost({
       ...settings,
-      config: async (agentId, signal) => inferenceConfigSchema.parse(await request("config", { agentId }, signal)),
+      config: async (providerId, reasoningEffort, signal) =>
+        inferenceConfigSchema.parse(await request("config", { providerId, reasoningEffort }, signal)),
       webSearch: async (input, signal) =>
         webSearchOutputSchema.parse(await request("web-search", input, signal ?? AbortSignal.timeout(30_000))),
       call: async (body, signal) => {
@@ -108,11 +109,12 @@ async function dispatch(method: string, payload: unknown) {
       const p = z
         .object({
           workspace: z.string(),
-          agentId: z.string().nullable(),
+          providerId: z.string().min(1).max(32),
+          reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
           approvalMode: z.enum(["request", "auto", "full"]),
         })
         .parse(payload);
-      return runtime.create(p.workspace, p.agentId, p.approvalMode);
+      return runtime.create(p.workspace, p.providerId, p.reasoningEffort, p.approvalMode);
     }
     case "openStream":
       return runtime.openStream(idSchema.parse(payload));

@@ -1,30 +1,31 @@
 import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
 
 import type { AuthContext } from "../../api/http/middleware/auth.js";
-import { getAgent, getProvider } from "../../infrastructure/clients/admin.js";
+import { getProvider } from "../../infrastructure/clients/admin.js";
+import type { ReasoningEffort } from "../../infrastructure/provider/provider-model.js";
 import { ForbiddenError } from "../errors.js";
 import { reserveInference } from "./admission.js";
 import type { RelayProvider } from "./policy.js";
 import { createInferenceModel } from "./provider.js";
 
-export async function resolveInferenceProvider(auth: AuthContext, agentId: string | null): Promise<RelayProvider> {
-  const agent = agentId ? await getAgent(auth.userId, agentId, auth.tenantId, auth.workspaceId) : null;
-  const provider = agent?.text ?? (await getProvider(auth.tenantId, auth.workspaceId));
+export async function resolveInferenceProvider(
+  auth: AuthContext,
+  providerId: string,
+  reasoningEffort: ReasoningEffort,
+): Promise<RelayProvider> {
+  const provider = await getProvider(auth.tenantId, auth.workspaceId, providerId);
   if (!provider.isEnabled) throw new ForbiddenError("Model provider is disabled");
   return {
     config: {
-      agentId,
-      agentName: agent?.agentName ?? "本地助手",
+      providerId: provider.id,
+      providerName: provider.name,
+      reasoningEffort,
       model: provider.model,
       contextWindow: provider.contextWindow,
       maxOutputTokens: provider.maxOutputTokens,
-      instructions: assembleInstructions({
-        mode: "normal",
-        memories: [],
-        botProfile: agent?.profile,
-      }),
+      instructions: assembleInstructions({ memories: [] }),
     },
-    model: createInferenceModel(provider),
+    model: createInferenceModel(provider, reasoningEffort),
   };
 }
 export const inferenceDependencies = { resolve: resolveInferenceProvider, reserve: reserveInference };

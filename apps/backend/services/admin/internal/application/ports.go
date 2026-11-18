@@ -16,17 +16,6 @@ type AppRepository interface {
 	Delete(context.Context, string) error
 }
 
-type BotRepository interface {
-	List(context.Context, string, string) ([]domain.Bot, error)
-	Get(context.Context, string, string, string) (domain.Bot, error)
-	Create(context.Context, string, string, string, string) (domain.Bot, error)
-	Save(context.Context, domain.Bot) (domain.Bot, error)
-	Delete(context.Context, string, string, string) error
-	Skills(context.Context, string, bool) ([]domain.SkillSummary, error)
-	AttachSkill(context.Context, string, string, string, string) error
-	DetachSkill(context.Context, string, string) error
-}
-
 type ProviderRepository interface {
 	List(context.Context, string, string) ([]domain.Provider, error)
 	Get(context.Context, string, string, string) (domain.Provider, error)

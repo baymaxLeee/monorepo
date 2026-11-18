@@ -46,11 +46,12 @@ async function run() {
       );
       return;
     }
-    if (request.url === "/api/chat-server/local-inference/config") {
+    if (request.url === "/api/chat-server/local-inference/config?provider_id=provider&reasoning_effort=medium") {
       response.end(
         JSON.stringify({
-          agentId: null,
-          agentName: "test",
+          providerId: "provider",
+          providerName: "test",
+          reasoningEffort: "medium",
           model: "fixture",
           instructions: "",
           contextWindow: 100000,
@@ -127,10 +128,10 @@ async function run() {
     await execute('desktop.bindSession("fixture-token", "2099-01-01T00:00:00Z")');
     await execute('fetch("/api/iam-server/test-login", { method: "POST", credentials: "include" })');
     assert.equal((await execute("desktop.refreshSession()")).accessToken, "fixture-token");
-    await assert.rejects(execute(`desktop.createThread(${JSON.stringify(workspace)}, null, "auto")`));
+    await assert.rejects(execute(`desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto")`));
     const selectedWorkspace = await execute("desktop.selectWorkspace()");
     assert.equal(selectedWorkspace, workspace);
-    const thread = await execute(`desktop.createThread(${JSON.stringify(workspace)}, null, "auto")`);
+    const thread = await execute(`desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto")`);
     assert.equal(thread.mode, "local");
     await execute(`desktop.send(${JSON.stringify(thread.id)}, "create file", ${JSON.stringify(randomUUID())})`);
     let state;
@@ -139,7 +140,7 @@ async function run() {
       if (state.status !== "running") break;
       await delay(50);
     }
-    assert.equal(state.status, "idle", state.error ?? "Agent did not finish");
+    assert.equal(state.status, "idle", state.error ?? "Local assistant did not finish");
     assert.equal(await readFile(join(workspace, "demo.js"), "utf8"), "agent content");
     const file = await execute(`desktop.readFile(${JSON.stringify(thread.id)}, "demo.js")`);
     await execute(

@@ -6,7 +6,6 @@ export const INSTRUCTION_SECTION_TAGS = {
   orchestrationDirective: "orchestration_directive",
   availableSkills: "available_skills",
   activatedSkill: "activated_skill",
-  botProfile: "bot_profile",
   userMemoryData: "user_memory_data",
   environment: "environment",
   executionEnvironment: "execution_environment",

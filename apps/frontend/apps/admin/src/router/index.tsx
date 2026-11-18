@@ -26,8 +26,6 @@ export const routes: RouteObject[] = [
             element: <Navigate to="../dashboard" replace />,
           },
           { path: "dashboard", lazy: () => import("../pages/dashboard") },
-          { path: "bots", lazy: () => import("../pages/bots") },
-          { path: "bots/:id", lazy: () => import("../pages/bots/detail") },
           { path: "skills", lazy: () => import("../pages/skills") },
           {
             path: "skills/:id",

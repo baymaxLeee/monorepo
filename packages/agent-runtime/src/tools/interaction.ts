@@ -1,7 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-import type { AgentMode } from "../agent/types.js";
 import { defineAgentTool } from "./manifest.js";
 import { toolOutcomeSchema } from "./outcome.js";
 
@@ -96,15 +95,13 @@ export const askUserOutputSchema = z.object({
 
 export const askUserOutcomeSchema = toolOutcomeSchema(askUserOutputSchema);
 
-export function createInteractionToolManifests(mode: AgentMode) {
+export function createInteractionToolManifests() {
   return [
     defineAgentTool(
       "ask_user",
       tool({
         description:
-          mode === "plan"
-            ? "Pause and ask the user for missing details that would materially change the plan. Put all currently known independent questions in one call, give each a stable semantic id, and never ask an id already answered in this turn."
-            : "Pause and ask the user for missing details that would materially change the answer or deliverable. Put all currently known independent questions in one call, give each a stable semantic id, and never ask an id already answered in this turn.",
+          "Pause and ask the user for missing details that would materially change the answer or deliverable. Put all currently known independent questions in one call, give each a stable semantic id, and never ask an id already answered in this turn.",
         inputSchema: askUserInputSchema,
         outputSchema: askUserOutputSchema,
       }),
@@ -113,7 +110,6 @@ export function createInteractionToolManifests(mode: AgentMode) {
         effect: "none",
         trust: "closed",
         execution: "client",
-        modes: ["normal", "plan"],
         uiKind: "ask-user",
       },
       { summary: "Pause once to collect one or more material clarifications instead of guessing." },

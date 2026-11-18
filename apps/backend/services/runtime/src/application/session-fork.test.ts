@@ -40,7 +40,7 @@ function setup() {
         title: "原会话",
         model: "model",
         providerId: "provider",
-        activePlanFileId: null,
+        reasoningEffort: "medium",
         executionMode: "cloud",
         runRevision: 0n,
         historyRevision: 0n,
@@ -133,7 +133,6 @@ test("file references remap while completed results remain history and unfinishe
         input: { command: "delete" },
         approval: { id: "old-approval" },
       },
-      { type: "data-plan-execution", data: { file_id: "plan" } },
     ],
   };
   const clone = forkMessageContent(content, {
@@ -141,7 +140,7 @@ test("file references remap while completed results remain history and unfinishe
     sessionId: "branch",
     messageId: "reply",
     documentIds: { doc: "copy" },
-    fileIds: { file: "file-copy", plan: "plan-copy" },
+    fileIds: { file: "file-copy" },
   });
   const parts = clone.parts as Record<string, unknown>[];
   assert.equal(parts[0].url, "/api/chat-server/sessions/branch/documents/copy/content?document_id=copy");
@@ -149,7 +148,6 @@ test("file references remap while completed results remain history and unfinishe
   assert.equal(parts[1].state, "output-available");
   assert.equal(parts[2].state, "output-error");
   assert.equal(parts[2].approval, undefined);
-  assert.equal(parts[3].type, "text");
   assert.equal(clone.metadata?.responseId, undefined);
   assert.equal((content.parts[2] as { state: string }).state, "approval-requested");
 });

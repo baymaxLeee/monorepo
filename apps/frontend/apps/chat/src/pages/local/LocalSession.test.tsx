@@ -22,8 +22,9 @@ vi.mock("@repo/ai-elements", () => ({
 }));
 vi.mock("@repo/api/chat", () => ({
   getLocalInferenceConfig: vi.fn(async () => ({
-    agentId: null,
-    agentName: "baymax",
+    providerId: "provider",
+    providerName: "baymax",
+    reasoningEffort: "medium",
     model: "test-model",
     contextWindow: 100_000,
     maxOutputTokens: 4000,
@@ -97,8 +98,8 @@ vi.mock("@repo/ai-elements/conversation", () => ({
       </div>
     );
   },
-  ChatComposerControls: ({ agents }: { agents: Array<{ name: string }> }) => (
-    <span>Agent {agents[0]?.name ?? "默认 Agent"}</span>
+  ChatComposerControls: ({ models }: { models: Array<{ name: string }> }) => (
+    <span>模型 {models[0]?.name ?? "推理模型"}</span>
   ),
 }));
 function fixture() {
@@ -107,7 +108,8 @@ function fixture() {
     mode: "local",
     title: "Local",
     workspace: "/project",
-    agentId: null,
+    providerId: "provider",
+    reasoningEffort: "medium",
     approvalMode: "auto",
     status: "waiting",
     error: null,
@@ -152,7 +154,7 @@ test("clears a submitted local prompt immediately and uses the task-oriented pla
 
   expect(screen.getByText("发送消息或创建任务…")).toBeTruthy();
   expect(screen.queryByText("本地电脑")).toBeNull();
-  await screen.findByText(/Agent baymax/);
+  await screen.findByText(/模型 baymax/);
   expect(screen.queryByText("project")).toBeNull();
   expect(screen.queryByRole("button", { name: "查看本地文件" })).toBeNull();
   expect(screen.getByRole("button", { name: "浏览工作区文件" })).toBeTruthy();

@@ -99,7 +99,15 @@ const openapi = {
     "/local-inference/config": {
       get: {
         operationId: "getLocalInferenceConfig",
-        parameters: [{ name: "agent_id", in: "query", schema: { type: "string" } }],
+        parameters: [
+          { name: "provider_id", in: "query", required: true, schema: { type: "string" } },
+          {
+            name: "reasoning_effort",
+            in: "query",
+            required: true,
+            schema: { type: "string", enum: ["none", "minimal", "low", "medium", "high", "xhigh", "max"] },
+          },
+        ],
         responses: {
           "200": jsonResponse(
             "Authorized local model configuration, without provider secrets",
@@ -144,6 +152,17 @@ const openapi = {
         operationId: "deleteSession",
         parameters: [pathParam],
         responses: { "204": { description: "delete session" } },
+      },
+    },
+    "/sessions/{session_id}/model": {
+      patch: {
+        operationId: "updateSessionModel",
+        parameters: [pathParam],
+        requestBody: { required: true, content: { "application/json": { schema: ref("UpdateSessionModelInput") } } },
+        responses: {
+          "200": jsonResponse("updated conversation model binding", ref("Session")),
+          "409": { description: "conversation has an active run" },
+        },
       },
     },
     "/sessions/{session_id}/history/select": {
@@ -538,6 +557,20 @@ const openapi = {
         properties: {
           request_id: { type: "string", minLength: 8, maxLength: 64 },
           provider_id: { type: "string", maxLength: 32, nullable: true },
+          reasoning_effort: { ...ref("ReasoningEffort"), nullable: true },
+        },
+      },
+      ReasoningEffort: {
+        type: "string",
+        enum: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+      },
+      UpdateSessionModelInput: {
+        type: "object",
+        required: ["provider_id", "reasoning_effort"],
+        additionalProperties: false,
+        properties: {
+          provider_id: { type: "string", minLength: 1, maxLength: 32 },
+          reasoning_effort: ref("ReasoningEffort"),
         },
       },
       Session: {
@@ -549,7 +582,7 @@ const openapi = {
           "workspace_id",
           "model",
           "provider_id",
-          "active_plan_file_id",
+          "reasoning_effort",
           "created_at",
           "updated_at",
           "revision",
@@ -562,7 +595,7 @@ const openapi = {
           workspace_id: { type: "string" },
           model: { type: "string" },
           provider_id: { type: "string" },
-          active_plan_file_id: { type: "string", nullable: true },
+          reasoning_effort: ref("ReasoningEffort"),
           created_at: { type: "string", format: "date-time" },
           updated_at: { type: "string", format: "date-time" },
           revision: { type: "integer", minimum: 0 },
@@ -580,8 +613,6 @@ const openapi = {
           expected_revision: { type: "integer", minimum: 0 },
           request_id: { type: "string", minLength: 8, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" },
           generate_title: { type: "boolean" },
-          agent_id: { type: "string", maxLength: 32, nullable: true },
-          mode: { type: "string", enum: ["normal", "plan"] },
           host_context: {
             type: "object",
             required: ["project_id", "canvas_id"],
@@ -716,6 +747,7 @@ const openapi = {
           "workspace_id",
           "model",
           "provider_id",
+          "reasoning_effort",
           "created_at",
           "updated_at",
           "revision",
@@ -733,7 +765,7 @@ const openapi = {
           workspace_id: { type: "string" },
           model: { type: "string" },
           provider_id: { type: "string" },
-          active_plan_file_id: { type: "string", nullable: true },
+          reasoning_effort: ref("ReasoningEffort"),
           created_at: { type: "string", format: "date-time" },
           updated_at: { type: "string", format: "date-time" },
           revision: { type: "integer", minimum: 0 },
@@ -810,7 +842,6 @@ const openapi = {
           "mime_type",
           "size",
           "sha256",
-          "kind",
           "editable",
           "edit_max_bytes",
           "etag",
@@ -828,7 +859,6 @@ const openapi = {
           mime_type: { type: "string" },
           size: { type: "integer" },
           sha256: { type: "string" },
-          kind: { type: "string", enum: ["artifact", "plan"] },
           editable: { type: "boolean" },
           edit_max_bytes: { type: "integer", minimum: 1 },
           etag: { type: "string", pattern: '^"[a-f0-9]{32}"$' },

@@ -1,6 +1,6 @@
-# admin — Bot Management Micro-frontend
+# admin — Workspace Configuration Micro-frontend
 
-Manages the "智能体" domain on the frontend. Backed by `apps/backend/services/admin`.
+Manages workspace-scoped providers, Skills, integrations and application configuration. It does not expose an Agent assembly surface; conversations bind their own reasoning model and reuse workspace capabilities. Backed by `apps/backend/services/admin`.
 
 ## Boundaries
 

@@ -11,12 +11,6 @@ import { collectDeliverableCompletion, findLatestUpdateTodosCallId } from "./Cha
 // or tool payloads; action callbacks still participate in the comparison.
 const TranscriptMessage = memo(ChatMessageView, (previous, next) =>
   (Object.keys(previous) as (keyof ChatMessageViewProps)[]).every((key) => {
-    if (key === "planExecutedIds") {
-      return (
-        previous.planExecutedIds.size === next.planExecutedIds.size &&
-        [...previous.planExecutedIds].every((path) => next.planExecutedIds.has(path))
-      );
-    }
     if (key === "deliverableCompletion") {
       return (["artifact", "image", "video"] as const).every((kind) => {
         const before = previous.deliverableCompletion[kind];
@@ -41,7 +35,6 @@ type ChatTranscriptProps = Pick<
   | "onRegenerate"
   | "onAnswerClientTool"
   | "onToolApproval"
-  | "onExecutePlan"
   | "onFork"
 > & {
   messages: ChatUIMessage[];
@@ -49,22 +42,6 @@ type ChatTranscriptProps = Pick<
   loading: boolean;
   branches: NonNullable<ChatMessageViewProps["branch"]>[];
 };
-
-function collectExecutedPlanIds(messages: ChatUIMessage[]): Set<string> {
-  const executed = new Set<string>();
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (part.type !== "data-plan-execution") {
-        continue;
-      }
-      const fileId = (part.data as { file_id?: unknown } | undefined)?.file_id;
-      if (typeof fileId === "string") {
-        executed.add(fileId);
-      }
-    }
-  }
-  return executed;
-}
 
 function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
   if (message?.role !== "assistant") {
@@ -94,7 +71,6 @@ export const ChatTranscript = memo(function ChatTranscript({
   onRegenerate,
   onAnswerClientTool,
   onToolApproval,
-  onExecutePlan,
   onFork,
 }: ChatTranscriptProps) {
   const [firstVisibleId, setFirstVisibleId] = useState<string | null>(null);
@@ -113,7 +89,6 @@ export const ChatTranscript = memo(function ChatTranscript({
     () => collectDeliverableCompletion(messages, latestTodoCallId),
     [messages, latestTodoCallId],
   );
-  const executedPlanIds = useMemo(() => collectExecutedPlanIds(messages), [messages]);
   const branchBySelectedMessage = useMemo(
     () => new Map(branches.map((branch) => [branch.selected_message_id, branch] as const)),
     [branches],
@@ -159,10 +134,8 @@ export const ChatTranscript = memo(function ChatTranscript({
               onRegenerate={onRegenerate}
               onAnswerClientTool={onAnswerClientTool}
               onToolApproval={onToolApproval}
-              onExecutePlan={onExecutePlan}
               onFork={onFork}
-              planExecutedIds={executedPlanIds}
-              planBusy={busy}
+              busy={busy}
             />
           </MessageScrollerItem>
         ))

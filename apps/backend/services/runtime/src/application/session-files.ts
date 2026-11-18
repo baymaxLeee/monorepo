@@ -27,7 +27,6 @@ export interface SessionFile {
   asset_id: string;
   revision_id: string;
   sha256: string;
-  kind: "artifact" | "plan";
   editable: boolean;
   edit_max_bytes: number;
   etag: string;
@@ -59,7 +58,6 @@ function toSessionFile(row: typeof sessionFiles.$inferSelect): SessionFile {
     asset_id: row.assetId,
     revision_id: row.revisionId,
     sha256: row.sha256,
-    kind: row.kind as SessionFile["kind"],
     editable: isEditableSessionFile(row.filename, row.mediaType) && row.sizeBytes <= editableFileByteLimit(),
     edit_max_bytes: editableFileByteLimit(),
     etag: formatContentEtag(row.contentEtag),
@@ -202,7 +200,6 @@ export async function publishSessionFile(
     }
 
     const now = new Date();
-    const kind = input.filename.toLowerCase().endsWith("-plan.md") ? "plan" : "artifact";
     const [row] = await tx
       .insert(sessionFiles)
       .values({
@@ -219,7 +216,6 @@ export async function publishSessionFile(
         mediaType: input.mediaType,
         sizeBytes: input.sizeBytes,
         sha256: input.sha256,
-        kind,
         idempotencyKey: input.idempotencyKey,
         createdAt: now,
         updatedAt: now,
@@ -249,7 +245,6 @@ export async function publishSessionFile(
       .update(sessions)
       .set({
         updatedAt: now,
-        ...(kind === "plan" ? { activePlanFileId: row.id } : {}),
       })
       .where(eq(sessions.id, input.sessionId));
     return toSessionFile(row);
@@ -684,7 +679,6 @@ export async function forkSessionFileRows(
   tx: ChatTransaction,
   input: FileScope & {
     sourceSessionId: string;
-    sourceActivePlanFileId: string | null;
     now: Date;
   },
 ): Promise<Record<string, string>> {
@@ -720,7 +714,6 @@ export async function forkSessionFileRows(
       mediaType: file.mediaType,
       sizeBytes: file.sizeBytes,
       sha256: file.sha256,
-      kind: file.kind,
       idempotencyKey: `fork:${input.sessionId}:${file.id}`,
       createdAt: input.now,
       updatedAt: input.now,
@@ -747,9 +740,5 @@ export async function forkSessionFileRows(
       updatedAt: input.now,
     })),
   );
-  const activePlanFileId = input.sourceActivePlanFileId ? fileIds[input.sourceActivePlanFileId] : undefined;
-  if (activePlanFileId) {
-    await tx.update(sessions).set({ activePlanFileId }).where(eq(sessions.id, input.sessionId));
-  }
   return fileIds;
 }

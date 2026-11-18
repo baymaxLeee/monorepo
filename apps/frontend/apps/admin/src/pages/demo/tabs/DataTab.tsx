@@ -4,8 +4,8 @@ import { DemoCard } from "../DemoCard";
 import { StatusBadge } from "../StatusBadge";
 
 const rows = [
-  { name: "客服助手", status: "published", version: "v3" },
-  { name: "销售 Bot", status: "draft", version: "v1" },
+  { name: "客服技能", status: "published", version: "v3" },
+  { name: "销售技能", status: "draft", version: "v1" },
   { name: "归档示例", status: "archived", version: "v2" },
 ];
 

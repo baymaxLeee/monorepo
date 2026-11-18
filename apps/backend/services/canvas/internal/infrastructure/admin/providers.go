@@ -34,14 +34,14 @@ type Pricing struct {
 
 type Directory struct {
 	providers adminv1.ProviderServiceClient
-	settings  adminv1.AgentConfigurationServiceClient
+	settings  adminv1.ConfigurationServiceClient
 	benefits  adminv1.BenefitPackageServiceClient
 }
 
 func New(connection grpc.ClientConnInterface) *Directory {
 	return &Directory{
 		providers: adminv1.NewProviderServiceClient(connection),
-		settings:  adminv1.NewAgentConfigurationServiceClient(connection),
+		settings:  adminv1.NewConfigurationServiceClient(connection),
 		benefits:  adminv1.NewBenefitPackageServiceClient(connection),
 	}
 }

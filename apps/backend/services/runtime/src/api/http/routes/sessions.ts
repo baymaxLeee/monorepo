@@ -21,7 +21,9 @@ import {
   selectSessionHistory,
   updateSessionDocument,
   updateSessionFileContent,
+  updateSessionModel,
 } from "../../../application/sessions.js";
+import { getProvider } from "../../../infrastructure/clients/admin.js";
 import { getStagedMediaDelivery } from "../../../infrastructure/clients/knowledge.js";
 import {
   decideVideoProduction,
@@ -32,9 +34,17 @@ import { getAuth } from "../middleware/auth.js";
 
 export const sessionsRoutes = new Hono();
 
+const reasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
 const createSchema = z.object({
   request_id: z.string().min(8).max(64),
   provider_id: z.string().max(32).optional().nullable(),
+  reasoning_effort: reasoningEffortSchema.optional().nullable(),
+});
+
+const updateModelSchema = z.object({
+  provider_id: z.string().min(1).max(32),
+  reasoning_effort: reasoningEffortSchema,
 });
 
 const selectHistorySchema = z.object({
@@ -182,7 +192,11 @@ sessionsRoutes.get("/", async (c) => {
 sessionsRoutes.post("/", zValidator("json", createSchema), async (c) => {
   const auth = getAuth(c);
   const body = c.req.valid("json");
-  const row = await createSession(auth, body);
+  const provider = body.provider_id ? await getProvider(auth.tenantId, auth.workspaceId, body.provider_id) : null;
+  const row = await createSession(auth, {
+    ...body,
+    model: provider?.model ?? null,
+  });
   return c.json(row, 201);
 });
 
@@ -192,6 +206,23 @@ sessionsRoutes.get("/:sessionId", async (c) => {
   const detail = await getSession(auth, sessionId);
   const activeRunId = await activeAgentStreamRunId(sessionId);
   return c.json({ ...detail, active_run_id: activeRunId });
+});
+
+sessionsRoutes.patch("/:sessionId/model", zValidator("json", updateModelSchema), async (c) => {
+  const auth = getAuth(c);
+  const sessionId = c.req.param("sessionId");
+  if (await activeAgentStreamRunId(sessionId)) {
+    throw new ForbiddenError("conversation model cannot change while a run is active");
+  }
+  const body = c.req.valid("json");
+  const provider = await getProvider(auth.tenantId, auth.workspaceId, body.provider_id);
+  return c.json(
+    await updateSessionModel(auth, sessionId, {
+      providerId: provider.id,
+      model: provider.model,
+      reasoningEffort: body.reasoning_effort,
+    }),
+  );
 });
 
 sessionsRoutes.post("/:sessionId/history/select", zValidator("json", selectHistorySchema), async (c) => {

@@ -81,7 +81,7 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1280);
   vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(800);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1280, 800));
-  useChatStore.setState({ loadAgents: async () => {}, tracePanelOpen: false, memoryPanelOpen: false });
+  useChatStore.setState({ tracePanelOpen: false, memoryPanelOpen: false });
   useChatStore.getState().closeArtifactPreview();
   useChatStore.getState().closeVideoProductionWorkspace();
   useLocalWorkspaceStore.getState().reset();

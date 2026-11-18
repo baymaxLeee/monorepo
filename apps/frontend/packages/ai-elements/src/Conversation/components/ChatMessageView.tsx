@@ -44,9 +44,7 @@ export interface ChatMessageViewProps {
   onRegenerate?: (messageId: string) => Promise<void>;
   onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval?: (approvalId: string, approved: boolean) => void;
-  onExecutePlan?: (fileId: string) => void;
-  planExecutedIds: ReadonlySet<string>;
-  planBusy: boolean;
+  busy: boolean;
 }
 
 export function ChatMessageView({
@@ -66,9 +64,7 @@ export function ChatMessageView({
   onRegenerate,
   onAnswerClientTool,
   onToolApproval,
-  onExecutePlan,
-  planExecutedIds,
-  planBusy,
+  busy,
 }: ChatMessageViewProps) {
   const isUser = message.role === "user";
   const variant = isUser ? "user" : "assistant";
@@ -129,9 +125,6 @@ export function ChatMessageView({
             onOpenImage={onOpenImage}
             onAnswerClientTool={onAnswerClientTool}
             onToolApproval={onToolApproval}
-            onExecutePlan={onExecutePlan}
-            planExecutedIds={planExecutedIds}
-            planBusy={planBusy}
           />
         ))}
         {!isUser && (
@@ -180,7 +173,7 @@ export function ChatMessageView({
               <MessageAction
                 tooltip="编辑消息"
                 label="编辑消息"
-                disabled={planBusy || actionBusy}
+                disabled={busy || actionBusy}
                 onClick={() => {
                   setActionError(null);
                   setEditing(true);
@@ -193,7 +186,7 @@ export function ChatMessageView({
               <MessageAction
                 tooltip="重新生成"
                 label="重新生成"
-                disabled={planBusy || actionBusy}
+                disabled={busy || actionBusy}
                 onClick={() => {
                   setActionBusy(true);
                   setActionError(null);
@@ -209,7 +202,7 @@ export function ChatMessageView({
           {branch && onSelectBranch ? (
             <BranchSelector
               branch={branch}
-              busy={planBusy || actionBusy}
+              busy={busy || actionBusy}
               onSelect={async (leafMessageId) => {
                 setActionBusy(true);
                 setActionError(null);
@@ -230,7 +223,7 @@ export function ChatMessageView({
           {actionError}
         </p>
       ) : null}
-      {!isUser && !streaming && onFork && <ChatCheckpoint messageId={message.id} disabled={planBusy} onFork={onFork} />}
+      {!isUser && !streaming && onFork && <ChatCheckpoint messageId={message.id} disabled={busy} onFork={onFork} />}
     </AiMessage>
   );
 }

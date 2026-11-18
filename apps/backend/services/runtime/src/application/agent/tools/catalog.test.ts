@@ -21,12 +21,11 @@ const textProvider: LanguageProviderSnapshot = {
 void test("tool catalog exposes the current inline research and sandbox workflow", async () => {
   const resolved = await new ToolCatalog().resolve(
     {
-      mode: "normal",
       runId: "run",
       userId: "user",
       sessionId: "session",
     },
-    { textProvider, imageProvider: null, videoProviderId: null },
+    { textProvider },
   );
   try {
     const subagents = resolved.manifests.find((manifest) => manifest.name === "subagents");

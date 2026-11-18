@@ -216,6 +216,12 @@ func decodeCreateInput(request *http.Request) (application.CreateConversationInp
 			}
 		}
 	}
+	if input.ReasoningEffort != nil {
+		allowed := map[string]bool{"none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true}
+		if !allowed[*input.ReasoningEffort] {
+			return input, invalidRequestError()
+		}
+	}
 	return input, nil
 }
 

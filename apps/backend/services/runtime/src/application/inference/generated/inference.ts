@@ -2,6 +2,9 @@
 import type { LanguageModelV4CallOptions } from "@ai-sdk/provider";
 import { z } from "zod";
 
+export const reasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
+
 // Constrained SDK provider protocol. Remote URLs, stored references, hosted
 // tools and client-controlled provider options do not cross this boundary.
 const text = z.strictObject({ type: z.literal("text"), text: z.string() });
@@ -50,7 +53,8 @@ const prompt = z
 
 export const inferenceRequestSchema = z.strictObject({
   requestId: z.string().uuid(),
-  agentId: z.string().min(1).max(32).nullable(),
+  providerId: z.string().min(1).max(32),
+  reasoningEffort: reasoningEffortSchema,
   model: z.string().min(1).max(200),
   options: z.strictObject({
     prompt,
@@ -88,8 +92,9 @@ export function modelOptions(request: InferenceRequest): LanguageModelV4CallOpti
 }
 
 export const inferenceConfigSchema = z.strictObject({
-  agentId: z.string().nullable(),
-  agentName: z.string(),
+  providerId: z.string(),
+  providerName: z.string(),
+  reasoningEffort: reasoningEffortSchema,
   model: z.string(),
   contextWindow: z.number().int().positive(),
   maxOutputTokens: z.number().int().positive(),

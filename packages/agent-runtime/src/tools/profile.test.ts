@@ -12,7 +12,6 @@ function manifest(name: string, summary = name) {
       effect: "none",
       trust: "closed",
       execution: "inline",
-      modes: ["normal"],
     },
     { summary },
   );

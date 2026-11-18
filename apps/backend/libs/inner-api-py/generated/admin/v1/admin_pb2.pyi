@@ -175,7 +175,7 @@ class ListProviderCatalogResponse(_message.Message):
     providers: _containers.RepeatedCompositeFieldContainer[ProviderCatalogItem]
     def __init__(self, providers: _Optional[_Iterable[_Union[ProviderCatalogItem, _Mapping]]] = ...) -> None: ...
 
-class AgentSkill(_message.Message):
+class SkillSummary(_message.Message):
     __slots__ = ("id", "name", "description")
     ID_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
@@ -185,43 +185,17 @@ class AgentSkill(_message.Message):
     description: str
     def __init__(self, id: _Optional[str] = ..., name: _Optional[str] = ..., description: _Optional[str] = ...) -> None: ...
 
-class ResolvedAgent(_message.Message):
-    __slots__ = ("id", "name", "role_description", "domain_description", "audience", "tone", "text_provider", "image_provider", "video_provider", "skills")
-    ID_FIELD_NUMBER: _ClassVar[int]
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    ROLE_DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
-    DOMAIN_DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
-    AUDIENCE_FIELD_NUMBER: _ClassVar[int]
-    TONE_FIELD_NUMBER: _ClassVar[int]
-    TEXT_PROVIDER_FIELD_NUMBER: _ClassVar[int]
-    IMAGE_PROVIDER_FIELD_NUMBER: _ClassVar[int]
-    VIDEO_PROVIDER_FIELD_NUMBER: _ClassVar[int]
-    SKILLS_FIELD_NUMBER: _ClassVar[int]
-    id: str
-    name: str
-    role_description: str
-    domain_description: str
-    audience: str
-    tone: str
-    text_provider: ModelProvider
-    image_provider: ModelProvider
-    video_provider: ModelProvider
-    skills: _containers.RepeatedCompositeFieldContainer[AgentSkill]
-    def __init__(self, id: _Optional[str] = ..., name: _Optional[str] = ..., role_description: _Optional[str] = ..., domain_description: _Optional[str] = ..., audience: _Optional[str] = ..., tone: _Optional[str] = ..., text_provider: _Optional[_Union[ModelProvider, _Mapping]] = ..., image_provider: _Optional[_Union[ModelProvider, _Mapping]] = ..., video_provider: _Optional[_Union[ModelProvider, _Mapping]] = ..., skills: _Optional[_Iterable[_Union[AgentSkill, _Mapping]]] = ...) -> None: ...
-
-class GetResolvedAgentRequest(_message.Message):
-    __slots__ = ("actor", "agent_id")
+class ListSkillsRequest(_message.Message):
+    __slots__ = ("actor",)
     ACTOR_FIELD_NUMBER: _ClassVar[int]
-    AGENT_ID_FIELD_NUMBER: _ClassVar[int]
     actor: _context_pb2.ActorContext
-    agent_id: str
-    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., agent_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ...) -> None: ...
 
-class GetResolvedAgentResponse(_message.Message):
-    __slots__ = ("agent",)
-    AGENT_FIELD_NUMBER: _ClassVar[int]
-    agent: ResolvedAgent
-    def __init__(self, agent: _Optional[_Union[ResolvedAgent, _Mapping]] = ...) -> None: ...
+class ListSkillsResponse(_message.Message):
+    __slots__ = ("skills",)
+    SKILLS_FIELD_NUMBER: _ClassVar[int]
+    skills: _containers.RepeatedCompositeFieldContainer[SkillSummary]
+    def __init__(self, skills: _Optional[_Iterable[_Union[SkillSummary, _Mapping]]] = ...) -> None: ...
 
 class Skill(_message.Message):
     __slots__ = ("id", "name", "description", "body", "files")

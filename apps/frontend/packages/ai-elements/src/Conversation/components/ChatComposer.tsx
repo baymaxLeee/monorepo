@@ -1,12 +1,12 @@
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
-import { type Bot } from "@repo/api/admin";
+import { listProviders, type ModelProvider } from "@repo/api/admin";
 import { type ConversationDocument } from "@repo/api/chat";
 import { toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
-import { memo, type RefObject } from "react";
+import { memo, type RefObject, useEffect, useState } from "react";
 
 import { uploadConversationFiles } from "../lib/upload-conversation-files";
-import { ChatComposerControls } from "./ChatComposerControls";
+import { ChatComposerControls, type ReasoningEffort } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatPrompt } from "./ChatPrompt";
 import type { PendingAgentInput } from "./PendingInputStack";
@@ -15,41 +15,56 @@ type ChatComposerProps = {
   id: string;
   promptRef: RefObject<PromptInputRef | null>;
   documents: ConversationDocument[];
-  agents: Bot[] | null;
-  selectedAgentId: string | null;
-  setSelectedAgentId: (id: string | null) => void;
+  initialModelId: string | null;
+  initialReasoningEffort: ReasoningEffort;
+  onUpdateModelBinding: (id: string, effort: ReasoningEffort) => Promise<void>;
   busy: boolean;
   runActive: boolean;
   pendingInputs: readonly PendingAgentInput[];
-  mode: "normal" | "plan";
   activatedSkillName: string | null;
   setActivatedSkillName: (name: string | null) => void;
   traceRefreshKey: number;
   loadSkills: (signal: AbortSignal) => Promise<PromptSlashCommand[]>;
   onSubmit: (value: PromptInputValue) => Promise<void>;
   onStop: () => Promise<void>;
-  onModeChange: (mode: "normal" | "plan") => void;
 };
 
 export const ChatComposer = memo(function ChatComposer({
   id,
   promptRef,
   documents,
-  agents,
-  selectedAgentId,
-  setSelectedAgentId,
+  initialModelId,
+  initialReasoningEffort,
+  onUpdateModelBinding,
   busy,
   runActive,
   pendingInputs,
-  mode,
   activatedSkillName,
   setActivatedSkillName,
   traceRefreshKey,
   loadSkills,
   onSubmit,
   onStop,
-  onModeChange,
 }: ChatComposerProps) {
+  const [models, setModels] = useState<ModelProvider[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState(initialModelId);
+  const [reasoningEffort, setReasoningEffort] = useState(initialReasoningEffort);
+
+  useEffect(() => {
+    setSelectedModelId(initialModelId);
+    setReasoningEffort(initialReasoningEffort);
+  }, [id, initialModelId, initialReasoningEffort]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listProviders({ signal: controller.signal, skipErrorNotify: true })
+      .then((providers) =>
+        setModels(providers.filter((provider) => provider.provider_kind === "chat" && provider.is_enabled)),
+      )
+      .catch(() => setModels([]));
+    return () => controller.abort();
+  }, []);
+
   return (
     <ChatPrompt
       ref={promptRef}
@@ -57,13 +72,7 @@ export const ChatComposer = memo(function ChatComposer({
       loading={busy}
       submitWhileLoading={runActive}
       pendingInputs={pendingInputs}
-      placeholder={
-        runActive
-          ? "补充当前任务…"
-          : mode === "plan"
-            ? "描述要规划的任务，/ 引用技能，@ 添加上下文"
-            : "发送消息或创建任务…"
-      }
+      placeholder={runActive ? "补充当前任务…" : "发送消息或创建任务…"}
       maxFiles={8}
       maxFileSize={10 * 1024 * 1024}
       onError={(message) => toast.add({ type: "error", title: message })}
@@ -74,7 +83,7 @@ export const ChatComposer = memo(function ChatComposer({
         }
         void uploadConversationFiles({
           conversationId: id,
-          providerId: agents?.find((agent) => agent.id === selectedAgentId)?.text_provider_id ?? undefined,
+          providerId: selectedModelId ?? undefined,
           items,
         })
           .then((result) => {
@@ -148,13 +157,18 @@ export const ChatComposer = memo(function ChatComposer({
       footerRender={() => (
         <>
           <ChatComposerControls
-            agents={agents ?? []}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={setSelectedAgentId}
+            models={models}
+            selectedModelId={selectedModelId}
+            onSelectModel={(providerId) => {
+              void onUpdateModelBinding(providerId, reasoningEffort).then(() => setSelectedModelId(providerId));
+            }}
+            reasoningEffort={reasoningEffort}
+            onReasoningEffortChange={(effort) => {
+              if (!selectedModelId) return;
+              void onUpdateModelBinding(selectedModelId, effort).then(() => setReasoningEffort(effort));
+            }}
             activatedSkillName={activatedSkillName}
             onClearSkill={() => setActivatedSkillName(null)}
-            mode={mode}
-            onModeChange={onModeChange}
             disabled={busy && !runActive}
           />
           <ChatContextUsage conversationId={id ?? ""} refreshKey={traceRefreshKey} running={busy} />

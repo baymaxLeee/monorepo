@@ -275,19 +275,7 @@ export async function projectModelContext(input: {
     signal: input.abortSignal,
   });
   const converted = await convertToModelMessages(modelReadyRecent, {
-    convertDataPart: (part) => {
-      if (part.type === "data-plan-execution") {
-        const fileId = (part.data as { file_id?: unknown } | undefined)?.file_id;
-        if (typeof fileId !== "string" || fileId.length !== 32) {
-          return undefined;
-        }
-        return {
-          type: "text",
-          text: `<plan_execution_request file_id="${escapeXmlText(fileId)}">Resolve the selected Plan's authoritative path from /workspace/sources/workspace-manifest.json, then read it completely with bash before using update_todos or any generation tool.</plan_execution_request>`,
-        };
-      }
-      return undefined;
-    },
+    convertDataPart: () => undefined,
   });
   const pruned = pruneMessages({
     messages: converted,

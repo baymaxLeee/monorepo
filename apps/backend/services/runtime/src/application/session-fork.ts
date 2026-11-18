@@ -93,7 +93,6 @@ export const sessionForkDependencies = {
       });
       const fileIds = await forkSessionFileRows(tx, {
         sourceSessionId: source.id,
-        sourceActivePlanFileId: source.activePlanFileId,
         sessionId: id,
         userId: source.userId,
         tenantId: source.tenantId,

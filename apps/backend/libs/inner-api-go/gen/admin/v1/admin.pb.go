@@ -962,7 +962,7 @@ func (x *ListProviderCatalogResponse) GetProviders() []*ProviderCatalogItem {
 	return nil
 }
 
-type AgentSkill struct {
+type SkillSummary struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -971,20 +971,20 @@ type AgentSkill struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AgentSkill) Reset() {
-	*x = AgentSkill{}
+func (x *SkillSummary) Reset() {
+	*x = SkillSummary{}
 	mi := &file_admin_v1_admin_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AgentSkill) String() string {
+func (x *SkillSummary) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AgentSkill) ProtoMessage() {}
+func (*SkillSummary) ProtoMessage() {}
 
-func (x *AgentSkill) ProtoReflect() protoreflect.Message {
+func (x *SkillSummary) ProtoReflect() protoreflect.Message {
 	mi := &file_admin_v1_admin_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -996,171 +996,54 @@ func (x *AgentSkill) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentSkill.ProtoReflect.Descriptor instead.
-func (*AgentSkill) Descriptor() ([]byte, []int) {
+// Deprecated: Use SkillSummary.ProtoReflect.Descriptor instead.
+func (*SkillSummary) Descriptor() ([]byte, []int) {
 	return file_admin_v1_admin_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *AgentSkill) GetId() string {
+func (x *SkillSummary) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *AgentSkill) GetName() string {
+func (x *SkillSummary) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *AgentSkill) GetDescription() string {
+func (x *SkillSummary) GetDescription() string {
 	if x != nil {
 		return x.Description
 	}
 	return ""
 }
 
-type ResolvedAgent struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name              string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	RoleDescription   *string                `protobuf:"bytes,3,opt,name=role_description,json=roleDescription,proto3,oneof" json:"role_description,omitempty"`
-	DomainDescription *string                `protobuf:"bytes,4,opt,name=domain_description,json=domainDescription,proto3,oneof" json:"domain_description,omitempty"`
-	Audience          *string                `protobuf:"bytes,5,opt,name=audience,proto3,oneof" json:"audience,omitempty"`
-	Tone              string                 `protobuf:"bytes,6,opt,name=tone,proto3" json:"tone,omitempty"`
-	TextProvider      *ModelProvider         `protobuf:"bytes,7,opt,name=text_provider,json=textProvider,proto3,oneof" json:"text_provider,omitempty"`
-	ImageProvider     *ModelProvider         `protobuf:"bytes,8,opt,name=image_provider,json=imageProvider,proto3,oneof" json:"image_provider,omitempty"`
-	VideoProvider     *ModelProvider         `protobuf:"bytes,9,opt,name=video_provider,json=videoProvider,proto3,oneof" json:"video_provider,omitempty"`
-	Skills            []*AgentSkill          `protobuf:"bytes,10,rep,name=skills,proto3" json:"skills,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *ResolvedAgent) Reset() {
-	*x = ResolvedAgent{}
-	mi := &file_admin_v1_admin_proto_msgTypes[14]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResolvedAgent) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResolvedAgent) ProtoMessage() {}
-
-func (x *ResolvedAgent) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[14]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResolvedAgent.ProtoReflect.Descriptor instead.
-func (*ResolvedAgent) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{14}
-}
-
-func (x *ResolvedAgent) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *ResolvedAgent) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ResolvedAgent) GetRoleDescription() string {
-	if x != nil && x.RoleDescription != nil {
-		return *x.RoleDescription
-	}
-	return ""
-}
-
-func (x *ResolvedAgent) GetDomainDescription() string {
-	if x != nil && x.DomainDescription != nil {
-		return *x.DomainDescription
-	}
-	return ""
-}
-
-func (x *ResolvedAgent) GetAudience() string {
-	if x != nil && x.Audience != nil {
-		return *x.Audience
-	}
-	return ""
-}
-
-func (x *ResolvedAgent) GetTone() string {
-	if x != nil {
-		return x.Tone
-	}
-	return ""
-}
-
-func (x *ResolvedAgent) GetTextProvider() *ModelProvider {
-	if x != nil {
-		return x.TextProvider
-	}
-	return nil
-}
-
-func (x *ResolvedAgent) GetImageProvider() *ModelProvider {
-	if x != nil {
-		return x.ImageProvider
-	}
-	return nil
-}
-
-func (x *ResolvedAgent) GetVideoProvider() *ModelProvider {
-	if x != nil {
-		return x.VideoProvider
-	}
-	return nil
-}
-
-func (x *ResolvedAgent) GetSkills() []*AgentSkill {
-	if x != nil {
-		return x.Skills
-	}
-	return nil
-}
-
-type GetResolvedAgentRequest struct {
+type ListSkillsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	AgentId       string                 `protobuf:"bytes,2,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetResolvedAgentRequest) Reset() {
-	*x = GetResolvedAgentRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[15]
+func (x *ListSkillsRequest) Reset() {
+	*x = ListSkillsRequest{}
+	mi := &file_admin_v1_admin_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetResolvedAgentRequest) String() string {
+func (x *ListSkillsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetResolvedAgentRequest) ProtoMessage() {}
+func (*ListSkillsRequest) ProtoMessage() {}
 
-func (x *GetResolvedAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[15]
+func (x *ListSkillsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1171,47 +1054,40 @@ func (x *GetResolvedAgentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetResolvedAgentRequest.ProtoReflect.Descriptor instead.
-func (*GetResolvedAgentRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{15}
+// Deprecated: Use ListSkillsRequest.ProtoReflect.Descriptor instead.
+func (*ListSkillsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *GetResolvedAgentRequest) GetActor() *v1.ActorContext {
+func (x *ListSkillsRequest) GetActor() *v1.ActorContext {
 	if x != nil {
 		return x.Actor
 	}
 	return nil
 }
 
-func (x *GetResolvedAgentRequest) GetAgentId() string {
-	if x != nil {
-		return x.AgentId
-	}
-	return ""
-}
-
-type GetResolvedAgentResponse struct {
+type ListSkillsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Agent         *ResolvedAgent         `protobuf:"bytes,1,opt,name=agent,proto3" json:"agent,omitempty"`
+	Skills        []*SkillSummary        `protobuf:"bytes,1,rep,name=skills,proto3" json:"skills,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetResolvedAgentResponse) Reset() {
-	*x = GetResolvedAgentResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[16]
+func (x *ListSkillsResponse) Reset() {
+	*x = ListSkillsResponse{}
+	mi := &file_admin_v1_admin_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetResolvedAgentResponse) String() string {
+func (x *ListSkillsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetResolvedAgentResponse) ProtoMessage() {}
+func (*ListSkillsResponse) ProtoMessage() {}
 
-func (x *GetResolvedAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[16]
+func (x *ListSkillsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1222,14 +1098,14 @@ func (x *GetResolvedAgentResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetResolvedAgentResponse.ProtoReflect.Descriptor instead.
-func (*GetResolvedAgentResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{16}
+// Deprecated: Use ListSkillsResponse.ProtoReflect.Descriptor instead.
+func (*ListSkillsResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *GetResolvedAgentResponse) GetAgent() *ResolvedAgent {
+func (x *ListSkillsResponse) GetSkills() []*SkillSummary {
 	if x != nil {
-		return x.Agent
+		return x.Skills
 	}
 	return nil
 }
@@ -1247,7 +1123,7 @@ type Skill struct {
 
 func (x *Skill) Reset() {
 	*x = Skill{}
-	mi := &file_admin_v1_admin_proto_msgTypes[17]
+	mi := &file_admin_v1_admin_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1259,7 +1135,7 @@ func (x *Skill) String() string {
 func (*Skill) ProtoMessage() {}
 
 func (x *Skill) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[17]
+	mi := &file_admin_v1_admin_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1272,7 +1148,7 @@ func (x *Skill) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Skill.ProtoReflect.Descriptor instead.
 func (*Skill) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{17}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Skill) GetId() string {
@@ -1327,7 +1203,7 @@ type SkillFile struct {
 
 func (x *SkillFile) Reset() {
 	*x = SkillFile{}
-	mi := &file_admin_v1_admin_proto_msgTypes[18]
+	mi := &file_admin_v1_admin_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1339,7 +1215,7 @@ func (x *SkillFile) String() string {
 func (*SkillFile) ProtoMessage() {}
 
 func (x *SkillFile) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[18]
+	mi := &file_admin_v1_admin_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1352,7 +1228,7 @@ func (x *SkillFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SkillFile.ProtoReflect.Descriptor instead.
 func (*SkillFile) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{18}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SkillFile) GetPath() string {
@@ -1428,7 +1304,7 @@ type GetSkillRequest struct {
 
 func (x *GetSkillRequest) Reset() {
 	*x = GetSkillRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[19]
+	mi := &file_admin_v1_admin_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1440,7 +1316,7 @@ func (x *GetSkillRequest) String() string {
 func (*GetSkillRequest) ProtoMessage() {}
 
 func (x *GetSkillRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[19]
+	mi := &file_admin_v1_admin_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1453,7 +1329,7 @@ func (x *GetSkillRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSkillRequest.ProtoReflect.Descriptor instead.
 func (*GetSkillRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{19}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetSkillRequest) GetActor() *v1.ActorContext {
@@ -1479,7 +1355,7 @@ type GetSkillResponse struct {
 
 func (x *GetSkillResponse) Reset() {
 	*x = GetSkillResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[20]
+	mi := &file_admin_v1_admin_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1491,7 +1367,7 @@ func (x *GetSkillResponse) String() string {
 func (*GetSkillResponse) ProtoMessage() {}
 
 func (x *GetSkillResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[20]
+	mi := &file_admin_v1_admin_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1504,7 +1380,7 @@ func (x *GetSkillResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSkillResponse.ProtoReflect.Descriptor instead.
 func (*GetSkillResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{20}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetSkillResponse) GetSkill() *Skill {
@@ -1525,7 +1401,7 @@ type GetSkillFileRequest struct {
 
 func (x *GetSkillFileRequest) Reset() {
 	*x = GetSkillFileRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[21]
+	mi := &file_admin_v1_admin_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1537,7 +1413,7 @@ func (x *GetSkillFileRequest) String() string {
 func (*GetSkillFileRequest) ProtoMessage() {}
 
 func (x *GetSkillFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[21]
+	mi := &file_admin_v1_admin_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1550,7 +1426,7 @@ func (x *GetSkillFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSkillFileRequest.ProtoReflect.Descriptor instead.
 func (*GetSkillFileRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{21}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetSkillFileRequest) GetActor() *v1.ActorContext {
@@ -1583,7 +1459,7 @@ type GetSkillFileResponse struct {
 
 func (x *GetSkillFileResponse) Reset() {
 	*x = GetSkillFileResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[22]
+	mi := &file_admin_v1_admin_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1595,7 +1471,7 @@ func (x *GetSkillFileResponse) String() string {
 func (*GetSkillFileResponse) ProtoMessage() {}
 
 func (x *GetSkillFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[22]
+	mi := &file_admin_v1_admin_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1608,7 +1484,7 @@ func (x *GetSkillFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSkillFileResponse.ProtoReflect.Descriptor instead.
 func (*GetSkillFileResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{22}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetSkillFileResponse) GetFile() *SkillFile {
@@ -1628,7 +1504,7 @@ type CanvasModelSelection struct {
 
 func (x *CanvasModelSelection) Reset() {
 	*x = CanvasModelSelection{}
-	mi := &file_admin_v1_admin_proto_msgTypes[23]
+	mi := &file_admin_v1_admin_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1640,7 +1516,7 @@ func (x *CanvasModelSelection) String() string {
 func (*CanvasModelSelection) ProtoMessage() {}
 
 func (x *CanvasModelSelection) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[23]
+	mi := &file_admin_v1_admin_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1653,7 +1529,7 @@ func (x *CanvasModelSelection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanvasModelSelection.ProtoReflect.Descriptor instead.
 func (*CanvasModelSelection) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{23}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CanvasModelSelection) GetProviderId() string {
@@ -1681,7 +1557,7 @@ type CanvasDefaults struct {
 
 func (x *CanvasDefaults) Reset() {
 	*x = CanvasDefaults{}
-	mi := &file_admin_v1_admin_proto_msgTypes[24]
+	mi := &file_admin_v1_admin_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1693,7 +1569,7 @@ func (x *CanvasDefaults) String() string {
 func (*CanvasDefaults) ProtoMessage() {}
 
 func (x *CanvasDefaults) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[24]
+	mi := &file_admin_v1_admin_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1706,7 +1582,7 @@ func (x *CanvasDefaults) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanvasDefaults.ProtoReflect.Descriptor instead.
 func (*CanvasDefaults) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{24}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CanvasDefaults) GetInference() *CanvasModelSelection {
@@ -1740,7 +1616,7 @@ type CanvasSettings struct {
 
 func (x *CanvasSettings) Reset() {
 	*x = CanvasSettings{}
-	mi := &file_admin_v1_admin_proto_msgTypes[25]
+	mi := &file_admin_v1_admin_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1752,7 +1628,7 @@ func (x *CanvasSettings) String() string {
 func (*CanvasSettings) ProtoMessage() {}
 
 func (x *CanvasSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[25]
+	mi := &file_admin_v1_admin_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1765,7 +1641,7 @@ func (x *CanvasSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanvasSettings.ProtoReflect.Descriptor instead.
 func (*CanvasSettings) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{25}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *CanvasSettings) GetRevision() int64 {
@@ -1791,7 +1667,7 @@ type GetCanvasSettingsRequest struct {
 
 func (x *GetCanvasSettingsRequest) Reset() {
 	*x = GetCanvasSettingsRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[26]
+	mi := &file_admin_v1_admin_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1803,7 +1679,7 @@ func (x *GetCanvasSettingsRequest) String() string {
 func (*GetCanvasSettingsRequest) ProtoMessage() {}
 
 func (x *GetCanvasSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[26]
+	mi := &file_admin_v1_admin_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1816,7 +1692,7 @@ func (x *GetCanvasSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCanvasSettingsRequest.ProtoReflect.Descriptor instead.
 func (*GetCanvasSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{26}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetCanvasSettingsRequest) GetActor() *v1.ActorContext {
@@ -1835,7 +1711,7 @@ type GetCanvasSettingsResponse struct {
 
 func (x *GetCanvasSettingsResponse) Reset() {
 	*x = GetCanvasSettingsResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[27]
+	mi := &file_admin_v1_admin_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1847,7 +1723,7 @@ func (x *GetCanvasSettingsResponse) String() string {
 func (*GetCanvasSettingsResponse) ProtoMessage() {}
 
 func (x *GetCanvasSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[27]
+	mi := &file_admin_v1_admin_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1860,7 +1736,7 @@ func (x *GetCanvasSettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCanvasSettingsResponse.ProtoReflect.Descriptor instead.
 func (*GetCanvasSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{27}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetCanvasSettingsResponse) GetSettings() *CanvasSettings {
@@ -1894,7 +1770,7 @@ type BenefitPackage struct {
 
 func (x *BenefitPackage) Reset() {
 	*x = BenefitPackage{}
-	mi := &file_admin_v1_admin_proto_msgTypes[28]
+	mi := &file_admin_v1_admin_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1906,7 +1782,7 @@ func (x *BenefitPackage) String() string {
 func (*BenefitPackage) ProtoMessage() {}
 
 func (x *BenefitPackage) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[28]
+	mi := &file_admin_v1_admin_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1919,7 +1795,7 @@ func (x *BenefitPackage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BenefitPackage.ProtoReflect.Descriptor instead.
 func (*BenefitPackage) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{28}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *BenefitPackage) GetId() string {
@@ -2043,7 +1919,7 @@ type ListAvailableBenefitPackagesRequest struct {
 
 func (x *ListAvailableBenefitPackagesRequest) Reset() {
 	*x = ListAvailableBenefitPackagesRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[29]
+	mi := &file_admin_v1_admin_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2055,7 +1931,7 @@ func (x *ListAvailableBenefitPackagesRequest) String() string {
 func (*ListAvailableBenefitPackagesRequest) ProtoMessage() {}
 
 func (x *ListAvailableBenefitPackagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[29]
+	mi := &file_admin_v1_admin_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2068,7 +1944,7 @@ func (x *ListAvailableBenefitPackagesRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ListAvailableBenefitPackagesRequest.ProtoReflect.Descriptor instead.
 func (*ListAvailableBenefitPackagesRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{29}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ListAvailableBenefitPackagesRequest) GetActor() *v1.ActorContext {
@@ -2087,7 +1963,7 @@ type ListAvailableBenefitPackagesResponse struct {
 
 func (x *ListAvailableBenefitPackagesResponse) Reset() {
 	*x = ListAvailableBenefitPackagesResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[30]
+	mi := &file_admin_v1_admin_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2099,7 +1975,7 @@ func (x *ListAvailableBenefitPackagesResponse) String() string {
 func (*ListAvailableBenefitPackagesResponse) ProtoMessage() {}
 
 func (x *ListAvailableBenefitPackagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[30]
+	mi := &file_admin_v1_admin_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2112,7 +1988,7 @@ func (x *ListAvailableBenefitPackagesResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use ListAvailableBenefitPackagesResponse.ProtoReflect.Descriptor instead.
 func (*ListAvailableBenefitPackagesResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{30}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ListAvailableBenefitPackagesResponse) GetPackages() []*BenefitPackage {
@@ -2132,7 +2008,7 @@ type ReviewReservation struct {
 
 func (x *ReviewReservation) Reset() {
 	*x = ReviewReservation{}
-	mi := &file_admin_v1_admin_proto_msgTypes[31]
+	mi := &file_admin_v1_admin_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2144,7 +2020,7 @@ func (x *ReviewReservation) String() string {
 func (*ReviewReservation) ProtoMessage() {}
 
 func (x *ReviewReservation) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[31]
+	mi := &file_admin_v1_admin_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2157,7 +2033,7 @@ func (x *ReviewReservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewReservation.ProtoReflect.Descriptor instead.
 func (*ReviewReservation) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{31}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ReviewReservation) GetId() string {
@@ -2183,7 +2059,7 @@ type ReserveReviewResponse struct {
 
 func (x *ReserveReviewResponse) Reset() {
 	*x = ReserveReviewResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[32]
+	mi := &file_admin_v1_admin_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2195,7 +2071,7 @@ func (x *ReserveReviewResponse) String() string {
 func (*ReserveReviewResponse) ProtoMessage() {}
 
 func (x *ReserveReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[32]
+	mi := &file_admin_v1_admin_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2208,7 +2084,7 @@ func (x *ReserveReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveReviewResponse.ProtoReflect.Descriptor instead.
 func (*ReserveReviewResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{32}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ReserveReviewResponse) GetReservation() *ReviewReservation {
@@ -2231,7 +2107,7 @@ type ReserveReviewRequest struct {
 
 func (x *ReserveReviewRequest) Reset() {
 	*x = ReserveReviewRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[33]
+	mi := &file_admin_v1_admin_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2243,7 +2119,7 @@ func (x *ReserveReviewRequest) String() string {
 func (*ReserveReviewRequest) ProtoMessage() {}
 
 func (x *ReserveReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[33]
+	mi := &file_admin_v1_admin_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2256,7 +2132,7 @@ func (x *ReserveReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveReviewRequest.ProtoReflect.Descriptor instead.
 func (*ReserveReviewRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{33}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ReserveReviewRequest) GetActor() *v1.ActorContext {
@@ -2306,7 +2182,7 @@ type TransitionReviewRequest struct {
 
 func (x *TransitionReviewRequest) Reset() {
 	*x = TransitionReviewRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[34]
+	mi := &file_admin_v1_admin_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2318,7 +2194,7 @@ func (x *TransitionReviewRequest) String() string {
 func (*TransitionReviewRequest) ProtoMessage() {}
 
 func (x *TransitionReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[34]
+	mi := &file_admin_v1_admin_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2331,7 +2207,7 @@ func (x *TransitionReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransitionReviewRequest.ProtoReflect.Descriptor instead.
 func (*TransitionReviewRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{34}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *TransitionReviewRequest) GetActor() *v1.ActorContext {
@@ -2371,7 +2247,7 @@ type TransitionReviewResponse struct {
 
 func (x *TransitionReviewResponse) Reset() {
 	*x = TransitionReviewResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[35]
+	mi := &file_admin_v1_admin_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2383,7 +2259,7 @@ func (x *TransitionReviewResponse) String() string {
 func (*TransitionReviewResponse) ProtoMessage() {}
 
 func (x *TransitionReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[35]
+	mi := &file_admin_v1_admin_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2396,7 +2272,7 @@ func (x *TransitionReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransitionReviewResponse.ProtoReflect.Descriptor instead.
 func (*TransitionReviewResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{35}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *TransitionReviewResponse) GetReservation() *ReviewReservation {
@@ -2417,7 +2293,7 @@ type ReviewCleanup struct {
 
 func (x *ReviewCleanup) Reset() {
 	*x = ReviewCleanup{}
-	mi := &file_admin_v1_admin_proto_msgTypes[36]
+	mi := &file_admin_v1_admin_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2429,7 +2305,7 @@ func (x *ReviewCleanup) String() string {
 func (*ReviewCleanup) ProtoMessage() {}
 
 func (x *ReviewCleanup) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[36]
+	mi := &file_admin_v1_admin_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2442,7 +2318,7 @@ func (x *ReviewCleanup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewCleanup.ProtoReflect.Descriptor instead.
 func (*ReviewCleanup) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{36}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ReviewCleanup) GetCleanupId() string {
@@ -2475,7 +2351,7 @@ type BeginReviewCleanupResponse struct {
 
 func (x *BeginReviewCleanupResponse) Reset() {
 	*x = BeginReviewCleanupResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[37]
+	mi := &file_admin_v1_admin_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2487,7 +2363,7 @@ func (x *BeginReviewCleanupResponse) String() string {
 func (*BeginReviewCleanupResponse) ProtoMessage() {}
 
 func (x *BeginReviewCleanupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[37]
+	mi := &file_admin_v1_admin_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2500,7 +2376,7 @@ func (x *BeginReviewCleanupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginReviewCleanupResponse.ProtoReflect.Descriptor instead.
 func (*BeginReviewCleanupResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{37}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *BeginReviewCleanupResponse) GetCleanup() *ReviewCleanup {
@@ -2522,7 +2398,7 @@ type BeginReviewCleanupRequest struct {
 
 func (x *BeginReviewCleanupRequest) Reset() {
 	*x = BeginReviewCleanupRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[38]
+	mi := &file_admin_v1_admin_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2534,7 +2410,7 @@ func (x *BeginReviewCleanupRequest) String() string {
 func (*BeginReviewCleanupRequest) ProtoMessage() {}
 
 func (x *BeginReviewCleanupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[38]
+	mi := &file_admin_v1_admin_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2547,7 +2423,7 @@ func (x *BeginReviewCleanupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginReviewCleanupRequest.ProtoReflect.Descriptor instead.
 func (*BeginReviewCleanupRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{38}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *BeginReviewCleanupRequest) GetActor() *v1.ActorContext {
@@ -2590,7 +2466,7 @@ type CompleteReviewCleanupRequest struct {
 
 func (x *CompleteReviewCleanupRequest) Reset() {
 	*x = CompleteReviewCleanupRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[39]
+	mi := &file_admin_v1_admin_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2602,7 +2478,7 @@ func (x *CompleteReviewCleanupRequest) String() string {
 func (*CompleteReviewCleanupRequest) ProtoMessage() {}
 
 func (x *CompleteReviewCleanupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[39]
+	mi := &file_admin_v1_admin_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2615,7 +2491,7 @@ func (x *CompleteReviewCleanupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteReviewCleanupRequest.ProtoReflect.Descriptor instead.
 func (*CompleteReviewCleanupRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{39}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *CompleteReviewCleanupRequest) GetActor() *v1.ActorContext {
@@ -2655,7 +2531,7 @@ type CompleteReviewCleanupResponse struct {
 
 func (x *CompleteReviewCleanupResponse) Reset() {
 	*x = CompleteReviewCleanupResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[40]
+	mi := &file_admin_v1_admin_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2667,7 +2543,7 @@ func (x *CompleteReviewCleanupResponse) String() string {
 func (*CompleteReviewCleanupResponse) ProtoMessage() {}
 
 func (x *CompleteReviewCleanupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[40]
+	mi := &file_admin_v1_admin_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2680,7 +2556,7 @@ func (x *CompleteReviewCleanupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteReviewCleanupResponse.ProtoReflect.Descriptor instead.
 func (*CompleteReviewCleanupResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{40}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *CompleteReviewCleanupResponse) GetCleanup() *ReviewCleanup {
@@ -2701,7 +2577,7 @@ type ReviewedAsset struct {
 
 func (x *ReviewedAsset) Reset() {
 	*x = ReviewedAsset{}
-	mi := &file_admin_v1_admin_proto_msgTypes[41]
+	mi := &file_admin_v1_admin_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2713,7 +2589,7 @@ func (x *ReviewedAsset) String() string {
 func (*ReviewedAsset) ProtoMessage() {}
 
 func (x *ReviewedAsset) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[41]
+	mi := &file_admin_v1_admin_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2726,7 +2602,7 @@ func (x *ReviewedAsset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewedAsset.ProtoReflect.Descriptor instead.
 func (*ReviewedAsset) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{41}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ReviewedAsset) GetId() string {
@@ -2763,7 +2639,7 @@ type SubmitReviewedAssetRequest struct {
 
 func (x *SubmitReviewedAssetRequest) Reset() {
 	*x = SubmitReviewedAssetRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[42]
+	mi := &file_admin_v1_admin_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2775,7 +2651,7 @@ func (x *SubmitReviewedAssetRequest) String() string {
 func (*SubmitReviewedAssetRequest) ProtoMessage() {}
 
 func (x *SubmitReviewedAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[42]
+	mi := &file_admin_v1_admin_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2788,7 +2664,7 @@ func (x *SubmitReviewedAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitReviewedAssetRequest.ProtoReflect.Descriptor instead.
 func (*SubmitReviewedAssetRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{42}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *SubmitReviewedAssetRequest) GetActor() *v1.ActorContext {
@@ -2835,7 +2711,7 @@ type SubmitReviewedAssetResponse struct {
 
 func (x *SubmitReviewedAssetResponse) Reset() {
 	*x = SubmitReviewedAssetResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[43]
+	mi := &file_admin_v1_admin_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2847,7 +2723,7 @@ func (x *SubmitReviewedAssetResponse) String() string {
 func (*SubmitReviewedAssetResponse) ProtoMessage() {}
 
 func (x *SubmitReviewedAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[43]
+	mi := &file_admin_v1_admin_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2860,7 +2736,7 @@ func (x *SubmitReviewedAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitReviewedAssetResponse.ProtoReflect.Descriptor instead.
 func (*SubmitReviewedAssetResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{43}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *SubmitReviewedAssetResponse) GetAsset() *ReviewedAsset {
@@ -2881,7 +2757,7 @@ type GetReviewedAssetRequest struct {
 
 func (x *GetReviewedAssetRequest) Reset() {
 	*x = GetReviewedAssetRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[44]
+	mi := &file_admin_v1_admin_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2893,7 +2769,7 @@ func (x *GetReviewedAssetRequest) String() string {
 func (*GetReviewedAssetRequest) ProtoMessage() {}
 
 func (x *GetReviewedAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[44]
+	mi := &file_admin_v1_admin_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2906,7 +2782,7 @@ func (x *GetReviewedAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReviewedAssetRequest.ProtoReflect.Descriptor instead.
 func (*GetReviewedAssetRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{44}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GetReviewedAssetRequest) GetActor() *v1.ActorContext {
@@ -2939,7 +2815,7 @@ type GetReviewedAssetResponse struct {
 
 func (x *GetReviewedAssetResponse) Reset() {
 	*x = GetReviewedAssetResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[45]
+	mi := &file_admin_v1_admin_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2951,7 +2827,7 @@ func (x *GetReviewedAssetResponse) String() string {
 func (*GetReviewedAssetResponse) ProtoMessage() {}
 
 func (x *GetReviewedAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[45]
+	mi := &file_admin_v1_admin_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2964,7 +2840,7 @@ func (x *GetReviewedAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReviewedAssetResponse.ProtoReflect.Descriptor instead.
 func (*GetReviewedAssetResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{45}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *GetReviewedAssetResponse) GetAsset() *ReviewedAsset {
@@ -2985,7 +2861,7 @@ type DeleteReviewedAssetRequest struct {
 
 func (x *DeleteReviewedAssetRequest) Reset() {
 	*x = DeleteReviewedAssetRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[46]
+	mi := &file_admin_v1_admin_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2997,7 +2873,7 @@ func (x *DeleteReviewedAssetRequest) String() string {
 func (*DeleteReviewedAssetRequest) ProtoMessage() {}
 
 func (x *DeleteReviewedAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[46]
+	mi := &file_admin_v1_admin_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3010,7 +2886,7 @@ func (x *DeleteReviewedAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReviewedAssetRequest.ProtoReflect.Descriptor instead.
 func (*DeleteReviewedAssetRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{46}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *DeleteReviewedAssetRequest) GetActor() *v1.ActorContext {
@@ -3042,7 +2918,7 @@ type DeleteReviewedAssetResponse struct {
 
 func (x *DeleteReviewedAssetResponse) Reset() {
 	*x = DeleteReviewedAssetResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[47]
+	mi := &file_admin_v1_admin_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3054,7 +2930,7 @@ func (x *DeleteReviewedAssetResponse) String() string {
 func (*DeleteReviewedAssetResponse) ProtoMessage() {}
 
 func (x *DeleteReviewedAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[47]
+	mi := &file_admin_v1_admin_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3067,7 +2943,7 @@ func (x *DeleteReviewedAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReviewedAssetResponse.ProtoReflect.Descriptor instead.
 func (*DeleteReviewedAssetResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{47}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{46}
 }
 
 var File_admin_v1_admin_proto protoreflect.FileDescriptor
@@ -3138,35 +3014,15 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\x1aListProviderCatalogRequest\x12-\n" +
 	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\"Z\n" +
 	"\x1bListProviderCatalogResponse\x12;\n" +
-	"\tproviders\x18\x01 \x03(\v2\x1d.admin.v1.ProviderCatalogItemR\tproviders\"R\n" +
-	"\n" +
-	"AgentSkill\x12\x0e\n" +
+	"\tproviders\x18\x01 \x03(\v2\x1d.admin.v1.ProviderCatalogItemR\tproviders\"T\n" +
+	"\fSkillSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\"\xb8\x04\n" +
-	"\rResolvedAgent\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12.\n" +
-	"\x10role_description\x18\x03 \x01(\tH\x00R\x0froleDescription\x88\x01\x01\x122\n" +
-	"\x12domain_description\x18\x04 \x01(\tH\x01R\x11domainDescription\x88\x01\x01\x12\x1f\n" +
-	"\baudience\x18\x05 \x01(\tH\x02R\baudience\x88\x01\x01\x12\x12\n" +
-	"\x04tone\x18\x06 \x01(\tR\x04tone\x12A\n" +
-	"\rtext_provider\x18\a \x01(\v2\x17.admin.v1.ModelProviderH\x03R\ftextProvider\x88\x01\x01\x12C\n" +
-	"\x0eimage_provider\x18\b \x01(\v2\x17.admin.v1.ModelProviderH\x04R\rimageProvider\x88\x01\x01\x12C\n" +
-	"\x0evideo_provider\x18\t \x01(\v2\x17.admin.v1.ModelProviderH\x05R\rvideoProvider\x88\x01\x01\x12,\n" +
-	"\x06skills\x18\n" +
-	" \x03(\v2\x14.admin.v1.AgentSkillR\x06skillsB\x13\n" +
-	"\x11_role_descriptionB\x15\n" +
-	"\x13_domain_descriptionB\v\n" +
-	"\t_audienceB\x10\n" +
-	"\x0e_text_providerB\x11\n" +
-	"\x0f_image_providerB\x11\n" +
-	"\x0f_video_provider\"c\n" +
-	"\x17GetResolvedAgentRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12\x19\n" +
-	"\bagent_id\x18\x02 \x01(\tR\aagentId\"I\n" +
-	"\x18GetResolvedAgentResponse\x12-\n" +
-	"\x05agent\x18\x01 \x01(\v2\x17.admin.v1.ResolvedAgentR\x05agent\"w\n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"B\n" +
+	"\x11ListSkillsRequest\x12-\n" +
+	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\"D\n" +
+	"\x12ListSkillsResponse\x12.\n" +
+	"\x06skills\x18\x01 \x03(\v2\x16.admin.v1.SkillSummaryR\x06skills\"w\n" +
 	"\x05Skill\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -3345,9 +3201,10 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\x12GetDefaultProvider\x12#.admin.v1.GetDefaultProviderRequest\x1a$.admin.v1.GetDefaultProviderResponse\x12\\\n" +
 	"\x11GetProviderByKind\x12\".admin.v1.GetProviderByKindRequest\x1a#.admin.v1.GetProviderByKindResponse\x12V\n" +
 	"\x0fGetTaskProvider\x12 .admin.v1.GetTaskProviderRequest\x1a!.admin.v1.GetTaskProviderResponse\x12b\n" +
-	"\x13ListProviderCatalog\x12$.admin.v1.ListProviderCatalogRequest\x1a%.admin.v1.ListProviderCatalogResponse2\xe6\x02\n" +
-	"\x19AgentConfigurationService\x12Y\n" +
-	"\x10GetResolvedAgent\x12!.admin.v1.GetResolvedAgentRequest\x1a\".admin.v1.GetResolvedAgentResponse\x12A\n" +
+	"\x13ListProviderCatalog\x12$.admin.v1.ListProviderCatalogRequest\x1a%.admin.v1.ListProviderCatalogResponse2\xcf\x02\n" +
+	"\x14ConfigurationService\x12G\n" +
+	"\n" +
+	"ListSkills\x12\x1b.admin.v1.ListSkillsRequest\x1a\x1c.admin.v1.ListSkillsResponse\x12A\n" +
 	"\bGetSkill\x12\x19.admin.v1.GetSkillRequest\x1a\x1a.admin.v1.GetSkillResponse\x12M\n" +
 	"\fGetSkillFile\x12\x1d.admin.v1.GetSkillFileRequest\x1a\x1e.admin.v1.GetSkillFileResponse\x12\\\n" +
 	"\x11GetCanvasSettings\x12\".admin.v1.GetCanvasSettingsRequest\x1a#.admin.v1.GetCanvasSettingsResponse2\xb1\x06\n" +
@@ -3374,7 +3231,7 @@ func file_admin_v1_admin_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_admin_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
+var file_admin_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_admin_v1_admin_proto_goTypes = []any{
 	(ProviderKind)(0),                            // 0: admin.v1.ProviderKind
 	(ResponsesDialect)(0),                        // 1: admin.v1.ResponsesDialect
@@ -3392,137 +3249,132 @@ var file_admin_v1_admin_proto_goTypes = []any{
 	(*GetTaskProviderResponse)(nil),              // 13: admin.v1.GetTaskProviderResponse
 	(*ListProviderCatalogRequest)(nil),           // 14: admin.v1.ListProviderCatalogRequest
 	(*ListProviderCatalogResponse)(nil),          // 15: admin.v1.ListProviderCatalogResponse
-	(*AgentSkill)(nil),                           // 16: admin.v1.AgentSkill
-	(*ResolvedAgent)(nil),                        // 17: admin.v1.ResolvedAgent
-	(*GetResolvedAgentRequest)(nil),              // 18: admin.v1.GetResolvedAgentRequest
-	(*GetResolvedAgentResponse)(nil),             // 19: admin.v1.GetResolvedAgentResponse
-	(*Skill)(nil),                                // 20: admin.v1.Skill
-	(*SkillFile)(nil),                            // 21: admin.v1.SkillFile
-	(*GetSkillRequest)(nil),                      // 22: admin.v1.GetSkillRequest
-	(*GetSkillResponse)(nil),                     // 23: admin.v1.GetSkillResponse
-	(*GetSkillFileRequest)(nil),                  // 24: admin.v1.GetSkillFileRequest
-	(*GetSkillFileResponse)(nil),                 // 25: admin.v1.GetSkillFileResponse
-	(*CanvasModelSelection)(nil),                 // 26: admin.v1.CanvasModelSelection
-	(*CanvasDefaults)(nil),                       // 27: admin.v1.CanvasDefaults
-	(*CanvasSettings)(nil),                       // 28: admin.v1.CanvasSettings
-	(*GetCanvasSettingsRequest)(nil),             // 29: admin.v1.GetCanvasSettingsRequest
-	(*GetCanvasSettingsResponse)(nil),            // 30: admin.v1.GetCanvasSettingsResponse
-	(*BenefitPackage)(nil),                       // 31: admin.v1.BenefitPackage
-	(*ListAvailableBenefitPackagesRequest)(nil),  // 32: admin.v1.ListAvailableBenefitPackagesRequest
-	(*ListAvailableBenefitPackagesResponse)(nil), // 33: admin.v1.ListAvailableBenefitPackagesResponse
-	(*ReviewReservation)(nil),                    // 34: admin.v1.ReviewReservation
-	(*ReserveReviewResponse)(nil),                // 35: admin.v1.ReserveReviewResponse
-	(*ReserveReviewRequest)(nil),                 // 36: admin.v1.ReserveReviewRequest
-	(*TransitionReviewRequest)(nil),              // 37: admin.v1.TransitionReviewRequest
-	(*TransitionReviewResponse)(nil),             // 38: admin.v1.TransitionReviewResponse
-	(*ReviewCleanup)(nil),                        // 39: admin.v1.ReviewCleanup
-	(*BeginReviewCleanupResponse)(nil),           // 40: admin.v1.BeginReviewCleanupResponse
-	(*BeginReviewCleanupRequest)(nil),            // 41: admin.v1.BeginReviewCleanupRequest
-	(*CompleteReviewCleanupRequest)(nil),         // 42: admin.v1.CompleteReviewCleanupRequest
-	(*CompleteReviewCleanupResponse)(nil),        // 43: admin.v1.CompleteReviewCleanupResponse
-	(*ReviewedAsset)(nil),                        // 44: admin.v1.ReviewedAsset
-	(*SubmitReviewedAssetRequest)(nil),           // 45: admin.v1.SubmitReviewedAssetRequest
-	(*SubmitReviewedAssetResponse)(nil),          // 46: admin.v1.SubmitReviewedAssetResponse
-	(*GetReviewedAssetRequest)(nil),              // 47: admin.v1.GetReviewedAssetRequest
-	(*GetReviewedAssetResponse)(nil),             // 48: admin.v1.GetReviewedAssetResponse
-	(*DeleteReviewedAssetRequest)(nil),           // 49: admin.v1.DeleteReviewedAssetRequest
-	(*DeleteReviewedAssetResponse)(nil),          // 50: admin.v1.DeleteReviewedAssetResponse
-	(*structpb.Struct)(nil),                      // 51: google.protobuf.Struct
-	(*v1.ActorContext)(nil),                      // 52: common.v1.ActorContext
-	(*timestamppb.Timestamp)(nil),                // 53: google.protobuf.Timestamp
+	(*SkillSummary)(nil),                         // 16: admin.v1.SkillSummary
+	(*ListSkillsRequest)(nil),                    // 17: admin.v1.ListSkillsRequest
+	(*ListSkillsResponse)(nil),                   // 18: admin.v1.ListSkillsResponse
+	(*Skill)(nil),                                // 19: admin.v1.Skill
+	(*SkillFile)(nil),                            // 20: admin.v1.SkillFile
+	(*GetSkillRequest)(nil),                      // 21: admin.v1.GetSkillRequest
+	(*GetSkillResponse)(nil),                     // 22: admin.v1.GetSkillResponse
+	(*GetSkillFileRequest)(nil),                  // 23: admin.v1.GetSkillFileRequest
+	(*GetSkillFileResponse)(nil),                 // 24: admin.v1.GetSkillFileResponse
+	(*CanvasModelSelection)(nil),                 // 25: admin.v1.CanvasModelSelection
+	(*CanvasDefaults)(nil),                       // 26: admin.v1.CanvasDefaults
+	(*CanvasSettings)(nil),                       // 27: admin.v1.CanvasSettings
+	(*GetCanvasSettingsRequest)(nil),             // 28: admin.v1.GetCanvasSettingsRequest
+	(*GetCanvasSettingsResponse)(nil),            // 29: admin.v1.GetCanvasSettingsResponse
+	(*BenefitPackage)(nil),                       // 30: admin.v1.BenefitPackage
+	(*ListAvailableBenefitPackagesRequest)(nil),  // 31: admin.v1.ListAvailableBenefitPackagesRequest
+	(*ListAvailableBenefitPackagesResponse)(nil), // 32: admin.v1.ListAvailableBenefitPackagesResponse
+	(*ReviewReservation)(nil),                    // 33: admin.v1.ReviewReservation
+	(*ReserveReviewResponse)(nil),                // 34: admin.v1.ReserveReviewResponse
+	(*ReserveReviewRequest)(nil),                 // 35: admin.v1.ReserveReviewRequest
+	(*TransitionReviewRequest)(nil),              // 36: admin.v1.TransitionReviewRequest
+	(*TransitionReviewResponse)(nil),             // 37: admin.v1.TransitionReviewResponse
+	(*ReviewCleanup)(nil),                        // 38: admin.v1.ReviewCleanup
+	(*BeginReviewCleanupResponse)(nil),           // 39: admin.v1.BeginReviewCleanupResponse
+	(*BeginReviewCleanupRequest)(nil),            // 40: admin.v1.BeginReviewCleanupRequest
+	(*CompleteReviewCleanupRequest)(nil),         // 41: admin.v1.CompleteReviewCleanupRequest
+	(*CompleteReviewCleanupResponse)(nil),        // 42: admin.v1.CompleteReviewCleanupResponse
+	(*ReviewedAsset)(nil),                        // 43: admin.v1.ReviewedAsset
+	(*SubmitReviewedAssetRequest)(nil),           // 44: admin.v1.SubmitReviewedAssetRequest
+	(*SubmitReviewedAssetResponse)(nil),          // 45: admin.v1.SubmitReviewedAssetResponse
+	(*GetReviewedAssetRequest)(nil),              // 46: admin.v1.GetReviewedAssetRequest
+	(*GetReviewedAssetResponse)(nil),             // 47: admin.v1.GetReviewedAssetResponse
+	(*DeleteReviewedAssetRequest)(nil),           // 48: admin.v1.DeleteReviewedAssetRequest
+	(*DeleteReviewedAssetResponse)(nil),          // 49: admin.v1.DeleteReviewedAssetResponse
+	(*structpb.Struct)(nil),                      // 50: google.protobuf.Struct
+	(*v1.ActorContext)(nil),                      // 51: common.v1.ActorContext
+	(*timestamppb.Timestamp)(nil),                // 52: google.protobuf.Timestamp
 }
 var file_admin_v1_admin_proto_depIdxs = []int32{
 	2,  // 0: admin.v1.ProviderPricing.unit:type_name -> admin.v1.PricingUnit
 	0,  // 1: admin.v1.ModelProvider.provider_kind:type_name -> admin.v1.ProviderKind
 	1,  // 2: admin.v1.ModelProvider.responses_dialect:type_name -> admin.v1.ResponsesDialect
-	51, // 3: admin.v1.ModelProvider.extra_body:type_name -> google.protobuf.Struct
+	50, // 3: admin.v1.ModelProvider.extra_body:type_name -> google.protobuf.Struct
 	3,  // 4: admin.v1.ModelProvider.pricing:type_name -> admin.v1.ProviderPricing
 	0,  // 5: admin.v1.ProviderCatalogItem.provider_kind:type_name -> admin.v1.ProviderKind
 	3,  // 6: admin.v1.ProviderCatalogItem.pricing:type_name -> admin.v1.ProviderPricing
-	52, // 7: admin.v1.GetProviderRequest.actor:type_name -> common.v1.ActorContext
+	51, // 7: admin.v1.GetProviderRequest.actor:type_name -> common.v1.ActorContext
 	4,  // 8: admin.v1.GetProviderResponse.provider:type_name -> admin.v1.ModelProvider
-	52, // 9: admin.v1.GetDefaultProviderRequest.actor:type_name -> common.v1.ActorContext
+	51, // 9: admin.v1.GetDefaultProviderRequest.actor:type_name -> common.v1.ActorContext
 	4,  // 10: admin.v1.GetDefaultProviderResponse.provider:type_name -> admin.v1.ModelProvider
-	52, // 11: admin.v1.GetProviderByKindRequest.actor:type_name -> common.v1.ActorContext
+	51, // 11: admin.v1.GetProviderByKindRequest.actor:type_name -> common.v1.ActorContext
 	0,  // 12: admin.v1.GetProviderByKindRequest.kind:type_name -> admin.v1.ProviderKind
 	4,  // 13: admin.v1.GetProviderByKindResponse.provider:type_name -> admin.v1.ModelProvider
-	52, // 14: admin.v1.GetTaskProviderRequest.actor:type_name -> common.v1.ActorContext
+	51, // 14: admin.v1.GetTaskProviderRequest.actor:type_name -> common.v1.ActorContext
 	4,  // 15: admin.v1.GetTaskProviderResponse.provider:type_name -> admin.v1.ModelProvider
-	52, // 16: admin.v1.ListProviderCatalogRequest.actor:type_name -> common.v1.ActorContext
+	51, // 16: admin.v1.ListProviderCatalogRequest.actor:type_name -> common.v1.ActorContext
 	5,  // 17: admin.v1.ListProviderCatalogResponse.providers:type_name -> admin.v1.ProviderCatalogItem
-	4,  // 18: admin.v1.ResolvedAgent.text_provider:type_name -> admin.v1.ModelProvider
-	4,  // 19: admin.v1.ResolvedAgent.image_provider:type_name -> admin.v1.ModelProvider
-	4,  // 20: admin.v1.ResolvedAgent.video_provider:type_name -> admin.v1.ModelProvider
-	16, // 21: admin.v1.ResolvedAgent.skills:type_name -> admin.v1.AgentSkill
-	52, // 22: admin.v1.GetResolvedAgentRequest.actor:type_name -> common.v1.ActorContext
-	17, // 23: admin.v1.GetResolvedAgentResponse.agent:type_name -> admin.v1.ResolvedAgent
-	52, // 24: admin.v1.GetSkillRequest.actor:type_name -> common.v1.ActorContext
-	20, // 25: admin.v1.GetSkillResponse.skill:type_name -> admin.v1.Skill
-	52, // 26: admin.v1.GetSkillFileRequest.actor:type_name -> common.v1.ActorContext
-	21, // 27: admin.v1.GetSkillFileResponse.file:type_name -> admin.v1.SkillFile
-	51, // 28: admin.v1.CanvasModelSelection.parameters:type_name -> google.protobuf.Struct
-	26, // 29: admin.v1.CanvasDefaults.inference:type_name -> admin.v1.CanvasModelSelection
-	26, // 30: admin.v1.CanvasDefaults.image:type_name -> admin.v1.CanvasModelSelection
-	26, // 31: admin.v1.CanvasDefaults.video:type_name -> admin.v1.CanvasModelSelection
-	27, // 32: admin.v1.CanvasSettings.defaults:type_name -> admin.v1.CanvasDefaults
-	52, // 33: admin.v1.GetCanvasSettingsRequest.actor:type_name -> common.v1.ActorContext
-	28, // 34: admin.v1.GetCanvasSettingsResponse.settings:type_name -> admin.v1.CanvasSettings
-	53, // 35: admin.v1.BenefitPackage.created_at:type_name -> google.protobuf.Timestamp
-	53, // 36: admin.v1.BenefitPackage.updated_at:type_name -> google.protobuf.Timestamp
-	52, // 37: admin.v1.ListAvailableBenefitPackagesRequest.actor:type_name -> common.v1.ActorContext
-	31, // 38: admin.v1.ListAvailableBenefitPackagesResponse.packages:type_name -> admin.v1.BenefitPackage
-	34, // 39: admin.v1.ReserveReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
-	52, // 40: admin.v1.ReserveReviewRequest.actor:type_name -> common.v1.ActorContext
-	52, // 41: admin.v1.TransitionReviewRequest.actor:type_name -> common.v1.ActorContext
-	34, // 42: admin.v1.TransitionReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
-	39, // 43: admin.v1.BeginReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
-	52, // 44: admin.v1.BeginReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
-	52, // 45: admin.v1.CompleteReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
-	39, // 46: admin.v1.CompleteReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
-	52, // 47: admin.v1.SubmitReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
-	44, // 48: admin.v1.SubmitReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
-	52, // 49: admin.v1.GetReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
-	44, // 50: admin.v1.GetReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
-	52, // 51: admin.v1.DeleteReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
-	6,  // 52: admin.v1.ProviderService.GetProvider:input_type -> admin.v1.GetProviderRequest
-	8,  // 53: admin.v1.ProviderService.GetDefaultProvider:input_type -> admin.v1.GetDefaultProviderRequest
-	10, // 54: admin.v1.ProviderService.GetProviderByKind:input_type -> admin.v1.GetProviderByKindRequest
-	12, // 55: admin.v1.ProviderService.GetTaskProvider:input_type -> admin.v1.GetTaskProviderRequest
-	14, // 56: admin.v1.ProviderService.ListProviderCatalog:input_type -> admin.v1.ListProviderCatalogRequest
-	18, // 57: admin.v1.AgentConfigurationService.GetResolvedAgent:input_type -> admin.v1.GetResolvedAgentRequest
-	22, // 58: admin.v1.AgentConfigurationService.GetSkill:input_type -> admin.v1.GetSkillRequest
-	24, // 59: admin.v1.AgentConfigurationService.GetSkillFile:input_type -> admin.v1.GetSkillFileRequest
-	29, // 60: admin.v1.AgentConfigurationService.GetCanvasSettings:input_type -> admin.v1.GetCanvasSettingsRequest
-	32, // 61: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:input_type -> admin.v1.ListAvailableBenefitPackagesRequest
-	36, // 62: admin.v1.BenefitPackageService.ReserveReview:input_type -> admin.v1.ReserveReviewRequest
-	37, // 63: admin.v1.BenefitPackageService.TransitionReview:input_type -> admin.v1.TransitionReviewRequest
-	41, // 64: admin.v1.BenefitPackageService.BeginReviewCleanup:input_type -> admin.v1.BeginReviewCleanupRequest
-	42, // 65: admin.v1.BenefitPackageService.CompleteReviewCleanup:input_type -> admin.v1.CompleteReviewCleanupRequest
-	45, // 66: admin.v1.BenefitPackageService.SubmitReviewedAsset:input_type -> admin.v1.SubmitReviewedAssetRequest
-	47, // 67: admin.v1.BenefitPackageService.GetReviewedAsset:input_type -> admin.v1.GetReviewedAssetRequest
-	49, // 68: admin.v1.BenefitPackageService.DeleteReviewedAsset:input_type -> admin.v1.DeleteReviewedAssetRequest
-	7,  // 69: admin.v1.ProviderService.GetProvider:output_type -> admin.v1.GetProviderResponse
-	9,  // 70: admin.v1.ProviderService.GetDefaultProvider:output_type -> admin.v1.GetDefaultProviderResponse
-	11, // 71: admin.v1.ProviderService.GetProviderByKind:output_type -> admin.v1.GetProviderByKindResponse
-	13, // 72: admin.v1.ProviderService.GetTaskProvider:output_type -> admin.v1.GetTaskProviderResponse
-	15, // 73: admin.v1.ProviderService.ListProviderCatalog:output_type -> admin.v1.ListProviderCatalogResponse
-	19, // 74: admin.v1.AgentConfigurationService.GetResolvedAgent:output_type -> admin.v1.GetResolvedAgentResponse
-	23, // 75: admin.v1.AgentConfigurationService.GetSkill:output_type -> admin.v1.GetSkillResponse
-	25, // 76: admin.v1.AgentConfigurationService.GetSkillFile:output_type -> admin.v1.GetSkillFileResponse
-	30, // 77: admin.v1.AgentConfigurationService.GetCanvasSettings:output_type -> admin.v1.GetCanvasSettingsResponse
-	33, // 78: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:output_type -> admin.v1.ListAvailableBenefitPackagesResponse
-	35, // 79: admin.v1.BenefitPackageService.ReserveReview:output_type -> admin.v1.ReserveReviewResponse
-	38, // 80: admin.v1.BenefitPackageService.TransitionReview:output_type -> admin.v1.TransitionReviewResponse
-	40, // 81: admin.v1.BenefitPackageService.BeginReviewCleanup:output_type -> admin.v1.BeginReviewCleanupResponse
-	43, // 82: admin.v1.BenefitPackageService.CompleteReviewCleanup:output_type -> admin.v1.CompleteReviewCleanupResponse
-	46, // 83: admin.v1.BenefitPackageService.SubmitReviewedAsset:output_type -> admin.v1.SubmitReviewedAssetResponse
-	48, // 84: admin.v1.BenefitPackageService.GetReviewedAsset:output_type -> admin.v1.GetReviewedAssetResponse
-	50, // 85: admin.v1.BenefitPackageService.DeleteReviewedAsset:output_type -> admin.v1.DeleteReviewedAssetResponse
-	69, // [69:86] is the sub-list for method output_type
-	52, // [52:69] is the sub-list for method input_type
-	52, // [52:52] is the sub-list for extension type_name
-	52, // [52:52] is the sub-list for extension extendee
-	0,  // [0:52] is the sub-list for field type_name
+	51, // 18: admin.v1.ListSkillsRequest.actor:type_name -> common.v1.ActorContext
+	16, // 19: admin.v1.ListSkillsResponse.skills:type_name -> admin.v1.SkillSummary
+	51, // 20: admin.v1.GetSkillRequest.actor:type_name -> common.v1.ActorContext
+	19, // 21: admin.v1.GetSkillResponse.skill:type_name -> admin.v1.Skill
+	51, // 22: admin.v1.GetSkillFileRequest.actor:type_name -> common.v1.ActorContext
+	20, // 23: admin.v1.GetSkillFileResponse.file:type_name -> admin.v1.SkillFile
+	50, // 24: admin.v1.CanvasModelSelection.parameters:type_name -> google.protobuf.Struct
+	25, // 25: admin.v1.CanvasDefaults.inference:type_name -> admin.v1.CanvasModelSelection
+	25, // 26: admin.v1.CanvasDefaults.image:type_name -> admin.v1.CanvasModelSelection
+	25, // 27: admin.v1.CanvasDefaults.video:type_name -> admin.v1.CanvasModelSelection
+	26, // 28: admin.v1.CanvasSettings.defaults:type_name -> admin.v1.CanvasDefaults
+	51, // 29: admin.v1.GetCanvasSettingsRequest.actor:type_name -> common.v1.ActorContext
+	27, // 30: admin.v1.GetCanvasSettingsResponse.settings:type_name -> admin.v1.CanvasSettings
+	52, // 31: admin.v1.BenefitPackage.created_at:type_name -> google.protobuf.Timestamp
+	52, // 32: admin.v1.BenefitPackage.updated_at:type_name -> google.protobuf.Timestamp
+	51, // 33: admin.v1.ListAvailableBenefitPackagesRequest.actor:type_name -> common.v1.ActorContext
+	30, // 34: admin.v1.ListAvailableBenefitPackagesResponse.packages:type_name -> admin.v1.BenefitPackage
+	33, // 35: admin.v1.ReserveReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
+	51, // 36: admin.v1.ReserveReviewRequest.actor:type_name -> common.v1.ActorContext
+	51, // 37: admin.v1.TransitionReviewRequest.actor:type_name -> common.v1.ActorContext
+	33, // 38: admin.v1.TransitionReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
+	38, // 39: admin.v1.BeginReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
+	51, // 40: admin.v1.BeginReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
+	51, // 41: admin.v1.CompleteReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
+	38, // 42: admin.v1.CompleteReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
+	51, // 43: admin.v1.SubmitReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
+	43, // 44: admin.v1.SubmitReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
+	51, // 45: admin.v1.GetReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
+	43, // 46: admin.v1.GetReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
+	51, // 47: admin.v1.DeleteReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
+	6,  // 48: admin.v1.ProviderService.GetProvider:input_type -> admin.v1.GetProviderRequest
+	8,  // 49: admin.v1.ProviderService.GetDefaultProvider:input_type -> admin.v1.GetDefaultProviderRequest
+	10, // 50: admin.v1.ProviderService.GetProviderByKind:input_type -> admin.v1.GetProviderByKindRequest
+	12, // 51: admin.v1.ProviderService.GetTaskProvider:input_type -> admin.v1.GetTaskProviderRequest
+	14, // 52: admin.v1.ProviderService.ListProviderCatalog:input_type -> admin.v1.ListProviderCatalogRequest
+	17, // 53: admin.v1.ConfigurationService.ListSkills:input_type -> admin.v1.ListSkillsRequest
+	21, // 54: admin.v1.ConfigurationService.GetSkill:input_type -> admin.v1.GetSkillRequest
+	23, // 55: admin.v1.ConfigurationService.GetSkillFile:input_type -> admin.v1.GetSkillFileRequest
+	28, // 56: admin.v1.ConfigurationService.GetCanvasSettings:input_type -> admin.v1.GetCanvasSettingsRequest
+	31, // 57: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:input_type -> admin.v1.ListAvailableBenefitPackagesRequest
+	35, // 58: admin.v1.BenefitPackageService.ReserveReview:input_type -> admin.v1.ReserveReviewRequest
+	36, // 59: admin.v1.BenefitPackageService.TransitionReview:input_type -> admin.v1.TransitionReviewRequest
+	40, // 60: admin.v1.BenefitPackageService.BeginReviewCleanup:input_type -> admin.v1.BeginReviewCleanupRequest
+	41, // 61: admin.v1.BenefitPackageService.CompleteReviewCleanup:input_type -> admin.v1.CompleteReviewCleanupRequest
+	44, // 62: admin.v1.BenefitPackageService.SubmitReviewedAsset:input_type -> admin.v1.SubmitReviewedAssetRequest
+	46, // 63: admin.v1.BenefitPackageService.GetReviewedAsset:input_type -> admin.v1.GetReviewedAssetRequest
+	48, // 64: admin.v1.BenefitPackageService.DeleteReviewedAsset:input_type -> admin.v1.DeleteReviewedAssetRequest
+	7,  // 65: admin.v1.ProviderService.GetProvider:output_type -> admin.v1.GetProviderResponse
+	9,  // 66: admin.v1.ProviderService.GetDefaultProvider:output_type -> admin.v1.GetDefaultProviderResponse
+	11, // 67: admin.v1.ProviderService.GetProviderByKind:output_type -> admin.v1.GetProviderByKindResponse
+	13, // 68: admin.v1.ProviderService.GetTaskProvider:output_type -> admin.v1.GetTaskProviderResponse
+	15, // 69: admin.v1.ProviderService.ListProviderCatalog:output_type -> admin.v1.ListProviderCatalogResponse
+	18, // 70: admin.v1.ConfigurationService.ListSkills:output_type -> admin.v1.ListSkillsResponse
+	22, // 71: admin.v1.ConfigurationService.GetSkill:output_type -> admin.v1.GetSkillResponse
+	24, // 72: admin.v1.ConfigurationService.GetSkillFile:output_type -> admin.v1.GetSkillFileResponse
+	29, // 73: admin.v1.ConfigurationService.GetCanvasSettings:output_type -> admin.v1.GetCanvasSettingsResponse
+	32, // 74: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:output_type -> admin.v1.ListAvailableBenefitPackagesResponse
+	34, // 75: admin.v1.BenefitPackageService.ReserveReview:output_type -> admin.v1.ReserveReviewResponse
+	37, // 76: admin.v1.BenefitPackageService.TransitionReview:output_type -> admin.v1.TransitionReviewResponse
+	39, // 77: admin.v1.BenefitPackageService.BeginReviewCleanup:output_type -> admin.v1.BeginReviewCleanupResponse
+	42, // 78: admin.v1.BenefitPackageService.CompleteReviewCleanup:output_type -> admin.v1.CompleteReviewCleanupResponse
+	45, // 79: admin.v1.BenefitPackageService.SubmitReviewedAsset:output_type -> admin.v1.SubmitReviewedAssetResponse
+	47, // 80: admin.v1.BenefitPackageService.GetReviewedAsset:output_type -> admin.v1.GetReviewedAssetResponse
+	49, // 81: admin.v1.BenefitPackageService.DeleteReviewedAsset:output_type -> admin.v1.DeleteReviewedAssetResponse
+	65, // [65:82] is the sub-list for method output_type
+	48, // [48:65] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_admin_proto_init() }
@@ -3532,17 +3384,16 @@ func file_admin_v1_admin_proto_init() {
 	}
 	file_admin_v1_admin_proto_msgTypes[1].OneofWrappers = []any{}
 	file_admin_v1_admin_proto_msgTypes[2].OneofWrappers = []any{}
-	file_admin_v1_admin_proto_msgTypes[14].OneofWrappers = []any{}
-	file_admin_v1_admin_proto_msgTypes[18].OneofWrappers = []any{}
-	file_admin_v1_admin_proto_msgTypes[24].OneofWrappers = []any{}
-	file_admin_v1_admin_proto_msgTypes[28].OneofWrappers = []any{}
+	file_admin_v1_admin_proto_msgTypes[17].OneofWrappers = []any{}
+	file_admin_v1_admin_proto_msgTypes[23].OneofWrappers = []any{}
+	file_admin_v1_admin_proto_msgTypes[27].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_admin_proto_rawDesc), len(file_admin_v1_admin_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   48,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

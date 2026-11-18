@@ -1,7 +1,5 @@
 import type { ToolSet } from "ai";
 
-import type { AgentMode } from "../agent/types.js";
-
 export type ToolCapability =
   | "canvas"
   | "search"
@@ -24,7 +22,6 @@ export interface AgentToolPolicy {
   effect: ToolEffect;
   trust: ToolTrust;
   execution: ToolExecution;
-  modes: AgentMode[];
   source: ToolSource;
   uiKind?: "artifact" | "ask-user" | "image-gallery" | "todo-list" | "video" | "terminal" | "subagent";
 }

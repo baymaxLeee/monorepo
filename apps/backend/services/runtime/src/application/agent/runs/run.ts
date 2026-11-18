@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 
 import { createAgentSteering } from "@repo/agent-runtime/agent/steering";
-import type { BotProfileSnapshot } from "@repo/agent-runtime/instructions/index";
 import {
   consumeStream,
   createUIMessageStream,
@@ -10,7 +9,7 @@ import {
   validateUIMessages,
 } from "ai";
 
-import type { LanguageProviderSnapshot } from "#runtime/provider-model";
+import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
 import type { AuthContext } from "../../../api/http/middleware/auth.js";
 import type { AgentSkillRef, ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
@@ -20,7 +19,7 @@ import { getDocument, knowledgeDocumentSessionId } from "../../../infrastructure
 import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
-import { getSessionRow, listMessages, updateSessionProvider, type Message } from "../../sessions.js";
+import { getSessionRow, listMessages, type Message } from "../../sessions.js";
 import { createAgent } from "../agents/factory.js";
 import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
 import { shouldResetStoredResponseLineage } from "../context/budget.js";
@@ -72,15 +71,9 @@ import { startAgentSteeringInbox } from "./steering.js";
 import { terminalStreamError } from "./stream-outcome.js";
 
 export interface RunAgentInput {
-  imageProvider?: ProviderSnapshot | null;
-  videoProviderId?: string | null;
-  botProfile?: BotProfileSnapshot | null;
-  /** Bot-bound skills (L1) advertised to the model via `<available_skills>`. */
-  botSkills?: AgentSkillRef[];
-  /** Per-run behavior selector carried in the run request body (ADR-0035);
-   *  ephemeral, never persisted. Defaults to normal. */
-  mode?: "normal" | "plan";
-  agentId?: string | null;
+  reasoningEffort: ReasoningEffort;
+  /** Enabled published workspace skills advertised to the model via `<available_skills>`. */
+  skills?: AgentSkillRef[];
   projectId?: string | null;
   canvasId?: string | null;
   trigger: "submit-message" | "regenerate-message";
@@ -167,7 +160,6 @@ function assertUserSubmissionParts(message: AnyUIMessage): void {
     if (
       part.type !== "text" &&
       part.type !== "file" &&
-      part.type !== "data-plan-execution" &&
       part.type !== "data-skill-activation"
     ) {
       throw new RequestError(`user messages cannot submit ${part.type} parts`);
@@ -298,7 +290,7 @@ export async function createAgentRunResponse(
     expectedRevision: input.expectedRevision,
     operation,
     targetMessageId: input.messageId ?? null,
-    requestContext: { agentId: input.agentId ?? null, mode: input.mode ?? "normal" },
+    requestContext: { reasoningEffort: input.reasoningEffort },
     ...(operation === "tool-continuation" ? { continuationMessage: latestMessage } : {}),
     ...(claimedUserMessage
       ? {
@@ -326,15 +318,11 @@ export async function createAgentRunResponse(
   let steeringInbox: Awaited<ReturnType<typeof startAgentSteeringInbox>> | null = null;
   let contextUsage: UsageTokens = EMPTY_USAGE;
   try {
-    const mode = input.mode === "plan" ? "plan" : "normal";
     const [persistedMessages, instructionInput] = await Promise.all([
       listMessages(session.id, claim.historyMessageId),
       loadInstructionContext({
         userId: session.userId,
-        mode,
-        botProfile: input.botProfile,
       }),
-      updateSessionProvider(session.id, provider.id, provider.model),
     ]);
 
     const firstPersistedUser = persistedMessages.find((message) => message.role === "user");
@@ -410,14 +398,14 @@ export async function createAgentRunResponse(
     const modelMessages = projected.messages;
     contextUsage = projected.compactionUsage;
 
-    const botSkills = input.botSkills ?? [];
+    const skills = input.skills ?? [];
 
     const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
     const currentSkillName = continuedSkill?.name ?? activatedSkillName;
     if (currentSkillName) {
-      const picked = botSkills.find((skill) => skill.name === currentSkillName);
+      const picked = skills.find((skill) => skill.name === currentSkillName);
       if (!picked) {
-        throw new RequestError(`skill "${currentSkillName}" is not available for this agent`);
+        throw new RequestError(`skill "${currentSkillName}" is not available in this workspace`);
       }
       const { body, files } = await getSkillBody(picked.id, auth.tenantId, auth.workspaceId);
       if (!body.trim()) {
@@ -439,16 +427,14 @@ export async function createAgentRunResponse(
       tenantId: auth.tenantId,
       workspaceId: auth.workspaceId,
       sessionId: session.id,
-      mode,
       provider,
-      imageProvider: input.imageProvider,
-      videoProviderId: input.videoProviderId,
+      reasoningEffort: input.reasoningEffort,
       modelMessages,
       previousResponseId: continueStoredLineage ? lineage.responseId : null,
       attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
       instructionInput,
       activeSkillName: instructionInput.activatedSkill?.name ?? null,
-      botSkills,
+      skills,
       loadSkillBody: async (skillId: string) => {
         const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
         return skill.files.length ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}` : skill.body;

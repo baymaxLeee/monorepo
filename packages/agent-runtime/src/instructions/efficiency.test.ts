@@ -6,7 +6,7 @@ import { renderExecutionProtocol } from "./execution.js";
 import { renderRuntimeContract } from "./runtime.js";
 
 test("single HTML work avoids duplicate retrieval and per-run runtime harnesses", () => {
-  const normal = renderRuntimeContract("normal");
+  const normal = renderRuntimeContract();
 
   assert.match(normal, /observe the result before fetching the same URL another way/i);
   assert.match(normal, /one Bash call when practical/i);
@@ -24,7 +24,7 @@ test("execution observes a retrieval before trying another path for the same sou
 
 test("the primary loop chooses tools without a mandatory research router", () => {
   const execution = renderExecutionProtocol();
-  const normal = renderRuntimeContract("normal");
+  const normal = renderRuntimeContract();
 
   assert.match(execution, /delegate a bounded task when an available tool is genuinely useful/i);
   assert.match(execution, /do not add a router, classifier, or hidden workflow/i);

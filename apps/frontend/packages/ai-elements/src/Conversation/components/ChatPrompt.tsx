@@ -3,14 +3,13 @@ import type { Ref } from "react";
 
 import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 
-// Both execution modes use the same composer sizing, editor and submit controls.
 export function ChatPrompt({
   ref,
   pendingInputs = [],
   ...props
 }: PromptInputProps & { ref?: Ref<PromptInputRef>; pendingInputs?: readonly PendingAgentInput[] }) {
   return (
-    <footer className="mx-auto w-full max-w-4xl shrink-0 px-4 pt-2 pb-4">
+    <footer className="relative z-10 mx-auto w-full max-w-4xl shrink-0 bg-gradient-to-t from-background from-70% to-transparent px-4 pt-6 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <PendingInputStack inputs={pendingInputs} />
       <PromptInput ref={ref} {...props} />
     </footer>

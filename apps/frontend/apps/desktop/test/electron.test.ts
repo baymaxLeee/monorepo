@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { expect, it } from "vitest";
 
 it.skipIf(process.platform !== "darwin")(
-  "actual Electron main, preload, utility Agent and Seatbelt file helper work end to end",
+  "actual Electron main, preload, utility runtime and Seatbelt file helper work end to end",
   async () => {
     const require = createRequire(import.meta.url);
     const executable: string = require("electron");

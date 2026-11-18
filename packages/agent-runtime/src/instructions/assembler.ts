@@ -1,4 +1,3 @@
-import { renderBotProfile } from "./bot-profile.js";
 import { renderMemory } from "./context-data.js";
 import { CORE_POLICY } from "./core-policy.js";
 import { renderExecutionProtocol } from "./execution.js";
@@ -11,12 +10,12 @@ import { escapeXmlText, xmlSection } from "./xml.js";
  * The single, fixed-order instruction assembler. Section order is code-owned and
  * cannot be reordered by callers. Trust flows top→bottom: code-owned policy and
  * runtime and execution protocol first, then code-generated capabilities and
- * available skills, configured bot_profile, data, and server facts.
+ * available skills, data, and server facts.
  */
 export function assembleInstructions(input: InstructionInput, contributions: InstructionContributions = {}): string {
   const sections = [
     xmlSection(INSTRUCTION_SECTION_TAGS.corePolicy, CORE_POLICY),
-    renderRuntimeContract(input.mode),
+    renderRuntimeContract(),
     renderExecutionProtocol(),
     xmlSection(INSTRUCTION_SECTION_TAGS.capabilityContract, contributions.capabilities ?? null),
     renderAvailableSkills(contributions.skills),
@@ -25,7 +24,6 @@ export function assembleInstructions(input: InstructionInput, contributions: Ins
           name: input.activatedSkill.name,
         })
       : null,
-    renderBotProfile(input.botProfile),
     renderMemory(input.memories),
     renderEnvironment(input.now),
   ].filter((section): section is string => Boolean(section));

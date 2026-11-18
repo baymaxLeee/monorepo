@@ -15,7 +15,7 @@ export interface RelayProvider {
   model: LanguageModelV4;
 }
 export interface RelayDependencies {
-  resolve(auth: AuthContext, agentId: string | null): Promise<RelayProvider>;
+  resolve(auth: AuthContext, providerId: string, reasoningEffort: InferenceRequest["reasoningEffort"]): Promise<RelayProvider>;
   reserve(
     auth: AuthContext,
     requestId: string,
@@ -33,8 +33,8 @@ export async function inferenceResponse(
   const parsed = inferenceRequestSchema.safeParse(payload);
   if (!parsed.success) throw new RequestError("Invalid local inference request");
   const request: InferenceRequest = parsed.data;
-  const provider = await deps.resolve(auth, request.agentId);
-  if (provider.config.model !== request.model) throw new ForbiddenError("Model is not authorized for this Agent");
+  const provider = await deps.resolve(auth, request.providerId, request.reasoningEffort);
+  if (provider.config.model !== request.model) throw new ForbiddenError("Model is not authorized for this conversation");
   if (request.options.maxOutputTokens > provider.config.maxOutputTokens)
     throw new RequestError("Output exceeds configured model budget");
   // Reserve the whole allowed context, rather than treating a tokenizer estimate

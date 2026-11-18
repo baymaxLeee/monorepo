@@ -44,7 +44,7 @@ test("cloud adapters expose only cloud workspace capabilities", async () => {
 test("session source refresh remains a Runtime-only incremental import adapter", async () => {
   const runtime = await createCloudToolAdapters();
   const refresh = runtime.manifests.find((manifest) => manifest.name === "refresh_session_sources");
-  assert.deepEqual(refresh?.policy.modes, ["normal"]);
+  assert.equal("modes" in (refresh?.policy ?? {}), false);
   assert.match(staticDescription(refresh?.tool), /after another tool adds or updates/i);
   assert.match(staticDescription(refresh?.tool), /workspace files are preserved/i);
 });

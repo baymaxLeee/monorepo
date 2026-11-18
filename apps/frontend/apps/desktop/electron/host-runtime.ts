@@ -75,7 +75,7 @@ export class RuntimeHost {
         const request =
           method === "config"
             ? this.fetchApi(
-                `/api/chat-server/local-inference/config${(message.payload as { agentId: string | null }).agentId ? `?agent_id=${encodeURIComponent((message.payload as { agentId: string }).agentId)}` : ""}`,
+                `/api/chat-server/local-inference/config?provider_id=${encodeURIComponent((message.payload as { providerId: string }).providerId)}&reasoning_effort=${encodeURIComponent((message.payload as { reasoningEffort: string }).reasoningEffort)}`,
                 { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15_000)]) },
               )
             : method === "web-search"

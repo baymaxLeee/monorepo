@@ -149,7 +149,7 @@ sequenceDiagram
     Note over L: 本地审批、执行工具、保存会话并决定下一步
 ```
 
-桌面端只取得授权后的非敏感 Agent 配置、模型标识与能力信息；不得下发内部 provider snapshot、apiKey、服务间 credential 或可复用上游认证头。不引入 BYOK，也不让 Chat 为本地会话创建云端 conversation/run 或代跑 Agent 循环。桌面登录凭据由可信宿主持有，不注入命令环境、工作文件或模型上下文。
+桌面端只取得当前本地会话绑定的非敏感模型标识、推理深度与能力信息；不得下发内部 provider snapshot、apiKey、服务间 credential 或可复用上游认证头。不引入 BYOK，也不让 Chat 为本地会话创建云端 conversation/run 或代跑推理循环。桌面登录凭据由可信宿主持有，不注入命令环境、工作文件或模型上下文。
 
 relay 必须满足以下边界：
 

@@ -22,9 +22,7 @@ const props: Omit<ChatMessageViewProps, "message"> = {
   onOpenWorkspaceFile: vi.fn(),
   onAnswerClientTool: vi.fn(),
   onToolApproval: vi.fn(),
-  onExecutePlan: vi.fn(),
-  planExecutedIds: new Set(),
-  planBusy: false,
+  busy: false,
 };
 
 function message(part: DynamicToolUIPart) {

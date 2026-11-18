@@ -1,15 +1,14 @@
 import { InnerApiCaller, InnerApiError, insecureChannelCredentials } from "@backend/inner-api/client";
 import {
-  AgentConfigurationServiceClient,
+  ConfigurationServiceClient,
   type ModelProvider,
-  type GetResolvedAgentResponse,
   type GetSkillFileResponse,
   type GetSkillResponse,
+  type ListProviderCatalogResponse,
+  type ListSkillsResponse,
   ProviderKind,
   ProviderServiceClient,
-  type ResolvedAgent,
 } from "@backend/inner-api/gen/admin/v1/admin";
-import type { BotProfileSnapshot, BotTone } from "@repo/agent-runtime/instructions/index";
 
 import { propagationHeaders } from "#runtime/foundation";
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
@@ -86,21 +85,20 @@ export type SkillFileResource =
       url: string;
     };
 
-export interface ResolvedAgentProviders {
-  agentId: string;
-  agentName: string;
-  profile: BotProfileSnapshot;
-  text: (ProviderSnapshot & LanguageProviderSnapshot) | null;
-  image: ProviderSnapshot | null;
-  video: ProviderSnapshot | null;
-  skills: AgentSkillRef[];
+export interface ProviderCatalogItem {
+  id: string;
+  name: string;
+  model: string;
+  providerKind: string;
+  isDefault: boolean;
+  isEnabled: boolean;
 }
 
 function adminClient() {
   const settings = getServerSettings();
   return {
     providers: new ProviderServiceClient(settings.adminRpcTarget, insecureChannelCredentials),
-    agents: new AgentConfigurationServiceClient(settings.adminRpcTarget, insecureChannelCredentials),
+    configuration: new ConfigurationServiceClient(settings.adminRpcTarget, insecureChannelCredentials),
     caller: new InnerApiCaller("runtime"),
   };
 }
@@ -220,58 +218,80 @@ export async function getProviderLimits(
   return limits;
 }
 
-export async function getAgent(
-  userId: string,
-  agentId: string,
+export async function listProviderCatalog(
   tenantId: string,
   workspaceId: string,
-): Promise<ResolvedAgentProviders> {
-  let data: ResolvedAgent | undefined;
+): Promise<ProviderCatalogItem[]> {
   try {
     const client = adminClient();
-    data = (
-      await client.caller.unary<GetResolvedAgentResponse>(
+    const response = await client.caller.unary<ListProviderCatalogResponse>(
         (metadata, options, callback) =>
-          client.agents.getResolvedAgent(
-            { actor: actor(userId, tenantId, workspaceId), agentId },
+          client.providers.listProviderCatalog(
+            { actor: actor("", tenantId, workspaceId) },
             metadata,
             options,
             callback,
           ),
         { headers: propagationHeaders() },
-      )
-    ).agent;
+      );
+    return response.providers.map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      model: provider.model,
+      providerKind: providerKind(provider.providerKind),
+      isDefault: provider.isDefault,
+      isEnabled: provider.isEnabled,
+    }));
   } catch (err) {
-    if (err instanceof InnerApiError && err.code === 5) {
-      throw new ProviderNotConfiguredError(`agent ${agentId} not found`);
-    }
     throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
-  if (!data) throw new AdminUnavailableError("admin returned no agent");
-  const resolve = async (p: ModelProvider | undefined) => (p ? assertSnapshotUrl(toSnapshot(p)) : null);
-  const text = await resolve(data.textProvider);
-  if (text && text.providerKind !== "chat") {
-    throw new ProviderNotConfiguredError(`provider ${text.id} is not a configured language provider`);
+}
+
+export async function getTaskProvider(
+  tenantId: string,
+  workspaceId: string,
+  providerId: string,
+): Promise<ProviderSnapshot> {
+  try {
+    const client = adminClient();
+    const response = await client.caller.unary<{ provider?: ModelProvider }>(
+      (metadata, options, callback) =>
+        client.providers.getTaskProvider(
+          { actor: actor("", tenantId, workspaceId), providerId },
+          metadata,
+          options,
+          callback,
+        ),
+      { headers: propagationHeaders() },
+    );
+    if (!response.provider) throw new AdminUnavailableError("admin returned no task provider");
+    return assertSnapshotUrl(toSnapshot(response.provider));
+  } catch (err) {
+    if (err instanceof InnerApiError && err.code === 5) {
+      throw new ProviderNotConfiguredError(`provider ${providerId} not found`);
+    }
+    if (err instanceof AdminUnavailableError || err instanceof ProviderNotConfiguredError) throw err;
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
   }
-  return {
-    agentId: data.id,
-    agentName: data.name,
-    profile: {
-      name: data.name,
-      roleDescription: data.roleDescription ?? null,
-      domainDescription: data.domainDescription ?? null,
-      audience: data.audience ?? null,
-      tone: (data.tone || null) as BotTone | null,
-    },
-    text: text as (ProviderSnapshot & LanguageProviderSnapshot) | null,
-    image: await resolve(data.imageProvider),
-    video: await resolve(data.videoProvider),
-    skills: data.skills.map((skill) => ({
-      id: skill.id,
-      name: skill.name,
-      description: skill.description,
-    })),
-  };
+}
+
+export async function listSkills(tenantId: string, workspaceId: string): Promise<AgentSkillRef[]> {
+  try {
+    const client = adminClient();
+    const response = await client.caller.unary<ListSkillsResponse>(
+      (metadata, options, callback) =>
+        client.configuration.listSkills(
+          { actor: actor("", tenantId, workspaceId) },
+          metadata,
+          options,
+          callback,
+        ),
+      { headers: propagationHeaders() },
+    );
+    return response.skills.map((skill) => ({ id: skill.id, name: skill.name, description: skill.description }));
+  } catch (err) {
+    throw new AdminUnavailableError(`admin unreachable: ${String(err)}`);
+  }
 }
 
 /** Pulls a skill's full L2 body on demand (progressive disclosure). Called by
@@ -287,7 +307,12 @@ export async function getSkillBody(
     data = (
       await client.caller.unary<GetSkillResponse>(
         (metadata, options, callback) =>
-          client.agents.getSkill({ actor: actor("", tenantId, workspaceId), skillId }, metadata, options, callback),
+          client.configuration.getSkill(
+            { actor: actor("", tenantId, workspaceId), skillId },
+            metadata,
+            options,
+            callback,
+          ),
         { headers: propagationHeaders() },
       )
     ).skill;
@@ -312,7 +337,7 @@ export async function getSkillFile(
     const file = (
       await client.caller.unary<GetSkillFileResponse>(
         (metadata, options, callback) =>
-          client.agents.getSkillFile(
+          client.configuration.getSkillFile(
             { actor: actor("", tenantId, workspaceId), skillId, path },
             metadata,
             options,

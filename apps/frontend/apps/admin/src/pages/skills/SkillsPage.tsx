@@ -114,7 +114,7 @@ export function SkillsPage() {
         <PageHeaderContent>
           <PageTitle>技能管理</PageTitle>
           <PageDescription>
-            Skill 是包含 SKILL.md、参考资料、模板和脚本的文件工作区；发布后才会被智能体使用。
+            Skill 是包含 SKILL.md、参考资料、模板和脚本的文件工作区；发布后可被工作区内的会话复用。
           </PageDescription>
         </PageHeaderContent>
         <PageActions>

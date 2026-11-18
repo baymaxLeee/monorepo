@@ -26,7 +26,8 @@ const finish: LanguageModelV4StreamPart = {
 };
 const request = () => ({
   requestId: randomUUID(),
-  agentId: null,
+  providerId: "provider",
+  reasoningEffort: "medium" as const,
   model: "authorized",
   options: {
     prompt: [{ role: "user", content: [{ type: "text", text: "local file contents" }] }],
@@ -41,8 +42,9 @@ function fixture(parts: LanguageModelV4StreamPart[] = [finish], contextWindow = 
   const deps: RelayDependencies = {
     resolve: async () => ({
       config: {
-        agentId: null,
-        agentName: "test",
+        providerId: "provider",
+        providerName: "test",
+        reasoningEffort: "medium",
         instructions: "",
         model: "authorized",
         maxOutputTokens: 100,

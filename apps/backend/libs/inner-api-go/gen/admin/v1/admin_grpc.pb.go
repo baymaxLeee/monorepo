@@ -273,216 +273,215 @@ var ProviderService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	AgentConfigurationService_GetResolvedAgent_FullMethodName  = "/admin.v1.AgentConfigurationService/GetResolvedAgent"
-	AgentConfigurationService_GetSkill_FullMethodName          = "/admin.v1.AgentConfigurationService/GetSkill"
-	AgentConfigurationService_GetSkillFile_FullMethodName      = "/admin.v1.AgentConfigurationService/GetSkillFile"
-	AgentConfigurationService_GetCanvasSettings_FullMethodName = "/admin.v1.AgentConfigurationService/GetCanvasSettings"
+	ConfigurationService_ListSkills_FullMethodName        = "/admin.v1.ConfigurationService/ListSkills"
+	ConfigurationService_GetSkill_FullMethodName          = "/admin.v1.ConfigurationService/GetSkill"
+	ConfigurationService_GetSkillFile_FullMethodName      = "/admin.v1.ConfigurationService/GetSkillFile"
+	ConfigurationService_GetCanvasSettings_FullMethodName = "/admin.v1.ConfigurationService/GetCanvasSettings"
 )
 
-// AgentConfigurationServiceClient is the client API for AgentConfigurationService service.
+// ConfigurationServiceClient is the client API for ConfigurationService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type AgentConfigurationServiceClient interface {
-	GetResolvedAgent(ctx context.Context, in *GetResolvedAgentRequest, opts ...grpc.CallOption) (*GetResolvedAgentResponse, error)
+type ConfigurationServiceClient interface {
+	ListSkills(ctx context.Context, in *ListSkillsRequest, opts ...grpc.CallOption) (*ListSkillsResponse, error)
 	GetSkill(ctx context.Context, in *GetSkillRequest, opts ...grpc.CallOption) (*GetSkillResponse, error)
 	GetSkillFile(ctx context.Context, in *GetSkillFileRequest, opts ...grpc.CallOption) (*GetSkillFileResponse, error)
 	GetCanvasSettings(ctx context.Context, in *GetCanvasSettingsRequest, opts ...grpc.CallOption) (*GetCanvasSettingsResponse, error)
 }
 
-type agentConfigurationServiceClient struct {
+type configurationServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewAgentConfigurationServiceClient(cc grpc.ClientConnInterface) AgentConfigurationServiceClient {
-	return &agentConfigurationServiceClient{cc}
+func NewConfigurationServiceClient(cc grpc.ClientConnInterface) ConfigurationServiceClient {
+	return &configurationServiceClient{cc}
 }
 
-func (c *agentConfigurationServiceClient) GetResolvedAgent(ctx context.Context, in *GetResolvedAgentRequest, opts ...grpc.CallOption) (*GetResolvedAgentResponse, error) {
+func (c *configurationServiceClient) ListSkills(ctx context.Context, in *ListSkillsRequest, opts ...grpc.CallOption) (*ListSkillsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetResolvedAgentResponse)
-	err := c.cc.Invoke(ctx, AgentConfigurationService_GetResolvedAgent_FullMethodName, in, out, cOpts...)
+	out := new(ListSkillsResponse)
+	err := c.cc.Invoke(ctx, ConfigurationService_ListSkills_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *agentConfigurationServiceClient) GetSkill(ctx context.Context, in *GetSkillRequest, opts ...grpc.CallOption) (*GetSkillResponse, error) {
+func (c *configurationServiceClient) GetSkill(ctx context.Context, in *GetSkillRequest, opts ...grpc.CallOption) (*GetSkillResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSkillResponse)
-	err := c.cc.Invoke(ctx, AgentConfigurationService_GetSkill_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ConfigurationService_GetSkill_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *agentConfigurationServiceClient) GetSkillFile(ctx context.Context, in *GetSkillFileRequest, opts ...grpc.CallOption) (*GetSkillFileResponse, error) {
+func (c *configurationServiceClient) GetSkillFile(ctx context.Context, in *GetSkillFileRequest, opts ...grpc.CallOption) (*GetSkillFileResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSkillFileResponse)
-	err := c.cc.Invoke(ctx, AgentConfigurationService_GetSkillFile_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ConfigurationService_GetSkillFile_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *agentConfigurationServiceClient) GetCanvasSettings(ctx context.Context, in *GetCanvasSettingsRequest, opts ...grpc.CallOption) (*GetCanvasSettingsResponse, error) {
+func (c *configurationServiceClient) GetCanvasSettings(ctx context.Context, in *GetCanvasSettingsRequest, opts ...grpc.CallOption) (*GetCanvasSettingsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetCanvasSettingsResponse)
-	err := c.cc.Invoke(ctx, AgentConfigurationService_GetCanvasSettings_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ConfigurationService_GetCanvasSettings_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// AgentConfigurationServiceServer is the server API for AgentConfigurationService service.
-// All implementations must embed UnimplementedAgentConfigurationServiceServer
+// ConfigurationServiceServer is the server API for ConfigurationService service.
+// All implementations must embed UnimplementedConfigurationServiceServer
 // for forward compatibility.
-type AgentConfigurationServiceServer interface {
-	GetResolvedAgent(context.Context, *GetResolvedAgentRequest) (*GetResolvedAgentResponse, error)
+type ConfigurationServiceServer interface {
+	ListSkills(context.Context, *ListSkillsRequest) (*ListSkillsResponse, error)
 	GetSkill(context.Context, *GetSkillRequest) (*GetSkillResponse, error)
 	GetSkillFile(context.Context, *GetSkillFileRequest) (*GetSkillFileResponse, error)
 	GetCanvasSettings(context.Context, *GetCanvasSettingsRequest) (*GetCanvasSettingsResponse, error)
-	mustEmbedUnimplementedAgentConfigurationServiceServer()
+	mustEmbedUnimplementedConfigurationServiceServer()
 }
 
-// UnimplementedAgentConfigurationServiceServer must be embedded to have
+// UnimplementedConfigurationServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedAgentConfigurationServiceServer struct{}
+type UnimplementedConfigurationServiceServer struct{}
 
-func (UnimplementedAgentConfigurationServiceServer) GetResolvedAgent(context.Context, *GetResolvedAgentRequest) (*GetResolvedAgentResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetResolvedAgent not implemented")
+func (UnimplementedConfigurationServiceServer) ListSkills(context.Context, *ListSkillsRequest) (*ListSkillsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSkills not implemented")
 }
-func (UnimplementedAgentConfigurationServiceServer) GetSkill(context.Context, *GetSkillRequest) (*GetSkillResponse, error) {
+func (UnimplementedConfigurationServiceServer) GetSkill(context.Context, *GetSkillRequest) (*GetSkillResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSkill not implemented")
 }
-func (UnimplementedAgentConfigurationServiceServer) GetSkillFile(context.Context, *GetSkillFileRequest) (*GetSkillFileResponse, error) {
+func (UnimplementedConfigurationServiceServer) GetSkillFile(context.Context, *GetSkillFileRequest) (*GetSkillFileResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSkillFile not implemented")
 }
-func (UnimplementedAgentConfigurationServiceServer) GetCanvasSettings(context.Context, *GetCanvasSettingsRequest) (*GetCanvasSettingsResponse, error) {
+func (UnimplementedConfigurationServiceServer) GetCanvasSettings(context.Context, *GetCanvasSettingsRequest) (*GetCanvasSettingsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCanvasSettings not implemented")
 }
-func (UnimplementedAgentConfigurationServiceServer) mustEmbedUnimplementedAgentConfigurationServiceServer() {
-}
-func (UnimplementedAgentConfigurationServiceServer) testEmbeddedByValue() {}
+func (UnimplementedConfigurationServiceServer) mustEmbedUnimplementedConfigurationServiceServer() {}
+func (UnimplementedConfigurationServiceServer) testEmbeddedByValue()                              {}
 
-// UnsafeAgentConfigurationServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to AgentConfigurationServiceServer will
+// UnsafeConfigurationServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ConfigurationServiceServer will
 // result in compilation errors.
-type UnsafeAgentConfigurationServiceServer interface {
-	mustEmbedUnimplementedAgentConfigurationServiceServer()
+type UnsafeConfigurationServiceServer interface {
+	mustEmbedUnimplementedConfigurationServiceServer()
 }
 
-func RegisterAgentConfigurationServiceServer(s grpc.ServiceRegistrar, srv AgentConfigurationServiceServer) {
-	// If the following call panics, it indicates UnimplementedAgentConfigurationServiceServer was
+func RegisterConfigurationServiceServer(s grpc.ServiceRegistrar, srv ConfigurationServiceServer) {
+	// If the following call panics, it indicates UnimplementedConfigurationServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&AgentConfigurationService_ServiceDesc, srv)
+	s.RegisterService(&ConfigurationService_ServiceDesc, srv)
 }
 
-func _AgentConfigurationService_GetResolvedAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetResolvedAgentRequest)
+func _ConfigurationService_ListSkills_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSkillsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AgentConfigurationServiceServer).GetResolvedAgent(ctx, in)
+		return srv.(ConfigurationServiceServer).ListSkills(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AgentConfigurationService_GetResolvedAgent_FullMethodName,
+		FullMethod: ConfigurationService_ListSkills_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentConfigurationServiceServer).GetResolvedAgent(ctx, req.(*GetResolvedAgentRequest))
+		return srv.(ConfigurationServiceServer).ListSkills(ctx, req.(*ListSkillsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AgentConfigurationService_GetSkill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ConfigurationService_GetSkill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSkillRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AgentConfigurationServiceServer).GetSkill(ctx, in)
+		return srv.(ConfigurationServiceServer).GetSkill(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AgentConfigurationService_GetSkill_FullMethodName,
+		FullMethod: ConfigurationService_GetSkill_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentConfigurationServiceServer).GetSkill(ctx, req.(*GetSkillRequest))
+		return srv.(ConfigurationServiceServer).GetSkill(ctx, req.(*GetSkillRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AgentConfigurationService_GetSkillFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ConfigurationService_GetSkillFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSkillFileRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AgentConfigurationServiceServer).GetSkillFile(ctx, in)
+		return srv.(ConfigurationServiceServer).GetSkillFile(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AgentConfigurationService_GetSkillFile_FullMethodName,
+		FullMethod: ConfigurationService_GetSkillFile_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentConfigurationServiceServer).GetSkillFile(ctx, req.(*GetSkillFileRequest))
+		return srv.(ConfigurationServiceServer).GetSkillFile(ctx, req.(*GetSkillFileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AgentConfigurationService_GetCanvasSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ConfigurationService_GetCanvasSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetCanvasSettingsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AgentConfigurationServiceServer).GetCanvasSettings(ctx, in)
+		return srv.(ConfigurationServiceServer).GetCanvasSettings(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AgentConfigurationService_GetCanvasSettings_FullMethodName,
+		FullMethod: ConfigurationService_GetCanvasSettings_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentConfigurationServiceServer).GetCanvasSettings(ctx, req.(*GetCanvasSettingsRequest))
+		return srv.(ConfigurationServiceServer).GetCanvasSettings(ctx, req.(*GetCanvasSettingsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// AgentConfigurationService_ServiceDesc is the grpc.ServiceDesc for AgentConfigurationService service.
+// ConfigurationService_ServiceDesc is the grpc.ServiceDesc for ConfigurationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var AgentConfigurationService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "admin.v1.AgentConfigurationService",
-	HandlerType: (*AgentConfigurationServiceServer)(nil),
+var ConfigurationService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "admin.v1.ConfigurationService",
+	HandlerType: (*ConfigurationServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetResolvedAgent",
-			Handler:    _AgentConfigurationService_GetResolvedAgent_Handler,
+			MethodName: "ListSkills",
+			Handler:    _ConfigurationService_ListSkills_Handler,
 		},
 		{
 			MethodName: "GetSkill",
-			Handler:    _AgentConfigurationService_GetSkill_Handler,
+			Handler:    _ConfigurationService_GetSkill_Handler,
 		},
 		{
 			MethodName: "GetSkillFile",
-			Handler:    _AgentConfigurationService_GetSkillFile_Handler,
+			Handler:    _ConfigurationService_GetSkillFile_Handler,
 		},
 		{
 			MethodName: "GetCanvasSettings",
-			Handler:    _AgentConfigurationService_GetCanvasSettings_Handler,
+			Handler:    _ConfigurationService_GetCanvasSettings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

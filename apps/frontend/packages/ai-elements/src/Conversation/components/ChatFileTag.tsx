@@ -1,20 +1,10 @@
 import { cn } from "@repo/shared";
-import { FileIcon, PlayIcon } from "lucide-react";
+import { FileIcon } from "lucide-react";
 
-export function ChatFileTag({
-  filename,
-  title,
-  onOpen,
-  onExecute,
-  executed,
-  busy,
-}: {
+export function ChatFileTag({ filename, title, onOpen }: {
   filename: string;
   title: string;
   onOpen?: () => void;
-  onExecute?: () => void;
-  executed?: boolean;
-  busy?: boolean;
 }) {
   const label = title || filename;
   return (
@@ -33,18 +23,6 @@ export function ChatFileTag({
         <FileIcon className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="truncate">{label}</span>
       </button>
-      {onExecute ? (
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={executed ? `再次执行 ${label}` : `执行 ${label}`}
-          disabled={busy}
-          onClick={onExecute}
-        >
-          <PlayIcon className="size-3" aria-hidden="true" />
-          {executed ? "再次执行" : "执行"}
-        </button>
-      ) : null}
     </span>
   );
 }

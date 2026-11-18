@@ -26,32 +26,16 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   navigate: vi.fn(),
   upload: vi.fn(),
+  providers: vi.fn(),
   desktop: true,
-  selectedAgentId: "cloud-agent" as string | null,
 }));
 vi.mock("@repo/api/chat", () => ({
   createConversation: mocks.create,
-  getLocalInferenceConfig: vi.fn().mockResolvedValue({ agentId: "local-agent", agentName: "Local Agent" }),
 }));
+vi.mock("@repo/api/admin", () => ({ listProviders: mocks.providers }));
 vi.mock("@repo/ai-elements/conversation/lib/upload-conversation-files", () => ({
   uploadConversationFiles: mocks.upload,
 }));
-vi.mock("@repo/ai-elements/conversation/store/useChatStore", () => {
-  const state = {
-    agents: [{ id: "cloud-agent", name: "Cloud Agent" }],
-    selectedAgentId: mocks.selectedAgentId,
-    setSelectedAgentId: (id: string | null) => {
-      mocks.selectedAgentId = id;
-      state.selectedAgentId = id;
-    },
-    loadAgents: vi.fn(),
-  };
-  return {
-    useChatStore: Object.assign((selector: (value: typeof state) => unknown) => selector(state), {
-      getState: () => state,
-    }),
-  };
-});
 vi.mock("@repo/runtime/desktop", () => ({
   getDesktopBridge: () =>
     mocks.desktop
@@ -123,7 +107,16 @@ beforeEach(() => {
     ],
     failed: [],
   });
-  mocks.selectedAgentId = "cloud-agent";
+  mocks.providers.mockResolvedValue([
+    {
+      id: "cloud-model",
+      name: "Cloud Model",
+      model: "ark-model",
+      provider_kind: "chat",
+      is_enabled: true,
+      is_default: true,
+    },
+  ]);
 });
 
 async function selectExecutionLocation(name: "云端" | "本地电脑") {
@@ -140,9 +133,7 @@ test("new cloud conversation renders session controls and submits their request 
   );
   await selectExecutionLocation("云端");
   expect(screen.getByTestId("max-files").textContent).toBe("8");
-  expect(screen.getByText("Cloud Agent")).toBeTruthy();
-  fireEvent.click(screen.getByText("Agent"));
-  expect(screen.getByText("Plan")).toBeTruthy();
+  expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
     expect(mocks.navigate).toHaveBeenCalledWith(
@@ -151,12 +142,16 @@ test("new cloud conversation renders session controls and submits their request 
         state: expect.objectContaining({
           externalRequest: expect.objectContaining({
             parts: [{ type: "text", text: "hello" }],
-            mode: "plan",
           }),
         }),
       }),
     ),
   );
+  expect(mocks.create).toHaveBeenCalledWith({
+    request_id: expect.any(String),
+    provider_id: "cloud-model",
+    reasoning_effort: "medium",
+  });
   expect(mocks.local).not.toHaveBeenCalled();
 });
 
@@ -203,9 +198,11 @@ test("Desktop defaults to this computer and creates in the selected existing pro
   expect(projectSelector.classList.contains("focus-visible:ring-1")).toBe(true);
   expect(projectSelector.closest('[data-slot="input-group-addon"]')?.classList.contains("border-b")).toBe(false);
   expect(screen.queryByRole("button", { name: "查看上下文用量" })).toBeNull();
-  expect(await screen.findByText("Local Agent")).toBeTruthy();
+  expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() => expect(mocks.local).toHaveBeenCalledWith("/projects/existing", null, "auto"));
+  await waitFor(() =>
+    expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto"),
+  );
   await waitFor(() => expect(mocks.send).toHaveBeenCalledWith("local", "hello", expect.any(String)));
   expect(mocks.create).not.toHaveBeenCalled();
 });
@@ -222,7 +219,9 @@ test("new project selection happens before send and supplies the authorized work
   await waitFor(() => expect(mocks.selectWorkspace).toHaveBeenCalledOnce());
   expect(await screen.findByText("new-project")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() => expect(mocks.local).toHaveBeenCalledWith("/projects/new-project", null, "auto"));
+  await waitFor(() =>
+    expect(mocks.local).toHaveBeenCalledWith("/projects/new-project", "cloud-model", "medium", "auto"),
+  );
   expect(mocks.selectWorkspace.mock.invocationCallOrder[0]).toBeLessThan(mocks.local.mock.invocationCallOrder[0]);
 });
 
@@ -255,6 +254,7 @@ test("Web omits execution selection and submits to cloud", async () => {
   );
   expect(screen.queryByRole("combobox", { name: "执行位置" })).toBeNull();
   expect(screen.queryByText("使用桌面应用可选择本地电脑")).toBeNull();
+  expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
   expect(mocks.local).not.toHaveBeenCalled();
@@ -273,6 +273,7 @@ test("repeated submit while creating cannot create duplicate conversations", asy
       <ConversationListPage />
     </MemoryRouter>,
   );
+  expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   fireEvent.click(screen.getByText("发送测试"));
   expect(mocks.create).toHaveBeenCalledTimes(1);

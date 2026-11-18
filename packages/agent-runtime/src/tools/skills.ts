@@ -104,7 +104,6 @@ export function resolveSkills(adminSource?: AdminSkillSource | null): {
       effect: "read",
       trust: "closed",
       execution: "inline",
-      modes: ["normal", "plan"],
       source: "skill",
     },
     {
@@ -186,7 +185,6 @@ export function resolveSkills(adminSource?: AdminSkillSource | null): {
       effect: "read",
       trust: "closed",
       execution: "inline",
-      modes: ["normal", "plan"],
       source: "skill",
     },
     {

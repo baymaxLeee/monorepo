@@ -65,7 +65,6 @@ export function createUploadArtifactsTool<CONTEXT extends Record<string, unknown
       effect: "add",
       trust: "closed",
       execution: "inline",
-      modes: ["normal", "plan"],
       uiKind: "artifact",
     },
     { summary: "Present selected workspace files as inline deliverables." },

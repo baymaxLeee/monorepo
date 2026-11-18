@@ -15,7 +15,6 @@ build-backend = "hatchling.build"
 packages = [
     "src/inner_api",
     "generated/admin",
-    "generated/bot",
     "generated/common",
     "generated/knowledge",
     "generated/storage",

@@ -7,11 +7,17 @@ import { ChatCitedResponse } from "./ChatCitedResponse";
 import { ChatComposerControls } from "./ChatComposerControls";
 import { collectDeliverableCompletion } from "./ChatTodoListCard";
 
-test("shared composer controls keep a non-interactive local agent visually aligned", () => {
-  render(<ChatComposerControls agents={[{ id: "local", name: "baymax" }]} selectedAgentId="local" mode="normal" />);
+test("shared composer controls keep a bound local model visually aligned", () => {
+  render(
+    <ChatComposerControls
+      models={[{ id: "local", name: "baymax" }]}
+      selectedModelId="local"
+      reasoningEffort="medium"
+    />,
+  );
 
-  expect(screen.getByText("Agent")).toBeTruthy();
   expect(screen.getByText("baymax")).toBeTruthy();
+  expect(screen.getByText("推理：中")).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();
 });
 

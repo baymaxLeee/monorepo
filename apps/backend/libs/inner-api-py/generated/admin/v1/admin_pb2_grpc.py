@@ -249,7 +249,7 @@ class ProviderService:
             _registered_method=True)
 
 
-class AgentConfigurationServiceStub:
+class ConfigurationServiceStub:
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -258,32 +258,32 @@ class AgentConfigurationServiceStub:
         Args:
             channel: A grpc.Channel.
         """
-        self.GetResolvedAgent = channel.unary_unary(
-                '/admin.v1.AgentConfigurationService/GetResolvedAgent',
-                request_serializer=admin_dot_v1_dot_admin__pb2.GetResolvedAgentRequest.SerializeToString,
-                response_deserializer=admin_dot_v1_dot_admin__pb2.GetResolvedAgentResponse.FromString,
+        self.ListSkills = channel.unary_unary(
+                '/admin.v1.ConfigurationService/ListSkills',
+                request_serializer=admin_dot_v1_dot_admin__pb2.ListSkillsRequest.SerializeToString,
+                response_deserializer=admin_dot_v1_dot_admin__pb2.ListSkillsResponse.FromString,
                 _registered_method=True)
         self.GetSkill = channel.unary_unary(
-                '/admin.v1.AgentConfigurationService/GetSkill',
+                '/admin.v1.ConfigurationService/GetSkill',
                 request_serializer=admin_dot_v1_dot_admin__pb2.GetSkillRequest.SerializeToString,
                 response_deserializer=admin_dot_v1_dot_admin__pb2.GetSkillResponse.FromString,
                 _registered_method=True)
         self.GetSkillFile = channel.unary_unary(
-                '/admin.v1.AgentConfigurationService/GetSkillFile',
+                '/admin.v1.ConfigurationService/GetSkillFile',
                 request_serializer=admin_dot_v1_dot_admin__pb2.GetSkillFileRequest.SerializeToString,
                 response_deserializer=admin_dot_v1_dot_admin__pb2.GetSkillFileResponse.FromString,
                 _registered_method=True)
         self.GetCanvasSettings = channel.unary_unary(
-                '/admin.v1.AgentConfigurationService/GetCanvasSettings',
+                '/admin.v1.ConfigurationService/GetCanvasSettings',
                 request_serializer=admin_dot_v1_dot_admin__pb2.GetCanvasSettingsRequest.SerializeToString,
                 response_deserializer=admin_dot_v1_dot_admin__pb2.GetCanvasSettingsResponse.FromString,
                 _registered_method=True)
 
 
-class AgentConfigurationServiceServicer:
+class ConfigurationServiceServicer:
     """Missing associated documentation comment in .proto file."""
 
-    def GetResolvedAgent(self, request, context):
+    def ListSkills(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -308,12 +308,12 @@ class AgentConfigurationServiceServicer:
         raise NotImplementedError('Method not implemented!')
 
 
-def add_AgentConfigurationServiceServicer_to_server(servicer, server):
+def add_ConfigurationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'GetResolvedAgent': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetResolvedAgent,
-                    request_deserializer=admin_dot_v1_dot_admin__pb2.GetResolvedAgentRequest.FromString,
-                    response_serializer=admin_dot_v1_dot_admin__pb2.GetResolvedAgentResponse.SerializeToString,
+            'ListSkills': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListSkills,
+                    request_deserializer=admin_dot_v1_dot_admin__pb2.ListSkillsRequest.FromString,
+                    response_serializer=admin_dot_v1_dot_admin__pb2.ListSkillsResponse.SerializeToString,
             ),
             'GetSkill': grpc.unary_unary_rpc_method_handler(
                     servicer.GetSkill,
@@ -332,17 +332,17 @@ def add_AgentConfigurationServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'admin.v1.AgentConfigurationService', rpc_method_handlers)
+            'admin.v1.ConfigurationService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('admin.v1.AgentConfigurationService', rpc_method_handlers)
+    server.add_registered_method_handlers('admin.v1.ConfigurationService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class AgentConfigurationService:
+class ConfigurationService:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def GetResolvedAgent(request,
+    def ListSkills(request,
             target,
             options=(),
             channel_credentials=None,
@@ -355,9 +355,9 @@ class AgentConfigurationService:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/admin.v1.AgentConfigurationService/GetResolvedAgent',
-            admin_dot_v1_dot_admin__pb2.GetResolvedAgentRequest.SerializeToString,
-            admin_dot_v1_dot_admin__pb2.GetResolvedAgentResponse.FromString,
+            '/admin.v1.ConfigurationService/ListSkills',
+            admin_dot_v1_dot_admin__pb2.ListSkillsRequest.SerializeToString,
+            admin_dot_v1_dot_admin__pb2.ListSkillsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -382,7 +382,7 @@ class AgentConfigurationService:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/admin.v1.AgentConfigurationService/GetSkill',
+            '/admin.v1.ConfigurationService/GetSkill',
             admin_dot_v1_dot_admin__pb2.GetSkillRequest.SerializeToString,
             admin_dot_v1_dot_admin__pb2.GetSkillResponse.FromString,
             options,
@@ -409,7 +409,7 @@ class AgentConfigurationService:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/admin.v1.AgentConfigurationService/GetSkillFile',
+            '/admin.v1.ConfigurationService/GetSkillFile',
             admin_dot_v1_dot_admin__pb2.GetSkillFileRequest.SerializeToString,
             admin_dot_v1_dot_admin__pb2.GetSkillFileResponse.FromString,
             options,
@@ -436,7 +436,7 @@ class AgentConfigurationService:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/admin.v1.AgentConfigurationService/GetCanvasSettings',
+            '/admin.v1.ConfigurationService/GetCanvasSettings',
             admin_dot_v1_dot_admin__pb2.GetCanvasSettingsRequest.SerializeToString,
             admin_dot_v1_dot_admin__pb2.GetCanvasSettingsResponse.FromString,
             options,

@@ -13,7 +13,6 @@ import {
 import { attachExecutionEnvironment, type ExecutionEnvironment } from "./execution-environment.js";
 import { deriveOrchestrationState, MAX_AGENT_STEPS, resolveOrchestrationDirective } from "./orchestration.js";
 import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
-import type { AgentMode } from "./types.js";
 
 type Settings<C extends Record<string, unknown>> = ToolLoopAgentSettings<never, ToolSet, C>;
 type Step<C extends Record<string, unknown>> = Parameters<NonNullable<Settings<C>["prepareStep"]>>[0];
@@ -22,7 +21,6 @@ export type HarnessSettings<C extends Record<string, unknown>> = Omit<
   "model" | "prepareStep" | "stopWhen"
 > & {
   model: LanguageModelV4;
-  mode: AgentMode;
   environment: ExecutionEnvironment;
   middleware?: LanguageModelV4Middleware[];
   workspace?: { consumeChanges(): Promise<string[]> | string[] };
@@ -51,14 +49,14 @@ function preserveSteeringMessages(messages: ModelMessage[], steeringMessages: Us
 
 /** SDK owns execution, approvals and cancellation. Hosts provide I/O, never a second loop policy. */
 export function createAgentHarness<C extends Record<string, unknown>>(options: HarnessSettings<C>) {
-  const { mode, environment, middleware = [], workspace, continuation, ...settings } = options;
+  const { environment, middleware = [], workspace, continuation, ...settings } = options;
   const activeTools = settings.activeTools ?? Object.keys(settings.tools ?? {});
   return new ToolLoopAgent<never, ToolSet, C>({
     ...settings,
     id: "chat-agent",
     model: wrapLanguageModel({
       model: options.model,
-      middleware: [addToolInputExamplesMiddleware(), ...middleware, createToolBatchPolicyMiddleware(mode)],
+      middleware: [addToolInputExamplesMiddleware(), ...middleware, createToolBatchPolicyMiddleware()],
     }),
     timeout: settings.timeout ?? { chunkMs: 120_000 },
     toolOrder: [...activeTools].sort(),

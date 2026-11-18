@@ -1,13 +1,18 @@
 import { type ConversationScrollHandle } from "@repo/ai-elements";
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
-import { listBotSkills } from "@repo/api/admin";
-import { type ConversationDocument } from "@repo/api/chat";
+import { listSkills } from "@repo/api/admin";
+import {
+  type ConversationDocument,
+  type ReasoningEffort,
+  updateConversationModel,
+} from "@repo/api/chat";
 import { toast } from "@repo/design-system";
 import { randomId } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { ChatComposer } from "../../components/ChatComposer";
+import type { ReasoningEffort as ComposerReasoningEffort } from "../../components/ChatComposerControls";
 import { ChatImagePreview } from "../../components/ChatImagePreview";
 import { ChatSessionIssue } from "../../components/ChatSessionIssue";
 import { ConversationSessionView } from "../../components/ConversationSessionView";
@@ -25,7 +30,6 @@ export type ExternalChatRequest =
   | {
       id: string;
       parts: ChatUIMessage["parts"];
-      mode: "normal" | "plan";
     }
   | { id: string; text: string };
 
@@ -39,23 +43,16 @@ export function ChatSession({
   externalRequest?: ExternalChatRequest | null;
 }) {
   const forkConversation = useForkConversation(id);
-  const [mode, setMode] = useState<"normal" | "plan">(
-    externalRequest && "mode" in externalRequest ? externalRequest.mode : "normal",
-  );
   const [activatedSkillName, setActivatedSkillName] = useState<string | null>(null);
   const promptRef = useRef<PromptInputRef>(null);
   const conversationScrollRef = useRef<ConversationScrollHandle | null>(null);
-  const skillCommandsCacheRef = useRef(new Map<string, PromptSlashCommand[]>());
+  const skillCommandsCacheRef = useRef<PromptSlashCommand[] | null>(null);
   const skillRequestRef = useRef<{
-    agentId: string;
     controller: AbortController;
     promise: Promise<PromptSlashCommand[]>;
   } | null>(null);
   const handledExternalRequestRef = useRef<string | null>(null);
   const {
-    agents,
-    selectedAgentId,
-    setSelectedAgentId,
     traceRefreshKey,
     openArtifactPreview,
     openFilePreview,
@@ -63,9 +60,6 @@ export function ChatSession({
     closeImagePreview,
   } = useChatStore(
     useShallow((s) => ({
-      agents: s.agents,
-      selectedAgentId: s.selectedAgentId,
-      setSelectedAgentId: s.setSelectedAgentId,
       traceRefreshKey: s.traceRefreshKey,
       openArtifactPreview: s.openArtifactPreview,
       openFilePreview: s.openFilePreview,
@@ -74,21 +68,11 @@ export function ChatSession({
     })),
   );
 
-  const requestBody = useMemo(
-    () => ({
-      agent_id: selectedAgentId ?? null,
-      mode,
-    }),
-    [selectedAgentId, mode],
-  );
+  const requestBody = useMemo(() => ({}), []);
 
   useEffect(() => {
     setActivatedSkillName(null);
-    if (skillRequestRef.current && skillRequestRef.current.agentId !== selectedAgentId) {
-      skillRequestRef.current.controller.abort();
-      skillRequestRef.current = null;
-    }
-  }, [selectedAgentId]);
+  }, [id]);
 
   useEffect(
     () => () => {
@@ -99,20 +83,15 @@ export function ChatSession({
 
   const loadSkills = useCallback(
     async (signal: AbortSignal) => {
-      const agentId = selectedAgentId;
-      if (!agentId) {
-        return [];
-      }
-      const cached = skillCommandsCacheRef.current.get(agentId);
+      const cached = skillCommandsCacheRef.current;
       if (cached) {
         return cached;
       }
 
       let request = skillRequestRef.current;
-      if (!request || request.agentId !== agentId) {
-        request?.controller.abort();
+      if (!request) {
         const controller = new AbortController();
-        const promise = listBotSkills(agentId, {
+        const promise = listSkills({
           signal: controller.signal,
           skipErrorNotify: true,
         })
@@ -126,11 +105,11 @@ export function ChatSession({
               })),
           )
           .then((commands) => {
-            skillCommandsCacheRef.current.set(agentId, commands);
+            skillCommandsCacheRef.current = commands;
             return commands;
           })
           .catch(() => []);
-        request = { agentId, controller, promise };
+        request = { controller, promise };
         skillRequestRef.current = request;
         void promise.finally(() => {
           if (skillRequestRef.current?.controller === controller) {
@@ -145,7 +124,7 @@ export function ChatSession({
       }
       return list;
     },
-    [selectedAgentId],
+    [],
   );
 
   const {
@@ -169,9 +148,15 @@ export function ChatSession({
   const runActive = status === "streaming" || status === "submitted";
   const busy =
     !historyReady || historyMutationPending || runActive || (issue !== null && Boolean(detail?.active_run_id));
-  useEffect(() => {
-    void useChatStore.getState().loadAgents();
-  }, []);
+  const updateModelBinding = useCallback(
+    async (providerId: string, effort: ComposerReasoningEffort) => {
+      await updateConversationModel(id, {
+        provider_id: providerId,
+        reasoning_effort: effort as ReasoningEffort,
+      });
+    },
+    [id],
+  );
   useEffect(() => {
     if (
       !externalRequest ||
@@ -264,8 +249,7 @@ export function ChatSession({
       if (!parts.some((part) => part.type === "text")) {
         parts.push({ type: "text", text });
       }
-      // `/` skill activation travels as a persisted message part (one channel,
-      // two roles like data-plan-execution): the backend derives the activated
+      // `/` skill activation travels as a persisted message part: the backend derives the activated
       // skill from this part, and it durably records which skill drove the turn.
       if (activatedSkillName) {
         parts.push({
@@ -287,42 +271,6 @@ export function ChatSession({
       }
     },
     [activatedSkillName, admitSteering, canStartHistoryMutation, id, requestBody, runActive, sendMessage],
-  );
-
-  const changeMode = useCallback(
-    (nextMode: "normal" | "plan") => {
-      if (chat.status === "streaming" || chat.status === "submitted" || nextMode === mode) {
-        return;
-      }
-      // Mode is an ephemeral per-run input carried in the run request body
-      // (`requestBody.mode`); it is not persisted server-side (ADR-0035).
-      setMode(nextMode);
-    },
-    [chat, mode],
-  );
-
-  const executePlan = useCallback(
-    async (fileId: string) => {
-      if (!id || !canStartHistoryMutation()) {
-        return;
-      }
-      setMode("normal");
-      // Execute in normal mode this turn. `requestBody` still reflects the
-      // pre-update render (mode may be "plan"), so pin mode explicitly; the plan
-      // reference travels as the persisted `data-plan-execution` part.
-      const sent = sendMessage(
-        {
-          parts: [
-            { type: "text", text: "请按照这个计划开始执行。" },
-            { type: "data-plan-execution", data: { file_id: fileId } },
-          ] as ChatUIMessage["parts"],
-        },
-        { body: { ...requestBody, mode: "normal" as const } },
-      );
-      conversationScrollRef.current?.scrollToEnd();
-      await sent;
-    },
-    [canStartHistoryMutation, id, requestBody, sendMessage],
   );
 
   const answerClientTool = useCallback(
@@ -386,8 +334,6 @@ export function ChatSession({
     [canStartHistoryMutation, pendingClientContinuationRef, regenerate, requestBody],
   );
   const resolveSourceAction = useSourceAction(id);
-  const handleExecutePlan = useCallback((fileId: string) => void executePlan(fileId).catch(() => {}), [executePlan]);
-
   return (
     <ConversationSessionView
       title={detail?.title ?? "新对话"}
@@ -408,7 +354,6 @@ export function ChatSession({
       onRegenerate={regenerateMessage}
       onAnswerClientTool={answerClientTool}
       onToolApproval={approveTool}
-      onExecutePlan={handleExecutePlan}
       issue={
         issue ? (
           <ChatSessionIssue
@@ -424,20 +369,18 @@ export function ChatSession({
           id={id}
           promptRef={promptRef}
           documents={detail?.documents ?? EMPTY_DOCUMENTS}
-          agents={agents}
-          selectedAgentId={selectedAgentId}
-          setSelectedAgentId={setSelectedAgentId}
+          initialModelId={detail?.provider_id || null}
+          initialReasoningEffort={(detail?.reasoning_effort as ComposerReasoningEffort | undefined) ?? "medium"}
+          onUpdateModelBinding={updateModelBinding}
           busy={busy}
           runActive={runActive}
           pendingInputs={pendingInputs}
-          mode={mode}
           activatedSkillName={activatedSkillName}
           setActivatedSkillName={setActivatedSkillName}
           traceRefreshKey={traceRefreshKey}
           loadSkills={loadSkills}
           onSubmit={submit}
           onStop={stopRun}
-          onModeChange={changeMode}
         />
       }
       overlay={<ChatImagePreview />}

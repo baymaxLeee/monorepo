@@ -1,9 +1,15 @@
-import { defineAgentTool, defineUnavailableCapability } from "@repo/agent-runtime/tools/manifest";
+import { createHash } from "node:crypto";
+
+import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
 import { toolCompleted, type ToolEmission } from "@repo/agent-runtime/tools/outcome";
-import { tool } from "ai";
+import { tool, type ModelMessage, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
-import type { ProviderSnapshot } from "../../../../infrastructure/clients/admin.js";
+import {
+  getTaskProvider,
+  listProviderCatalog,
+  type ProviderCatalogItem,
+} from "../../../../infrastructure/clients/admin.js";
 import { getDocument, knowledgeDocumentSessionId } from "../../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../../infrastructure/observability/logger.js";
 import { startDurableTask } from "../../tasks/durable-task.js";
@@ -13,6 +19,15 @@ const imageOutputSchema = z.object({
   kind: z.literal("image"),
   task_id: z.string(),
   count: z.number(),
+});
+
+const imageGenerationConfigurationSchema = z.object({
+  provider_id: z.string().min(1).max(32).describe("Image provider id explicitly chosen by the user."),
+  prompts: z
+    .array(z.string().min(1).max(4_000))
+    .min(1)
+    .max(6)
+    .describe("One complete visual prompt per requested image; all prompts run as one batch."),
 });
 
 const videoProductionOutputSchema = z.object({
@@ -64,7 +79,14 @@ const videoShotInputSchema = z.object({
   acceptance_criteria: z.array(z.string().min(1).max(1_200)).min(1).max(20),
 });
 
-const createVideoProductionInputSchema = z.object({
+const videoGenerationConfigurationSchema = z.object({
+  provider_id: z.string().min(1).max(32).describe("Video provider id explicitly chosen by the user."),
+  image_provider_id: z
+    .string()
+    .min(1)
+    .max(32)
+    .optional()
+    .describe("Image provider explicitly chosen by the user when character reference sheets are required."),
   title: z.string().min(1).max(120).describe("User-visible production title."),
   creative_brief: z
     .string()
@@ -115,13 +137,41 @@ const createVideoProductionInputSchema = z.object({
     }),
 });
 
+export const confirmationIdSchema = z.string().regex(/^media_[a-f0-9]{32}$/);
+const createVideoProductionInputSchema = videoGenerationConfigurationSchema.extend({
+  confirmation_id: confirmationIdSchema.describe(
+    "Exact confirmation id returned by prepare_media_generation and selected by the user in the second ask_user call.",
+  ),
+});
+const generateImagesInputSchema = imageGenerationConfigurationSchema.extend({
+  confirmation_id: confirmationIdSchema.describe(
+    "Exact confirmation id returned by prepare_media_generation and selected by the user in the second ask_user call.",
+  ),
+});
+
+const prepareMediaGenerationInputSchema = z.object({
+  kind: z.enum(["image", "video"]),
+  configuration: z.record(z.string(), z.json()),
+});
+const prepareMediaGenerationOutputSchema = z.object({
+  kind: z.enum(["image", "video"]),
+  confirmation_id: confirmationIdSchema,
+});
+
 type CreateVideoProductionInput = z.infer<typeof createVideoProductionInputSchema>;
 type VideoCharacterInput = z.infer<typeof videoCharacterInputSchema>;
 
-export interface MediaToolProviders {
-  imageProvider: ProviderSnapshot | null;
-  videoProviderId: string | null;
-}
+const mediaModelCatalogOutputSchema = z.object({
+  kind: z.enum(["image", "video"]),
+  models: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      model: z.string(),
+      is_default: z.boolean(),
+    }),
+  ),
+});
 
 function mediaFilename(prompt: string, extension: string, index?: number): string {
   const slug =
@@ -135,17 +185,21 @@ function mediaFilename(prompt: string, extension: string, index?: number): strin
 }
 
 async function* generateImages(
-  input: { prompts: string[] },
-  { context, toolCallId, abortSignal }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
-  imageProvider: ProviderSnapshot,
+  input: z.infer<typeof generateImagesInputSchema>,
+  { context, toolCallId, abortSignal, messages }: ToolExecutionOptions<MediaToolContext>,
 ): AsyncGenerator<z.infer<typeof imageOutputSchema> | ToolEmission> {
   try {
+    assertMediaGenerationConfirmed("image", input, [input.provider_id], input.confirmation_id, messages);
+    const provider = await getTaskProvider(context.tenantId, context.workspaceId, input.provider_id);
+    if (provider.providerKind !== "image" || !provider.isEnabled) {
+      throw new Error(`provider ${provider.id} is not an enabled image model`);
+    }
     const task = await startDurableTask(
       {
         type: "image-generation",
         ownerRef: toolCallId,
         payload: {
-          providerId: imageProvider.id,
+          providerId: provider.id,
           prompts: input.prompts,
           idempotencyKey: toolCallId,
           userId: context.userId,
@@ -196,9 +250,25 @@ async function resolveVideoCharacters(
 
 async function* createVideoProduction(
   input: CreateVideoProductionInput,
-  { context, toolCallId, abortSignal }: { context: MediaToolContext; toolCallId: string; abortSignal?: AbortSignal },
-  providers: MediaToolProviders & { videoProviderId: string },
+  { context, toolCallId, abortSignal, messages }: ToolExecutionOptions<MediaToolContext>,
 ): AsyncGenerator<z.infer<typeof videoProductionOutputSchema> | ToolEmission> {
+  assertMediaGenerationConfirmed(
+    "video",
+    input,
+    [input.provider_id, ...(input.image_provider_id ? [input.image_provider_id] : [])],
+    input.confirmation_id,
+    messages,
+  );
+  const videoProvider = await getTaskProvider(context.tenantId, context.workspaceId, input.provider_id);
+  if (videoProvider.providerKind !== "video" || !videoProvider.isEnabled) {
+    throw new Error(`provider ${videoProvider.id} is not an enabled video model`);
+  }
+  const imageProvider = input.image_provider_id
+    ? await getTaskProvider(context.tenantId, context.workspaceId, input.image_provider_id)
+    : null;
+  if (imageProvider && (imageProvider.providerKind !== "image" || !imageProvider.isEnabled)) {
+    throw new Error(`provider ${imageProvider.id} is not an enabled image model`);
+  }
   const title = input.title;
   const filename = mediaFilename(input.title, "mp4");
   const characterRefs = await resolveVideoCharacters(input.plan.characters, context);
@@ -212,8 +282,8 @@ async function* createVideoProduction(
           workspaceId: context.workspaceId,
           userId: context.userId,
           sessionId: context.sessionId,
-          providerId: providers.videoProviderId,
-          imageProviderId: providers.imageProvider?.id,
+          providerId: videoProvider.id,
+          imageProviderId: imageProvider?.id,
           creativeBrief: input.creative_brief,
           title,
           filename,
@@ -262,13 +332,151 @@ async function* createVideoProduction(
   }
 }
 
-export function createMediaToolManifests(providers: MediaToolProviders) {
+function availableMediaModels(catalog: ProviderCatalogItem[], kind: "image" | "video") {
+  return catalog
+    .filter((provider) => provider.providerKind === kind && provider.isEnabled)
+    .map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      model: provider.model,
+      is_default: provider.isDefault,
+    }));
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function mediaConfirmationId(kind: "image" | "video", configuration: unknown): string {
+  return `media_${createHash("sha256").update(`${kind}\0${stableJson(configuration)}`).digest("hex").slice(0, 32)}`;
+}
+
+function toolOutputData(output: unknown): unknown {
+  if (!output || typeof output !== "object" || !("type" in output) || !("value" in output)) return undefined;
+  const envelope = output.value;
+  if (!envelope || typeof envelope !== "object") return undefined;
+  if (!("ok" in envelope) || envelope.ok !== true || !("status" in envelope) || envelope.status !== "completed") {
+    return undefined;
+  }
+  return "data" in envelope ? envelope.data : undefined;
+}
+
+function confirmationHistory(messages: ModelMessage[]) {
+  const calls = new Map<string, { toolName: string; input: unknown; position: number }>();
+  const results: Array<{ toolName: string; input: unknown; data: unknown; position: number }> = [];
+  let position = 0;
+  let latestUserPosition = 0;
+  for (const message of messages) {
+    position += 1;
+    if (message.role === "user") latestUserPosition = position;
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      position += 1;
+      if (part.type === "tool-call") {
+        calls.set(part.toolCallId, { toolName: part.toolName, input: part.input, position });
+      } else if (part.type === "tool-result") {
+        const call = calls.get(part.toolCallId);
+        if (!call || call.toolName !== part.toolName) continue;
+        results.push({ toolName: part.toolName, input: call.input, data: toolOutputData(part.output), position });
+      }
+    }
+  }
+  return { results, latestUserPosition };
+}
+
+function answerValues(data: unknown, id: string): string[] {
+  if (!data || typeof data !== "object" || !("answers" in data) || !Array.isArray(data.answers)) return [];
+  const answer = data.answers.find(
+    (candidate): candidate is { id: string; values: string[] } =>
+      Boolean(
+        candidate &&
+          typeof candidate === "object" &&
+          "id" in candidate &&
+          candidate.id === id &&
+          "values" in candidate &&
+          Array.isArray(candidate.values) &&
+          candidate.values.every((value: unknown) => typeof value === "string"),
+      ),
+  );
+  return answer?.values ?? [];
+}
+
+function findLastMatching<T>(values: readonly T[], predicate: (value: T) => boolean): T | undefined {
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (value !== undefined && predicate(value)) return value;
+  }
+  return undefined;
+}
+
+export function assertMediaGenerationConfirmed(
+  kind: "image" | "video",
+  input: Record<string, unknown>,
+  providerIds: string[],
+  confirmationId: string,
+  messages: ModelMessage[],
+) {
+  const { confirmation_id: _confirmationId, ...configuration } = input;
+  if (mediaConfirmationId(kind, configuration) !== confirmationId) {
+    throw new Error("media generation configuration changed after confirmation");
+  }
+  const { results: history, latestUserPosition } = confirmationHistory(messages);
+  const catalogPositions = providerIds.map((providerId) => {
+    const result = findLastMatching(history, (entry) => {
+      if (entry.toolName !== "list_media_models" || !entry.data || typeof entry.data !== "object") return false;
+      if (!("models" in entry.data) || !Array.isArray(entry.data.models)) return false;
+      return entry.data.models.some(
+        (model) => model && typeof model === "object" && "id" in model && model.id === providerId,
+      );
+    });
+    if (!result || result.position <= latestUserPosition) {
+      throw new Error(`provider ${providerId} was not selected from a fresh media model list`);
+    }
+    return result.position;
+  });
+  const selection = findLastMatching(
+    history,
+    (entry) =>
+      entry.toolName === "ask_user" &&
+      providerIds.every((providerId) => answerValues(entry.data, "media_model_selection").includes(providerId)),
+  );
+  if (!selection) throw new Error("media model selection was not confirmed by the user");
+  const preparation = findLastMatching(
+    history,
+    (entry) =>
+      entry.toolName === "prepare_media_generation" &&
+      entry.data !== null &&
+      entry.data !== undefined &&
+      typeof entry.data === "object" &&
+      "confirmation_id" in entry.data &&
+      entry.data.confirmation_id === confirmationId,
+  );
+  if (!preparation) throw new Error("media generation configuration was not prepared for confirmation");
+  const confirmation = findLastMatching(
+    history,
+    (entry) =>
+      entry.toolName === "ask_user" &&
+      answerValues(entry.data, "media_generation_configuration").includes(confirmationId),
+  );
+  if (!confirmation) throw new Error("media generation configuration was not confirmed by the user");
+  if (Math.max(...catalogPositions) >= selection.position || selection.position >= preparation.position || preparation.position >= confirmation.position) {
+    throw new Error("media model selection and configuration confirmation occurred out of order");
+  }
+}
+
+export function createMediaToolManifests() {
   const imagePolicy = {
     capability: "media" as const,
     effect: "add" as const,
     trust: "closed" as const,
     execution: "durable" as const,
-    modes: ["normal" as const],
     uiKind: "image-gallery" as const,
   };
   const videoPolicy = {
@@ -276,12 +484,13 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
     effect: "add" as const,
     trust: "closed" as const,
     execution: "durable" as const,
-    modes: ["normal" as const],
     uiKind: "video" as const,
   };
   const imagePlanning = {
     summary: "Start one durable background image-generation task for the complete gallery batch.",
-    prerequisites: providers.imageProvider ? undefined : ["Configure an image provider."],
+    prerequisites: [
+      "Call list_media_models for image models, ask the user to choose one using ask_user question id media_model_selection, call prepare_media_generation with the complete prompts/configuration, then ask the user to confirm it using a separate ask_user question id media_generation_configuration whose fixed choice value is the returned confirmation_id.",
+    ],
     parallelizable: false,
   };
   const videoPlanning = {
@@ -293,57 +502,87 @@ export function createMediaToolManifests(providers: MediaToolProviders) {
       "In any storyboard plan, distinguish narrative sections from generation shots. Each generation shot is one Seedance call and should last about 12 seconds, never more than 15 seconds; split every longer narrative section into multiple shots with contiguous, non-overlapping time ranges. A 60-second video therefore needs at least 5 generation shots even when they are grouped into fewer narrative sections.",
       "Every adjacent generation shot must advance a distinct information or action beat and vary the framing, subject action, or on-screen content. Never pad, loop, or restage the same moment to fill time.",
     ],
-    prerequisites: providers.videoProviderId ? undefined : ["Configure a video provider."],
+    prerequisites: [
+      "Call list_media_models for video models (and image models when needed), ask the user to choose using ask_user question id media_model_selection, call prepare_media_generation with the complete creative brief/duration/shots/configuration, then ask the user to confirm it using a separate ask_user question id media_generation_configuration whose fixed choice value is the returned confirmation_id.",
+    ],
     parallelizable: false,
   };
 
-  const imageManifest = providers.imageProvider
-    ? defineAgentTool(
+  const catalogManifest = defineAgentTool(
+    "list_media_models",
+    tool({
+      description:
+        "List the currently enabled Admin-configured image or video models. Always call this immediately before asking the user which media model to use; never rely on a model id from instructions or an earlier run.",
+      inputSchema: z.object({ kind: z.enum(["image", "video"]) }),
+      outputSchema: mediaModelCatalogOutputSchema,
+      contextSchema: mediaToolContextSchema,
+      execute: async (input, { context }) => {
+        const catalog = await listProviderCatalog(context.tenantId, context.workspaceId);
+        return { kind: input.kind, models: availableMediaModels(catalog, input.kind) };
+      },
+    }),
+    { capability: "media", effect: "none", trust: "closed", execution: "inline" },
+    {
+      summary: "List enabled image or video models before asking the user to choose one.",
+      parallelizable: false,
+    },
+  );
+
+  const prepareManifest = defineAgentTool(
+    "prepare_media_generation",
+    tool({
+      description:
+        "Freeze the complete image or video generation configuration and return its confirmation id. Call only after the user selected provider ids in ask_user. Then present the complete configuration in a separate ask_user question with id media_generation_configuration and a fixed choice whose value is exactly confirmation_id.",
+      inputSchema: prepareMediaGenerationInputSchema,
+      outputSchema: prepareMediaGenerationOutputSchema,
+      contextSchema: mediaToolContextSchema,
+      execute: (input) => ({
+        kind: input.kind,
+        confirmation_id: mediaConfirmationId(input.kind, input.configuration),
+      }),
+    }),
+    { capability: "media", effect: "none", trust: "closed", execution: "inline" },
+    { summary: "Freeze a complete media configuration before the second user confirmation.", parallelizable: false },
+  );
+
+  const imageManifest = defineAgentTool(
         "generate_images",
         tool({
           description:
-            "Start a durable background task that generates and persists one or more images. Return immediately after Runtime worker accepts the task.",
-          inputSchema: z.object({
-            prompts: z
-              .array(z.string().min(1).max(4_000))
-              .min(1)
-              .max(6)
-              .describe("One complete visual prompt per requested image; all prompts run as one batch."),
-          }),
+            "Start a durable background task that generates and persists one or more images. The server rejects the call unless the current user turn contains a fresh list_media_models result, separate media_model_selection and media_generation_configuration ask_user answers, and a matching prepare_media_generation confirmation_id.",
+          inputSchema: generateImagesInputSchema,
           inputExamples: [
             {
               input: {
+                provider_id: "selected-image-provider-id",
                 prompts: [
                   "Editorial isometric illustration of an AI agent tool loop, dark navy background, cyan accents, no text",
                 ],
+                confirmation_id: "media_0123456789abcdef0123456789abcdef",
               },
             },
           ],
           outputSchema: imageOutputSchema,
           contextSchema: mediaToolContextSchema,
-          execute: (input, options) => generateImages(input, options, providers.imageProvider!),
+          execute: generateImages,
         }),
         imagePolicy,
         imagePlanning,
-      )
-    : defineUnavailableCapability("generate_images", imagePolicy, imagePlanning);
+      );
 
-  const videoManifest = providers.videoProviderId
-    ? defineAgentTool(
+  const videoManifest = defineAgentTool(
         "create_video_production",
         tool({
           description:
-            "Start a durable video production task and return immediately after Runtime worker accepts it. Provide the complete creative plan: duration, characters, and every ordered generation shot. Planning, approvals, generation, and rendering continue in the background.",
+            "Start a durable video production task and return immediately after Runtime worker accepts it. The server rejects the call unless the current user turn contains fresh model-list results, separate media_model_selection and media_generation_configuration ask_user answers, and a matching prepare_media_generation confirmation_id.",
           inputSchema: createVideoProductionInputSchema,
           outputSchema: videoProductionOutputSchema,
           contextSchema: mediaToolContextSchema,
-          execute: (input, options) =>
-            createVideoProduction(input, options, { ...providers, videoProviderId: providers.videoProviderId! }),
+          execute: createVideoProduction,
         }),
         videoPolicy,
         videoPlanning,
-      )
-    : defineUnavailableCapability("create_video_production", videoPolicy, videoPlanning);
+      );
 
-  return [imageManifest, videoManifest];
+  return [catalogManifest, prepareManifest, imageManifest, videoManifest];
 }

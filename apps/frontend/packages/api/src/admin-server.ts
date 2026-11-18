@@ -6,12 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from "./orval-mutator";
-export interface AgentSkill {
-  id: string;
-  name: string;
-  description: string;
-}
-
 export interface App {
   id: string;
   title: string;
@@ -62,14 +56,6 @@ export interface AttachSkillAssetInput {
   upload_session_id: string;
 }
 
-export interface AttachSkillInput {
-  /**
-   * @minLength 1
-   * @maxLength 32
-   */
-  skill_id: string;
-}
-
 export interface AvailableBenefitPackage {
   id: string;
   name: string;
@@ -116,44 +102,6 @@ export interface BenefitPackageReviewCleanup {
 export interface BenefitPackageReviewReservation {
   id: string;
   status: string;
-}
-
-export type BotTone = (typeof BotTone)[keyof typeof BotTone];
-
-export const BotTone = {
-  professional: "professional",
-  concise: "concise",
-  friendly: "friendly",
-  empathetic: "empathetic",
-} as const;
-
-export type BotStatus = (typeof BotStatus)[keyof typeof BotStatus];
-
-export const BotStatus = {
-  draft: "draft",
-  published: "published",
-  archived: "archived",
-} as const;
-
-export interface Bot {
-  id: string;
-  user_id: string;
-  workspace_id: string;
-  tenant_id: string;
-  username: string;
-  name: string;
-  role_description?: string | null;
-  domain_description?: string | null;
-  audience?: string | null;
-  tone?: BotTone;
-  welcome_message?: string | null;
-  suggested_questions?: string[];
-  status: BotStatus;
-  text_provider_id?: string | null;
-  image_provider_id?: string | null;
-  video_provider_id?: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface BulkDeleteModelProvidersInput {
@@ -277,14 +225,6 @@ export interface CreateBenefitPackageInput {
   /** @maxItems 100 */
   model_ids?: string[];
   material_limit?: number | null;
-}
-
-export interface CreateBotInput {
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  name: string;
 }
 
 export type CreateModelProviderInputProviderKind =
@@ -745,39 +685,6 @@ export interface ReserveBenefitPackageReviewInput {
   asset_id: string;
 }
 
-export type ResolvedAgentTone = (typeof ResolvedAgentTone)[keyof typeof ResolvedAgentTone];
-
-export const ResolvedAgentTone = {
-  professional: "professional",
-  concise: "concise",
-  friendly: "friendly",
-  empathetic: "empathetic",
-} as const;
-
-/**
- * An agent with its per-capability model providers fully resolved to
- * (decrypted) provider snapshots. Internal-only: chat resolves this once per
- * run and passes providers through — never re-fetching inside tools/steps.
- * A capability is null when the agent has not configured it (or it was
- * disabled/removed).
- *
- * Carries only the structured identity fields the model actually needs;
- * welcome_message / suggested_questions are UI-only and deliberately excluded
- * so bot presentation copy never enters the model context.
- */
-export interface ResolvedAgent {
-  id: string;
-  name: string;
-  role_description?: string | null;
-  domain_description?: string | null;
-  audience?: string | null;
-  tone?: ResolvedAgentTone;
-  text_provider?: InternalModelProvider | null;
-  image_provider?: InternalModelProvider | null;
-  video_provider?: InternalModelProvider | null;
-  skills?: AgentSkill[];
-}
-
 export interface ReviewedAsset {
   id: string;
   status: string;
@@ -909,41 +816,6 @@ export interface UpdateBenefitPackageInput {
   material_limit?: number | null;
 }
 
-export type UpdateBotInputTone = (typeof UpdateBotInputTone)[keyof typeof UpdateBotInputTone] | null;
-
-export const UpdateBotInputTone = {
-  professional: "professional",
-  concise: "concise",
-  friendly: "friendly",
-  empathetic: "empathetic",
-} as const;
-
-export type UpdateBotInputStatus = (typeof UpdateBotInputStatus)[keyof typeof UpdateBotInputStatus] | null;
-
-export const UpdateBotInputStatus = {
-  draft: "draft",
-  published: "published",
-  archived: "archived",
-} as const;
-
-/**
- * Partial update. Only fields present in the request are applied; a field
- * sent as null clears it (e.g. unassigning a model provider).
- */
-export interface UpdateBotInput {
-  name?: string | null;
-  role_description?: string | null;
-  domain_description?: string | null;
-  audience?: string | null;
-  tone?: UpdateBotInputTone;
-  welcome_message?: string | null;
-  suggested_questions?: string[] | null;
-  status?: UpdateBotInputStatus;
-  text_provider_id?: string | null;
-  image_provider_id?: string | null;
-  video_provider_id?: string | null;
-}
-
 export interface UpdateCanvasSettings {
   /** @minimum 0 */
   expected_revision: number;
@@ -1060,101 +932,6 @@ export const readyz = (options?: SecondParameter<typeof apiMutator<Readyz200>>) 
  */
 export const healthz = (options?: SecondParameter<typeof apiMutator<Healthz200>>) => {
   return apiMutator<Healthz200>({ url: `/api/admin-server/healthz`, method: "GET" }, options);
-};
-
-/**
- * @summary List Bots
- */
-export const listBots = (options?: SecondParameter<typeof apiMutator<Bot[]>>) => {
-  return apiMutator<Bot[]>({ url: `/api/admin-server/bot`, method: "GET" }, options);
-};
-
-/**
- * @summary Create Bot
- */
-export const createBot = (createBotInput: CreateBotInput, options?: SecondParameter<typeof apiMutator<Bot>>) => {
-  return apiMutator<Bot>(
-    {
-      url: `/api/admin-server/bot`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: createBotInput,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Get Bot
- */
-export const getBot = (botId: string, options?: SecondParameter<typeof apiMutator<Bot>>) => {
-  return apiMutator<Bot>({ url: `/api/admin-server/bot/${botId}`, method: "GET" }, options);
-};
-
-/**
- * @summary Update Bot
- */
-export const updateBot = (
-  botId: string,
-  updateBotInput: UpdateBotInput,
-  options?: SecondParameter<typeof apiMutator<Bot>>,
-) => {
-  return apiMutator<Bot>(
-    {
-      url: `/api/admin-server/bot/${botId}`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: updateBotInput,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Delete Bot
- */
-export const deleteBot = (botId: string, options?: SecondParameter<typeof apiMutator<void>>) => {
-  return apiMutator<void>({ url: `/api/admin-server/bot/${botId}`, method: "DELETE" }, options);
-};
-
-/**
- * @summary List Bot Skills
- */
-export const listBotSkills = (botId: string, options?: SecondParameter<typeof apiMutator<SkillSummary[]>>) => {
-  return apiMutator<SkillSummary[]>({ url: `/api/admin-server/bot/${botId}/skills`, method: "GET" }, options);
-};
-
-/**
- * @summary Attach Bot Skill
- */
-export const attachBotSkill = (
-  botId: string,
-  attachSkillInput: AttachSkillInput,
-  options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,
-) => {
-  return apiMutator<SkillSummary[]>(
-    {
-      url: `/api/admin-server/bot/${botId}/skills`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: attachSkillInput,
-    },
-    options,
-  );
-};
-
-/**
- * @summary Detach Bot Skill
- */
-export const detachBotSkill = (
-  botId: string,
-  skillId: string,
-  options?: SecondParameter<typeof apiMutator<SkillSummary[]>>,
-) => {
-  return apiMutator<SkillSummary[]>(
-    { url: `/api/admin-server/bot/${botId}/skills/${skillId}`, method: "DELETE" },
-    options,
-  );
 };
 
 /**
@@ -1708,14 +1485,6 @@ export const deleteApp = (appId: string, options?: SecondParameter<typeof apiMut
 export type LivezResult = NonNullable<Awaited<ReturnType<typeof livez>>>;
 export type ReadyzResult = NonNullable<Awaited<ReturnType<typeof readyz>>>;
 export type HealthzResult = NonNullable<Awaited<ReturnType<typeof healthz>>>;
-export type ListBotsResult = NonNullable<Awaited<ReturnType<typeof listBots>>>;
-export type CreateBotResult = NonNullable<Awaited<ReturnType<typeof createBot>>>;
-export type GetBotResult = NonNullable<Awaited<ReturnType<typeof getBot>>>;
-export type UpdateBotResult = NonNullable<Awaited<ReturnType<typeof updateBot>>>;
-export type DeleteBotResult = NonNullable<Awaited<ReturnType<typeof deleteBot>>>;
-export type ListBotSkillsResult = NonNullable<Awaited<ReturnType<typeof listBotSkills>>>;
-export type AttachBotSkillResult = NonNullable<Awaited<ReturnType<typeof attachBotSkill>>>;
-export type DetachBotSkillResult = NonNullable<Awaited<ReturnType<typeof detachBotSkill>>>;
 export type ListBenefitPackageAssetGroupCleanupsResult = NonNullable<
   Awaited<ReturnType<typeof listBenefitPackageAssetGroupCleanups>>
 >;

@@ -6,6 +6,468 @@
  * OpenAPI spec version: 1.0.0
  */
 import { apiMutator } from "./orval-mutator";
+export type AgentRunRequestHostContext = {
+  /**
+   * @minLength 1
+   * @maxLength 36
+   */
+  canvas_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 36
+   */
+  project_id: string;
+};
+
+export type AgentRunRequestMessage = { [key: string]: unknown };
+
+export type AgentRunRequestTrigger = (typeof AgentRunRequestTrigger)[keyof typeof AgentRunRequestTrigger];
+
+export const AgentRunRequestTrigger = {
+  "submit-message": "submit-message",
+  "regenerate-message": "regenerate-message",
+} as const;
+
+export interface AgentRunRequest {
+  /** @minimum 0 */
+  expected_revision: number;
+  host_context?: AgentRunRequestHostContext;
+  id?: string;
+  message: AgentRunRequestMessage;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  messageId?: string;
+  /**
+   * @minLength 8
+   * @maxLength 64
+   * @pattern ^[a-zA-Z0-9_-]+$
+   */
+  request_id: string;
+  trigger: AgentRunRequestTrigger;
+}
+
+/**
+ * @nullable
+ */
+export type AgentRunTraceStepsItemContextSnapshot = {
+  breakdownEstimated: true;
+  categories: {
+    id: "system" | "tools" | "rules" | "skills" | "mcp" | "memory" | "session";
+    tokens: number;
+  }[];
+  inputTokens: number;
+  retainedOutputTokens: number;
+  usedTokens: number;
+  version: 1;
+} | null;
+
+export type AgentRunTraceStepsItem = {
+  /** @nullable */
+  contextSnapshot: AgentRunTraceStepsItemContextSnapshot;
+  createdAt: string;
+  /** @nullable */
+  finishedAt: string | null;
+  id: string;
+  /** @nullable */
+  inputTokens: number | null;
+  kind: string;
+  /** @nullable */
+  outputTokens: number | null;
+  status: string;
+  stepIndex: number;
+  /** @nullable */
+  summary: string | null;
+  /** @nullable */
+  totalTokens: number | null;
+};
+
+export type AgentTraceToolCallStatus = (typeof AgentTraceToolCallStatus)[keyof typeof AgentTraceToolCallStatus];
+
+export const AgentTraceToolCallStatus = {
+  running: "running",
+  completed: "completed",
+  failed: "failed",
+} as const;
+
+export interface AgentTraceToolCall {
+  /** @nullable */
+  durationMs: number | null;
+  /** @nullable */
+  error: string | null;
+  id: string;
+  status: AgentTraceToolCallStatus;
+  /** @nullable */
+  stepIndex: number | null;
+  toolName: string;
+}
+
+export interface AgentRunTrace {
+  /** @nullable */
+  cachedInputTokens: number | null;
+  /** @nullable */
+  contextWindow: number | null;
+  /** @nullable */
+  inputTokens: number | null;
+  model: string;
+  /** @nullable */
+  outputTokens: number | null;
+  /** @nullable */
+  reasoningTokens: number | null;
+  runId: string;
+  status: string;
+  steps: AgentRunTraceStepsItem[];
+  toolCalls: AgentTraceToolCall[];
+  /** @nullable */
+  totalTokens: number | null;
+}
+
+export type AgentSteeringInputDelivery = (typeof AgentSteeringInputDelivery)[keyof typeof AgentSteeringInputDelivery];
+
+export const AgentSteeringInputDelivery = {
+  steer: "steer",
+  queue: "queue",
+} as const;
+
+export interface AgentSteeringInput {
+  /**
+   * @minLength 8
+   * @maxLength 64
+   * @pattern ^[a-zA-Z0-9_-]+$
+   */
+  client_message_id: string;
+  delivery: AgentSteeringInputDelivery;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  expected_run_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 64000
+   */
+  text: string;
+}
+
+export type AgentSteeringInputStatusDelivery =
+  (typeof AgentSteeringInputStatusDelivery)[keyof typeof AgentSteeringInputStatusDelivery];
+
+export const AgentSteeringInputStatusDelivery = {
+  steer: "steer",
+  queue: "queue",
+} as const;
+
+export type AgentSteeringInputStatusState =
+  (typeof AgentSteeringInputStatusState)[keyof typeof AgentSteeringInputStatusState];
+
+export const AgentSteeringInputStatusState = {
+  accepted: "accepted",
+  dispatching: "dispatching",
+  delivered: "delivered",
+  not_delivered: "not_delivered",
+  unconfirmed: "unconfirmed",
+} as const;
+
+export interface AgentSteeringInputStatus {
+  clientMessageId: string;
+  delivery: AgentSteeringInputStatusDelivery;
+  /** @nullable */
+  reason: string | null;
+  runId: string;
+  state: AgentSteeringInputStatusState;
+  /** @nullable */
+  stepNumber: number | null;
+  text: string;
+}
+
+export type MemoryCategory = (typeof MemoryCategory)[keyof typeof MemoryCategory];
+
+export const MemoryCategory = {
+  preference: "preference",
+  profile: "profile",
+  project: "project",
+  instruction: "instruction",
+} as const;
+
+export interface UserMemory {
+  category: MemoryCategory;
+  confidence: number;
+  content: string;
+  id: string;
+}
+
+export interface ApprovedMemory {
+  memory: UserMemory;
+}
+
+export interface CanvasConversationBinding {
+  canvas_id: string;
+  id: string;
+  project_id: string;
+}
+
+export interface Conversation {
+  /** @nullable */
+  canvas_id: string | null;
+  created_at: string;
+  id: string;
+  /** @nullable */
+  project_id: string | null;
+  tenant_id: string;
+  title: string;
+  updated_at: string;
+  user_id: string;
+  workspace_id: string;
+}
+
+export type ConversationContextCategoryId =
+  (typeof ConversationContextCategoryId)[keyof typeof ConversationContextCategoryId];
+
+export const ConversationContextCategoryId = {
+  system: "system",
+  tools: "tools",
+  rules: "rules",
+  skills: "skills",
+  mcp: "mcp",
+  memory: "memory",
+  conversation: "conversation",
+} as const;
+
+export interface ConversationContextCategory {
+  id: ConversationContextCategoryId;
+  tokens: number;
+}
+
+export interface ConversationContextView {
+  categories: ConversationContextCategory[];
+  /** @nullable */
+  contextWindow: number | null;
+  usedTokens: number;
+}
+
+export interface ConversationContextResponse {
+  context: ConversationContextView | null;
+}
+
+export type MessageBranchCandidateRole = (typeof MessageBranchCandidateRole)[keyof typeof MessageBranchCandidateRole];
+
+export const MessageBranchCandidateRole = {
+  user: "user",
+  assistant: "assistant",
+  system: "system",
+} as const;
+
+export interface MessageBranchCandidate {
+  created_at: string;
+  leaf_message_id: string;
+  message_id: string;
+  role: MessageBranchCandidateRole;
+}
+
+export interface MessageBranchGroup {
+  candidates: MessageBranchCandidate[];
+  /** @nullable */
+  parent_message_id: string | null;
+  selected_message_id: string;
+}
+
+export type ConversationDocumentIngestStatus =
+  (typeof ConversationDocumentIngestStatus)[keyof typeof ConversationDocumentIngestStatus];
+
+export const ConversationDocumentIngestStatus = {
+  uploading: "uploading",
+  processing: "processing",
+  completed: "completed",
+  failed: "failed",
+  cancelled: "cancelled",
+  pending: "pending",
+} as const;
+
+export type ConversationDocumentKind = (typeof ConversationDocumentKind)[keyof typeof ConversationDocumentKind];
+
+export const ConversationDocumentKind = {
+  source: "source",
+  artifact: "artifact",
+} as const;
+
+export interface ConversationDocument {
+  /** @nullable */
+  asset_id: string | null;
+  conversation_id: string;
+  created_at: string;
+  editable_source: boolean;
+  filename: string;
+  id: string;
+  /** @nullable */
+  ingest_error: string | null;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  ingest_progress: number;
+  ingest_status: ConversationDocumentIngestStatus;
+  kind: ConversationDocumentKind;
+  mime_type: string;
+  /** @nullable */
+  source_filename: string | null;
+  /** @nullable */
+  source_mime_type: string | null;
+  /** @nullable */
+  source_revision_id: string | null;
+  /** @nullable */
+  source_sha256: string | null;
+  /** @minimum 0 */
+  source_size: number;
+  title: string;
+  updated_at: string;
+}
+
+export type PersistedMessageContentMetadata = { [key: string]: unknown };
+
+export type PersistedMessageContentPartsItem = { [key: string]: unknown };
+
+export interface PersistedMessageContent {
+  metadata?: PersistedMessageContentMetadata;
+  parts: PersistedMessageContentPartsItem[];
+  version: number;
+}
+
+export type ConversationMessageRole = (typeof ConversationMessageRole)[keyof typeof ConversationMessageRole];
+
+export const ConversationMessageRole = {
+  user: "user",
+  assistant: "assistant",
+  system: "system",
+} as const;
+
+export type ConversationMessageStatus = (typeof ConversationMessageStatus)[keyof typeof ConversationMessageStatus];
+
+export const ConversationMessageStatus = {
+  ok: "ok",
+  streaming: "streaming",
+  failed: "failed",
+} as const;
+
+export interface ConversationMessage {
+  /** @minimum 0 */
+  branch_index: number;
+  content: PersistedMessageContent;
+  conversation_id: string;
+  created_at: string;
+  id: string;
+  /** @nullable */
+  parent_message_id: string | null;
+  role: ConversationMessageRole;
+  status: ConversationMessageStatus;
+}
+
+export type ReasoningEffort = (typeof ReasoningEffort)[keyof typeof ReasoningEffort];
+
+export const ReasoningEffort = {
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export interface ConversationDetail {
+  /** @nullable */
+  active_run_id: string | null;
+  branches: MessageBranchGroup[];
+  /** @nullable */
+  canvas_id?: string | null;
+  created_at: string;
+  documents: ConversationDocument[];
+  id: string;
+  /** @nullable */
+  latest_run_id: string | null;
+  messages: ConversationMessage[];
+  model: string;
+  /** @nullable */
+  project_id?: string | null;
+  provider_id: string;
+  reasoning_effort: ReasoningEffort;
+  /** @minimum 0 */
+  revision: number;
+  /** @nullable */
+  selected_message_id: string | null;
+  tenant_id: string;
+  title: string;
+  updated_at: string;
+  user_id: string;
+  workspace_id: string;
+}
+
+export type ConversationDocumentDetail = ConversationDocument & {
+  content_md: string;
+};
+
+export type ConversationFileLastWriterType =
+  (typeof ConversationFileLastWriterType)[keyof typeof ConversationFileLastWriterType];
+
+export const ConversationFileLastWriterType = {
+  unknown: "unknown",
+  user: "user",
+  agent: "agent",
+} as const;
+
+export type ConversationFileLastWriter = {
+  /** @nullable */
+  id: string | null;
+  type: ConversationFileLastWriterType;
+};
+
+export interface ConversationFile {
+  asset_id: string;
+  conversation_id: string;
+  created_at: string;
+  /** @minimum 1 */
+  edit_max_bytes: number;
+  editable: boolean;
+  /** @pattern ^"[a-f0-9]{32}"$ */
+  etag: string;
+  filename: string;
+  id: string;
+  last_writer: ConversationFileLastWriter;
+  mime_type: string;
+  revision_id: string;
+  sha256: string;
+  size: number;
+  title: string;
+  updated_at: string;
+}
+
+export interface CreateConversationInput {
+  /** @maxLength 36 */
+  canvas_id?: string;
+  /** @maxLength 36 */
+  project_id?: string;
+  /**
+   * @maxLength 32
+   * @nullable
+   */
+  provider_id?: string | null;
+  reasoning_effort?: ReasoningEffort | null;
+  /**
+   * @minLength 8
+   * @maxLength 64
+   */
+  request_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title?: string;
+}
+
+export interface DeletedMemory {
+  deleted: boolean;
+}
+
 export type LocalInferenceSchema0 =
   | string
   | number
@@ -38,259 +500,23 @@ export type LocalInferenceSchema3 =
   | (LocalInferenceSchema3 | null)[]
   | { [key: string]: LocalInferenceSchema3 | null };
 
-export interface CreateConversationInput {
-  /**
-   * @minLength 8
-   * @maxLength 64
-   */
-  request_id: string;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  title?: string;
-  /**
-   * @maxLength 32
-   * @nullable
-   */
-  provider_id?: string | null;
-  /** @maxLength 36 */
-  project_id?: string;
-  /** @maxLength 36 */
-  canvas_id?: string;
-}
-
-export interface Conversation {
+export interface MemoryCandidate {
+  category: MemoryCategory;
+  content: string;
+  createdAt: string;
   id: string;
-  user_id: string;
-  tenant_id: string;
-  workspace_id: string;
-  title: string;
   /** @nullable */
-  project_id: string | null;
+  reason: string | null;
   /** @nullable */
-  canvas_id: string | null;
-  created_at: string;
-  updated_at: string;
+  supersedesId: string | null;
 }
 
-export type AgentRunRequestMessage = { [key: string]: unknown };
-
-export type AgentRunRequestTrigger = (typeof AgentRunRequestTrigger)[keyof typeof AgentRunRequestTrigger];
-
-export const AgentRunRequestTrigger = {
-  "submit-message": "submit-message",
-  "regenerate-message": "regenerate-message",
-} as const;
-
-export type AgentRunRequestMode = (typeof AgentRunRequestMode)[keyof typeof AgentRunRequestMode];
-
-export const AgentRunRequestMode = {
-  normal: "normal",
-  plan: "plan",
-} as const;
-
-export type AgentRunRequestHostContext = {
-  /**
-   * @minLength 1
-   * @maxLength 36
-   */
-  project_id: string;
-  /**
-   * @minLength 1
-   * @maxLength 36
-   */
-  canvas_id: string;
-};
-
-export interface AgentRunRequest {
-  id?: string;
-  message: AgentRunRequestMessage;
-  trigger: AgentRunRequestTrigger;
-  /**
-   * @minLength 1
-   * @maxLength 32
-   */
-  messageId?: string;
-  /** @minimum 0 */
-  expected_revision: number;
-  /**
-   * @minLength 8
-   * @maxLength 64
-   * @pattern ^[a-zA-Z0-9_-]+$
-   */
-  request_id: string;
-  /**
-   * @maxLength 32
-   * @nullable
-   */
-  agent_id?: string | null;
-  mode?: AgentRunRequestMode;
-  host_context?: AgentRunRequestHostContext;
+export interface MemoryCandidateList {
+  candidates: MemoryCandidate[];
 }
 
-export interface SelectHistoryInput {
-  /**
-   * @minLength 1
-   * @maxLength 32
-   */
-  leaf_message_id: string;
-  /** @minimum 0 */
-  expected_revision: number;
-}
-
-export type PersistedMessageContentPartsItem = { [key: string]: unknown };
-
-export type PersistedMessageContentMetadata = { [key: string]: unknown };
-
-export interface PersistedMessageContent {
-  version: number;
-  parts: PersistedMessageContentPartsItem[];
-  metadata?: PersistedMessageContentMetadata;
-}
-
-export type ConversationMessageRole = (typeof ConversationMessageRole)[keyof typeof ConversationMessageRole];
-
-export const ConversationMessageRole = {
-  user: "user",
-  assistant: "assistant",
-  system: "system",
-} as const;
-
-export type ConversationMessageStatus = (typeof ConversationMessageStatus)[keyof typeof ConversationMessageStatus];
-
-export const ConversationMessageStatus = {
-  ok: "ok",
-  streaming: "streaming",
-  failed: "failed",
-} as const;
-
-export interface ConversationMessage {
-  id: string;
-  conversation_id: string;
-  role: ConversationMessageRole;
-  content: PersistedMessageContent;
-  status: ConversationMessageStatus;
-  /** @nullable */
-  parent_message_id: string | null;
-  /** @minimum 0 */
-  branch_index: number;
-  created_at: string;
-}
-
-export type MessageBranchCandidateRole = (typeof MessageBranchCandidateRole)[keyof typeof MessageBranchCandidateRole];
-
-export const MessageBranchCandidateRole = {
-  user: "user",
-  assistant: "assistant",
-  system: "system",
-} as const;
-
-export interface MessageBranchCandidate {
-  message_id: string;
-  leaf_message_id: string;
-  role: MessageBranchCandidateRole;
-  created_at: string;
-}
-
-export interface MessageBranchGroup {
-  /** @nullable */
-  parent_message_id: string | null;
-  selected_message_id: string;
-  candidates: MessageBranchCandidate[];
-}
-
-export type ConversationDocumentKind = (typeof ConversationDocumentKind)[keyof typeof ConversationDocumentKind];
-
-export const ConversationDocumentKind = {
-  source: "source",
-  artifact: "artifact",
-} as const;
-
-export type ConversationDocumentIngestStatus =
-  (typeof ConversationDocumentIngestStatus)[keyof typeof ConversationDocumentIngestStatus];
-
-export const ConversationDocumentIngestStatus = {
-  uploading: "uploading",
-  processing: "processing",
-  completed: "completed",
-  failed: "failed",
-  cancelled: "cancelled",
-  pending: "pending",
-} as const;
-
-export interface ConversationDocument {
-  id: string;
-  conversation_id: string;
-  kind: ConversationDocumentKind;
-  editable_source: boolean;
-  title: string;
-  filename: string;
-  mime_type: string;
-  /** @minimum 0 */
-  source_size: number;
-  /** @nullable */
-  source_mime_type: string | null;
-  /** @nullable */
-  asset_id: string | null;
-  /** @nullable */
-  source_revision_id: string | null;
-  /** @nullable */
-  source_sha256: string | null;
-  /** @nullable */
-  source_filename: string | null;
-  ingest_status: ConversationDocumentIngestStatus;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  ingest_progress: number;
-  /** @nullable */
-  ingest_error: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export type ConversationDocumentDetail = ConversationDocument & {
-  content_md: string;
-};
-
-export interface UpdateConversationDocumentInput {
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  title?: string;
-  content_md?: string;
-}
-
-export interface ConversationDetail {
-  id: string;
-  user_id: string;
-  tenant_id: string;
-  workspace_id: string;
-  model: string;
-  provider_id: string;
-  /** @nullable */
-  active_plan_file_id?: string | null;
-  created_at: string;
-  updated_at: string;
-  /** @minimum 0 */
-  revision: number;
-  /** @nullable */
-  selected_message_id: string | null;
-  messages: ConversationMessage[];
-  branches: MessageBranchGroup[];
-  documents: ConversationDocument[];
-  /** @nullable */
-  active_run_id: string | null;
-  /** @nullable */
-  latest_run_id: string | null;
-  title: string;
-  /** @nullable */
-  project_id?: string | null;
-  /** @nullable */
-  canvas_id?: string | null;
+export interface RejectedMemory {
+  rejected: boolean;
 }
 
 export interface RunCancellation {
@@ -298,115 +524,33 @@ export interface RunCancellation {
   status?: string;
 }
 
-export type AgentSteeringInputDelivery = (typeof AgentSteeringInputDelivery)[keyof typeof AgentSteeringInputDelivery];
-
-export const AgentSteeringInputDelivery = {
-  steer: "steer",
-  queue: "queue",
-} as const;
-
-export interface AgentSteeringInput {
+export interface SelectHistoryInput {
+  /** @minimum 0 */
+  expected_revision: number;
   /**
    * @minLength 1
    * @maxLength 32
    */
-  expected_run_id: string;
-  /**
-   * @minLength 8
-   * @maxLength 64
-   * @pattern ^[a-zA-Z0-9_-]+$
-   */
-  client_message_id: string;
-  /**
-   * @minLength 1
-   * @maxLength 64000
-   */
-  text: string;
-  delivery: AgentSteeringInputDelivery;
-}
-
-export type AgentSteeringInputStatusDelivery =
-  (typeof AgentSteeringInputStatusDelivery)[keyof typeof AgentSteeringInputStatusDelivery];
-
-export const AgentSteeringInputStatusDelivery = {
-  steer: "steer",
-  queue: "queue",
-} as const;
-
-export type AgentSteeringInputStatusState =
-  (typeof AgentSteeringInputStatusState)[keyof typeof AgentSteeringInputStatusState];
-
-export const AgentSteeringInputStatusState = {
-  accepted: "accepted",
-  dispatching: "dispatching",
-  delivered: "delivered",
-  not_delivered: "not_delivered",
-  unconfirmed: "unconfirmed",
-} as const;
-
-export interface AgentSteeringInputStatus {
-  clientMessageId: string;
-  runId: string;
-  delivery: AgentSteeringInputStatusDelivery;
-  text: string;
-  state: AgentSteeringInputStatusState;
-  /** @nullable */
-  stepNumber: number | null;
-  /** @nullable */
-  reason: string | null;
+  leaf_message_id: string;
 }
 
 export interface StorageDelivery {
   asset_id: string;
-  revision_id: string;
-  url: string;
   expires_at: string;
   filename: string;
   media_type: string;
+  revision_id: string;
   size_bytes: number;
+  url: string;
 }
 
-export type ConversationFileKind = (typeof ConversationFileKind)[keyof typeof ConversationFileKind];
-
-export const ConversationFileKind = {
-  artifact: "artifact",
-  plan: "plan",
-} as const;
-
-export type ConversationFileLastWriterType =
-  (typeof ConversationFileLastWriterType)[keyof typeof ConversationFileLastWriterType];
-
-export const ConversationFileLastWriterType = {
-  unknown: "unknown",
-  user: "user",
-  agent: "agent",
-} as const;
-
-export type ConversationFileLastWriter = {
-  type: ConversationFileLastWriterType;
-  /** @nullable */
-  id: string | null;
-};
-
-export interface ConversationFile {
-  id: string;
-  conversation_id: string;
-  asset_id: string;
-  revision_id: string;
-  title: string;
-  filename: string;
-  mime_type: string;
-  size: number;
-  sha256: string;
-  kind: ConversationFileKind;
-  editable: boolean;
-  /** @minimum 1 */
-  edit_max_bytes: number;
-  /** @pattern ^"[a-f0-9]{32}"$ */
-  etag: string;
-  last_writer: ConversationFileLastWriter;
-  created_at: string;
-  updated_at: string;
+export interface UpdateConversationDocumentInput {
+  content_md?: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title?: string;
 }
 
 export interface UpdateConversationFileContentInput {
@@ -420,138 +564,58 @@ export interface UpdateConversationFileContentInput {
   operation_id: string;
 }
 
+export interface UpdateConversationInput {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+}
+
+export interface UpdateConversationModelInput {
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  provider_id: string;
+  reasoning_effort: ReasoningEffort;
+}
+
+export interface UpdateMemoryCandidate {
+  category?: MemoryCategory;
+  /**
+   * @minLength 5
+   * @maxLength 500
+   */
+  content?: string;
+}
+
+export interface UpdatedMemoryCandidate {
+  candidate: MemoryCandidate;
+}
+
+export interface UserMemoryList {
+  memories: UserMemory[];
+}
+
+export type VideoProductionCost = {
+  /** @nullable */
+  budgetLimitMicros: number | null;
+  /** @nullable */
+  currency: string | null;
+  /** @nullable */
+  estimatedMicros: number | null;
+  reconciledMicros: number;
+  releasedMicros: number;
+  reservedMicros: number;
+  /** @nullable */
+  unitPriceMicros: number | null;
+};
+
 /**
  * @nullable
  */
-export type AgentRunTraceStepsItemContextSnapshot = {
-  version: 1;
-  usedTokens: number;
-  inputTokens: number;
-  retainedOutputTokens: number;
-  breakdownEstimated: true;
-  categories: {
-    id: "system" | "tools" | "rules" | "skills" | "mcp" | "memory" | "session";
-    tokens: number;
-  }[];
-} | null;
-
-export type AgentRunTraceStepsItem = {
-  id: string;
-  stepIndex: number;
-  kind: string;
-  status: string;
-  /** @nullable */
-  summary: string | null;
-  createdAt: string;
-  /** @nullable */
-  finishedAt: string | null;
-  /** @nullable */
-  inputTokens: number | null;
-  /** @nullable */
-  outputTokens: number | null;
-  /** @nullable */
-  totalTokens: number | null;
-  /** @nullable */
-  contextSnapshot: AgentRunTraceStepsItemContextSnapshot;
-};
-
-export type AgentTraceToolCallStatus = (typeof AgentTraceToolCallStatus)[keyof typeof AgentTraceToolCallStatus];
-
-export const AgentTraceToolCallStatus = {
-  running: "running",
-  completed: "completed",
-  failed: "failed",
-} as const;
-
-export interface AgentTraceToolCall {
-  id: string;
-  /** @nullable */
-  stepIndex: number | null;
-  toolName: string;
-  status: AgentTraceToolCallStatus;
-  /** @nullable */
-  durationMs: number | null;
-  /** @nullable */
-  error: string | null;
-}
-
-export interface AgentRunTrace {
-  runId: string;
-  status: string;
-  model: string;
-  /** @nullable */
-  inputTokens: number | null;
-  /** @nullable */
-  outputTokens: number | null;
-  /** @nullable */
-  cachedInputTokens: number | null;
-  /** @nullable */
-  reasoningTokens: number | null;
-  /** @nullable */
-  totalTokens: number | null;
-  /** @nullable */
-  contextWindow: number | null;
-  steps: AgentRunTraceStepsItem[];
-  toolCalls: AgentTraceToolCall[];
-}
-
-export type ConversationContextCategoryId =
-  (typeof ConversationContextCategoryId)[keyof typeof ConversationContextCategoryId];
-
-export const ConversationContextCategoryId = {
-  system: "system",
-  tools: "tools",
-  rules: "rules",
-  skills: "skills",
-  mcp: "mcp",
-  memory: "memory",
-  conversation: "conversation",
-} as const;
-
-export interface ConversationContextCategory {
-  id: ConversationContextCategoryId;
-  tokens: number;
-}
-
-export interface ConversationContextView {
-  /** @nullable */
-  contextWindow: number | null;
-  usedTokens: number;
-  categories: ConversationContextCategory[];
-}
-
-export interface ConversationContextResponse {
-  context: ConversationContextView | null;
-}
-
-export type VideoShotCamera = {
-  shotSize: string;
-  movement: string;
-  focus?: string;
-};
-
-export type VideoShotReferencesItem = { [key: string]: unknown };
-
-export interface VideoShot {
-  id: string;
-  order: number;
-  seconds: number;
-  narrativeBeat: string;
-  subjectAnchors: string[];
-  action: string;
-  camera: VideoShotCamera;
-  environment: string;
-  lightingPalette: string;
-  audioDirection: string;
-  references: VideoShotReferencesItem[];
-  continuityContract: string[];
-  acceptanceCriteria: string[];
-}
-
-export interface VideoShotPlan {
-  version: number;
-  shots: VideoShot[];
-}
+export type VideoProductionQaReport = { [key: string]: unknown } | null;
 
 export type VideoTakeStatus = (typeof VideoTakeStatus)[keyof typeof VideoTakeStatus];
 
@@ -562,15 +626,22 @@ export const VideoTakeStatus = {
 } as const;
 
 export interface VideoTake {
-  id: string;
-  shotId: string;
-  number: number;
-  status: VideoTakeStatus;
-  providerTaskId?: string;
-  stagedMediaId?: string;
-  seed: number;
   error?: string;
+  id: string;
+  number: number;
+  providerTaskId?: string;
+  seed: number;
+  shotId: string;
+  stagedMediaId?: string;
+  status: VideoTakeStatus;
 }
+
+export type VideoProductionShotReviewsItem = {
+  /** @nullable */
+  selectedTakeId: string | null;
+  shotId: string;
+  takes: VideoTake[];
+};
 
 export type VideoProductionStatus = (typeof VideoProductionStatus)[keyof typeof VideoProductionStatus];
 
@@ -582,66 +653,62 @@ export const VideoProductionStatus = {
   cancelled: "cancelled",
 } as const;
 
-export type VideoProductionShotReviewsItem = {
-  shotId: string;
-  /** @nullable */
-  selectedTakeId: string | null;
-  takes: VideoTake[];
+export type VideoShotCamera = {
+  focus?: string;
+  movement: string;
+  shotSize: string;
 };
 
-export type VideoProductionCost = {
-  /** @nullable */
-  currency: string | null;
-  /** @nullable */
-  unitPriceMicros: number | null;
-  /** @nullable */
-  estimatedMicros: number | null;
-  /** @nullable */
-  budgetLimitMicros: number | null;
-  reservedMicros: number;
-  reconciledMicros: number;
-  releasedMicros: number;
-};
+export type VideoShotReferencesItem = { [key: string]: unknown };
 
-/**
- * @nullable
- */
-export type VideoProductionQaReport = { [key: string]: unknown } | null;
+export interface VideoShot {
+  acceptanceCriteria: string[];
+  action: string;
+  audioDirection: string;
+  camera: VideoShotCamera;
+  continuityContract: string[];
+  environment: string;
+  id: string;
+  lightingPalette: string;
+  narrativeBeat: string;
+  order: number;
+  references: VideoShotReferencesItem[];
+  seconds: number;
+  subjectAnchors: string[];
+}
+
+export interface VideoShotPlan {
+  shots: VideoShot[];
+  version: number;
+}
 
 export interface VideoProduction {
-  id: string;
-  taskId: string;
-  tenantId: string;
-  workspaceId: string;
-  userId: string;
-  /** @nullable */
-  conversationId?: string | null;
-  title: string;
-  status: VideoProductionStatus;
-  stage: string;
-  version: number;
   /** @nullable */
   awaitingAction?: string | null;
-  shotPlan?: VideoShotPlan | null;
-  shotReviews: VideoProductionShotReviewsItem[];
-  cost: VideoProductionCost;
   /** @nullable */
-  stagedMediaId?: string | null;
+  conversationId?: string | null;
+  cost: VideoProductionCost;
+  createdAt: string;
   /** @nullable */
   documentId?: string | null;
   /** @nullable */
-  qaReport?: VideoProductionQaReport;
-  /** @nullable */
   error?: string | null;
-  createdAt: string;
+  id: string;
+  /** @nullable */
+  qaReport?: VideoProductionQaReport;
+  shotPlan?: VideoShotPlan | null;
+  shotReviews: VideoProductionShotReviewsItem[];
+  stage: string;
+  /** @nullable */
+  stagedMediaId?: string | null;
+  status: VideoProductionStatus;
+  taskId: string;
+  tenantId: string;
+  title: string;
   updatedAt: string;
-}
-
-export type VideoProductionDetailEventsItem = { [key: string]: unknown };
-
-export interface VideoProductionDetail {
-  production: VideoProduction;
-  events: VideoProductionDetailEventsItem[];
+  userId: string;
+  version: number;
+  workspaceId: string;
 }
 
 export type VideoProductionDecision =
@@ -654,7 +721,6 @@ export type VideoProductionDecision =
   | {
       action: "approve_storyboard";
       action_id: string;
-      expected_version: number;
       /** @minimum 0 */
       budget_limit_micros: number;
       /**
@@ -662,6 +728,7 @@ export type VideoProductionDecision =
        * @maxLength 3
        */
       currency: string;
+      expected_version: number;
     }
   | {
       action: "request_take";
@@ -701,369 +768,12 @@ export type VideoProductionDecision =
       reason: string;
     };
 
-export type MemoryCategory = (typeof MemoryCategory)[keyof typeof MemoryCategory];
+export type VideoProductionDetailEventsItem = { [key: string]: unknown };
 
-export const MemoryCategory = {
-  preference: "preference",
-  profile: "profile",
-  project: "project",
-  instruction: "instruction",
-} as const;
-
-export interface UserMemory {
-  id: string;
-  category: MemoryCategory;
-  content: string;
-  confidence: number;
+export interface VideoProductionDetail {
+  events: VideoProductionDetailEventsItem[];
+  production: VideoProduction;
 }
-
-export interface MemoryCandidate {
-  id: string;
-  category: MemoryCategory;
-  content: string;
-  /** @nullable */
-  reason: string | null;
-  /** @nullable */
-  supersedesId: string | null;
-  createdAt: string;
-}
-
-export interface UserMemoryList {
-  memories: UserMemory[];
-}
-
-export interface MemoryCandidateList {
-  candidates: MemoryCandidate[];
-}
-
-export interface UpdateMemoryCandidate {
-  category?: MemoryCategory;
-  /**
-   * @minLength 5
-   * @maxLength 500
-   */
-  content?: string;
-}
-
-export interface ApprovedMemory {
-  memory: UserMemory;
-}
-
-export interface UpdatedMemoryCandidate {
-  candidate: MemoryCandidate;
-}
-
-export interface RejectedMemory {
-  rejected: boolean;
-}
-
-export interface DeletedMemory {
-  deleted: boolean;
-}
-
-export interface UpdateConversationInput {
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  title: string;
-}
-
-export interface CanvasConversationBinding {
-  id: string;
-  project_id: string;
-  canvas_id: string;
-}
-
-export type GetLocalInferenceConfigParams = {
-  agent_id?: string;
-};
-
-export type GetLocalInferenceConfig200 = {
-  /** @nullable */
-  agentId: string | null;
-  agentName: string;
-  model: string;
-  /**
-   * @maximum 9007199254740991
-   * @exclusiveMinimum 0
-   */
-  contextWindow: number;
-  /**
-   * @maximum 9007199254740991
-   * @exclusiveMinimum 0
-   */
-  maxOutputTokens: number;
-  instructions: string;
-};
-
-export type StreamLocalInferenceBodyOptionsPromptItem =
-  | {
-      role: "system";
-      content: string;
-    }
-  | {
-      role: "user";
-      content: (
-        | {
-            type: "text";
-            text: string;
-          }
-        | {
-            type: "file";
-            /** @maxLength 200 */
-            mediaType: string;
-            /** @maxLength 255 */
-            filename?: string;
-            data:
-              | {
-                  type: "data";
-                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
-                  data: string;
-                }
-              | {
-                  type: "text";
-                  text: string;
-                };
-          }
-      )[];
-    }
-  | {
-      role: "assistant";
-      content: (
-        | {
-            type: "text";
-            text: string;
-          }
-        | {
-            type: "reasoning";
-            text: string;
-          }
-        | {
-            type: "file";
-            /** @maxLength 200 */
-            mediaType: string;
-            /** @maxLength 255 */
-            filename?: string;
-            data:
-              | {
-                  type: "data";
-                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
-                  data: string;
-                }
-              | {
-                  type: "text";
-                  text: string;
-                };
-          }
-        | {
-            type: "tool-call";
-            toolCallId: string;
-            toolName: string;
-            input: LocalInferenceSchema0 | null;
-            providerExecuted?: false;
-          }
-        | {
-            type: "tool-result";
-            toolCallId: string;
-            toolName: string;
-            output:
-              | {
-                  type: "text" | "error-text";
-                  value: string;
-                }
-              | {
-                  type: "json" | "error-json";
-                  value: LocalInferenceSchema1 | null;
-                }
-              | {
-                  type: "execution-denied";
-                  reason?: string;
-                }
-              | {
-                  type: "content";
-                  value: (
-                    | {
-                        type: "text";
-                        text: string;
-                      }
-                    | {
-                        type: "file";
-                        /** @maxLength 200 */
-                        mediaType: string;
-                        /** @maxLength 255 */
-                        filename?: string;
-                        data:
-                          | {
-                              type: "data";
-                              /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
-                              data: string;
-                            }
-                          | {
-                              type: "text";
-                              text: string;
-                            };
-                      }
-                  )[];
-                };
-          }
-      )[];
-    }
-  | {
-      role: "tool";
-      content: {
-        type: "tool-result";
-        toolCallId: string;
-        toolName: string;
-        output:
-          | {
-              type: "text" | "error-text";
-              value: string;
-            }
-          | {
-              type: "json" | "error-json";
-              value: LocalInferenceSchema1 | null;
-            }
-          | {
-              type: "execution-denied";
-              reason?: string;
-            }
-          | {
-              type: "content";
-              value: (
-                | {
-                    type: "text";
-                    text: string;
-                  }
-                | {
-                    type: "file";
-                    /** @maxLength 200 */
-                    mediaType: string;
-                    /** @maxLength 255 */
-                    filename?: string;
-                    data:
-                      | {
-                          type: "data";
-                          /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
-                          data: string;
-                        }
-                      | {
-                          type: "text";
-                          text: string;
-                        };
-                  }
-              )[];
-            };
-      }[];
-    };
-
-export type StreamLocalInferenceBodyOptionsReasoning =
-  (typeof StreamLocalInferenceBodyOptionsReasoning)[keyof typeof StreamLocalInferenceBodyOptionsReasoning];
-
-export const StreamLocalInferenceBodyOptionsReasoning = {
-  "provider-default": "provider-default",
-  none: "none",
-  minimal: "minimal",
-  low: "low",
-  medium: "medium",
-  high: "high",
-  xhigh: "xhigh",
-  max: "max",
-} as const;
-
-export type StreamLocalInferenceBodyOptionsToolsItemType =
-  (typeof StreamLocalInferenceBodyOptionsToolsItemType)[keyof typeof StreamLocalInferenceBodyOptionsToolsItemType];
-
-export const StreamLocalInferenceBodyOptionsToolsItemType = {
-  function: "function",
-} as const;
-
-export type StreamLocalInferenceBodyOptionsToolsItemInputSchema = { [key: string]: LocalInferenceSchema2 | null };
-
-export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput = {
-  [key: string]: LocalInferenceSchema3 | null;
-};
-
-export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem = {
-  input: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput;
-};
-
-export type StreamLocalInferenceBodyOptionsToolsItem = {
-  type: StreamLocalInferenceBodyOptionsToolsItemType;
-  /**
-   * @maxLength 128
-   * @pattern ^[a-zA-Z0-9_-]+$
-   */
-  name: string;
-  description?: string;
-  inputSchema: StreamLocalInferenceBodyOptionsToolsItemInputSchema;
-  strict?: boolean;
-  inputExamples?: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem[];
-};
-
-export type StreamLocalInferenceBodyOptionsToolChoice =
-  | {
-      type: "auto" | "none" | "required";
-    }
-  | {
-      type: "tool";
-      toolName: string;
-    };
-
-export type StreamLocalInferenceBodyOptions = {
-  /** @minItems 1 */
-  prompt: StreamLocalInferenceBodyOptionsPromptItem[];
-  /**
-   * @maximum 9007199254740991
-   * @exclusiveMinimum 0
-   */
-  maxOutputTokens: number;
-  /**
-   * @minimum 0
-   * @maximum 2
-   */
-  temperature?: number;
-  /**
-   * @minimum 0
-   * @maximum 1
-   */
-  topP?: number;
-  reasoning?: StreamLocalInferenceBodyOptionsReasoning;
-  /** @maxItems 128 */
-  tools?: StreamLocalInferenceBodyOptionsToolsItem[];
-  toolChoice?: StreamLocalInferenceBodyOptionsToolChoice;
-};
-
-export type StreamLocalInferenceBody = {
-  /** @pattern ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$ */
-  requestId: string;
-  /**
-   * @minLength 1
-   * @maxLength 32
-   * @nullable
-   */
-  agentId: string | null;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  model: string;
-  options: StreamLocalInferenceBodyOptions;
-};
-
-export type ForkConversationBody = {
-  /**
-   * @minLength 1
-   * @maxLength 32
-   */
-  message_id: string;
-};
-
-export type ForkConversation201 = {
-  id: string;
-  source_conversation_id: string;
-  source_message_id: string;
-};
 
 export type GetConversationDocumentParams = {
   include_content?: boolean;
@@ -1081,49 +791,347 @@ export type AuthorizeConversationFileDeliveryParams = {
   revision_id?: string;
 };
 
+export type ForkConversationBody = {
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  message_id: string;
+};
+
+export type ForkConversation201 = {
+  id: string;
+  source_conversation_id: string;
+  source_message_id: string;
+};
+
 export type GetVideoProductionPreviewUrl200 = {
-  url: string;
   expires_at: string;
+  url: string;
 };
 
 export type GetVideoTakePreviewUrl200 = {
-  url: string;
   expires_at: string;
+  url: string;
+};
+
+export type GetLocalInferenceConfigParams = {
+  provider_id: string;
+  reasoning_effort: GetLocalInferenceConfigReasoningEffort;
+};
+
+export type GetLocalInferenceConfigReasoningEffort =
+  (typeof GetLocalInferenceConfigReasoningEffort)[keyof typeof GetLocalInferenceConfigReasoningEffort];
+
+export const GetLocalInferenceConfigReasoningEffort = {
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export type GetLocalInferenceConfig200ReasoningEffort =
+  (typeof GetLocalInferenceConfig200ReasoningEffort)[keyof typeof GetLocalInferenceConfig200ReasoningEffort];
+
+export const GetLocalInferenceConfig200ReasoningEffort = {
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export type GetLocalInferenceConfig200 = {
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  contextWindow: number;
+  instructions: string;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  maxOutputTokens: number;
+  model: string;
+  providerId: string;
+  providerName: string;
+  reasoningEffort: GetLocalInferenceConfig200ReasoningEffort;
+};
+
+export type StreamLocalInferenceBodyOptionsPromptItem =
+  | {
+      content: string;
+      role: "system";
+    }
+  | {
+      content: (
+        | {
+            text: string;
+            type: "text";
+          }
+        | {
+            data:
+              | {
+                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                  data: string;
+                  type: "data";
+                }
+              | {
+                  text: string;
+                  type: "text";
+                };
+            /** @maxLength 255 */
+            filename?: string;
+            /** @maxLength 200 */
+            mediaType: string;
+            type: "file";
+          }
+      )[];
+      role: "user";
+    }
+  | {
+      content: (
+        | {
+            text: string;
+            type: "text";
+          }
+        | {
+            text: string;
+            type: "reasoning";
+          }
+        | {
+            data:
+              | {
+                  /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                  data: string;
+                  type: "data";
+                }
+              | {
+                  text: string;
+                  type: "text";
+                };
+            /** @maxLength 255 */
+            filename?: string;
+            /** @maxLength 200 */
+            mediaType: string;
+            type: "file";
+          }
+        | {
+            input: LocalInferenceSchema0 | null;
+            providerExecuted?: false;
+            toolCallId: string;
+            toolName: string;
+            type: "tool-call";
+          }
+        | {
+            output:
+              | {
+                  type: "text" | "error-text";
+                  value: string;
+                }
+              | {
+                  type: "json" | "error-json";
+                  value: LocalInferenceSchema1 | null;
+                }
+              | {
+                  reason?: string;
+                  type: "execution-denied";
+                }
+              | {
+                  type: "content";
+                  value: (
+                    | {
+                        text: string;
+                        type: "text";
+                      }
+                    | {
+                        data:
+                          | {
+                              /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                              data: string;
+                              type: "data";
+                            }
+                          | {
+                              text: string;
+                              type: "text";
+                            };
+                        /** @maxLength 255 */
+                        filename?: string;
+                        /** @maxLength 200 */
+                        mediaType: string;
+                        type: "file";
+                      }
+                  )[];
+                };
+            toolCallId: string;
+            toolName: string;
+            type: "tool-result";
+          }
+      )[];
+      role: "assistant";
+    }
+  | {
+      content: {
+        output:
+          | {
+              type: "text" | "error-text";
+              value: string;
+            }
+          | {
+              type: "json" | "error-json";
+              value: LocalInferenceSchema1 | null;
+            }
+          | {
+              reason?: string;
+              type: "execution-denied";
+            }
+          | {
+              type: "content";
+              value: (
+                | {
+                    text: string;
+                    type: "text";
+                  }
+                | {
+                    data:
+                      | {
+                          /** @pattern ^[A-Za-z0-9+/]*={0,2}$ */
+                          data: string;
+                          type: "data";
+                        }
+                      | {
+                          text: string;
+                          type: "text";
+                        };
+                    /** @maxLength 255 */
+                    filename?: string;
+                    /** @maxLength 200 */
+                    mediaType: string;
+                    type: "file";
+                  }
+              )[];
+            };
+        toolCallId: string;
+        toolName: string;
+        type: "tool-result";
+      }[];
+      role: "tool";
+    };
+
+export type StreamLocalInferenceBodyOptionsReasoning =
+  (typeof StreamLocalInferenceBodyOptionsReasoning)[keyof typeof StreamLocalInferenceBodyOptionsReasoning];
+
+export const StreamLocalInferenceBodyOptionsReasoning = {
+  "provider-default": "provider-default",
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export type StreamLocalInferenceBodyOptionsToolChoice =
+  | {
+      type: "auto" | "none" | "required";
+    }
+  | {
+      toolName: string;
+      type: "tool";
+    };
+
+export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput = {
+  [key: string]: LocalInferenceSchema3 | null;
+};
+
+export type StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem = {
+  input: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItemInput;
+};
+
+export type StreamLocalInferenceBodyOptionsToolsItemInputSchema = { [key: string]: LocalInferenceSchema2 | null };
+
+export type StreamLocalInferenceBodyOptionsToolsItemType =
+  (typeof StreamLocalInferenceBodyOptionsToolsItemType)[keyof typeof StreamLocalInferenceBodyOptionsToolsItemType];
+
+export const StreamLocalInferenceBodyOptionsToolsItemType = {
+  function: "function",
+} as const;
+
+export type StreamLocalInferenceBodyOptionsToolsItem = {
+  description?: string;
+  inputExamples?: StreamLocalInferenceBodyOptionsToolsItemInputExamplesItem[];
+  inputSchema: StreamLocalInferenceBodyOptionsToolsItemInputSchema;
+  /**
+   * @maxLength 128
+   * @pattern ^[a-zA-Z0-9_-]+$
+   */
+  name: string;
+  strict?: boolean;
+  type: StreamLocalInferenceBodyOptionsToolsItemType;
+};
+
+export type StreamLocalInferenceBodyOptions = {
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  maxOutputTokens: number;
+  /** @minItems 1 */
+  prompt: StreamLocalInferenceBodyOptionsPromptItem[];
+  reasoning?: StreamLocalInferenceBodyOptionsReasoning;
+  /**
+   * @minimum 0
+   * @maximum 2
+   */
+  temperature?: number;
+  toolChoice?: StreamLocalInferenceBodyOptionsToolChoice;
+  /** @maxItems 128 */
+  tools?: StreamLocalInferenceBodyOptionsToolsItem[];
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  topP?: number;
+};
+
+export type StreamLocalInferenceBodyReasoningEffort =
+  (typeof StreamLocalInferenceBodyReasoningEffort)[keyof typeof StreamLocalInferenceBodyReasoningEffort];
+
+export const StreamLocalInferenceBodyReasoningEffort = {
+  none: "none",
+  minimal: "minimal",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "xhigh",
+  max: "max",
+} as const;
+
+export type StreamLocalInferenceBody = {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  model: string;
+  options: StreamLocalInferenceBodyOptions;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  providerId: string;
+  reasoningEffort: StreamLocalInferenceBodyReasoningEffort;
+  /** @pattern ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$ */
+  requestId: string;
 };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-export const getLocalInferenceConfig = (
-  params?: GetLocalInferenceConfigParams,
-  options?: SecondParameter<typeof apiMutator<GetLocalInferenceConfig200>>,
-) => {
-  return apiMutator<GetLocalInferenceConfig200>(
-    { url: `/api/chat-server/local-inference/config`, method: "GET", params },
-    options,
-  );
-};
-
-/**
- * Constrained AI SDK LanguageModelV4 inference relay. Native provider stream parts as NDJSON; no tool execution or session persistence. See schemas/desktop/README.md.
- */
-export const streamLocalInference = (
-  streamLocalInferenceBody: StreamLocalInferenceBody,
-  options?: SecondParameter<typeof apiMutator<string>>,
-) => {
-  return apiMutator<string>(
-    {
-      url: `/api/chat-server/local-inference/stream`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: streamLocalInferenceBody,
-    },
-    options,
-  );
-};
-
-export const chatHealthz = (options?: SecondParameter<typeof apiMutator<void>>) => {
-  return apiMutator<void>({ url: `/api/chat-server/healthz`, method: "GET" }, options);
-};
 
 export const listConversations = (options?: SecondParameter<typeof apiMutator<Conversation[]>>) => {
   return apiMutator<Conversation[]>({ url: `/api/chat-server/conversations`, method: "GET" }, options);
@@ -1144,6 +1152,25 @@ export const createConversation = (
   );
 };
 
+export const createCanvasConversation = (
+  createConversationInput: CreateConversationInput,
+  options?: SecondParameter<typeof apiMutator<CanvasConversationBinding>>,
+) => {
+  return apiMutator<CanvasConversationBinding>(
+    {
+      url: `/api/chat-server/conversations/canvas`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: createConversationInput,
+    },
+    options,
+  );
+};
+
+export const deleteConversation = (conversationId: string, options?: SecondParameter<typeof apiMutator<void>>) => {
+  return apiMutator<void>({ url: `/api/chat-server/conversations/${conversationId}`, method: "DELETE" }, options);
+};
+
 export const getConversation = (
   conversationId: string,
   options?: SecondParameter<typeof apiMutator<ConversationDetail>>,
@@ -1152,10 +1179,6 @@ export const getConversation = (
     { url: `/api/chat-server/conversations/${conversationId}`, method: "GET" },
     options,
   );
-};
-
-export const deleteConversation = (conversationId: string, options?: SecondParameter<typeof apiMutator<void>>) => {
-  return apiMutator<void>({ url: `/api/chat-server/conversations/${conversationId}`, method: "DELETE" }, options);
 };
 
 export const updateConversation = (
@@ -1170,48 +1193,6 @@ export const updateConversation = (
       headers: { "Content-Type": "application/json" },
       data: updateConversationInput,
     },
-    options,
-  );
-};
-
-export const selectConversationHistory = (
-  conversationId: string,
-  selectHistoryInput: SelectHistoryInput,
-  options?: SecondParameter<typeof apiMutator<ConversationDetail>>,
-) => {
-  return apiMutator<ConversationDetail>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/history/select`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: selectHistoryInput,
-    },
-    options,
-  );
-};
-
-export const forkConversation = (
-  conversationId: string,
-  forkConversationBody: ForkConversationBody,
-  options?: SecondParameter<typeof apiMutator<ForkConversation201>>,
-) => {
-  return apiMutator<ForkConversation201>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/forks`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: forkConversationBody,
-    },
-    options,
-  );
-};
-
-export const getConversationContext = (
-  conversationId: string,
-  options?: SecondParameter<typeof apiMutator<ConversationContextResponse>>,
-) => {
-  return apiMutator<ConversationContextResponse>(
-    { url: `/api/chat-server/conversations/${conversationId}/context`, method: "GET" },
     options,
   );
 };
@@ -1238,6 +1219,81 @@ export const startConversationAgentStream = (
       headers: { "Content-Type": "application/json" },
       data: agentRunRequest,
     },
+    options,
+  );
+};
+
+export const cancelConversationAgentRun = (
+  conversationId: string,
+  runId: string,
+  options?: SecondParameter<typeof apiMutator<RunCancellation>>,
+) => {
+  return apiMutator<RunCancellation>(
+    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/cancel`, method: "POST" },
+    options,
+  );
+};
+
+export const steerConversationAgentRun = (
+  conversationId: string,
+  runId: string,
+  agentSteeringInput: AgentSteeringInput,
+  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
+) => {
+  return apiMutator<AgentSteeringInputStatus>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steer`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: agentSteeringInput,
+    },
+    options,
+  );
+};
+
+export const listConversationAgentSteeringInputs = (
+  conversationId: string,
+  runId: string,
+  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus[]>>,
+) => {
+  return apiMutator<AgentSteeringInputStatus[]>(
+    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs`, method: "GET" },
+    options,
+  );
+};
+
+export const getConversationAgentSteeringInput = (
+  conversationId: string,
+  runId: string,
+  clientMessageId: string,
+  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
+) => {
+  return apiMutator<AgentSteeringInputStatus>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs/${clientMessageId}`,
+      method: "GET",
+    },
+    options,
+  );
+};
+
+export const getConversationAgentTrace = (
+  conversationId: string,
+  runId: string,
+  options?: SecondParameter<typeof apiMutator<AgentRunTrace>>,
+) => {
+  return apiMutator<AgentRunTrace>(
+    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/trace`, method: "GET" },
+    options,
+  );
+};
+
+export const getConversationContext = (
+  conversationId: string,
+  options?: SecondParameter<typeof apiMutator<ConversationContextResponse>>,
+) => {
+  return apiMutator<ConversationContextResponse>(
+    { url: `/api/chat-server/conversations/${conversationId}/context`, method: "GET" },
     options,
   );
 };
@@ -1271,6 +1327,17 @@ export const updateConversationDocument = (
   );
 };
 
+export const redirectConversationDocumentContent = (
+  conversationId: string,
+  documentId: string,
+  options?: SecondParameter<typeof apiMutator<unknown>>,
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/chat-server/conversations/${conversationId}/documents/${documentId}/content`, method: "GET" },
+    options,
+  );
+};
+
 export const authorizeConversationDocumentDelivery = (
   conversationId: string,
   documentId: string,
@@ -1287,14 +1354,13 @@ export const authorizeConversationDocumentDelivery = (
   );
 };
 
-export const authorizeConversationFileDelivery = (
+export const getConversationFile = (
   conversationId: string,
   fileId: string,
-  params?: AuthorizeConversationFileDeliveryParams,
-  options?: SecondParameter<typeof apiMutator<StorageDelivery>>,
+  options?: SecondParameter<typeof apiMutator<ConversationFile>>,
 ) => {
-  return apiMutator<StorageDelivery>(
-    { url: `/api/chat-server/conversations/${conversationId}/files/${fileId}/delivery`, method: "POST", params },
+  return apiMutator<ConversationFile>(
+    { url: `/api/chat-server/conversations/${conversationId}/files/${fileId}`, method: "GET" },
     options,
   );
 };
@@ -1327,13 +1393,62 @@ export const updateConversationFileContent = (
   );
 };
 
-export const redirectConversationDocumentContent = (
+export const authorizeConversationFileDelivery = (
   conversationId: string,
-  documentId: string,
-  options?: SecondParameter<typeof apiMutator<unknown>>,
+  fileId: string,
+  params?: AuthorizeConversationFileDeliveryParams,
+  options?: SecondParameter<typeof apiMutator<StorageDelivery>>,
 ) => {
-  return apiMutator<unknown>(
-    { url: `/api/chat-server/conversations/${conversationId}/documents/${documentId}/content`, method: "GET" },
+  return apiMutator<StorageDelivery>(
+    { url: `/api/chat-server/conversations/${conversationId}/files/${fileId}/delivery`, method: "POST", params },
+    options,
+  );
+};
+
+export const forkConversation = (
+  conversationId: string,
+  forkConversationBody: ForkConversationBody,
+  options?: SecondParameter<typeof apiMutator<ForkConversation201>>,
+) => {
+  return apiMutator<ForkConversation201>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/forks`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: forkConversationBody,
+    },
+    options,
+  );
+};
+
+export const selectConversationHistory = (
+  conversationId: string,
+  selectHistoryInput: SelectHistoryInput,
+  options?: SecondParameter<typeof apiMutator<ConversationDetail>>,
+) => {
+  return apiMutator<ConversationDetail>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/history/select`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: selectHistoryInput,
+    },
+    options,
+  );
+};
+
+export const updateConversationModel = (
+  conversationId: string,
+  updateConversationModelInput: UpdateConversationModelInput,
+  options?: SecondParameter<typeof apiMutator<Conversation>>,
+) => {
+  return apiMutator<Conversation>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/model`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: updateConversationModelInput,
+    },
     options,
   );
 };
@@ -1345,82 +1460,6 @@ export const authorizeConversationSourceDelivery = (
 ) => {
   return apiMutator<StorageDelivery>(
     { url: `/api/chat-server/conversations/${conversationId}/sources/${sourceId}/delivery`, method: "POST" },
-    options,
-  );
-};
-
-export const getConversationFile = (
-  conversationId: string,
-  fileId: string,
-  options?: SecondParameter<typeof apiMutator<ConversationFile>>,
-) => {
-  return apiMutator<ConversationFile>(
-    { url: `/api/chat-server/conversations/${conversationId}/files/${fileId}`, method: "GET" },
-    options,
-  );
-};
-
-export const getConversationAgentTrace = (
-  conversationId: string,
-  runId: string,
-  options?: SecondParameter<typeof apiMutator<AgentRunTrace>>,
-) => {
-  return apiMutator<AgentRunTrace>(
-    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/trace`, method: "GET" },
-    options,
-  );
-};
-
-export const steerConversationAgentRun = (
-  conversationId: string,
-  runId: string,
-  agentSteeringInput: AgentSteeringInput,
-  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
-) => {
-  return apiMutator<AgentSteeringInputStatus>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steer`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: agentSteeringInput,
-    },
-    options,
-  );
-};
-
-export const getConversationAgentSteeringInput = (
-  conversationId: string,
-  runId: string,
-  clientMessageId: string,
-  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
-) => {
-  return apiMutator<AgentSteeringInputStatus>(
-    {
-      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs/${clientMessageId}`,
-      method: "GET",
-    },
-    options,
-  );
-};
-
-export const listConversationAgentSteeringInputs = (
-  conversationId: string,
-  runId: string,
-  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus[]>>,
-) => {
-  return apiMutator<AgentSteeringInputStatus[]>(
-    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs`, method: "GET" },
-    options,
-  );
-};
-
-export const cancelConversationAgentRun = (
-  conversationId: string,
-  runId: string,
-  options?: SecondParameter<typeof apiMutator<RunCancellation>>,
-) => {
-  return apiMutator<RunCancellation>(
-    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/cancel`, method: "POST" },
     options,
   );
 };
@@ -1483,26 +1522,44 @@ export const getVideoTakePreviewUrl = (
   );
 };
 
+export const chatHealthz = (options?: SecondParameter<typeof apiMutator<void>>) => {
+  return apiMutator<void>({ url: `/api/chat-server/healthz`, method: "GET" }, options);
+};
+
+export const getLocalInferenceConfig = (
+  params: GetLocalInferenceConfigParams,
+  options?: SecondParameter<typeof apiMutator<GetLocalInferenceConfig200>>,
+) => {
+  return apiMutator<GetLocalInferenceConfig200>(
+    { url: `/api/chat-server/local-inference/config`, method: "GET", params },
+    options,
+  );
+};
+
+/**
+ * Constrained AI SDK LanguageModelV4 inference relay. Native provider stream parts as NDJSON; no tool execution or session persistence. See schemas/desktop/README.md.
+ */
+export const streamLocalInference = (
+  streamLocalInferenceBody: StreamLocalInferenceBody,
+  options?: SecondParameter<typeof apiMutator<string>>,
+) => {
+  return apiMutator<string>(
+    {
+      url: `/api/chat-server/local-inference/stream`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: streamLocalInferenceBody,
+    },
+    options,
+  );
+};
+
 export const listActiveMemories = (options?: SecondParameter<typeof apiMutator<UserMemoryList>>) => {
   return apiMutator<UserMemoryList>({ url: `/api/chat-server/memories`, method: "GET" }, options);
 };
 
 export const listMemoryCandidates = (options?: SecondParameter<typeof apiMutator<MemoryCandidateList>>) => {
   return apiMutator<MemoryCandidateList>({ url: `/api/chat-server/memories/candidates`, method: "GET" }, options);
-};
-
-export const approveMemoryCandidate = (id: string, options?: SecondParameter<typeof apiMutator<ApprovedMemory>>) => {
-  return apiMutator<ApprovedMemory>(
-    { url: `/api/chat-server/memories/candidates/${id}/approve`, method: "POST" },
-    options,
-  );
-};
-
-export const rejectMemoryCandidate = (id: string, options?: SecondParameter<typeof apiMutator<RejectedMemory>>) => {
-  return apiMutator<RejectedMemory>(
-    { url: `/api/chat-server/memories/candidates/${id}/reject`, method: "POST" },
-    options,
-  );
 };
 
 export const updateMemoryCandidate = (
@@ -1521,78 +1578,78 @@ export const updateMemoryCandidate = (
   );
 };
 
-export const deleteMemory = (id: string, options?: SecondParameter<typeof apiMutator<DeletedMemory>>) => {
-  return apiMutator<DeletedMemory>({ url: `/api/chat-server/memories/${id}`, method: "DELETE" }, options);
-};
-
-export const createCanvasConversation = (
-  createConversationInput: CreateConversationInput,
-  options?: SecondParameter<typeof apiMutator<CanvasConversationBinding>>,
-) => {
-  return apiMutator<CanvasConversationBinding>(
-    {
-      url: `/api/chat-server/conversations/canvas`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: createConversationInput,
-    },
+export const approveMemoryCandidate = (id: string, options?: SecondParameter<typeof apiMutator<ApprovedMemory>>) => {
+  return apiMutator<ApprovedMemory>(
+    { url: `/api/chat-server/memories/candidates/${id}/approve`, method: "POST" },
     options,
   );
 };
 
-export type GetLocalInferenceConfigResult = NonNullable<Awaited<ReturnType<typeof getLocalInferenceConfig>>>;
-export type StreamLocalInferenceResult = NonNullable<Awaited<ReturnType<typeof streamLocalInference>>>;
-export type ChatHealthzResult = NonNullable<Awaited<ReturnType<typeof chatHealthz>>>;
+export const rejectMemoryCandidate = (id: string, options?: SecondParameter<typeof apiMutator<RejectedMemory>>) => {
+  return apiMutator<RejectedMemory>(
+    { url: `/api/chat-server/memories/candidates/${id}/reject`, method: "POST" },
+    options,
+  );
+};
+
+export const deleteMemory = (id: string, options?: SecondParameter<typeof apiMutator<DeletedMemory>>) => {
+  return apiMutator<DeletedMemory>({ url: `/api/chat-server/memories/${id}`, method: "DELETE" }, options);
+};
+
 export type ListConversationsResult = NonNullable<Awaited<ReturnType<typeof listConversations>>>;
 export type CreateConversationResult = NonNullable<Awaited<ReturnType<typeof createConversation>>>;
-export type GetConversationResult = NonNullable<Awaited<ReturnType<typeof getConversation>>>;
+export type CreateCanvasConversationResult = NonNullable<Awaited<ReturnType<typeof createCanvasConversation>>>;
 export type DeleteConversationResult = NonNullable<Awaited<ReturnType<typeof deleteConversation>>>;
+export type GetConversationResult = NonNullable<Awaited<ReturnType<typeof getConversation>>>;
 export type UpdateConversationResult = NonNullable<Awaited<ReturnType<typeof updateConversation>>>;
-export type SelectConversationHistoryResult = NonNullable<Awaited<ReturnType<typeof selectConversationHistory>>>;
-export type ForkConversationResult = NonNullable<Awaited<ReturnType<typeof forkConversation>>>;
-export type GetConversationContextResult = NonNullable<Awaited<ReturnType<typeof getConversationContext>>>;
 export type ResumeConversationAgentStreamResult = NonNullable<
   Awaited<ReturnType<typeof resumeConversationAgentStream>>
 >;
 export type StartConversationAgentStreamResult = NonNullable<Awaited<ReturnType<typeof startConversationAgentStream>>>;
+export type CancelConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof cancelConversationAgentRun>>>;
+export type SteerConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof steerConversationAgentRun>>>;
+export type ListConversationAgentSteeringInputsResult = NonNullable<
+  Awaited<ReturnType<typeof listConversationAgentSteeringInputs>>
+>;
+export type GetConversationAgentSteeringInputResult = NonNullable<
+  Awaited<ReturnType<typeof getConversationAgentSteeringInput>>
+>;
+export type GetConversationAgentTraceResult = NonNullable<Awaited<ReturnType<typeof getConversationAgentTrace>>>;
+export type GetConversationContextResult = NonNullable<Awaited<ReturnType<typeof getConversationContext>>>;
 export type GetConversationDocumentResult = NonNullable<Awaited<ReturnType<typeof getConversationDocument>>>;
 export type UpdateConversationDocumentResult = NonNullable<Awaited<ReturnType<typeof updateConversationDocument>>>;
+export type RedirectConversationDocumentContentResult = NonNullable<
+  Awaited<ReturnType<typeof redirectConversationDocumentContent>>
+>;
 export type AuthorizeConversationDocumentDeliveryResult = NonNullable<
   Awaited<ReturnType<typeof authorizeConversationDocumentDelivery>>
 >;
-export type AuthorizeConversationFileDeliveryResult = NonNullable<
-  Awaited<ReturnType<typeof authorizeConversationFileDelivery>>
->;
+export type GetConversationFileResult = NonNullable<Awaited<ReturnType<typeof getConversationFile>>>;
 export type RedirectConversationFileContentResult = NonNullable<
   Awaited<ReturnType<typeof redirectConversationFileContent>>
 >;
 export type UpdateConversationFileContentResult = NonNullable<
   Awaited<ReturnType<typeof updateConversationFileContent>>
 >;
-export type RedirectConversationDocumentContentResult = NonNullable<
-  Awaited<ReturnType<typeof redirectConversationDocumentContent>>
+export type AuthorizeConversationFileDeliveryResult = NonNullable<
+  Awaited<ReturnType<typeof authorizeConversationFileDelivery>>
 >;
+export type ForkConversationResult = NonNullable<Awaited<ReturnType<typeof forkConversation>>>;
+export type SelectConversationHistoryResult = NonNullable<Awaited<ReturnType<typeof selectConversationHistory>>>;
+export type UpdateConversationModelResult = NonNullable<Awaited<ReturnType<typeof updateConversationModel>>>;
 export type AuthorizeConversationSourceDeliveryResult = NonNullable<
   Awaited<ReturnType<typeof authorizeConversationSourceDelivery>>
 >;
-export type GetConversationFileResult = NonNullable<Awaited<ReturnType<typeof getConversationFile>>>;
-export type GetConversationAgentTraceResult = NonNullable<Awaited<ReturnType<typeof getConversationAgentTrace>>>;
-export type SteerConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof steerConversationAgentRun>>>;
-export type GetConversationAgentSteeringInputResult = NonNullable<
-  Awaited<ReturnType<typeof getConversationAgentSteeringInput>>
->;
-export type ListConversationAgentSteeringInputsResult = NonNullable<
-  Awaited<ReturnType<typeof listConversationAgentSteeringInputs>>
->;
-export type CancelConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof cancelConversationAgentRun>>>;
 export type GetVideoProductionResult = NonNullable<Awaited<ReturnType<typeof getVideoProduction>>>;
 export type DecideVideoProductionResult = NonNullable<Awaited<ReturnType<typeof decideVideoProduction>>>;
 export type GetVideoProductionPreviewUrlResult = NonNullable<Awaited<ReturnType<typeof getVideoProductionPreviewUrl>>>;
 export type GetVideoTakePreviewUrlResult = NonNullable<Awaited<ReturnType<typeof getVideoTakePreviewUrl>>>;
+export type ChatHealthzResult = NonNullable<Awaited<ReturnType<typeof chatHealthz>>>;
+export type GetLocalInferenceConfigResult = NonNullable<Awaited<ReturnType<typeof getLocalInferenceConfig>>>;
+export type StreamLocalInferenceResult = NonNullable<Awaited<ReturnType<typeof streamLocalInference>>>;
 export type ListActiveMemoriesResult = NonNullable<Awaited<ReturnType<typeof listActiveMemories>>>;
 export type ListMemoryCandidatesResult = NonNullable<Awaited<ReturnType<typeof listMemoryCandidates>>>;
+export type UpdateMemoryCandidateResult = NonNullable<Awaited<ReturnType<typeof updateMemoryCandidate>>>;
 export type ApproveMemoryCandidateResult = NonNullable<Awaited<ReturnType<typeof approveMemoryCandidate>>>;
 export type RejectMemoryCandidateResult = NonNullable<Awaited<ReturnType<typeof rejectMemoryCandidate>>>;
-export type UpdateMemoryCandidateResult = NonNullable<Awaited<ReturnType<typeof updateMemoryCandidate>>>;
 export type DeleteMemoryResult = NonNullable<Awaited<ReturnType<typeof deleteMemory>>>;
-export type CreateCanvasConversationResult = NonNullable<Awaited<ReturnType<typeof createCanvasConversation>>>;

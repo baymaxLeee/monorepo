@@ -12,7 +12,6 @@ const clientMetadata = {
     capability: "interaction",
     effect: "none",
     execution: "client",
-    modes: ["normal", "plan"],
     source: "builtin",
     trust: "closed",
     uiKind: "ask-user",

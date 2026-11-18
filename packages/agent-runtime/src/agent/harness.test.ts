@@ -109,10 +109,9 @@ for (const storage of ["cloud", "local"] as const) {
       }),
     ]);
     const agent = createAgentHarness({
-      mode: "normal",
       environment: environment(storage),
       tools,
-      instructions: assembleInstructions({ mode: "normal", memories: [] }),
+      instructions: assembleInstructions({ memories: [] }),
       model: model((options) => {
         calls++;
         assert.equal(options.prompt.filter((m) => m.role === "user").length, 1);
@@ -133,11 +132,10 @@ for (const storage of ["cloud", "local"] as const) {
       createBashTool(async () => ({ exitCode: 7, stdout: "partial", stderr: "failed command" })),
     ]);
     const agent = createAgentHarness({
-      mode: "normal",
       environment: environment(storage),
       tools,
-      toolApproval: createToolApprovalPolicy("normal"),
-      instructions: assembleInstructions({ mode: "normal", memories: [] }),
+      toolApproval: createToolApprovalPolicy(),
+      instructions: assembleInstructions({ memories: [] }),
       workspace: { consumeChanges: () => (consumed ? [] : ((consumed = true), ["external.txt"])) },
       model: model((options) => {
         calls++;
@@ -176,7 +174,6 @@ for (const approved of [false, true]) {
     const tools = manifestsToTools([manifest]);
     tools.bash = { ...tools.bash!, needsApproval: true };
     const agent = createAgentHarness({
-      mode: "normal",
       environment: environment("cloud"),
       tools,
       model: model(() =>
@@ -201,7 +198,6 @@ test("SDK steering is delivered, streamed as an official part, and replayed into
   const steering = createAgentSteering();
   const outcomePromise = steering.steer("改成巴黎德州。", { id: "steer-client-message" });
   const agent = createAgentHarness({
-    mode: "normal",
     environment: environment("cloud"),
     tools: {},
     model: model((options) => {
@@ -264,7 +260,6 @@ test("stored-response continuation keeps steering sent during a tool in the next
   let calls = 0;
   const steering = createAgentSteering();
   const agent = createAgentHarness({
-    mode: "normal",
     environment: environment("cloud"),
     tools,
     model: model((options) => {

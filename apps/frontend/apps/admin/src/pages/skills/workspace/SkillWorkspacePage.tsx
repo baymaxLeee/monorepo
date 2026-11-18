@@ -302,7 +302,7 @@ export function SkillWorkspacePage() {
             <PageTitle>{skill?.name ?? "技能工作区"}</PageTitle>
             {stateBadge()}
           </div>
-          <PageDescription>编辑文件树并保存；只有点击发布后，智能体才会读取新的完整快照。</PageDescription>
+          <PageDescription>编辑文件树并保存；只有点击发布后，会话运行时才会读取新的完整快照。</PageDescription>
         </PageHeaderContent>
         <PageActions>
           <Button variant="outline" disabled={busy} onClick={chooseArchive}>

@@ -32,7 +32,8 @@ export function relayModel(config: InferenceConfig, call: RelayCall): LanguageMo
     async doStream(options) {
       const request = inferenceRequestSchema.parse({
         requestId: randomUUID(),
-        agentId: config.agentId,
+        providerId: config.providerId,
+        reasoningEffort: config.reasoningEffort,
         model: config.model,
         options: transportOptions({ ...options, maxOutputTokens: options.maxOutputTokens ?? config.maxOutputTokens }),
       });

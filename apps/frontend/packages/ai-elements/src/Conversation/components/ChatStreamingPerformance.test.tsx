@@ -47,9 +47,7 @@ const props: Omit<ChatMessageViewProps, "message"> = {
   onOpenFile: vi.fn(),
   onAnswerClientTool: vi.fn(),
   onToolApproval: vi.fn(),
-  onExecutePlan: vi.fn(),
-  planExecutedIds: new Set(),
-  planBusy: false,
+  busy: false,
 };
 const paragraphs = Array.from({ length: 30 }, (_, index) => `已完成的第 ${index} 段。`).join("\n\n");
 function message(text: string, parts: ChatUIMessage["parts"] = []): ChatUIMessage {

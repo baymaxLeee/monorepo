@@ -30,7 +30,8 @@ function snapshot(): LocalStream {
       id: "t",
       mode: "local",
       title: "test",
-      agentId: null,
+      providerId: "provider",
+      reasoningEffort: "medium",
       approvalMode: "auto",
       workspace: "/test",
       status: "running",
@@ -71,7 +72,7 @@ describe("native UIMessage IPC transport", () => {
     expect(chunks.map((chunk) => chunk.type)).toEqual(["start", "text-start", "text-delta"]);
     expect(f.listeners.size).toBe(0);
   });
-  it("renderer detachment closes only its subscriber, not the Agent", async () => {
+  it("renderer detachment closes only its subscriber, not the local runtime", async () => {
     const f = fixture(snapshot()),
       connection = await attachLocalStream(f.bridge, "t");
     connection.dispose();

@@ -69,11 +69,9 @@ Storage 的既有模型和读取侧已经支持一个 Asset 下的多个不可�
 
 Storage 完成只表示候选 revision 已耐久化；独立追加可以都成功，只有 Runtime 的最终 CAS 决定哪一份成为该业务文件当前内容。Storage 的 `current_revision_id` 仅表示最近追加的 head，不保证是任意 Runtime owner 的已发布内容；CAS 失败或 Runtime 提交结果不确定时以同一操作键恢复，Runtime 的读取、签发、fork 和 sandbox 导入始终传精确 revision。
 
-### 文件元数据与 Plan
+### 文件元数据
 
 原文件保存不修改 filename、title、kind 或归属。内容散列、大小、媒体类型由服务端验证并与新内容一致；用户不能借保存接口把文本文件替换为不支持的二进制。另存为可由 Agent 选择新标题、文件名和类型，仍走现有发布验证。
-
-Plan 同样是稳定文件。保存 Plan 保持 `active_plan_file_id`；首次发布/另存为 Plan 沿用已有选中逻辑。`data-plan-execution` 指向稳定 file_id，执行时解析当时当前 revision 并完整读取；历史消息中的旧 Plan 内容不能当作最新事实。模型推理中的上下文不会瞬时改变；活跃云端实例中的用户保存从安全命令边界写入同一路径，并在下一受控模型 step 通知 Agent 重读，已经完成的工具结果不被追溯改写。
 
 ## 保存事务与恢复
 

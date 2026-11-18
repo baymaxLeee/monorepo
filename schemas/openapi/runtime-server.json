@@ -11,10 +11,28 @@
         "operationId": "getLocalInferenceConfig",
         "parameters": [
           {
-            "name": "agent_id",
+            "name": "provider_id",
             "in": "query",
+            "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "reasoning_effort",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
             }
           }
         ],
@@ -26,12 +44,23 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "agentId": {
-                      "nullable": true,
+                    "providerId": {
                       "type": "string"
                     },
-                    "agentName": {
+                    "providerName": {
                       "type": "string"
+                    },
+                    "reasoningEffort": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "minimal",
+                        "low",
+                        "medium",
+                        "high",
+                        "xhigh",
+                        "max"
+                      ]
                     },
                     "model": {
                       "type": "string"
@@ -53,8 +82,9 @@
                     }
                   },
                   "required": [
-                    "agentId",
-                    "agentName",
+                    "providerId",
+                    "providerName",
+                    "reasoningEffort",
                     "model",
                     "contextWindow",
                     "maxOutputTokens",
@@ -84,11 +114,22 @@
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   },
-                  "agentId": {
-                    "nullable": true,
+                  "providerId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 32
+                  },
+                  "reasoningEffort": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "minimal",
+                      "low",
+                      "medium",
+                      "high",
+                      "xhigh",
+                      "max"
+                    ]
                   },
                   "model": {
                     "type": "string",
@@ -943,7 +984,8 @@
                 },
                 "required": [
                   "requestId",
-                  "agentId",
+                  "providerId",
+                  "reasoningEffort",
                   "model",
                   "options"
                 ],
@@ -1062,6 +1104,46 @@
         "responses": {
           "204": {
             "description": "delete session"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/model": {
+      "patch": {
+        "operationId": "updateSessionModel",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionModelInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "updated conversation model binding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "conversation has an active run"
           }
         }
       }
@@ -2370,6 +2452,40 @@
             "type": "string",
             "maxLength": 32,
             "nullable": true
+          },
+          "reasoning_effort": {
+            "$ref": "#/components/schemas/ReasoningEffort",
+            "nullable": true
+          }
+        }
+      },
+      "ReasoningEffort": {
+        "type": "string",
+        "enum": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      },
+      "UpdateSessionModelInput": {
+        "type": "object",
+        "required": [
+          "provider_id",
+          "reasoning_effort"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "reasoning_effort": {
+            "$ref": "#/components/schemas/ReasoningEffort"
           }
         }
       },
@@ -2382,7 +2498,7 @@
           "workspace_id",
           "model",
           "provider_id",
-          "active_plan_file_id",
+          "reasoning_effort",
           "created_at",
           "updated_at",
           "revision",
@@ -2407,9 +2523,8 @@
           "provider_id": {
             "type": "string"
           },
-          "active_plan_file_id": {
-            "type": "string",
-            "nullable": true
+          "reasoning_effort": {
+            "$ref": "#/components/schemas/ReasoningEffort"
           },
           "created_at": {
             "type": "string",
@@ -2469,18 +2584,6 @@
           },
           "generate_title": {
             "type": "boolean"
-          },
-          "agent_id": {
-            "type": "string",
-            "maxLength": 32,
-            "nullable": true
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "normal",
-              "plan"
-            ]
           },
           "host_context": {
             "type": "object",
@@ -2792,6 +2895,7 @@
           "workspace_id",
           "model",
           "provider_id",
+          "reasoning_effort",
           "created_at",
           "updated_at",
           "revision",
@@ -2821,9 +2925,8 @@
           "provider_id": {
             "type": "string"
           },
-          "active_plan_file_id": {
-            "type": "string",
-            "nullable": true
+          "reasoning_effort": {
+            "$ref": "#/components/schemas/ReasoningEffort"
           },
           "created_at": {
             "type": "string",
@@ -3014,7 +3117,6 @@
           "mime_type",
           "size",
           "sha256",
-          "kind",
           "editable",
           "edit_max_bytes",
           "etag",
@@ -3049,13 +3151,6 @@
           },
           "sha256": {
             "type": "string"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "artifact",
-              "plan"
-            ]
           },
           "editable": {
             "type": "boolean"

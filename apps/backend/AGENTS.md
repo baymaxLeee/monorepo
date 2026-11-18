@@ -33,8 +33,14 @@ and record high-risk extraction decisions before moving code.
   Four-part IDs target exact steps; three-part CLI targets select the release head.
   Old three-part database records identify step zero only.
 - Append the next contiguous step to the latest existing release directory by
-  default. Never create a new minor or patch migration release unless the user
-  explicitly says they have opened that version.
+  default. Never create a new major, minor or patch migration release unless the
+  user explicitly says they have opened that version.
+- Before assigning a migration ID, inspect every release directory for that
+  service and, when the database is available, query `public.migration` for its
+  current head. The new ID must sort after both the repository's highest step
+  and every known applied head; never insert a step into an older release. If a
+  database has already passed the intended position, append the next step to
+  the latest opened release instead of editing history or checksums.
 - Each release directory must include a generated `checksums.yaml`. Run root
   `just migrate-checksums <service> <version>` when authoring, then
   `just migrate-check`; never regenerate applied versions to bypass drift.

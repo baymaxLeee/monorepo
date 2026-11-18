@@ -31,6 +31,7 @@ type CreateConversationInput struct {
 	RequestID  string  `json:"request_id"`
 	Title      *string `json:"title,omitempty"`
 	ProviderID *string `json:"provider_id,omitempty"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 	ProjectID  *string `json:"project_id,omitempty"`
 	CanvasID   *string `json:"canvas_id,omitempty"`
 }

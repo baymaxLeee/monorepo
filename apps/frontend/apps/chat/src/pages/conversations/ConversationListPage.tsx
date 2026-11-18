@@ -8,11 +8,12 @@ import {
 } from "@repo/ai-elements/conversation";
 import { buildUserFilePart } from "@repo/ai-elements/conversation/lib/file-parts";
 import { uploadConversationFiles } from "@repo/ai-elements/conversation/lib/upload-conversation-files";
-import { useChatStore } from "@repo/ai-elements/conversation/store/useChatStore";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
-import { createConversation, getLocalInferenceConfig, type GetLocalInferenceConfig200 } from "@repo/api/chat";
+import { listProviders, type ModelProvider } from "@repo/api/admin";
+import { createConversation, type ReasoningEffort } from "@repo/api/chat";
 import { getDesktopBridge } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
+import { BotIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -24,18 +25,28 @@ export function ConversationListPage() {
   const [project, setProject] = useState<string | null>(null);
   const [selectingProject, setSelectingProject] = useState(false);
   const [approvalMode, setApprovalMode] = useState<ApprovalModeValue>("auto");
-  const [mode, setMode] = useState<"normal" | "plan">("normal");
-  const [localInference, setLocalInference] = useState<GetLocalInferenceConfig200 | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const promptRef = useRef<PromptInputRef>(null);
   const [error, setError] = useState<string | null>(null);
-  const agents = useChatStore((state) => state.agents);
-  const selectedAgentId = useChatStore((state) => state.selectedAgentId);
-  const setSelectedAgentId = useChatStore((state) => state.setSelectedAgentId);
+  const [models, setModels] = useState<ModelProvider[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
 
   useEffect(() => {
-    void useChatStore.getState().loadAgents();
+    const controller = new AbortController();
+    void listProviders({ signal: controller.signal, skipErrorNotify: true })
+      .then((providers) => {
+        const chatModels = providers.filter((provider) => provider.provider_kind === "chat" && provider.is_enabled);
+        setModels(chatModels);
+        setSelectedModelId((current) =>
+          chatModels.some((provider) => provider.id === current)
+            ? current
+            : (chatModels.find((provider) => provider.is_default)?.id ?? chatModels[0]?.id ?? null),
+        );
+      })
+      .catch(() => setModels([]));
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -52,11 +63,6 @@ export function ConversationListPage() {
       .catch((cause) => {
         if (!controller.signal.aborted) setError(getErrorMessage(cause));
       });
-    void getLocalInferenceConfig(undefined, { signal: controller.signal, skipErrorNotify: true })
-      .then((config) => {
-        if (!controller.signal.aborted) setLocalInference(config);
-      })
-      .catch(() => {});
     return () => controller.abort();
   }, [bridge]);
 
@@ -85,7 +91,7 @@ export function ConversationListPage() {
       items.length > 0
         ? await uploadConversationFiles({
             conversationId,
-            providerId: agents?.find((agent) => agent.id === selectedAgentId)?.text_provider_id ?? undefined,
+            providerId: selectedModelId ?? undefined,
             items,
           })
         : null;
@@ -132,7 +138,8 @@ export function ConversationListPage() {
       if (location === "local") {
         if (!bridge) throw new Error("本地电脑需要桌面应用");
         if (!project) throw new Error("请先选择项目");
-        const thread = await bridge.createThread(project, null, approvalMode);
+        if (!selectedModelId) throw new Error("请选择推理模型");
+        const thread = await bridge.createThread(project, selectedModelId, reasoningEffort, approvalMode);
         // Navigate even if inference fails: the local journal retains the request and error.
         try {
           await bridge.send(thread.id, value.text, randomId());
@@ -140,10 +147,15 @@ export function ConversationListPage() {
           void navigate(`/platform/chat/local/${thread.id}`);
         }
       } else {
-        const conversation = await createConversation({ request_id: randomId() });
+        if (!selectedModelId) throw new Error("请选择推理模型");
+        const conversation = await createConversation({
+          request_id: randomId(),
+          provider_id: selectedModelId,
+          reasoning_effort: reasoningEffort,
+        });
         const parts = await prepareCloudRequest(conversation.id, value);
         void navigate(`/platform/chat/conversations/${conversation.id}`, {
-          state: { refreshConversationHistory: true, externalRequest: { id: randomId(), parts, mode } },
+          state: { refreshConversationHistory: true, externalRequest: { id: randomId(), parts } },
         });
       }
     } catch (cause) {
@@ -155,8 +167,11 @@ export function ConversationListPage() {
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-1 items-center justify-center px-6">
-        <h1 className="text-2xl font-semibold">有什么可以帮你？</h1>
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 pb-8 text-center">
+        <span className="flex size-12 items-center justify-center rounded-2xl border bg-card text-muted-foreground shadow-sm">
+          <BotIcon className="size-6" aria-hidden="true" />
+        </span>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">有什么可以帮你？</h1>
       </div>
       {error ? (
         <p role="alert" className="mx-auto w-full max-w-4xl px-4 text-sm text-destructive">
@@ -165,7 +180,8 @@ export function ConversationListPage() {
       ) : null}
       <ChatPrompt
         ref={promptRef}
-        placeholder={mode === "plan" && location === "cloud" ? "描述要规划的任务，@ 添加上下文" : "发送消息或创建任务…"}
+        autoFocus
+        placeholder="发送消息或创建任务…"
         loading={busy}
         disabled={busy}
         maxFiles={location === "cloud" ? 8 : 0}
@@ -192,25 +208,23 @@ export function ConversationListPage() {
           location === "cloud" ? (
             <>
               <ChatComposerControls
-                agents={agents ?? []}
-                selectedAgentId={selectedAgentId}
-                onSelectAgent={setSelectedAgentId}
-                mode={mode}
-                onModeChange={setMode}
+                models={models}
+                selectedModelId={selectedModelId}
+                onSelectModel={setSelectedModelId}
+                reasoningEffort={reasoningEffort}
+                onReasoningEffortChange={setReasoningEffort}
                 disabled={busy}
               />
             </>
           ) : (
             <>
               <ChatComposerControls
-                agents={[
-                  {
-                    id: localInference?.agentId ?? "local-default",
-                    name: localInference?.agentName ?? "默认 Agent",
-                  },
-                ]}
-                selectedAgentId={localInference?.agentId ?? "local-default"}
-                mode="normal"
+                models={models}
+                selectedModelId={selectedModelId}
+                onSelectModel={setSelectedModelId}
+                reasoningEffort={reasoningEffort}
+                onReasoningEffortChange={setReasoningEffort}
+                disabled={busy}
               />
               <ApprovalMode value={approvalMode} onChange={setApprovalMode} disabled={busy} />
             </>

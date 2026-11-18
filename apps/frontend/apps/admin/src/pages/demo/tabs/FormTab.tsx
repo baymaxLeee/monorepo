@@ -26,7 +26,7 @@ export function FormTab() {
         <div className="grid max-w-md gap-5">
           <div className="grid gap-2">
             <Label htmlFor="demo-name">名称</Label>
-            <Input id="demo-name" placeholder="智能体名称" />
+            <Input id="demo-name" placeholder="配置名称" />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="demo-role">角色</Label>

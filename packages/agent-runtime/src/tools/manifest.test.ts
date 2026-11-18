@@ -37,7 +37,6 @@ void test("manifest wrapping preserves local tool callers and wraps their bound 
       effect: "read",
       trust: "open-world",
       execution: "inline",
-      modes: ["normal"],
     },
     { summary: "Test caller." },
   );

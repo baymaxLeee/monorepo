@@ -2,7 +2,9 @@ import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
 import { tool } from "ai";
 import { z } from "zod";
 
+import { getTaskProvider } from "../../../../infrastructure/clients/admin.js";
 import { canvasClient } from "../../../../infrastructure/clients/canvas.js";
+import { assertMediaGenerationConfirmed, confirmationIdSchema } from "./media.js";
 
 const contextSchema = z.object({
   userId: z.string(),
@@ -36,7 +38,7 @@ const generationConfigPatchSchema = z.object({
   watermark: z.boolean().optional(),
 });
 
-export function createCanvasToolManifests(providers: { textProviderId: string; videoProviderId: string | null }) {
+export function createCanvasToolManifests(providers: { textProviderId: string }) {
   return [
     defineAgentTool(
       "read_canvas",
@@ -53,7 +55,6 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
         effect: "read",
         trust: "private-untrusted",
         execution: "inline",
-        modes: ["normal", "plan"],
       },
       { summary: "Read the bound canvas and its current node revisions." },
     ),
@@ -61,8 +62,10 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
       "create_canvas_storyboard_drafts",
       tool({
         description:
-          "Start storyboard splitting through the bound Canvas HTTP endpoint. Do not split the plot or prepare shots in Chat: Canvas owns the native function-call planner, durable draft node, confirmation and cancellation lifecycle used by both manual and sessional entrypoints. Call ask_user first to collect or confirm the video duration range, shot duration range, resolution, aspect ratio, audio and watermark settings; never ask the user to choose a model. Provider ids are injected from this Agent's binding. Recover the task through read_canvas; never open or emulate a second event stream.",
+          "Start storyboard splitting through the bound Canvas HTTP endpoint. Do not split the plot or prepare shots in Chat: Canvas owns the native function-call planner and durable draft lifecycle. The server rejects this call unless the current user turn contains a fresh video list_media_models result, a media_model_selection ask_user answer, a matching prepare_media_generation result and a separate media_generation_configuration confirmation. Recover the task through read_canvas; never open or emulate a second event stream.",
         inputSchema: z.object({
+          video_provider_id: z.string().min(1).max(32),
+          confirmation_id: confirmationIdSchema,
           plot: z.string().min(1).max(30000),
           canvas_node_duration_min_seconds: z.number().int().positive(),
           canvas_node_duration_max_seconds: z.number().int().positive(),
@@ -74,8 +77,19 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
           watermark: z.boolean(),
         }),
         contextSchema,
-        execute: (input, { context, abortSignal }) =>
-          canvasClient().startStoryboardDrafts(
+        execute: async (input, { context, abortSignal, messages }) => {
+          assertMediaGenerationConfirmed(
+            "video",
+            input,
+            [input.video_provider_id],
+            input.confirmation_id,
+            messages,
+          );
+          const videoProvider = await getTaskProvider(context.tenantId, context.workspaceId, input.video_provider_id);
+          if (videoProvider.providerKind !== "video" || !videoProvider.isEnabled) {
+            throw new Error(`provider ${videoProvider.id} is not an enabled video model`);
+          }
+          return canvasClient().startStoryboardDrafts(
             context,
             context.projectId,
             context.canvasId,
@@ -89,7 +103,7 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
               },
               model_config: {
                 inference_model_service_id: providers.textProviderId,
-                video_model_service_id: providers.videoProviderId ?? "",
+                video_model_service_id: videoProvider.id,
                 video_parameters: {
                   resolution: input.resolution,
                   aspect_ratio: input.aspect_ratio,
@@ -99,14 +113,14 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
               },
             },
             abortSignal,
-          ),
+          );
+        },
       }),
-      { capability: "canvas", effect: "update", trust: "closed", execution: "inline", modes: ["normal"] },
+      { capability: "canvas", effect: "update", trust: "closed", execution: "inline" },
       {
         summary: "Start Canvas's unified durable storyboard planner over HTTP.",
         prerequisites: [
-          "Use ask_user in the current sessional flow to confirm video parameters before submission.",
-          "Use the Agent-bound providers; never ask for or accept a user-selected model id.",
+          "Use list_media_models, media_model_selection, prepare_media_generation and a separate media_generation_configuration confirmation before submission.",
         ],
       },
     ),
@@ -120,7 +134,7 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
         execute: (input, { context, abortSignal }) =>
           canvasClient().generateNodes(context, context.projectId, context.canvasId, input.node_ids, abortSignal),
       }),
-      { capability: "canvas", effect: "update", trust: "closed", execution: "inline", modes: ["normal"] },
+      { capability: "canvas", effect: "update", trust: "closed", execution: "inline" },
       { summary: "Start one or more durable image/video node jobs; one node uses a one-item array." },
     ),
     defineAgentTool(
@@ -146,7 +160,7 @@ export function createCanvasToolManifests(providers: { textProviderId: string; v
         execute: ({ node_id, ...patch }, { context, abortSignal }) =>
           canvasClient().updateNode(context, context.projectId, context.canvasId, node_id, patch, abortSignal),
       }),
-      { capability: "canvas", effect: "update", trust: "closed", execution: "inline", modes: ["normal"] },
+      { capability: "canvas", effect: "update", trust: "closed", execution: "inline" },
       { summary: "Patch one canvas node without replacing the graph or unrelated fields." },
     ),
   ];

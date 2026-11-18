@@ -63,16 +63,19 @@ export function LocalSession({
   const scrollRef = useRef<ConversationScrollHandle>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void getLocalInferenceConfig(initial.agentId ? { agent_id: initial.agentId } : undefined, {
+    void getLocalInferenceConfig(
+      { provider_id: initial.providerId, reasoning_effort: initial.reasoningEffort },
+      {
       signal: controller.signal,
       skipErrorNotify: true,
-    })
+      },
+    )
       .then((config) => {
         if (!controller.signal.aborted) setInferenceConfig(config);
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [initial.agentId]);
+  }, [initial.providerId, initial.reasoningEffort]);
   useEffect(() => {
     const off = bridge.subscribe((event) => {
       if (event.type === "runtime-error") setError(event.message);
@@ -211,14 +214,14 @@ export function LocalSession({
                 <PlusIcon />
               </Button>
               <ChatComposerControls
-                agents={[
+                models={[
                   {
-                    id: inferenceConfig?.agentId ?? "local-default",
-                    name: inferenceConfig?.agentName ?? "默认 Agent",
+                    id: initial.providerId,
+                    name: inferenceConfig?.providerName ?? inferenceConfig?.model ?? "推理模型",
                   },
                 ]}
-                selectedAgentId={inferenceConfig?.agentId ?? "local-default"}
-                mode="normal"
+                selectedModelId={initial.providerId}
+                reasoningEffort={initial.reasoningEffort}
               />
               <ContextUsage value={null} loading={busy} />
               <ApprovalMode

@@ -12,14 +12,14 @@ func TestRestoreOperationIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load generated Admin spec: %v", err)
 	}
-	operation := spec.Paths.Find("/bot").Get
-	if operation.OperationID != "ListBots" {
+	operation := spec.Paths.Find("/skills").Get
+	if operation.OperationID != "ListSkills" {
 		t.Fatalf("expected oapi-codegen operation name before restore, got %q", operation.OperationID)
 	}
 
 	restoreOperationIDs(spec)
 
-	if operation.OperationID != "list_bots" {
+	if operation.OperationID != "list_skills" {
 		t.Fatalf("restored operationId = %q", operation.OperationID)
 	}
 	if _, exists := operation.Extensions["x-original-operation-id"]; exists {

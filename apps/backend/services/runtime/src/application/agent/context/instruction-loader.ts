@@ -1,13 +1,8 @@
-import type { BotProfileSnapshot, InstructionInput, MemoryDatum } from "@repo/agent-runtime/instructions/index";
+import type { InstructionInput, MemoryDatum } from "@repo/agent-runtime/instructions/index";
 
-import type { AgentMode } from "../agents/types.js";
 import { listActiveMemories } from "../memory/repository.js";
 
-export async function loadInstructionContext(params: {
-  userId: string;
-  mode: AgentMode;
-  botProfile?: BotProfileSnapshot | null;
-}): Promise<InstructionInput> {
+export async function loadInstructionContext(params: { userId: string }): Promise<InstructionInput> {
   const memories = await listActiveMemories(params.userId);
 
   const memoryData: MemoryDatum[] = memories.map((memory) => ({
@@ -18,8 +13,6 @@ export async function loadInstructionContext(params: {
   }));
 
   return {
-    mode: params.mode,
-    botProfile: params.botProfile ?? null,
     memories: memoryData,
     activatedSkill: null,
   };

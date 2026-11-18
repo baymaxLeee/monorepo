@@ -1,6 +1,8 @@
 // Generated from schemas/desktop/bridge.ts by just sync. Do not edit.
 import type { UIMessage, UIMessageChunk } from "ai";
 
+export type LocalReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
 export type LocalApprovalMode = "request" | "auto" | "full";
 
 export interface LocalPendingInput {
@@ -17,7 +19,8 @@ export interface LocalThread {
   mode: "local";
   title: string;
   workspace: string;
-  agentId: string | null;
+  providerId: string;
+  reasoningEffort: LocalReasoningEffort;
   approvalMode: LocalApprovalMode;
   status: "idle" | "running" | "waiting" | "interrupted" | "cancelled" | "error";
   turnId: string | null;
@@ -56,7 +59,12 @@ export interface DesktopBridge {
   refreshSession(): Promise<unknown>;
   listThreads(): Promise<LocalThread[]>;
   selectWorkspace(): Promise<string | null>;
-  createThread(workspace: string, agentId: string | null, approvalMode: LocalApprovalMode): Promise<LocalThread>;
+  createThread(
+    workspace: string,
+    providerId: string,
+    reasoningEffort: LocalReasoningEffort,
+    approvalMode: LocalApprovalMode,
+  ): Promise<LocalThread>;
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
   send(id: string, text: string, messageId: string): Promise<void>;

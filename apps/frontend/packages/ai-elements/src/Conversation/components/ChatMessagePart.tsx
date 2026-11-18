@@ -33,9 +33,6 @@ export function ChatMessagePart({
   onOpenImage,
   onAnswerClientTool,
   onToolApproval,
-  onExecutePlan,
-  planExecutedIds,
-  planBusy,
 }: {
   part: ChatUIMessage["parts"][number];
   sources: SourceItem[];
@@ -52,9 +49,6 @@ export function ChatMessagePart({
   onOpenImage: (partIndex: number) => void;
   onAnswerClientTool?: (toolName: string, toolCallId: string, output: unknown) => void;
   onToolApproval?: (approvalId: string, approved: boolean) => void;
-  onExecutePlan?: (fileId: string) => void;
-  planExecutedIds: ReadonlySet<string>;
-  planBusy: boolean;
 }) {
   if (part.type === "reasoning") {
     const isReasoningStreaming = streaming && part.state === "streaming";
@@ -130,9 +124,6 @@ export function ChatMessagePart({
         filename={artifact.filename}
         title={artifact.title}
         onOpen={open}
-        onExecute={artifact.kind === "plan" && onExecutePlan ? () => onExecutePlan(artifact.file_id) : undefined}
-        executed={planExecutedIds.has(artifact.file_id)}
-        busy={planBusy}
       />
     );
   }

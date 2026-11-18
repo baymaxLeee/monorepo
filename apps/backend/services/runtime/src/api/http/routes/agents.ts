@@ -1,5 +1,4 @@
 import { zValidator } from "@hono/zod-validator";
-import type { BotProfileSnapshot } from "@repo/agent-runtime/instructions/index";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -17,13 +16,8 @@ import {
   isRunActive,
 } from "../../../application/agent/index.js";
 import { RequestError } from "../../../application/errors.js";
-import { getSessionRow } from "../../../application/sessions.js";
-import {
-  type AgentSkillRef,
-  getAgent,
-  getProvider,
-  type ProviderSnapshot,
-} from "../../../infrastructure/clients/admin.js";
+import { getSessionRow, updateSessionModel } from "../../../application/sessions.js";
+import { getProvider, listSkills, type ProviderSnapshot } from "../../../infrastructure/clients/admin.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getAuth } from "../middleware/auth.js";
 
@@ -41,15 +35,12 @@ const runSchema = z.object({
     .max(64)
     .regex(/^[a-zA-Z0-9_-]+$/),
   generate_title: z.boolean().optional(),
-  agent_id: z.string().max(32).optional().nullable(),
   host_context: z
     .object({
       project_id: z.string().min(1).max(36),
       canvas_id: z.string().min(1).max(36),
     })
     .optional(),
-  // Ephemeral per-run behavior selector (ADR-0035); not persisted.
-  mode: z.enum(["normal", "plan"]).optional(),
 });
 
 const steeringSchema = z.object({
@@ -78,29 +69,25 @@ agentsRoutes.post(
       throw new RequestError("chat request id does not match the route session");
     }
 
-    let textProvider: ProviderSnapshot & LanguageProviderSnapshot;
-    let imageProvider: ProviderSnapshot | null = null;
-    let videoProviderId: string | null = null;
-    let botProfile: BotProfileSnapshot | null = null;
-    let botSkills: AgentSkillRef[] = [];
-    if (payload.agent_id) {
-      const agent = await getAgent(auth.userId, payload.agent_id, auth.tenantId, auth.workspaceId);
-      textProvider = agent.text ?? (await getProvider(auth.tenantId, auth.workspaceId, null));
-      imageProvider = agent.image;
-      videoProviderId = agent.video?.id ?? null;
-      botProfile = agent.profile;
-      botSkills = agent.skills;
-    } else {
-      textProvider = await getProvider(auth.tenantId, auth.workspaceId, null);
+    const session = await getSessionRow(auth, sessionId);
+    const textProvider: ProviderSnapshot & LanguageProviderSnapshot = await getProvider(
+      auth.tenantId,
+      auth.workspaceId,
+      session.providerId || null,
+    );
+    const reasoningEffort = session.reasoningEffort as Parameters<typeof updateSessionModel>[2]["reasoningEffort"];
+    if (!session.providerId || session.model !== textProvider.model) {
+      await updateSessionModel(auth, sessionId, {
+        providerId: textProvider.id,
+        model: textProvider.model,
+        reasoningEffort,
+      });
     }
+    const skills = await listSkills(auth.tenantId, auth.workspaceId);
 
     return createAgentRunResponse(auth, sessionId, textProvider, [payload.message], {
-      imageProvider,
-      videoProviderId,
-      botProfile,
-      botSkills,
-      mode: payload.mode,
-      agentId: payload.agent_id,
+      reasoningEffort,
+      skills,
       projectId: payload.host_context?.project_id,
       canvasId: payload.host_context?.canvas_id,
       trigger: payload.trigger,

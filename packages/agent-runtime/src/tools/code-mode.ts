@@ -132,7 +132,6 @@ export function createCodeModeManifest() {
       effect: "read",
       trust: "open-world",
       execution: "inline",
-      modes: ["normal", "plan"],
     },
     {
       summary: "Use JavaScript to search and fetch public sources concurrently, then filter or combine results.",

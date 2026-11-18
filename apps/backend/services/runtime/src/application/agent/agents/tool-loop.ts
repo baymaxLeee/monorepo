@@ -89,7 +89,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   let previousResponseId = input.previousResponseId ?? null;
   let responseId: string | null = null;
   let parentResponseId = previousResponseId;
-  const botSkills = input.botSkills ?? [];
+  const botSkills = input.skills ?? [];
   const loadSkillBody = input.loadSkillBody;
   const loadSkillFile = input.loadSkillFile;
   const skillSource =
@@ -105,15 +105,12 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     {
       projectId: input.projectId,
       canvasId: input.canvasId,
-      mode: input.mode,
       runId: input.runId,
       userId: input.userId,
       sessionId: input.sessionId,
     },
     {
       textProvider: provider,
-      imageProvider: input.imageProvider ?? null,
-      videoProviderId: input.videoProviderId ?? null,
     },
     skillSource,
   );
@@ -146,12 +143,11 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     runId: input.runId,
     userId: input.userId,
     sessionId: input.sessionId,
-    profileId: input.mode,
     runtimeKind: "tool-loop",
     orchestration: deriveOrchestrationState([]),
   };
   const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
-  const providerModel = createInferenceModel(provider);
+  const providerModel = createInferenceModel(provider, input.reasoningEffort);
   const toolSources = new Map(resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]));
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
@@ -182,7 +178,6 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   const agent = createAgentHarness<AgentRuntimeContext>({
     id: "chat-agent",
     model: providerModel,
-    mode: input.mode,
     environment: resolvedTools.environment,
     middleware: [contextCaptureMiddleware],
     workspace: {
@@ -196,7 +191,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     experimental_toolCallers: codeModeToolCallers as never,
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
-    toolApproval: createToolApprovalPolicy(input.mode),
+    toolApproval: createToolApprovalPolicy(),
     repairToolCall: async ({ toolCall, error }) => {
       await observe(
         "record rejected tool call",
@@ -235,7 +230,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
         startSpan("agent.model_step", {
           "agent.run_id": input.runId,
           "agent.session_id": input.sessionId,
-          "agent.profile": input.mode,
+          "agent.profile": "primary",
           "agent.step_number": currentStepNumber,
           "gen_ai.request.model": provider.model,
         }),

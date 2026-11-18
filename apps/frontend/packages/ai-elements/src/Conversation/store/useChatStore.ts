@@ -1,7 +1,4 @@
-import { type Bot, listBots } from "@repo/api/admin";
-import { getErrorMessage } from "@repo/shared";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 import { allowArtifactNavigation } from "./artifactNavigationGuard";
 
@@ -31,12 +28,6 @@ export type VideoProductionWorkspaceState = {
 };
 
 export type ChatUIState = {
-  agents: Bot[] | null;
-  agentsError: string | null;
-  isLoadingAgents: boolean;
-  loadAgents: () => Promise<void>;
-  selectedAgentId: string | null;
-  setSelectedAgentId: (id: string | null) => void;
   memoryPanelOpen: boolean;
   setMemoryPanelOpen: (open: boolean) => void;
   tracePanelOpen: boolean;
@@ -63,8 +54,6 @@ export type ChatUIState = {
   applyConversationTitle: (id: string, title: string) => void;
 };
 
-type Persisted = Pick<ChatUIState, "selectedAgentId">;
-
 const CLOSED_ARTIFACT_PREVIEW: ArtifactPreviewState = {
   open: false,
   conversationId: null,
@@ -86,35 +75,7 @@ const CLOSED_VIDEO_PRODUCTION_WORKSPACE: VideoProductionWorkspaceState = {
   productionId: null,
 };
 
-export const useChatStore = create<ChatUIState>()(
-  persist(
-    (set, get) => ({
-      agents: null,
-      agentsError: null,
-      isLoadingAgents: false,
-      async loadAgents() {
-        if (get().isLoadingAgents) {
-          return;
-        }
-        set({ isLoadingAgents: true, agentsError: null });
-        try {
-          const list = await listBots({ skipErrorNotify: true });
-          const selected = get().selectedAgentId;
-          const stillExists = selected ? list.some((a) => a.id === selected) : false;
-          set({
-            agents: list,
-            selectedAgentId: stillExists ? selected : (list[0]?.id ?? null),
-          });
-        } catch (error) {
-          set({ agents: [], agentsError: getErrorMessage(error) });
-        } finally {
-          set({ isLoadingAgents: false });
-        }
-      },
-
-      selectedAgentId: null,
-      setSelectedAgentId: (selectedAgentId) => set({ selectedAgentId }),
-
+export const useChatStore = create<ChatUIState>()((set) => ({
       memoryPanelOpen: false,
       setMemoryPanelOpen: (memoryPanelOpen) =>
         void (memoryPanelOpen ? allowArtifactNavigation() : Promise.resolve(true)).then((allowed) => {
@@ -256,13 +217,4 @@ export const useChatStore = create<ChatUIState>()(
             },
           };
         }),
-    }),
-    {
-      name: "chat.store",
-      version: 2,
-      partialize: (state): Persisted => ({
-        selectedAgentId: state.selectedAgentId,
-      }),
-    },
-  ),
-);
+}));

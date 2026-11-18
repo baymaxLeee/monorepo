@@ -43,7 +43,6 @@ export function createExecutionHostManifests<CONTEXT extends Record<string, unkn
           effect: "read",
           trust: "closed",
           execution: "inline",
-          modes: ["normal"],
         },
         { summary: "Refresh external session sources without changing workspace files." },
       ),

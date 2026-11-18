@@ -15,7 +15,8 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
     refreshSession: () => call("refreshSession"),
     listThreads: () => call("list"),
     selectWorkspace: () => call("selectWorkspace"),
-    createThread: (workspace, agentId, approvalMode) => call("create", { workspace, agentId, approvalMode }),
+    createThread: (workspace, providerId, reasoningEffort, approvalMode) =>
+      call("create", { workspace, providerId, reasoningEffort, approvalMode }),
     getThread: (id) => call("get", id),
     openStream: (id) => call("openStream", id),
     send: (id, text, messageId) => call("send", { id, text, messageId }),

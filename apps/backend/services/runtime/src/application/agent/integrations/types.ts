@@ -1,11 +1,8 @@
 import type { ToolSet } from "@ai-sdk/provider-utils";
 
-import type { AgentMode } from "../agents/types.js";
-
 export interface AgentExtensionContext {
   projectId?: string | null;
   canvasId?: string | null;
-  mode: AgentMode;
   runId: string;
   userId: string;
   sessionId: string;

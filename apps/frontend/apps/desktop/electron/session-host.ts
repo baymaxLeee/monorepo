@@ -30,7 +30,7 @@ import {
 } from "ai";
 
 import type { DesktopEvent, LocalApprovalMode, LocalPendingInput, LocalThread } from "../contracts/bridge.generated";
-import type { InferenceConfig } from "../contracts/inference.generated";
+import type { InferenceConfig, ReasoningEffort } from "../contracts/inference.generated";
 import { LocalJournal } from "./journal";
 import { relayModel, type RelayCall } from "./relay-model";
 import { LocalSandbox, type SandboxOptions } from "./sandbox";
@@ -65,7 +65,7 @@ export interface SessionHostOptions {
   supervisor: string;
   executable: string;
   fileWorker: string;
-  config(agentId: string | null, signal: AbortSignal): Promise<InferenceConfig>;
+  config(providerId: string, reasoningEffort: ReasoningEffort, signal: AbortSignal): Promise<InferenceConfig>;
   webSearch(input: WebSearchInput, signal?: AbortSignal): Promise<WebSearchOutput>;
   call: RelayCall;
   emit(event: DesktopEvent): void;
@@ -124,14 +124,20 @@ export class LocalSessionHost {
     this.journal.save(thread);
     this.options.emit({ type: "thread", thread: structuredClone(thread) });
   }
-  async create(workspace: string, agentId: string | null, approvalMode: LocalApprovalMode) {
+  async create(
+    workspace: string,
+    providerId: string,
+    reasoningEffort: ReasoningEffort,
+    approvalMode: LocalApprovalMode,
+  ) {
     if (this.closed) throw new Error("本地运行时正在关闭");
     const thread: LocalThread = {
       id: randomUUID(),
       mode: "local",
       title: "本地会话",
       workspace: await realpath(workspace),
-      agentId,
+      providerId,
+      reasoningEffort,
       approvalMode,
       status: "idle",
       turnId: null,
@@ -331,12 +337,11 @@ export class LocalSessionHost {
     try {
       workspace = await this.workspace(thread);
       const runWorkspace = workspace;
-      const config = await this.options.config(thread.agentId, signal);
+      const config = await this.options.config(thread.providerId, thread.reasoningEffort, signal);
       const model = relayModel(config, this.options.call);
       let modelEpoch = runWorkspace.epoch;
       const artifacts = publishedArtifacts(thread.messages);
       const portableTools = createPortableToolRegistry({
-        mode: "normal",
         model: {
           name: config.model,
           model,
@@ -433,10 +438,9 @@ export class LocalSessionHost {
       );
       const agent = createAgentHarness({
         model,
-        mode: "normal",
         environment,
         tools,
-        toolApproval: createToolApprovalPolicy("normal", { getApprovalMode: () => thread.approvalMode }),
+        toolApproval: createToolApprovalPolicy({ getApprovalMode: () => thread.approvalMode }),
         activeTools,
         toolOrder: [...activeTools].sort(),
         experimental_toolCallers: codeModeToolCallers as never,

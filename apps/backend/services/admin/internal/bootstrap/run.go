@@ -57,7 +57,6 @@ func Run(ctx context.Context) error {
 	providers := application.ProviderService{Repository: providerRepository, Keys: keys, Errors: errorClassifier, Probe: providerprobe.New()}
 	apps := application.AppService{Repository: persistence.AppRepository{Pool: pool}, Errors: errorClassifier}
 	canvas := application.CanvasSettingsService{Store: persistence.CanvasSettingsRepository{Pool: pool}, Providers: providerRepository}
-	bots := application.BotService{Repository: persistence.BotRepository{Pool: pool}, Providers: providers, Errors: errorClassifier}
 	storageConnection, err := innerruntime.DialContext(ctx, config.StorageRPCTarget, innerruntime.ClientOptions{Caller: "admin", DefaultTimeout: config.ShutdownTimeout})
 	if err != nil {
 		return err
@@ -75,14 +74,14 @@ func Run(ctx context.Context) error {
 		Errors:     errorClassifier,
 	}
 	readiness := health.Readiness{Postgres: pool, Redis: redisClient}
-	handler := httpapi.New(readiness, providers, apps, canvas, bots, skills, benefitPackages)
+	handler := httpapi.New(readiness, providers, apps, canvas, skills, benefitPackages)
 	server := &http.Server{Addr: fmt.Sprintf(":%d", config.Port), Handler: otelhttp.NewHandler(handler, "admin"), ReadHeaderTimeout: config.ShutdownTimeout}
 	rpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", config.RPCPort))
 	if err != nil {
 		return fmt.Errorf("listen on admin RPC port: %w", err)
 	}
 	rpcServer := innerruntime.NewServer(innerruntime.ServerOptions{Authorizer: rpcapi.Authorizer()})
-	rpcapi.Register(rpcServer, providers, bots, canvas, &skills, benefitPackages)
+	rpcapi.Register(rpcServer, providers, canvas, &skills, benefitPackages)
 	errCh := make(chan error, 2)
 	go func() { errCh <- server.ListenAndServe() }()
 	go func() { errCh <- rpcServer.Serve(rpcListener) }()

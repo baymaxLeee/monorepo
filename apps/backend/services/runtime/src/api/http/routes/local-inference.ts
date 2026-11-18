@@ -11,10 +11,17 @@ import { getAuth } from "../middleware/auth.js";
 export const localInferenceRoutes = new Hono();
 localInferenceRoutes.use("*", bodyLimit({ maxSize: 2 * 1024 * 1024 }));
 localInferenceRoutes.get("/config", async (c) => {
-  const agentId = c.req.query("agent_id") ?? null;
-  if (agentId != null && (!agentId || agentId.length > 32)) throw new RequestError("Invalid Agent id");
+  const providerId = c.req.query("provider_id");
+  const reasoningEffort = c.req.query("reasoning_effort");
+  if (!providerId || providerId.length > 32) throw new RequestError("Invalid provider id");
+  if (!reasoningEffort || !["none", "minimal", "low", "medium", "high", "xhigh", "max"].includes(reasoningEffort)) {
+    throw new RequestError("Invalid reasoning effort");
+  }
   c.header("Cache-Control", "no-store");
-  return c.json((await resolveInferenceProvider(getAuth(c), agentId)).config);
+  return c.json(
+    (await resolveInferenceProvider(getAuth(c), providerId, reasoningEffort as Parameters<typeof resolveInferenceProvider>[2]))
+      .config,
+  );
 });
 localInferenceRoutes.post("/stream", async (c) => {
   let input: unknown;
