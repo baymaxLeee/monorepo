@@ -3,7 +3,7 @@ import { CornerDownLeft } from "lucide-react";
 export interface PendingAgentInput {
   id: string;
   text: string;
-  delivery: "steer" | "queue";
+  mode: "follow-up" | "next-turn";
   state: "accepted" | "dispatching" | "not_delivered" | "unconfirmed";
 }
 
@@ -29,7 +29,7 @@ export function PendingInputStack({ inputs }: { inputs: readonly PendingAgentInp
               ? "状态待确认"
               : input.state === "not_delivered"
                 ? "未加入当前任务"
-                : input.delivery === "queue"
+                : input.mode === "next-turn"
                   ? "下一项"
                   : "引导当前任务"}
           </span>

@@ -9,7 +9,7 @@ export interface LocalPendingInput {
   id: string;
   turnId: string;
   text: string;
-  delivery: "steer" | "queue";
+  mode: "follow-up" | "next-turn";
   state: "accepted" | "delivered" | "not_delivered" | "unconfirmed";
   stepNumber?: number;
   reason?: string;
@@ -52,7 +52,7 @@ export type DesktopEvent =
 // Only these capabilities cross preload. No arbitrary channel, path grant,
 // process spawn, fetch URL or provider credential is exposed to page code.
 export interface DesktopBridge {
-  readonly version: 1;
+  readonly version: 2;
   info(): Promise<{ platform: string; localAvailable: boolean; origin: string }>;
   bindSession(accessToken: string, expiresAt: string): Promise<void>;
   clearSession(): Promise<void>;
@@ -68,12 +68,12 @@ export interface DesktopBridge {
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
   send(id: string, text: string, messageId: string): Promise<void>;
-  steer(
+  submitRunInput(
     id: string,
     expectedTurnId: string,
     text: string,
     messageId: string,
-    delivery: "steer" | "queue",
+    mode: "follow-up" | "next-turn",
   ): Promise<{ admission: "accepted" | "duplicate"; turnId: string }>;
   approve(id: string, approvalId: string, approved: boolean): Promise<void>;
   setApprovalMode(id: string, approvalMode: LocalApprovalMode): Promise<void>;

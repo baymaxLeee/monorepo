@@ -128,21 +128,12 @@ function fixture() {
     approve: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
     send: vi.fn(async () => {}),
-    steer: vi.fn(async () => ({ admission: "accepted", turnId: "turn" })),
+    submitRunInput: vi.fn(async () => ({ admission: "accepted", turnId: "turn" })),
     openStream: vi.fn(async () => ({ thread, segment: null })),
   } as unknown as DesktopBridge;
   const transport = new LocalChatTransport(bridge, thread.id);
   return { thread, bridge, transport, off, emit: (event: DesktopEvent) => listener?.(event) };
 }
-
-test("treats a legacy local thread without pending inputs as an empty queue", () => {
-  const f = fixture();
-  Reflect.deleteProperty(f.thread, "pendingInputs");
-
-  expect(() =>
-    render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />),
-  ).not.toThrow();
-});
 
 test("clears a submitted local prompt immediately and uses the task-oriented placeholder", async () => {
   promptApi.clear.mockClear();
@@ -204,7 +195,7 @@ test("running input stays editable until Desktop admits it and then appears abov
   const f = fixture();
   f.thread.status = "running";
   f.thread.turnId = "turn";
-  f.bridge.steer = vi.fn(
+  f.bridge.submitRunInput = vi.fn(
     () =>
       new Promise<{ admission: "accepted"; turnId: string }>((resolve) => {
         admit = resolve;
@@ -213,7 +204,8 @@ test("running input stays editable until Desktop admits it and then appears abov
   render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />);
 
   fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() => expect(f.bridge.steer).toHaveBeenCalledOnce());
+  await waitFor(() => expect(f.bridge.submitRunInput).toHaveBeenCalledOnce());
+  expect(f.bridge.submitRunInput).toHaveBeenCalledWith("local", "turn", "创建文件", expect.any(String), "follow-up");
   expect(promptApi.clear).not.toHaveBeenCalled();
   expect(screen.getByTestId("submit-while-loading").textContent).toBe("false");
   admit({ admission: "accepted", turnId: "turn" });

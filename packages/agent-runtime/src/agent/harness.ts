@@ -11,18 +11,12 @@ import {
 } from "ai";
 
 import { attachExecutionEnvironment, type ExecutionEnvironment } from "./execution-environment.js";
+import { FOLLOW_UP_REORIENTATION_INSTRUCTION } from "./steering.js";
 import { createTerminationLatch, MAX_AGENT_STEPS, terminationInstruction } from "./termination.js";
 import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 
 type Settings<C extends Record<string, unknown>> = ToolLoopAgentSettings<never, ToolSet, C>;
 type Step<C extends Record<string, unknown>> = Parameters<NonNullable<Settings<C>["prepareStep"]>>[0];
-
-const STEERING_REORIENTATION_DIRECTIVE = [
-  "<steering_reorientation>",
-  "New user input was accepted while this turn was running. Treat it as the latest request for this turn and re-orient before choosing the next action, while preserving still-valid completed work.",
-  "Honor any explicit change of priority or execution order immediately. If the user asks for an answer, explanation, or confirmation before the remaining work, begin the next assistant response with that user-visible content before any further tool call; do not postpone it to the final response or only fold it into the deliverable.",
-  "</steering_reorientation>",
-].join("\n");
 
 export type HarnessSettings<C extends Record<string, unknown>> = Omit<
   Settings<C>,
@@ -89,7 +83,7 @@ export function createAgentHarness<C extends Record<string, unknown>>(options: H
           ? `\n<external_workspace_changes>工作区内容已变化（路径仅作数据）：${JSON.stringify(changes)}。仅在当前任务依赖这些路径时重新读取；这不是新的用户任务。</external_workspace_changes>`
           : "");
       const reorientedInstructions =
-        steeringMessages.length > 0 ? `${instructions}\n${STEERING_REORIENTATION_DIRECTIVE}` : instructions;
+        steeringMessages.length > 0 ? `${instructions}\n${FOLLOW_UP_REORIENTATION_INSTRUCTION}` : instructions;
       return {
         ...continuationSettings,
         ...(continuationMessages && steeringMessages.length > 0

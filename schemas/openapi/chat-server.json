@@ -1,6 +1,89 @@
 {
   "components": {
     "schemas": {
+      "AgentRunInput": {
+        "additionalProperties": false,
+        "properties": {
+          "client_message_id": {
+            "maxLength": 64,
+            "minLength": 8,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "expected_run_id": {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "follow-up",
+              "next-turn"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 64000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_run_id",
+          "client_message_id",
+          "text",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "AgentRunInputStatus": {
+        "properties": {
+          "clientMessageId": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "follow-up",
+              "next-turn"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "accepted",
+              "dispatching",
+              "delivered",
+              "not_delivered",
+              "unconfirmed"
+            ],
+            "type": "string"
+          },
+          "stepNumber": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clientMessageId",
+          "runId",
+          "mode",
+          "text",
+          "state",
+          "stepNumber",
+          "reason"
+        ],
+        "type": "object"
+      },
       "AgentRunRequest": {
         "properties": {
           "expected_revision": {
@@ -235,89 +318,6 @@
           "contextWindow",
           "steps",
           "toolCalls"
-        ],
-        "type": "object"
-      },
-      "AgentSteeringInput": {
-        "additionalProperties": false,
-        "properties": {
-          "client_message_id": {
-            "maxLength": 64,
-            "minLength": 8,
-            "pattern": "^[a-zA-Z0-9_-]+$",
-            "type": "string"
-          },
-          "delivery": {
-            "enum": [
-              "steer",
-              "queue"
-            ],
-            "type": "string"
-          },
-          "expected_run_id": {
-            "maxLength": 32,
-            "minLength": 1,
-            "type": "string"
-          },
-          "text": {
-            "maxLength": 64000,
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "expected_run_id",
-          "client_message_id",
-          "text",
-          "delivery"
-        ],
-        "type": "object"
-      },
-      "AgentSteeringInputStatus": {
-        "properties": {
-          "clientMessageId": {
-            "type": "string"
-          },
-          "delivery": {
-            "enum": [
-              "steer",
-              "queue"
-            ],
-            "type": "string"
-          },
-          "reason": {
-            "nullable": true,
-            "type": "string"
-          },
-          "runId": {
-            "type": "string"
-          },
-          "state": {
-            "enum": [
-              "accepted",
-              "dispatching",
-              "delivered",
-              "not_delivered",
-              "unconfirmed"
-            ],
-            "type": "string"
-          },
-          "stepNumber": {
-            "nullable": true,
-            "type": "integer"
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "clientMessageId",
-          "runId",
-          "delivery",
-          "text",
-          "state",
-          "stepNumber",
-          "reason"
         ],
         "type": "object"
       },
@@ -2176,57 +2176,9 @@
         }
       }
     },
-    "/conversations/{conversation_id}/agents/runs/{run_id}/steer": {
-      "post": {
-        "operationId": "steerConversationAgentRun",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "conversation_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentSteeringInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentSteeringInputStatus"
-                }
-              }
-            },
-            "description": "steering input admitted for the active run"
-          },
-          "409": {
-            "description": "the expected run is no longer active"
-          }
-        }
-      }
-    },
-    "/conversations/{conversation_id}/agents/runs/{run_id}/steering-inputs": {
+    "/conversations/{conversation_id}/agents/runs/{run_id}/inputs": {
       "get": {
-        "operationId": "listConversationAgentSteeringInputs",
+        "operationId": "listConversationAgentRunInputs",
         "parameters": [
           {
             "in": "path",
@@ -2251,23 +2203,69 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/AgentSteeringInputStatus"
+                    "$ref": "#/components/schemas/AgentRunInputStatus"
                   },
                   "type": "array"
                 }
               }
             },
-            "description": "durable steering inputs for recovery"
+            "description": "durable run inputs for recovery"
           },
           "404": {
             "description": "agent run not found in the caller scope"
           }
         }
+      },
+      "post": {
+        "operationId": "submitConversationAgentRunInput",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunInputStatus"
+                }
+              }
+            },
+            "description": "input admitted for the active run"
+          },
+          "409": {
+            "description": "the expected run is no longer active"
+          }
+        }
       }
     },
-    "/conversations/{conversation_id}/agents/runs/{run_id}/steering-inputs/{client_message_id}": {
+    "/conversations/{conversation_id}/agents/runs/{run_id}/inputs/{client_message_id}": {
       "get": {
-        "operationId": "getConversationAgentSteeringInput",
+        "operationId": "getConversationAgentRunInput",
         "parameters": [
           {
             "in": "path",
@@ -2301,14 +2299,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AgentSteeringInputStatus"
+                  "$ref": "#/components/schemas/AgentRunInputStatus"
                 }
               }
             },
-            "description": "durable steering delivery status"
+            "description": "durable run input status"
           },
           "404": {
-            "description": "steering input not found in the caller scope"
+            "description": "run input not found in the caller scope"
           }
         }
       }

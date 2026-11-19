@@ -20,7 +20,11 @@ ToolLoopAgent 使用 50 个 model step 的硬上限，并保留最后一步做�
 
 Bash 采用 Codex exec 的短默认 deadline：`timeout_ms` 默认 10 秒，模型只有在用户目标确实需要已知有界命令时才能显式提高，最大 120 秒。超时返回 `COMMAND_TIMEOUT` 和已有 stdout/stderr，不被随后 sandbox snapshot/destroy 错误覆盖；Runtime sandbox 先终止所有 guest process，保留已停止的 workspace 供 finalizer snapshot，持久化后再销毁 compute。简单问答不得为了追求未要求的穷举精度扩大成候选构建、指标聚合或自建数据流水线。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 只实现真实执行约束：`load_skill` 屏障、`ask_user` 独占以及有副作用工具的顺序，不承担规划。
 
-生成期间 composer 保持可编辑并可提交补充。每个活跃 run 创建一个 AI SDK `experimental_createSteering()` 通道；composer 的补充固定调用 `steer()`，在当前 tool 完成后的下一个 step 边界加入同一 run；`queue()` 仅供明确要求“当前任务终答后再做下一项”的调用方使用，不能作为补充上下文的默认路径。工具执行中途不被打断。SDK 是投递、顺序和去重语义的唯一所有者，并通过官方 `steering-message` UIMessage part 把已投递内容放回其真实步骤位置；宿主不得手工插入第二条用户消息或建立平行 loop。任何 `prepareStep` message override 都必须保留 SDK 提供的当前 steering messages，stored-response continuation 也不能只保留 tool result 而删除用户补充。Desktop 在本地 journal 记录 admission，Chat 在 PostgreSQL 记录 admission 并由持有 run lease 的进程投递，使任意服务实例都可接收请求。前端只在 admission 确认后清空原草稿，待投递项显示在 editor 上方；`delivered` 后由 transcript 中的官方 part 接管。`not_delivered` 与 `unconfirmed` 都保留为可见状态，不得自动创建下一 turn 或盲目重发，由用户明确决定是否作为新消息再次发送。client message id 与精确 run/turn、正文和 delivery 绑定，重试只允许完全相同的输入。
+生成期间 composer 保持可编辑并可提交输入。产品契约只有三种互不混用的动作：`follow-up` 是当前 turn 的补充或纠偏，在当前不可安全中断的 model/tool step 完成后进入下一次采样；`next-turn` 等当前任务产生终答后再开始下一项；显式 Stop/interrupt 取消当前执行。普通 `follow-up` 不隐式取消采样或工具，不重开 run，也不把问题强制提升成“先回答再继续”。这是 Codex 的 turn-local pending input、Claude Code 的 queued message / 独立 interrupt 和 Gemini CLI 的 model steering 共同边界；更激进的 send-now/sampling preemption 只有在 provider 与 SDK 能保留已提交 item、丢弃未提交采样并独立取消工具时才能增加，不能用整轮 Abort 或提示词伪装。
+
+每个活跃 run 创建一个产品侧 `AgentRunInputChannel`，其 `follow-up`/`next-turn` 在共享边界映射到 AI SDK 的 `steer()`/`queue()`。SDK 是 step-boundary 投递、顺序和去重语义的唯一所有者，并通过官方 `steering-message` UIMessage part 把已投递内容放回真实步骤位置；宿主不得手工插入第二条用户消息或建立平行 loop。`follow-up` 作为最新的普通 `role:user` 输入保留完整上下文：最新明确约束只覆盖冲突的旧约束，已完成工作与未受影响任务继续有效，只有用户明确取消或替换的部分才停止。Shared harness 在该 step 加一次性 re-orientation instruction，要求做上述最小差异更新；它不得复制用户正文、要求固定的可见 acknowledgement、或默认暂停原任务。任何 `prepareStep` message override 都必须保留 SDK 提供的当前 run input，stored-response continuation 也不能只保留 tool result 而删除用户补充。
+
+Desktop 在本地 journal 记录 admission，Chat 在 PostgreSQL `agent_run_inputs` 记录 admission 并由持有 run lease 的进程投递，使任意服务实例都可接收请求。前端只在 admission 确认后清空原草稿，待投递项显示在 editor 上方；`delivered` 后由 transcript 中的官方 part 接管。`not_delivered` 与 `unconfirmed` 都保留为可见状态，不得自动创建下一 turn 或盲目重发，由用户明确决定是否作为新消息再次发送。client message id 与精确 run/turn、正文和 mode 绑定，重试只允许完全相同的输入。
 
 PostgreSQL UIMessage 是语义会话记录；Redis 只在 run 活跃期间保存有界的原生 UIMessage SSE replay buffer，负责浏览器断网后的 transport resume；Runtime worker Workflow 负责跨进程的 execution resume。三者不可混同。Redis 的租约、容量、超限和终态删除由 [Chat 活跃流恢复决策](chat-stream-resumption.md) 统一拥有。断开浏览器只释放 subscriber；显式 Stop 才传播用户取消，收口未完成工具为官方 error 状态、取消未完成 todo，并等待 run finalizer。
 
@@ -66,7 +70,9 @@ Canvas、Media、Knowledge、Memory 等当前直连领域系统的工具暂留 R
 
 ## 取舍与事实源
 
-薄 harness 减少重复调度与状态机，但持久任务、授权、steering admission 和取消仍需要明确代码边界。不得把传输重连声称为主 agent 的进程崩溃恢复，也不增加隐藏 repair model。Steering 是 AI SDK 7 的实验能力；版本升级必须用真实 SDK producer/consumer 测试确认 outcome、`steering-message` 流和 `convertToModelMessages` 回放仍保持同一顺序。
+薄 harness 减少重复调度与状态机，但持久任务、授权、run-input admission 和取消仍需要明确代码边界。不得把传输重连声称为主 agent 的进程崩溃恢复，也不增加隐藏 repair model。底层 step delivery 使用 AI SDK 7 的实验 steering 能力；版本升级必须用真实 SDK producer/consumer 测试确认 outcome、`steering-message` 流和 `convertToModelMessages` 回放仍保持同一顺序。
+
+业内边界以当前一手资料为准：Codex `session/input_queue.rs` 与 `session/turn.rs` 将 pending input 在下一次 model request 前写入 history，并把 turn interrupt 分开；Claude Code 官方 Interactive mode 将普通 queued message、send-now 与 Esc interrupt 分开；Anthropic Agent SDK 将 streaming input 与 `interrupt()` 分开；Gemini CLI model steering 对更新做 add/modify/cancel/context 分类并要求不显式取消就保留未受影响任务。引用实现用于确定语义边界，不引入其厂商私有传输或隐藏模型调用。
 
 这一边界采用 [pi-agent core loop](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/agent-loop.ts) 的极简形态：模型输出 tool call，宿主校验并执行，tool result 回到同一 loop；没有工具调用时结束，宿主不复制 planner。硬执行边界参考 [Codex exec](https://github.com/openai/codex/blob/main/codex-rs/core/src/exec.rs)：短默认 timeout、调用方显式选择更长 deadline、超时/取消各自保留因果状态。它也采用 OpenAI Agents SDK 的 [LLM orchestration 与 agents-as-tools](https://openai.github.io/openai-agents-python/multi_agent/) 模式和 Anthropic [fold subagents into the main loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop) 建议：主模型保留最终综合权，只在真正的上下文隔离或并行收益存在时委派。这些来源证明设计形态，不替本项目规定业务工具、预算或权限；具体边界仍由本 ADR、实现和测试拥有。
 

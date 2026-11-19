@@ -127,17 +127,17 @@ async function dispatch(method: string, payload: unknown) {
       runtime.send(p.id, p.text, p.messageId);
       return null;
     }
-    case "steer": {
+    case "submitRunInput": {
       const p = z
         .object({
           id: idSchema,
           expectedTurnId: idSchema,
           messageId: idSchema,
           text: z.string().trim().min(1).max(64_000),
-          delivery: z.enum(["steer", "queue"]),
+          mode: z.enum(["follow-up", "next-turn"]),
         })
         .parse(payload);
-      return runtime.steer(p.id, p.expectedTurnId, p.text, p.messageId, p.delivery);
+      return runtime.submitRunInput(p.id, p.expectedTurnId, p.text, p.messageId, p.mode);
     }
     case "approve": {
       const p = z.object({ id: idSchema, approvalId: z.string().max(200), approved: z.boolean() }).parse(payload);

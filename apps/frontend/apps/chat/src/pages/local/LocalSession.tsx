@@ -34,7 +34,7 @@ export function LocalSession({
   const [inferenceConfig, setInferenceConfig] = useState<GetLocalInferenceConfig200 | null>(null);
   const promptRef = useRef<PromptInputRef>(null);
   const pendingPrompt = useRef<PromptInputValue | null>(null);
-  const pendingSteers = useRef(new Map<string, PromptInputValue>());
+  const pendingRunInputs = useRef(new Map<string, PromptInputValue>());
   const [chat] = useState(
     () =>
       new Chat<ChatUIMessage>({
@@ -56,7 +56,7 @@ export function LocalSession({
     status: initial.status,
     turnId: initial.turnId,
     error: initial.error,
-    pendingInputs: initial.pendingInputs ?? [],
+    pendingInputs: initial.pendingInputs,
     approvalMode: initial.approvalMode,
   });
   const approving = useRef(false);
@@ -90,7 +90,7 @@ export function LocalSession({
               status: thread.status,
               turnId: thread.turnId,
               error: thread.error,
-              pendingInputs: thread.pendingInputs ?? [],
+              pendingInputs: thread.pendingInputs,
               approvalMode: thread.approvalMode,
             });
             await chat.resumeStream();
@@ -103,7 +103,7 @@ export function LocalSession({
           status: event.thread.status,
           turnId: event.thread.turnId,
           error: event.thread.error,
-          pendingInputs: event.thread.pendingInputs ?? [],
+          pendingInputs: event.thread.pendingInputs,
           approvalMode: event.thread.approvalMode,
         });
         if (event.thread.status !== "running") chat.messages = event.thread.messages as ChatUIMessage[];
@@ -159,7 +159,7 @@ export function LocalSession({
           placeholder={busy ? "补充当前任务…" : "发送消息或创建任务…"}
           pendingInputs={state.pendingInputs.flatMap((input) =>
             input.state === "accepted" || input.state === "not_delivered" || input.state === "unconfirmed"
-              ? [{ id: input.id, text: input.text, delivery: input.delivery, state: input.state }]
+              ? [{ id: input.id, text: input.text, mode: input.mode, state: input.state }]
               : [],
           )}
           maxFiles={0}
@@ -174,15 +174,15 @@ export function LocalSession({
                 return;
               }
               const messageId = randomId();
-              pendingSteers.current.set(messageId, value);
+              pendingRunInputs.current.set(messageId, value);
               void bridge
-                .steer(initial.id, state.turnId, value.text, messageId, "steer")
+                .submitRunInput(initial.id, state.turnId, value.text, messageId, "follow-up")
                 .then(() => {
-                  pendingSteers.current.delete(messageId);
+                  pendingRunInputs.current.delete(messageId);
                   if (promptRef.current?.getValue().text === value.text) promptRef.current.clear();
                 })
                 .catch((cause) => {
-                  pendingSteers.current.delete(messageId);
+                  pendingRunInputs.current.delete(messageId);
                   setError(getErrorMessage(cause));
                 });
               return;

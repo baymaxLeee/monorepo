@@ -10,7 +10,7 @@ import { manifestsToTools } from "../tools/manifest.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import type { ExecutionEnvironment } from "./execution-environment.js";
 import { createAgentHarness } from "./harness.js";
-import { createAgentSteering } from "./steering.js";
+import { createAgentRunInputChannel } from "./steering.js";
 
 const finish: LanguageModelV4StreamPart = {
   type: "finish",
@@ -226,8 +226,11 @@ for (const approved of [false, true]) {
 }
 
 test("SDK steering is delivered, streamed as an official part, and replayed into model history", async () => {
-  const steering = createAgentSteering();
-  const outcomePromise = steering.steer("改成巴黎德州。", { id: "steer-client-message" });
+  const inputChannel = createAgentRunInputChannel();
+  const outcomePromise = inputChannel.submit("改成巴黎德州。", {
+    id: "steer-client-message",
+    mode: "follow-up",
+  });
   const agent = createAgentHarness({
     environment: environment("cloud"),
     tools: {},
@@ -248,7 +251,7 @@ test("SDK steering is delivered, streamed as an official part, and replayed into
   });
   const result = await agent.stream({
     messages: await convertToModelMessages(request),
-    experimental_steering: steering,
+    experimental_steering: inputChannel.steering,
   });
   let answer: UIMessage | undefined;
   for await (const item of readUIMessageStream({
@@ -272,6 +275,41 @@ test("SDK steering is delivered, streamed as an official part, and replayed into
   assert.equal(JSON.stringify(await convertToModelMessages([...request, answer])).includes("改成巴黎德州。"), true);
 });
 
+test("next-turn waits for the active task's final answer before entering model history", async () => {
+  const inputChannel = createAgentRunInputChannel();
+  const outcomePromise = inputChannel.submit("完成后再总结风险。", {
+    id: "next-turn-client-message",
+    mode: "next-turn",
+  });
+  let calls = 0;
+  const agent = createAgentHarness({
+    environment: environment("cloud"),
+    tools: {},
+    model: model((options) => {
+      calls += 1;
+      const prompt = JSON.stringify(options.prompt);
+      if (calls === 1) assert.doesNotMatch(prompt, /完成后再总结风险/);
+      else assert.match(prompt, /完成后再总结风险/);
+      return text;
+    }),
+  });
+  const result = await agent.stream({
+    messages: await convertToModelMessages(request),
+    experimental_steering: inputChannel.steering,
+  });
+  for await (const _ of result.fullStream) {
+    // Consume the run so the queued task reaches its post-answer boundary.
+  }
+
+  assert.equal(calls, 2);
+  assert.deepEqual(await outcomePromise, {
+    type: "delivered",
+    id: "next-turn-client-message",
+    message: { role: "user", content: "完成后再总结风险。" },
+    stepNumber: 1,
+  });
+});
+
 test("stored-response continuation keeps steering sent during a tool in the next step", async () => {
   let releaseTool: () => void = () => {};
   let markToolStarted: () => void = () => {};
@@ -289,7 +327,7 @@ test("stored-response continuation keeps steering sent during a tool in the next
     }),
   ]);
   let calls = 0;
-  const steering = createAgentSteering();
+  const inputChannel = createAgentRunInputChannel();
   const agent = createAgentHarness({
     environment: environment("cloud"),
     tools,
@@ -304,13 +342,15 @@ test("stored-response continuation keeps steering sent during a tool in the next
         const prompt = JSON.stringify(options.prompt);
         assert.equal(JSON.stringify(userMessages.at(-1)?.content).includes("继续检查日志"), true);
         assert.doesNotMatch(JSON.stringify(systemMessages), /继续检查日志/);
-        assert.match(prompt, /steering_reorientation/);
-        assert.match(prompt, /begin the next assistant response.*before any further tool call/);
+        assert.match(prompt, /follow_up_reorientation/);
+        assert.match(prompt, /keep completed work and unaffected pending work/);
+        assert.match(prompt, /Extra context does not by itself pause, cancel, reorder, or replace the original task/);
+        assert.doesNotMatch(prompt, /begin the next assistant response.*before any further tool call/);
         return [
           { type: "tool-call", toolCallId: "bash-after-steer", toolName: "bash", input: '{"command":"echo next"}' },
         ];
       }
-      assert.doesNotMatch(JSON.stringify(options.prompt), /steering_reorientation/);
+      assert.doesNotMatch(JSON.stringify(options.prompt), /follow_up_reorientation/);
       return text;
     }),
     continuation: ({ steps, messages }) => ({
@@ -323,7 +363,7 @@ test("stored-response continuation keeps steering sent during a tool in the next
   });
   const result = await agent.stream({
     messages: await convertToModelMessages(request),
-    experimental_steering: steering,
+    experimental_steering: inputChannel.steering,
   });
   const consumed = (async () => {
     for await (const _ of result.fullStream) {
@@ -331,7 +371,7 @@ test("stored-response continuation keeps steering sent during a tool in the next
     }
   })();
   await toolStarted;
-  const outcomePromise = steering.steer("继续检查日志", { id: "mid-tool-steer" });
+  const outcomePromise = inputChannel.submit("继续检查日志", { id: "mid-tool-steer", mode: "follow-up" });
   releaseTool();
   await consumed;
   assert.deepEqual(await outcomePromise, {

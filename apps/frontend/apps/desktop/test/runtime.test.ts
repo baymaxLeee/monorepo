@@ -258,7 +258,9 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     const active = f.runtime.get(f.thread.id);
     expect(active.turnId).toBeTruthy();
     const messageId = randomUUID();
-    expect(f.runtime.steer(f.thread.id, active.turnId!, "use the updated requirement", messageId, "steer")).toEqual({
+    expect(
+      f.runtime.submitRunInput(f.thread.id, active.turnId!, "use the updated requirement", messageId, "follow-up"),
+    ).toEqual({
       admission: "accepted",
       turnId: active.turnId,
     });
@@ -288,7 +290,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     await expect.poll(() => f.runtime.openStream(f.thread.id).segment).not.toBe(null);
     const active = f.runtime.get(f.thread.id);
     const supplementId = randomUUID();
-    f.runtime.steer(f.thread.id, active.turnId!, "do not replay me as a new turn", supplementId, "steer");
+    f.runtime.submitRunInput(f.thread.id, active.turnId!, "do not replay me as a new turn", supplementId, "follow-up");
     await f.runtime.stop(f.thread.id);
     expect(f.runtime.get(f.thread.id).status).toBe("cancelled");
     const interrupted = f.runtime.get(f.thread.id);

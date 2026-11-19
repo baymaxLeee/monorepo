@@ -1,17 +1,17 @@
 import {
-  getConversationAgentSteeringInput,
-  listConversationAgentSteeringInputs,
-  steerConversationAgentRun,
-  type AgentSteeringInputStatus,
+  getConversationAgentRunInput,
+  listConversationAgentRunInputs,
+  submitConversationAgentRunInput,
+  type AgentRunInputStatus,
 } from "@repo/api/chat";
 import { randomId } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PendingAgentInput } from "../components/PendingInputStack";
 
-type PendingInput = AgentSteeringInputStatus;
+type PendingInput = AgentRunInputStatus;
 
-export function useAgentSteering({
+export function useAgentRunInputs({
   conversationId,
   activeRunId,
   recoveryRunId,
@@ -29,7 +29,7 @@ export function useAgentSteering({
   useEffect(() => {
     if (!recoveryRunId) return;
     let active = true;
-    void listConversationAgentSteeringInputs(conversationId, recoveryRunId, { skipErrorNotify: true })
+    void listConversationAgentRunInputs(conversationId, recoveryRunId, { skipErrorNotify: true })
       .then((inputs) => {
         if (!active) return;
         setPending((current) => {
@@ -51,17 +51,17 @@ export function useAgentSteering({
   }, [conversationId, recoveryRunId]);
 
   const admit = useCallback(
-    async (text: string, delivery: "steer" | "queue" = "steer") => {
+    async (text: string, mode: "follow-up" | "next-turn" = "follow-up") => {
       if (!activeRunId) throw new Error("当前运行标识尚未确认，请稍后重试");
       const clientMessageId = randomId().replaceAll("-", "");
-      const input = await steerConversationAgentRun(
+      const input = await submitConversationAgentRunInput(
         conversationId,
         activeRunId,
         {
           expected_run_id: activeRunId,
           client_message_id: clientMessageId,
           text,
-          delivery,
+          mode,
         },
         { skipErrorNotify: true },
       );
@@ -80,7 +80,7 @@ export function useAgentSteering({
     const timer = window.setTimeout(() => {
       void Promise.all(
         pollable.map((input) =>
-          getConversationAgentSteeringInput(conversationId, input.runId, input.clientMessageId, {
+          getConversationAgentRunInput(conversationId, input.runId, input.clientMessageId, {
             skipErrorNotify: true,
           }).catch(() => null),
         ),
@@ -115,7 +115,7 @@ export function useAgentSteering({
               {
                 id: input.clientMessageId,
                 text: input.text,
-                delivery: input.delivery,
+                mode: input.mode,
                 state: input.state,
               },
             ]

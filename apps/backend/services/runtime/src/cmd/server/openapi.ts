@@ -379,40 +379,38 @@ const openapi = {
         },
       },
     },
-    "/sessions/{session_id}/agents/runs/{run_id}/steer": {
+    "/sessions/{session_id}/agents/runs/{run_id}/inputs": {
       post: {
-        operationId: "steerSessionAgentRun",
+        operationId: "submitSessionAgentRunInput",
         parameters: [pathParam, runPathParam],
         requestBody: {
           required: true,
-          content: { "application/json": { schema: ref("AgentSteeringInput") } },
+          content: { "application/json": { schema: ref("AgentRunInput") } },
         },
         responses: {
-          "202": jsonResponse("steering input admitted for the active run", ref("AgentSteeringInputStatus")),
+          "202": jsonResponse("input admitted for the active run", ref("AgentRunInputStatus")),
           "409": { description: "the expected run is no longer active" },
         },
       },
-    },
-    "/sessions/{session_id}/agents/runs/{run_id}/steering-inputs/{client_message_id}": {
       get: {
-        operationId: "getSessionAgentSteeringInput",
-        parameters: [pathParam, runPathParam, clientMessagePathParam],
+        operationId: "listSessionAgentRunInputs",
+        parameters: [pathParam, runPathParam],
         responses: {
-          "200": jsonResponse("durable steering delivery status", ref("AgentSteeringInputStatus")),
-          "404": { description: "steering input not found in the caller scope" },
+          "200": jsonResponse("durable run inputs for recovery", {
+            type: "array",
+            items: ref("AgentRunInputStatus"),
+          }),
+          "404": { description: "agent run not found in the caller scope" },
         },
       },
     },
-    "/sessions/{session_id}/agents/runs/{run_id}/steering-inputs": {
+    "/sessions/{session_id}/agents/runs/{run_id}/inputs/{client_message_id}": {
       get: {
-        operationId: "listSessionAgentSteeringInputs",
-        parameters: [pathParam, runPathParam],
+        operationId: "getSessionAgentRunInput",
+        parameters: [pathParam, runPathParam, clientMessagePathParam],
         responses: {
-          "200": jsonResponse("durable steering inputs for recovery", {
-            type: "array",
-            items: ref("AgentSteeringInputStatus"),
-          }),
-          "404": { description: "agent run not found in the caller scope" },
+          "200": jsonResponse("durable run input status", ref("AgentRunInputStatus")),
+          "404": { description: "run input not found in the caller scope" },
         },
       },
     },
@@ -785,10 +783,10 @@ const openapi = {
           status: { type: "string" },
         },
       },
-      AgentSteeringInput: {
+      AgentRunInput: {
         type: "object",
         additionalProperties: false,
-        required: ["expected_run_id", "client_message_id", "text", "delivery"],
+        required: ["expected_run_id", "client_message_id", "text", "mode"],
         properties: {
           expected_run_id: { type: "string", minLength: 1, maxLength: 32 },
           client_message_id: {
@@ -798,16 +796,16 @@ const openapi = {
             pattern: "^[a-zA-Z0-9_-]+$",
           },
           text: { type: "string", minLength: 1, maxLength: 64000 },
-          delivery: { type: "string", enum: ["steer", "queue"] },
+          mode: { type: "string", enum: ["follow-up", "next-turn"] },
         },
       },
-      AgentSteeringInputStatus: {
+      AgentRunInputStatus: {
         type: "object",
-        required: ["clientMessageId", "runId", "delivery", "text", "state", "stepNumber", "reason"],
+        required: ["clientMessageId", "runId", "mode", "text", "state", "stepNumber", "reason"],
         properties: {
           clientMessageId: { type: "string" },
           runId: { type: "string" },
-          delivery: { type: "string", enum: ["steer", "queue"] },
+          mode: { type: "string", enum: ["follow-up", "next-turn"] },
           text: { type: "string" },
           state: {
             type: "string",

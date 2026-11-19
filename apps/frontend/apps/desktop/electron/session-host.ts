@@ -7,7 +7,7 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { createAgentHarness } from "@repo/agent-runtime";
 import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
 import { createExecutionHostManifests } from "@repo/agent-runtime/agent/execution-host";
-import { createAgentSteering, type AgentSteering } from "@repo/agent-runtime/agent/steering";
+import { createAgentRunInputChannel, type AgentRunInputChannel } from "@repo/agent-runtime/agent/steering";
 import { fileDataChunks, workspaceMediaType, type PublishedWorkspaceFile } from "@repo/agent-runtime/protocol/artifact";
 import {
   applyToolApprovalResponse,
@@ -83,7 +83,7 @@ interface Workspace {
 interface ActiveRun {
   abort: AbortController;
   done: Promise<void>;
-  steering: AgentSteering;
+  inputChannel: AgentRunInputChannel;
   settlements: Set<Promise<void>>;
   turnId: string;
 }
@@ -239,12 +239,12 @@ export class LocalSessionHost {
     thread.messages.push({ id: messageId, role: "user", parts: [{ type: "text", text }] });
     this.start(thread);
   }
-  steer(id: string, expectedTurnId: string, text: string, messageId: string, delivery: LocalPendingInput["delivery"]) {
+  submitRunInput(id: string, expectedTurnId: string, text: string, messageId: string, mode: LocalPendingInput["mode"]) {
     if (this.closed) throw new Error("本地运行时正在关闭");
     const thread = this.get(id);
     const existing = thread.pendingInputs.find((input) => input.id === messageId);
     if (existing) {
-      if (existing.turnId !== expectedTurnId || existing.text !== text || existing.delivery !== delivery) {
+      if (existing.turnId !== expectedTurnId || existing.text !== text || existing.mode !== mode) {
         throw new Error("补充消息标识已绑定到不同的内容或轮次");
       }
       return { admission: "duplicate" as const, turnId: existing.turnId };
@@ -258,16 +258,13 @@ export class LocalSessionHost {
       id: messageId,
       turnId: expectedTurnId,
       text,
-      delivery,
+      mode,
       state: "accepted",
     };
     thread.pendingInputs.push(pending);
     this.save(thread);
-    const outcome = (
-      delivery === "queue"
-        ? active.steering.queue(text, { id: messageId })
-        : active.steering.steer(text, { id: messageId })
-    )
+    const outcome = active.inputChannel
+      .submit(text, { id: messageId, mode })
       .then((result) => {
         const current = thread.pendingInputs.find((input) => input.id === result.id);
         if (!current) return;
@@ -313,12 +310,12 @@ export class LocalSessionHost {
     this.current.set(thread.id, thread);
     this.save(thread);
     const abort = new AbortController();
-    const steering = createAgentSteering();
+    const inputChannel = createAgentRunInputChannel();
     const turnId = thread.turnId;
     if (!turnId) throw new Error("本地轮次缺少标识");
     const settlements = new Set<Promise<void>>();
-    const done = Promise.resolve().then(() => this.run(thread, abort.signal, steering, settlements));
-    this.active.set(thread.id, { abort, done, steering, settlements, turnId });
+    const done = Promise.resolve().then(() => this.run(thread, abort.signal, inputChannel, settlements));
+    this.active.set(thread.id, { abort, done, inputChannel, settlements, turnId });
     void done
       .finally(() => {
         this.active.delete(thread.id);
@@ -329,7 +326,7 @@ export class LocalSessionHost {
   private async run(
     thread: LocalThread,
     signal: AbortSignal,
-    steering: AgentSteering,
+    inputChannel: AgentRunInputChannel,
     settlements: Set<Promise<void>>,
   ) {
     let workspace: Workspace | undefined;
@@ -463,7 +460,7 @@ export class LocalSessionHost {
       const result = await agent.stream({
         messages: await convertToModelMessages(original),
         abortSignal: signal,
-        experimental_steering: steering,
+        experimental_steering: inputChannel.steering,
       });
       const stream = toUIMessageStream({
         stream: result.stream,

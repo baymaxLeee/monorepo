@@ -1786,9 +1786,9 @@
         }
       }
     },
-    "/v1/sessions/{session_id}/agents/runs/{run_id}/steer": {
+    "/v1/sessions/{session_id}/agents/runs/{run_id}/inputs": {
       "post": {
-        "operationId": "steerSessionAgentRun",
+        "operationId": "submitSessionAgentRunInput",
         "parameters": [
           {
             "name": "session_id",
@@ -1812,18 +1812,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AgentSteeringInput"
+                "$ref": "#/components/schemas/AgentRunInput"
               }
             }
           }
         },
         "responses": {
           "202": {
-            "description": "steering input admitted for the active run",
+            "description": "input admitted for the active run",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AgentSteeringInputStatus"
+                  "$ref": "#/components/schemas/AgentRunInputStatus"
                 }
               }
             }
@@ -1832,11 +1832,50 @@
             "description": "the expected run is no longer active"
           }
         }
+      },
+      "get": {
+        "operationId": "listSessionAgentRunInputs",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "durable run inputs for recovery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentRunInputStatus"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "agent run not found in the caller scope"
+          }
+        }
       }
     },
-    "/v1/sessions/{session_id}/agents/runs/{run_id}/steering-inputs/{client_message_id}": {
+    "/v1/sessions/{session_id}/agents/runs/{run_id}/inputs/{client_message_id}": {
       "get": {
-        "operationId": "getSessionAgentSteeringInput",
+        "operationId": "getSessionAgentRunInput",
         "parameters": [
           {
             "name": "session_id",
@@ -1867,58 +1906,17 @@
         ],
         "responses": {
           "200": {
-            "description": "durable steering delivery status",
+            "description": "durable run input status",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AgentSteeringInputStatus"
+                  "$ref": "#/components/schemas/AgentRunInputStatus"
                 }
               }
             }
           },
           "404": {
-            "description": "steering input not found in the caller scope"
-          }
-        }
-      }
-    },
-    "/v1/sessions/{session_id}/agents/runs/{run_id}/steering-inputs": {
-      "get": {
-        "operationId": "listSessionAgentSteeringInputs",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "run_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "durable steering inputs for recovery",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AgentSteeringInputStatus"
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "agent run not found in the caller scope"
+            "description": "run input not found in the caller scope"
           }
         }
       }
@@ -2986,14 +2984,14 @@
           }
         }
       },
-      "AgentSteeringInput": {
+      "AgentRunInput": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "expected_run_id",
           "client_message_id",
           "text",
-          "delivery"
+          "mode"
         ],
         "properties": {
           "expected_run_id": {
@@ -3012,21 +3010,21 @@
             "minLength": 1,
             "maxLength": 64000
           },
-          "delivery": {
+          "mode": {
             "type": "string",
             "enum": [
-              "steer",
-              "queue"
+              "follow-up",
+              "next-turn"
             ]
           }
         }
       },
-      "AgentSteeringInputStatus": {
+      "AgentRunInputStatus": {
         "type": "object",
         "required": [
           "clientMessageId",
           "runId",
-          "delivery",
+          "mode",
           "text",
           "state",
           "stepNumber",
@@ -3039,11 +3037,11 @@
           "runId": {
             "type": "string"
           },
-          "delivery": {
+          "mode": {
             "type": "string",
             "enum": [
-              "steer",
-              "queue"
+              "follow-up",
+              "next-turn"
             ]
           },
           "text": {

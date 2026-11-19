@@ -1,47 +1,42 @@
-import type { AgentSteering, AgentSteeringOutcome } from "@repo/agent-runtime/agent/steering";
+import type { AgentRunInputChannel, AgentRunInputMode, AgentRunInputOutcome } from "@repo/agent-runtime/agent/steering";
 import { and, eq } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import {
-  agentRuns,
-  agentSteeringInputs,
-  sessions,
-  sessionRunLeases,
-} from "../../../infrastructure/persistence/schema.js";
+import { agentRuns, agentRunInputs, sessions, sessionRunLeases } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError } from "../../errors.js";
 
-export type AgentSteeringInputState = "accepted" | "dispatching" | "delivered" | "not_delivered" | "unconfirmed";
-export interface AgentSteeringInputView {
+export type AgentRunInputState = "accepted" | "dispatching" | "delivered" | "not_delivered" | "unconfirmed";
+export interface AgentRunInputView {
   clientMessageId: string;
   runId: string;
-  delivery: "steer" | "queue";
+  mode: AgentRunInputMode;
   text: string;
-  state: AgentSteeringInputState;
+  state: AgentRunInputState;
   stepNumber: number | null;
   reason: string | null;
 }
 
-function view(row: typeof agentSteeringInputs.$inferSelect): AgentSteeringInputView {
+function view(row: typeof agentRunInputs.$inferSelect): AgentRunInputView {
   return {
     clientMessageId: row.clientMessageId,
     runId: row.runId,
-    delivery: row.delivery as "steer" | "queue",
+    mode: row.mode as AgentRunInputMode,
     text: row.text,
-    state: row.state as AgentSteeringInputState,
+    state: row.state as AgentRunInputState,
     stepNumber: row.stepNumber,
     reason: row.reason,
   };
 }
 
-export async function acceptAgentSteeringInput(input: {
+export async function acceptAgentRunInput(input: {
   sessionId: string;
   runId: string;
   userId: string;
   clientMessageId: string;
-  delivery: "steer" | "queue";
+  mode: AgentRunInputMode;
   text: string;
-}): Promise<AgentSteeringInputView> {
+}): Promise<AgentRunInputView> {
   return getDb().transaction(async (tx) => {
     const [session] = await tx
       .select({ id: sessions.id })
@@ -55,20 +50,11 @@ export async function acceptAgentSteeringInput(input: {
     }
     const [existing] = await tx
       .select()
-      .from(agentSteeringInputs)
-      .where(
-        and(eq(agentSteeringInputs.runId, input.runId), eq(agentSteeringInputs.clientMessageId, input.clientMessageId)),
-      );
+      .from(agentRunInputs)
+      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.clientMessageId, input.clientMessageId)));
     if (existing) {
-      if (
-        existing.sessionId !== input.sessionId ||
-        existing.delivery !== input.delivery ||
-        existing.text !== input.text
-      ) {
-        throw new ConflictError(
-          "steering input id is already bound to different content",
-          "steering_input_id_conflict",
-        );
+      if (existing.sessionId !== input.sessionId || existing.mode !== input.mode || existing.text !== input.text) {
+        throw new ConflictError("run input id is already bound to different content", "run_input_id_conflict");
       }
       return view(existing);
     }
@@ -77,14 +63,14 @@ export async function acceptAgentSteeringInput(input: {
       .from(sessionRunLeases)
       .where(eq(sessionRunLeases.sessionId, input.sessionId));
     if (run.status !== "running" || lease?.runId !== input.runId) {
-      throw new ConflictError("agent run is no longer steerable", "agent_run_not_steerable");
+      throw new ConflictError("agent run no longer accepts input", "agent_run_not_accepting_input");
     }
     const now = new Date();
-    await tx.insert(agentSteeringInputs).values({
+    await tx.insert(agentRunInputs).values({
       runId: input.runId,
       clientMessageId: input.clientMessageId,
       sessionId: input.sessionId,
-      delivery: input.delivery,
+      mode: input.mode,
       text: input.text,
       state: "accepted",
       createdAt: now,
@@ -92,54 +78,52 @@ export async function acceptAgentSteeringInput(input: {
     });
     const [row] = await tx
       .select()
-      .from(agentSteeringInputs)
-      .where(
-        and(eq(agentSteeringInputs.runId, input.runId), eq(agentSteeringInputs.clientMessageId, input.clientMessageId)),
-      );
-    if (!row) throw new Error("steering input admission was not persisted");
+      .from(agentRunInputs)
+      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.clientMessageId, input.clientMessageId)));
+    if (!row) throw new Error("run input admission was not persisted");
     return view(row);
   });
 }
 
-export async function getAgentSteeringInput(input: {
+export async function getAgentRunInput(input: {
   sessionId: string;
   runId: string;
   userId: string;
   clientMessageId: string;
-}): Promise<AgentSteeringInputView> {
+}): Promise<AgentRunInputView> {
   const [row] = await getDb()
     .select()
-    .from(agentSteeringInputs)
-    .innerJoin(agentRuns, eq(agentRuns.id, agentSteeringInputs.runId))
+    .from(agentRunInputs)
+    .innerJoin(agentRuns, eq(agentRuns.id, agentRunInputs.runId))
     .where(
       and(
-        eq(agentSteeringInputs.runId, input.runId),
-        eq(agentSteeringInputs.clientMessageId, input.clientMessageId),
-        eq(agentSteeringInputs.sessionId, input.sessionId),
+        eq(agentRunInputs.runId, input.runId),
+        eq(agentRunInputs.clientMessageId, input.clientMessageId),
+        eq(agentRunInputs.sessionId, input.sessionId),
         eq(agentRuns.userId, input.userId),
       ),
     );
-  if (!row) throw new NotFoundError("steering input not found");
-  return view(row.agent_steering_inputs);
+  if (!row) throw new NotFoundError("run input not found");
+  return view(row.agent_run_inputs);
 }
 
-export async function listAgentSteeringInputs(input: {
+export async function listAgentRunInputs(input: {
   sessionId: string;
   runId: string;
   userId: string;
-}): Promise<AgentSteeringInputView[]> {
+}): Promise<AgentRunInputView[]> {
   const rows = await getDb()
     .select()
-    .from(agentSteeringInputs)
-    .innerJoin(agentRuns, eq(agentRuns.id, agentSteeringInputs.runId))
+    .from(agentRunInputs)
+    .innerJoin(agentRuns, eq(agentRuns.id, agentRunInputs.runId))
     .where(
       and(
-        eq(agentSteeringInputs.runId, input.runId),
-        eq(agentSteeringInputs.sessionId, input.sessionId),
+        eq(agentRunInputs.runId, input.runId),
+        eq(agentRunInputs.sessionId, input.sessionId),
         eq(agentRuns.userId, input.userId),
       ),
     )
-    .orderBy(agentSteeringInputs.createdAt);
+    .orderBy(agentRunInputs.createdAt);
   if (rows.length === 0) {
     const [run] = await getDb()
       .select({ id: agentRuns.id })
@@ -153,12 +137,12 @@ export async function listAgentSteeringInputs(input: {
       );
     if (!run) throw new NotFoundError("agent run not found");
   }
-  return rows.map((row) => view(row.agent_steering_inputs));
+  return rows.map((row) => view(row.agent_run_inputs));
 }
 
-async function settle(runId: string, clientMessageId: string, outcome: AgentSteeringOutcome): Promise<void> {
+async function settle(runId: string, clientMessageId: string, outcome: AgentRunInputOutcome): Promise<void> {
   await getDb()
-    .update(agentSteeringInputs)
+    .update(agentRunInputs)
     .set(
       outcome.type === "delivered"
         ? { state: "delivered", stepNumber: outcome.stepNumber, reason: null, updatedAt: new Date() }
@@ -166,14 +150,14 @@ async function settle(runId: string, clientMessageId: string, outcome: AgentStee
     )
     .where(
       and(
-        eq(agentSteeringInputs.runId, runId),
-        eq(agentSteeringInputs.clientMessageId, clientMessageId),
-        eq(agentSteeringInputs.state, "dispatching"),
+        eq(agentRunInputs.runId, runId),
+        eq(agentRunInputs.clientMessageId, clientMessageId),
+        eq(agentRunInputs.state, "dispatching"),
       ),
     );
 }
 
-export function startAgentSteeringInbox(runId: string, steering: AgentSteering) {
+export function startAgentRunInputInbox(runId: string, inputChannel: AgentRunInputChannel) {
   let closed = false;
   let polling: Promise<void> | null = null;
   const settlements = new Set<Promise<void>>();
@@ -181,17 +165,14 @@ export function startAgentSteeringInbox(runId: string, steering: AgentSteering) 
     if (closed || polling) return polling;
     polling = (async () => {
       const rows = await getDb()
-        .update(agentSteeringInputs)
+        .update(agentRunInputs)
         .set({ state: "dispatching", updatedAt: new Date() })
-        .where(and(eq(agentSteeringInputs.runId, runId), eq(agentSteeringInputs.state, "accepted")))
+        .where(and(eq(agentRunInputs.runId, runId), eq(agentRunInputs.state, "accepted")))
         .returning();
       rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       for (const row of rows) {
-        const outcome = (
-          row.delivery === "queue"
-            ? steering.queue(row.text, { id: row.clientMessageId })
-            : steering.steer(row.text, { id: row.clientMessageId })
-        )
+        const outcome = inputChannel
+          .submit(row.text, { id: row.clientMessageId, mode: row.mode as AgentRunInputMode })
           .then((result) => settle(runId, row.clientMessageId, result))
           .finally(() => settlements.delete(outcome));
         settlements.add(outcome);
@@ -201,7 +182,7 @@ export function startAgentSteeringInbox(runId: string, steering: AgentSteering) 
     });
     return polling;
   };
-  const reportPollError = (error: unknown) => logger.error({ err: error, runId }, "agent steering inbox poll failed");
+  const reportPollError = (error: unknown) => logger.error({ err: error, runId }, "agent run input inbox poll failed");
   const timer = setInterval(() => void poll().catch(reportPollError), 100);
   timer.unref();
   void poll().catch(reportPollError);

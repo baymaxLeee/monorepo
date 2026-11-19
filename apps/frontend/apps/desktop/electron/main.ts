@@ -192,16 +192,16 @@ async function start() {
           "send",
           z.strictObject({ id, messageId: id, text: z.string().trim().min(1).max(64_000) }).parse(payload),
         );
-      case "steer":
+      case "submitRunInput":
         return scopedCall(
-          "steer",
+          "submitRunInput",
           z
             .strictObject({
               id,
               expectedTurnId: id,
               messageId: id,
               text: z.string().trim().min(1).max(64_000),
-              delivery: z.enum(["steer", "queue"]),
+              mode: z.enum(["follow-up", "next-turn"]),
             })
             .parse(payload),
         );

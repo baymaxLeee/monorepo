@@ -8,7 +8,7 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
   const call = <T>(method: string, payload?: unknown): Promise<T> =>
     ipcRenderer.invoke("desktop:invoke", method, payload);
   const bridge: DesktopBridge = {
-    version: 1,
+    version: 2,
     info: () => call("info"),
     bindSession: (accessToken, expiresAt) => call("bindSession", { accessToken, expiresAt }),
     clearSession: () => call("clearSession"),
@@ -20,8 +20,8 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
     getThread: (id) => call("get", id),
     openStream: (id) => call("openStream", id),
     send: (id, text, messageId) => call("send", { id, text, messageId }),
-    steer: (id, expectedTurnId, text, messageId, delivery) =>
-      call("steer", { id, expectedTurnId, text, messageId, delivery }),
+    submitRunInput: (id, expectedTurnId, text, messageId, mode) =>
+      call("submitRunInput", { id, expectedTurnId, text, messageId, mode }),
     approve: (id, approvalId, approved) => call("approve", { id, approvalId, approved }),
     setApprovalMode: (id, approvalMode) => call("setApprovalMode", { id, approvalMode }),
     stop: (id) => call("stop", id),

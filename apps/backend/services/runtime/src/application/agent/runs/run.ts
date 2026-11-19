@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { createAgentSteering } from "@repo/agent-runtime/agent/steering";
+import { createAgentRunInputChannel } from "@repo/agent-runtime/agent/steering";
 import {
   consumeStream,
   createUIMessageStream,
@@ -67,7 +67,7 @@ import {
   type AgentRunOperation,
   type AgentRunTrace,
 } from "./repository.js";
-import { startAgentSteeringInbox } from "./steering.js";
+import { startAgentRunInputInbox } from "./steering.js";
 import { terminalStreamError } from "./stream-outcome.js";
 
 export interface RunAgentInput {
@@ -324,7 +324,7 @@ export async function createAgentRunResponse(
   }
 
   let disposeAgentResources: (() => Promise<void>) | null = null;
-  let steeringInbox: Awaited<ReturnType<typeof startAgentSteeringInbox>> | null = null;
+  let runInputInbox: Awaited<ReturnType<typeof startAgentRunInputInbox>> | null = null;
   let contextUsage: UsageTokens = EMPTY_USAGE;
   try {
     const [persistedMessages, instructionInput] = await Promise.all([
@@ -452,13 +452,13 @@ export async function createAgentRunResponse(
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;
-    const steering = createAgentSteering();
-    steeringInbox = startAgentSteeringInbox(runId, steering);
+    const inputChannel = createAgentRunInputChannel();
+    runInputInbox = startAgentRunInputInbox(runId, inputChannel);
     const result = await agent.stream({
       messages: modelMessages,
       abortSignal: runSignal,
       experimental_sandbox: agentInstance.sandbox,
-      experimental_steering: steering,
+      experimental_steering: inputChannel.steering,
     });
     logger.info({ sessionId: session.id, runId, setupMs: Math.round(performance.now() - startedAt) }, "run accepted");
     const agentParts = createPublishedAgentPartStream({
@@ -564,8 +564,8 @@ export async function createAgentRunResponse(
               }
             },
             finalize: async (disposalError) => {
-              await steeringInbox?.close();
-              steeringInbox = null;
+              await runInputInbox?.close();
+              runInputInbox = null;
               const terminalError = disposalError ?? streamError;
               const terminalStatus = aborted ? "cancelled" : terminalError ? "failed" : "completed";
               const metadata: ChatMessageMetadata = {
@@ -648,8 +648,8 @@ export async function createAgentRunResponse(
       },
     });
   } catch (error) {
-    await steeringInbox?.close().catch(() => undefined);
-    steeringInbox = null;
+    await runInputInbox?.close().catch(() => undefined);
+    runInputInbox = null;
     await disposeAgentResources?.();
     if (resumable) {
       await deactivateAgentStream(session.id, runId).catch((streamError) =>

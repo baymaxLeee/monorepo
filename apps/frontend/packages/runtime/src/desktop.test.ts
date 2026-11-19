@@ -6,9 +6,9 @@ afterEach(() => {
 });
 it("keeps ordinary Web capability-free and rejects incompatible bridge versions", () => {
   expect(getDesktopBridge()).toBe(null);
-  Object.defineProperty(globalThis, "desktop", { configurable: true, value: { version: 2 } });
+  Object.defineProperty(globalThis, "desktop", { configurable: true, value: { version: 1 } });
   expect(getDesktopBridge()).toBe(null);
-  const bridge = { version: 1 };
+  const bridge = { version: 2 };
   Object.defineProperty(globalThis, "desktop", { configurable: true, value: bridge });
   expect(getDesktopBridge()).toBe(bridge);
 });

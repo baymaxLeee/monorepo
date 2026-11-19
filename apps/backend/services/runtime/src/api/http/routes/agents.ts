@@ -10,9 +10,9 @@ import {
   cancelRun,
   activeAgentStreamRunId,
   createAgentReplayResponse,
-  acceptAgentSteeringInput,
-  getAgentSteeringInput,
-  listAgentSteeringInputs,
+  acceptAgentRunInput,
+  getAgentRunInput,
+  listAgentRunInputs,
   isRunActive,
 } from "../../../application/agent/index.js";
 import { RequestError } from "../../../application/errors.js";
@@ -43,7 +43,7 @@ const runSchema = z.object({
     .optional(),
 });
 
-const steeringSchema = z.object({
+const runInputSchema = z.object({
   expected_run_id: z.string().min(1).max(32),
   client_message_id: z
     .string()
@@ -51,7 +51,7 @@ const steeringSchema = z.object({
     .max(64)
     .regex(/^[a-zA-Z0-9_-]+$/),
   text: z.string().trim().min(1).max(64_000),
-  delivery: z.enum(["steer", "queue"]).default("steer"),
+  mode: z.enum(["follow-up", "next-turn"]).default("follow-up"),
 });
 
 agentsRoutes.post(
@@ -119,26 +119,26 @@ agentsRoutes.get("/:sessionId/agents/runs/:runId/trace", async (c) => {
   return c.json(trace);
 });
 
-agentsRoutes.post("/:sessionId/agents/runs/:runId/steer", zValidator("json", steeringSchema), async (c) => {
+agentsRoutes.post("/:sessionId/agents/runs/:runId/inputs", zValidator("json", runInputSchema), async (c) => {
   const auth = getAuth(c);
   const sessionId = c.req.param("sessionId");
   const runId = c.req.param("runId");
   const payload = c.req.valid("json");
   if (payload.expected_run_id !== runId) throw new RequestError("expected agent run does not match route");
-  const input = await acceptAgentSteeringInput({
+  const input = await acceptAgentRunInput({
     sessionId,
     runId,
     userId: auth.userId,
     clientMessageId: payload.client_message_id,
-    delivery: payload.delivery,
+    mode: payload.mode,
     text: payload.text,
   });
   return c.json(input, 202);
 });
 
-agentsRoutes.get("/:sessionId/agents/runs/:runId/steering-inputs", async (c) => {
+agentsRoutes.get("/:sessionId/agents/runs/:runId/inputs", async (c) => {
   const auth = getAuth(c);
-  const inputs = await listAgentSteeringInputs({
+  const inputs = await listAgentRunInputs({
     sessionId: c.req.param("sessionId"),
     runId: c.req.param("runId"),
     userId: auth.userId,
@@ -146,9 +146,9 @@ agentsRoutes.get("/:sessionId/agents/runs/:runId/steering-inputs", async (c) => 
   return c.json(inputs);
 });
 
-agentsRoutes.get("/:sessionId/agents/runs/:runId/steering-inputs/:clientMessageId", async (c) => {
+agentsRoutes.get("/:sessionId/agents/runs/:runId/inputs/:clientMessageId", async (c) => {
   const auth = getAuth(c);
-  const input = await getAgentSteeringInput({
+  const input = await getAgentRunInput({
     sessionId: c.req.param("sessionId"),
     runId: c.req.param("runId"),
     userId: auth.userId,

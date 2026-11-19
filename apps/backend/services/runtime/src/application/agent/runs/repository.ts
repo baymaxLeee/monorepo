@@ -7,7 +7,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import {
   agentRuns,
-  agentSteeringInputs,
+  agentRunInputs,
   agentSteps,
   agentToolCalls,
   sessions,
@@ -382,13 +382,13 @@ export async function finishAgentRun(input: {
       })
       .where(eq(agentRuns.id, input.runId));
     await tx
-      .update(agentSteeringInputs)
+      .update(agentRunInputs)
       .set({ state: "not_delivered", reason: "finished", updatedAt: now })
-      .where(and(eq(agentSteeringInputs.runId, input.runId), eq(agentSteeringInputs.state, "accepted")));
+      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.state, "accepted")));
     await tx
-      .update(agentSteeringInputs)
+      .update(agentRunInputs)
       .set({ state: "unconfirmed", reason: "run ended before delivery was confirmed", updatedAt: now })
-      .where(and(eq(agentSteeringInputs.runId, input.runId), eq(agentSteeringInputs.state, "dispatching")));
+      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.state, "dispatching")));
     await tx.delete(sessionRunLeases).where(eq(sessionRunLeases.runId, input.runId));
   });
 }
@@ -623,13 +623,13 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
     const interruptedIds = interrupted.map((run) => run.id);
     if (interruptedIds.length === 0) return interrupted;
     await tx
-      .update(agentSteeringInputs)
+      .update(agentRunInputs)
       .set({ state: "not_delivered", reason: "finished", updatedAt: now })
-      .where(and(inArray(agentSteeringInputs.runId, interruptedIds), eq(agentSteeringInputs.state, "accepted")));
+      .where(and(inArray(agentRunInputs.runId, interruptedIds), eq(agentRunInputs.state, "accepted")));
     await tx
-      .update(agentSteeringInputs)
+      .update(agentRunInputs)
       .set({ state: "unconfirmed", reason: "run ownership was lost before delivery was confirmed", updatedAt: now })
-      .where(and(inArray(agentSteeringInputs.runId, interruptedIds), eq(agentSteeringInputs.state, "dispatching")));
+      .where(and(inArray(agentRunInputs.runId, interruptedIds), eq(agentRunInputs.state, "dispatching")));
     return interrupted;
   });
 }

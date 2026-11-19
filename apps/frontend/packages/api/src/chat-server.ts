@@ -6,6 +6,62 @@
  * OpenAPI spec version: 1.0.0
  */
 import { apiMutator } from "./orval-mutator";
+export type AgentRunInputMode = (typeof AgentRunInputMode)[keyof typeof AgentRunInputMode];
+
+export const AgentRunInputMode = {
+  "follow-up": "follow-up",
+  "next-turn": "next-turn",
+} as const;
+
+export interface AgentRunInput {
+  /**
+   * @minLength 8
+   * @maxLength 64
+   * @pattern ^[a-zA-Z0-9_-]+$
+   */
+  client_message_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  expected_run_id: string;
+  mode: AgentRunInputMode;
+  /**
+   * @minLength 1
+   * @maxLength 64000
+   */
+  text: string;
+}
+
+export type AgentRunInputStatusMode = (typeof AgentRunInputStatusMode)[keyof typeof AgentRunInputStatusMode];
+
+export const AgentRunInputStatusMode = {
+  "follow-up": "follow-up",
+  "next-turn": "next-turn",
+} as const;
+
+export type AgentRunInputStatusState = (typeof AgentRunInputStatusState)[keyof typeof AgentRunInputStatusState];
+
+export const AgentRunInputStatusState = {
+  accepted: "accepted",
+  dispatching: "dispatching",
+  delivered: "delivered",
+  not_delivered: "not_delivered",
+  unconfirmed: "unconfirmed",
+} as const;
+
+export interface AgentRunInputStatus {
+  clientMessageId: string;
+  mode: AgentRunInputStatusMode;
+  /** @nullable */
+  reason: string | null;
+  runId: string;
+  state: AgentRunInputStatusState;
+  /** @nullable */
+  stepNumber: number | null;
+  text: string;
+}
+
 export type AgentRunRequestHostContext = {
   /**
    * @minLength 1
@@ -121,64 +177,6 @@ export interface AgentRunTrace {
   toolCalls: AgentTraceToolCall[];
   /** @nullable */
   totalTokens: number | null;
-}
-
-export type AgentSteeringInputDelivery = (typeof AgentSteeringInputDelivery)[keyof typeof AgentSteeringInputDelivery];
-
-export const AgentSteeringInputDelivery = {
-  steer: "steer",
-  queue: "queue",
-} as const;
-
-export interface AgentSteeringInput {
-  /**
-   * @minLength 8
-   * @maxLength 64
-   * @pattern ^[a-zA-Z0-9_-]+$
-   */
-  client_message_id: string;
-  delivery: AgentSteeringInputDelivery;
-  /**
-   * @minLength 1
-   * @maxLength 32
-   */
-  expected_run_id: string;
-  /**
-   * @minLength 1
-   * @maxLength 64000
-   */
-  text: string;
-}
-
-export type AgentSteeringInputStatusDelivery =
-  (typeof AgentSteeringInputStatusDelivery)[keyof typeof AgentSteeringInputStatusDelivery];
-
-export const AgentSteeringInputStatusDelivery = {
-  steer: "steer",
-  queue: "queue",
-} as const;
-
-export type AgentSteeringInputStatusState =
-  (typeof AgentSteeringInputStatusState)[keyof typeof AgentSteeringInputStatusState];
-
-export const AgentSteeringInputStatusState = {
-  accepted: "accepted",
-  dispatching: "dispatching",
-  delivered: "delivered",
-  not_delivered: "not_delivered",
-  unconfirmed: "unconfirmed",
-} as const;
-
-export interface AgentSteeringInputStatus {
-  clientMessageId: string;
-  delivery: AgentSteeringInputStatusDelivery;
-  /** @nullable */
-  reason: string | null;
-  runId: string;
-  state: AgentSteeringInputStatusState;
-  /** @nullable */
-  stepNumber: number | null;
-  text: string;
 }
 
 export type MemoryCategory = (typeof MemoryCategory)[keyof typeof MemoryCategory];
@@ -1234,43 +1232,43 @@ export const cancelConversationAgentRun = (
   );
 };
 
-export const steerConversationAgentRun = (
+export const listConversationAgentRunInputs = (
   conversationId: string,
   runId: string,
-  agentSteeringInput: AgentSteeringInput,
-  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
+  options?: SecondParameter<typeof apiMutator<AgentRunInputStatus[]>>,
 ) => {
-  return apiMutator<AgentSteeringInputStatus>(
+  return apiMutator<AgentRunInputStatus[]>(
+    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/inputs`, method: "GET" },
+    options,
+  );
+};
+
+export const submitConversationAgentRunInput = (
+  conversationId: string,
+  runId: string,
+  agentRunInput: AgentRunInput,
+  options?: SecondParameter<typeof apiMutator<AgentRunInputStatus>>,
+) => {
+  return apiMutator<AgentRunInputStatus>(
     {
-      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steer`,
+      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/inputs`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: agentSteeringInput,
+      data: agentRunInput,
     },
     options,
   );
 };
 
-export const listConversationAgentSteeringInputs = (
-  conversationId: string,
-  runId: string,
-  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus[]>>,
-) => {
-  return apiMutator<AgentSteeringInputStatus[]>(
-    { url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs`, method: "GET" },
-    options,
-  );
-};
-
-export const getConversationAgentSteeringInput = (
+export const getConversationAgentRunInput = (
   conversationId: string,
   runId: string,
   clientMessageId: string,
-  options?: SecondParameter<typeof apiMutator<AgentSteeringInputStatus>>,
+  options?: SecondParameter<typeof apiMutator<AgentRunInputStatus>>,
 ) => {
-  return apiMutator<AgentSteeringInputStatus>(
+  return apiMutator<AgentRunInputStatus>(
     {
-      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/steering-inputs/${clientMessageId}`,
+      url: `/api/chat-server/conversations/${conversationId}/agents/runs/${runId}/inputs/${clientMessageId}`,
       method: "GET",
     },
     options,
@@ -1607,13 +1605,13 @@ export type ResumeConversationAgentStreamResult = NonNullable<
 >;
 export type StartConversationAgentStreamResult = NonNullable<Awaited<ReturnType<typeof startConversationAgentStream>>>;
 export type CancelConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof cancelConversationAgentRun>>>;
-export type SteerConversationAgentRunResult = NonNullable<Awaited<ReturnType<typeof steerConversationAgentRun>>>;
-export type ListConversationAgentSteeringInputsResult = NonNullable<
-  Awaited<ReturnType<typeof listConversationAgentSteeringInputs>>
+export type ListConversationAgentRunInputsResult = NonNullable<
+  Awaited<ReturnType<typeof listConversationAgentRunInputs>>
 >;
-export type GetConversationAgentSteeringInputResult = NonNullable<
-  Awaited<ReturnType<typeof getConversationAgentSteeringInput>>
+export type SubmitConversationAgentRunInputResult = NonNullable<
+  Awaited<ReturnType<typeof submitConversationAgentRunInput>>
 >;
+export type GetConversationAgentRunInputResult = NonNullable<Awaited<ReturnType<typeof getConversationAgentRunInput>>>;
 export type GetConversationAgentTraceResult = NonNullable<Awaited<ReturnType<typeof getConversationAgentTrace>>>;
 export type GetConversationContextResult = NonNullable<Awaited<ReturnType<typeof getConversationContext>>>;
 export type GetConversationDocumentResult = NonNullable<Awaited<ReturnType<typeof getConversationDocument>>>;

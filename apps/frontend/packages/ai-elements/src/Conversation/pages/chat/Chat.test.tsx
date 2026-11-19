@@ -24,9 +24,9 @@ const state = vi.hoisted(() => ({
   addToolOutput: vi.fn(),
   addToolApprovalResponse: vi.fn(),
   cancel: vi.fn(),
-  steer: vi.fn(),
-  getSteering: vi.fn(),
-  listSteering: vi.fn(),
+  submitInput: vi.fn(),
+  getInput: vi.fn(),
+  listInputs: vi.fn(),
   promptClear: vi.fn(),
   action: vi.fn(),
   updateModel: vi.fn(),
@@ -68,9 +68,9 @@ vi.mock("@repo/api", () => ({
 }));
 vi.mock("@repo/api/chat", () => ({
   cancelConversationAgentRun: state.cancel,
-  steerConversationAgentRun: state.steer,
-  getConversationAgentSteeringInput: state.getSteering,
-  listConversationAgentSteeringInputs: state.listSteering,
+  submitConversationAgentRunInput: state.submitInput,
+  getConversationAgentRunInput: state.getInput,
+  listConversationAgentRunInputs: state.listInputs,
   getConversation: async () => ({
     id: "conversation",
     title: "Test",
@@ -218,10 +218,10 @@ beforeEach(() => {
   state.messageRenders = [];
   state.suspendedText = null;
   state.editMessage = undefined;
-  state.steer.mockReset();
-  state.getSteering.mockReset();
-  state.listSteering.mockReset();
-  state.listSteering.mockResolvedValue([]);
+  state.submitInput.mockReset();
+  state.getInput.mockReset();
+  state.listInputs.mockReset();
+  state.listInputs.mockResolvedValue([]);
   state.promptClear.mockReset();
   state.sendMessage.mockReset();
   state.sendMessage.mockResolvedValue(undefined);
@@ -299,15 +299,15 @@ test("a published text delta is visible in the same UI commit", async () => {
 
 test("a running submission clears only after durable admission and renders above the editor", async () => {
   let admit: (value: unknown) => void = () => {};
-  state.steer.mockReturnValue(
+  state.submitInput.mockReturnValue(
     new Promise((resolve) => {
       admit = resolve;
     }),
   );
-  state.getSteering.mockResolvedValue({
+  state.getInput.mockResolvedValue({
     clientMessageId: "client-message",
     runId: "run",
-    delivery: "steer",
+    mode: "follow-up",
     text: "补充输入",
     state: "accepted",
     stepNumber: null,
@@ -316,12 +316,12 @@ test("a running submission clears only after durable admission and renders above
   await mount();
   expect(screen.getByRole("textbox").hasAttribute("disabled")).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "发送补充" }));
-  await waitFor(() => expect(state.steer).toHaveBeenCalledOnce());
+  await waitFor(() => expect(state.submitInput).toHaveBeenCalledOnce());
   expect(state.promptClear).not.toHaveBeenCalled();
   admit({
     clientMessageId: "client-message",
     runId: "run",
-    delivery: "steer",
+    mode: "follow-up",
     text: "补充输入",
     state: "accepted",
     stepNumber: null,
@@ -331,14 +331,14 @@ test("a running submission clears only after durable admission and renders above
   expect(screen.getByLabelText("待发送消息").textContent).toContain("补充输入");
   expect(screen.getByLabelText("待发送消息").textContent).toContain("引导当前任务");
   expect(screen.getByRole("textbox").getAttribute("data-submit-while-loading")).toBe("true");
-  expect(state.steer).toHaveBeenCalledWith(
+  expect(state.submitInput).toHaveBeenCalledWith(
     "conversation",
     "run",
     {
       expected_run_id: "run",
       client_message_id: expect.stringMatching(/^[0-9a-f]{32}$/),
       text: "补充输入",
-      delivery: "steer",
+      mode: "follow-up",
     },
     { skipErrorNotify: true },
   );
@@ -347,11 +347,11 @@ test("a running submission clears only after durable admission and renders above
 test("a recovered not-delivered supplement stays visible and never starts another turn automatically", async () => {
   state.status = "ready";
   state.serverActiveRunId = null;
-  state.listSteering.mockResolvedValue([
+  state.listInputs.mockResolvedValue([
     {
       clientMessageId: "client-message",
       runId: "run",
-      delivery: "steer",
+      mode: "follow-up",
       text: "恢复后的补充",
       state: "not_delivered",
       stepNumber: null,

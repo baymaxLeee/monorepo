@@ -12,7 +12,7 @@ import type { ReasoningEffort as ComposerReasoningEffort } from "../../component
 import { ChatImagePreview } from "../../components/ChatImagePreview";
 import { ChatSessionIssue } from "../../components/ChatSessionIssue";
 import { ConversationSessionView } from "../../components/ConversationSessionView";
-import { useAgentSteering } from "../../hooks/useAgentSteering";
+import { useAgentRunInputs } from "../../hooks/useAgentRunInputs";
 import { useConversationChat } from "../../hooks/useConversationChat";
 import { useForkConversation } from "../../hooks/useForkConversation";
 import { useSourceAction } from "../../hooks/useSourceAction";
@@ -174,7 +174,7 @@ export function ChatSession({
     closeImagePreview();
   }, [id, closeArtifactPreview, closeImagePreview]);
 
-  const { admit: admitSteering, pendingInputs } = useAgentSteering({
+  const { admit: admitRunInput, pendingInputs } = useAgentRunInputs({
     conversationId: id,
     activeRunId,
     recoveryRunId: activeRunId ?? detail?.latest_run_id ?? null,
@@ -207,7 +207,7 @@ export function ChatSession({
           toast.add({ type: "error", title: "生成期间的补充不能切换技能，请等待当前任务结束后发送。" });
           return;
         }
-        await admitSteering(text, "steer");
+        await admitRunInput(text, "follow-up");
         if (promptRef.current?.getValue().text === value.text) promptRef.current.clear();
         return;
       }
@@ -258,7 +258,7 @@ export function ChatSession({
         throw error;
       }
     },
-    [activatedSkillName, admitSteering, canStartHistoryMutation, id, requestBody, runActive, sendMessage],
+    [activatedSkillName, admitRunInput, canStartHistoryMutation, id, requestBody, runActive, sendMessage],
   );
 
   const answerClientTool = useCallback(

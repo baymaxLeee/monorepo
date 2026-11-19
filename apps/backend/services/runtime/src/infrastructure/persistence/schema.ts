@@ -237,15 +237,15 @@ export const agentRuns = pgTable(
   ],
 );
 
-export const agentSteeringInputs = pgTable(
-  "agent_steering_inputs",
+export const agentRunInputs = pgTable(
+  "agent_run_inputs",
   {
     runId: varchar("run_id", { length: 32 })
       .notNull()
       .references(() => agentRuns.id, { onDelete: "cascade" }),
     clientMessageId: varchar("client_message_id", { length: 64 }).notNull(),
     sessionId: varchar("session_id", { length: 32 }).notNull(),
-    delivery: varchar("delivery", { length: 20 }).notNull(),
+    mode: varchar("mode", { length: 20 }).notNull(),
     text: text("text").notNull(),
     state: varchar("state", { length: 20 }).notNull(),
     stepNumber: integer("step_number"),
@@ -255,7 +255,7 @@ export const agentSteeringInputs = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.runId, t.clientMessageId] }),
-    index("ix_agent_steering_inputs_pending").on(t.runId, t.state, t.createdAt),
+    index("ix_agent_run_inputs_pending").on(t.runId, t.state, t.createdAt),
   ],
 );
 

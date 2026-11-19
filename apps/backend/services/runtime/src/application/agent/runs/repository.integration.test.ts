@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { getDb, getSql } from "../../../infrastructure/persistence/index.js";
 import {
   agentRuns,
-  agentSteeringInputs,
+  agentRunInputs,
   agentSteps,
   agentToolCalls,
   sessions,
@@ -28,7 +28,7 @@ import {
   interruptRuns,
   requestAgentRunCancellation,
 } from "./repository.js";
-import { acceptAgentSteeringInput, listAgentSteeringInputs } from "./steering.js";
+import { acceptAgentRunInput, listAgentRunInputs } from "./steering.js";
 
 const enabled = process.env.RUNTIME_POSTGRES_INTEGRATION === "1";
 
@@ -708,39 +708,43 @@ test("orphan reconciliation rechecks a renewed lease before interrupting", { ski
   }
 });
 
-test("steering admission is idempotent, payload-bound, recoverable, and terminalized", { skip: !enabled }, async () => {
-  const { sessionId, userId } = await createSession();
-  try {
-    const claim = await claimSubmit(sessionId, userId);
-    const clientMessageId = identifier("steer");
-    const input = {
-      sessionId,
-      runId: claim.runId,
-      userId,
-      clientMessageId,
-      delivery: "steer" as const,
-      text: "use the other city",
-    };
-    const accepted = await acceptAgentSteeringInput(input);
-    assert.equal(accepted.state, "accepted");
-    assert.deepEqual(await acceptAgentSteeringInput(input), accepted);
-    await assert.rejects(
-      acceptAgentSteeringInput({ ...input, text: "changed payload" }),
-      (error: unknown) => error instanceof ConflictError && error.code === "steering_input_id_conflict",
-    );
-    assert.deepEqual(await listAgentSteeringInputs({ sessionId, runId: claim.runId, userId }), [accepted]);
+test(
+  "run input admission is idempotent, payload-bound, recoverable, and terminalized",
+  { skip: !enabled },
+  async () => {
+    const { sessionId, userId } = await createSession();
+    try {
+      const claim = await claimSubmit(sessionId, userId);
+      const clientMessageId = identifier("input");
+      const input = {
+        sessionId,
+        runId: claim.runId,
+        userId,
+        clientMessageId,
+        mode: "follow-up" as const,
+        text: "use the other city",
+      };
+      const accepted = await acceptAgentRunInput(input);
+      assert.equal(accepted.state, "accepted");
+      assert.deepEqual(await acceptAgentRunInput(input), accepted);
+      await assert.rejects(
+        acceptAgentRunInput({ ...input, text: "changed payload" }),
+        (error: unknown) => error instanceof ConflictError && error.code === "run_input_id_conflict",
+      );
+      assert.deepEqual(await listAgentRunInputs({ sessionId, runId: claim.runId, userId }), [accepted]);
 
-    await finishAgentRun({ runId: claim.runId, status: "completed" });
-    const [settled] = await getDb()
-      .select()
-      .from(agentSteeringInputs)
-      .where(eq(agentSteeringInputs.clientMessageId, clientMessageId));
-    assert.equal(settled?.state, "not_delivered");
-    assert.equal(settled?.reason, "finished");
-    const retried = await acceptAgentSteeringInput(input);
-    assert.equal(retried.state, "not_delivered");
-    assert.equal(retried.reason, "finished");
-  } finally {
-    await cleanup(sessionId);
-  }
-});
+      await finishAgentRun({ runId: claim.runId, status: "completed" });
+      const [settled] = await getDb()
+        .select()
+        .from(agentRunInputs)
+        .where(eq(agentRunInputs.clientMessageId, clientMessageId));
+      assert.equal(settled?.state, "not_delivered");
+      assert.equal(settled?.reason, "finished");
+      const retried = await acceptAgentRunInput(input);
+      assert.equal(retried.state, "not_delivered");
+      assert.equal(retried.reason, "finished");
+    } finally {
+      await cleanup(sessionId);
+    }
+  },
+);
