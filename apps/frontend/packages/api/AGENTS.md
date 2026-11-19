@@ -28,6 +28,7 @@ actual stream or byte transfer, use `fetch` and the gateway URL directly.
 
 ## Generation
 
-`just sync` exports local OpenAPI files, deletes each prior `*-server.ts`, runs
-Orval, and regenerates `index.ts`. `just sync-check` rejects drift. Generation
-never contacts a live Swagger server.
+`just sync` exports local OpenAPI files, generates every client and `index.ts`
+in a package-local staging directory, then atomically replaces the published
+files only after generation, validation and formatting succeed. `just
+sync-check` rejects drift. Generation never contacts a live Swagger server.

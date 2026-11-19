@@ -2,7 +2,9 @@ import { access, readdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const packageRoot = resolve(
+  process.env.API_CODEGEN_PACKAGE_ROOT ?? resolve(dirname(fileURLToPath(import.meta.url)), ".."),
+);
 const services = ["admin", "canvas", "chat", "iam", "knowledge", "storage", "telemetry"];
 
 for (const service of services) {

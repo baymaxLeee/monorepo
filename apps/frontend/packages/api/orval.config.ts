@@ -1,48 +1,53 @@
 import { defineConfig } from "orval";
 
 const schemasRoot = "../../../../schemas/openapi";
+const codegenGlobal = globalThis as typeof globalThis & {
+  process?: { env?: { API_CODEGEN_PACKAGE_ROOT?: string } };
+};
+const packageRoot = codegenGlobal.process?.env?.API_CODEGEN_PACKAGE_ROOT ?? ".";
+const sourcePath = (file: string) => `${packageRoot}/src/${file}`;
 
 export default defineConfig({
   "iam-server": {
     input: `${schemasRoot}/iam-server.json`,
     output: {
       mode: "single",
-      target: "src/iam-server.ts",
+      target: sourcePath("iam-server.ts"),
       client: "axios-functions",
       baseUrl: "/api/iam-server",
-      override: { mutator: { path: "./src/orval-mutator.ts", name: "apiMutator" } },
+      override: { mutator: { path: sourcePath("orval-mutator.ts"), name: "apiMutator" } },
     },
   },
   "storage-server": {
     input: `${schemasRoot}/storage-server.json`,
     output: {
       mode: "single",
-      target: "src/storage-server.ts",
+      target: sourcePath("storage-server.ts"),
       client: "axios-functions",
       baseUrl: "/api/storage-server",
-      override: { mutator: { path: "./src/orval-mutator.ts", name: "apiMutator" } },
+      override: { mutator: { path: sourcePath("orval-mutator.ts"), name: "apiMutator" } },
     },
   },
   "canvas-server": {
     input: `${schemasRoot}/canvas-server.json`,
     output: {
       mode: "single",
-      target: "src/canvas-server.ts",
+      target: sourcePath("canvas-server.ts"),
       client: "axios-functions",
       baseUrl: "/api/canvas-server",
-      override: { mutator: { path: "./src/orval-mutator.ts", name: "apiMutator" } },
+      override: { mutator: { path: sourcePath("orval-mutator.ts"), name: "apiMutator" } },
     },
   },
   "admin-server": {
     input: `${schemasRoot}/admin-server.json`,
     output: {
       mode: "single",
-      target: "src/admin-server.ts",
+      target: sourcePath("admin-server.ts"),
       client: "axios-functions",
       baseUrl: "/api/admin-server",
       override: {
         mutator: {
-          path: "./src/orval-mutator.ts",
+          path: sourcePath("orval-mutator.ts"),
           name: "apiMutator",
         },
       },
@@ -52,12 +57,12 @@ export default defineConfig({
     input: `${schemasRoot}/chat-server.json`,
     output: {
       mode: "single",
-      target: "src/chat-server.ts",
+      target: sourcePath("chat-server.ts"),
       client: "axios-functions",
       baseUrl: "/api/chat-server",
       override: {
         mutator: {
-          path: "./src/orval-mutator.ts",
+          path: sourcePath("orval-mutator.ts"),
           name: "apiMutator",
         },
       },
@@ -67,12 +72,12 @@ export default defineConfig({
     input: `${schemasRoot}/knowledge-server.json`,
     output: {
       mode: "single",
-      target: "src/knowledge-server.ts",
+      target: sourcePath("knowledge-server.ts"),
       client: "axios-functions",
       baseUrl: "/api/knowledge-server",
       override: {
         mutator: {
-          path: "./src/orval-mutator.ts",
+          path: sourcePath("orval-mutator.ts"),
           name: "apiMutator",
         },
       },
@@ -82,12 +87,12 @@ export default defineConfig({
     input: `${schemasRoot}/telemetry-server.json`,
     output: {
       mode: "single",
-      target: "src/telemetry-server.ts",
+      target: sourcePath("telemetry-server.ts"),
       client: "axios-functions",
       baseUrl: "/api/telemetry-server",
       override: {
         mutator: {
-          path: "./src/orval-mutator.ts",
+          path: sourcePath("orval-mutator.ts"),
           name: "apiMutator",
         },
       },
