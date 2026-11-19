@@ -12,7 +12,8 @@ import (
 
 func testConversation() Conversation {
 	return Conversation{
-		ID: "chat-conversation", RuntimeSessionID: "runtime-session", CreateRequestID: "request-1234",
+		ID: "chat-conversation", State: ConversationReady, Operation: ConversationCreate,
+		RuntimeThreadID: "runtime-thread", CreateRequestID: "request-1234",
 		UserID: "user", TenantID: "tenant", WorkspaceID: "workspace", Title: "Product title",
 		CreatedAt: time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC),
 	}
@@ -21,8 +22,8 @@ func testConversation() Conversation {
 func TestProjectRuntimeValue(t *testing.T) {
 	product := testConversation()
 	input := map[string]any{
-		"session_id": product.RuntimeSessionID,
-		"nested":     map[string]any{"sessionId": product.RuntimeSessionID, "url": "/api/chat-server/sessions/runtime-session/files/file/content"},
+		"session_id": product.RuntimeThreadID,
+		"nested":     map[string]any{"sessionId": product.RuntimeThreadID, "url": "/api/chat-server/sessions/runtime-thread/files/file/content"},
 		"context":    map[string]any{"id": "session", "tokens": float64(42)},
 	}
 	want := map[string]any{
@@ -35,20 +36,26 @@ func TestProjectRuntimeValue(t *testing.T) {
 	}
 }
 
-func TestRuntimeRunBodyRejectsMismatchedConversationAndBindsCanvas(t *testing.T) {
-	project, canvas := "project", "canvas"
+func TestRuntimeRunBodyRejectsMismatchedConversationAndUsesStoredPluginSelections(t *testing.T) {
 	product := testConversation()
-	product.ProjectID, product.CanvasID = &project, &canvas
+	product.PluginSelections = []ConversationPluginSelection{{
+		PluginID: "canvas@platform",
+		Bindings: map[string]string{"project_id": "project", "canvas_id": "canvas"},
+	}}
 	if _, err := RuntimeRunBody(product, map[string]any{"id": "another"}); err == nil {
 		t.Fatal("mismatched conversation id was accepted")
 	}
-	got, err := RuntimeRunBody(product, map[string]any{"request_id": "retry", "host_context": map[string]any{"project_id": "untrusted"}})
+	got, err := RuntimeRunBody(product, map[string]any{
+		"request_id":         "retry",
+		"host_context":       map[string]any{"project_id": "untrusted"},
+		"plugin_activations": []any{map[string]any{"plugin_id": "attacker@external"}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]any{
-		"id": product.RuntimeSessionID, "request_id": "retry", "generate_title": false,
-		"host_context": map[string]any{"project_id": project, "canvas_id": canvas},
+		"id": product.RuntimeThreadID, "request_id": "retry", "generate_title": false,
+		"plugin_activations": product.PluginSelections,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("run body = %#v, want %#v", got, want)

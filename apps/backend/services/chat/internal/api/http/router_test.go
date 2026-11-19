@@ -18,8 +18,14 @@ type repositoryStub struct {
 
 func (repositoryStub) Ping(context.Context) error { return nil }
 func (repositoryStub) Close()                     {}
-func (repositoryStub) Create(context.Context, application.AuthContext, string, application.CreateConversationInput) (application.Conversation, error) {
+func (repositoryStub) Reserve(context.Context, application.AuthContext, application.ConversationIntent) (application.Conversation, error) {
 	return application.Conversation{}, nil
+}
+func (repositoryStub) BindRuntimeThread(context.Context, application.AuthContext, string, string) (application.Conversation, error) {
+	return application.Conversation{}, nil
+}
+func (repositoryStub) RecordSagaFailure(context.Context, application.AuthContext, string, application.ConversationState, error) error {
+	return nil
 }
 func (repositoryStub) List(context.Context, application.AuthContext) ([]application.Conversation, error) {
 	return []application.Conversation{}, nil
@@ -37,8 +43,11 @@ func (repositoryStub) UpdateTitle(context.Context, application.AuthContext, stri
 func (repositoryStub) UpdateTitleIfDefault(context.Context, application.AuthContext, string, string) (*application.Conversation, error) {
 	return nil, nil
 }
-func (repositoryStub) Delete(context.Context, application.AuthContext, string) (*application.Conversation, error) {
+func (repositoryStub) BeginDelete(context.Context, application.AuthContext, string) (*application.Conversation, error) {
 	return nil, nil
+}
+func (repositoryStub) CompleteDelete(context.Context, application.AuthContext, string, string) error {
+	return nil
 }
 
 type runtimeStub struct {
@@ -53,7 +62,8 @@ func (stub *runtimeStub) Do(_ context.Context, request application.RuntimeReques
 
 func testRouter(runtimeResponse *http.Response) (http.Handler, *runtimeStub) {
 	conversation := application.Conversation{
-		ID: "chat-conversation", RuntimeSessionID: "runtime-session", UserID: "user", TenantID: "tenant", WorkspaceID: "workspace",
+		ID: "chat-conversation", State: application.ConversationReady, Operation: application.ConversationCreate,
+		RuntimeThreadID: "runtime-thread", UserID: "user", TenantID: "tenant", WorkspaceID: "workspace",
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	runtime := &runtimeStub{response: runtimeResponse}
@@ -104,7 +114,7 @@ func TestConversationProxyPreservesSSEBytesAndMapsRuntimePath(t *testing.T) {
 	if response.Header().Get("X-Runtime-Stream") != "yes" {
 		t.Fatalf("runtime header = %q", response.Header().Get("X-Runtime-Stream"))
 	}
-	if runtime.request.Path != "/v1/sessions/runtime-session/agents/run/stream?cursor=3" {
+	if runtime.request.Path != "/v1/sessions/runtime-thread/agents/run/stream?cursor=3" {
 		t.Fatalf("runtime path = %q", runtime.request.Path)
 	}
 }
@@ -122,5 +132,16 @@ func TestRuntimeErrorStatusHeadersAndBodyArePreserved(t *testing.T) {
 	}
 	if response.Body.String() != `{"code":"runtime_busy","message":"try later"}` {
 		t.Fatalf("body = %q", response.Body.String())
+	}
+}
+
+func TestCreateInputRejectsSecretBearingOrEndpointPluginFields(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/conversations", strings.NewReader(`{
+		"request_id":"request-1234",
+		"plugin_selections":[{"plugin_id":"external@marketplace","url":"https://example.com/mcp"}]
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	if _, err := decodeCreateInput(request); err == nil {
+		t.Fatal("plugin endpoint field was accepted from the renderer")
 	}
 }

@@ -1,4 +1,4 @@
-import type { PersistedMessageContent } from "../infrastructure/persistence/schema.js";
+import type { PersistedThreadItemContent } from "../infrastructure/persistence/schema.js";
 import { cancelTodoOutput, hasNonTerminalOutput } from "./agent/runs/cancellation.js";
 import { ConflictError } from "./errors.js";
 
@@ -8,7 +8,7 @@ function record(value: unknown): value is RecordValue {
 }
 
 export function forkMessageContent(
-  content: PersistedMessageContent,
+  content: PersistedThreadItemContent,
   input: {
     sourceId: string;
     sessionId: string;
@@ -16,7 +16,7 @@ export function forkMessageContent(
     documentIds: Record<string, string>;
     fileIds: Record<string, string>;
   },
-): PersistedMessageContent {
+): PersistedThreadItemContent {
   const { sourceId, sessionId, documentIds, fileIds } = input;
   function remap(value: unknown, key = ""): unknown {
     if (Array.isArray(value)) return value.map((entry) => remap(entry, key));

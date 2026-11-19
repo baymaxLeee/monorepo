@@ -14,36 +14,349 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for AgentPluginListItemInstallPolicy.
+const (
+	AgentPluginListItemInstallPolicyAvailable          AgentPluginListItemInstallPolicy = "available"
+	AgentPluginListItemInstallPolicyInstalledByDefault AgentPluginListItemInstallPolicy = "installed-by-default"
+	AgentPluginListItemInstallPolicyNotAvailable       AgentPluginListItemInstallPolicy = "not-available"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginListItemInstallPolicy enum.
+func (e AgentPluginListItemInstallPolicy) Valid() bool {
+	switch e {
+	case AgentPluginListItemInstallPolicyAvailable:
+		return true
+	case AgentPluginListItemInstallPolicyInstalledByDefault:
+		return true
+	case AgentPluginListItemInstallPolicyNotAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginListItemSource.
+const (
+	AgentPluginListItemSourceExternalMcp AgentPluginListItemSource = "external-mcp"
+	AgentPluginListItemSourceSystem      AgentPluginListItemSource = "system"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginListItemSource enum.
+func (e AgentPluginListItemSource) Valid() bool {
+	switch e {
+	case AgentPluginListItemSourceExternalMcp:
+		return true
+	case AgentPluginListItemSourceSystem:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginListItemTrust.
+const (
+	AgentPluginListItemTrustSystem     AgentPluginListItemTrust = "system"
+	AgentPluginListItemTrustUnverified AgentPluginListItemTrust = "unverified"
+	AgentPluginListItemTrustVerified   AgentPluginListItemTrust = "verified"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginListItemTrust enum.
+func (e AgentPluginListItemTrust) Valid() bool {
+	switch e {
+	case AgentPluginListItemTrustSystem:
+		return true
+	case AgentPluginListItemTrustUnverified:
+		return true
+	case AgentPluginListItemTrustVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginManifestSchemaVersion.
+const (
+	AgentPluginManifestSchemaVersionN1 AgentPluginManifestSchemaVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginManifestSchemaVersion enum.
+func (e AgentPluginManifestSchemaVersion) Valid() bool {
+	switch e {
+	case AgentPluginManifestSchemaVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginManifestSource.
+const (
+	AgentPluginManifestSourceExternalMcp AgentPluginManifestSource = "external-mcp"
+	AgentPluginManifestSourceSystem      AgentPluginManifestSource = "system"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginManifestSource enum.
+func (e AgentPluginManifestSource) Valid() bool {
+	switch e {
+	case AgentPluginManifestSourceExternalMcp:
+		return true
+	case AgentPluginManifestSourceSystem:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginManifestTrust.
+const (
+	AgentPluginManifestTrustSystem     AgentPluginManifestTrust = "system"
+	AgentPluginManifestTrustUnverified AgentPluginManifestTrust = "unverified"
+	AgentPluginManifestTrustVerified   AgentPluginManifestTrust = "verified"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginManifestTrust enum.
+func (e AgentPluginManifestTrust) Valid() bool {
+	switch e {
+	case AgentPluginManifestTrustSystem:
+		return true
+	case AgentPluginManifestTrustUnverified:
+		return true
+	case AgentPluginManifestTrustVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginManifestInputSchemaVersion.
+const (
+	AgentPluginManifestInputSchemaVersionN1 AgentPluginManifestInputSchemaVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginManifestInputSchemaVersion enum.
+func (e AgentPluginManifestInputSchemaVersion) Valid() bool {
+	switch e {
+	case AgentPluginManifestInputSchemaVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginManifestInputSource.
+const (
+	AgentPluginManifestInputSourceExternalMcp AgentPluginManifestInputSource = "external-mcp"
+	AgentPluginManifestInputSourceSystem      AgentPluginManifestInputSource = "system"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginManifestInputSource enum.
+func (e AgentPluginManifestInputSource) Valid() bool {
+	switch e {
+	case AgentPluginManifestInputSourceExternalMcp:
+		return true
+	case AgentPluginManifestInputSourceSystem:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginManifestInputTrust.
+const (
+	AgentPluginManifestInputTrustSystem     AgentPluginManifestInputTrust = "system"
+	AgentPluginManifestInputTrustUnverified AgentPluginManifestInputTrust = "unverified"
+	AgentPluginManifestInputTrustVerified   AgentPluginManifestInputTrust = "verified"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginManifestInputTrust enum.
+func (e AgentPluginManifestInputTrust) Valid() bool {
+	switch e {
+	case AgentPluginManifestInputTrustSystem:
+		return true
+	case AgentPluginManifestInputTrustUnverified:
+		return true
+	case AgentPluginManifestInputTrustVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginToolPolicyCapability.
+const (
+	External    AgentPluginToolPolicyCapability = "external"
+	Files       AgentPluginToolPolicyCapability = "files"
+	Interaction AgentPluginToolPolicyCapability = "interaction"
+	Media       AgentPluginToolPolicyCapability = "media"
+	Memory      AgentPluginToolPolicyCapability = "memory"
+	Planning    AgentPluginToolPolicyCapability = "planning"
+	Search      AgentPluginToolPolicyCapability = "search"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginToolPolicyCapability enum.
+func (e AgentPluginToolPolicyCapability) Valid() bool {
+	switch e {
+	case External:
+		return true
+	case Files:
+		return true
+	case Interaction:
+		return true
+	case Media:
+		return true
+	case Memory:
+		return true
+	case Planning:
+		return true
+	case Search:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginToolPolicyEffect.
+const (
+	AgentPluginToolPolicyEffectAdd         AgentPluginToolPolicyEffect = "add"
+	AgentPluginToolPolicyEffectDestructive AgentPluginToolPolicyEffect = "destructive"
+	AgentPluginToolPolicyEffectNone        AgentPluginToolPolicyEffect = "none"
+	AgentPluginToolPolicyEffectRead        AgentPluginToolPolicyEffect = "read"
+	AgentPluginToolPolicyEffectUnknown     AgentPluginToolPolicyEffect = "unknown"
+	AgentPluginToolPolicyEffectUpdate      AgentPluginToolPolicyEffect = "update"
+	AgentPluginToolPolicyEffectWrite       AgentPluginToolPolicyEffect = "write"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginToolPolicyEffect enum.
+func (e AgentPluginToolPolicyEffect) Valid() bool {
+	switch e {
+	case AgentPluginToolPolicyEffectAdd:
+		return true
+	case AgentPluginToolPolicyEffectDestructive:
+		return true
+	case AgentPluginToolPolicyEffectNone:
+		return true
+	case AgentPluginToolPolicyEffectRead:
+		return true
+	case AgentPluginToolPolicyEffectUnknown:
+		return true
+	case AgentPluginToolPolicyEffectUpdate:
+		return true
+	case AgentPluginToolPolicyEffectWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginToolPolicyExecution.
+const (
+	AgentPluginToolPolicyExecutionClient  AgentPluginToolPolicyExecution = "client"
+	AgentPluginToolPolicyExecutionDurable AgentPluginToolPolicyExecution = "durable"
+	AgentPluginToolPolicyExecutionInline  AgentPluginToolPolicyExecution = "inline"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginToolPolicyExecution enum.
+func (e AgentPluginToolPolicyExecution) Valid() bool {
+	switch e {
+	case AgentPluginToolPolicyExecutionClient:
+		return true
+	case AgentPluginToolPolicyExecutionDurable:
+		return true
+	case AgentPluginToolPolicyExecutionInline:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginToolPolicyTrust.
+const (
+	AgentPluginToolPolicyTrustClosed           AgentPluginToolPolicyTrust = "closed"
+	AgentPluginToolPolicyTrustOpenWorld        AgentPluginToolPolicyTrust = "open-world"
+	AgentPluginToolPolicyTrustPrivateUntrusted AgentPluginToolPolicyTrust = "private-untrusted"
+	AgentPluginToolPolicyTrustUnknown          AgentPluginToolPolicyTrust = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginToolPolicyTrust enum.
+func (e AgentPluginToolPolicyTrust) Valid() bool {
+	switch e {
+	case AgentPluginToolPolicyTrustClosed:
+		return true
+	case AgentPluginToolPolicyTrustOpenWorld:
+		return true
+	case AgentPluginToolPolicyTrustPrivateUntrusted:
+		return true
+	case AgentPluginToolPolicyTrustUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPluginToolPolicyUiKind.
+const (
+	AgentPluginToolPolicyUiKindArtifact     AgentPluginToolPolicyUiKind = "artifact"
+	AgentPluginToolPolicyUiKindAskUser      AgentPluginToolPolicyUiKind = "ask-user"
+	AgentPluginToolPolicyUiKindImageGallery AgentPluginToolPolicyUiKind = "image-gallery"
+	AgentPluginToolPolicyUiKindSubagent     AgentPluginToolPolicyUiKind = "subagent"
+	AgentPluginToolPolicyUiKindTerminal     AgentPluginToolPolicyUiKind = "terminal"
+	AgentPluginToolPolicyUiKindTodoList     AgentPluginToolPolicyUiKind = "todo-list"
+	AgentPluginToolPolicyUiKindVideo        AgentPluginToolPolicyUiKind = "video"
+)
+
+// Valid indicates whether the value is a known member of the AgentPluginToolPolicyUiKind enum.
+func (e AgentPluginToolPolicyUiKind) Valid() bool {
+	switch e {
+	case AgentPluginToolPolicyUiKindArtifact:
+		return true
+	case AgentPluginToolPolicyUiKindAskUser:
+		return true
+	case AgentPluginToolPolicyUiKindImageGallery:
+		return true
+	case AgentPluginToolPolicyUiKindSubagent:
+		return true
+	case AgentPluginToolPolicyUiKindTerminal:
+		return true
+	case AgentPluginToolPolicyUiKindTodoList:
+		return true
+	case AgentPluginToolPolicyUiKindVideo:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CanvasModelParametersReasoningEffort.
 const (
-	High    CanvasModelParametersReasoningEffort = "high"
-	Low     CanvasModelParametersReasoningEffort = "low"
-	Medium  CanvasModelParametersReasoningEffort = "medium"
-	Minimal CanvasModelParametersReasoningEffort = "minimal"
-	None    CanvasModelParametersReasoningEffort = "none"
-	Xhigh   CanvasModelParametersReasoningEffort = "xhigh"
+	CanvasModelParametersReasoningEffortHigh    CanvasModelParametersReasoningEffort = "high"
+	CanvasModelParametersReasoningEffortLow     CanvasModelParametersReasoningEffort = "low"
+	CanvasModelParametersReasoningEffortMedium  CanvasModelParametersReasoningEffort = "medium"
+	CanvasModelParametersReasoningEffortMinimal CanvasModelParametersReasoningEffort = "minimal"
+	CanvasModelParametersReasoningEffortNone    CanvasModelParametersReasoningEffort = "none"
+	CanvasModelParametersReasoningEffortXhigh   CanvasModelParametersReasoningEffort = "xhigh"
 )
 
 // Valid indicates whether the value is a known member of the CanvasModelParametersReasoningEffort enum.
 func (e CanvasModelParametersReasoningEffort) Valid() bool {
 	switch e {
-	case High:
+	case CanvasModelParametersReasoningEffortHigh:
 		return true
-	case Low:
+	case CanvasModelParametersReasoningEffortLow:
 		return true
-	case Medium:
+	case CanvasModelParametersReasoningEffortMedium:
 		return true
-	case Minimal:
+	case CanvasModelParametersReasoningEffortMinimal:
 		return true
-	case None:
+	case CanvasModelParametersReasoningEffortNone:
 		return true
-	case Xhigh:
+	case CanvasModelParametersReasoningEffortXhigh:
 		return true
 	default:
 		return false
@@ -194,6 +507,27 @@ func (e ProviderPricingUnit) Valid() bool {
 	case GeneratedItem:
 		return true
 	case GeneratedSecond:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PublishAgentPluginInputInstallPolicy.
+const (
+	PublishAgentPluginInputInstallPolicyAvailable          PublishAgentPluginInputInstallPolicy = "available"
+	PublishAgentPluginInputInstallPolicyInstalledByDefault PublishAgentPluginInputInstallPolicy = "installed-by-default"
+	PublishAgentPluginInputInstallPolicyNotAvailable       PublishAgentPluginInputInstallPolicy = "not-available"
+)
+
+// Valid indicates whether the value is a known member of the PublishAgentPluginInputInstallPolicy enum.
+func (e PublishAgentPluginInputInstallPolicy) Valid() bool {
+	switch e {
+	case PublishAgentPluginInputInstallPolicyAvailable:
+		return true
+	case PublishAgentPluginInputInstallPolicyInstalledByDefault:
+		return true
+	case PublishAgentPluginInputInstallPolicyNotAvailable:
 		return true
 	default:
 		return false
@@ -388,6 +722,163 @@ func (e UpdateSkillInputStatus) Valid() bool {
 		return false
 	}
 }
+
+// AgentPluginInstallation defines model for AgentPluginInstallation.
+type AgentPluginInstallation struct {
+	Config        map[string]string `json:"config"`
+	Enabled       bool              `json:"enabled"`
+	PluginId      string            `json:"pluginId"`
+	ReleaseDigest string            `json:"releaseDigest"`
+	Revision      int64             `json:"revision"`
+	UpdatedAt     time.Time         `json:"updatedAt"`
+}
+
+// AgentPluginListItem defines model for AgentPluginListItem.
+type AgentPluginListItem struct {
+	Availability        string                           `json:"availability"`
+	Description         string                           `json:"description"`
+	DisplayName         string                           `json:"displayName"`
+	Enabled             bool                             `json:"enabled"`
+	InstallPolicy       AgentPluginListItemInstallPolicy `json:"installPolicy"`
+	Installed           bool                             `json:"installed"`
+	LatestReleaseDigest string                           `json:"latestReleaseDigest"`
+	Listed              bool                             `json:"listed"`
+	Manifest            AgentPluginManifest              `json:"manifest"`
+	PluginId            string                           `json:"pluginId"`
+	Source              AgentPluginListItemSource        `json:"source"`
+	StateRevision       int64                            `json:"stateRevision"`
+	Trust               AgentPluginListItemTrust         `json:"trust"`
+}
+
+// AgentPluginListItemInstallPolicy defines model for AgentPluginListItem.InstallPolicy.
+type AgentPluginListItemInstallPolicy string
+
+// AgentPluginListItemSource defines model for AgentPluginListItem.Source.
+type AgentPluginListItemSource string
+
+// AgentPluginListItemTrust defines model for AgentPluginListItem.Trust.
+type AgentPluginListItemTrust string
+
+// AgentPluginMCPServer defines model for AgentPluginMCPServer.
+type AgentPluginMCPServer struct {
+	BindingHeaders   *map[string]string   `json:"bindingHeaders,omitempty"`
+	ConfigHeaders    *map[string]string   `json:"configHeaders,omitempty"`
+	Name             string               `json:"name"`
+	OptionalBindings *[]string            `json:"optionalBindings,omitempty"`
+	RequiredBindings *[]string            `json:"requiredBindings,omitempty"`
+	SecretHeaders    *map[string]string   `json:"secretHeaders,omitempty"`
+	Tools            []AgentPluginMCPTool `json:"tools"`
+	Url              string               `json:"url"`
+}
+
+// AgentPluginMCPTool defines model for AgentPluginMCPTool.
+type AgentPluginMCPTool struct {
+	Description  string                  `json:"description"`
+	InputSchema  map[string]interface{}  `json:"inputSchema"`
+	Name         string                  `json:"name"`
+	OutputSchema *map[string]interface{} `json:"outputSchema,omitempty"`
+	Planning     AgentPluginToolPlanning `json:"planning"`
+	Policy       AgentPluginToolPolicy   `json:"policy"`
+}
+
+// AgentPluginManifest defines model for AgentPluginManifest.
+type AgentPluginManifest struct {
+	Description   string                           `json:"description"`
+	Digest        string                           `json:"digest"`
+	DisplayName   string                           `json:"displayName"`
+	Id            string                           `json:"id"`
+	McpServers    []AgentPluginMCPServer           `json:"mcpServers"`
+	SchemaVersion AgentPluginManifestSchemaVersion `json:"schemaVersion"`
+	Skills        *[]AgentPluginSkill              `json:"skills,omitempty"`
+	Source        AgentPluginManifestSource        `json:"source"`
+	Trust         AgentPluginManifestTrust         `json:"trust"`
+	Version       string                           `json:"version"`
+}
+
+// AgentPluginManifestSchemaVersion defines model for AgentPluginManifest.SchemaVersion.
+type AgentPluginManifestSchemaVersion int
+
+// AgentPluginManifestSource defines model for AgentPluginManifest.Source.
+type AgentPluginManifestSource string
+
+// AgentPluginManifestTrust defines model for AgentPluginManifest.Trust.
+type AgentPluginManifestTrust string
+
+// AgentPluginManifestInput defines model for AgentPluginManifestInput.
+type AgentPluginManifestInput struct {
+	Description   string                                `json:"description"`
+	DisplayName   string                                `json:"displayName"`
+	Id            string                                `json:"id"`
+	McpServers    []AgentPluginMCPServer                `json:"mcpServers"`
+	SchemaVersion AgentPluginManifestInputSchemaVersion `json:"schemaVersion"`
+	Skills        *[]AgentPluginSkill                   `json:"skills,omitempty"`
+	Source        AgentPluginManifestInputSource        `json:"source"`
+	Trust         AgentPluginManifestInputTrust         `json:"trust"`
+	Version       string                                `json:"version"`
+}
+
+// AgentPluginManifestInputSchemaVersion defines model for AgentPluginManifestInput.SchemaVersion.
+type AgentPluginManifestInputSchemaVersion int
+
+// AgentPluginManifestInputSource defines model for AgentPluginManifestInput.Source.
+type AgentPluginManifestInputSource string
+
+// AgentPluginManifestInputTrust defines model for AgentPluginManifestInput.Trust.
+type AgentPluginManifestInputTrust string
+
+// AgentPluginSelectionOption defines model for AgentPluginSelectionOption.
+type AgentPluginSelectionOption struct {
+	Description       string `json:"description"`
+	DisplayName       string `json:"displayName"`
+	PluginId          string `json:"pluginId"`
+	RequiresBindings  bool   `json:"requiresBindings"`
+	SelectedByDefault bool   `json:"selectedByDefault"`
+}
+
+// AgentPluginSkill defines model for AgentPluginSkill.
+type AgentPluginSkill struct {
+	AssetId     string `json:"assetId"`
+	Description string `json:"description"`
+	Id          string `json:"id"`
+	Name        string `json:"name"`
+	RevisionId  string `json:"revisionId"`
+	Sha256      string `json:"sha256"`
+}
+
+// AgentPluginToolPlanning defines model for AgentPluginToolPlanning.
+type AgentPluginToolPlanning struct {
+	Constraints    *[]string `json:"constraints,omitempty"`
+	Parallelizable *bool     `json:"parallelizable,omitempty"`
+	Prerequisites  *[]string `json:"prerequisites,omitempty"`
+	Summary        string    `json:"summary"`
+}
+
+// AgentPluginToolPolicy defines model for AgentPluginToolPolicy.
+type AgentPluginToolPolicy struct {
+	CallableByCodeMode *bool                           `json:"callableByCodeMode,omitempty"`
+	Capability         AgentPluginToolPolicyCapability `json:"capability"`
+	Effect             AgentPluginToolPolicyEffect     `json:"effect"`
+	Execution          AgentPluginToolPolicyExecution  `json:"execution"`
+	SourceProjection   *map[string]interface{}         `json:"sourceProjection,omitempty"`
+	Streaming          *bool                           `json:"streaming,omitempty"`
+	Trust              AgentPluginToolPolicyTrust      `json:"trust"`
+	UiKind             *AgentPluginToolPolicyUiKind    `json:"uiKind,omitempty"`
+}
+
+// AgentPluginToolPolicyCapability defines model for AgentPluginToolPolicy.Capability.
+type AgentPluginToolPolicyCapability string
+
+// AgentPluginToolPolicyEffect defines model for AgentPluginToolPolicy.Effect.
+type AgentPluginToolPolicyEffect string
+
+// AgentPluginToolPolicyExecution defines model for AgentPluginToolPolicy.Execution.
+type AgentPluginToolPolicyExecution string
+
+// AgentPluginToolPolicyTrust defines model for AgentPluginToolPolicy.Trust.
+type AgentPluginToolPolicyTrust string
+
+// AgentPluginToolPolicyUiKind defines model for AgentPluginToolPolicy.UiKind.
+type AgentPluginToolPolicyUiKind string
 
 // App defines model for App.
 type App struct {
@@ -586,6 +1077,14 @@ type ImportSkillArchiveResponse struct {
 	Workspace          SkillWorkspace `json:"workspace"`
 }
 
+// InstallAgentPluginInput defines model for InstallAgentPluginInput.
+type InstallAgentPluginInput struct {
+	Config        *map[string]string `json:"config,omitempty"`
+	Enabled       bool               `json:"enabled"`
+	ReleaseDigest string             `json:"releaseDigest"`
+	Secrets       *map[string]string `json:"secrets,omitempty"`
+}
+
 // ModelProvider Public view: masked api_key, safe to serve to admin MFE / browser.
 type ModelProvider struct {
 	ApiKeyMasked string `json:"api_key_masked"`
@@ -647,6 +1146,17 @@ type ProviderPricing struct {
 // ProviderPricingUnit defines model for ProviderPricing.Unit.
 type ProviderPricingUnit string
 
+// PublishAgentPluginInput defines model for PublishAgentPluginInput.
+type PublishAgentPluginInput struct {
+	Availability  string                               `json:"availability"`
+	InstallPolicy PublishAgentPluginInputInstallPolicy `json:"installPolicy"`
+	Listed        bool                                 `json:"listed"`
+	Manifest      AgentPluginManifestInput             `json:"manifest"`
+}
+
+// PublishAgentPluginInputInstallPolicy defines model for PublishAgentPluginInput.InstallPolicy.
+type PublishAgentPluginInputInstallPolicy string
+
 // PublishSkillInput defines model for PublishSkillInput.
 type PublishSkillInput struct {
 	BaseWorkspaceSeq int `json:"base_workspace_seq"`
@@ -662,6 +1172,11 @@ type PublishSkillResponse struct {
 type RenameSkillNodeInput struct {
 	BaseEtag string `json:"base_etag"`
 	Name     string `json:"name"`
+}
+
+// SetAgentPluginEnabledInput defines model for SetAgentPluginEnabledInput.
+type SetAgentPluginEnabledInput struct {
+	Enabled bool `json:"enabled"`
 }
 
 // Skill defines model for Skill.
@@ -1324,6 +1839,15 @@ type ImportSkillArchiveParams struct {
 	XAuthRoles         *string `json:"X-Auth-Roles,omitempty"`
 }
 
+// PublishAgentPluginJSONRequestBody defines body for PublishAgentPlugin for application/json ContentType.
+type PublishAgentPluginJSONRequestBody = PublishAgentPluginInput
+
+// SetAgentPluginEnabledJSONRequestBody defines body for SetAgentPluginEnabled for application/json ContentType.
+type SetAgentPluginEnabledJSONRequestBody = SetAgentPluginEnabledInput
+
+// InstallAgentPluginJSONRequestBody defines body for InstallAgentPlugin for application/json ContentType.
+type InstallAgentPluginJSONRequestBody = InstallAgentPluginInput
+
 // CreateAppJSONRequestBody defines body for CreateApp for application/json ContentType.
 type CreateAppJSONRequestBody = CreateAppInput
 
@@ -1448,6 +1972,24 @@ func (t *ValidationError_Loc_Item) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListAgentPluginOptions List Agent Plugin Selection Options
+	// (GET /agent-plugin-options)
+	ListAgentPluginOptions(w http.ResponseWriter, r *http.Request)
+	// ListAgentPlugins List Agent Plugins
+	// (GET /agent-plugins)
+	ListAgentPlugins(w http.ResponseWriter, r *http.Request)
+	// PublishAgentPlugin Publish Agent Plugin Release
+	// (POST /agent-plugins)
+	PublishAgentPlugin(w http.ResponseWriter, r *http.Request)
+	// UninstallAgentPlugin Uninstall Agent Plugin
+	// (DELETE /agent-plugins/{plugin_id}/installation)
+	UninstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string)
+	// SetAgentPluginEnabled Set Agent Plugin Enabled
+	// (PATCH /agent-plugins/{plugin_id}/installation)
+	SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request, pluginId string)
+	// InstallAgentPlugin Install Agent Plugin
+	// (PUT /agent-plugins/{plugin_id}/installation)
+	InstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string)
 	// ListApps List Apps
 	// (GET /apps)
 	ListApps(w http.ResponseWriter, r *http.Request, params ListAppsParams)
@@ -1579,6 +2121,42 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// ListAgentPluginOptions List Agent Plugin Selection Options
+// (GET /agent-plugin-options)
+func (_ Unimplemented) ListAgentPluginOptions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAgentPlugins List Agent Plugins
+// (GET /agent-plugins)
+func (_ Unimplemented) ListAgentPlugins(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PublishAgentPlugin Publish Agent Plugin Release
+// (POST /agent-plugins)
+func (_ Unimplemented) PublishAgentPlugin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UninstallAgentPlugin Uninstall Agent Plugin
+// (DELETE /agent-plugins/{plugin_id}/installation)
+func (_ Unimplemented) UninstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SetAgentPluginEnabled Set Agent Plugin Enabled
+// (PATCH /agent-plugins/{plugin_id}/installation)
+func (_ Unimplemented) SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request, pluginId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// InstallAgentPlugin Install Agent Plugin
+// (PUT /agent-plugins/{plugin_id}/installation)
+func (_ Unimplemented) InstallAgentPlugin(w http.ResponseWriter, r *http.Request, pluginId string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // ListApps List Apps
 // (GET /apps)
@@ -1840,6 +2418,126 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListAgentPluginOptions operation middleware
+func (siw *ServerInterfaceWrapper) ListAgentPluginOptions(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgentPluginOptions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAgentPlugins operation middleware
+func (siw *ServerInterfaceWrapper) ListAgentPlugins(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAgentPlugins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishAgentPlugin operation middleware
+func (siw *ServerInterfaceWrapper) PublishAgentPlugin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishAgentPlugin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UninstallAgentPlugin operation middleware
+func (siw *ServerInterfaceWrapper) UninstallAgentPlugin(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "plugin_id" -------------
+	var pluginId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", chi.URLParam(r, "plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UninstallAgentPlugin(w, r, pluginId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetAgentPluginEnabled operation middleware
+func (siw *ServerInterfaceWrapper) SetAgentPluginEnabled(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "plugin_id" -------------
+	var pluginId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", chi.URLParam(r, "plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetAgentPluginEnabled(w, r, pluginId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// InstallAgentPlugin operation middleware
+func (siw *ServerInterfaceWrapper) InstallAgentPlugin(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "plugin_id" -------------
+	var pluginId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", chi.URLParam(r, "plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.InstallAgentPlugin(w, r, pluginId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListApps operation middleware
 func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Request) {
@@ -8360,6 +9058,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/agent-plugin-options", wrapper.ListAgentPluginOptions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/agent-plugins", wrapper.ListAgentPlugins)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/agent-plugins", wrapper.PublishAgentPlugin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/agent-plugins/{plugin_id}/installation", wrapper.UninstallAgentPlugin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/agent-plugins/{plugin_id}/installation", wrapper.SetAgentPluginEnabled)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/agent-plugins/{plugin_id}/installation", wrapper.InstallAgentPlugin)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/apps", wrapper.ListApps)
 	})
 	r.Group(func(r chi.Router) {
@@ -8494,105 +9210,126 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"pv7t/w0A",
+	"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",
+	"AA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

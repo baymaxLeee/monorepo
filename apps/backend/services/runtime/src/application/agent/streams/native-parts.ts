@@ -4,7 +4,6 @@ import type { ToolSet } from "@ai-sdk/provider-utils";
 import { fileDataChunks } from "@repo/agent-runtime/protocol/artifact";
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
 import {
-  getToolName,
   isToolUIPart,
   toUIMessageStream,
   type TextStreamPart,
@@ -23,6 +22,21 @@ type AgentStreamEndEvent = Parameters<UIMessageStreamOnEndCallback<AnyUIMessage>
 
 type NativeFileChunk = Extract<UIMessageChunk, { type: "file" | "reasoning-file" }>;
 type NativeSourceChunk = Extract<UIMessageChunk, { type: "source-url" | "source-document" }>;
+type SourceProjection = { kind: "url-results" } | { kind: "document-results"; resolver: string };
+
+function sourceProjection(part: { toolMetadata?: unknown }): SourceProjection | null {
+  if (!part.toolMetadata || typeof part.toolMetadata !== "object" || Array.isArray(part.toolMetadata)) return null;
+  const agent = (part.toolMetadata as Record<string, unknown>).agent;
+  if (!agent || typeof agent !== "object" || Array.isArray(agent)) return null;
+  const projection = (agent as Record<string, unknown>).sourceProjection;
+  if (!projection || typeof projection !== "object" || Array.isArray(projection)) return null;
+  const candidate = projection as Record<string, unknown>;
+  if (candidate.kind === "url-results") return { kind: "url-results" };
+  if (candidate.kind === "document-results" && typeof candidate.resolver === "string" && candidate.resolver) {
+    return { kind: "document-results", resolver: candidate.resolver };
+  }
+  return null;
+}
 
 export interface NativePartDependencies {
   fetchDataUrl: typeof fetch;
@@ -299,7 +313,8 @@ export async function projectSearchSourceParts(parts: AnyUIMessage["parts"]): Pr
     const outcome = isToolOutcome(part.output) ? part.output : null;
     if (!outcome || outcome.status !== "completed" || !outcome.data || typeof outcome.data !== "object") continue;
     const results = "results" in outcome.data && Array.isArray(outcome.data.results) ? outcome.data.results : [];
-    if (getToolName(part) === "web_search") {
+    const projection = sourceProjection(part);
+    if (projection?.kind === "url-results") {
       for (const item of results) {
         if (!item || typeof item !== "object") continue;
         const row = item as Record<string, unknown>;
@@ -322,7 +337,7 @@ export async function projectSearchSourceParts(parts: AnyUIMessage["parts"]): Pr
         });
       }
     }
-    if (getToolName(part) === "knowledge_search") {
+    if (projection?.kind === "document-results") {
       for (const item of results) {
         if (!item || typeof item !== "object") continue;
         const row = item as Record<string, unknown>;
@@ -334,7 +349,7 @@ export async function projectSearchSourceParts(parts: AnyUIMessage["parts"]): Pr
           mediaType: typeof row.media_type === "string" ? row.media_type : "application/octet-stream",
           title: typeof row.title === "string" && row.title ? row.title : "Knowledge source",
           ...(typeof row.filename === "string" && row.filename ? { filename: row.filename } : {}),
-          providerMetadata: { chat: { resolver: "knowledge-document" } },
+          providerMetadata: { chat: { resolver: projection.resolver } },
         });
       }
     }

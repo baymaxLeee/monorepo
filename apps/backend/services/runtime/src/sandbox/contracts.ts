@@ -8,6 +8,10 @@ export const scopeSchema = z
     user_id: identity,
     conversation_id: identity,
     run_id: identity,
+    attempt_epoch: z
+      .string()
+      .regex(/^[1-9][0-9]*$/)
+      .max(20),
   })
   .strict();
 export type Scope = z.infer<typeof scopeSchema>;

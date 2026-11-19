@@ -119,7 +119,7 @@ export class RunSandbox implements Experimental_SandboxSession {
   private readonly scope: SandboxScope;
 
   constructor(
-    private readonly context: ArtifactToolContext,
+    private readonly context: ArtifactToolContext & { attemptEpoch: string },
     private readonly deps: SandboxDependencies = defaults,
   ) {
     this.scope = {
@@ -128,6 +128,7 @@ export class RunSandbox implements Experimental_SandboxSession {
       user_id: context.userId,
       session_id: context.sessionId,
       run_id: context.runId,
+      attempt_epoch: context.attemptEpoch,
     };
   }
 

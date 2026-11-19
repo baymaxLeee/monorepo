@@ -102,7 +102,7 @@ export class DesktopAuth {
   }
   async fetch(path: string, init?: RequestInit) {
     if (
-      !/^\/api\/chat-server\/local-inference\/(config\?provider_id=[^&]+&reasoning_effort=(?:none|minimal|low|medium|high|xhigh|max)|stream|web-search)$/.test(
+      !/^\/api\/chat-server\/local-inference\/(config\?provider_id=[^&]+&reasoning_effort=(?:none|minimal|low|medium|high|xhigh|max)|stream|web-search|plugins\/resolve)$/.test(
         path,
       )
     )

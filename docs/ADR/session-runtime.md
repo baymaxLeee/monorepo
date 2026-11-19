@@ -63,7 +63,11 @@ Chat 继续向浏览器提供 `/conversations` 产品 API：
 
 Chat 与 Runtime 使用独立 PostgreSQL database，并明确禁止通过 XA/2PC、共享数据库或跨库事务把两个服务重新耦合。创建是一段最终一致的业务流程：Chat 使用稳定 `request_id` 调用 Runtime 创建/返回同一 Session，再幂等写入本地映射；响应丢失按原键重试。进程若在 Runtime 成功后、本地映射提交前崩溃，当前实现仍需要识别并回收孤立 Session；它尚未持久化 create/delete saga。未来增强方向是 Chat 本地持久化 intent/outbox、补偿和 reconciliation，不是追求跨库 ACID。删除先请求 Runtime，再删除本地映射，未知结果必须沿原身份对账，不能先删映射而失去 Runtime 清理责任。
 
-产品标题、项目/Canvas 绑定以 Chat 为权威，不进入 Runtime Session 表。Canvas 上下文只在每次 Agent run 由 Chat 以 `host_context` 注入，Runtime 把它当作该 run 的宿主上下文，不把它升级为 Session 元数据。产品 conversation 的创建/删除/查询始终经已授权映射，禁止直接信任客户端传入的 runtime_session_id。
+产品标题、项目/Canvas 绑定以 Chat 为权威，不进入 Runtime Session 表。Canvas 产品宿主只在每次
+Agent run 通过 `plugin_activations` 激活 `canvas@platform`，并携带 manifest 已声明的
+`project_id`/`canvas_id` 非秘密 binding；Runtime 将解析出的 immutable release 与 activation 冻结为
+Turn snapshot，不把 binding 升级为 Session 元数据。产品 conversation 的创建/删除/查询始终经已授权
+映射，禁止直接信任客户端传入的 runtime_session_id。
 
 fresh baseline 仅用于全新数据库。现有已应用 baseline 不得改写；存量部署使用版本化迁移，任何数据清除是另行授权的部署操作。不维护旧 API 兼容层不等于可以丢弃用户资产或未对账的外部副作用。
 

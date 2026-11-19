@@ -15,6 +15,7 @@ export interface CloudWorkspaceScope {
   userId: string;
   sessionId: string;
   runId: string;
+  attemptEpoch: string;
 }
 
 export interface CloudWorkspaceDependencies {
@@ -53,6 +54,7 @@ export async function persistCloudWorkspace(
     user_id: context.userId,
     session_id: context.sessionId,
     run_id: context.runId,
+    attempt_epoch: context.attemptEpoch,
   };
   const [snapshot, files] = await Promise.all([
     deps.sandbox().snapshot(sandboxId, scope),

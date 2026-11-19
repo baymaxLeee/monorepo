@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { createRuntimeTurn } from "@repo/agent-runtime";
 import { shouldResetStoredResponseLineage } from "@repo/agent-runtime/context/budget";
+import type { PluginActivation } from "@repo/agent-runtime/plugins/types";
 import {
   consumeStream,
   createUIMessageStream,
@@ -13,12 +14,20 @@ import {
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
 import type { AuthContext } from "../../../api/http/middleware/auth.js";
+import { getServerSettings } from "../../../config/server.js";
 import type { ProviderSnapshot, SkillSummary } from "../../../infrastructure/clients/admin.js";
-import { getProvider, getProviderLimits, getSkillBody, getSkillFile } from "../../../infrastructure/clients/admin.js";
-import { canvasClient } from "../../../infrastructure/clients/canvas.js";
+import {
+  attachPlatformMcpCredential,
+  bindTurnPluginGrants,
+  getProvider,
+  getProviderLimits,
+  getSkillBody,
+  getSkillFile,
+  resolveAgentPlugins,
+} from "../../../infrastructure/clients/admin.js";
 import { getDocument, knowledgeDocumentSessionId } from "../../../infrastructure/clients/knowledge.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
-import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
+import type { PersistedThreadItemContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
 import { getSessionRow, listMessages, type Message } from "../../sessions.js";
 import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
@@ -49,6 +58,7 @@ import {
   deactivateAgentStream,
 } from "../streams/service.js";
 import { generateConversationTitlePart } from "../title/generator.js";
+import type { ToolCatalog } from "../tools/catalog.js";
 import { finalizeCancelledParts } from "./cancellation.js";
 import {
   compactHistoricalSkillOutputs,
@@ -64,8 +74,10 @@ import {
   getLatestSessionContextRecord,
   getRunTrace,
   isRunActive,
+  persistAgentRunPluginSnapshot,
   type AgentRunOperation,
   type AgentRunTrace,
+  type RunLeaseToken,
 } from "./repository.js";
 import { startAgentRunInputInbox } from "./steering.js";
 import { terminalStreamError } from "./stream-outcome.js";
@@ -74,8 +86,7 @@ export interface RunAgentInput {
   reasoningEffort: ReasoningEffort;
   /** Enabled published workspace skills advertised to the model via `<available_skills>`. */
   skills?: SkillSummary[];
-  projectId?: string | null;
-  canvasId?: string | null;
+  pluginActivations?: PluginActivation[];
   trigger: "submit-message" | "regenerate-message";
   messageId?: string;
   expectedRevision: number;
@@ -163,7 +174,7 @@ function assertUserSubmissionParts(message: AnyUIMessage): void {
   }
 }
 
-function serializeMessageContent(message: AnyUIMessage): PersistedMessageContent {
+function serializeMessageContent(message: AnyUIMessage): PersistedThreadItemContent {
   const metadata =
     message.metadata && typeof message.metadata === "object"
       ? (message.metadata as Record<string, unknown>)
@@ -171,7 +182,7 @@ function serializeMessageContent(message: AnyUIMessage): PersistedMessageContent
   return { version: 2, parts: message.parts, ...(metadata ? { metadata } : {}) };
 }
 
-function partsFromPersistedContent(content: PersistedMessageContent): AnyUIMessage["parts"] | null {
+function partsFromPersistedContent(content: PersistedThreadItemContent): AnyUIMessage["parts"] | null {
   if (content && typeof content === "object" && Array.isArray(content.parts)) {
     return content.parts as AnyUIMessage["parts"];
   }
@@ -234,6 +245,7 @@ export async function createAgentRunResponse(
   provider: ProviderSnapshot & LanguageProviderSnapshot,
   uiMessagesInput: unknown[],
   input: RunAgentInput,
+  toolCatalog: ToolCatalog,
 ): Promise<Response> {
   if ((provider.providerKind ?? "chat") !== "chat") {
     throw new RequestError("selected provider is not a chat model provider");
@@ -241,10 +253,6 @@ export async function createAgentRunResponse(
 
   const startedAt = performance.now();
   const session = await getSessionRow(auth, sessionId);
-  if (input.projectId || input.canvasId) {
-    if (!input.projectId || !input.canvasId) throw new RequestError("Canvas context is incomplete");
-    await canvasClient().graph(auth, input.projectId, input.canvasId);
-  }
   const uiMessages = await validateUIMessages<AnyUIMessage>({
     messages: uiMessagesInput,
     metadataSchema: chatMessageMetadataSchema.optional(),
@@ -299,7 +307,7 @@ export async function createAgentRunResponse(
     expectedRevision: input.expectedRevision,
     operation,
     targetMessageId: input.messageId ?? null,
-    requestContext: { reasoningEffort: input.reasoningEffort },
+    requestContext: { reasoningEffort: input.reasoningEffort, pluginActivations: input.pluginActivations ?? [] },
     ...(operation === "tool-continuation" ? { continuationMessage: latestMessage } : {}),
     ...(claimedUserMessage
       ? {
@@ -315,6 +323,7 @@ export async function createAgentRunResponse(
     return createAgentReplayResponse(session.id, claim.runId, { isRunLive: isRunActive });
   }
   const runId = claim.runId;
+  const leaseToken: RunLeaseToken = { runId, attemptEpoch: claim.attemptEpoch };
   let resumable = false;
   try {
     await activateAgentStream(session.id, runId);
@@ -360,7 +369,21 @@ export async function createAgentRunResponse(
     const memorySourceUser = latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
     const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
 
-    const runSignal = registerRunController(runId);
+    const runSignal = registerRunController(leaseToken);
+    const pluginSnapshot = bindTurnPluginGrants(
+      attachPlatformMcpCredential(
+        await resolveAgentPlugins(
+          session.userId,
+          auth.tenantId,
+          auth.workspaceId,
+          auth.workspaceRole,
+          input.pluginActivations ?? [],
+        ),
+        getServerSettings(),
+      ),
+      leaseToken,
+    );
+    await persistAgentRunPluginSnapshot(leaseToken, pluginSnapshot);
     const lineage = await getLatestResponseLineage({
       runId,
       sessionId: session.id,
@@ -431,31 +454,35 @@ export async function createAgentRunResponse(
       messages: modelMessages,
       signal: runSignal,
       prepare: () =>
-        prepareCloudTurn({
-          projectId: input.projectId,
-          canvasId: input.canvasId,
-          workspaceRole: auth.workspaceRole,
-          runId,
-          userId: session.userId,
-          tenantId: auth.tenantId,
-          workspaceId: auth.workspaceId,
-          sessionId: session.id,
-          provider,
-          reasoningEffort: input.reasoningEffort,
-          previousResponseId: continueStoredLineage ? lineage.responseId : null,
-          attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
-          instructionInput,
-          activeSkillName: instructionInput.activatedSkill?.name ?? null,
-          skills,
-          loadSkillBody: async (skillId: string) => {
-            const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
-            return skill.files.length
-              ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
-              : skill.body;
+        prepareCloudTurn(
+          {
+            workspaceRole: auth.workspaceRole,
+            runId,
+            attemptEpoch: claim.attemptEpoch,
+            userId: session.userId,
+            tenantId: auth.tenantId,
+            workspaceId: auth.workspaceId,
+            sessionId: session.id,
+            signal: runSignal,
+            pluginSnapshot,
+            provider,
+            reasoningEffort: input.reasoningEffort,
+            previousResponseId: continueStoredLineage ? lineage.responseId : null,
+            attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
+            instructionInput,
+            activeSkillName: instructionInput.activatedSkill?.name ?? null,
+            skills,
+            loadSkillBody: async (skillId: string) => {
+              const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
+              return skill.files.length
+                ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
+                : skill.body;
+            },
+            loadSkillFile: (skillId: string, path: string) =>
+              getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
           },
-          loadSkillFile: (skillId: string, path: string) =>
-            getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
-        }),
+          toolCatalog,
+        ),
     });
     const agent = turn.agent;
     disposeAgentResources = () => runtimeTurn.dispose();
@@ -582,6 +609,7 @@ export async function createAgentRunResponse(
               };
               return finalizeAgentRunJournal({
                 runId,
+                attemptEpoch: claim.attemptEpoch,
                 parts,
                 aborted,
                 message:
@@ -603,7 +631,7 @@ export async function createAgentRunResponse(
             },
           });
           const finalized = settled.finalized;
-          await releaseRun(runId);
+          await releaseRun(leaseToken);
           if (settled.disposalError) throw settled.disposalError;
           if (finalized.status === "completed") {
             void extractMemoryCandidates({
@@ -615,10 +643,10 @@ export async function createAgentRunResponse(
           }
         } catch (error) {
           logger.error({ err: error }, "stream completion persistence failed");
-          await failAgentRun({ runId, error }).catch((finishError) =>
+          await failAgentRun({ ...leaseToken, error }).catch((finishError) =>
             logger.error({ err: finishError }, "failed to mark run failed"),
           );
-          await releaseRun(runId).catch(() => undefined);
+          await releaseRun(leaseToken).catch(() => undefined);
           throw error;
         }
       },
@@ -657,8 +685,8 @@ export async function createAgentRunResponse(
         logger.error({ err: streamError }, "failed to clear resumable stream"),
       );
     }
-    await failAgentRun({ runId, error, usage: contextUsage });
-    await releaseRun(runId).catch(() => undefined);
+    await failAgentRun({ ...leaseToken, error, usage: contextUsage });
+    await releaseRun(leaseToken).catch(() => undefined);
     throw error;
   }
 }

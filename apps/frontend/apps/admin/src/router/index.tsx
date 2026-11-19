@@ -27,6 +27,7 @@ export const routes: RouteObject[] = [
           },
           { path: "dashboard", lazy: () => import("../pages/dashboard") },
           { path: "skills", lazy: () => import("../pages/skills") },
+          { path: "plugins", lazy: () => import("../pages/plugins") },
           {
             path: "skills/:id",
             lazy: () => import("../pages/skills/workspace"),

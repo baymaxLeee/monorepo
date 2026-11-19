@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { agentRuns, agentRunInputs, sessions, sessionRunLeases } from "../../../infrastructure/persistence/schema.js";
+import { threads, turnInputs, turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError } from "../../errors.js";
 
 export type AgentRunInputState = "accepted" | "dispatching" | "delivered" | "not_delivered" | "unconfirmed";
@@ -17,10 +17,10 @@ export interface AgentRunInputView {
   reason: string | null;
 }
 
-function view(row: typeof agentRunInputs.$inferSelect): AgentRunInputView {
+function view(row: typeof turnInputs.$inferSelect): AgentRunInputView {
   return {
-    clientMessageId: row.clientMessageId,
-    runId: row.runId,
+    clientMessageId: row.id,
+    runId: row.turnId,
     mode: row.mode as RuntimeInputMode,
     text: row.text,
     state: row.state as AgentRunInputState,
@@ -39,37 +39,37 @@ export async function acceptAgentRunInput(input: {
 }): Promise<AgentRunInputView> {
   return getDb().transaction(async (tx) => {
     const [session] = await tx
-      .select({ id: sessions.id })
-      .from(sessions)
-      .where(and(eq(sessions.id, input.sessionId), eq(sessions.userId, input.userId)))
+      .select({ id: threads.id })
+      .from(threads)
+      .where(and(eq(threads.id, input.sessionId), eq(threads.userId, input.userId)))
       .for("update");
     if (!session) throw new NotFoundError("session not found");
-    const [run] = await tx.select().from(agentRuns).where(eq(agentRuns.id, input.runId)).for("update");
-    if (!run || run.sessionId !== input.sessionId || run.userId !== input.userId) {
+    const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
+    if (!run || run.threadId !== input.sessionId || run.userId !== input.userId) {
       throw new NotFoundError("agent run not found");
     }
     const [existing] = await tx
       .select()
-      .from(agentRunInputs)
-      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.clientMessageId, input.clientMessageId)));
+      .from(turnInputs)
+      .where(and(eq(turnInputs.turnId, input.runId), eq(turnInputs.id, input.clientMessageId)));
     if (existing) {
-      if (existing.sessionId !== input.sessionId || existing.mode !== input.mode || existing.text !== input.text) {
+      if (existing.threadId !== input.sessionId || existing.mode !== input.mode || existing.text !== input.text) {
         throw new ConflictError("run input id is already bound to different content", "run_input_id_conflict");
       }
       return view(existing);
     }
     const [lease] = await tx
-      .select({ runId: sessionRunLeases.runId })
-      .from(sessionRunLeases)
-      .where(eq(sessionRunLeases.sessionId, input.sessionId));
-    if (run.status !== "running" || lease?.runId !== input.runId) {
+      .select({ turnId: turnLeases.turnId })
+      .from(turnLeases)
+      .where(eq(turnLeases.threadId, input.sessionId));
+    if (run.status !== "running" || lease?.turnId !== input.runId) {
       throw new ConflictError("agent run no longer accepts input", "agent_run_not_accepting_input");
     }
     const now = new Date();
-    await tx.insert(agentRunInputs).values({
-      runId: input.runId,
-      clientMessageId: input.clientMessageId,
-      sessionId: input.sessionId,
+    await tx.insert(turnInputs).values({
+      turnId: input.runId,
+      id: input.clientMessageId,
+      threadId: input.sessionId,
       mode: input.mode,
       text: input.text,
       state: "accepted",
@@ -78,8 +78,8 @@ export async function acceptAgentRunInput(input: {
     });
     const [row] = await tx
       .select()
-      .from(agentRunInputs)
-      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.clientMessageId, input.clientMessageId)));
+      .from(turnInputs)
+      .where(and(eq(turnInputs.turnId, input.runId), eq(turnInputs.id, input.clientMessageId)));
     if (!row) throw new Error("run input admission was not persisted");
     return view(row);
   });
@@ -92,19 +92,19 @@ export async function getAgentRunInput(input: {
   clientMessageId: string;
 }): Promise<AgentRunInputView> {
   const [row] = await getDb()
-    .select()
-    .from(agentRunInputs)
-    .innerJoin(agentRuns, eq(agentRuns.id, agentRunInputs.runId))
+    .select({ input: turnInputs })
+    .from(turnInputs)
+    .innerJoin(turns, eq(turns.id, turnInputs.turnId))
     .where(
       and(
-        eq(agentRunInputs.runId, input.runId),
-        eq(agentRunInputs.clientMessageId, input.clientMessageId),
-        eq(agentRunInputs.sessionId, input.sessionId),
-        eq(agentRuns.userId, input.userId),
+        eq(turnInputs.turnId, input.runId),
+        eq(turnInputs.id, input.clientMessageId),
+        eq(turnInputs.threadId, input.sessionId),
+        eq(turns.userId, input.userId),
       ),
     );
   if (!row) throw new NotFoundError("run input not found");
-  return view(row.agent_run_inputs);
+  return view(row.input);
 }
 
 export async function listAgentRunInputs(input: {
@@ -113,48 +113,32 @@ export async function listAgentRunInputs(input: {
   userId: string;
 }): Promise<AgentRunInputView[]> {
   const rows = await getDb()
-    .select()
-    .from(agentRunInputs)
-    .innerJoin(agentRuns, eq(agentRuns.id, agentRunInputs.runId))
+    .select({ input: turnInputs })
+    .from(turnInputs)
+    .innerJoin(turns, eq(turns.id, turnInputs.turnId))
     .where(
-      and(
-        eq(agentRunInputs.runId, input.runId),
-        eq(agentRunInputs.sessionId, input.sessionId),
-        eq(agentRuns.userId, input.userId),
-      ),
+      and(eq(turnInputs.turnId, input.runId), eq(turnInputs.threadId, input.sessionId), eq(turns.userId, input.userId)),
     )
-    .orderBy(agentRunInputs.createdAt);
+    .orderBy(turnInputs.createdAt);
   if (rows.length === 0) {
     const [run] = await getDb()
-      .select({ id: agentRuns.id })
-      .from(agentRuns)
-      .where(
-        and(
-          eq(agentRuns.id, input.runId),
-          eq(agentRuns.sessionId, input.sessionId),
-          eq(agentRuns.userId, input.userId),
-        ),
-      );
+      .select({ id: turns.id })
+      .from(turns)
+      .where(and(eq(turns.id, input.runId), eq(turns.threadId, input.sessionId), eq(turns.userId, input.userId)));
     if (!run) throw new NotFoundError("agent run not found");
   }
-  return rows.map((row) => view(row.agent_run_inputs));
+  return rows.map((row) => view(row.input));
 }
 
 async function settle(runId: string, clientMessageId: string, outcome: RuntimeInputOutcome): Promise<void> {
   await getDb()
-    .update(agentRunInputs)
+    .update(turnInputs)
     .set(
       outcome.type === "delivered"
         ? { state: "delivered", stepNumber: outcome.stepNumber, reason: null, updatedAt: new Date() }
         : { state: "not_delivered", reason: outcome.reason, updatedAt: new Date() },
     )
-    .where(
-      and(
-        eq(agentRunInputs.runId, runId),
-        eq(agentRunInputs.clientMessageId, clientMessageId),
-        eq(agentRunInputs.state, "dispatching"),
-      ),
-    );
+    .where(and(eq(turnInputs.turnId, runId), eq(turnInputs.id, clientMessageId), eq(turnInputs.state, "dispatching")));
 }
 
 export function startAgentRunInputInbox(runId: string, inputChannel: RuntimeInputQueue) {
@@ -165,15 +149,15 @@ export function startAgentRunInputInbox(runId: string, inputChannel: RuntimeInpu
     if (closed || polling) return polling;
     polling = (async () => {
       const rows = await getDb()
-        .update(agentRunInputs)
+        .update(turnInputs)
         .set({ state: "dispatching", updatedAt: new Date() })
-        .where(and(eq(agentRunInputs.runId, runId), eq(agentRunInputs.state, "accepted")))
+        .where(and(eq(turnInputs.turnId, runId), eq(turnInputs.state, "accepted")))
         .returning();
       rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       for (const row of rows) {
         const outcome = inputChannel
-          .submit(row.text, { id: row.clientMessageId, mode: row.mode as RuntimeInputMode })
-          .then((result) => settle(runId, row.clientMessageId, result))
+          .submit(row.text, { id: row.id, mode: row.mode as RuntimeInputMode })
+          .then((result) => settle(runId, row.id, result))
           .finally(() => settlements.delete(outcome));
         settlements.add(outcome);
       }

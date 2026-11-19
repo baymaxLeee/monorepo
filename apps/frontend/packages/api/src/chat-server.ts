@@ -62,19 +62,6 @@ export interface AgentRunInputStatus {
   text: string;
 }
 
-export type AgentRunRequestHostContext = {
-  /**
-   * @minLength 1
-   * @maxLength 36
-   */
-  canvas_id: string;
-  /**
-   * @minLength 1
-   * @maxLength 36
-   */
-  project_id: string;
-};
-
 export type AgentRunRequestMessage = { [key: string]: unknown };
 
 export type AgentRunRequestTrigger = (typeof AgentRunRequestTrigger)[keyof typeof AgentRunRequestTrigger];
@@ -87,7 +74,6 @@ export const AgentRunRequestTrigger = {
 export interface AgentRunRequest {
   /** @minimum 0 */
   expected_revision: number;
-  host_context?: AgentRunRequestHostContext;
   id?: string;
   message: AgentRunRequestMessage;
   /**
@@ -205,13 +191,22 @@ export interface CanvasConversationBinding {
   project_id: string;
 }
 
+export type ConversationPluginSelectionBindings = { [key: string]: string };
+
+export interface ConversationPluginSelection {
+  bindings?: ConversationPluginSelectionBindings;
+  /**
+   * @minLength 3
+   * @maxLength 129
+   * @pattern ^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?@[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$
+   */
+  plugin_id: string;
+}
+
 export interface Conversation {
-  /** @nullable */
-  canvas_id: string | null;
   created_at: string;
   id: string;
-  /** @nullable */
-  project_id: string | null;
+  plugin_selections: ConversationPluginSelection[];
   tenant_id: string;
   title: string;
   updated_at: string;
@@ -376,8 +371,6 @@ export interface ConversationDetail {
   /** @nullable */
   active_run_id: string | null;
   branches: MessageBranchGroup[];
-  /** @nullable */
-  canvas_id?: string | null;
   created_at: string;
   documents: ConversationDocument[];
   id: string;
@@ -385,8 +378,7 @@ export interface ConversationDetail {
   latest_run_id: string | null;
   messages: ConversationMessage[];
   model: string;
-  /** @nullable */
-  project_id?: string | null;
+  plugin_selections: ConversationPluginSelection[];
   provider_id: string;
   reasoning_effort: ReasoningEffort;
   /** @minimum 0 */
@@ -439,11 +431,38 @@ export interface ConversationFile {
   updated_at: string;
 }
 
+export interface CreateCanvasConversationInput {
+  /**
+   * @minLength 1
+   * @maxLength 36
+   */
+  canvas_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 36
+   */
+  project_id: string;
+  /**
+   * @maxLength 32
+   * @nullable
+   */
+  provider_id?: string | null;
+  reasoning_effort?: ReasoningEffort | null;
+  /**
+   * @minLength 8
+   * @maxLength 64
+   */
+  request_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title?: string;
+}
+
 export interface CreateConversationInput {
-  /** @maxLength 36 */
-  canvas_id?: string;
-  /** @maxLength 36 */
-  project_id?: string;
+  /** @maxItems 16 */
+  plugin_selections?: ConversationPluginSelection[];
   /**
    * @maxLength 32
    * @nullable
@@ -862,6 +881,21 @@ export type GetLocalInferenceConfig200 = {
   reasoningEffort: GetLocalInferenceConfig200ReasoningEffort;
 };
 
+export type ResolveLocalInferencePluginsBodyActivationsItemBindings = { [key: string]: string };
+
+export type ResolveLocalInferencePluginsBodyActivationsItem = {
+  bindings?: ResolveLocalInferencePluginsBodyActivationsItemBindings;
+  /** @pattern ^[a-z0-9._-]+@[a-z0-9._-]+$ */
+  pluginId: string;
+};
+
+export type ResolveLocalInferencePluginsBody = {
+  /** @maxItems 16 */
+  activations: ResolveLocalInferencePluginsBodyActivationsItem[];
+};
+
+export type ResolveLocalInferencePlugins200 = { [key: string]: unknown };
+
 export type StreamLocalInferenceBodyOptionsPromptItem =
   | {
       content: string;
@@ -1151,7 +1185,7 @@ export const createConversation = (
 };
 
 export const createCanvasConversation = (
-  createConversationInput: CreateConversationInput,
+  createCanvasConversationInput: CreateCanvasConversationInput,
   options?: SecondParameter<typeof apiMutator<CanvasConversationBinding>>,
 ) => {
   return apiMutator<CanvasConversationBinding>(
@@ -1159,7 +1193,7 @@ export const createCanvasConversation = (
       url: `/api/chat-server/conversations/canvas`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: createConversationInput,
+      data: createCanvasConversationInput,
     },
     options,
   );
@@ -1535,6 +1569,24 @@ export const getLocalInferenceConfig = (
 };
 
 /**
+ * Resolve the immutable plugin release snapshot and ephemeral connection grants for one native Desktop turn. Grants are held only in the utility process and must not cross the preload bridge or persistence boundary.
+ */
+export const resolveLocalInferencePlugins = (
+  resolveLocalInferencePluginsBody: ResolveLocalInferencePluginsBody,
+  options?: SecondParameter<typeof apiMutator<ResolveLocalInferencePlugins200>>,
+) => {
+  return apiMutator<ResolveLocalInferencePlugins200>(
+    {
+      url: `/api/chat-server/local-inference/plugins/resolve`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: resolveLocalInferencePluginsBody,
+    },
+    options,
+  );
+};
+
+/**
  * Constrained AI SDK LanguageModelV4 inference relay. Native provider stream parts as NDJSON; no tool execution or session persistence. See schemas/desktop/README.md.
  */
 export const streamLocalInference = (
@@ -1644,6 +1696,7 @@ export type GetVideoProductionPreviewUrlResult = NonNullable<Awaited<ReturnType<
 export type GetVideoTakePreviewUrlResult = NonNullable<Awaited<ReturnType<typeof getVideoTakePreviewUrl>>>;
 export type ChatHealthzResult = NonNullable<Awaited<ReturnType<typeof chatHealthz>>>;
 export type GetLocalInferenceConfigResult = NonNullable<Awaited<ReturnType<typeof getLocalInferenceConfig>>>;
+export type ResolveLocalInferencePluginsResult = NonNullable<Awaited<ReturnType<typeof resolveLocalInferencePlugins>>>;
 export type StreamLocalInferenceResult = NonNullable<Awaited<ReturnType<typeof streamLocalInference>>>;
 export type ListActiveMemoriesResult = NonNullable<Awaited<ReturnType<typeof listActiveMemories>>>;
 export type ListMemoryCandidatesResult = NonNullable<Awaited<ReturnType<typeof listMemoryCandidates>>>;

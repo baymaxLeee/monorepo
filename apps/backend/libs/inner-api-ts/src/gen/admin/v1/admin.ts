@@ -333,6 +333,134 @@ export interface GetCanvasSettingsResponse {
   settings?: CanvasSettings | undefined;
 }
 
+export interface ListAgentPluginsRequest {
+  actor?: ActorContext | undefined;
+}
+
+export interface ListAgentPluginsResponse {
+  plugins: AgentPluginCatalogItem[];
+}
+
+export interface AgentPluginCatalogItem {
+  pluginId: string;
+  displayName: string;
+  description: string;
+  source: string;
+  trust: string;
+  installPolicy: string;
+  availability: string;
+  installed: boolean;
+  enabled: boolean;
+  stateRevision: number;
+  latestRelease?: AgentPluginManifest | undefined;
+}
+
+export interface AgentPluginActivation {
+  pluginId: string;
+  bindings: { [key: string]: string };
+}
+
+export interface AgentPluginActivation_BindingsEntry {
+  key: string;
+  value: string;
+}
+
+export interface ResolveAgentPluginsRequest {
+  actor?: ActorContext | undefined;
+  activations: AgentPluginActivation[];
+  workspaceRole: string;
+}
+
+export interface AgentPluginToolPolicy {
+  capability: string;
+  callableByCodeMode: boolean;
+  effect: string;
+  trust: string;
+  execution: string;
+  sourceProjection?: { [key: string]: any } | undefined;
+  streaming: boolean;
+  uiKind?: string | undefined;
+}
+
+export interface AgentPluginToolPlanning {
+  summary: string;
+  constraints: string[];
+  prerequisites: string[];
+  parallelizable: boolean;
+}
+
+export interface AgentPluginMCPTool {
+  name: string;
+  description: string;
+  inputSchema?: { [key: string]: any } | undefined;
+  outputSchema?: { [key: string]: any } | undefined;
+  policy?: AgentPluginToolPolicy | undefined;
+  planning?: AgentPluginToolPlanning | undefined;
+}
+
+export interface AgentPluginMCPServer {
+  name: string;
+  url: string;
+  requiredBindings: string[];
+  optionalBindings: string[];
+  tools: AgentPluginMCPTool[];
+}
+
+export interface AgentPluginSkillContribution {
+  id: string;
+  name: string;
+  description: string;
+  assetId: string;
+  revisionId: string;
+  sha256: string;
+}
+
+export interface AgentPluginManifest {
+  schemaVersion: number;
+  pluginId: string;
+  version: string;
+  digest: string;
+  displayName: string;
+  description: string;
+  source: string;
+  trust: string;
+  mcpServers: AgentPluginMCPServer[];
+  skills: AgentPluginSkillContribution[];
+}
+
+export interface ResolvedAgentPlugin {
+  manifest?: AgentPluginManifest | undefined;
+  activation?: AgentPluginActivation | undefined;
+}
+
+export interface AgentPluginConnectionGrant {
+  pluginId: string;
+  serverName: string;
+  headers: { [key: string]: string };
+  expiresAt?: string | undefined;
+}
+
+export interface AgentPluginConnectionGrant_HeadersEntry {
+  key: string;
+  value: string;
+}
+
+export interface ResolvedAgentPluginSnapshot {
+  schemaVersion: number;
+  snapshotId: string;
+  snapshotDigest: string;
+  workspaceRevision: number;
+  tenantId: string;
+  workspaceId: string;
+  resolvedAt?: string | undefined;
+  plugins: ResolvedAgentPlugin[];
+  connectionGrants: AgentPluginConnectionGrant[];
+}
+
+export interface ResolveAgentPluginsResponse {
+  snapshot?: ResolvedAgentPluginSnapshot | undefined;
+}
+
 export interface BenefitPackage {
   id: string;
   isPreset: boolean;
@@ -3191,6 +3319,2402 @@ export const GetCanvasSettingsResponse: MessageFns<GetCanvasSettingsResponse> = 
   },
 };
 
+function createBaseListAgentPluginsRequest(): ListAgentPluginsRequest {
+  return { actor: undefined };
+}
+
+export const ListAgentPluginsRequest: MessageFns<ListAgentPluginsRequest> = {
+  encode(message: ListAgentPluginsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.actor !== undefined) {
+      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAgentPluginsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseListAgentPluginsRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.actor = ActorContext.decode(reader, reader.uint32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ListAgentPluginsRequest {
+    return { actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined };
+  },
+
+  toJSON(message: ListAgentPluginsRequest): unknown {
+    const obj: any = {};
+    if (message.actor !== undefined) {
+      obj.actor = ActorContext.toJSON(message.actor);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListAgentPluginsRequest>): ListAgentPluginsRequest {
+    return ListAgentPluginsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAgentPluginsRequest>): ListAgentPluginsRequest {
+    const message = createBaseListAgentPluginsRequest();
+    message.actor =
+      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
+    return message;
+  },
+};
+
+function createBaseListAgentPluginsResponse(): ListAgentPluginsResponse {
+  return { plugins: [] };
+}
+
+export const ListAgentPluginsResponse: MessageFns<ListAgentPluginsResponse> = {
+  encode(message: ListAgentPluginsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.plugins) {
+      AgentPluginCatalogItem.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListAgentPluginsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseListAgentPluginsResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.plugins.push(AgentPluginCatalogItem.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ListAgentPluginsResponse {
+    return {
+      plugins: globalThis.Array.isArray(object?.plugins)
+        ? object.plugins.map((e: any) => AgentPluginCatalogItem.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: ListAgentPluginsResponse): unknown {
+    const obj: any = {};
+    if (message.plugins?.length) {
+      obj.plugins = message.plugins.map((e) => AgentPluginCatalogItem.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ListAgentPluginsResponse>): ListAgentPluginsResponse {
+    return ListAgentPluginsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ListAgentPluginsResponse>): ListAgentPluginsResponse {
+    const message = createBaseListAgentPluginsResponse();
+    message.plugins = object.plugins?.map((e) => AgentPluginCatalogItem.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseAgentPluginCatalogItem(): AgentPluginCatalogItem {
+  return {
+    pluginId: "",
+    displayName: "",
+    description: "",
+    source: "",
+    trust: "",
+    installPolicy: "",
+    availability: "",
+    installed: false,
+    enabled: false,
+    stateRevision: 0,
+    latestRelease: undefined,
+  };
+}
+
+export const AgentPluginCatalogItem: MessageFns<AgentPluginCatalogItem> = {
+  encode(message: AgentPluginCatalogItem, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.pluginId !== "") {
+      writer.uint32(10).string(message.pluginId);
+    }
+    if (message.displayName !== "") {
+      writer.uint32(18).string(message.displayName);
+    }
+    if (message.description !== "") {
+      writer.uint32(26).string(message.description);
+    }
+    if (message.source !== "") {
+      writer.uint32(34).string(message.source);
+    }
+    if (message.trust !== "") {
+      writer.uint32(42).string(message.trust);
+    }
+    if (message.installPolicy !== "") {
+      writer.uint32(50).string(message.installPolicy);
+    }
+    if (message.availability !== "") {
+      writer.uint32(58).string(message.availability);
+    }
+    if (message.installed !== false) {
+      writer.uint32(64).bool(message.installed);
+    }
+    if (message.enabled !== false) {
+      writer.uint32(72).bool(message.enabled);
+    }
+    if (message.stateRevision !== 0) {
+      writer.uint32(80).int64(message.stateRevision);
+    }
+    if (message.latestRelease !== undefined) {
+      AgentPluginManifest.encode(message.latestRelease, writer.uint32(90).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginCatalogItem {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginCatalogItem();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.pluginId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.displayName = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.description = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.source = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.trust = reader.string();
+            continue;
+          }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.installPolicy = reader.string();
+            continue;
+          }
+          case 7: {
+            if (tag !== 58) {
+              break;
+            }
+
+            message.availability = reader.string();
+            continue;
+          }
+          case 8: {
+            if (tag !== 64) {
+              break;
+            }
+
+            message.installed = reader.bool();
+            continue;
+          }
+          case 9: {
+            if (tag !== 72) {
+              break;
+            }
+
+            message.enabled = reader.bool();
+            continue;
+          }
+          case 10: {
+            if (tag !== 80) {
+              break;
+            }
+
+            message.stateRevision = longToNumber(reader.int64());
+            continue;
+          }
+          case 11: {
+            if (tag !== 90) {
+              break;
+            }
+
+            message.latestRelease = AgentPluginManifest.decode(reader, reader.uint32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginCatalogItem {
+    return {
+      pluginId: isSet(object.pluginId)
+        ? globalThis.String(object.pluginId)
+        : isSet(object.plugin_id)
+          ? globalThis.String(object.plugin_id)
+          : "",
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+          ? globalThis.String(object.display_name)
+          : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      source: isSet(object.source) ? globalThis.String(object.source) : "",
+      trust: isSet(object.trust) ? globalThis.String(object.trust) : "",
+      installPolicy: isSet(object.installPolicy)
+        ? globalThis.String(object.installPolicy)
+        : isSet(object.install_policy)
+          ? globalThis.String(object.install_policy)
+          : "",
+      availability: isSet(object.availability) ? globalThis.String(object.availability) : "",
+      installed: isSet(object.installed) ? globalThis.Boolean(object.installed) : false,
+      enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
+      stateRevision: isSet(object.stateRevision)
+        ? globalThis.Number(object.stateRevision)
+        : isSet(object.state_revision)
+          ? globalThis.Number(object.state_revision)
+          : 0,
+      latestRelease: isSet(object.latestRelease)
+        ? AgentPluginManifest.fromJSON(object.latestRelease)
+        : isSet(object.latest_release)
+          ? AgentPluginManifest.fromJSON(object.latest_release)
+          : undefined,
+    };
+  },
+
+  toJSON(message: AgentPluginCatalogItem): unknown {
+    const obj: any = {};
+    if (message.pluginId !== "") {
+      obj.pluginId = message.pluginId;
+    }
+    if (message.displayName !== "") {
+      obj.displayName = message.displayName;
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.source !== "") {
+      obj.source = message.source;
+    }
+    if (message.trust !== "") {
+      obj.trust = message.trust;
+    }
+    if (message.installPolicy !== "") {
+      obj.installPolicy = message.installPolicy;
+    }
+    if (message.availability !== "") {
+      obj.availability = message.availability;
+    }
+    if (message.installed !== false) {
+      obj.installed = message.installed;
+    }
+    if (message.enabled !== false) {
+      obj.enabled = message.enabled;
+    }
+    if (message.stateRevision !== 0) {
+      obj.stateRevision = Math.round(message.stateRevision);
+    }
+    if (message.latestRelease !== undefined) {
+      obj.latestRelease = AgentPluginManifest.toJSON(message.latestRelease);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginCatalogItem>): AgentPluginCatalogItem {
+    return AgentPluginCatalogItem.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginCatalogItem>): AgentPluginCatalogItem {
+    const message = createBaseAgentPluginCatalogItem();
+    message.pluginId = object.pluginId ?? "";
+    message.displayName = object.displayName ?? "";
+    message.description = object.description ?? "";
+    message.source = object.source ?? "";
+    message.trust = object.trust ?? "";
+    message.installPolicy = object.installPolicy ?? "";
+    message.availability = object.availability ?? "";
+    message.installed = object.installed ?? false;
+    message.enabled = object.enabled ?? false;
+    message.stateRevision = object.stateRevision ?? 0;
+    message.latestRelease =
+      object.latestRelease !== undefined && object.latestRelease !== null
+        ? AgentPluginManifest.fromPartial(object.latestRelease)
+        : undefined;
+    return message;
+  },
+};
+
+function createBaseAgentPluginActivation(): AgentPluginActivation {
+  return { pluginId: "", bindings: {} };
+}
+
+export const AgentPluginActivation: MessageFns<AgentPluginActivation> = {
+  encode(message: AgentPluginActivation, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.pluginId !== "") {
+      writer.uint32(10).string(message.pluginId);
+    }
+    globalThis.Object.entries(message.bindings).forEach(([key, value]: [string, string]) => {
+      AgentPluginActivation_BindingsEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).join();
+    });
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginActivation {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginActivation();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.pluginId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            const entry2 = AgentPluginActivation_BindingsEntry.decode(reader, reader.uint32());
+            if (entry2.value !== undefined) {
+              message.bindings[entry2.key] = entry2.value;
+            }
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginActivation {
+    return {
+      pluginId: isSet(object.pluginId)
+        ? globalThis.String(object.pluginId)
+        : isSet(object.plugin_id)
+          ? globalThis.String(object.plugin_id)
+          : "",
+      bindings: isObject(object.bindings)
+        ? (globalThis.Object.entries(object.bindings) as [string, any][]).reduce(
+            (acc: { [key: string]: string }, [key, value]: [string, any]) => {
+              globalThis.Object.defineProperty(acc, key, {
+                value: globalThis.String(value),
+                enumerable: true,
+                configurable: true,
+                writable: true,
+              });
+              return acc;
+            },
+            {},
+          )
+        : {},
+    };
+  },
+
+  toJSON(message: AgentPluginActivation): unknown {
+    const obj: any = {};
+    if (message.pluginId !== "") {
+      obj.pluginId = message.pluginId;
+    }
+    if (message.bindings) {
+      const entries = globalThis.Object.entries(message.bindings) as [string, string][];
+      if (entries.length > 0) {
+        obj.bindings = {};
+        entries.forEach(([k, v]) => {
+          obj.bindings[k] = v;
+        });
+      }
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginActivation>): AgentPluginActivation {
+    return AgentPluginActivation.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginActivation>): AgentPluginActivation {
+    const message = createBaseAgentPluginActivation();
+    message.pluginId = object.pluginId ?? "";
+    message.bindings = (globalThis.Object.entries(object.bindings ?? {}) as [string, string][]).reduce(
+      (acc: { [key: string]: string }, [key, value]: [string, string]) => {
+        if (value !== undefined) {
+          acc[key] = globalThis.String(value);
+        }
+        return acc;
+      },
+      {},
+    );
+    return message;
+  },
+};
+
+function createBaseAgentPluginActivation_BindingsEntry(): AgentPluginActivation_BindingsEntry {
+  return { key: "", value: "" };
+}
+
+export const AgentPluginActivation_BindingsEntry: MessageFns<AgentPluginActivation_BindingsEntry> = {
+  encode(message: AgentPluginActivation_BindingsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginActivation_BindingsEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginActivation_BindingsEntry();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.key = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.value = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginActivation_BindingsEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? globalThis.String(object.value) : "",
+    };
+  },
+
+  toJSON(message: AgentPluginActivation_BindingsEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== "") {
+      obj.value = message.value;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginActivation_BindingsEntry>): AgentPluginActivation_BindingsEntry {
+    return AgentPluginActivation_BindingsEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginActivation_BindingsEntry>): AgentPluginActivation_BindingsEntry {
+    const message = createBaseAgentPluginActivation_BindingsEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? "";
+    return message;
+  },
+};
+
+function createBaseResolveAgentPluginsRequest(): ResolveAgentPluginsRequest {
+  return { actor: undefined, activations: [], workspaceRole: "" };
+}
+
+export const ResolveAgentPluginsRequest: MessageFns<ResolveAgentPluginsRequest> = {
+  encode(message: ResolveAgentPluginsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.actor !== undefined) {
+      ActorContext.encode(message.actor, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.activations) {
+      AgentPluginActivation.encode(v!, writer.uint32(18).fork()).join();
+    }
+    if (message.workspaceRole !== "") {
+      writer.uint32(26).string(message.workspaceRole);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResolveAgentPluginsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseResolveAgentPluginsRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.actor = ActorContext.decode(reader, reader.uint32());
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.activations.push(AgentPluginActivation.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.workspaceRole = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ResolveAgentPluginsRequest {
+    return {
+      actor: isSet(object.actor) ? ActorContext.fromJSON(object.actor) : undefined,
+      activations: globalThis.Array.isArray(object?.activations)
+        ? object.activations.map((e: any) => AgentPluginActivation.fromJSON(e))
+        : [],
+      workspaceRole: isSet(object.workspaceRole)
+        ? globalThis.String(object.workspaceRole)
+        : isSet(object.workspace_role)
+          ? globalThis.String(object.workspace_role)
+          : "",
+    };
+  },
+
+  toJSON(message: ResolveAgentPluginsRequest): unknown {
+    const obj: any = {};
+    if (message.actor !== undefined) {
+      obj.actor = ActorContext.toJSON(message.actor);
+    }
+    if (message.activations?.length) {
+      obj.activations = message.activations.map((e) => AgentPluginActivation.toJSON(e));
+    }
+    if (message.workspaceRole !== "") {
+      obj.workspaceRole = message.workspaceRole;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ResolveAgentPluginsRequest>): ResolveAgentPluginsRequest {
+    return ResolveAgentPluginsRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ResolveAgentPluginsRequest>): ResolveAgentPluginsRequest {
+    const message = createBaseResolveAgentPluginsRequest();
+    message.actor =
+      object.actor !== undefined && object.actor !== null ? ActorContext.fromPartial(object.actor) : undefined;
+    message.activations = object.activations?.map((e) => AgentPluginActivation.fromPartial(e)) || [];
+    message.workspaceRole = object.workspaceRole ?? "";
+    return message;
+  },
+};
+
+function createBaseAgentPluginToolPolicy(): AgentPluginToolPolicy {
+  return {
+    capability: "",
+    callableByCodeMode: false,
+    effect: "",
+    trust: "",
+    execution: "",
+    sourceProjection: undefined,
+    streaming: false,
+    uiKind: undefined,
+  };
+}
+
+export const AgentPluginToolPolicy: MessageFns<AgentPluginToolPolicy> = {
+  encode(message: AgentPluginToolPolicy, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.capability !== "") {
+      writer.uint32(10).string(message.capability);
+    }
+    if (message.callableByCodeMode !== false) {
+      writer.uint32(16).bool(message.callableByCodeMode);
+    }
+    if (message.effect !== "") {
+      writer.uint32(26).string(message.effect);
+    }
+    if (message.trust !== "") {
+      writer.uint32(34).string(message.trust);
+    }
+    if (message.execution !== "") {
+      writer.uint32(42).string(message.execution);
+    }
+    if (message.sourceProjection !== undefined) {
+      Struct.encode(Struct.wrap(message.sourceProjection), writer.uint32(50).fork()).join();
+    }
+    if (message.streaming !== false) {
+      writer.uint32(56).bool(message.streaming);
+    }
+    if (message.uiKind !== undefined) {
+      writer.uint32(66).string(message.uiKind);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginToolPolicy {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginToolPolicy();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.capability = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.callableByCodeMode = reader.bool();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.effect = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.trust = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.execution = reader.string();
+            continue;
+          }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.sourceProjection = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 7: {
+            if (tag !== 56) {
+              break;
+            }
+
+            message.streaming = reader.bool();
+            continue;
+          }
+          case 8: {
+            if (tag !== 66) {
+              break;
+            }
+
+            message.uiKind = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginToolPolicy {
+    return {
+      capability: isSet(object.capability) ? globalThis.String(object.capability) : "",
+      callableByCodeMode: isSet(object.callableByCodeMode)
+        ? globalThis.Boolean(object.callableByCodeMode)
+        : isSet(object.callable_by_code_mode)
+          ? globalThis.Boolean(object.callable_by_code_mode)
+          : false,
+      effect: isSet(object.effect) ? globalThis.String(object.effect) : "",
+      trust: isSet(object.trust) ? globalThis.String(object.trust) : "",
+      execution: isSet(object.execution) ? globalThis.String(object.execution) : "",
+      sourceProjection: isObject(object.sourceProjection)
+        ? object.sourceProjection
+        : isObject(object.source_projection)
+          ? object.source_projection
+          : undefined,
+      streaming: isSet(object.streaming) ? globalThis.Boolean(object.streaming) : false,
+      uiKind: isSet(object.uiKind)
+        ? globalThis.String(object.uiKind)
+        : isSet(object.ui_kind)
+          ? globalThis.String(object.ui_kind)
+          : undefined,
+    };
+  },
+
+  toJSON(message: AgentPluginToolPolicy): unknown {
+    const obj: any = {};
+    if (message.capability !== "") {
+      obj.capability = message.capability;
+    }
+    if (message.callableByCodeMode !== false) {
+      obj.callableByCodeMode = message.callableByCodeMode;
+    }
+    if (message.effect !== "") {
+      obj.effect = message.effect;
+    }
+    if (message.trust !== "") {
+      obj.trust = message.trust;
+    }
+    if (message.execution !== "") {
+      obj.execution = message.execution;
+    }
+    if (message.sourceProjection !== undefined) {
+      obj.sourceProjection = message.sourceProjection;
+    }
+    if (message.streaming !== false) {
+      obj.streaming = message.streaming;
+    }
+    if (message.uiKind !== undefined) {
+      obj.uiKind = message.uiKind;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginToolPolicy>): AgentPluginToolPolicy {
+    return AgentPluginToolPolicy.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginToolPolicy>): AgentPluginToolPolicy {
+    const message = createBaseAgentPluginToolPolicy();
+    message.capability = object.capability ?? "";
+    message.callableByCodeMode = object.callableByCodeMode ?? false;
+    message.effect = object.effect ?? "";
+    message.trust = object.trust ?? "";
+    message.execution = object.execution ?? "";
+    message.sourceProjection = object.sourceProjection ?? undefined;
+    message.streaming = object.streaming ?? false;
+    message.uiKind = object.uiKind ?? undefined;
+    return message;
+  },
+};
+
+function createBaseAgentPluginToolPlanning(): AgentPluginToolPlanning {
+  return { summary: "", constraints: [], prerequisites: [], parallelizable: false };
+}
+
+export const AgentPluginToolPlanning: MessageFns<AgentPluginToolPlanning> = {
+  encode(message: AgentPluginToolPlanning, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.summary !== "") {
+      writer.uint32(10).string(message.summary);
+    }
+    for (const v of message.constraints) {
+      writer.uint32(18).string(v!);
+    }
+    for (const v of message.prerequisites) {
+      writer.uint32(26).string(v!);
+    }
+    if (message.parallelizable !== false) {
+      writer.uint32(32).bool(message.parallelizable);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginToolPlanning {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginToolPlanning();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.summary = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.constraints.push(reader.string());
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.prerequisites.push(reader.string());
+            continue;
+          }
+          case 4: {
+            if (tag !== 32) {
+              break;
+            }
+
+            message.parallelizable = reader.bool();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginToolPlanning {
+    return {
+      summary: isSet(object.summary) ? globalThis.String(object.summary) : "",
+      constraints: globalThis.Array.isArray(object?.constraints)
+        ? object.constraints.map((e: any) => globalThis.String(e))
+        : [],
+      prerequisites: globalThis.Array.isArray(object?.prerequisites)
+        ? object.prerequisites.map((e: any) => globalThis.String(e))
+        : [],
+      parallelizable: isSet(object.parallelizable) ? globalThis.Boolean(object.parallelizable) : false,
+    };
+  },
+
+  toJSON(message: AgentPluginToolPlanning): unknown {
+    const obj: any = {};
+    if (message.summary !== "") {
+      obj.summary = message.summary;
+    }
+    if (message.constraints?.length) {
+      obj.constraints = message.constraints;
+    }
+    if (message.prerequisites?.length) {
+      obj.prerequisites = message.prerequisites;
+    }
+    if (message.parallelizable !== false) {
+      obj.parallelizable = message.parallelizable;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginToolPlanning>): AgentPluginToolPlanning {
+    return AgentPluginToolPlanning.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginToolPlanning>): AgentPluginToolPlanning {
+    const message = createBaseAgentPluginToolPlanning();
+    message.summary = object.summary ?? "";
+    message.constraints = object.constraints?.map((e) => e) || [];
+    message.prerequisites = object.prerequisites?.map((e) => e) || [];
+    message.parallelizable = object.parallelizable ?? false;
+    return message;
+  },
+};
+
+function createBaseAgentPluginMCPTool(): AgentPluginMCPTool {
+  return {
+    name: "",
+    description: "",
+    inputSchema: undefined,
+    outputSchema: undefined,
+    policy: undefined,
+    planning: undefined,
+  };
+}
+
+export const AgentPluginMCPTool: MessageFns<AgentPluginMCPTool> = {
+  encode(message: AgentPluginMCPTool, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.description !== "") {
+      writer.uint32(18).string(message.description);
+    }
+    if (message.inputSchema !== undefined) {
+      Struct.encode(Struct.wrap(message.inputSchema), writer.uint32(26).fork()).join();
+    }
+    if (message.outputSchema !== undefined) {
+      Struct.encode(Struct.wrap(message.outputSchema), writer.uint32(34).fork()).join();
+    }
+    if (message.policy !== undefined) {
+      AgentPluginToolPolicy.encode(message.policy, writer.uint32(42).fork()).join();
+    }
+    if (message.planning !== undefined) {
+      AgentPluginToolPlanning.encode(message.planning, writer.uint32(50).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginMCPTool {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginMCPTool();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.name = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.description = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.inputSchema = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.outputSchema = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.policy = AgentPluginToolPolicy.decode(reader, reader.uint32());
+            continue;
+          }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.planning = AgentPluginToolPlanning.decode(reader, reader.uint32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginMCPTool {
+    return {
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      inputSchema: isObject(object.inputSchema)
+        ? object.inputSchema
+        : isObject(object.input_schema)
+          ? object.input_schema
+          : undefined,
+      outputSchema: isObject(object.outputSchema)
+        ? object.outputSchema
+        : isObject(object.output_schema)
+          ? object.output_schema
+          : undefined,
+      policy: isSet(object.policy) ? AgentPluginToolPolicy.fromJSON(object.policy) : undefined,
+      planning: isSet(object.planning) ? AgentPluginToolPlanning.fromJSON(object.planning) : undefined,
+    };
+  },
+
+  toJSON(message: AgentPluginMCPTool): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.inputSchema !== undefined) {
+      obj.inputSchema = message.inputSchema;
+    }
+    if (message.outputSchema !== undefined) {
+      obj.outputSchema = message.outputSchema;
+    }
+    if (message.policy !== undefined) {
+      obj.policy = AgentPluginToolPolicy.toJSON(message.policy);
+    }
+    if (message.planning !== undefined) {
+      obj.planning = AgentPluginToolPlanning.toJSON(message.planning);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginMCPTool>): AgentPluginMCPTool {
+    return AgentPluginMCPTool.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginMCPTool>): AgentPluginMCPTool {
+    const message = createBaseAgentPluginMCPTool();
+    message.name = object.name ?? "";
+    message.description = object.description ?? "";
+    message.inputSchema = object.inputSchema ?? undefined;
+    message.outputSchema = object.outputSchema ?? undefined;
+    message.policy =
+      object.policy !== undefined && object.policy !== null
+        ? AgentPluginToolPolicy.fromPartial(object.policy)
+        : undefined;
+    message.planning =
+      object.planning !== undefined && object.planning !== null
+        ? AgentPluginToolPlanning.fromPartial(object.planning)
+        : undefined;
+    return message;
+  },
+};
+
+function createBaseAgentPluginMCPServer(): AgentPluginMCPServer {
+  return { name: "", url: "", requiredBindings: [], optionalBindings: [], tools: [] };
+}
+
+export const AgentPluginMCPServer: MessageFns<AgentPluginMCPServer> = {
+  encode(message: AgentPluginMCPServer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.url !== "") {
+      writer.uint32(18).string(message.url);
+    }
+    for (const v of message.requiredBindings) {
+      writer.uint32(26).string(v!);
+    }
+    for (const v of message.optionalBindings) {
+      writer.uint32(34).string(v!);
+    }
+    for (const v of message.tools) {
+      AgentPluginMCPTool.encode(v!, writer.uint32(42).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginMCPServer {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginMCPServer();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.name = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.url = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.requiredBindings.push(reader.string());
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.optionalBindings.push(reader.string());
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.tools.push(AgentPluginMCPTool.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginMCPServer {
+    return {
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      url: isSet(object.url) ? globalThis.String(object.url) : "",
+      requiredBindings: globalThis.Array.isArray(object?.requiredBindings)
+        ? object.requiredBindings.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.required_bindings)
+          ? object.required_bindings.map((e: any) => globalThis.String(e))
+          : [],
+      optionalBindings: globalThis.Array.isArray(object?.optionalBindings)
+        ? object.optionalBindings.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.optional_bindings)
+          ? object.optional_bindings.map((e: any) => globalThis.String(e))
+          : [],
+      tools: globalThis.Array.isArray(object?.tools)
+        ? object.tools.map((e: any) => AgentPluginMCPTool.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: AgentPluginMCPServer): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.url !== "") {
+      obj.url = message.url;
+    }
+    if (message.requiredBindings?.length) {
+      obj.requiredBindings = message.requiredBindings;
+    }
+    if (message.optionalBindings?.length) {
+      obj.optionalBindings = message.optionalBindings;
+    }
+    if (message.tools?.length) {
+      obj.tools = message.tools.map((e) => AgentPluginMCPTool.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginMCPServer>): AgentPluginMCPServer {
+    return AgentPluginMCPServer.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginMCPServer>): AgentPluginMCPServer {
+    const message = createBaseAgentPluginMCPServer();
+    message.name = object.name ?? "";
+    message.url = object.url ?? "";
+    message.requiredBindings = object.requiredBindings?.map((e) => e) || [];
+    message.optionalBindings = object.optionalBindings?.map((e) => e) || [];
+    message.tools = object.tools?.map((e) => AgentPluginMCPTool.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseAgentPluginSkillContribution(): AgentPluginSkillContribution {
+  return { id: "", name: "", description: "", assetId: "", revisionId: "", sha256: "" };
+}
+
+export const AgentPluginSkillContribution: MessageFns<AgentPluginSkillContribution> = {
+  encode(message: AgentPluginSkillContribution, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.name !== "") {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.description !== "") {
+      writer.uint32(26).string(message.description);
+    }
+    if (message.assetId !== "") {
+      writer.uint32(34).string(message.assetId);
+    }
+    if (message.revisionId !== "") {
+      writer.uint32(42).string(message.revisionId);
+    }
+    if (message.sha256 !== "") {
+      writer.uint32(50).string(message.sha256);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginSkillContribution {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginSkillContribution();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.id = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.name = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.description = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.assetId = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.revisionId = reader.string();
+            continue;
+          }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.sha256 = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginSkillContribution {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      assetId: isSet(object.assetId)
+        ? globalThis.String(object.assetId)
+        : isSet(object.asset_id)
+          ? globalThis.String(object.asset_id)
+          : "",
+      revisionId: isSet(object.revisionId)
+        ? globalThis.String(object.revisionId)
+        : isSet(object.revision_id)
+          ? globalThis.String(object.revision_id)
+          : "",
+      sha256: isSet(object.sha256) ? globalThis.String(object.sha256) : "",
+    };
+  },
+
+  toJSON(message: AgentPluginSkillContribution): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.assetId !== "") {
+      obj.assetId = message.assetId;
+    }
+    if (message.revisionId !== "") {
+      obj.revisionId = message.revisionId;
+    }
+    if (message.sha256 !== "") {
+      obj.sha256 = message.sha256;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginSkillContribution>): AgentPluginSkillContribution {
+    return AgentPluginSkillContribution.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginSkillContribution>): AgentPluginSkillContribution {
+    const message = createBaseAgentPluginSkillContribution();
+    message.id = object.id ?? "";
+    message.name = object.name ?? "";
+    message.description = object.description ?? "";
+    message.assetId = object.assetId ?? "";
+    message.revisionId = object.revisionId ?? "";
+    message.sha256 = object.sha256 ?? "";
+    return message;
+  },
+};
+
+function createBaseAgentPluginManifest(): AgentPluginManifest {
+  return {
+    schemaVersion: 0,
+    pluginId: "",
+    version: "",
+    digest: "",
+    displayName: "",
+    description: "",
+    source: "",
+    trust: "",
+    mcpServers: [],
+    skills: [],
+  };
+}
+
+export const AgentPluginManifest: MessageFns<AgentPluginManifest> = {
+  encode(message: AgentPluginManifest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.schemaVersion !== 0) {
+      writer.uint32(8).int32(message.schemaVersion);
+    }
+    if (message.pluginId !== "") {
+      writer.uint32(18).string(message.pluginId);
+    }
+    if (message.version !== "") {
+      writer.uint32(26).string(message.version);
+    }
+    if (message.digest !== "") {
+      writer.uint32(34).string(message.digest);
+    }
+    if (message.displayName !== "") {
+      writer.uint32(42).string(message.displayName);
+    }
+    if (message.description !== "") {
+      writer.uint32(50).string(message.description);
+    }
+    if (message.source !== "") {
+      writer.uint32(58).string(message.source);
+    }
+    if (message.trust !== "") {
+      writer.uint32(66).string(message.trust);
+    }
+    for (const v of message.mcpServers) {
+      AgentPluginMCPServer.encode(v!, writer.uint32(74).fork()).join();
+    }
+    for (const v of message.skills) {
+      AgentPluginSkillContribution.encode(v!, writer.uint32(82).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginManifest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginManifest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
+              break;
+            }
+
+            message.schemaVersion = reader.int32();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.pluginId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.version = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.digest = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.displayName = reader.string();
+            continue;
+          }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.description = reader.string();
+            continue;
+          }
+          case 7: {
+            if (tag !== 58) {
+              break;
+            }
+
+            message.source = reader.string();
+            continue;
+          }
+          case 8: {
+            if (tag !== 66) {
+              break;
+            }
+
+            message.trust = reader.string();
+            continue;
+          }
+          case 9: {
+            if (tag !== 74) {
+              break;
+            }
+
+            message.mcpServers.push(AgentPluginMCPServer.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 10: {
+            if (tag !== 82) {
+              break;
+            }
+
+            message.skills.push(AgentPluginSkillContribution.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginManifest {
+    return {
+      schemaVersion: isSet(object.schemaVersion)
+        ? globalThis.Number(object.schemaVersion)
+        : isSet(object.schema_version)
+          ? globalThis.Number(object.schema_version)
+          : 0,
+      pluginId: isSet(object.pluginId)
+        ? globalThis.String(object.pluginId)
+        : isSet(object.plugin_id)
+          ? globalThis.String(object.plugin_id)
+          : "",
+      version: isSet(object.version) ? globalThis.String(object.version) : "",
+      digest: isSet(object.digest) ? globalThis.String(object.digest) : "",
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+          ? globalThis.String(object.display_name)
+          : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      source: isSet(object.source) ? globalThis.String(object.source) : "",
+      trust: isSet(object.trust) ? globalThis.String(object.trust) : "",
+      mcpServers: globalThis.Array.isArray(object?.mcpServers)
+        ? object.mcpServers.map((e: any) => AgentPluginMCPServer.fromJSON(e))
+        : globalThis.Array.isArray(object?.mcp_servers)
+          ? object.mcp_servers.map((e: any) => AgentPluginMCPServer.fromJSON(e))
+          : [],
+      skills: globalThis.Array.isArray(object?.skills)
+        ? object.skills.map((e: any) => AgentPluginSkillContribution.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: AgentPluginManifest): unknown {
+    const obj: any = {};
+    if (message.schemaVersion !== 0) {
+      obj.schemaVersion = Math.round(message.schemaVersion);
+    }
+    if (message.pluginId !== "") {
+      obj.pluginId = message.pluginId;
+    }
+    if (message.version !== "") {
+      obj.version = message.version;
+    }
+    if (message.digest !== "") {
+      obj.digest = message.digest;
+    }
+    if (message.displayName !== "") {
+      obj.displayName = message.displayName;
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.source !== "") {
+      obj.source = message.source;
+    }
+    if (message.trust !== "") {
+      obj.trust = message.trust;
+    }
+    if (message.mcpServers?.length) {
+      obj.mcpServers = message.mcpServers.map((e) => AgentPluginMCPServer.toJSON(e));
+    }
+    if (message.skills?.length) {
+      obj.skills = message.skills.map((e) => AgentPluginSkillContribution.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginManifest>): AgentPluginManifest {
+    return AgentPluginManifest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginManifest>): AgentPluginManifest {
+    const message = createBaseAgentPluginManifest();
+    message.schemaVersion = object.schemaVersion ?? 0;
+    message.pluginId = object.pluginId ?? "";
+    message.version = object.version ?? "";
+    message.digest = object.digest ?? "";
+    message.displayName = object.displayName ?? "";
+    message.description = object.description ?? "";
+    message.source = object.source ?? "";
+    message.trust = object.trust ?? "";
+    message.mcpServers = object.mcpServers?.map((e) => AgentPluginMCPServer.fromPartial(e)) || [];
+    message.skills = object.skills?.map((e) => AgentPluginSkillContribution.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseResolvedAgentPlugin(): ResolvedAgentPlugin {
+  return { manifest: undefined, activation: undefined };
+}
+
+export const ResolvedAgentPlugin: MessageFns<ResolvedAgentPlugin> = {
+  encode(message: ResolvedAgentPlugin, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.manifest !== undefined) {
+      AgentPluginManifest.encode(message.manifest, writer.uint32(10).fork()).join();
+    }
+    if (message.activation !== undefined) {
+      AgentPluginActivation.encode(message.activation, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResolvedAgentPlugin {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseResolvedAgentPlugin();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.manifest = AgentPluginManifest.decode(reader, reader.uint32());
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.activation = AgentPluginActivation.decode(reader, reader.uint32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ResolvedAgentPlugin {
+    return {
+      manifest: isSet(object.manifest) ? AgentPluginManifest.fromJSON(object.manifest) : undefined,
+      activation: isSet(object.activation) ? AgentPluginActivation.fromJSON(object.activation) : undefined,
+    };
+  },
+
+  toJSON(message: ResolvedAgentPlugin): unknown {
+    const obj: any = {};
+    if (message.manifest !== undefined) {
+      obj.manifest = AgentPluginManifest.toJSON(message.manifest);
+    }
+    if (message.activation !== undefined) {
+      obj.activation = AgentPluginActivation.toJSON(message.activation);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ResolvedAgentPlugin>): ResolvedAgentPlugin {
+    return ResolvedAgentPlugin.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ResolvedAgentPlugin>): ResolvedAgentPlugin {
+    const message = createBaseResolvedAgentPlugin();
+    message.manifest =
+      object.manifest !== undefined && object.manifest !== null
+        ? AgentPluginManifest.fromPartial(object.manifest)
+        : undefined;
+    message.activation =
+      object.activation !== undefined && object.activation !== null
+        ? AgentPluginActivation.fromPartial(object.activation)
+        : undefined;
+    return message;
+  },
+};
+
+function createBaseAgentPluginConnectionGrant(): AgentPluginConnectionGrant {
+  return { pluginId: "", serverName: "", headers: {}, expiresAt: undefined };
+}
+
+export const AgentPluginConnectionGrant: MessageFns<AgentPluginConnectionGrant> = {
+  encode(message: AgentPluginConnectionGrant, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.pluginId !== "") {
+      writer.uint32(10).string(message.pluginId);
+    }
+    if (message.serverName !== "") {
+      writer.uint32(18).string(message.serverName);
+    }
+    globalThis.Object.entries(message.headers).forEach(([key, value]: [string, string]) => {
+      AgentPluginConnectionGrant_HeadersEntry.encode({ key: key as any, value }, writer.uint32(26).fork()).join();
+    });
+    if (message.expiresAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.expiresAt), writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginConnectionGrant {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginConnectionGrant();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.pluginId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.serverName = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            const entry3 = AgentPluginConnectionGrant_HeadersEntry.decode(reader, reader.uint32());
+            if (entry3.value !== undefined) {
+              message.headers[entry3.key] = entry3.value;
+            }
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.expiresAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginConnectionGrant {
+    return {
+      pluginId: isSet(object.pluginId)
+        ? globalThis.String(object.pluginId)
+        : isSet(object.plugin_id)
+          ? globalThis.String(object.plugin_id)
+          : "",
+      serverName: isSet(object.serverName)
+        ? globalThis.String(object.serverName)
+        : isSet(object.server_name)
+          ? globalThis.String(object.server_name)
+          : "",
+      headers: isObject(object.headers)
+        ? (globalThis.Object.entries(object.headers) as [string, any][]).reduce(
+            (acc: { [key: string]: string }, [key, value]: [string, any]) => {
+              globalThis.Object.defineProperty(acc, key, {
+                value: globalThis.String(value),
+                enumerable: true,
+                configurable: true,
+                writable: true,
+              });
+              return acc;
+            },
+            {},
+          )
+        : {},
+      expiresAt: isSet(object.expiresAt)
+        ? globalThis.String(object.expiresAt)
+        : isSet(object.expires_at)
+          ? globalThis.String(object.expires_at)
+          : undefined,
+    };
+  },
+
+  toJSON(message: AgentPluginConnectionGrant): unknown {
+    const obj: any = {};
+    if (message.pluginId !== "") {
+      obj.pluginId = message.pluginId;
+    }
+    if (message.serverName !== "") {
+      obj.serverName = message.serverName;
+    }
+    if (message.headers) {
+      const entries = globalThis.Object.entries(message.headers) as [string, string][];
+      if (entries.length > 0) {
+        obj.headers = {};
+        entries.forEach(([k, v]) => {
+          obj.headers[k] = v;
+        });
+      }
+    }
+    if (message.expiresAt !== undefined) {
+      obj.expiresAt = message.expiresAt;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginConnectionGrant>): AgentPluginConnectionGrant {
+    return AgentPluginConnectionGrant.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginConnectionGrant>): AgentPluginConnectionGrant {
+    const message = createBaseAgentPluginConnectionGrant();
+    message.pluginId = object.pluginId ?? "";
+    message.serverName = object.serverName ?? "";
+    message.headers = (globalThis.Object.entries(object.headers ?? {}) as [string, string][]).reduce(
+      (acc: { [key: string]: string }, [key, value]: [string, string]) => {
+        if (value !== undefined) {
+          acc[key] = globalThis.String(value);
+        }
+        return acc;
+      },
+      {},
+    );
+    message.expiresAt = object.expiresAt ?? undefined;
+    return message;
+  },
+};
+
+function createBaseAgentPluginConnectionGrant_HeadersEntry(): AgentPluginConnectionGrant_HeadersEntry {
+  return { key: "", value: "" };
+}
+
+export const AgentPluginConnectionGrant_HeadersEntry: MessageFns<AgentPluginConnectionGrant_HeadersEntry> = {
+  encode(message: AgentPluginConnectionGrant_HeadersEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): AgentPluginConnectionGrant_HeadersEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseAgentPluginConnectionGrant_HeadersEntry();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.key = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.value = reader.string();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): AgentPluginConnectionGrant_HeadersEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? globalThis.String(object.value) : "",
+    };
+  },
+
+  toJSON(message: AgentPluginConnectionGrant_HeadersEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== "") {
+      obj.value = message.value;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<AgentPluginConnectionGrant_HeadersEntry>): AgentPluginConnectionGrant_HeadersEntry {
+    return AgentPluginConnectionGrant_HeadersEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<AgentPluginConnectionGrant_HeadersEntry>): AgentPluginConnectionGrant_HeadersEntry {
+    const message = createBaseAgentPluginConnectionGrant_HeadersEntry();
+    message.key = object.key ?? "";
+    message.value = object.value ?? "";
+    return message;
+  },
+};
+
+function createBaseResolvedAgentPluginSnapshot(): ResolvedAgentPluginSnapshot {
+  return {
+    schemaVersion: 0,
+    snapshotId: "",
+    snapshotDigest: "",
+    workspaceRevision: 0,
+    tenantId: "",
+    workspaceId: "",
+    resolvedAt: undefined,
+    plugins: [],
+    connectionGrants: [],
+  };
+}
+
+export const ResolvedAgentPluginSnapshot: MessageFns<ResolvedAgentPluginSnapshot> = {
+  encode(message: ResolvedAgentPluginSnapshot, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.schemaVersion !== 0) {
+      writer.uint32(8).int32(message.schemaVersion);
+    }
+    if (message.snapshotId !== "") {
+      writer.uint32(18).string(message.snapshotId);
+    }
+    if (message.snapshotDigest !== "") {
+      writer.uint32(26).string(message.snapshotDigest);
+    }
+    if (message.workspaceRevision !== 0) {
+      writer.uint32(32).int64(message.workspaceRevision);
+    }
+    if (message.tenantId !== "") {
+      writer.uint32(42).string(message.tenantId);
+    }
+    if (message.workspaceId !== "") {
+      writer.uint32(50).string(message.workspaceId);
+    }
+    if (message.resolvedAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.resolvedAt), writer.uint32(58).fork()).join();
+    }
+    for (const v of message.plugins) {
+      ResolvedAgentPlugin.encode(v!, writer.uint32(66).fork()).join();
+    }
+    for (const v of message.connectionGrants) {
+      AgentPluginConnectionGrant.encode(v!, writer.uint32(74).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResolvedAgentPluginSnapshot {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseResolvedAgentPluginSnapshot();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
+              break;
+            }
+
+            message.schemaVersion = reader.int32();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.snapshotId = reader.string();
+            continue;
+          }
+          case 3: {
+            if (tag !== 26) {
+              break;
+            }
+
+            message.snapshotDigest = reader.string();
+            continue;
+          }
+          case 4: {
+            if (tag !== 32) {
+              break;
+            }
+
+            message.workspaceRevision = longToNumber(reader.int64());
+            continue;
+          }
+          case 5: {
+            if (tag !== 42) {
+              break;
+            }
+
+            message.tenantId = reader.string();
+            continue;
+          }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.workspaceId = reader.string();
+            continue;
+          }
+          case 7: {
+            if (tag !== 58) {
+              break;
+            }
+
+            message.resolvedAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 8: {
+            if (tag !== 66) {
+              break;
+            }
+
+            message.plugins.push(ResolvedAgentPlugin.decode(reader, reader.uint32()));
+            continue;
+          }
+          case 9: {
+            if (tag !== 74) {
+              break;
+            }
+
+            message.connectionGrants.push(AgentPluginConnectionGrant.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ResolvedAgentPluginSnapshot {
+    return {
+      schemaVersion: isSet(object.schemaVersion)
+        ? globalThis.Number(object.schemaVersion)
+        : isSet(object.schema_version)
+          ? globalThis.Number(object.schema_version)
+          : 0,
+      snapshotId: isSet(object.snapshotId)
+        ? globalThis.String(object.snapshotId)
+        : isSet(object.snapshot_id)
+          ? globalThis.String(object.snapshot_id)
+          : "",
+      snapshotDigest: isSet(object.snapshotDigest)
+        ? globalThis.String(object.snapshotDigest)
+        : isSet(object.snapshot_digest)
+          ? globalThis.String(object.snapshot_digest)
+          : "",
+      workspaceRevision: isSet(object.workspaceRevision)
+        ? globalThis.Number(object.workspaceRevision)
+        : isSet(object.workspace_revision)
+          ? globalThis.Number(object.workspace_revision)
+          : 0,
+      tenantId: isSet(object.tenantId)
+        ? globalThis.String(object.tenantId)
+        : isSet(object.tenant_id)
+          ? globalThis.String(object.tenant_id)
+          : "",
+      workspaceId: isSet(object.workspaceId)
+        ? globalThis.String(object.workspaceId)
+        : isSet(object.workspace_id)
+          ? globalThis.String(object.workspace_id)
+          : "",
+      resolvedAt: isSet(object.resolvedAt)
+        ? globalThis.String(object.resolvedAt)
+        : isSet(object.resolved_at)
+          ? globalThis.String(object.resolved_at)
+          : undefined,
+      plugins: globalThis.Array.isArray(object?.plugins)
+        ? object.plugins.map((e: any) => ResolvedAgentPlugin.fromJSON(e))
+        : [],
+      connectionGrants: globalThis.Array.isArray(object?.connectionGrants)
+        ? object.connectionGrants.map((e: any) => AgentPluginConnectionGrant.fromJSON(e))
+        : globalThis.Array.isArray(object?.connection_grants)
+          ? object.connection_grants.map((e: any) => AgentPluginConnectionGrant.fromJSON(e))
+          : [],
+    };
+  },
+
+  toJSON(message: ResolvedAgentPluginSnapshot): unknown {
+    const obj: any = {};
+    if (message.schemaVersion !== 0) {
+      obj.schemaVersion = Math.round(message.schemaVersion);
+    }
+    if (message.snapshotId !== "") {
+      obj.snapshotId = message.snapshotId;
+    }
+    if (message.snapshotDigest !== "") {
+      obj.snapshotDigest = message.snapshotDigest;
+    }
+    if (message.workspaceRevision !== 0) {
+      obj.workspaceRevision = Math.round(message.workspaceRevision);
+    }
+    if (message.tenantId !== "") {
+      obj.tenantId = message.tenantId;
+    }
+    if (message.workspaceId !== "") {
+      obj.workspaceId = message.workspaceId;
+    }
+    if (message.resolvedAt !== undefined) {
+      obj.resolvedAt = message.resolvedAt;
+    }
+    if (message.plugins?.length) {
+      obj.plugins = message.plugins.map((e) => ResolvedAgentPlugin.toJSON(e));
+    }
+    if (message.connectionGrants?.length) {
+      obj.connectionGrants = message.connectionGrants.map((e) => AgentPluginConnectionGrant.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ResolvedAgentPluginSnapshot>): ResolvedAgentPluginSnapshot {
+    return ResolvedAgentPluginSnapshot.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ResolvedAgentPluginSnapshot>): ResolvedAgentPluginSnapshot {
+    const message = createBaseResolvedAgentPluginSnapshot();
+    message.schemaVersion = object.schemaVersion ?? 0;
+    message.snapshotId = object.snapshotId ?? "";
+    message.snapshotDigest = object.snapshotDigest ?? "";
+    message.workspaceRevision = object.workspaceRevision ?? 0;
+    message.tenantId = object.tenantId ?? "";
+    message.workspaceId = object.workspaceId ?? "";
+    message.resolvedAt = object.resolvedAt ?? undefined;
+    message.plugins = object.plugins?.map((e) => ResolvedAgentPlugin.fromPartial(e)) || [];
+    message.connectionGrants = object.connectionGrants?.map((e) => AgentPluginConnectionGrant.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseResolveAgentPluginsResponse(): ResolveAgentPluginsResponse {
+  return { snapshot: undefined };
+}
+
+export const ResolveAgentPluginsResponse: MessageFns<ResolveAgentPluginsResponse> = {
+  encode(message: ResolveAgentPluginsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.snapshot !== undefined) {
+      ResolvedAgentPluginSnapshot.encode(message.snapshot, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResolveAgentPluginsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseResolveAgentPluginsResponse();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.snapshot = ResolvedAgentPluginSnapshot.decode(reader, reader.uint32());
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): ResolveAgentPluginsResponse {
+    return { snapshot: isSet(object.snapshot) ? ResolvedAgentPluginSnapshot.fromJSON(object.snapshot) : undefined };
+  },
+
+  toJSON(message: ResolveAgentPluginsResponse): unknown {
+    const obj: any = {};
+    if (message.snapshot !== undefined) {
+      obj.snapshot = ResolvedAgentPluginSnapshot.toJSON(message.snapshot);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ResolveAgentPluginsResponse>): ResolveAgentPluginsResponse {
+    return ResolveAgentPluginsResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ResolveAgentPluginsResponse>): ResolveAgentPluginsResponse {
+    const message = createBaseResolveAgentPluginsResponse();
+    message.snapshot =
+      object.snapshot !== undefined && object.snapshot !== null
+        ? ResolvedAgentPluginSnapshot.fromPartial(object.snapshot)
+        : undefined;
+    return message;
+  },
+};
+
 function createBaseBenefitPackage(): BenefitPackage {
   return {
     id: "",
@@ -5875,6 +8399,79 @@ export const BenefitPackageServiceClient = makeGenericClientConstructor(
 ) as unknown as {
   new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): BenefitPackageServiceClient;
   service: typeof BenefitPackageServiceService;
+  serviceName: string;
+};
+
+export type AgentPluginServiceService = typeof AgentPluginServiceService;
+export const AgentPluginServiceService = {
+  listAgentPlugins: {
+    path: "/admin.v1.AgentPluginService/ListAgentPlugins" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ListAgentPluginsRequest): Buffer =>
+      Buffer.from(ListAgentPluginsRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ListAgentPluginsRequest => ListAgentPluginsRequest.decode(value),
+    responseSerialize: (value: ListAgentPluginsResponse): Buffer =>
+      Buffer.from(ListAgentPluginsResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ListAgentPluginsResponse => ListAgentPluginsResponse.decode(value),
+  },
+  resolveAgentPlugins: {
+    path: "/admin.v1.AgentPluginService/ResolveAgentPlugins" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ResolveAgentPluginsRequest): Buffer =>
+      Buffer.from(ResolveAgentPluginsRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ResolveAgentPluginsRequest => ResolveAgentPluginsRequest.decode(value),
+    responseSerialize: (value: ResolveAgentPluginsResponse): Buffer =>
+      Buffer.from(ResolveAgentPluginsResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ResolveAgentPluginsResponse => ResolveAgentPluginsResponse.decode(value),
+  },
+} as const;
+
+export interface AgentPluginServiceServer extends UntypedServiceImplementation {
+  listAgentPlugins: handleUnaryCall<ListAgentPluginsRequest, ListAgentPluginsResponse>;
+  resolveAgentPlugins: handleUnaryCall<ResolveAgentPluginsRequest, ResolveAgentPluginsResponse>;
+}
+
+export interface AgentPluginServiceClient extends Client {
+  listAgentPlugins(
+    request: ListAgentPluginsRequest,
+    callback: (error: ServiceError | null, response: ListAgentPluginsResponse) => void,
+  ): ClientUnaryCall;
+  listAgentPlugins(
+    request: ListAgentPluginsRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: ListAgentPluginsResponse) => void,
+  ): ClientUnaryCall;
+  listAgentPlugins(
+    request: ListAgentPluginsRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: ListAgentPluginsResponse) => void,
+  ): ClientUnaryCall;
+  resolveAgentPlugins(
+    request: ResolveAgentPluginsRequest,
+    callback: (error: ServiceError | null, response: ResolveAgentPluginsResponse) => void,
+  ): ClientUnaryCall;
+  resolveAgentPlugins(
+    request: ResolveAgentPluginsRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: ResolveAgentPluginsResponse) => void,
+  ): ClientUnaryCall;
+  resolveAgentPlugins(
+    request: ResolveAgentPluginsRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: ResolveAgentPluginsResponse) => void,
+  ): ClientUnaryCall;
+}
+
+export const AgentPluginServiceClient = makeGenericClientConstructor(
+  AgentPluginServiceService,
+  "admin.v1.AgentPluginService",
+) as unknown as {
+  new (address: string, credentials: ChannelCredentials, options?: Partial<ClientOptions>): AgentPluginServiceClient;
+  service: typeof AgentPluginServiceService;
   serviceName: string;
 };
 

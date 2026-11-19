@@ -23,7 +23,7 @@ func ProjectRuntimeValue(product Conversation, value any) any {
 			switch {
 			case key == "id" && child == "session" && hasNumericTokens:
 				projected[projectedKey] = "conversation"
-			case child == product.RuntimeSessionID:
+			case child == product.RuntimeThreadID:
 				projected[projectedKey] = product.ID
 			default:
 				projected[projectedKey] = ProjectRuntimeValue(product, child)
@@ -31,7 +31,7 @@ func ProjectRuntimeValue(product Conversation, value any) any {
 		}
 		return projected
 	case string:
-		runtimePath := "/sessions/" + url.PathEscape(product.RuntimeSessionID)
+		runtimePath := "/sessions/" + url.PathEscape(product.RuntimeThreadID)
 		productPath := "/conversations/" + url.PathEscape(product.ID)
 		return strings.ReplaceAll(typed, runtimePath, productPath)
 	default:
@@ -49,8 +49,7 @@ func ProjectConversation(product Conversation, runtimeValue any) map[string]any 
 	projected["tenant_id"] = product.TenantID
 	projected["workspace_id"] = product.WorkspaceID
 	projected["title"] = product.Title
-	projected["project_id"] = product.ProjectID
-	projected["canvas_id"] = product.CanvasID
+	projected["plugin_selections"] = clonePluginSelections(product.PluginSelections)
 	projected["created_at"] = isoMilliseconds(product.CreatedAt)
 	projected["updated_at"] = isoMilliseconds(product.UpdatedAt)
 	return projected
@@ -64,11 +63,10 @@ func RuntimeRunBody(product Conversation, body map[string]any) (map[string]any, 
 	for key, value := range body {
 		result[key] = value
 	}
-	result["id"] = product.RuntimeSessionID
+	delete(result, "host_context")
+	result["id"] = product.RuntimeThreadID
 	result["generate_title"] = isAutoNamableTitle(product.Title)
-	if product.ProjectID != nil && product.CanvasID != nil {
-		result["host_context"] = map[string]any{"project_id": *product.ProjectID, "canvas_id": *product.CanvasID}
-	}
+	result["plugin_activations"] = clonePluginSelections(product.PluginSelections)
 	return result, nil
 }
 

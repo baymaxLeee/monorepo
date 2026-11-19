@@ -60,6 +60,32 @@ async function run() {
       );
       return;
     }
+    if (request.url === "/api/chat-server/local-inference/plugins/resolve") {
+      assert.equal(request.method, "POST");
+      assert.equal(request.headers.authorization, "Bearer fixture-token");
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        assert.deepEqual(JSON.parse(body), { activations: [] });
+        response.end(
+          JSON.stringify({
+            schemaVersion: 1,
+            snapshotId: "empty",
+            snapshotDigest: `sha256:${"0".repeat(64)}`,
+            workspaceRevision: 1,
+            tenantId: "test",
+            workspaceId: "workspace",
+            resolvedAt: "2026-01-01T00:00:00.000Z",
+            plugins: [],
+            connectionGrants: [],
+          }),
+        );
+      });
+      return;
+    }
     if (request.url === "/api/chat-server/local-inference/stream") {
       assert.equal(request.headers.authorization, "Bearer fixture-token");
       request.resume();
@@ -128,10 +154,14 @@ async function run() {
     await execute('desktop.bindSession("fixture-token", "2099-01-01T00:00:00Z")');
     await execute('fetch("/api/iam-server/test-login", { method: "POST", credentials: "include" })');
     assert.equal((await execute("desktop.refreshSession()")).accessToken, "fixture-token");
-    await assert.rejects(execute(`desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto")`));
+    await assert.rejects(
+      execute(`desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto", [])`),
+    );
     const selectedWorkspace = await execute("desktop.selectWorkspace()");
     assert.equal(selectedWorkspace, workspace);
-    const thread = await execute(`desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto")`);
+    const thread = await execute(
+      `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto", [])`,
+    );
     assert.equal(thread.mode, "local");
     await execute(`desktop.send(${JSON.stringify(thread.id)}, "create file", ${JSON.stringify(randomUUID())})`);
     let state;

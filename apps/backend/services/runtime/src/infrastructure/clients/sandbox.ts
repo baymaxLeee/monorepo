@@ -17,6 +17,7 @@ export interface SandboxScope {
   user_id: string;
   session_id: string;
   run_id: string;
+  attempt_epoch: string;
 }
 
 function transportScope(scope: SandboxScope): TransportSandboxScope {
@@ -26,6 +27,7 @@ function transportScope(scope: SandboxScope): TransportSandboxScope {
     user_id: scope.user_id,
     conversation_id: scope.session_id,
     run_id: scope.run_id,
+    attempt_epoch: scope.attempt_epoch,
   };
 }
 

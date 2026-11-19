@@ -102,9 +102,10 @@ shared context manager 将完整 UIMessage journal 投影为 bounded ModelMessag
    或本地文件系统。持久 journal 从不因 projection/pruning/compaction 被改写。
 
 Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和
-checkpoint 机制。其新 authority 是每个 identity scope 下的 `runtime-v1.sqlite`，schema 为
-`threads`、`turns`、`items`、`context_checkpoints`，`user_version=1`。旧 `sessions.sqlite` 不读取、
-不迁移、不覆盖；这是明确的零兼容切换。
+checkpoint 机制。其 authority 是每个 identity scope 下的 `runtime.sqlite`，schema 为
+`threads`、`turns`、`items`、`context_checkpoints`、`turn_plugin_snapshots`，`user_version=1`。
+旧 `runtime-v1.sqlite`、`sessions.sqlite` 和 Electron `userData` journal 不读取、不迁移、不覆盖；
+这是明确的零兼容切换。
 
 ## 工具 runtime
 
@@ -122,8 +123,11 @@ SDK 可以并发发出 tool call，但实际执行必须经过每个 catalog 实
 - duplicate tool name 启动即失败，不允许宿主静默替换 shared capability。
 
 ToolLoop 中间件不通过删除 provider tool call 来制造串行；并发、权限和副作用边界在 executor
-admission 执行。Portable registry 只含已证明跨 Backend/Desktop 共用的基础能力；Canvas、Media、
-Knowledge、Memory 等领域能力留在 Runtime host。
+admission 执行。Portable registry 只含已证明跨 Backend/Desktop 共用的基础能力。Runtime 自有的
+Media、Memory 作为 host manifest；Knowledge、Canvas 和外部 MCP 都通过同一套 catalog/release/
+installation/activation/Turn snapshot/connection lifecycle 注入，Runtime 不再持有固定服务 tool
+client 或第二套插件 adapter。完整 ownership、去密持久化、lazy discovery、MCP fail-closed 与当前
+仅 `knowledge_search`/`get_canvas` 的能力面见 [Agent plugins](agent-plugins.md)。
 
 ## Instructions 与 runtime facts
 
@@ -139,13 +143,14 @@ runtime invariant，以及已批准 Skill/Memory 和日期。HTML、图表、搜
 ## 取舍与一手证据
 
 采用的基线来自本地 `openai/codex` 当前实现中的 session/turn/input queue/conversation history/
-tool runtime 分层，以及公开 [Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
+tool runtime 分层；插件治理与执行边界由 [Agent plugins](agent-plugins.md) 单独维护。公开依据包括
+[Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 和 [App Server](https://developers.openai.com/codex/app-server/) 的 Thread/Turn/Item 模型。采用
 [pi-agent core loop](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/agent-loop.ts)
 的极简 model → tool → result 形态，并以 Anthropic 公开的
 [agent loop/subagent guidance](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)
-校验 prompt/context 边界。Codex 的 Rust loop、provider protocol、approval wire format 和产品
-提示词不复制；许可证受限文本不进入本仓库。
+校验 prompt/context 边界。Codex 的 Rust loop、provider protocol、approval wire format 和产品提示词
+不复制，许可证受限文本不进入本仓库。
 
 与 Codex 的主要有意差异是：实际 loop、消息、approval、stream 和 tool execution 仍由本仓库已
 采用的 [Vercel AI SDK `ToolLoopAgent`](https://ai-sdk.dev/docs/reference/ai-sdk-core/tool-loop-agent)
@@ -159,6 +164,7 @@ cursor 作为事实源、静默压缩失败、通过 middleware 丢弃 tool call
 
 - shared kernel：[RuntimeTurn](../../packages/agent-runtime/src/runtime/turn.ts)、[context manager](../../packages/agent-runtime/src/context/manager.ts)、[tool scheduler](../../packages/agent-runtime/src/tools/execution-scheduler.ts)
 - Backend host：[run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、[cloud turn](../../apps/backend/services/runtime/src/application/agent/runtime/cloud-turn.ts)、[model context](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)
+- Plugins：[plugin lifecycle](agent-plugins.md)、[shared manager](../../packages/agent-runtime/src/plugins/manager.ts)、[Runtime catalog](../../apps/backend/services/runtime/src/application/agent/tools/catalog.ts)
 - Desktop host：[session manager](../../apps/frontend/apps/desktop/electron/runtime/session-manager.ts)、[journal](../../apps/frontend/apps/desktop/electron/runtime/journal.ts)
 
 最低验证包括 shared、Backend、Desktop tests/typecheck/build，checkpoint 冲突、queued tool cancel、

@@ -217,3 +217,34 @@ class BenefitPackageServiceServicer(metaclass=_abc_1.ABCMeta):
     ) -> _typing.Union[_admin_pb2.DeleteReviewedAssetResponse, _abc.Awaitable[_admin_pb2.DeleteReviewedAssetResponse]]: ...
 
 def add_BenefitPackageServiceServicer_to_server(servicer: BenefitPackageServiceServicer, server: _typing.Union[_grpc.Server, _aio.Server]) -> None: ...
+
+class AgentPluginServiceStub:
+    @_typing.overload
+    def __new__(cls, channel: _grpc.Channel) -> _Self: ...
+    @_typing.overload
+    def __new__(cls, channel: _aio.Channel) -> AgentPluginServiceAsyncStub: ...
+    ListAgentPlugins: _grpc.UnaryUnaryMultiCallable[_admin_pb2.ListAgentPluginsRequest, _admin_pb2.ListAgentPluginsResponse]
+    ResolveAgentPlugins: _grpc.UnaryUnaryMultiCallable[_admin_pb2.ResolveAgentPluginsRequest, _admin_pb2.ResolveAgentPluginsResponse]
+
+@_typing.type_check_only
+class AgentPluginServiceAsyncStub(AgentPluginServiceStub):
+    def __init__(self, channel: _aio.Channel) -> None: ...
+    ListAgentPlugins: _aio.UnaryUnaryMultiCallable[_admin_pb2.ListAgentPluginsRequest, _admin_pb2.ListAgentPluginsResponse]  # type: ignore[assignment]
+    ResolveAgentPlugins: _aio.UnaryUnaryMultiCallable[_admin_pb2.ResolveAgentPluginsRequest, _admin_pb2.ResolveAgentPluginsResponse]  # type: ignore[assignment]
+
+class AgentPluginServiceServicer(metaclass=_abc_1.ABCMeta):
+    @_abc_1.abstractmethod
+    def ListAgentPlugins(
+        self,
+        request: _admin_pb2.ListAgentPluginsRequest,
+        context: _ServicerContext,
+    ) -> _typing.Union[_admin_pb2.ListAgentPluginsResponse, _abc.Awaitable[_admin_pb2.ListAgentPluginsResponse]]: ...
+
+    @_abc_1.abstractmethod
+    def ResolveAgentPlugins(
+        self,
+        request: _admin_pb2.ResolveAgentPluginsRequest,
+        context: _ServicerContext,
+    ) -> _typing.Union[_admin_pb2.ResolveAgentPluginsResponse, _abc.Awaitable[_admin_pb2.ResolveAgentPluginsResponse]]: ...
+
+def add_AgentPluginServiceServicer_to_server(servicer: AgentPluginServiceServicer, server: _typing.Union[_grpc.Server, _aio.Server]) -> None: ...

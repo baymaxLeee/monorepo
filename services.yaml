@@ -9,13 +9,13 @@ services:
     publicRoutes:
       - /*
     bindings:
-      - iam
-      - admin
-      - chat
-      - canvas
-      - knowledge
-      - telemetry
-      - storage
+      iam: [http]
+      admin: [http]
+      chat: [http]
+      canvas: [http]
+      knowledge: [http]
+      telemetry: [http]
+      storage: [http]
     databases: []
     openapi: null
 
@@ -25,7 +25,7 @@ services:
     port: 8002
     publicRoutes:
       - /api/iam-server/*
-    bindings: []
+    bindings: {}
     databases:
       - iam
     openapi: schemas/openapi/iam-server.json
@@ -39,7 +39,7 @@ services:
     publicRoutes:
       - /api/admin-server/*
     bindings:
-      - storage
+      storage: [rpc]
     databases:
       - admin
     openapi: schemas/openapi/admin-server.json
@@ -52,7 +52,7 @@ services:
     publicRoutes:
       - /api/chat-server/*
     bindings:
-      - runtime
+      runtime: [http]
     databases:
       - chat
     openapi: schemas/openapi/chat-server.json
@@ -64,10 +64,10 @@ services:
     port: 8015
     publicRoutes: []
     bindings:
-      - admin
-      - knowledge
-      - canvas
-      - storage
+      admin: [rpc]
+      knowledge: [rpc, http]
+      canvas: [http]
+      storage: [rpc]
     databases:
       - runtime
       - workflow
@@ -82,8 +82,8 @@ services:
     publicRoutes:
       - /api/knowledge-server/*
     bindings:
-      - admin
-      - storage
+      admin: [rpc]
+      storage: [rpc]
     databases:
       - knowledge
     openapi: schemas/openapi/knowledge-server.json
@@ -95,7 +95,7 @@ services:
     port: 8008
     publicRoutes:
       - /api/telemetry-server/*
-    bindings: []
+    bindings: {}
     databases:
       - telemetry
     openapi: schemas/openapi/telemetry-server.json
@@ -109,8 +109,8 @@ services:
     publicRoutes:
       - /api/canvas-server/*
     bindings:
-      - admin
-      - storage
+      admin: [rpc]
+      storage: [rpc]
     databases:
       - canvas
     openapi: schemas/openapi/canvas-server.json
@@ -123,7 +123,7 @@ services:
     rpcPort: 9013
     publicRoutes:
       - /api/storage-server/*
-    bindings: []
+    bindings: {}
     databases:
       - storage
     openapi: schemas/openapi/storage-server.json

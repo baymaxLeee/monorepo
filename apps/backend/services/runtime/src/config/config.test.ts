@@ -41,6 +41,8 @@ test("each process parses only its own configuration contract", () => {
   });
 
   assert.equal(server.chatCallerToken, strong("c"));
+  assert.equal(server.knowledgeServiceUrl, "http://localhost:8010");
+  assert.equal(server.canvasServiceUrl, "http://localhost:8012");
   assert.equal("internalServiceTokens" in server, false);
   assert.deepEqual(worker.internalServiceTokens, { runtime: strong("r") });
   assert.equal("redisHost" in worker, false);
@@ -65,6 +67,10 @@ test("invalid numeric configuration fails instead of silently selecting a defaul
 
   assert.throws(() => parseServerSettings({ ...server, PORT: "not-a-port" }), /PORT must be a positive integer/);
   assert.throws(() => parseServerSettings({ ...server, REDIS_DB: "-1" }), /REDIS_DB must be a non-negative integer/);
+  assert.throws(
+    () => parseServerSettings({ ...server, CANVAS_SERVICE_URL: "file:///tmp/canvas" }),
+    /CANVAS_SERVICE_URL must be an absolute HTTP URL/,
+  );
   assert.throws(
     () => parseWorkerSettings({ ...worker, VIDEO_SEGMENT_CONCURRENCY: "1.5" }),
     /VIDEO_SEGMENT_CONCURRENCY must be a positive integer/,

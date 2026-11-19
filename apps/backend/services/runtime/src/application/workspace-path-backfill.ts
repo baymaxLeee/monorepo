@@ -6,9 +6,9 @@ import { storageClient } from "../infrastructure/clients/storage.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
   assetClaimIntents,
-  sessionFiles,
-  sessionFileSaveOperations,
-  sessionRunLeases,
+  threadFiles as sessionFiles,
+  threadFileSaveOperations as sessionFileSaveOperations,
+  turnLeases as sessionRunLeases,
 } from "../infrastructure/persistence/schema.js";
 import { allocateLegacyWorkspacePaths, isValidWorkspacePath } from "./workspace-paths.js";
 
@@ -44,10 +44,10 @@ async function assertBackfillQuiescent(): Promise<void> {
 export async function backfillWorkspacePaths(): Promise<WorkspacePathBackfillResult> {
   await assertBackfillQuiescent();
   const pending = await getDb()
-    .selectDistinct({ sessionId: sessionFiles.sessionId })
+    .selectDistinct({ sessionId: sessionFiles.threadId })
     .from(sessionFiles)
     .where(isNull(sessionFiles.workspacePath))
-    .orderBy(asc(sessionFiles.sessionId));
+    .orderBy(asc(sessionFiles.threadId));
 
   let files = 0;
   for (const { sessionId } of pending) {
@@ -60,7 +60,7 @@ export async function backfillWorkspacePaths(): Promise<WorkspacePathBackfillRes
           workspacePath: sessionFiles.workspacePath,
         })
         .from(sessionFiles)
-        .where(eq(sessionFiles.sessionId, sessionId))
+        .where(eq(sessionFiles.threadId, sessionId))
         .orderBy(asc(sessionFiles.createdAt), asc(sessionFiles.id))
         .for("update");
 
@@ -80,7 +80,7 @@ export async function backfillWorkspacePaths(): Promise<WorkspacePathBackfillRes
           .set({ workspacePath: allocation.workspacePath })
           .where(
             and(
-              eq(sessionFiles.sessionId, sessionId),
+              eq(sessionFiles.threadId, sessionId),
               eq(sessionFiles.id, allocation.id),
               isNull(sessionFiles.workspacePath),
             ),
@@ -100,13 +100,13 @@ export async function backfillWorkspacePaths(): Promise<WorkspacePathBackfillRes
 
   const duplicates = await getDb()
     .select({
-      sessionId: sessionFiles.sessionId,
+      sessionId: sessionFiles.threadId,
       workspacePath: sessionFiles.workspacePath,
       count: sql<number>`count(*)::integer`,
     })
     .from(sessionFiles)
     .where(isNotNull(sessionFiles.workspacePath))
-    .groupBy(sessionFiles.sessionId, sessionFiles.workspacePath)
+    .groupBy(sessionFiles.threadId, sessionFiles.workspacePath)
     .having(sql`count(*) > 1`)
     .limit(1);
   if (duplicates.length > 0) throw new Error("workspace path backfill produced a duplicate session path");
@@ -127,7 +127,7 @@ export async function verifyWorkspacePathBackfill(): Promise<WorkspacePathVerifi
       workspacePath: sessionFiles.workspacePath,
     })
     .from(sessionFiles)
-    .orderBy(asc(sessionFiles.sessionId), asc(sessionFiles.createdAt), asc(sessionFiles.id));
+    .orderBy(asc(sessionFiles.threadId), asc(sessionFiles.createdAt), asc(sessionFiles.id));
 
   let bytes = 0;
   for (const row of rows) {

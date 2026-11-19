@@ -1,19 +1,25 @@
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
+import { PluginManager } from "@repo/agent-runtime/plugins/manager";
+import type {
+  AgentPluginContext,
+  AgentPluginManifest,
+  ResolvedPluginSkillContribution,
+  ResolvedPluginSet,
+  ResolvedTurnPluginSnapshot,
+} from "@repo/agent-runtime/plugins/types";
 import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
-import { defineAgentTool, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
+import { manifestsToTools, transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
-import type { AdminSkillSource } from "@repo/agent-runtime/tools/skills";
-import type { AgentToolManifest, ToolSource } from "@repo/agent-runtime/tools/types";
+import type { SkillSource } from "@repo/agent-runtime/tools/skills";
+import type { AgentToolManifest } from "@repo/agent-runtime/tools/types";
 import type { ToolSet } from "ai";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { createCloudToolAdapters } from "../adapters/cloud-tools.js";
 import { createRuntimePortableToolModel } from "../adapters/core-tools.js";
+import { RuntimePluginSkillAssetLoader } from "../adapters/plugin-skills.js";
 import { webSearch } from "../adapters/web-search.js";
-import type { AgentExtension, AgentExtensionContext } from "../integrations/types.js";
-import { createCanvasToolManifests } from "./builtins/canvas.js";
-import { createKnowledgeToolManifests } from "./builtins/knowledge.js";
 import { createMediaToolManifests } from "./builtins/media.js";
 import { createMemoryToolManifests } from "./builtins/memory.js";
 
@@ -21,115 +27,88 @@ export interface AgentToolProviders {
   textProvider: LanguageProviderSnapshot;
 }
 
+export interface TurnPluginLoader {
+  load(snapshot: ResolvedTurnPluginSnapshot, context: AgentPluginContext): Promise<ResolvedPluginSet>;
+}
+
+export interface PluginSkillAssetLoader {
+  loadBody(skill: ResolvedPluginSkillContribution, context: AgentPluginContext): Promise<string>;
+}
+
 function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
-  return [...createKnowledgeToolManifests(), ...createMediaToolManifests(), ...createMemoryToolManifests()];
+  return [...createMediaToolManifests(), ...createMemoryToolManifests()];
 }
 
-function extensionSource(id: string): ToolSource {
-  if (id.startsWith("mcp:")) {
-    return "mcp";
-  }
-  if (id.startsWith("skill:")) {
-    return "skill";
-  }
-  return "skill";
-}
-
-function safeNamespace(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]+/g, "_");
-}
-
-function extensionToolName(extensionId: string, toolName: string): string {
-  if (extensionId.startsWith("mcp:")) {
-    return `mcp__${safeNamespace(extensionId.slice(4))}__${safeNamespace(toolName)}`;
-  }
-  if (extensionId.startsWith("skill:")) {
-    return `skill__${safeNamespace(extensionId.slice(6))}__${safeNamespace(toolName)}`;
-  }
-  return safeNamespace(toolName);
-}
-
+/** Runtime-owned assembly of core tools plus an already authorized Turn plugin snapshot. */
 export class ToolCatalog {
-  readonly #extensions: AgentExtension[] = [];
+  readonly #plugins: TurnPluginLoader;
+  readonly #pluginSkills: PluginSkillAssetLoader;
 
-  register(extension: AgentExtension): () => void {
-    if (this.#extensions.some((candidate) => candidate.id === extension.id)) {
-      throw new Error(`agent extension ${extension.id} is already registered`);
-    }
-    this.#extensions.push(extension);
-    return () => {
-      const index = this.#extensions.indexOf(extension);
-      if (index >= 0) {
-        this.#extensions.splice(index, 1);
-      }
-    };
+  constructor(
+    plugins: TurnPluginLoader = new PluginManager(),
+    pluginSkills: PluginSkillAssetLoader = new RuntimePluginSkillAssetLoader(),
+  ) {
+    this.#plugins = plugins;
+    this.#pluginSkills = pluginSkills;
   }
 
   async resolve(
-    context: AgentExtensionContext,
+    context: AgentPluginContext,
     providers: AgentToolProviders,
-    skillSource?: AdminSkillSource | null,
+    pluginSnapshot: ResolvedTurnPluginSnapshot,
+    skillSource?: SkillSource | null,
   ): Promise<{
     tools: ToolSet;
     activeTools: string[];
     codeModeTools: string[];
     manifests: AgentToolManifest[];
+    activePlugins: AgentPluginManifest[];
     contributions: InstructionContributions;
     environment: ExecutionEnvironment;
     dispose: () => Promise<void>;
   }> {
-    const portableTools = createPortableToolRegistry({
-      model: createRuntimePortableToolModel(providers.textProvider),
-      webSearch,
-      skillSource,
-    });
     const cloudAdapters = await createCloudToolAdapters();
     const disposers: Array<() => void | Promise<void>> = [cloudAdapters.dispose];
     try {
-      const additions = [
-        ...domainManifests(providers),
-        ...cloudAdapters.manifests,
-        ...(context.projectId && context.canvasId
-          ? createCanvasToolManifests({
-              textProviderId: providers.textProvider.id,
-            })
-          : []),
-      ];
-      const skills = [...portableTools.skills];
+      const pluginSet = await this.#plugins.load(pluginSnapshot, context);
+      disposers.push(pluginSet.dispose);
+      const pluginSkillSource: SkillSource = {
+        activeSkillName: skillSource?.activeSkillName,
+        skills: pluginSet.skills.map((skill) => ({
+          id: `${skill.pluginId}/${skill.id}`,
+          name: skill.name,
+          description: skill.description,
+          loadBody: () => this.#pluginSkills.loadBody(skill, context),
+        })),
+      };
+      const portableTools = createPortableToolRegistry({
+        model: createRuntimePortableToolModel(providers.textProvider),
+        webSearch,
+        skillSource: {
+          activeSkillName: skillSource?.activeSkillName,
+          skills: [...(skillSource?.skills ?? []), ...pluginSkillSource.skills],
+        },
+      });
 
-      for (const extension of [...this.#extensions]) {
-        const contribution = await extension.resolve(context);
-        if (contribution.dispose) {
-          disposers.push(contribution.dispose);
+      const additions = [...domainManifests(providers), ...cloudAdapters.manifests];
+      for (const manifest of pluginSet.manifests) {
+        if (manifest.policy.source !== "mcp") {
+          throw new Error(`agent plugin ${manifest.policy.pluginId ?? "unknown"} contributed a non-MCP tool`);
         }
-        const source = extensionSource(extension.id);
-        for (const [contributedName, definition] of Object.entries(contribution.tools ?? {})) {
-          const name = extensionToolName(extension.id, contributedName);
-          additions.push(
-            defineAgentTool(
-              name,
-              { ...definition, deferLoading: true },
-              {
-                capability: "external",
-                effect: "unknown",
-                trust: "unknown",
-                execution: "inline",
-                source,
-              },
-              {
-                summary:
-                  typeof definition.description === "string"
-                    ? definition.description
-                    : `Use ${name} from ${extension.id}.`,
-                prerequisites: [`Enable and authorize ${extension.id}.`],
-              },
-            ),
-          );
-        }
+        additions.push(
+          manifest.tool
+            ? {
+                ...manifest,
+                tool: transformToolPreservingCaller(manifest.tool, (definition) => ({
+                  ...definition,
+                  deferLoading: true,
+                })),
+              }
+            : manifest,
+        );
       }
 
       const manifests = [...portableTools.manifests, ...additions];
-
       const activeManifests = manifests.filter((manifest) => manifest.tool);
       const tools = manifestsToTools(activeManifests);
       const activeTools = Object.keys(tools);
@@ -150,7 +129,8 @@ export class ToolCatalog {
         activeTools,
         codeModeTools,
         manifests,
-        contributions: { skills },
+        activePlugins: pluginSet.activePlugins,
+        contributions: { skills: [...portableTools.skills] },
         environment: cloudAdapters.environment,
         dispose: async () => {
           await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));

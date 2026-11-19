@@ -11,6 +11,7 @@ catalogMode: strict
 
 catalog:
   "@ai-sdk/code-mode": 1.0.129
+  "@ai-sdk/mcp": 2.0.99
   "@ai-sdk/openai": ^4.0.117
   "@ai-sdk/provider": ^4.0.38
   "@ai-sdk/provider-utils": ^5.0.81

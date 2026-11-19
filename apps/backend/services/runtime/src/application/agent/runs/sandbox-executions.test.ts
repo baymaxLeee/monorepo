@@ -12,6 +12,7 @@ const first: SandboxScope = {
   user_id: "user",
   session_id: "session",
   run_id: "first",
+  attempt_epoch: "1",
 };
 const second: SandboxScope = { ...first, run_id: "second" };
 

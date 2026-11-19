@@ -39,6 +39,68 @@ CREATE TABLE public.apps (
 
 
 
+CREATE TABLE public.agent_plugin_catalog (
+    id character varying(129) NOT NULL,
+    display_name character varying(120) NOT NULL,
+    description text NOT NULL,
+    source character varying(24) NOT NULL,
+    trust character varying(24) NOT NULL,
+    install_policy character varying(32) NOT NULL,
+    availability character varying(24) NOT NULL,
+    latest_release_digest character varying(71) NOT NULL,
+    listed boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT agent_plugin_catalog_availability_check CHECK ((availability)::text = ANY (ARRAY['available'::text, 'unavailable'::text])),
+    CONSTRAINT agent_plugin_catalog_digest_check CHECK ((latest_release_digest)::text ~ '^sha256:[0-9a-f]{64}$'::text),
+    CONSTRAINT agent_plugin_catalog_install_policy_check CHECK ((install_policy)::text = ANY (ARRAY['available'::text, 'installed-by-default'::text, 'not-available'::text])),
+    CONSTRAINT agent_plugin_catalog_source_trust_check CHECK ((((source)::text = 'system'::text AND (trust)::text = 'system'::text) OR ((source)::text = 'external-mcp'::text AND (trust)::text = ANY (ARRAY['verified'::text, 'unverified'::text]))))
+);
+
+
+
+CREATE TABLE public.agent_plugin_releases (
+    plugin_id character varying(129) NOT NULL,
+    digest character varying(71) NOT NULL,
+    version character varying(64) NOT NULL,
+    manifest_json jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    CONSTRAINT agent_plugin_releases_digest_check CHECK ((digest)::text ~ '^sha256:[0-9a-f]{64}$'::text)
+);
+
+
+
+CREATE TABLE public.agent_plugin_workspace_states (
+    tenant_id character varying(64) NOT NULL,
+    workspace_id character varying(64) NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT agent_plugin_workspace_states_revision_check CHECK (revision > 0)
+);
+
+
+
+CREATE TABLE public.agent_plugin_installations (
+    tenant_id character varying(64) NOT NULL,
+    workspace_id character varying(64) NOT NULL,
+    plugin_id character varying(129) NOT NULL,
+    release_digest character varying(71) NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    revision bigint NOT NULL,
+    config_json jsonb DEFAULT '{}'::jsonb NOT NULL,
+    encrypted_secrets_json jsonb DEFAULT '{}'::jsonb NOT NULL,
+    installed_by character varying(64) NOT NULL,
+    updated_by character varying(64) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    CONSTRAINT agent_plugin_installations_revision_check CHECK (revision > 0),
+    CONSTRAINT agent_plugin_installations_release_digest_check CHECK ((release_digest)::text ~ '^sha256:[0-9a-f]{64}$'::text),
+    CONSTRAINT agent_plugin_installations_config_object_check CHECK (jsonb_typeof(config_json) = 'object'::text),
+    CONSTRAINT agent_plugin_installations_secrets_object_check CHECK (jsonb_typeof(encrypted_secrets_json) = 'object'::text)
+);
+
+
+
 CREATE TABLE public.asset_claim_intents (
     tenant_id character varying(64) NOT NULL,
     workspace_id character varying(64) NOT NULL,
@@ -297,6 +359,26 @@ ALTER TABLE ONLY public.apps
 
 
 
+ALTER TABLE ONLY public.agent_plugin_catalog
+    ADD CONSTRAINT agent_plugin_catalog_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.agent_plugin_releases
+    ADD CONSTRAINT agent_plugin_releases_pkey PRIMARY KEY (plugin_id, digest);
+
+
+
+ALTER TABLE ONLY public.agent_plugin_workspace_states
+    ADD CONSTRAINT agent_plugin_workspace_states_pkey PRIMARY KEY (tenant_id, workspace_id);
+
+
+
+ALTER TABLE ONLY public.agent_plugin_installations
+    ADD CONSTRAINT agent_plugin_installations_pkey PRIMARY KEY (tenant_id, workspace_id, plugin_id);
+
+
+
 ALTER TABLE ONLY public.asset_claim_intents
     ADD CONSTRAINT asset_claim_intents_pkey PRIMARY KEY (tenant_id, workspace_id, owner_type, owner_id, slot);
 
@@ -417,6 +499,14 @@ CREATE INDEX ix_apps_enabled_visibility ON public.apps USING btree (is_enabled, 
 
 
 
+CREATE INDEX ix_agent_plugin_catalog_listing ON public.agent_plugin_catalog USING btree (listed, availability, display_name);
+
+
+
+CREATE INDEX ix_agent_plugin_installations_workspace ON public.agent_plugin_installations USING btree (tenant_id, workspace_id, enabled, plugin_id);
+
+
+
 CREATE INDEX ix_bot_skills_skill_id ON public.bot_skills USING btree (skill_id);
 
 
@@ -471,6 +561,16 @@ CREATE UNIQUE INDEX ux_skills_org_name ON public.skills USING btree (workspace_i
 
 ALTER TABLE ONLY public.benefit_package_models
     ADD CONSTRAINT benefit_package_models_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.benefit_packages(id);
+
+
+
+ALTER TABLE ONLY public.agent_plugin_releases
+    ADD CONSTRAINT agent_plugin_releases_plugin_id_fkey FOREIGN KEY (plugin_id) REFERENCES public.agent_plugin_catalog(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.agent_plugin_installations
+    ADD CONSTRAINT agent_plugin_installations_release_fkey FOREIGN KEY (plugin_id, release_digest) REFERENCES public.agent_plugin_releases(plugin_id, digest);
 
 
 

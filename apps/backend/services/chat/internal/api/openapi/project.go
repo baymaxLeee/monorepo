@@ -37,19 +37,49 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 
 	components := object(contract["components"])
 	schemas := object(components["schemas"])
-	// generate_title is an internal Chat -> Runtime orchestration hint. The
-	// browser-facing Chat contract must not let clients select this policy.
-	delete(object(object(schemas["AgentRunRequest"])["properties"]), "generate_title")
+	// These are internal Chat -> Runtime orchestration fields. The browser-facing
+	// contract cannot override conversation-owned plugin selection or host policy.
+	agentRunProperties := object(object(schemas["AgentRunRequest"])["properties"])
+	delete(agentRunProperties, "generate_title")
+	delete(agentRunProperties, "plugin_activations")
+	delete(agentRunProperties, "host_context")
 	stringSchema := map[string]any{"type": "string"}
+	pluginSelectionSchema := map[string]any{
+		"type": "object", "required": []any{"plugin_id"}, "additionalProperties": false,
+		"properties": map[string]any{
+			"plugin_id": map[string]any{
+				"type": "string", "minLength": float64(3), "maxLength": float64(129),
+				"pattern": `^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?@[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$`,
+			},
+			"bindings": map[string]any{
+				"type":                 "object",
+				"additionalProperties": map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(256)},
+			},
+		},
+	}
+	schemas["ConversationPluginSelection"] = pluginSelectionSchema
 	schemas["CreateConversationInput"] = map[string]any{
 		"type": "object", "required": []any{"request_id"}, "additionalProperties": false,
 		"properties": map[string]any{
-			"request_id":  map[string]any{"type": "string", "minLength": float64(8), "maxLength": float64(64)},
-			"title":       map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(200)},
-			"provider_id": map[string]any{"type": "string", "maxLength": float64(32), "nullable": true},
+			"request_id":       map[string]any{"type": "string", "minLength": float64(8), "maxLength": float64(64)},
+			"title":            map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(200)},
+			"provider_id":      map[string]any{"type": "string", "maxLength": float64(32), "nullable": true},
 			"reasoning_effort": map[string]any{"$ref": "#/components/schemas/ReasoningEffort", "nullable": true},
-			"project_id":  map[string]any{"type": "string", "maxLength": float64(36)},
-			"canvas_id":   map[string]any{"type": "string", "maxLength": float64(36)},
+			"plugin_selections": map[string]any{
+				"type": "array", "maxItems": float64(16),
+				"items": map[string]any{"$ref": "#/components/schemas/ConversationPluginSelection"},
+			},
+		},
+	}
+	schemas["CreateCanvasConversationInput"] = map[string]any{
+		"type": "object", "required": []any{"request_id", "project_id", "canvas_id"}, "additionalProperties": false,
+		"properties": map[string]any{
+			"request_id":       map[string]any{"type": "string", "minLength": float64(8), "maxLength": float64(64)},
+			"title":            map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(200)},
+			"provider_id":      map[string]any{"type": "string", "maxLength": float64(32), "nullable": true},
+			"reasoning_effort": map[string]any{"$ref": "#/components/schemas/ReasoningEffort", "nullable": true},
+			"project_id":       map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(36)},
+			"canvas_id":        map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(36)},
 		},
 	}
 	schemas["UpdateConversationInput"] = map[string]any{
@@ -58,21 +88,24 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 	}
 	schemas["Conversation"] = map[string]any{
 		"type":     "object",
-		"required": []any{"id", "user_id", "tenant_id", "workspace_id", "title", "project_id", "canvas_id", "created_at", "updated_at"},
+		"required": []any{"id", "user_id", "tenant_id", "workspace_id", "title", "plugin_selections", "created_at", "updated_at"},
 		"properties": map[string]any{
 			"id": stringSchema, "user_id": stringSchema, "tenant_id": stringSchema, "workspace_id": stringSchema,
-			"title": stringSchema, "project_id": map[string]any{"type": "string", "nullable": true},
-			"canvas_id":  map[string]any{"type": "string", "nullable": true},
+			"title": stringSchema,
+			"plugin_selections": map[string]any{
+				"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ConversationPluginSelection"},
+			},
 			"created_at": map[string]any{"type": "string", "format": "date-time"},
 			"updated_at": map[string]any{"type": "string", "format": "date-time"},
 		},
 	}
 	conversationDetail := object(schemas["ConversationDetail"])
-	conversationDetail["required"] = append(array(conversationDetail["required"]), "title")
+	conversationDetail["required"] = append(array(conversationDetail["required"]), "title", "plugin_selections")
 	detailProperties := object(conversationDetail["properties"])
 	detailProperties["title"] = stringSchema
-	detailProperties["project_id"] = map[string]any{"type": "string", "nullable": true}
-	detailProperties["canvas_id"] = map[string]any{"type": "string", "nullable": true}
+	detailProperties["plugin_selections"] = map[string]any{
+		"type": "array", "items": map[string]any{"$ref": "#/components/schemas/ConversationPluginSelection"},
+	}
 	conversationDetail["properties"] = detailProperties
 	schemas["ConversationDetail"] = conversationDetail
 
@@ -113,7 +146,7 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 	projectedPaths["/conversations/canvas"] = map[string]any{"post": map[string]any{
 		"operationId": "createCanvasConversation",
 		"requestBody": map[string]any{"required": true, "content": map[string]any{
-			"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/CreateConversationInput"}},
+			"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/CreateCanvasConversationInput"}},
 		}},
 		"responses": map[string]any{"201": map[string]any{
 			"description": "Canvas-bound conversation", "content": map[string]any{

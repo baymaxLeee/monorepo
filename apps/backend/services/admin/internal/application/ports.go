@@ -33,6 +33,23 @@ type SecretCipher interface {
 	Decrypt(string) (string, error)
 }
 
+// AgentPluginRepository owns catalog and workspace installation persistence. Runtime state,
+// MCP connections and tool execution deliberately do not cross this boundary.
+type AgentPluginRepository interface {
+	Transaction(context.Context, func(AgentPluginRepository) error) error
+	GetCatalogEntry(context.Context, string) (domain.AgentPluginCatalogEntry, error)
+	ListCatalog(context.Context, string, string) ([]domain.AgentPluginListItem, error)
+	ListPluginSelectionCandidates(context.Context, string, string) ([]domain.AgentPluginSelectionCandidate, error)
+	UpsertCatalogEntry(context.Context, domain.AgentPluginCatalogEntry) error
+	GetRelease(context.Context, string, string) (domain.AgentPluginManifest, error)
+	CreateRelease(context.Context, domain.AgentPluginManifest) error
+	GetInstallation(context.Context, string, string, string) (domain.AgentPluginInstallation, error)
+	SaveInstallation(context.Context, domain.AgentPluginInstallation) error
+	DeleteInstallation(context.Context, string, string, string) (bool, error)
+	WorkspaceRevision(context.Context, string, string, bool) (int64, error)
+	BumpWorkspaceRevision(context.Context, string, string, time.Time) (int64, error)
+}
+
 type CanvasSettingsStore interface {
 	Get(context.Context, string, string) (CanvasSettings, error)
 	Update(context.Context, Actor, int, json.RawMessage) (CanvasSettings, error)

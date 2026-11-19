@@ -130,6 +130,48 @@ const openapi = {
         },
       },
     },
+    "/local-inference/plugins/resolve": {
+      post: {
+        operationId: "resolveLocalInferencePlugins",
+        description:
+          "Resolve the immutable plugin release snapshot and ephemeral connection grants for one native Desktop turn. Grants are held only in the utility process and must not cross the preload bridge or persistence boundary.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                required: ["activations"],
+                properties: {
+                  activations: {
+                    type: "array",
+                    maxItems: 16,
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
+                      required: ["pluginId"],
+                      properties: {
+                        pluginId: { type: "string", pattern: "^[a-z0-9._-]+@[a-z0-9._-]+$" },
+                        bindings: {
+                          type: "object",
+                          additionalProperties: { type: "string", minLength: 1, maxLength: 256 },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": jsonResponse("Turn-frozen native plugin snapshot with ephemeral connection grants", {
+            type: "object",
+          }),
+        },
+      },
+    },
     "/healthz": { get: { operationId: "runtimeHealthz", responses: { "200": { description: "ok" } } } },
     "/sessions": {
       get: {
@@ -611,13 +653,20 @@ const openapi = {
           expected_revision: { type: "integer", minimum: 0 },
           request_id: { type: "string", minLength: 8, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" },
           generate_title: { type: "boolean" },
-          host_context: {
-            type: "object",
-            required: ["project_id", "canvas_id"],
-            additionalProperties: false,
-            properties: {
-              project_id: { type: "string", minLength: 1, maxLength: 36 },
-              canvas_id: { type: "string", minLength: 1, maxLength: 36 },
+          plugin_activations: {
+            type: "array",
+            maxItems: 16,
+            items: {
+              type: "object",
+              required: ["plugin_id"],
+              additionalProperties: false,
+              properties: {
+                plugin_id: { type: "string", minLength: 3, maxLength: 129 },
+                bindings: {
+                  type: "object",
+                  additionalProperties: { type: "string", minLength: 1, maxLength: 256 },
+                },
+              },
             },
           },
         },

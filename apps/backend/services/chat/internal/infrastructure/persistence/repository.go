@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -37,50 +38,126 @@ func (repository *Repository) Close() { repository.pool.Close() }
 
 func (repository *Repository) Ping(ctx context.Context) error { return repository.pool.Ping(ctx) }
 
-func (repository *Repository) Create(ctx context.Context, scope application.AuthContext, runtimeSessionID string, input application.CreateConversationInput) (application.Conversation, error) {
-	id, err := conversationID()
-	if err != nil {
-		return application.Conversation{}, err
-	}
+func (repository *Repository) Reserve(
+	ctx context.Context,
+	scope application.AuthContext,
+	intent application.ConversationIntent,
+) (application.Conversation, error) {
 	title := "新对话"
-	if input.Title != nil {
-		title = *input.Title
+	if intent.Input.Title != nil {
+		title = *intent.Input.Title
+	}
+	pluginSelectionsJSON, err := json.Marshal(intent.Input.PluginSelections)
+	if err != nil {
+		return application.Conversation{}, fmt.Errorf("encode conversation plugin selections: %w", err)
 	}
 	now := time.Now()
-	row, err := repository.queries.CreateConversation(ctx, sqlc.CreateConversationParams{
-		ID:               id,
-		RuntimeSessionID: runtimeSessionID,
-		CreateRequestID:  input.RequestID,
-		UserID:           scope.UserID,
-		TenantID:         scope.TenantID,
-		WorkspaceID:      scope.WorkspaceID,
-		Title:            title,
-		ProjectID:        input.ProjectID,
-		CanvasID:         input.CanvasID,
-		CreatedAt:        pgtype.Timestamptz{Time: now, Valid: true},
-	})
-	if err == nil {
-		return conversationFromRow(row), nil
+	for range 2 {
+		id, err := conversationID()
+		if err != nil {
+			return application.Conversation{}, err
+		}
+		row, err := repository.queries.ReserveConversation(ctx, sqlc.ReserveConversationParams{
+			ID:                   id,
+			Operation:            string(intent.Operation),
+			CreateRequestID:      intent.Input.RequestID,
+			CreateFingerprint:    intent.CreateFingerprint,
+			RuntimeRequest:       intent.RuntimeRequest,
+			SourceConversationID: intent.SourceConversationID,
+			SourceMessageID:      intent.SourceMessageID,
+			UserID:               scope.UserID,
+			TenantID:             scope.TenantID,
+			WorkspaceID:          scope.WorkspaceID,
+			Title:                title,
+			PluginSelectionsJson: pluginSelectionsJSON,
+			NextAttemptAt:        timestamp(now),
+		})
+		if err == nil {
+			return conversationFromRow(row)
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return application.Conversation{}, err
+		}
+
+		row, err = repository.queries.FindConversationByIdempotency(ctx, sqlc.FindConversationByIdempotencyParams{
+			TenantID:        scope.TenantID,
+			WorkspaceID:     scope.WorkspaceID,
+			UserID:          scope.UserID,
+			CreateRequestID: intent.Input.RequestID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			// The only remaining conflict is the randomly generated primary key.
+			continue
+		}
+		if err != nil {
+			return application.Conversation{}, err
+		}
+		existing, err := conversationFromRow(row)
+		if err != nil {
+			return application.Conversation{}, err
+		}
+		if existing.State == application.ConversationDeleting {
+			return application.Conversation{}, application.Conflict(
+				"conversation_deleting", "conversation is being deleted",
+			)
+		}
+		if existing.Operation != intent.Operation || existing.CreateFingerprint != intent.CreateFingerprint {
+			return application.Conversation{}, application.Conflict(
+				"request_id_conflict", "conversation request is already bound to different input",
+			)
+		}
+		return existing, nil
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return application.Conversation{}, err
-	}
-	row, err = repository.queries.FindConversationByIdempotency(ctx, sqlc.FindConversationByIdempotencyParams{
+	return application.Conversation{}, errors.New("failed to allocate a conversation id")
+}
+
+func (repository *Repository) BindRuntimeThread(
+	ctx context.Context,
+	scope application.AuthContext,
+	id string,
+	runtimeThreadID string,
+) (application.Conversation, error) {
+	now := time.Now()
+	row, err := repository.queries.BindConversationRuntimeThread(ctx, sqlc.BindConversationRuntimeThreadParams{
+		RuntimeThreadID: &runtimeThreadID,
+		NextAttemptAt:   timestamp(now),
+		ID:              id,
+		UserID:          scope.UserID,
 		TenantID:        scope.TenantID,
 		WorkspaceID:     scope.WorkspaceID,
-		UserID:          scope.UserID,
-		CreateRequestID: input.RequestID,
-		ProjectID:       input.ProjectID,
-		CanvasID:        input.CanvasID,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return application.Conversation{}, application.Conflict(
+			"conversation_mapping_conflict", "conversation cannot bind this Runtime Thread",
+		)
+	}
 	if err != nil {
 		return application.Conversation{}, err
 	}
-	existing := conversationFromRow(row)
-	if existing.RuntimeSessionID != runtimeSessionID {
-		return application.Conversation{}, errors.New("conversation mapping conflict")
+	return conversationFromRow(row)
+}
+
+func (repository *Repository) RecordSagaFailure(
+	ctx context.Context,
+	scope application.AuthContext,
+	id string,
+	state application.ConversationState,
+	cause error,
+) error {
+	message := cause.Error()
+	if len(message) > 2000 {
+		message = message[:2000]
 	}
-	return existing, nil
+	_, err := repository.queries.RecordConversationSagaFailure(ctx, sqlc.RecordConversationSagaFailureParams{
+		UpdatedAt:   timestamp(time.Now()),
+		LastError:   &message,
+		ID:          id,
+		UserID:      scope.UserID,
+		TenantID:    scope.TenantID,
+		WorkspaceID: scope.WorkspaceID,
+		State:       string(state),
+	})
+	return err
 }
 
 func (repository *Repository) List(ctx context.Context, scope application.AuthContext) ([]application.Conversation, error) {
@@ -92,7 +169,10 @@ func (repository *Repository) List(ctx context.Context, scope application.AuthCo
 	}
 	result := make([]application.Conversation, len(rows))
 	for index, row := range rows {
-		result[index] = conversationFromRow(row)
+		result[index], err = conversationFromRow(row)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return result, nil
 }
@@ -104,8 +184,14 @@ func (repository *Repository) Get(ctx context.Context, scope application.AuthCon
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
-	conversation := conversationFromRow(row)
-	return &conversation, err
+	if err != nil {
+		return nil, err
+	}
+	conversation, err := conversationFromRow(row)
+	if err != nil {
+		return nil, err
+	}
+	return &conversation, nil
 }
 
 func (repository *Repository) UpdateTitle(ctx context.Context, scope application.AuthContext, id, title string) (*application.Conversation, error) {
@@ -115,8 +201,14 @@ func (repository *Repository) UpdateTitle(ctx context.Context, scope application
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
-	conversation := conversationFromRow(row)
-	return &conversation, err
+	if err != nil {
+		return nil, err
+	}
+	conversation, err := conversationFromRow(row)
+	if err != nil {
+		return nil, err
+	}
+	return &conversation, nil
 }
 
 func (repository *Repository) UpdateTitleIfDefault(ctx context.Context, scope application.AuthContext, id, title string) (*application.Conversation, error) {
@@ -126,31 +218,102 @@ func (repository *Repository) UpdateTitleIfDefault(ctx context.Context, scope ap
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
-	conversation := conversationFromRow(row)
-	return &conversation, err
+	if err != nil {
+		return nil, err
+	}
+	conversation, err := conversationFromRow(row)
+	if err != nil {
+		return nil, err
+	}
+	return &conversation, nil
 }
 
-func (repository *Repository) Delete(ctx context.Context, scope application.AuthContext, id string) (*application.Conversation, error) {
-	row, err := repository.queries.DeleteConversation(ctx, sqlc.DeleteConversationParams{
-		ID: id, UserID: scope.UserID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+func (repository *Repository) BeginDelete(
+	ctx context.Context,
+	scope application.AuthContext,
+	id string,
+) (*application.Conversation, error) {
+	row, err := repository.queries.BeginConversationDelete(ctx, sqlc.BeginConversationDeleteParams{
+		NextAttemptAt: timestamp(time.Now()),
+		ID:            id,
+		UserID:        scope.UserID,
+		TenantID:      scope.TenantID,
+		WorkspaceID:   scope.WorkspaceID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
-	conversation := conversationFromRow(row)
-	return &conversation, err
+	if err != nil {
+		return nil, err
+	}
+	conversation, err := conversationFromRow(row)
+	if err != nil {
+		return nil, err
+	}
+	return &conversation, nil
 }
 
-func conversationFromRow(row sqlc.Conversation) application.Conversation {
-	return application.Conversation{
-		ID: row.ID, RuntimeSessionID: row.RuntimeSessionID, CreateRequestID: row.CreateRequestID,
-		UserID: row.UserID, TenantID: row.TenantID, WorkspaceID: row.WorkspaceID, Title: row.Title,
-		ProjectID: row.ProjectID, CanvasID: row.CanvasID, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+func (repository *Repository) CompleteDelete(
+	ctx context.Context,
+	scope application.AuthContext,
+	id string,
+	runtimeThreadID string,
+) error {
+	_, err := repository.queries.CompleteConversationDelete(ctx, sqlc.CompleteConversationDeleteParams{
+		ID: id, UserID: scope.UserID, TenantID: scope.TenantID, WorkspaceID: scope.WorkspaceID,
+		RuntimeThreadID: &runtimeThreadID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		remaining, getErr := repository.Get(ctx, scope, id)
+		if getErr != nil {
+			return getErr
+		}
+		if remaining == nil {
+			return nil
+		}
+		return application.Conflict("conversation_delete_conflict", "conversation delete intent changed")
 	}
+	return err
+}
+
+func conversationFromRow(row sqlc.Conversation) (application.Conversation, error) {
+	runtimeThreadID := ""
+	if row.RuntimeThreadID != nil {
+		runtimeThreadID = *row.RuntimeThreadID
+	}
+	var pluginSelections []application.ConversationPluginSelection
+	if err := json.Unmarshal(row.PluginSelectionsJson, &pluginSelections); err != nil {
+		return application.Conversation{}, fmt.Errorf("decode conversation plugin selections: %w", err)
+	}
+	return application.Conversation{
+		ID:                   row.ID,
+		State:                application.ConversationState(row.State),
+		Operation:            application.ConversationOperation(row.Operation),
+		RuntimeThreadID:      runtimeThreadID,
+		CreateRequestID:      row.CreateRequestID,
+		CreateFingerprint:    row.CreateFingerprint,
+		RuntimeRequest:       append([]byte(nil), row.RuntimeRequest...),
+		SourceConversationID: row.SourceConversationID,
+		SourceMessageID:      row.SourceMessageID,
+		UserID:               row.UserID,
+		TenantID:             row.TenantID,
+		WorkspaceID:          row.WorkspaceID,
+		Title:                row.Title,
+		PluginSelections:     pluginSelections,
+		AttemptCount:         int(row.AttemptCount),
+		NextAttemptAt:        row.NextAttemptAt.Time,
+		LastError:            row.LastError,
+		CreatedAt:            row.CreatedAt.Time,
+		UpdatedAt:            row.UpdatedAt.Time,
+	}, nil
+}
+
+func timestamp(value time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: value, Valid: true}
 }
 
 func conversationID() (string, error) {
-	value := make([]byte, 6)
+	value := make([]byte, 16)
 	if _, err := rand.Read(value); err != nil {
 		return "", fmt.Errorf("create conversation id: %w", err)
 	}

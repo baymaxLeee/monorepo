@@ -111,6 +111,7 @@ function fixture() {
     providerId: "provider",
     reasoningEffort: "medium",
     approvalMode: "auto",
+    pluginActivations: [],
     status: "waiting",
     error: null,
     turnId: null,

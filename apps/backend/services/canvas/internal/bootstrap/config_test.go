@@ -6,15 +6,16 @@ import (
 )
 
 var deployedEnvironment = map[string]string{
-	"ENVIRONMENT":        "single-vps",
-	"POSTGRES_HOST":      "postgres",
-	"POSTGRES_USER":      "canvas",
-	"POSTGRES_PASSWORD":  "test-password",
-	"POSTGRES_DATABASE":  "canvas",
-	"REDIS_URL":          "redis://redis:6379/3",
-	"PUBLIC_GATEWAY_URL": "http://example.test:8080",
-	"ADMIN_RPC_TARGET":   "admin:9001",
-	"STORAGE_RPC_TARGET": "asset:9013",
+	"ENVIRONMENT":             "single-vps",
+	"POSTGRES_HOST":           "postgres",
+	"POSTGRES_USER":           "canvas",
+	"POSTGRES_PASSWORD":       "test-password",
+	"POSTGRES_DATABASE":       "canvas",
+	"REDIS_URL":               "redis://redis:6379/3",
+	"PUBLIC_GATEWAY_URL":      "http://example.test:8080",
+	"ADMIN_RPC_TARGET":        "admin:9001",
+	"STORAGE_RPC_TARGET":      "asset:9013",
+	"INTERNAL_SERVICE_TOKENS": `{"runtime":"strong-runtime-internal-token-value"}`,
 }
 
 func setDeployedEnvironment(t *testing.T) {
@@ -36,7 +37,7 @@ func TestLoadDevelopmentDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.PublicGatewayURL != "http://localhost:8000" || cfg.RedisURL != "redis://localhost:6379/0" {
+	if cfg.PublicGatewayURL != "http://localhost:8000" || cfg.RedisURL != "redis://localhost:6379/0" || cfg.RuntimeCallerToken != developmentRuntimeCallerToken {
 		t.Fatalf("unexpected development defaults: %+v", cfg)
 	}
 }

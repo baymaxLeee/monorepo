@@ -413,6 +413,7 @@ export interface components {
       user_id: string;
       conversation_id: string;
       run_id: string;
+      attempt_epoch: string;
     };
     SandboxStart: {
       scope: {
@@ -421,6 +422,7 @@ export interface components {
         user_id: string;
         conversation_id: string;
         run_id: string;
+        attempt_epoch: string;
       };
       request_id: string;
       command: string;
@@ -443,6 +445,7 @@ export interface components {
         user_id: string;
         conversation_id: string;
         run_id: string;
+        attempt_epoch: string;
       };
       request_id: string;
       /** @default  */

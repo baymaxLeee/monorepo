@@ -21,6 +21,15 @@ poll schedules、async dispatches、deletion jobs、Asset claim relay、配额�
 两者复用 domain、application 和 infrastructure，且共享 Canvas 数据库，但使用独立的
 Deployment、容器入口、资源、探针和扩缩容生命周期。
 
+## Agent MCP surface
+
+Canvas server 在 `/mcp` 挂载官方 Go MCP SDK 的 Streamable HTTP handler。每次请求只信任 Runtime
+注入的 user/tenant/workspace/role 以及 manifest binding 映射出的 project/canvas headers，并复用
+Canvas application access checker；tool annotations 不参与授权。当前 inventory 严格只有只读
+`get_canvas`，没有节点更新、节点生成或故事板提交。Runtime 不保留 Canvas gRPC tool client；
+endpoint、schema、bindings 与 trust 由 Admin immutable release 管理，见
+[Agent plugin ADR](../ADR/agent-plugins.md)。
+
 ## 媒体链路
 
 浏览器通过 Gateway 直接流式上传到 `/api/storage-server/assets`，再把 immutable

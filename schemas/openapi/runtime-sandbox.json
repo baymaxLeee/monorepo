@@ -500,6 +500,11 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          },
+          "attempt_epoch": {
+            "type": "string",
+            "maxLength": 20,
+            "pattern": "^[1-9][0-9]*$"
           }
         },
         "required": [
@@ -507,7 +512,8 @@
           "workspace_id",
           "user_id",
           "conversation_id",
-          "run_id"
+          "run_id",
+          "attempt_epoch"
         ],
         "additionalProperties": false
       },
@@ -542,6 +548,11 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 128
+              },
+              "attempt_epoch": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
               }
             },
             "required": [
@@ -549,7 +560,8 @@
               "workspace_id",
               "user_id",
               "conversation_id",
-              "run_id"
+              "run_id",
+              "attempt_epoch"
             ],
             "additionalProperties": false
           },
@@ -634,6 +646,11 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 128
+              },
+              "attempt_epoch": {
+                "type": "string",
+                "maxLength": 20,
+                "pattern": "^[1-9][0-9]*$"
               }
             },
             "required": [
@@ -641,7 +658,8 @@
               "workspace_id",
               "user_id",
               "conversation_id",
-              "run_id"
+              "run_id",
+              "attempt_epoch"
             ],
             "additionalProperties": false
           },

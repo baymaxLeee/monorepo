@@ -132,7 +132,7 @@ func (router *Router) createConversation(writer http.ResponseWriter, request *ht
 }
 
 func (router *Router) createCanvasConversation(writer http.ResponseWriter, request *http.Request) {
-	input, err := decodeCreateInput(request)
+	input, err := decodeCanvasCreateInput(request)
 	if err != nil {
 		writeError(writer, request, err)
 		return
@@ -170,12 +170,17 @@ func (router *Router) deleteConversation(writer http.ResponseWriter, request *ht
 func (router *Router) forkConversation(writer http.ResponseWriter, request *http.Request) {
 	var input struct {
 		MessageID string `json:"message_id"`
+		RequestID string `json:"request_id"`
 	}
-	if err := decodeJSON(request, &input); err != nil || utf8.RuneCountInString(input.MessageID) < 1 || utf8.RuneCountInString(input.MessageID) > 32 {
+	if err := decodeJSON(request, &input); err != nil ||
+		utf8.RuneCountInString(input.MessageID) < 1 || utf8.RuneCountInString(input.MessageID) > 32 ||
+		utf8.RuneCountInString(input.RequestID) < 8 || utf8.RuneCountInString(input.RequestID) > 64 {
 		writeInvalidRequest(writer)
 		return
 	}
-	value, err := router.service.Fork(request.Context(), auth(request), request.Header, chi.URLParam(request, "conversationID"), input.MessageID)
+	value, err := router.service.Fork(
+		request.Context(), auth(request), request.Header, chi.URLParam(request, "conversationID"), input.MessageID, input.RequestID,
+	)
 	writeResult(writer, request, http.StatusCreated, value, err)
 }
 
@@ -201,33 +206,57 @@ func decodeCreateInput(request *http.Request) (application.CreateConversationInp
 	if err := decodeJSON(request, &input); err != nil {
 		return input, invalidRequestError()
 	}
-	if length := utf8.RuneCountInString(input.RequestID); length < 8 || length > 64 {
+	if err := validateCreateFields(input.RequestID, input.Title, input.ProviderID, input.ReasoningEffort); err != nil {
+		return input, err
+	}
+	return input, nil
+}
+
+func decodeCanvasCreateInput(request *http.Request) (application.CreateCanvasConversationInput, error) {
+	var input application.CreateCanvasConversationInput
+	if err := decodeJSON(request, &input); err != nil {
 		return input, invalidRequestError()
 	}
-	for _, field := range []struct {
-		value *string
-		max   int
-		min   int
-	}{{input.Title, 200, 1}, {input.ProviderID, 32, 0}, {input.ProjectID, 36, 0}, {input.CanvasID, 36, 0}} {
-		if field.value != nil {
-			length := utf8.RuneCountInString(*field.value)
-			if length < field.min || length > field.max {
-				return input, invalidRequestError()
-			}
-		}
+	if err := validateCreateFields(input.RequestID, input.Title, input.ProviderID, input.ReasoningEffort); err != nil {
+		return input, err
 	}
-	if input.ReasoningEffort != nil {
-		allowed := map[string]bool{"none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true}
-		if !allowed[*input.ReasoningEffort] {
+	for _, value := range []string{input.ProjectID, input.CanvasID} {
+		if length := utf8.RuneCountInString(value); length < 1 || length > 36 {
 			return input, invalidRequestError()
 		}
 	}
 	return input, nil
 }
 
+func validateCreateFields(requestID string, title, providerID, reasoningEffort *string) error {
+	if length := utf8.RuneCountInString(requestID); length < 8 || length > 64 {
+		return invalidRequestError()
+	}
+	for _, field := range []struct {
+		value *string
+		max   int
+		min   int
+	}{{title, 200, 1}, {providerID, 32, 0}} {
+		if field.value != nil {
+			length := utf8.RuneCountInString(*field.value)
+			if length < field.min || length > field.max {
+				return invalidRequestError()
+			}
+		}
+	}
+	if reasoningEffort != nil {
+		allowed := map[string]bool{"none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true}
+		if !allowed[*reasoningEffort] {
+			return invalidRequestError()
+		}
+	}
+	return nil
+}
+
 func decodeJSON(request *http.Request, target any) error {
 	decoder := json.NewDecoder(request.Body)
 	decoder.UseNumber()
+	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}

@@ -6,7 +6,7 @@ import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
 import type { SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { sessionRunLeases, sandboxExecutions } from "../../../infrastructure/persistence/schema.js";
+import { turnLeases, turnSandboxExecutions } from "../../../infrastructure/persistence/schema.js";
 import { isMissingSandboxResourceError, persistCloudWorkspace } from "../../cloud-workspace.js";
 
 export interface SandboxExecutionLifecycle {
@@ -26,20 +26,23 @@ function errorMessage(error: unknown): string | null {
 export const sandboxExecutionLifecycle: SandboxExecutionLifecycle = {
   async restoring(scope) {
     const now = new Date();
-    await getDb().insert(sandboxExecutions).values({
-      runId: scope.run_id,
-      sessionId: scope.session_id,
-      userId: scope.user_id,
-      tenantId: scope.tenant_id,
-      workspaceId: scope.workspace_id,
-      state: "restoring",
-      createdAt: now,
-      updatedAt: now,
-    });
+    await getDb()
+      .insert(turnSandboxExecutions)
+      .values({
+        turnId: scope.run_id,
+        attemptEpoch: BigInt(scope.attempt_epoch),
+        threadId: scope.session_id,
+        userId: scope.user_id,
+        tenantId: scope.tenant_id,
+        workspaceId: scope.workspace_id,
+        state: "restoring",
+        createdAt: now,
+        updatedAt: now,
+      });
   },
   async active(scope, session) {
     const [row] = await getDb()
-      .update(sandboxExecutions)
+      .update(turnSandboxExecutions)
       .set({
         state: "active",
         sandboxId: session.id,
@@ -47,37 +50,64 @@ export const sandboxExecutionLifecycle: SandboxExecutionLifecycle = {
         lastError: null,
         updatedAt: new Date(),
       })
-      .where(and(eq(sandboxExecutions.runId, scope.run_id), eq(sandboxExecutions.state, "restoring")))
-      .returning({ runId: sandboxExecutions.runId });
+      .where(
+        and(
+          eq(turnSandboxExecutions.turnId, scope.run_id),
+          eq(turnSandboxExecutions.attemptEpoch, BigInt(scope.attempt_epoch)),
+          eq(turnSandboxExecutions.state, "restoring"),
+        ),
+      )
+      .returning({ runId: turnSandboxExecutions.turnId });
     if (!row) throw new Error("sandbox execution did not transition from restoring to active");
   },
   async finalizing(scope) {
     const [row] = await getDb()
-      .update(sandboxExecutions)
+      .update(turnSandboxExecutions)
       .set({ state: "finalizing", lastError: null, updatedAt: new Date() })
-      .where(and(eq(sandboxExecutions.runId, scope.run_id), eq(sandboxExecutions.state, "active")))
-      .returning({ runId: sandboxExecutions.runId });
+      .where(
+        and(
+          eq(turnSandboxExecutions.turnId, scope.run_id),
+          eq(turnSandboxExecutions.attemptEpoch, BigInt(scope.attempt_epoch)),
+          eq(turnSandboxExecutions.state, "active"),
+        ),
+      )
+      .returning({ runId: turnSandboxExecutions.turnId });
     if (!row) throw new Error("sandbox execution did not transition from active to finalizing");
   },
   async finalizationFailed(scope, error) {
     await getDb()
-      .update(sandboxExecutions)
+      .update(turnSandboxExecutions)
       .set({ lastError: errorMessage(error), updatedAt: new Date() })
-      .where(and(eq(sandboxExecutions.runId, scope.run_id), eq(sandboxExecutions.state, "finalizing")));
+      .where(
+        and(
+          eq(turnSandboxExecutions.turnId, scope.run_id),
+          eq(turnSandboxExecutions.attemptEpoch, BigInt(scope.attempt_epoch)),
+          eq(turnSandboxExecutions.state, "finalizing"),
+        ),
+      );
   },
   async releasing(scope, error) {
     const [row] = await getDb()
-      .update(sandboxExecutions)
+      .update(turnSandboxExecutions)
       .set({ state: "releasing", lastError: errorMessage(error), updatedAt: new Date() })
-      .where(eq(sandboxExecutions.runId, scope.run_id))
-      .returning({ runId: sandboxExecutions.runId });
+      .where(
+        and(
+          eq(turnSandboxExecutions.turnId, scope.run_id),
+          eq(turnSandboxExecutions.attemptEpoch, BigInt(scope.attempt_epoch)),
+        ),
+      )
+      .returning({ runId: turnSandboxExecutions.turnId });
     if (!row) throw new Error("sandbox execution is not registered for release");
   },
   async released(scope) {
     await getDb()
-      .delete(sandboxExecutions)
+      .delete(turnSandboxExecutions)
       .where(
-        and(eq(sandboxExecutions.runId, scope.run_id), inArray(sandboxExecutions.state, ["finalizing", "releasing"])),
+        and(
+          eq(turnSandboxExecutions.turnId, scope.run_id),
+          eq(turnSandboxExecutions.attemptEpoch, BigInt(scope.attempt_epoch)),
+          inArray(turnSandboxExecutions.state, ["finalizing", "releasing"]),
+        ),
       );
   },
 };
@@ -97,35 +127,41 @@ export interface SandboxExecutionReconcilerDependencies {
   failed(scope: SandboxScope, error: unknown): Promise<void>;
 }
 
-export const sandboxExecutionReconciliationState = sql`CASE WHEN ${sandboxExecutions.state} IN ('active', 'finalizing') AND ${sandboxExecutions.expiresAt} > CURRENT_TIMESTAMP THEN 'finalizing' ELSE 'releasing' END`;
+export const sandboxExecutionReconciliationState = sql`CASE WHEN ${turnSandboxExecutions.state} IN ('active', 'finalizing') AND ${turnSandboxExecutions.expiresAt} > CURRENT_TIMESTAMP THEN 'finalizing' ELSE 'releasing' END`;
 
 const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
   async list() {
     const now = new Date();
     const rows = await getDb().transaction(async (tx) => {
       const candidates = await tx
-        .select({ execution: sandboxExecutions })
-        .from(sandboxExecutions)
-        .leftJoin(sessionRunLeases, eq(sessionRunLeases.runId, sandboxExecutions.runId))
-        .where(
-          or(
-            eq(sandboxExecutions.state, "releasing"),
-            isNull(sessionRunLeases.runId),
-            lte(sessionRunLeases.expiresAt, now),
+        .select({ execution: turnSandboxExecutions })
+        .from(turnSandboxExecutions)
+        .leftJoin(
+          turnLeases,
+          and(
+            eq(turnLeases.turnId, turnSandboxExecutions.turnId),
+            eq(turnLeases.attemptEpoch, turnSandboxExecutions.attemptEpoch),
           ),
         )
-        .orderBy(sandboxExecutions.updatedAt)
+        .where(
+          or(eq(turnSandboxExecutions.state, "releasing"), isNull(turnLeases.turnId), lte(turnLeases.expiresAt, now)),
+        )
+        .orderBy(turnSandboxExecutions.updatedAt)
         .limit(100)
-        .for("update", { of: sandboxExecutions });
-      const runIds = candidates.map(({ execution }) => execution.runId);
-      if (runIds.length > 0) {
+        .for("update", { of: turnSandboxExecutions });
+      for (const { execution } of candidates) {
         await tx
-          .update(sandboxExecutions)
+          .update(turnSandboxExecutions)
           .set({
             state: sandboxExecutionReconciliationState,
             updatedAt: new Date(),
           })
-          .where(inArray(sandboxExecutions.runId, runIds));
+          .where(
+            and(
+              eq(turnSandboxExecutions.turnId, execution.turnId),
+              eq(turnSandboxExecutions.attemptEpoch, execution.attemptEpoch),
+            ),
+          );
       }
       return candidates.map(({ execution }) => execution);
     });
@@ -134,8 +170,9 @@ const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
         tenant_id: row.tenantId,
         workspace_id: row.workspaceId,
         user_id: row.userId,
-        session_id: row.sessionId,
-        run_id: row.runId,
+        session_id: row.threadId,
+        run_id: row.turnId,
+        attempt_epoch: row.attemptEpoch.toString(),
       },
       sandboxId: row.sandboxId,
       state:
@@ -152,6 +189,7 @@ const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
         userId: scope.user_id,
         sessionId: scope.session_id,
         runId: scope.run_id,
+        attemptEpoch: scope.attempt_epoch,
       },
       sandboxId,
     );
@@ -163,9 +201,15 @@ const reconcilerDefaults: SandboxExecutionReconcilerDependencies = {
   released: sandboxExecutionLifecycle.released,
   async failed(scope, error) {
     await getDb()
-      .update(sandboxExecutions)
+      .update(turnSandboxExecutions)
       .set({ lastError: errorMessage(error), updatedAt: new Date() })
-      .where(and(eq(sandboxExecutions.runId, scope.run_id), eq(sandboxExecutions.state, "releasing")));
+      .where(
+        and(
+          eq(turnSandboxExecutions.turnId, scope.run_id),
+          eq(turnSandboxExecutions.attemptEpoch, BigInt(scope.attempt_epoch)),
+          eq(turnSandboxExecutions.state, "releasing"),
+        ),
+      );
   },
 };
 
@@ -210,12 +254,12 @@ export async function reconcileSandboxExecutions(
 export async function markSandboxExecutionsReleasing(runIds: string[]): Promise<void> {
   if (runIds.length === 0) return;
   await getDb()
-    .update(sandboxExecutions)
+    .update(turnSandboxExecutions)
     .set({
-      state: sql`CASE WHEN ${sandboxExecutions.state} IN ('active', 'finalizing') AND ${sandboxExecutions.expiresAt} > NOW() THEN 'finalizing' ELSE 'releasing' END`,
+      state: sql`CASE WHEN ${turnSandboxExecutions.state} IN ('active', 'finalizing') AND ${turnSandboxExecutions.expiresAt} > NOW() THEN 'finalizing' ELSE 'releasing' END`,
       updatedAt: new Date(),
     })
-    .where(inArray(sandboxExecutions.runId, runIds));
+    .where(inArray(turnSandboxExecutions.turnId, runIds));
 }
 
 const RECONCILE_INTERVAL_MS = 30_000;

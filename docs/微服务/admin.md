@@ -5,15 +5,18 @@
 
 ## Owner / 责任范围
 
-- DB 表：`model_providers`、`skills`、
-  `skill_nodes`、`skill_published_nodes`（外加
+- DB 表：`model_providers`、`skills`、`skill_nodes`、`skill_published_nodes`、
+  `agent_plugin_catalog`、`agent_plugin_releases`、`agent_plugin_workspace_states`、
+  `agent_plugin_installations`（外加
   `migration` 单行版本表）
 - 公开 HTTP API（gateway 前置鉴权，路径 `/api/admin-server/*`）：
   - `/providers` —— LLM Provider 管理（CRUD、`set-default`、`test`）
   - `/skills` —— Skill 工作区、文件懒加载、验证与发布
+  - `/agent-plugins` —— immutable release 发布、workspace 安装/启停/卸载；secret 只写不回显
 - 内部 gRPC API（端口 `9001`，gateway **不**代理）：
   - `ProviderService` —— 读取工作区 provider 快照与模型目录
   - `ConfigurationService` —— 读取已发布 Skill 与 Canvas 设置
+  - `AgentPluginService` —— 按当前 actor/workspace 解析 activation 为 Turn snapshot 与内存 grant
   - `BenefitPackageService` —— 查询与推进权益包工作流
   - 调用身份由进程固定的 `x-caller-service` metadata 注入，服务端按 RPC method 做 allowlist
 
@@ -35,19 +38,28 @@
     配置（`1K = 1024 tokens`，0.25K 步进）；数据库和内部 Proto 契约
     仍使用精确 token 整数，避免运行时单位换算。
 
+- **Agent plugins** —— Admin 只拥有 catalog/release/installation/configuration authority，不执行 MCP。
+  release 由 canonical manifest digest 寻址且不可变；installation 固定 workspace、release、enabled、
+  config、加密 secrets 与单调 revision。Chat/renderer 只能提交 `pluginId` 和 manifest 声明的非秘密
+  bindings；resolve 校验 scope 后返回 Turn-frozen snapshot，connection grants 只供 Runtime/Desktop
+  执行进程内存使用。服务启动不隐式 seed；系统插件当前可手工发布/安装，未来部署 one-shot seed
+  也必须调用同一 application service。完整生命周期见
+  [Agent plugin ADR](../ADR/agent-plugins.md)。
+
 ## 不负责
 
 - 用户身份（→ iam）
 - 业务流量本身（→ chat / 后续 LLM 消费服务）
 - 大模型调用编排（→ runtime） —— admin 只配置 + 测连通
+- MCP 连接、tool loop、取消与 cleanup（→ runtime / desktop utility process）
 
 ## 加密 / 密钥管理
 
 | 配置项 | 用途 | 生成方式 |
 |---|---|---|
-| `ADMIN_SECRET_KEY` | AES-256-GCM 密钥；加密 Admin 存储的 credential | URL-safe base64 编码的 32-byte 随机密钥 |
+| `ADMIN_SECRET_KEY` | AES-256-GCM 密钥；加密 Provider API key 与插件 installation secrets | URL-safe base64 编码的 32-byte 随机密钥 |
 非开发环境启动时的配置安全校验拒绝开发数据库配置与样本密钥。**轮换 `ADMIN_SECRET_KEY` 会让所有
-已存 api_key 不可解密** —— 必须配合"清空 + 重新录入"或自定义 re-encrypt 任务。
+已存 provider/plugin credential 不可解密** —— 必须配合"清空 + 重新录入"或自定义 re-encrypt 任务。
 
 ## 入口文件
 
@@ -64,6 +76,8 @@
 
 - API key 永远不出公开 API 表面；前端的"编辑"对话框对 `api_key` 字段空值
   表示"保留旧值"。
+- 插件 installation secret 永远不出公开 list/install response 或 Turn snapshot；只有 Admin resolve
+  在受限内部 RPC 上生成 connection grant。
 - `set-default` 在一个事务里把同 user 的旧默认置为 false。
 - RPC adapter 校验 caller allowlist，application 同时校验 `tenant_id` 与 `workspace_id`，不允许跨作用域读取。
 

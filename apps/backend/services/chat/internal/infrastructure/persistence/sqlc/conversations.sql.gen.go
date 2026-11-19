@@ -11,75 +11,84 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createConversation = `-- name: CreateConversation :one
-INSERT INTO conversations (
-    id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
-ON CONFLICT DO NOTHING
-RETURNING id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
+const beginConversationDelete = `-- name: BeginConversationDelete :one
+UPDATE conversations
+SET state = 'deleting', next_attempt_at = $1, last_error = NULL, updated_at = $1
+WHERE id = $2 AND user_id = $3 AND tenant_id = $4 AND workspace_id = $5
+    AND state IN ('ready', 'deleting') AND runtime_thread_id IS NOT NULL
+RETURNING id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
 `
 
-type CreateConversationParams struct {
-	ID               string
-	RuntimeSessionID string
-	CreateRequestID  string
-	UserID           string
-	TenantID         string
-	WorkspaceID      string
-	Title            string
-	ProjectID        *string
-	CanvasID         *string
-	CreatedAt        pgtype.Timestamptz
+type BeginConversationDeleteParams struct {
+	NextAttemptAt pgtype.Timestamptz
+	ID            string
+	UserID        string
+	TenantID      string
+	WorkspaceID   string
 }
 
-func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversationParams) (Conversation, error) {
-	row := q.db.QueryRow(ctx, createConversation,
+func (q *Queries) BeginConversationDelete(ctx context.Context, arg BeginConversationDeleteParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, beginConversationDelete,
+		arg.NextAttemptAt,
 		arg.ID,
-		arg.RuntimeSessionID,
-		arg.CreateRequestID,
 		arg.UserID,
 		arg.TenantID,
 		arg.WorkspaceID,
-		arg.Title,
-		arg.ProjectID,
-		arg.CanvasID,
-		arg.CreatedAt,
 	)
 	var i Conversation
 	err := row.Scan(
 		&i.ID,
-		&i.RuntimeSessionID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
 		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
 		&i.UserID,
 		&i.TenantID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.ProjectID,
-		&i.CanvasID,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const deleteConversation = `-- name: DeleteConversation :one
-DELETE FROM conversations
-WHERE id = $1 AND user_id = $2 AND tenant_id = $3 AND workspace_id = $4
-RETURNING id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
+const bindConversationRuntimeThread = `-- name: BindConversationRuntimeThread :one
+UPDATE conversations
+SET runtime_thread_id = $1,
+    state = 'ready',
+    attempt_count = attempt_count + 1,
+    next_attempt_at = $2,
+    last_error = NULL,
+    updated_at = $2
+WHERE id = $3 AND user_id = $4 AND tenant_id = $5 AND workspace_id = $6
+    AND (
+        (state = 'creating' AND (runtime_thread_id IS NULL OR runtime_thread_id = $1))
+        OR (state = 'ready' AND runtime_thread_id = $1)
+    )
+RETURNING id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
 `
 
-type DeleteConversationParams struct {
-	ID          string
-	UserID      string
-	TenantID    string
-	WorkspaceID string
+type BindConversationRuntimeThreadParams struct {
+	RuntimeThreadID *string
+	NextAttemptAt   pgtype.Timestamptz
+	ID              string
+	UserID          string
+	TenantID        string
+	WorkspaceID     string
 }
 
-func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversationParams) (Conversation, error) {
-	row := q.db.QueryRow(ctx, deleteConversation,
+func (q *Queries) BindConversationRuntimeThread(ctx context.Context, arg BindConversationRuntimeThreadParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, bindConversationRuntimeThread,
+		arg.RuntimeThreadID,
+		arg.NextAttemptAt,
 		arg.ID,
 		arg.UserID,
 		arg.TenantID,
@@ -88,14 +97,70 @@ func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversation
 	var i Conversation
 	err := row.Scan(
 		&i.ID,
-		&i.RuntimeSessionID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
 		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
 		&i.UserID,
 		&i.TenantID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.ProjectID,
-		&i.CanvasID,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const completeConversationDelete = `-- name: CompleteConversationDelete :one
+DELETE FROM conversations
+WHERE id = $1 AND user_id = $2 AND tenant_id = $3 AND workspace_id = $4
+    AND state = 'deleting' AND runtime_thread_id = $5
+RETURNING id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
+`
+
+type CompleteConversationDeleteParams struct {
+	ID              string
+	UserID          string
+	TenantID        string
+	WorkspaceID     string
+	RuntimeThreadID *string
+}
+
+func (q *Queries) CompleteConversationDelete(ctx context.Context, arg CompleteConversationDeleteParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, completeConversationDelete,
+		arg.ID,
+		arg.UserID,
+		arg.TenantID,
+		arg.WorkspaceID,
+		arg.RuntimeThreadID,
+	)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
+		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
+		&i.UserID,
+		&i.TenantID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -103,16 +168,10 @@ func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversation
 }
 
 const findConversationByIdempotency = `-- name: FindConversationByIdempotency :one
-SELECT id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
+SELECT id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
 FROM conversations
 WHERE tenant_id = $1 AND workspace_id = $2 AND user_id = $3
-    AND (create_request_id = $4 OR (
-        $5::varchar IS NOT NULL
-        AND $6::varchar IS NOT NULL
-        AND project_id = $5::varchar
-        AND canvas_id = $6::varchar
-    ))
+    AND create_request_id = $4
 LIMIT 1
 `
 
@@ -121,8 +180,6 @@ type FindConversationByIdempotencyParams struct {
 	WorkspaceID     string
 	UserID          string
 	CreateRequestID string
-	ProjectID       *string
-	CanvasID        *string
 }
 
 func (q *Queries) FindConversationByIdempotency(ctx context.Context, arg FindConversationByIdempotencyParams) (Conversation, error) {
@@ -131,20 +188,26 @@ func (q *Queries) FindConversationByIdempotency(ctx context.Context, arg FindCon
 		arg.WorkspaceID,
 		arg.UserID,
 		arg.CreateRequestID,
-		arg.ProjectID,
-		arg.CanvasID,
 	)
 	var i Conversation
 	err := row.Scan(
 		&i.ID,
-		&i.RuntimeSessionID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
 		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
 		&i.UserID,
 		&i.TenantID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.ProjectID,
-		&i.CanvasID,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -152,8 +215,7 @@ func (q *Queries) FindConversationByIdempotency(ctx context.Context, arg FindCon
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
+SELECT id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
 FROM conversations
 WHERE id = $1 AND user_id = $2 AND tenant_id = $3 AND workspace_id = $4
 `
@@ -175,14 +237,22 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 	var i Conversation
 	err := row.Scan(
 		&i.ID,
-		&i.RuntimeSessionID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
 		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
 		&i.UserID,
 		&i.TenantID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.ProjectID,
-		&i.CanvasID,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -190,10 +260,9 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 }
 
 const listConversations = `-- name: ListConversations :many
-SELECT id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
+SELECT id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
 FROM conversations
-WHERE user_id = $1 AND tenant_id = $2 AND workspace_id = $3
+WHERE user_id = $1 AND tenant_id = $2 AND workspace_id = $3 AND state = 'ready'
 ORDER BY updated_at DESC
 `
 
@@ -214,14 +283,22 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 		var i Conversation
 		if err := rows.Scan(
 			&i.ID,
-			&i.RuntimeSessionID,
+			&i.State,
+			&i.Operation,
+			&i.RuntimeThreadID,
 			&i.CreateRequestID,
+			&i.CreateFingerprint,
+			&i.RuntimeRequest,
+			&i.SourceConversationID,
+			&i.SourceMessageID,
 			&i.UserID,
 			&i.TenantID,
 			&i.WorkspaceID,
 			&i.Title,
-			&i.ProjectID,
-			&i.CanvasID,
+			&i.PluginSelectionsJson,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
+			&i.LastError,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -235,11 +312,139 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 	return items, nil
 }
 
+const recordConversationSagaFailure = `-- name: RecordConversationSagaFailure :one
+UPDATE conversations
+SET attempt_count = attempt_count + 1,
+    next_attempt_at = $1 + (
+        LEAST(300, power(2, LEAST(attempt_count, 8))::integer) * INTERVAL '1 second'
+    ),
+    last_error = $2,
+    updated_at = $1
+WHERE id = $3 AND user_id = $4 AND tenant_id = $5 AND workspace_id = $6
+    AND state = $7
+RETURNING id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
+`
+
+type RecordConversationSagaFailureParams struct {
+	UpdatedAt   pgtype.Timestamptz
+	LastError   *string
+	ID          string
+	UserID      string
+	TenantID    string
+	WorkspaceID string
+	State       string
+}
+
+func (q *Queries) RecordConversationSagaFailure(ctx context.Context, arg RecordConversationSagaFailureParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, recordConversationSagaFailure,
+		arg.UpdatedAt,
+		arg.LastError,
+		arg.ID,
+		arg.UserID,
+		arg.TenantID,
+		arg.WorkspaceID,
+		arg.State,
+	)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
+		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
+		&i.UserID,
+		&i.TenantID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const reserveConversation = `-- name: ReserveConversation :one
+INSERT INTO conversations (
+    id, state, operation, runtime_thread_id, create_request_id, create_fingerprint,
+    runtime_request, source_conversation_id, source_message_id,
+    user_id, tenant_id, workspace_id, title, plugin_selections_json,
+    attempt_count, next_attempt_at, last_error, created_at, updated_at
+) VALUES (
+    $1, 'creating', $2, NULL, $3, $4, $5, $6, $7,
+    $8, $9, $10, $11, $12, 0, $13, NULL, $13, $13
+)
+ON CONFLICT DO NOTHING
+RETURNING id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
+`
+
+type ReserveConversationParams struct {
+	ID                   string
+	Operation            string
+	CreateRequestID      string
+	CreateFingerprint    string
+	RuntimeRequest       []byte
+	SourceConversationID *string
+	SourceMessageID      *string
+	UserID               string
+	TenantID             string
+	WorkspaceID          string
+	Title                string
+	PluginSelectionsJson []byte
+	NextAttemptAt        pgtype.Timestamptz
+}
+
+func (q *Queries) ReserveConversation(ctx context.Context, arg ReserveConversationParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, reserveConversation,
+		arg.ID,
+		arg.Operation,
+		arg.CreateRequestID,
+		arg.CreateFingerprint,
+		arg.RuntimeRequest,
+		arg.SourceConversationID,
+		arg.SourceMessageID,
+		arg.UserID,
+		arg.TenantID,
+		arg.WorkspaceID,
+		arg.Title,
+		arg.PluginSelectionsJson,
+		arg.NextAttemptAt,
+	)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
+		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
+		&i.UserID,
+		&i.TenantID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateConversationTitle = `-- name: UpdateConversationTitle :one
 UPDATE conversations SET title = $1, updated_at = NOW()
-WHERE id = $2 AND user_id = $3 AND tenant_id = $4 AND workspace_id = $5
-RETURNING id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
+WHERE id = $2 AND user_id = $3 AND tenant_id = $4 AND workspace_id = $5 AND state = 'ready'
+RETURNING id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
 `
 
 type UpdateConversationTitleParams struct {
@@ -261,14 +466,22 @@ func (q *Queries) UpdateConversationTitle(ctx context.Context, arg UpdateConvers
 	var i Conversation
 	err := row.Scan(
 		&i.ID,
-		&i.RuntimeSessionID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
 		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
 		&i.UserID,
 		&i.TenantID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.ProjectID,
-		&i.CanvasID,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -278,9 +491,8 @@ func (q *Queries) UpdateConversationTitle(ctx context.Context, arg UpdateConvers
 const updateConversationTitleIfDefault = `-- name: UpdateConversationTitleIfDefault :one
 UPDATE conversations SET title = $1, updated_at = NOW()
 WHERE id = $2 AND user_id = $3 AND tenant_id = $4 AND workspace_id = $5
-    AND (btrim(title) = '' OR title = '新对话')
-RETURNING id, runtime_session_id, create_request_id, user_id, tenant_id, workspace_id,
-    title, project_id, canvas_id, created_at, updated_at
+    AND state = 'ready' AND (btrim(title) = '' OR title = '新对话')
+RETURNING id, state, operation, runtime_thread_id, create_request_id, create_fingerprint, runtime_request, source_conversation_id, source_message_id, user_id, tenant_id, workspace_id, title, plugin_selections_json, attempt_count, next_attempt_at, last_error, created_at, updated_at
 `
 
 type UpdateConversationTitleIfDefaultParams struct {
@@ -302,14 +514,22 @@ func (q *Queries) UpdateConversationTitleIfDefault(ctx context.Context, arg Upda
 	var i Conversation
 	err := row.Scan(
 		&i.ID,
-		&i.RuntimeSessionID,
+		&i.State,
+		&i.Operation,
+		&i.RuntimeThreadID,
 		&i.CreateRequestID,
+		&i.CreateFingerprint,
+		&i.RuntimeRequest,
+		&i.SourceConversationID,
+		&i.SourceMessageID,
 		&i.UserID,
 		&i.TenantID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.ProjectID,
-		&i.CanvasID,
+		&i.PluginSelectionsJson,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastError,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

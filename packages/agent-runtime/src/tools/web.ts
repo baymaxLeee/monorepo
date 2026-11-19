@@ -69,7 +69,7 @@ export function createWebSearchManifest(
       outputSchema: webSearchOutputSchema,
       execute: search,
     }),
-    { ...readPolicy, callableByCodeMode: true },
+    { ...readPolicy, callableByCodeMode: true, sourceProjection: { kind: "url-results" } },
     { summary: "Search current and public web sources.", parallelizable: true },
   );
 }

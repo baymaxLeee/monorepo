@@ -18,12 +18,18 @@ export type SkillFileResource =
       url: string;
     };
 
-/** Per-run workspace skill source: L1 listings plus an on-demand body loader. */
-export interface AdminSkillSource {
-  skills: { id: string; name: string; description: string }[];
+export interface SkillSourceEntry {
+  id: string;
+  name: string;
+  description: string;
+  loadBody: () => Promise<string>;
+  loadFile?: (path: string) => Promise<SkillFileResource>;
+}
+
+/** Per-run skill source: L1 listings plus host-owned, on-demand immutable loaders. */
+export interface SkillSource {
+  skills: SkillSourceEntry[];
   activeSkillName?: string | null;
-  loadBody: (skillId: string) => Promise<string>;
-  loadFile?: (skillId: string, path: string) => Promise<SkillFileResource>;
 }
 
 const loadSkillOutputSchema = z.object({
@@ -36,20 +42,23 @@ const loadSkillOutputSchema = z.object({
  * pulls their bodies. `load_skill` refuses any name not in the advertised set,
  * so the model can only load published, enabled workspace skills.
  */
-export function resolveSkills(adminSource?: AdminSkillSource | null): {
+export function resolveSkills(source?: SkillSource | null): {
   manifests: AgentToolManifest[];
   skills: SkillListing[];
 } {
   const loaders = new Map<string, () => Promise<string>>();
   const fileLoaders = new Map<string, (path: string) => Promise<SkillFileResource>>();
   const listings = new Map<string, SkillListing>();
-  let loadedSkillName = adminSource?.activeSkillName ?? null;
+  let loadedSkillName = source?.activeSkillName ?? null;
   let skillLoadPending = false;
 
-  for (const skill of adminSource?.skills ?? []) {
-    loaders.set(skill.name, () => adminSource!.loadBody(skill.id));
-    if (adminSource?.loadFile) {
-      fileLoaders.set(skill.name, (path) => adminSource.loadFile!(skill.id, path));
+  for (const skill of source?.skills ?? []) {
+    if (loaders.has(skill.name)) {
+      throw new Error(`duplicate advertised skill name: ${skill.name}`);
+    }
+    loaders.set(skill.name, skill.loadBody);
+    if (skill.loadFile) {
+      fileLoaders.set(skill.name, skill.loadFile);
     }
     listings.set(skill.name, { name: skill.name, description: skill.description });
   }

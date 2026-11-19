@@ -33,6 +33,7 @@ function snapshot(): LocalStream {
       providerId: "provider",
       reasoningEffort: "medium",
       approvalMode: "auto",
+      pluginActivations: [],
       workspace: "/test",
       status: "running",
       turnId: "turn",

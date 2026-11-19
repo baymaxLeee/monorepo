@@ -9,11 +9,14 @@ import (
 )
 
 type Querier interface {
-	CreateConversation(ctx context.Context, arg CreateConversationParams) (Conversation, error)
-	DeleteConversation(ctx context.Context, arg DeleteConversationParams) (Conversation, error)
+	BeginConversationDelete(ctx context.Context, arg BeginConversationDeleteParams) (Conversation, error)
+	BindConversationRuntimeThread(ctx context.Context, arg BindConversationRuntimeThreadParams) (Conversation, error)
+	CompleteConversationDelete(ctx context.Context, arg CompleteConversationDeleteParams) (Conversation, error)
 	FindConversationByIdempotency(ctx context.Context, arg FindConversationByIdempotencyParams) (Conversation, error)
 	GetConversation(ctx context.Context, arg GetConversationParams) (Conversation, error)
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]Conversation, error)
+	RecordConversationSagaFailure(ctx context.Context, arg RecordConversationSagaFailureParams) (Conversation, error)
+	ReserveConversation(ctx context.Context, arg ReserveConversationParams) (Conversation, error)
 	UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (Conversation, error)
 	UpdateConversationTitleIfDefault(ctx context.Context, arg UpdateConversationTitleIfDefaultParams) (Conversation, error)
 }

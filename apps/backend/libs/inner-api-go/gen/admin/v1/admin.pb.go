@@ -1746,6 +1746,1130 @@ func (x *GetCanvasSettingsResponse) GetSettings() *CanvasSettings {
 	return nil
 }
 
+type ListAgentPluginsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *v1.ActorContext       `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAgentPluginsRequest) Reset() {
+	*x = ListAgentPluginsRequest{}
+	mi := &file_admin_v1_admin_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAgentPluginsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAgentPluginsRequest) ProtoMessage() {}
+
+func (x *ListAgentPluginsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAgentPluginsRequest.ProtoReflect.Descriptor instead.
+func (*ListAgentPluginsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ListAgentPluginsRequest) GetActor() *v1.ActorContext {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+type ListAgentPluginsResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Plugins       []*AgentPluginCatalogItem `protobuf:"bytes,1,rep,name=plugins,proto3" json:"plugins,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAgentPluginsResponse) Reset() {
+	*x = ListAgentPluginsResponse{}
+	mi := &file_admin_v1_admin_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAgentPluginsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAgentPluginsResponse) ProtoMessage() {}
+
+func (x *ListAgentPluginsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAgentPluginsResponse.ProtoReflect.Descriptor instead.
+func (*ListAgentPluginsResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ListAgentPluginsResponse) GetPlugins() []*AgentPluginCatalogItem {
+	if x != nil {
+		return x.Plugins
+	}
+	return nil
+}
+
+type AgentPluginCatalogItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PluginId      string                 `protobuf:"bytes,1,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Source        string                 `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	Trust         string                 `protobuf:"bytes,5,opt,name=trust,proto3" json:"trust,omitempty"`
+	InstallPolicy string                 `protobuf:"bytes,6,opt,name=install_policy,json=installPolicy,proto3" json:"install_policy,omitempty"`
+	Availability  string                 `protobuf:"bytes,7,opt,name=availability,proto3" json:"availability,omitempty"`
+	Installed     bool                   `protobuf:"varint,8,opt,name=installed,proto3" json:"installed,omitempty"`
+	Enabled       bool                   `protobuf:"varint,9,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	StateRevision int64                  `protobuf:"varint,10,opt,name=state_revision,json=stateRevision,proto3" json:"state_revision,omitempty"`
+	LatestRelease *AgentPluginManifest   `protobuf:"bytes,11,opt,name=latest_release,json=latestRelease,proto3" json:"latest_release,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentPluginCatalogItem) Reset() {
+	*x = AgentPluginCatalogItem{}
+	mi := &file_admin_v1_admin_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginCatalogItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginCatalogItem) ProtoMessage() {}
+
+func (x *AgentPluginCatalogItem) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginCatalogItem.ProtoReflect.Descriptor instead.
+func (*AgentPluginCatalogItem) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *AgentPluginCatalogItem) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+func (x *AgentPluginCatalogItem) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *AgentPluginCatalogItem) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *AgentPluginCatalogItem) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *AgentPluginCatalogItem) GetTrust() string {
+	if x != nil {
+		return x.Trust
+	}
+	return ""
+}
+
+func (x *AgentPluginCatalogItem) GetInstallPolicy() string {
+	if x != nil {
+		return x.InstallPolicy
+	}
+	return ""
+}
+
+func (x *AgentPluginCatalogItem) GetAvailability() string {
+	if x != nil {
+		return x.Availability
+	}
+	return ""
+}
+
+func (x *AgentPluginCatalogItem) GetInstalled() bool {
+	if x != nil {
+		return x.Installed
+	}
+	return false
+}
+
+func (x *AgentPluginCatalogItem) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *AgentPluginCatalogItem) GetStateRevision() int64 {
+	if x != nil {
+		return x.StateRevision
+	}
+	return 0
+}
+
+func (x *AgentPluginCatalogItem) GetLatestRelease() *AgentPluginManifest {
+	if x != nil {
+		return x.LatestRelease
+	}
+	return nil
+}
+
+type AgentPluginActivation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PluginId      string                 `protobuf:"bytes,1,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"`
+	Bindings      map[string]string      `protobuf:"bytes,2,rep,name=bindings,proto3" json:"bindings,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentPluginActivation) Reset() {
+	*x = AgentPluginActivation{}
+	mi := &file_admin_v1_admin_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginActivation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginActivation) ProtoMessage() {}
+
+func (x *AgentPluginActivation) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginActivation.ProtoReflect.Descriptor instead.
+func (*AgentPluginActivation) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *AgentPluginActivation) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+func (x *AgentPluginActivation) GetBindings() map[string]string {
+	if x != nil {
+		return x.Bindings
+	}
+	return nil
+}
+
+type ResolveAgentPluginsRequest struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Actor         *v1.ActorContext         `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Activations   []*AgentPluginActivation `protobuf:"bytes,2,rep,name=activations,proto3" json:"activations,omitempty"`
+	WorkspaceRole string                   `protobuf:"bytes,3,opt,name=workspace_role,json=workspaceRole,proto3" json:"workspace_role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveAgentPluginsRequest) Reset() {
+	*x = ResolveAgentPluginsRequest{}
+	mi := &file_admin_v1_admin_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveAgentPluginsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveAgentPluginsRequest) ProtoMessage() {}
+
+func (x *ResolveAgentPluginsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveAgentPluginsRequest.ProtoReflect.Descriptor instead.
+func (*ResolveAgentPluginsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *ResolveAgentPluginsRequest) GetActor() *v1.ActorContext {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *ResolveAgentPluginsRequest) GetActivations() []*AgentPluginActivation {
+	if x != nil {
+		return x.Activations
+	}
+	return nil
+}
+
+func (x *ResolveAgentPluginsRequest) GetWorkspaceRole() string {
+	if x != nil {
+		return x.WorkspaceRole
+	}
+	return ""
+}
+
+type AgentPluginToolPolicy struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Capability         string                 `protobuf:"bytes,1,opt,name=capability,proto3" json:"capability,omitempty"`
+	CallableByCodeMode bool                   `protobuf:"varint,2,opt,name=callable_by_code_mode,json=callableByCodeMode,proto3" json:"callable_by_code_mode,omitempty"`
+	Effect             string                 `protobuf:"bytes,3,opt,name=effect,proto3" json:"effect,omitempty"`
+	Trust              string                 `protobuf:"bytes,4,opt,name=trust,proto3" json:"trust,omitempty"`
+	Execution          string                 `protobuf:"bytes,5,opt,name=execution,proto3" json:"execution,omitempty"`
+	SourceProjection   *structpb.Struct       `protobuf:"bytes,6,opt,name=source_projection,json=sourceProjection,proto3,oneof" json:"source_projection,omitempty"`
+	Streaming          bool                   `protobuf:"varint,7,opt,name=streaming,proto3" json:"streaming,omitempty"`
+	UiKind             *string                `protobuf:"bytes,8,opt,name=ui_kind,json=uiKind,proto3,oneof" json:"ui_kind,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *AgentPluginToolPolicy) Reset() {
+	*x = AgentPluginToolPolicy{}
+	mi := &file_admin_v1_admin_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginToolPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginToolPolicy) ProtoMessage() {}
+
+func (x *AgentPluginToolPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginToolPolicy.ProtoReflect.Descriptor instead.
+func (*AgentPluginToolPolicy) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *AgentPluginToolPolicy) GetCapability() string {
+	if x != nil {
+		return x.Capability
+	}
+	return ""
+}
+
+func (x *AgentPluginToolPolicy) GetCallableByCodeMode() bool {
+	if x != nil {
+		return x.CallableByCodeMode
+	}
+	return false
+}
+
+func (x *AgentPluginToolPolicy) GetEffect() string {
+	if x != nil {
+		return x.Effect
+	}
+	return ""
+}
+
+func (x *AgentPluginToolPolicy) GetTrust() string {
+	if x != nil {
+		return x.Trust
+	}
+	return ""
+}
+
+func (x *AgentPluginToolPolicy) GetExecution() string {
+	if x != nil {
+		return x.Execution
+	}
+	return ""
+}
+
+func (x *AgentPluginToolPolicy) GetSourceProjection() *structpb.Struct {
+	if x != nil {
+		return x.SourceProjection
+	}
+	return nil
+}
+
+func (x *AgentPluginToolPolicy) GetStreaming() bool {
+	if x != nil {
+		return x.Streaming
+	}
+	return false
+}
+
+func (x *AgentPluginToolPolicy) GetUiKind() string {
+	if x != nil && x.UiKind != nil {
+		return *x.UiKind
+	}
+	return ""
+}
+
+type AgentPluginToolPlanning struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Summary        string                 `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
+	Constraints    []string               `protobuf:"bytes,2,rep,name=constraints,proto3" json:"constraints,omitempty"`
+	Prerequisites  []string               `protobuf:"bytes,3,rep,name=prerequisites,proto3" json:"prerequisites,omitempty"`
+	Parallelizable bool                   `protobuf:"varint,4,opt,name=parallelizable,proto3" json:"parallelizable,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AgentPluginToolPlanning) Reset() {
+	*x = AgentPluginToolPlanning{}
+	mi := &file_admin_v1_admin_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginToolPlanning) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginToolPlanning) ProtoMessage() {}
+
+func (x *AgentPluginToolPlanning) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginToolPlanning.ProtoReflect.Descriptor instead.
+func (*AgentPluginToolPlanning) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *AgentPluginToolPlanning) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *AgentPluginToolPlanning) GetConstraints() []string {
+	if x != nil {
+		return x.Constraints
+	}
+	return nil
+}
+
+func (x *AgentPluginToolPlanning) GetPrerequisites() []string {
+	if x != nil {
+		return x.Prerequisites
+	}
+	return nil
+}
+
+func (x *AgentPluginToolPlanning) GetParallelizable() bool {
+	if x != nil {
+		return x.Parallelizable
+	}
+	return false
+}
+
+type AgentPluginMCPTool struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Name          string                   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                   `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	InputSchema   *structpb.Struct         `protobuf:"bytes,3,opt,name=input_schema,json=inputSchema,proto3" json:"input_schema,omitempty"`
+	OutputSchema  *structpb.Struct         `protobuf:"bytes,4,opt,name=output_schema,json=outputSchema,proto3,oneof" json:"output_schema,omitempty"`
+	Policy        *AgentPluginToolPolicy   `protobuf:"bytes,5,opt,name=policy,proto3" json:"policy,omitempty"`
+	Planning      *AgentPluginToolPlanning `protobuf:"bytes,6,opt,name=planning,proto3" json:"planning,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentPluginMCPTool) Reset() {
+	*x = AgentPluginMCPTool{}
+	mi := &file_admin_v1_admin_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginMCPTool) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginMCPTool) ProtoMessage() {}
+
+func (x *AgentPluginMCPTool) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginMCPTool.ProtoReflect.Descriptor instead.
+func (*AgentPluginMCPTool) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *AgentPluginMCPTool) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AgentPluginMCPTool) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *AgentPluginMCPTool) GetInputSchema() *structpb.Struct {
+	if x != nil {
+		return x.InputSchema
+	}
+	return nil
+}
+
+func (x *AgentPluginMCPTool) GetOutputSchema() *structpb.Struct {
+	if x != nil {
+		return x.OutputSchema
+	}
+	return nil
+}
+
+func (x *AgentPluginMCPTool) GetPolicy() *AgentPluginToolPolicy {
+	if x != nil {
+		return x.Policy
+	}
+	return nil
+}
+
+func (x *AgentPluginMCPTool) GetPlanning() *AgentPluginToolPlanning {
+	if x != nil {
+		return x.Planning
+	}
+	return nil
+}
+
+type AgentPluginMCPServer struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Name             string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Url              string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	RequiredBindings []string               `protobuf:"bytes,3,rep,name=required_bindings,json=requiredBindings,proto3" json:"required_bindings,omitempty"`
+	OptionalBindings []string               `protobuf:"bytes,4,rep,name=optional_bindings,json=optionalBindings,proto3" json:"optional_bindings,omitempty"`
+	Tools            []*AgentPluginMCPTool  `protobuf:"bytes,5,rep,name=tools,proto3" json:"tools,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *AgentPluginMCPServer) Reset() {
+	*x = AgentPluginMCPServer{}
+	mi := &file_admin_v1_admin_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginMCPServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginMCPServer) ProtoMessage() {}
+
+func (x *AgentPluginMCPServer) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginMCPServer.ProtoReflect.Descriptor instead.
+func (*AgentPluginMCPServer) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *AgentPluginMCPServer) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AgentPluginMCPServer) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *AgentPluginMCPServer) GetRequiredBindings() []string {
+	if x != nil {
+		return x.RequiredBindings
+	}
+	return nil
+}
+
+func (x *AgentPluginMCPServer) GetOptionalBindings() []string {
+	if x != nil {
+		return x.OptionalBindings
+	}
+	return nil
+}
+
+func (x *AgentPluginMCPServer) GetTools() []*AgentPluginMCPTool {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
+
+type AgentPluginSkillContribution struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	AssetId       string                 `protobuf:"bytes,4,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	RevisionId    string                 `protobuf:"bytes,5,opt,name=revision_id,json=revisionId,proto3" json:"revision_id,omitempty"`
+	Sha256        string                 `protobuf:"bytes,6,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentPluginSkillContribution) Reset() {
+	*x = AgentPluginSkillContribution{}
+	mi := &file_admin_v1_admin_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginSkillContribution) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginSkillContribution) ProtoMessage() {}
+
+func (x *AgentPluginSkillContribution) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginSkillContribution.ProtoReflect.Descriptor instead.
+func (*AgentPluginSkillContribution) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *AgentPluginSkillContribution) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AgentPluginSkillContribution) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AgentPluginSkillContribution) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *AgentPluginSkillContribution) GetAssetId() string {
+	if x != nil {
+		return x.AssetId
+	}
+	return ""
+}
+
+func (x *AgentPluginSkillContribution) GetRevisionId() string {
+	if x != nil {
+		return x.RevisionId
+	}
+	return ""
+}
+
+func (x *AgentPluginSkillContribution) GetSha256() string {
+	if x != nil {
+		return x.Sha256
+	}
+	return ""
+}
+
+type AgentPluginManifest struct {
+	state         protoimpl.MessageState          `protogen:"open.v1"`
+	SchemaVersion int32                           `protobuf:"varint,1,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	PluginId      string                          `protobuf:"bytes,2,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"`
+	Version       string                          `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Digest        string                          `protobuf:"bytes,4,opt,name=digest,proto3" json:"digest,omitempty"`
+	DisplayName   string                          `protobuf:"bytes,5,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Description   string                          `protobuf:"bytes,6,opt,name=description,proto3" json:"description,omitempty"`
+	Source        string                          `protobuf:"bytes,7,opt,name=source,proto3" json:"source,omitempty"`
+	Trust         string                          `protobuf:"bytes,8,opt,name=trust,proto3" json:"trust,omitempty"`
+	McpServers    []*AgentPluginMCPServer         `protobuf:"bytes,9,rep,name=mcp_servers,json=mcpServers,proto3" json:"mcp_servers,omitempty"`
+	Skills        []*AgentPluginSkillContribution `protobuf:"bytes,10,rep,name=skills,proto3" json:"skills,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentPluginManifest) Reset() {
+	*x = AgentPluginManifest{}
+	mi := &file_admin_v1_admin_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginManifest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginManifest) ProtoMessage() {}
+
+func (x *AgentPluginManifest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginManifest.ProtoReflect.Descriptor instead.
+func (*AgentPluginManifest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *AgentPluginManifest) GetSchemaVersion() int32 {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return 0
+}
+
+func (x *AgentPluginManifest) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+func (x *AgentPluginManifest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *AgentPluginManifest) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *AgentPluginManifest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *AgentPluginManifest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *AgentPluginManifest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *AgentPluginManifest) GetTrust() string {
+	if x != nil {
+		return x.Trust
+	}
+	return ""
+}
+
+func (x *AgentPluginManifest) GetMcpServers() []*AgentPluginMCPServer {
+	if x != nil {
+		return x.McpServers
+	}
+	return nil
+}
+
+func (x *AgentPluginManifest) GetSkills() []*AgentPluginSkillContribution {
+	if x != nil {
+		return x.Skills
+	}
+	return nil
+}
+
+type ResolvedAgentPlugin struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Manifest      *AgentPluginManifest   `protobuf:"bytes,1,opt,name=manifest,proto3" json:"manifest,omitempty"`
+	Activation    *AgentPluginActivation `protobuf:"bytes,2,opt,name=activation,proto3" json:"activation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolvedAgentPlugin) Reset() {
+	*x = ResolvedAgentPlugin{}
+	mi := &file_admin_v1_admin_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedAgentPlugin) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedAgentPlugin) ProtoMessage() {}
+
+func (x *ResolvedAgentPlugin) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedAgentPlugin.ProtoReflect.Descriptor instead.
+func (*ResolvedAgentPlugin) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ResolvedAgentPlugin) GetManifest() *AgentPluginManifest {
+	if x != nil {
+		return x.Manifest
+	}
+	return nil
+}
+
+func (x *ResolvedAgentPlugin) GetActivation() *AgentPluginActivation {
+	if x != nil {
+		return x.Activation
+	}
+	return nil
+}
+
+type AgentPluginConnectionGrant struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PluginId      string                 `protobuf:"bytes,1,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"`
+	ServerName    string                 `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	Headers       map[string]string      `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3,oneof" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentPluginConnectionGrant) Reset() {
+	*x = AgentPluginConnectionGrant{}
+	mi := &file_admin_v1_admin_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentPluginConnectionGrant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentPluginConnectionGrant) ProtoMessage() {}
+
+func (x *AgentPluginConnectionGrant) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentPluginConnectionGrant.ProtoReflect.Descriptor instead.
+func (*AgentPluginConnectionGrant) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *AgentPluginConnectionGrant) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+func (x *AgentPluginConnectionGrant) GetServerName() string {
+	if x != nil {
+		return x.ServerName
+	}
+	return ""
+}
+
+func (x *AgentPluginConnectionGrant) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *AgentPluginConnectionGrant) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+type ResolvedAgentPluginSnapshot struct {
+	state             protoimpl.MessageState        `protogen:"open.v1"`
+	SchemaVersion     int32                         `protobuf:"varint,1,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	SnapshotId        string                        `protobuf:"bytes,2,opt,name=snapshot_id,json=snapshotId,proto3" json:"snapshot_id,omitempty"`
+	SnapshotDigest    string                        `protobuf:"bytes,3,opt,name=snapshot_digest,json=snapshotDigest,proto3" json:"snapshot_digest,omitempty"`
+	WorkspaceRevision int64                         `protobuf:"varint,4,opt,name=workspace_revision,json=workspaceRevision,proto3" json:"workspace_revision,omitempty"`
+	TenantId          string                        `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	WorkspaceId       string                        `protobuf:"bytes,6,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
+	ResolvedAt        *timestamppb.Timestamp        `protobuf:"bytes,7,opt,name=resolved_at,json=resolvedAt,proto3" json:"resolved_at,omitempty"`
+	Plugins           []*ResolvedAgentPlugin        `protobuf:"bytes,8,rep,name=plugins,proto3" json:"plugins,omitempty"`
+	ConnectionGrants  []*AgentPluginConnectionGrant `protobuf:"bytes,9,rep,name=connection_grants,json=connectionGrants,proto3" json:"connection_grants,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ResolvedAgentPluginSnapshot) Reset() {
+	*x = ResolvedAgentPluginSnapshot{}
+	mi := &file_admin_v1_admin_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedAgentPluginSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedAgentPluginSnapshot) ProtoMessage() {}
+
+func (x *ResolvedAgentPluginSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedAgentPluginSnapshot.ProtoReflect.Descriptor instead.
+func (*ResolvedAgentPluginSnapshot) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetSchemaVersion() int32 {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return 0
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetSnapshotId() string {
+	if x != nil {
+		return x.SnapshotId
+	}
+	return ""
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetSnapshotDigest() string {
+	if x != nil {
+		return x.SnapshotDigest
+	}
+	return ""
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetWorkspaceRevision() int64 {
+	if x != nil {
+		return x.WorkspaceRevision
+	}
+	return 0
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetWorkspaceId() string {
+	if x != nil {
+		return x.WorkspaceId
+	}
+	return ""
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetResolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResolvedAt
+	}
+	return nil
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetPlugins() []*ResolvedAgentPlugin {
+	if x != nil {
+		return x.Plugins
+	}
+	return nil
+}
+
+func (x *ResolvedAgentPluginSnapshot) GetConnectionGrants() []*AgentPluginConnectionGrant {
+	if x != nil {
+		return x.ConnectionGrants
+	}
+	return nil
+}
+
+type ResolveAgentPluginsResponse struct {
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Snapshot      *ResolvedAgentPluginSnapshot `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveAgentPluginsResponse) Reset() {
+	*x = ResolveAgentPluginsResponse{}
+	mi := &file_admin_v1_admin_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveAgentPluginsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveAgentPluginsResponse) ProtoMessage() {}
+
+func (x *ResolveAgentPluginsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_admin_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveAgentPluginsResponse.ProtoReflect.Descriptor instead.
+func (*ResolveAgentPluginsResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ResolveAgentPluginsResponse) GetSnapshot() *ResolvedAgentPluginSnapshot {
+	if x != nil {
+		return x.Snapshot
+	}
+	return nil
+}
+
 type BenefitPackage struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1770,7 +2894,7 @@ type BenefitPackage struct {
 
 func (x *BenefitPackage) Reset() {
 	*x = BenefitPackage{}
-	mi := &file_admin_v1_admin_proto_msgTypes[27]
+	mi := &file_admin_v1_admin_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1782,7 +2906,7 @@ func (x *BenefitPackage) String() string {
 func (*BenefitPackage) ProtoMessage() {}
 
 func (x *BenefitPackage) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[27]
+	mi := &file_admin_v1_admin_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1795,7 +2919,7 @@ func (x *BenefitPackage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BenefitPackage.ProtoReflect.Descriptor instead.
 func (*BenefitPackage) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{27}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *BenefitPackage) GetId() string {
@@ -1919,7 +3043,7 @@ type ListAvailableBenefitPackagesRequest struct {
 
 func (x *ListAvailableBenefitPackagesRequest) Reset() {
 	*x = ListAvailableBenefitPackagesRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[28]
+	mi := &file_admin_v1_admin_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1931,7 +3055,7 @@ func (x *ListAvailableBenefitPackagesRequest) String() string {
 func (*ListAvailableBenefitPackagesRequest) ProtoMessage() {}
 
 func (x *ListAvailableBenefitPackagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[28]
+	mi := &file_admin_v1_admin_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1944,7 +3068,7 @@ func (x *ListAvailableBenefitPackagesRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ListAvailableBenefitPackagesRequest.ProtoReflect.Descriptor instead.
 func (*ListAvailableBenefitPackagesRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{28}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListAvailableBenefitPackagesRequest) GetActor() *v1.ActorContext {
@@ -1963,7 +3087,7 @@ type ListAvailableBenefitPackagesResponse struct {
 
 func (x *ListAvailableBenefitPackagesResponse) Reset() {
 	*x = ListAvailableBenefitPackagesResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[29]
+	mi := &file_admin_v1_admin_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1975,7 +3099,7 @@ func (x *ListAvailableBenefitPackagesResponse) String() string {
 func (*ListAvailableBenefitPackagesResponse) ProtoMessage() {}
 
 func (x *ListAvailableBenefitPackagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[29]
+	mi := &file_admin_v1_admin_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1988,7 +3112,7 @@ func (x *ListAvailableBenefitPackagesResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use ListAvailableBenefitPackagesResponse.ProtoReflect.Descriptor instead.
 func (*ListAvailableBenefitPackagesResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{29}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListAvailableBenefitPackagesResponse) GetPackages() []*BenefitPackage {
@@ -2008,7 +3132,7 @@ type ReviewReservation struct {
 
 func (x *ReviewReservation) Reset() {
 	*x = ReviewReservation{}
-	mi := &file_admin_v1_admin_proto_msgTypes[30]
+	mi := &file_admin_v1_admin_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2020,7 +3144,7 @@ func (x *ReviewReservation) String() string {
 func (*ReviewReservation) ProtoMessage() {}
 
 func (x *ReviewReservation) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[30]
+	mi := &file_admin_v1_admin_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2033,7 +3157,7 @@ func (x *ReviewReservation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewReservation.ProtoReflect.Descriptor instead.
 func (*ReviewReservation) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{30}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ReviewReservation) GetId() string {
@@ -2059,7 +3183,7 @@ type ReserveReviewResponse struct {
 
 func (x *ReserveReviewResponse) Reset() {
 	*x = ReserveReviewResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[31]
+	mi := &file_admin_v1_admin_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2071,7 +3195,7 @@ func (x *ReserveReviewResponse) String() string {
 func (*ReserveReviewResponse) ProtoMessage() {}
 
 func (x *ReserveReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[31]
+	mi := &file_admin_v1_admin_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2084,7 +3208,7 @@ func (x *ReserveReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveReviewResponse.ProtoReflect.Descriptor instead.
 func (*ReserveReviewResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{31}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ReserveReviewResponse) GetReservation() *ReviewReservation {
@@ -2107,7 +3231,7 @@ type ReserveReviewRequest struct {
 
 func (x *ReserveReviewRequest) Reset() {
 	*x = ReserveReviewRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[32]
+	mi := &file_admin_v1_admin_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2119,7 +3243,7 @@ func (x *ReserveReviewRequest) String() string {
 func (*ReserveReviewRequest) ProtoMessage() {}
 
 func (x *ReserveReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[32]
+	mi := &file_admin_v1_admin_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2132,7 +3256,7 @@ func (x *ReserveReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveReviewRequest.ProtoReflect.Descriptor instead.
 func (*ReserveReviewRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{32}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ReserveReviewRequest) GetActor() *v1.ActorContext {
@@ -2182,7 +3306,7 @@ type TransitionReviewRequest struct {
 
 func (x *TransitionReviewRequest) Reset() {
 	*x = TransitionReviewRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[33]
+	mi := &file_admin_v1_admin_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2194,7 +3318,7 @@ func (x *TransitionReviewRequest) String() string {
 func (*TransitionReviewRequest) ProtoMessage() {}
 
 func (x *TransitionReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[33]
+	mi := &file_admin_v1_admin_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2207,7 +3331,7 @@ func (x *TransitionReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransitionReviewRequest.ProtoReflect.Descriptor instead.
 func (*TransitionReviewRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{33}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *TransitionReviewRequest) GetActor() *v1.ActorContext {
@@ -2247,7 +3371,7 @@ type TransitionReviewResponse struct {
 
 func (x *TransitionReviewResponse) Reset() {
 	*x = TransitionReviewResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[34]
+	mi := &file_admin_v1_admin_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2259,7 +3383,7 @@ func (x *TransitionReviewResponse) String() string {
 func (*TransitionReviewResponse) ProtoMessage() {}
 
 func (x *TransitionReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[34]
+	mi := &file_admin_v1_admin_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2272,7 +3396,7 @@ func (x *TransitionReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransitionReviewResponse.ProtoReflect.Descriptor instead.
 func (*TransitionReviewResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{34}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *TransitionReviewResponse) GetReservation() *ReviewReservation {
@@ -2293,7 +3417,7 @@ type ReviewCleanup struct {
 
 func (x *ReviewCleanup) Reset() {
 	*x = ReviewCleanup{}
-	mi := &file_admin_v1_admin_proto_msgTypes[35]
+	mi := &file_admin_v1_admin_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2305,7 +3429,7 @@ func (x *ReviewCleanup) String() string {
 func (*ReviewCleanup) ProtoMessage() {}
 
 func (x *ReviewCleanup) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[35]
+	mi := &file_admin_v1_admin_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2318,7 +3442,7 @@ func (x *ReviewCleanup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewCleanup.ProtoReflect.Descriptor instead.
 func (*ReviewCleanup) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{35}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ReviewCleanup) GetCleanupId() string {
@@ -2351,7 +3475,7 @@ type BeginReviewCleanupResponse struct {
 
 func (x *BeginReviewCleanupResponse) Reset() {
 	*x = BeginReviewCleanupResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[36]
+	mi := &file_admin_v1_admin_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2363,7 +3487,7 @@ func (x *BeginReviewCleanupResponse) String() string {
 func (*BeginReviewCleanupResponse) ProtoMessage() {}
 
 func (x *BeginReviewCleanupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[36]
+	mi := &file_admin_v1_admin_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2376,7 +3500,7 @@ func (x *BeginReviewCleanupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginReviewCleanupResponse.ProtoReflect.Descriptor instead.
 func (*BeginReviewCleanupResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{36}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *BeginReviewCleanupResponse) GetCleanup() *ReviewCleanup {
@@ -2398,7 +3522,7 @@ type BeginReviewCleanupRequest struct {
 
 func (x *BeginReviewCleanupRequest) Reset() {
 	*x = BeginReviewCleanupRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[37]
+	mi := &file_admin_v1_admin_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2410,7 +3534,7 @@ func (x *BeginReviewCleanupRequest) String() string {
 func (*BeginReviewCleanupRequest) ProtoMessage() {}
 
 func (x *BeginReviewCleanupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[37]
+	mi := &file_admin_v1_admin_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2423,7 +3547,7 @@ func (x *BeginReviewCleanupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginReviewCleanupRequest.ProtoReflect.Descriptor instead.
 func (*BeginReviewCleanupRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{37}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *BeginReviewCleanupRequest) GetActor() *v1.ActorContext {
@@ -2466,7 +3590,7 @@ type CompleteReviewCleanupRequest struct {
 
 func (x *CompleteReviewCleanupRequest) Reset() {
 	*x = CompleteReviewCleanupRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[38]
+	mi := &file_admin_v1_admin_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2478,7 +3602,7 @@ func (x *CompleteReviewCleanupRequest) String() string {
 func (*CompleteReviewCleanupRequest) ProtoMessage() {}
 
 func (x *CompleteReviewCleanupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[38]
+	mi := &file_admin_v1_admin_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2491,7 +3615,7 @@ func (x *CompleteReviewCleanupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteReviewCleanupRequest.ProtoReflect.Descriptor instead.
 func (*CompleteReviewCleanupRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{38}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *CompleteReviewCleanupRequest) GetActor() *v1.ActorContext {
@@ -2531,7 +3655,7 @@ type CompleteReviewCleanupResponse struct {
 
 func (x *CompleteReviewCleanupResponse) Reset() {
 	*x = CompleteReviewCleanupResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[39]
+	mi := &file_admin_v1_admin_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2543,7 +3667,7 @@ func (x *CompleteReviewCleanupResponse) String() string {
 func (*CompleteReviewCleanupResponse) ProtoMessage() {}
 
 func (x *CompleteReviewCleanupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[39]
+	mi := &file_admin_v1_admin_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2556,7 +3680,7 @@ func (x *CompleteReviewCleanupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteReviewCleanupResponse.ProtoReflect.Descriptor instead.
 func (*CompleteReviewCleanupResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{39}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CompleteReviewCleanupResponse) GetCleanup() *ReviewCleanup {
@@ -2577,7 +3701,7 @@ type ReviewedAsset struct {
 
 func (x *ReviewedAsset) Reset() {
 	*x = ReviewedAsset{}
-	mi := &file_admin_v1_admin_proto_msgTypes[40]
+	mi := &file_admin_v1_admin_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2589,7 +3713,7 @@ func (x *ReviewedAsset) String() string {
 func (*ReviewedAsset) ProtoMessage() {}
 
 func (x *ReviewedAsset) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[40]
+	mi := &file_admin_v1_admin_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2602,7 +3726,7 @@ func (x *ReviewedAsset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewedAsset.ProtoReflect.Descriptor instead.
 func (*ReviewedAsset) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{40}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ReviewedAsset) GetId() string {
@@ -2639,7 +3763,7 @@ type SubmitReviewedAssetRequest struct {
 
 func (x *SubmitReviewedAssetRequest) Reset() {
 	*x = SubmitReviewedAssetRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[41]
+	mi := &file_admin_v1_admin_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2651,7 +3775,7 @@ func (x *SubmitReviewedAssetRequest) String() string {
 func (*SubmitReviewedAssetRequest) ProtoMessage() {}
 
 func (x *SubmitReviewedAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[41]
+	mi := &file_admin_v1_admin_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2664,7 +3788,7 @@ func (x *SubmitReviewedAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitReviewedAssetRequest.ProtoReflect.Descriptor instead.
 func (*SubmitReviewedAssetRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{41}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *SubmitReviewedAssetRequest) GetActor() *v1.ActorContext {
@@ -2711,7 +3835,7 @@ type SubmitReviewedAssetResponse struct {
 
 func (x *SubmitReviewedAssetResponse) Reset() {
 	*x = SubmitReviewedAssetResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[42]
+	mi := &file_admin_v1_admin_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2723,7 +3847,7 @@ func (x *SubmitReviewedAssetResponse) String() string {
 func (*SubmitReviewedAssetResponse) ProtoMessage() {}
 
 func (x *SubmitReviewedAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[42]
+	mi := &file_admin_v1_admin_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2736,7 +3860,7 @@ func (x *SubmitReviewedAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitReviewedAssetResponse.ProtoReflect.Descriptor instead.
 func (*SubmitReviewedAssetResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{42}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SubmitReviewedAssetResponse) GetAsset() *ReviewedAsset {
@@ -2757,7 +3881,7 @@ type GetReviewedAssetRequest struct {
 
 func (x *GetReviewedAssetRequest) Reset() {
 	*x = GetReviewedAssetRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[43]
+	mi := &file_admin_v1_admin_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2769,7 +3893,7 @@ func (x *GetReviewedAssetRequest) String() string {
 func (*GetReviewedAssetRequest) ProtoMessage() {}
 
 func (x *GetReviewedAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[43]
+	mi := &file_admin_v1_admin_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2782,7 +3906,7 @@ func (x *GetReviewedAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReviewedAssetRequest.ProtoReflect.Descriptor instead.
 func (*GetReviewedAssetRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{43}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *GetReviewedAssetRequest) GetActor() *v1.ActorContext {
@@ -2815,7 +3939,7 @@ type GetReviewedAssetResponse struct {
 
 func (x *GetReviewedAssetResponse) Reset() {
 	*x = GetReviewedAssetResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[44]
+	mi := &file_admin_v1_admin_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2827,7 +3951,7 @@ func (x *GetReviewedAssetResponse) String() string {
 func (*GetReviewedAssetResponse) ProtoMessage() {}
 
 func (x *GetReviewedAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[44]
+	mi := &file_admin_v1_admin_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2840,7 +3964,7 @@ func (x *GetReviewedAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetReviewedAssetResponse.ProtoReflect.Descriptor instead.
 func (*GetReviewedAssetResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{44}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *GetReviewedAssetResponse) GetAsset() *ReviewedAsset {
@@ -2861,7 +3985,7 @@ type DeleteReviewedAssetRequest struct {
 
 func (x *DeleteReviewedAssetRequest) Reset() {
 	*x = DeleteReviewedAssetRequest{}
-	mi := &file_admin_v1_admin_proto_msgTypes[45]
+	mi := &file_admin_v1_admin_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2873,7 +3997,7 @@ func (x *DeleteReviewedAssetRequest) String() string {
 func (*DeleteReviewedAssetRequest) ProtoMessage() {}
 
 func (x *DeleteReviewedAssetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[45]
+	mi := &file_admin_v1_admin_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2886,7 +4010,7 @@ func (x *DeleteReviewedAssetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReviewedAssetRequest.ProtoReflect.Descriptor instead.
 func (*DeleteReviewedAssetRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{45}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *DeleteReviewedAssetRequest) GetActor() *v1.ActorContext {
@@ -2918,7 +4042,7 @@ type DeleteReviewedAssetResponse struct {
 
 func (x *DeleteReviewedAssetResponse) Reset() {
 	*x = DeleteReviewedAssetResponse{}
-	mi := &file_admin_v1_admin_proto_msgTypes[46]
+	mi := &file_admin_v1_admin_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2930,7 +4054,7 @@ func (x *DeleteReviewedAssetResponse) String() string {
 func (*DeleteReviewedAssetResponse) ProtoMessage() {}
 
 func (x *DeleteReviewedAssetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_admin_proto_msgTypes[46]
+	mi := &file_admin_v1_admin_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2943,7 +4067,7 @@ func (x *DeleteReviewedAssetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteReviewedAssetResponse.ProtoReflect.Descriptor instead.
 func (*DeleteReviewedAssetResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_admin_proto_rawDescGZIP(), []int{46}
+	return file_admin_v1_admin_proto_rawDescGZIP(), []int{61}
 }
 
 var File_admin_v1_admin_proto protoreflect.FileDescriptor
@@ -3081,7 +4205,118 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\x18GetCanvasSettingsRequest\x12-\n" +
 	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\"Q\n" +
 	"\x19GetCanvasSettingsResponse\x124\n" +
-	"\bsettings\x18\x01 \x01(\v2\x18.admin.v1.CanvasSettingsR\bsettings\"\xea\x04\n" +
+	"\bsettings\x18\x01 \x01(\v2\x18.admin.v1.CanvasSettingsR\bsettings\"H\n" +
+	"\x17ListAgentPluginsRequest\x12-\n" +
+	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\"V\n" +
+	"\x18ListAgentPluginsResponse\x12:\n" +
+	"\aplugins\x18\x01 \x03(\v2 .admin.v1.AgentPluginCatalogItemR\aplugins\"\x98\x03\n" +
+	"\x16AgentPluginCatalogItem\x12\x1b\n" +
+	"\tplugin_id\x18\x01 \x01(\tR\bpluginId\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\x12\x14\n" +
+	"\x05trust\x18\x05 \x01(\tR\x05trust\x12%\n" +
+	"\x0einstall_policy\x18\x06 \x01(\tR\rinstallPolicy\x12\"\n" +
+	"\favailability\x18\a \x01(\tR\favailability\x12\x1c\n" +
+	"\tinstalled\x18\b \x01(\bR\tinstalled\x12\x18\n" +
+	"\aenabled\x18\t \x01(\bR\aenabled\x12%\n" +
+	"\x0estate_revision\x18\n" +
+	" \x01(\x03R\rstateRevision\x12D\n" +
+	"\x0elatest_release\x18\v \x01(\v2\x1d.admin.v1.AgentPluginManifestR\rlatestRelease\"\xbc\x01\n" +
+	"\x15AgentPluginActivation\x12\x1b\n" +
+	"\tplugin_id\x18\x01 \x01(\tR\bpluginId\x12I\n" +
+	"\bbindings\x18\x02 \x03(\v2-.admin.v1.AgentPluginActivation.BindingsEntryR\bbindings\x1a;\n" +
+	"\rBindingsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb5\x01\n" +
+	"\x1aResolveAgentPluginsRequest\x12-\n" +
+	"\x05actor\x18\x01 \x01(\v2\x17.common.v1.ActorContextR\x05actor\x12A\n" +
+	"\vactivations\x18\x02 \x03(\v2\x1f.admin.v1.AgentPluginActivationR\vactivations\x12%\n" +
+	"\x0eworkspace_role\x18\x03 \x01(\tR\rworkspaceRole\"\xdf\x02\n" +
+	"\x15AgentPluginToolPolicy\x12\x1e\n" +
+	"\n" +
+	"capability\x18\x01 \x01(\tR\n" +
+	"capability\x121\n" +
+	"\x15callable_by_code_mode\x18\x02 \x01(\bR\x12callableByCodeMode\x12\x16\n" +
+	"\x06effect\x18\x03 \x01(\tR\x06effect\x12\x14\n" +
+	"\x05trust\x18\x04 \x01(\tR\x05trust\x12\x1c\n" +
+	"\texecution\x18\x05 \x01(\tR\texecution\x12I\n" +
+	"\x11source_projection\x18\x06 \x01(\v2\x17.google.protobuf.StructH\x00R\x10sourceProjection\x88\x01\x01\x12\x1c\n" +
+	"\tstreaming\x18\a \x01(\bR\tstreaming\x12\x1c\n" +
+	"\aui_kind\x18\b \x01(\tH\x01R\x06uiKind\x88\x01\x01B\x14\n" +
+	"\x12_source_projectionB\n" +
+	"\n" +
+	"\b_ui_kind\"\xa3\x01\n" +
+	"\x17AgentPluginToolPlanning\x12\x18\n" +
+	"\asummary\x18\x01 \x01(\tR\asummary\x12 \n" +
+	"\vconstraints\x18\x02 \x03(\tR\vconstraints\x12$\n" +
+	"\rprerequisites\x18\x03 \x03(\tR\rprerequisites\x12&\n" +
+	"\x0eparallelizable\x18\x04 \x01(\bR\x0eparallelizable\"\xd3\x02\n" +
+	"\x12AgentPluginMCPTool\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12:\n" +
+	"\finput_schema\x18\x03 \x01(\v2\x17.google.protobuf.StructR\vinputSchema\x12A\n" +
+	"\routput_schema\x18\x04 \x01(\v2\x17.google.protobuf.StructH\x00R\foutputSchema\x88\x01\x01\x127\n" +
+	"\x06policy\x18\x05 \x01(\v2\x1f.admin.v1.AgentPluginToolPolicyR\x06policy\x12=\n" +
+	"\bplanning\x18\x06 \x01(\v2!.admin.v1.AgentPluginToolPlanningR\bplanningB\x10\n" +
+	"\x0e_output_schema\"\xca\x01\n" +
+	"\x14AgentPluginMCPServer\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12+\n" +
+	"\x11required_bindings\x18\x03 \x03(\tR\x10requiredBindings\x12+\n" +
+	"\x11optional_bindings\x18\x04 \x03(\tR\x10optionalBindings\x122\n" +
+	"\x05tools\x18\x05 \x03(\v2\x1c.admin.v1.AgentPluginMCPToolR\x05tools\"\xb8\x01\n" +
+	"\x1cAgentPluginSkillContribution\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x19\n" +
+	"\basset_id\x18\x04 \x01(\tR\aassetId\x12\x1f\n" +
+	"\vrevision_id\x18\x05 \x01(\tR\n" +
+	"revisionId\x12\x16\n" +
+	"\x06sha256\x18\x06 \x01(\tR\x06sha256\"\xff\x02\n" +
+	"\x13AgentPluginManifest\x12%\n" +
+	"\x0eschema_version\x18\x01 \x01(\x05R\rschemaVersion\x12\x1b\n" +
+	"\tplugin_id\x18\x02 \x01(\tR\bpluginId\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12\x16\n" +
+	"\x06digest\x18\x04 \x01(\tR\x06digest\x12!\n" +
+	"\fdisplay_name\x18\x05 \x01(\tR\vdisplayName\x12 \n" +
+	"\vdescription\x18\x06 \x01(\tR\vdescription\x12\x16\n" +
+	"\x06source\x18\a \x01(\tR\x06source\x12\x14\n" +
+	"\x05trust\x18\b \x01(\tR\x05trust\x12?\n" +
+	"\vmcp_servers\x18\t \x03(\v2\x1e.admin.v1.AgentPluginMCPServerR\n" +
+	"mcpServers\x12>\n" +
+	"\x06skills\x18\n" +
+	" \x03(\v2&.admin.v1.AgentPluginSkillContributionR\x06skills\"\x91\x01\n" +
+	"\x13ResolvedAgentPlugin\x129\n" +
+	"\bmanifest\x18\x01 \x01(\v2\x1d.admin.v1.AgentPluginManifestR\bmanifest\x12?\n" +
+	"\n" +
+	"activation\x18\x02 \x01(\v2\x1f.admin.v1.AgentPluginActivationR\n" +
+	"activation\"\xb2\x02\n" +
+	"\x1aAgentPluginConnectionGrant\x12\x1b\n" +
+	"\tplugin_id\x18\x01 \x01(\tR\bpluginId\x12\x1f\n" +
+	"\vserver_name\x18\x02 \x01(\tR\n" +
+	"serverName\x12K\n" +
+	"\aheaders\x18\x03 \x03(\v21.admin.v1.AgentPluginConnectionGrant.HeadersEntryR\aheaders\x12>\n" +
+	"\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\texpiresAt\x88\x01\x01\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\r\n" +
+	"\v_expires_at\"\xc6\x03\n" +
+	"\x1bResolvedAgentPluginSnapshot\x12%\n" +
+	"\x0eschema_version\x18\x01 \x01(\x05R\rschemaVersion\x12\x1f\n" +
+	"\vsnapshot_id\x18\x02 \x01(\tR\n" +
+	"snapshotId\x12'\n" +
+	"\x0fsnapshot_digest\x18\x03 \x01(\tR\x0esnapshotDigest\x12-\n" +
+	"\x12workspace_revision\x18\x04 \x01(\x03R\x11workspaceRevision\x12\x1b\n" +
+	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12!\n" +
+	"\fworkspace_id\x18\x06 \x01(\tR\vworkspaceId\x12;\n" +
+	"\vresolved_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"resolvedAt\x127\n" +
+	"\aplugins\x18\b \x03(\v2\x1d.admin.v1.ResolvedAgentPluginR\aplugins\x12Q\n" +
+	"\x11connection_grants\x18\t \x03(\v2$.admin.v1.AgentPluginConnectionGrantR\x10connectionGrants\"`\n" +
+	"\x1bResolveAgentPluginsResponse\x12A\n" +
+	"\bsnapshot\x18\x01 \x01(\v2%.admin.v1.ResolvedAgentPluginSnapshotR\bsnapshot\"\xea\x04\n" +
 	"\x0eBenefitPackage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tis_preset\x18\x02 \x01(\bR\bisPreset\x12\x12\n" +
@@ -3216,7 +4451,10 @@ const file_admin_v1_admin_proto_rawDesc = "" +
 	"\x15CompleteReviewCleanup\x12&.admin.v1.CompleteReviewCleanupRequest\x1a'.admin.v1.CompleteReviewCleanupResponse\x12b\n" +
 	"\x13SubmitReviewedAsset\x12$.admin.v1.SubmitReviewedAssetRequest\x1a%.admin.v1.SubmitReviewedAssetResponse\x12Y\n" +
 	"\x10GetReviewedAsset\x12!.admin.v1.GetReviewedAssetRequest\x1a\".admin.v1.GetReviewedAssetResponse\x12b\n" +
-	"\x13DeleteReviewedAsset\x12$.admin.v1.DeleteReviewedAssetRequest\x1a%.admin.v1.DeleteReviewedAssetResponseB?Z=github.com/example/monorepo/inner-api-go/gen/admin/v1;adminv1b\x06proto3"
+	"\x13DeleteReviewedAsset\x12$.admin.v1.DeleteReviewedAssetRequest\x1a%.admin.v1.DeleteReviewedAssetResponse2\xd3\x01\n" +
+	"\x12AgentPluginService\x12Y\n" +
+	"\x10ListAgentPlugins\x12!.admin.v1.ListAgentPluginsRequest\x1a\".admin.v1.ListAgentPluginsResponse\x12b\n" +
+	"\x13ResolveAgentPlugins\x12$.admin.v1.ResolveAgentPluginsRequest\x1a%.admin.v1.ResolveAgentPluginsResponseB?Z=github.com/example/monorepo/inner-api-go/gen/admin/v1;adminv1b\x06proto3"
 
 var (
 	file_admin_v1_admin_proto_rawDescOnce sync.Once
@@ -3231,7 +4469,7 @@ func file_admin_v1_admin_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_admin_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
+var file_admin_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
 var file_admin_v1_admin_proto_goTypes = []any{
 	(ProviderKind)(0),                            // 0: admin.v1.ProviderKind
 	(ResponsesDialect)(0),                        // 1: admin.v1.ResponsesDialect
@@ -3263,118 +4501,161 @@ var file_admin_v1_admin_proto_goTypes = []any{
 	(*CanvasSettings)(nil),                       // 27: admin.v1.CanvasSettings
 	(*GetCanvasSettingsRequest)(nil),             // 28: admin.v1.GetCanvasSettingsRequest
 	(*GetCanvasSettingsResponse)(nil),            // 29: admin.v1.GetCanvasSettingsResponse
-	(*BenefitPackage)(nil),                       // 30: admin.v1.BenefitPackage
-	(*ListAvailableBenefitPackagesRequest)(nil),  // 31: admin.v1.ListAvailableBenefitPackagesRequest
-	(*ListAvailableBenefitPackagesResponse)(nil), // 32: admin.v1.ListAvailableBenefitPackagesResponse
-	(*ReviewReservation)(nil),                    // 33: admin.v1.ReviewReservation
-	(*ReserveReviewResponse)(nil),                // 34: admin.v1.ReserveReviewResponse
-	(*ReserveReviewRequest)(nil),                 // 35: admin.v1.ReserveReviewRequest
-	(*TransitionReviewRequest)(nil),              // 36: admin.v1.TransitionReviewRequest
-	(*TransitionReviewResponse)(nil),             // 37: admin.v1.TransitionReviewResponse
-	(*ReviewCleanup)(nil),                        // 38: admin.v1.ReviewCleanup
-	(*BeginReviewCleanupResponse)(nil),           // 39: admin.v1.BeginReviewCleanupResponse
-	(*BeginReviewCleanupRequest)(nil),            // 40: admin.v1.BeginReviewCleanupRequest
-	(*CompleteReviewCleanupRequest)(nil),         // 41: admin.v1.CompleteReviewCleanupRequest
-	(*CompleteReviewCleanupResponse)(nil),        // 42: admin.v1.CompleteReviewCleanupResponse
-	(*ReviewedAsset)(nil),                        // 43: admin.v1.ReviewedAsset
-	(*SubmitReviewedAssetRequest)(nil),           // 44: admin.v1.SubmitReviewedAssetRequest
-	(*SubmitReviewedAssetResponse)(nil),          // 45: admin.v1.SubmitReviewedAssetResponse
-	(*GetReviewedAssetRequest)(nil),              // 46: admin.v1.GetReviewedAssetRequest
-	(*GetReviewedAssetResponse)(nil),             // 47: admin.v1.GetReviewedAssetResponse
-	(*DeleteReviewedAssetRequest)(nil),           // 48: admin.v1.DeleteReviewedAssetRequest
-	(*DeleteReviewedAssetResponse)(nil),          // 49: admin.v1.DeleteReviewedAssetResponse
-	(*structpb.Struct)(nil),                      // 50: google.protobuf.Struct
-	(*v1.ActorContext)(nil),                      // 51: common.v1.ActorContext
-	(*timestamppb.Timestamp)(nil),                // 52: google.protobuf.Timestamp
+	(*ListAgentPluginsRequest)(nil),              // 30: admin.v1.ListAgentPluginsRequest
+	(*ListAgentPluginsResponse)(nil),             // 31: admin.v1.ListAgentPluginsResponse
+	(*AgentPluginCatalogItem)(nil),               // 32: admin.v1.AgentPluginCatalogItem
+	(*AgentPluginActivation)(nil),                // 33: admin.v1.AgentPluginActivation
+	(*ResolveAgentPluginsRequest)(nil),           // 34: admin.v1.ResolveAgentPluginsRequest
+	(*AgentPluginToolPolicy)(nil),                // 35: admin.v1.AgentPluginToolPolicy
+	(*AgentPluginToolPlanning)(nil),              // 36: admin.v1.AgentPluginToolPlanning
+	(*AgentPluginMCPTool)(nil),                   // 37: admin.v1.AgentPluginMCPTool
+	(*AgentPluginMCPServer)(nil),                 // 38: admin.v1.AgentPluginMCPServer
+	(*AgentPluginSkillContribution)(nil),         // 39: admin.v1.AgentPluginSkillContribution
+	(*AgentPluginManifest)(nil),                  // 40: admin.v1.AgentPluginManifest
+	(*ResolvedAgentPlugin)(nil),                  // 41: admin.v1.ResolvedAgentPlugin
+	(*AgentPluginConnectionGrant)(nil),           // 42: admin.v1.AgentPluginConnectionGrant
+	(*ResolvedAgentPluginSnapshot)(nil),          // 43: admin.v1.ResolvedAgentPluginSnapshot
+	(*ResolveAgentPluginsResponse)(nil),          // 44: admin.v1.ResolveAgentPluginsResponse
+	(*BenefitPackage)(nil),                       // 45: admin.v1.BenefitPackage
+	(*ListAvailableBenefitPackagesRequest)(nil),  // 46: admin.v1.ListAvailableBenefitPackagesRequest
+	(*ListAvailableBenefitPackagesResponse)(nil), // 47: admin.v1.ListAvailableBenefitPackagesResponse
+	(*ReviewReservation)(nil),                    // 48: admin.v1.ReviewReservation
+	(*ReserveReviewResponse)(nil),                // 49: admin.v1.ReserveReviewResponse
+	(*ReserveReviewRequest)(nil),                 // 50: admin.v1.ReserveReviewRequest
+	(*TransitionReviewRequest)(nil),              // 51: admin.v1.TransitionReviewRequest
+	(*TransitionReviewResponse)(nil),             // 52: admin.v1.TransitionReviewResponse
+	(*ReviewCleanup)(nil),                        // 53: admin.v1.ReviewCleanup
+	(*BeginReviewCleanupResponse)(nil),           // 54: admin.v1.BeginReviewCleanupResponse
+	(*BeginReviewCleanupRequest)(nil),            // 55: admin.v1.BeginReviewCleanupRequest
+	(*CompleteReviewCleanupRequest)(nil),         // 56: admin.v1.CompleteReviewCleanupRequest
+	(*CompleteReviewCleanupResponse)(nil),        // 57: admin.v1.CompleteReviewCleanupResponse
+	(*ReviewedAsset)(nil),                        // 58: admin.v1.ReviewedAsset
+	(*SubmitReviewedAssetRequest)(nil),           // 59: admin.v1.SubmitReviewedAssetRequest
+	(*SubmitReviewedAssetResponse)(nil),          // 60: admin.v1.SubmitReviewedAssetResponse
+	(*GetReviewedAssetRequest)(nil),              // 61: admin.v1.GetReviewedAssetRequest
+	(*GetReviewedAssetResponse)(nil),             // 62: admin.v1.GetReviewedAssetResponse
+	(*DeleteReviewedAssetRequest)(nil),           // 63: admin.v1.DeleteReviewedAssetRequest
+	(*DeleteReviewedAssetResponse)(nil),          // 64: admin.v1.DeleteReviewedAssetResponse
+	nil,                                          // 65: admin.v1.AgentPluginActivation.BindingsEntry
+	nil,                                          // 66: admin.v1.AgentPluginConnectionGrant.HeadersEntry
+	(*structpb.Struct)(nil),                      // 67: google.protobuf.Struct
+	(*v1.ActorContext)(nil),                      // 68: common.v1.ActorContext
+	(*timestamppb.Timestamp)(nil),                // 69: google.protobuf.Timestamp
 }
 var file_admin_v1_admin_proto_depIdxs = []int32{
 	2,  // 0: admin.v1.ProviderPricing.unit:type_name -> admin.v1.PricingUnit
 	0,  // 1: admin.v1.ModelProvider.provider_kind:type_name -> admin.v1.ProviderKind
 	1,  // 2: admin.v1.ModelProvider.responses_dialect:type_name -> admin.v1.ResponsesDialect
-	50, // 3: admin.v1.ModelProvider.extra_body:type_name -> google.protobuf.Struct
+	67, // 3: admin.v1.ModelProvider.extra_body:type_name -> google.protobuf.Struct
 	3,  // 4: admin.v1.ModelProvider.pricing:type_name -> admin.v1.ProviderPricing
 	0,  // 5: admin.v1.ProviderCatalogItem.provider_kind:type_name -> admin.v1.ProviderKind
 	3,  // 6: admin.v1.ProviderCatalogItem.pricing:type_name -> admin.v1.ProviderPricing
-	51, // 7: admin.v1.GetProviderRequest.actor:type_name -> common.v1.ActorContext
+	68, // 7: admin.v1.GetProviderRequest.actor:type_name -> common.v1.ActorContext
 	4,  // 8: admin.v1.GetProviderResponse.provider:type_name -> admin.v1.ModelProvider
-	51, // 9: admin.v1.GetDefaultProviderRequest.actor:type_name -> common.v1.ActorContext
+	68, // 9: admin.v1.GetDefaultProviderRequest.actor:type_name -> common.v1.ActorContext
 	4,  // 10: admin.v1.GetDefaultProviderResponse.provider:type_name -> admin.v1.ModelProvider
-	51, // 11: admin.v1.GetProviderByKindRequest.actor:type_name -> common.v1.ActorContext
+	68, // 11: admin.v1.GetProviderByKindRequest.actor:type_name -> common.v1.ActorContext
 	0,  // 12: admin.v1.GetProviderByKindRequest.kind:type_name -> admin.v1.ProviderKind
 	4,  // 13: admin.v1.GetProviderByKindResponse.provider:type_name -> admin.v1.ModelProvider
-	51, // 14: admin.v1.GetTaskProviderRequest.actor:type_name -> common.v1.ActorContext
+	68, // 14: admin.v1.GetTaskProviderRequest.actor:type_name -> common.v1.ActorContext
 	4,  // 15: admin.v1.GetTaskProviderResponse.provider:type_name -> admin.v1.ModelProvider
-	51, // 16: admin.v1.ListProviderCatalogRequest.actor:type_name -> common.v1.ActorContext
+	68, // 16: admin.v1.ListProviderCatalogRequest.actor:type_name -> common.v1.ActorContext
 	5,  // 17: admin.v1.ListProviderCatalogResponse.providers:type_name -> admin.v1.ProviderCatalogItem
-	51, // 18: admin.v1.ListSkillsRequest.actor:type_name -> common.v1.ActorContext
+	68, // 18: admin.v1.ListSkillsRequest.actor:type_name -> common.v1.ActorContext
 	16, // 19: admin.v1.ListSkillsResponse.skills:type_name -> admin.v1.SkillSummary
-	51, // 20: admin.v1.GetSkillRequest.actor:type_name -> common.v1.ActorContext
+	68, // 20: admin.v1.GetSkillRequest.actor:type_name -> common.v1.ActorContext
 	19, // 21: admin.v1.GetSkillResponse.skill:type_name -> admin.v1.Skill
-	51, // 22: admin.v1.GetSkillFileRequest.actor:type_name -> common.v1.ActorContext
+	68, // 22: admin.v1.GetSkillFileRequest.actor:type_name -> common.v1.ActorContext
 	20, // 23: admin.v1.GetSkillFileResponse.file:type_name -> admin.v1.SkillFile
-	50, // 24: admin.v1.CanvasModelSelection.parameters:type_name -> google.protobuf.Struct
+	67, // 24: admin.v1.CanvasModelSelection.parameters:type_name -> google.protobuf.Struct
 	25, // 25: admin.v1.CanvasDefaults.inference:type_name -> admin.v1.CanvasModelSelection
 	25, // 26: admin.v1.CanvasDefaults.image:type_name -> admin.v1.CanvasModelSelection
 	25, // 27: admin.v1.CanvasDefaults.video:type_name -> admin.v1.CanvasModelSelection
 	26, // 28: admin.v1.CanvasSettings.defaults:type_name -> admin.v1.CanvasDefaults
-	51, // 29: admin.v1.GetCanvasSettingsRequest.actor:type_name -> common.v1.ActorContext
+	68, // 29: admin.v1.GetCanvasSettingsRequest.actor:type_name -> common.v1.ActorContext
 	27, // 30: admin.v1.GetCanvasSettingsResponse.settings:type_name -> admin.v1.CanvasSettings
-	52, // 31: admin.v1.BenefitPackage.created_at:type_name -> google.protobuf.Timestamp
-	52, // 32: admin.v1.BenefitPackage.updated_at:type_name -> google.protobuf.Timestamp
-	51, // 33: admin.v1.ListAvailableBenefitPackagesRequest.actor:type_name -> common.v1.ActorContext
-	30, // 34: admin.v1.ListAvailableBenefitPackagesResponse.packages:type_name -> admin.v1.BenefitPackage
-	33, // 35: admin.v1.ReserveReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
-	51, // 36: admin.v1.ReserveReviewRequest.actor:type_name -> common.v1.ActorContext
-	51, // 37: admin.v1.TransitionReviewRequest.actor:type_name -> common.v1.ActorContext
-	33, // 38: admin.v1.TransitionReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
-	38, // 39: admin.v1.BeginReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
-	51, // 40: admin.v1.BeginReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
-	51, // 41: admin.v1.CompleteReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
-	38, // 42: admin.v1.CompleteReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
-	51, // 43: admin.v1.SubmitReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
-	43, // 44: admin.v1.SubmitReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
-	51, // 45: admin.v1.GetReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
-	43, // 46: admin.v1.GetReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
-	51, // 47: admin.v1.DeleteReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
-	6,  // 48: admin.v1.ProviderService.GetProvider:input_type -> admin.v1.GetProviderRequest
-	8,  // 49: admin.v1.ProviderService.GetDefaultProvider:input_type -> admin.v1.GetDefaultProviderRequest
-	10, // 50: admin.v1.ProviderService.GetProviderByKind:input_type -> admin.v1.GetProviderByKindRequest
-	12, // 51: admin.v1.ProviderService.GetTaskProvider:input_type -> admin.v1.GetTaskProviderRequest
-	14, // 52: admin.v1.ProviderService.ListProviderCatalog:input_type -> admin.v1.ListProviderCatalogRequest
-	17, // 53: admin.v1.ConfigurationService.ListSkills:input_type -> admin.v1.ListSkillsRequest
-	21, // 54: admin.v1.ConfigurationService.GetSkill:input_type -> admin.v1.GetSkillRequest
-	23, // 55: admin.v1.ConfigurationService.GetSkillFile:input_type -> admin.v1.GetSkillFileRequest
-	28, // 56: admin.v1.ConfigurationService.GetCanvasSettings:input_type -> admin.v1.GetCanvasSettingsRequest
-	31, // 57: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:input_type -> admin.v1.ListAvailableBenefitPackagesRequest
-	35, // 58: admin.v1.BenefitPackageService.ReserveReview:input_type -> admin.v1.ReserveReviewRequest
-	36, // 59: admin.v1.BenefitPackageService.TransitionReview:input_type -> admin.v1.TransitionReviewRequest
-	40, // 60: admin.v1.BenefitPackageService.BeginReviewCleanup:input_type -> admin.v1.BeginReviewCleanupRequest
-	41, // 61: admin.v1.BenefitPackageService.CompleteReviewCleanup:input_type -> admin.v1.CompleteReviewCleanupRequest
-	44, // 62: admin.v1.BenefitPackageService.SubmitReviewedAsset:input_type -> admin.v1.SubmitReviewedAssetRequest
-	46, // 63: admin.v1.BenefitPackageService.GetReviewedAsset:input_type -> admin.v1.GetReviewedAssetRequest
-	48, // 64: admin.v1.BenefitPackageService.DeleteReviewedAsset:input_type -> admin.v1.DeleteReviewedAssetRequest
-	7,  // 65: admin.v1.ProviderService.GetProvider:output_type -> admin.v1.GetProviderResponse
-	9,  // 66: admin.v1.ProviderService.GetDefaultProvider:output_type -> admin.v1.GetDefaultProviderResponse
-	11, // 67: admin.v1.ProviderService.GetProviderByKind:output_type -> admin.v1.GetProviderByKindResponse
-	13, // 68: admin.v1.ProviderService.GetTaskProvider:output_type -> admin.v1.GetTaskProviderResponse
-	15, // 69: admin.v1.ProviderService.ListProviderCatalog:output_type -> admin.v1.ListProviderCatalogResponse
-	18, // 70: admin.v1.ConfigurationService.ListSkills:output_type -> admin.v1.ListSkillsResponse
-	22, // 71: admin.v1.ConfigurationService.GetSkill:output_type -> admin.v1.GetSkillResponse
-	24, // 72: admin.v1.ConfigurationService.GetSkillFile:output_type -> admin.v1.GetSkillFileResponse
-	29, // 73: admin.v1.ConfigurationService.GetCanvasSettings:output_type -> admin.v1.GetCanvasSettingsResponse
-	32, // 74: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:output_type -> admin.v1.ListAvailableBenefitPackagesResponse
-	34, // 75: admin.v1.BenefitPackageService.ReserveReview:output_type -> admin.v1.ReserveReviewResponse
-	37, // 76: admin.v1.BenefitPackageService.TransitionReview:output_type -> admin.v1.TransitionReviewResponse
-	39, // 77: admin.v1.BenefitPackageService.BeginReviewCleanup:output_type -> admin.v1.BeginReviewCleanupResponse
-	42, // 78: admin.v1.BenefitPackageService.CompleteReviewCleanup:output_type -> admin.v1.CompleteReviewCleanupResponse
-	45, // 79: admin.v1.BenefitPackageService.SubmitReviewedAsset:output_type -> admin.v1.SubmitReviewedAssetResponse
-	47, // 80: admin.v1.BenefitPackageService.GetReviewedAsset:output_type -> admin.v1.GetReviewedAssetResponse
-	49, // 81: admin.v1.BenefitPackageService.DeleteReviewedAsset:output_type -> admin.v1.DeleteReviewedAssetResponse
-	65, // [65:82] is the sub-list for method output_type
-	48, // [48:65] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	68, // 31: admin.v1.ListAgentPluginsRequest.actor:type_name -> common.v1.ActorContext
+	32, // 32: admin.v1.ListAgentPluginsResponse.plugins:type_name -> admin.v1.AgentPluginCatalogItem
+	40, // 33: admin.v1.AgentPluginCatalogItem.latest_release:type_name -> admin.v1.AgentPluginManifest
+	65, // 34: admin.v1.AgentPluginActivation.bindings:type_name -> admin.v1.AgentPluginActivation.BindingsEntry
+	68, // 35: admin.v1.ResolveAgentPluginsRequest.actor:type_name -> common.v1.ActorContext
+	33, // 36: admin.v1.ResolveAgentPluginsRequest.activations:type_name -> admin.v1.AgentPluginActivation
+	67, // 37: admin.v1.AgentPluginToolPolicy.source_projection:type_name -> google.protobuf.Struct
+	67, // 38: admin.v1.AgentPluginMCPTool.input_schema:type_name -> google.protobuf.Struct
+	67, // 39: admin.v1.AgentPluginMCPTool.output_schema:type_name -> google.protobuf.Struct
+	35, // 40: admin.v1.AgentPluginMCPTool.policy:type_name -> admin.v1.AgentPluginToolPolicy
+	36, // 41: admin.v1.AgentPluginMCPTool.planning:type_name -> admin.v1.AgentPluginToolPlanning
+	37, // 42: admin.v1.AgentPluginMCPServer.tools:type_name -> admin.v1.AgentPluginMCPTool
+	38, // 43: admin.v1.AgentPluginManifest.mcp_servers:type_name -> admin.v1.AgentPluginMCPServer
+	39, // 44: admin.v1.AgentPluginManifest.skills:type_name -> admin.v1.AgentPluginSkillContribution
+	40, // 45: admin.v1.ResolvedAgentPlugin.manifest:type_name -> admin.v1.AgentPluginManifest
+	33, // 46: admin.v1.ResolvedAgentPlugin.activation:type_name -> admin.v1.AgentPluginActivation
+	66, // 47: admin.v1.AgentPluginConnectionGrant.headers:type_name -> admin.v1.AgentPluginConnectionGrant.HeadersEntry
+	69, // 48: admin.v1.AgentPluginConnectionGrant.expires_at:type_name -> google.protobuf.Timestamp
+	69, // 49: admin.v1.ResolvedAgentPluginSnapshot.resolved_at:type_name -> google.protobuf.Timestamp
+	41, // 50: admin.v1.ResolvedAgentPluginSnapshot.plugins:type_name -> admin.v1.ResolvedAgentPlugin
+	42, // 51: admin.v1.ResolvedAgentPluginSnapshot.connection_grants:type_name -> admin.v1.AgentPluginConnectionGrant
+	43, // 52: admin.v1.ResolveAgentPluginsResponse.snapshot:type_name -> admin.v1.ResolvedAgentPluginSnapshot
+	69, // 53: admin.v1.BenefitPackage.created_at:type_name -> google.protobuf.Timestamp
+	69, // 54: admin.v1.BenefitPackage.updated_at:type_name -> google.protobuf.Timestamp
+	68, // 55: admin.v1.ListAvailableBenefitPackagesRequest.actor:type_name -> common.v1.ActorContext
+	45, // 56: admin.v1.ListAvailableBenefitPackagesResponse.packages:type_name -> admin.v1.BenefitPackage
+	48, // 57: admin.v1.ReserveReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
+	68, // 58: admin.v1.ReserveReviewRequest.actor:type_name -> common.v1.ActorContext
+	68, // 59: admin.v1.TransitionReviewRequest.actor:type_name -> common.v1.ActorContext
+	48, // 60: admin.v1.TransitionReviewResponse.reservation:type_name -> admin.v1.ReviewReservation
+	53, // 61: admin.v1.BeginReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
+	68, // 62: admin.v1.BeginReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
+	68, // 63: admin.v1.CompleteReviewCleanupRequest.actor:type_name -> common.v1.ActorContext
+	53, // 64: admin.v1.CompleteReviewCleanupResponse.cleanup:type_name -> admin.v1.ReviewCleanup
+	68, // 65: admin.v1.SubmitReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
+	58, // 66: admin.v1.SubmitReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
+	68, // 67: admin.v1.GetReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
+	58, // 68: admin.v1.GetReviewedAssetResponse.asset:type_name -> admin.v1.ReviewedAsset
+	68, // 69: admin.v1.DeleteReviewedAssetRequest.actor:type_name -> common.v1.ActorContext
+	6,  // 70: admin.v1.ProviderService.GetProvider:input_type -> admin.v1.GetProviderRequest
+	8,  // 71: admin.v1.ProviderService.GetDefaultProvider:input_type -> admin.v1.GetDefaultProviderRequest
+	10, // 72: admin.v1.ProviderService.GetProviderByKind:input_type -> admin.v1.GetProviderByKindRequest
+	12, // 73: admin.v1.ProviderService.GetTaskProvider:input_type -> admin.v1.GetTaskProviderRequest
+	14, // 74: admin.v1.ProviderService.ListProviderCatalog:input_type -> admin.v1.ListProviderCatalogRequest
+	17, // 75: admin.v1.ConfigurationService.ListSkills:input_type -> admin.v1.ListSkillsRequest
+	21, // 76: admin.v1.ConfigurationService.GetSkill:input_type -> admin.v1.GetSkillRequest
+	23, // 77: admin.v1.ConfigurationService.GetSkillFile:input_type -> admin.v1.GetSkillFileRequest
+	28, // 78: admin.v1.ConfigurationService.GetCanvasSettings:input_type -> admin.v1.GetCanvasSettingsRequest
+	46, // 79: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:input_type -> admin.v1.ListAvailableBenefitPackagesRequest
+	50, // 80: admin.v1.BenefitPackageService.ReserveReview:input_type -> admin.v1.ReserveReviewRequest
+	51, // 81: admin.v1.BenefitPackageService.TransitionReview:input_type -> admin.v1.TransitionReviewRequest
+	55, // 82: admin.v1.BenefitPackageService.BeginReviewCleanup:input_type -> admin.v1.BeginReviewCleanupRequest
+	56, // 83: admin.v1.BenefitPackageService.CompleteReviewCleanup:input_type -> admin.v1.CompleteReviewCleanupRequest
+	59, // 84: admin.v1.BenefitPackageService.SubmitReviewedAsset:input_type -> admin.v1.SubmitReviewedAssetRequest
+	61, // 85: admin.v1.BenefitPackageService.GetReviewedAsset:input_type -> admin.v1.GetReviewedAssetRequest
+	63, // 86: admin.v1.BenefitPackageService.DeleteReviewedAsset:input_type -> admin.v1.DeleteReviewedAssetRequest
+	30, // 87: admin.v1.AgentPluginService.ListAgentPlugins:input_type -> admin.v1.ListAgentPluginsRequest
+	34, // 88: admin.v1.AgentPluginService.ResolveAgentPlugins:input_type -> admin.v1.ResolveAgentPluginsRequest
+	7,  // 89: admin.v1.ProviderService.GetProvider:output_type -> admin.v1.GetProviderResponse
+	9,  // 90: admin.v1.ProviderService.GetDefaultProvider:output_type -> admin.v1.GetDefaultProviderResponse
+	11, // 91: admin.v1.ProviderService.GetProviderByKind:output_type -> admin.v1.GetProviderByKindResponse
+	13, // 92: admin.v1.ProviderService.GetTaskProvider:output_type -> admin.v1.GetTaskProviderResponse
+	15, // 93: admin.v1.ProviderService.ListProviderCatalog:output_type -> admin.v1.ListProviderCatalogResponse
+	18, // 94: admin.v1.ConfigurationService.ListSkills:output_type -> admin.v1.ListSkillsResponse
+	22, // 95: admin.v1.ConfigurationService.GetSkill:output_type -> admin.v1.GetSkillResponse
+	24, // 96: admin.v1.ConfigurationService.GetSkillFile:output_type -> admin.v1.GetSkillFileResponse
+	29, // 97: admin.v1.ConfigurationService.GetCanvasSettings:output_type -> admin.v1.GetCanvasSettingsResponse
+	47, // 98: admin.v1.BenefitPackageService.ListAvailableBenefitPackages:output_type -> admin.v1.ListAvailableBenefitPackagesResponse
+	49, // 99: admin.v1.BenefitPackageService.ReserveReview:output_type -> admin.v1.ReserveReviewResponse
+	52, // 100: admin.v1.BenefitPackageService.TransitionReview:output_type -> admin.v1.TransitionReviewResponse
+	54, // 101: admin.v1.BenefitPackageService.BeginReviewCleanup:output_type -> admin.v1.BeginReviewCleanupResponse
+	57, // 102: admin.v1.BenefitPackageService.CompleteReviewCleanup:output_type -> admin.v1.CompleteReviewCleanupResponse
+	60, // 103: admin.v1.BenefitPackageService.SubmitReviewedAsset:output_type -> admin.v1.SubmitReviewedAssetResponse
+	62, // 104: admin.v1.BenefitPackageService.GetReviewedAsset:output_type -> admin.v1.GetReviewedAssetResponse
+	64, // 105: admin.v1.BenefitPackageService.DeleteReviewedAsset:output_type -> admin.v1.DeleteReviewedAssetResponse
+	31, // 106: admin.v1.AgentPluginService.ListAgentPlugins:output_type -> admin.v1.ListAgentPluginsResponse
+	44, // 107: admin.v1.AgentPluginService.ResolveAgentPlugins:output_type -> admin.v1.ResolveAgentPluginsResponse
+	89, // [89:108] is the sub-list for method output_type
+	70, // [70:89] is the sub-list for method input_type
+	70, // [70:70] is the sub-list for extension type_name
+	70, // [70:70] is the sub-list for extension extendee
+	0,  // [0:70] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_admin_proto_init() }
@@ -3386,16 +4667,19 @@ func file_admin_v1_admin_proto_init() {
 	file_admin_v1_admin_proto_msgTypes[2].OneofWrappers = []any{}
 	file_admin_v1_admin_proto_msgTypes[17].OneofWrappers = []any{}
 	file_admin_v1_admin_proto_msgTypes[23].OneofWrappers = []any{}
-	file_admin_v1_admin_proto_msgTypes[27].OneofWrappers = []any{}
+	file_admin_v1_admin_proto_msgTypes[32].OneofWrappers = []any{}
+	file_admin_v1_admin_proto_msgTypes[34].OneofWrappers = []any{}
+	file_admin_v1_admin_proto_msgTypes[39].OneofWrappers = []any{}
+	file_admin_v1_admin_proto_msgTypes[42].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_admin_proto_rawDesc), len(file_admin_v1_admin_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   47,
+			NumMessages:   64,
 			NumExtensions: 0,
-			NumServices:   3,
+			NumServices:   4,
 		},
 		GoTypes:           file_admin_v1_admin_proto_goTypes,
 		DependencyIndexes: file_admin_v1_admin_proto_depIdxs,

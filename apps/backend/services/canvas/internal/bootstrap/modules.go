@@ -11,6 +11,7 @@ import (
 	"time"
 
 	maturehttp "github.com/example/monorepo/canvas/internal/api/handler"
+	mcpapi "github.com/example/monorepo/canvas/internal/api/mcp"
 	"github.com/example/monorepo/canvas/internal/api/openapi"
 	rpcapi "github.com/example/monorepo/canvas/internal/api/rpc"
 	applicationasset "github.com/example/monorepo/canvas/internal/application/asset"
@@ -481,6 +482,12 @@ func buildModules(
 		},
 		access,
 	)
+	if role == roleServer {
+		serverMux := http.NewServeMux()
+		serverMux.Handle("/mcp", mcpapi.NewHandler(nodeHandler, access, cfg.RuntimeCallerToken))
+		serverMux.Handle("/", handler)
+		handler = serverMux
+	}
 	if role == roleWorker {
 		workerMux := http.NewServeMux()
 		workerMux.HandleFunc("/livez", func(w http.ResponseWriter, _ *http.Request) {

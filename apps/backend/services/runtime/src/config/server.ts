@@ -17,15 +17,36 @@ export interface ServerSettings {
   adminRpcTarget: string;
   storageRpcTarget: string;
   knowledgeRpcTarget: string;
+  knowledgeServiceUrl: string;
+  canvasServiceUrl: string;
   workerServiceUrl: string;
   sandboxRoleUrl: string;
-  canvasRpcTarget: string;
   internalApiToken: string;
   chatCallerToken: string;
   toolApprovalSecret: string;
   exaApiKey: string;
   tavilyApiKey: string;
   providerCacheTtlSeconds: number;
+}
+
+function serviceUrl(env: NodeJS.ProcessEnv, key: string, fallback: string): string {
+  const value = envOr(env, key, fallback);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${key} must be an absolute HTTP URL`);
+  }
+  if (
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`${key} must be an absolute HTTP URL without credentials, query, or fragment`);
+  }
+  return parsed.toString().replace(/\/$/, "");
 }
 
 export function parseServerSettings(env: NodeJS.ProcessEnv): ServerSettings {
@@ -73,7 +94,8 @@ export function parseServerSettings(env: NodeJS.ProcessEnv): ServerSettings {
     adminRpcTarget: envOr(env, "ADMIN_RPC_TARGET", "localhost:9001"),
     storageRpcTarget: envOr(env, "STORAGE_RPC_TARGET", "localhost:9013"),
     knowledgeRpcTarget: envOr(env, "KNOWLEDGE_RPC_TARGET", "localhost:9010"),
-    canvasRpcTarget: envOr(env, "CANVAS_RPC_TARGET", "localhost:9012"),
+    knowledgeServiceUrl: serviceUrl(env, "KNOWLEDGE_SERVICE_URL", "http://localhost:8010"),
+    canvasServiceUrl: serviceUrl(env, "CANVAS_SERVICE_URL", "http://localhost:8012"),
     workerServiceUrl: envOr(env, "RUNTIME_WORKER_URL", "http://localhost:8011"),
     sandboxRoleUrl: envOr(env, "RUNTIME_SANDBOX_URL", "http://localhost:8014"),
     internalApiToken,

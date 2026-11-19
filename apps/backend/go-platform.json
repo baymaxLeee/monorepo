@@ -8,6 +8,7 @@
     "redis": { "module": "github.com/redis/go-redis/v9", "version": "v9.23.0" },
     "uuid": { "module": "github.com/google/uuid", "version": "v1.6.0" },
     "httpTracing": { "module": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", "version": "v0.72.0" },
+    "mcp": { "module": "github.com/modelcontextprotocol/go-sdk", "version": "v1.8.0" },
     "grpcTracing": {
       "module": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
       "version": "v0.72.0"

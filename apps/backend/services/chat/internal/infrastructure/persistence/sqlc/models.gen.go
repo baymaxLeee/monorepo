@@ -9,15 +9,23 @@ import (
 )
 
 type Conversation struct {
-	ID               string
-	RuntimeSessionID string
-	CreateRequestID  string
-	UserID           string
-	TenantID         string
-	WorkspaceID      string
-	Title            string
-	ProjectID        *string
-	CanvasID         *string
-	CreatedAt        pgtype.Timestamptz
-	UpdatedAt        pgtype.Timestamptz
+	ID                   string
+	State                string
+	Operation            string
+	RuntimeThreadID      *string
+	CreateRequestID      string
+	CreateFingerprint    string
+	RuntimeRequest       []byte
+	SourceConversationID *string
+	SourceMessageID      *string
+	UserID               string
+	TenantID             string
+	WorkspaceID          string
+	Title                string
+	PluginSelectionsJson []byte
+	AttemptCount         int32
+	NextAttemptAt        pgtype.Timestamptz
+	LastError            *string
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
 }

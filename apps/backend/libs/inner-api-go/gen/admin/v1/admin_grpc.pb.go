@@ -855,3 +855,143 @@ var BenefitPackageService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "admin/v1/admin.proto",
 }
+
+const (
+	AgentPluginService_ListAgentPlugins_FullMethodName    = "/admin.v1.AgentPluginService/ListAgentPlugins"
+	AgentPluginService_ResolveAgentPlugins_FullMethodName = "/admin.v1.AgentPluginService/ResolveAgentPlugins"
+)
+
+// AgentPluginServiceClient is the client API for AgentPluginService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type AgentPluginServiceClient interface {
+	ListAgentPlugins(ctx context.Context, in *ListAgentPluginsRequest, opts ...grpc.CallOption) (*ListAgentPluginsResponse, error)
+	ResolveAgentPlugins(ctx context.Context, in *ResolveAgentPluginsRequest, opts ...grpc.CallOption) (*ResolveAgentPluginsResponse, error)
+}
+
+type agentPluginServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAgentPluginServiceClient(cc grpc.ClientConnInterface) AgentPluginServiceClient {
+	return &agentPluginServiceClient{cc}
+}
+
+func (c *agentPluginServiceClient) ListAgentPlugins(ctx context.Context, in *ListAgentPluginsRequest, opts ...grpc.CallOption) (*ListAgentPluginsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAgentPluginsResponse)
+	err := c.cc.Invoke(ctx, AgentPluginService_ListAgentPlugins_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentPluginServiceClient) ResolveAgentPlugins(ctx context.Context, in *ResolveAgentPluginsRequest, opts ...grpc.CallOption) (*ResolveAgentPluginsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveAgentPluginsResponse)
+	err := c.cc.Invoke(ctx, AgentPluginService_ResolveAgentPlugins_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AgentPluginServiceServer is the server API for AgentPluginService service.
+// All implementations must embed UnimplementedAgentPluginServiceServer
+// for forward compatibility.
+type AgentPluginServiceServer interface {
+	ListAgentPlugins(context.Context, *ListAgentPluginsRequest) (*ListAgentPluginsResponse, error)
+	ResolveAgentPlugins(context.Context, *ResolveAgentPluginsRequest) (*ResolveAgentPluginsResponse, error)
+	mustEmbedUnimplementedAgentPluginServiceServer()
+}
+
+// UnimplementedAgentPluginServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAgentPluginServiceServer struct{}
+
+func (UnimplementedAgentPluginServiceServer) ListAgentPlugins(context.Context, *ListAgentPluginsRequest) (*ListAgentPluginsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAgentPlugins not implemented")
+}
+func (UnimplementedAgentPluginServiceServer) ResolveAgentPlugins(context.Context, *ResolveAgentPluginsRequest) (*ResolveAgentPluginsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveAgentPlugins not implemented")
+}
+func (UnimplementedAgentPluginServiceServer) mustEmbedUnimplementedAgentPluginServiceServer() {}
+func (UnimplementedAgentPluginServiceServer) testEmbeddedByValue()                            {}
+
+// UnsafeAgentPluginServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AgentPluginServiceServer will
+// result in compilation errors.
+type UnsafeAgentPluginServiceServer interface {
+	mustEmbedUnimplementedAgentPluginServiceServer()
+}
+
+func RegisterAgentPluginServiceServer(s grpc.ServiceRegistrar, srv AgentPluginServiceServer) {
+	// If the following call panics, it indicates UnimplementedAgentPluginServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AgentPluginService_ServiceDesc, srv)
+}
+
+func _AgentPluginService_ListAgentPlugins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAgentPluginsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentPluginServiceServer).ListAgentPlugins(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentPluginService_ListAgentPlugins_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentPluginServiceServer).ListAgentPlugins(ctx, req.(*ListAgentPluginsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentPluginService_ResolveAgentPlugins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveAgentPluginsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentPluginServiceServer).ResolveAgentPlugins(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentPluginService_ResolveAgentPlugins_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentPluginServiceServer).ResolveAgentPlugins(ctx, req.(*ResolveAgentPluginsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AgentPluginService_ServiceDesc is the grpc.ServiceDesc for AgentPluginService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AgentPluginService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "admin.v1.AgentPluginService",
+	HandlerType: (*AgentPluginServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListAgentPlugins",
+			Handler:    _AgentPluginService_ListAgentPlugins_Handler,
+		},
+		{
+			MethodName: "ResolveAgentPlugins",
+			Handler:    _AgentPluginService_ResolveAgentPlugins_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "admin/v1/admin.proto",
+}

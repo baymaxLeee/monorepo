@@ -51,7 +51,7 @@ export const videoProductions = pgTable(
     tenantId: varchar("tenant_id", { length: 32 }).notNull(),
     workspaceId: varchar("workspace_id", { length: 32 }).notNull(),
     userId: varchar("user_id", { length: 32 }).notNull(),
-    sessionId: varchar("session_id", { length: 32 }),
+    threadId: varchar("thread_id", { length: 32 }),
     status: varchar("status", { length: 32 }).notNull(),
     stage: varchar("stage", { length: 48 }).notNull(),
     version: integer("version").notNull(),
@@ -62,7 +62,7 @@ export const videoProductions = pgTable(
   },
   (t) => [
     uniqueIndex("ux_video_productions_task_id").on(t.taskId),
-    index("ix_video_productions_session_id").on(t.sessionId),
+    index("ix_video_productions_thread_id").on(t.threadId),
   ],
 );
 

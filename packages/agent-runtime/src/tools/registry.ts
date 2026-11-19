@@ -6,7 +6,7 @@ import { createToolSearchManifest } from "./discovery.js";
 import { createInteractionToolManifests } from "./interaction.js";
 import { manifestsToTools } from "./manifest.js";
 import { createPlanningToolManifests } from "./planning.js";
-import { type AdminSkillSource, resolveSkills } from "./skills.js";
+import { resolveSkills, type SkillSource } from "./skills.js";
 import { createSubagentsManifest, type SubagentObserver } from "./subagents.js";
 import { createWebFetchManifest, createWebSearchManifest, type WebSearchInput, type WebSearchOutput } from "./web.js";
 
@@ -22,7 +22,7 @@ export interface PortableToolModel<CONTEXT extends Record<string, unknown>> {
 export interface PortableToolBindings<CONTEXT extends Record<string, unknown>> {
   model: PortableToolModel<CONTEXT>;
   webSearch(input: WebSearchInput, options: { abortSignal?: AbortSignal }): Promise<WebSearchOutput>;
-  skillSource?: AdminSkillSource | null;
+  skillSource?: SkillSource | null;
   clientInteraction?: boolean;
 }
 

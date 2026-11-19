@@ -27,12 +27,13 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   upload: vi.fn(),
   providers: vi.fn(),
+  plugins: vi.fn(),
   desktop: true,
 }));
 vi.mock("@repo/api/chat", () => ({
   createConversation: mocks.create,
 }));
-vi.mock("@repo/api/admin", () => ({ listProviders: mocks.providers }));
+vi.mock("@repo/api/admin", () => ({ listAgentPluginOptions: mocks.plugins, listProviders: mocks.providers }));
 vi.mock("@repo/ai-elements/conversation/lib/upload-conversation-files", () => ({
   uploadConversationFiles: mocks.upload,
 }));
@@ -117,6 +118,7 @@ beforeEach(() => {
       is_default: true,
     },
   ]);
+  mocks.plugins.mockResolvedValue([]);
 });
 
 async function selectExecutionLocation(name: "云端" | "本地电脑") {
@@ -151,6 +153,7 @@ test("new cloud conversation renders session controls and submits their request 
     request_id: expect.any(String),
     provider_id: "cloud-model",
     reasoning_effort: "medium",
+    plugin_selections: [],
   });
   expect(mocks.local).not.toHaveBeenCalled();
 });
@@ -200,7 +203,9 @@ test("Desktop defaults to this computer and creates in the selected existing pro
   expect(screen.queryByRole("button", { name: "查看上下文用量" })).toBeNull();
   expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() => expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto"));
+  await waitFor(() =>
+    expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto", []),
+  );
   await waitFor(() => expect(mocks.send).toHaveBeenCalledWith("local", "hello", expect.any(String)));
   expect(mocks.create).not.toHaveBeenCalled();
 });
@@ -218,7 +223,7 @@ test("new project selection happens before send and supplies the authorized work
   expect(await screen.findByText("new-project")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith("/projects/new-project", "cloud-model", "medium", "auto"),
+    expect(mocks.local).toHaveBeenCalledWith("/projects/new-project", "cloud-model", "medium", "auto", []),
   );
   expect(mocks.selectWorkspace.mock.invocationCallOrder[0]).toBeLessThan(mocks.local.mock.invocationCallOrder[0]);
 });
@@ -256,6 +261,38 @@ test("Web omits execution selection and submits to cloud", async () => {
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
   expect(mocks.local).not.toHaveBeenCalled();
+});
+
+test("an installed default plugin is frozen into both cloud and local conversation creation", async () => {
+  mocks.plugins.mockResolvedValue([
+    {
+      pluginId: "knowledge@platform",
+      displayName: "知识库",
+      description: "Search workspace knowledge.",
+      selectedByDefault: true,
+      requiresBindings: false,
+    },
+  ]);
+  render(
+    <MemoryRouter>
+      <ConversationListPage />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText("插件 1")).toBeTruthy();
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() =>
+    expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto", [
+      { pluginId: "knowledge@platform" },
+    ]),
+  );
+
+  await selectExecutionLocation("云端");
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() =>
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ plugin_selections: [{ plugin_id: "knowledge@platform" }] }),
+    ),
+  );
 });
 
 test("repeated submit while creating cannot create duplicate conversations", async () => {

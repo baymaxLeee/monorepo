@@ -128,7 +128,7 @@ export async function initializeVideoProduction(input: {
       tenantId: input.tenantId,
       workspaceId: input.workspaceId,
       userId: input.userId,
-      sessionId: input.sessionId,
+      threadId: input.sessionId,
       status: projection.status,
       stage: projection.stage,
       version: projection.version,

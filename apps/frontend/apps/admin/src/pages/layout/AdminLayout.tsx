@@ -3,6 +3,7 @@ import { cn } from "@repo/shared";
 import {
   AppWindowIcon,
   BrainCircuitIcon,
+  BlocksIcon,
   Building2Icon,
   ComponentIcon,
   GitBranchIcon,
@@ -38,6 +39,7 @@ const adminMenus: AdminMenuItem[] = [
   { title: "创作项目", href: "/platform/admin/canvas-management", icon: SparklesIcon },
   { title: "创作设置", href: "/platform/admin/canvas", icon: SparklesIcon },
   { title: "技能", href: "/platform/admin/skills", icon: SparklesIcon },
+  { title: "插件", href: "/platform/admin/plugins", icon: BlocksIcon },
   {
     title: "模型",
     href: "/platform/admin/providers",

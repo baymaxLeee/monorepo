@@ -8,15 +8,15 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
   const call = <T>(method: string, payload?: unknown): Promise<T> =>
     ipcRenderer.invoke("desktop:invoke", method, payload);
   const bridge: DesktopBridge = {
-    version: 2,
+    version: 3,
     info: () => call("info"),
     bindSession: (accessToken, expiresAt) => call("bindSession", { accessToken, expiresAt }),
     clearSession: () => call("clearSession"),
     refreshSession: () => call("refreshSession"),
     listThreads: () => call("list"),
     selectWorkspace: () => call("selectWorkspace"),
-    createThread: (workspace, providerId, reasoningEffort, approvalMode) =>
-      call("create", { workspace, providerId, reasoningEffort, approvalMode }),
+    createThread: (workspace, providerId, reasoningEffort, approvalMode, pluginActivations) =>
+      call("create", { workspace, providerId, reasoningEffort, approvalMode, pluginActivations }),
     getThread: (id) => call("get", id),
     openStream: (id) => call("openStream", id),
     send: (id, text, messageId) => call("send", { id, text, messageId }),

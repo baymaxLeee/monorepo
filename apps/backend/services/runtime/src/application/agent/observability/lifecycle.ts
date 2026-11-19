@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
 
 import { finalizeSessionContext, type ContextEstimate } from "../context/context-snapshot.js";
@@ -10,18 +12,21 @@ import {
   startAgentStep,
 } from "../runs/repository.js";
 
-function stepId(runId: string, stepNumber: number): string {
-  const compact = runId
-    .replace(/[^a-f0-9]/gi, "")
-    .padEnd(30, "0")
-    .slice(0, 30);
+function stepId(runId: string, attemptEpoch: bigint, stepNumber: number): string {
+  const compact = createHash("sha256").update(`${runId}:${attemptEpoch}`).digest("hex").slice(0, 30);
   return `${compact}${stepNumber.toString(16).padStart(2, "0").slice(-2)}`;
 }
 
-export async function startModelStep(input: { runId: string; stepNumber: number; model: string }): Promise<void> {
+export async function startModelStep(input: {
+  runId: string;
+  attemptEpoch: bigint;
+  stepNumber: number;
+  model: string;
+}): Promise<void> {
   await startAgentStep({
-    stepId: stepId(input.runId, input.stepNumber),
+    stepId: stepId(input.runId, input.attemptEpoch, input.stepNumber),
     runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
     stepIndex: input.stepNumber,
     kind: "model",
     summary: "model step started",
@@ -47,6 +52,7 @@ export const EMPTY_USAGE: UsageTokens = {
 
 export async function captureModelStepContext(input: {
   runId: string;
+  attemptEpoch: bigint;
   stepNumber: number;
   contextEstimate: ContextEstimate;
 }): Promise<void> {
@@ -54,7 +60,7 @@ export async function captureModelStepContext(input: {
   if (!snapshot) {
     return;
   }
-  await recordAgentStepContextSnapshot(stepId(input.runId, input.stepNumber), snapshot);
+  await recordAgentStepContextSnapshot(input, stepId(input.runId, input.attemptEpoch, input.stepNumber), snapshot);
 }
 
 function addToken(left: number | null, right: number | null): number | null {
@@ -93,6 +99,7 @@ export function extractUsageTokens(usage: unknown): UsageTokens {
 
 export async function finishModelStep(input: {
   runId: string;
+  attemptEpoch: bigint;
   stepNumber: number;
   finishReason: string;
   usage: unknown;
@@ -110,7 +117,9 @@ export async function finishModelStep(input: {
   // (incl. inputTokenDetails/outputTokenDetails) is kept in metadata.usage, and
   // billing aggregates at the run level, not per step.
   await finishAgentStep({
-    stepId: stepId(input.runId, input.stepNumber),
+    runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
+    stepId: stepId(input.runId, input.attemptEpoch, input.stepNumber),
     status: "completed",
     summary: `finish reason: ${input.finishReason}`,
     metadata: {
@@ -144,6 +153,7 @@ function sanitizeToolInput(toolName: string, input: unknown): unknown {
 
 export async function recordToolStart(input: {
   runId: string;
+  attemptEpoch: bigint;
   toolCallId: string;
   stepNumber: number;
   toolName: string;
@@ -151,6 +161,7 @@ export async function recordToolStart(input: {
 }): Promise<void> {
   await recordToolCallStart({
     runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
     toolCallId: input.toolCallId,
     stepIndex: input.stepNumber,
     toolName: input.toolName,
@@ -159,6 +170,8 @@ export async function recordToolStart(input: {
 }
 
 export async function recordToolEnd(input: {
+  runId: string;
+  attemptEpoch: bigint;
   toolCallId: string;
   toolName: string;
   success: boolean;
@@ -170,6 +183,8 @@ export async function recordToolEnd(input: {
   const semanticFailure = input.success && outcome?.ok === false;
   const success = input.success && !semanticFailure;
   await recordToolCallFinish({
+    runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
     toolCallId: input.toolCallId,
     status: success ? "completed" : "failed",
     output: input.success ? input.output : undefined,
@@ -182,6 +197,7 @@ export async function recordToolEnd(input: {
 
 export async function recordRejectedToolCall(input: {
   runId: string;
+  attemptEpoch: bigint;
   toolCallId: string;
   stepNumber: number;
   toolName: string;
@@ -191,6 +207,7 @@ export async function recordRejectedToolCall(input: {
 }): Promise<void> {
   await recordToolStart({
     runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
     toolCallId: input.toolCallId,
     stepNumber: input.stepNumber,
     toolName: input.toolName,
@@ -198,6 +215,8 @@ export async function recordRejectedToolCall(input: {
   });
   const message = input.error instanceof Error ? input.error.message : String(input.error);
   await recordToolCallFinish({
+    runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
     toolCallId: input.toolCallId,
     status: "failed",
     error: `${input.code}: ${message}`.slice(0, 2_000),
@@ -205,9 +224,15 @@ export async function recordRejectedToolCall(input: {
   });
 }
 
-export async function failAgentRun(input: { runId: string; error: unknown; usage?: UsageTokens }): Promise<void> {
+export async function failAgentRun(input: {
+  runId: string;
+  attemptEpoch: bigint;
+  error: unknown;
+  usage?: UsageTokens;
+}): Promise<void> {
   await finishAgentRun({
     runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
     status: "failed",
     error: input.error,
     inputTokens: input.usage?.inputTokens,

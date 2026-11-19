@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
+import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
 import { webSearchOutputSchema } from "@repo/agent-runtime/tools/web";
 import { z } from "zod";
 
@@ -61,6 +62,8 @@ async function dispatch(method: string, payload: unknown) {
       ...settings,
       config: async (providerId, reasoningEffort, signal) =>
         inferenceConfigSchema.parse(await request("config", { providerId, reasoningEffort }, signal)),
+      resolvePlugins: async (activations, signal) =>
+        (await request("plugins", { activations }, signal)) as ResolvedTurnPluginSnapshot,
       webSearch: async (input, signal) =>
         webSearchOutputSchema.parse(await request("web-search", input, signal ?? AbortSignal.timeout(30_000))),
       call: async (body, signal) => {
@@ -111,9 +114,23 @@ async function dispatch(method: string, payload: unknown) {
           providerId: z.string().min(1).max(32),
           reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
           approvalMode: z.enum(["request", "auto", "full"]),
+          pluginActivations: z
+            .array(
+              z
+                .object({
+                  pluginId: z
+                    .string()
+                    .min(3)
+                    .max(129)
+                    .regex(/^[a-z0-9._-]+@[a-z0-9._-]+$/),
+                  bindings: z.record(z.string(), z.string()).optional(),
+                })
+                .strict(),
+            )
+            .max(16),
         })
         .parse(payload);
-      return runtime.create(p.workspace, p.providerId, p.reasoningEffort, p.approvalMode);
+      return runtime.create(p.workspace, p.providerId, p.reasoningEffort, p.approvalMode, p.pluginActivations);
     }
     case "openStream":
       return runtime.openStream(idSchema.parse(payload));

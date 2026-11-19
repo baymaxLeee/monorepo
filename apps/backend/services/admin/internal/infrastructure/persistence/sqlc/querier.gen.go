@@ -11,11 +11,13 @@ import (
 type Querier interface {
 	AddBenefitPackageModel(ctx context.Context, arg AddBenefitPackageModelParams) error
 	BulkDeleteSkills(ctx context.Context, arg BulkDeleteSkillsParams) (int64, error)
+	BumpAgentPluginWorkspaceRevision(ctx context.Context, arg BumpAgentPluginWorkspaceRevisionParams) (int64, error)
 	ClearBenefitPackageModels(ctx context.Context, packageID string) error
 	ClearDefaultProvider(ctx context.Context, arg ClearDefaultProviderParams) error
 	ClearPublishedSkillNodes(ctx context.Context, skillID string) error
 	CopyPublishedSkillNodes(ctx context.Context, skillID string) error
 	CountPendingReviewCleanups(ctx context.Context, reservationID string) (int64, error)
+	CreateAgentPluginRelease(ctx context.Context, arg CreateAgentPluginReleaseParams) error
 	CreateApp(ctx context.Context, arg CreateAppParams) (App, error)
 	CreateAssetGroupCleanup(ctx context.Context, arg CreateAssetGroupCleanupParams) error
 	CreateBenefitPackage(ctx context.Context, arg CreateBenefitPackageParams) error
@@ -25,14 +27,20 @@ type Querier interface {
 	CreateReviewReservation(ctx context.Context, arg CreateReviewReservationParams) error
 	CreateSkill(ctx context.Context, arg CreateSkillParams) error
 	CreateSkillNode(ctx context.Context, arg CreateSkillNodeParams) error
+	DeleteAgentPluginInstallation(ctx context.Context, arg DeleteAgentPluginInstallationParams) (int64, error)
 	DeleteAllSkillNodes(ctx context.Context, skillID string) error
 	DeleteApp(ctx context.Context, id string) (int64, error)
 	DeleteProvider(ctx context.Context, arg DeleteProviderParams) (int64, error)
 	DeleteProviders(ctx context.Context, arg DeleteProvidersParams) (int64, error)
 	DeleteSkill(ctx context.Context, id string) error
 	DeleteSkillNode(ctx context.Context, arg DeleteSkillNodeParams) error
+	EnsureAgentPluginWorkspaceState(ctx context.Context, arg EnsureAgentPluginWorkspaceStateParams) error
 	GetActiveReviewReservation(ctx context.Context, arg GetActiveReviewReservationParams) (GetActiveReviewReservationRow, error)
 	GetActiveReviewReservationForUpdate(ctx context.Context, arg GetActiveReviewReservationForUpdateParams) (GetActiveReviewReservationForUpdateRow, error)
+	GetAgentPluginCatalogEntry(ctx context.Context, id string) (AgentPluginCatalog, error)
+	GetAgentPluginInstallation(ctx context.Context, arg GetAgentPluginInstallationParams) (AgentPluginInstallation, error)
+	GetAgentPluginRelease(ctx context.Context, arg GetAgentPluginReleaseParams) (AgentPluginRelease, error)
+	GetAgentPluginWorkspaceRevision(ctx context.Context, arg GetAgentPluginWorkspaceRevisionParams) (int64, error)
 	GetApp(ctx context.Context, id string) (App, error)
 	GetAssetGroupCleanup(ctx context.Context, arg GetAssetGroupCleanupParams) (BenefitPackageAssetGroupCleanup, error)
 	GetAssetGroupCleanupForUpdate(ctx context.Context, arg GetAssetGroupCleanupForUpdateParams) (BenefitPackageAssetGroupCleanup, error)
@@ -52,17 +60,21 @@ type Querier interface {
 	GetSkillByName(ctx context.Context, arg GetSkillByNameParams) (GetSkillByNameRow, error)
 	GetSkillForUpdate(ctx context.Context, arg GetSkillForUpdateParams) (GetSkillForUpdateRow, error)
 	GetSkillNode(ctx context.Context, arg GetSkillNodeParams) (GetSkillNodeRow, error)
+	ListAgentPluginCatalog(ctx context.Context, arg ListAgentPluginCatalogParams) ([]ListAgentPluginCatalogRow, error)
 	ListApps(ctx context.Context, arg ListAppsParams) ([]App, error)
 	ListAssetGroupCleanups(ctx context.Context, arg ListAssetGroupCleanupsParams) ([]BenefitPackageAssetGroupCleanup, error)
 	ListBenefitPackages(ctx context.Context, arg ListBenefitPackagesParams) ([]BenefitPackage, error)
+	ListPluginSelectionCandidates(ctx context.Context, arg ListPluginSelectionCandidatesParams) ([]ListPluginSelectionCandidatesRow, error)
 	ListProviders(ctx context.Context, arg ListProvidersParams) ([]ListProvidersRow, error)
 	ListPublishedSkillNodes(ctx context.Context, skillID string) ([]ListPublishedSkillNodesRow, error)
 	ListSkillNodes(ctx context.Context, skillID string) ([]ListSkillNodesRow, error)
 	ListSkills(ctx context.Context, arg ListSkillsParams) ([]ListSkillsRow, error)
 	ListSkillsByIDs(ctx context.Context, arg ListSkillsByIDsParams) ([]ListSkillsByIDsRow, error)
+	LockAgentPluginWorkspaceRevision(ctx context.Context, arg LockAgentPluginWorkspaceRevisionParams) (int64, error)
 	LockProvider(ctx context.Context, arg LockProviderParams) (LockProviderRow, error)
 	LockProviderDefaults(ctx context.Context, lockKey string) error
 	ReviewUsage(ctx context.Context, arg ReviewUsageParams) ([]ReviewUsageRow, error)
+	SaveAgentPluginInstallation(ctx context.Context, arg SaveAgentPluginInstallationParams) error
 	SaveAssetGroupCleanup(ctx context.Context, arg SaveAssetGroupCleanupParams) error
 	SaveBenefitPackage(ctx context.Context, arg SaveBenefitPackageParams) error
 	SaveProvider(ctx context.Context, arg SaveProviderParams) (SaveProviderRow, error)
@@ -74,6 +86,7 @@ type Querier interface {
 	SiblingNameExists(ctx context.Context, arg SiblingNameExistsParams) (bool, error)
 	UpdateApp(ctx context.Context, arg UpdateAppParams) (App, error)
 	UpdateCanvasSettings(ctx context.Context, arg UpdateCanvasSettingsParams) (int64, error)
+	UpsertAgentPluginCatalogEntry(ctx context.Context, arg UpsertAgentPluginCatalogEntryParams) error
 	UpsertAssetClaim(ctx context.Context, arg UpsertAssetClaimParams) error
 }
 

@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { after, test } from "node:test";
 
+import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
 import { eq } from "drizzle-orm";
 
 import { getDb, getSql } from "../../../infrastructure/persistence/index.js";
 import {
-  agentRuns,
-  agentRunInputs,
-  agentSteps,
-  agentToolCalls,
-  sessions,
-  sessionRunLeases,
-  messages,
+  threadItems,
+  threads,
+  toolExecutions,
+  turnInputs,
+  turnLeases,
+  turnPluginSnapshots,
+  turns,
+  turnSteps,
 } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
 import {
@@ -21,11 +23,13 @@ import {
   listMessages,
   selectSessionHistory,
 } from "../../sessions.js";
+import { acquireRunLease, releaseRun } from "./lease.js";
 import {
   claimAgentRunOperation,
   finalizeAgentRunJournal,
   finishAgentRun,
   interruptRuns,
+  persistAgentRunPluginSnapshot,
   requestAgentRunCancellation,
 } from "./repository.js";
 import { acceptAgentRunInput, listAgentRunInputs } from "./steering.js";
@@ -34,6 +38,10 @@ const enabled = process.env.RUNTIME_POSTGRES_INTEGRATION === "1";
 
 function identifier(prefix: string): string {
   return `${prefix}_${randomBytes(10).toString("hex")}`;
+}
+
+function lease(claim: { runId: string; attemptEpoch: bigint }) {
+  return { runId: claim.runId, attemptEpoch: claim.attemptEpoch };
 }
 
 async function createSession(): Promise<{
@@ -55,7 +63,7 @@ async function createSession(): Promise<{
   const workspaceId = identifier("w");
   const now = new Date();
   await getDb()
-    .insert(sessions)
+    .insert(threads)
     .values({
       id: sessionId,
       userId,
@@ -106,7 +114,7 @@ async function claimSubmit(
 }
 
 async function cleanup(sessionId: string): Promise<void> {
-  await getDb().delete(sessions).where(eq(sessions.id, sessionId));
+  await getDb().delete(threads).where(eq(threads.id, sessionId));
 }
 
 after(async () => {
@@ -127,12 +135,87 @@ test("concurrent claims serialize on history revision", { skip: !enabled }, asyn
     assert.ok(rejected[0]?.reason instanceof ConflictError);
     assert.equal(rejected[0]?.reason.code, "history_revision_conflict");
 
-    const runs = await getDb().select().from(agentRuns).where(eq(agentRuns.sessionId, sessionId));
-    const persistedMessages = await getDb().select().from(messages).where(eq(messages.sessionId, sessionId));
-    const leases = await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, sessionId));
+    const runs = await getDb().select().from(turns).where(eq(turns.threadId, sessionId));
+    const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
+    const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId));
     assert.equal(runs.length, 1);
     assert.equal(persistedMessages.length, 1);
     assert.equal(leases.length, 1);
+  } finally {
+    await cleanup(sessionId);
+  }
+});
+
+test("Turn plugin snapshots are immutable and never persist connection grants", { skip: !enabled }, async () => {
+  const { sessionId, userId } = await createSession();
+  try {
+    const claim = await claimSubmit(sessionId, userId);
+    const snapshot: ResolvedTurnPluginSnapshot = {
+      schemaVersion: 1,
+      snapshotId: identifier("snapshot"),
+      snapshotDigest: `sha256:${"a".repeat(64)}`,
+      workspaceRevision: 1,
+      tenantId: "tenant-1",
+      workspaceId: "workspace-1",
+      resolvedAt: new Date().toISOString(),
+      plugins: [],
+      connectionGrants: [
+        {
+          pluginId: "knowledge@platform",
+          serverName: "knowledge",
+          headers: { authorization: "Bearer must-not-persist" },
+        },
+      ],
+    };
+
+    await persistAgentRunPluginSnapshot(lease(claim), snapshot);
+    await persistAgentRunPluginSnapshot(lease(claim), snapshot);
+    const [row] = await getDb()
+      .select({ snapshot: turnPluginSnapshots.snapshot })
+      .from(turnPluginSnapshots)
+      .where(eq(turnPluginSnapshots.turnId, claim.runId));
+    assert.ok(row);
+    const serialized = JSON.stringify(row.snapshot);
+    assert.equal(serialized.includes("connectionGrants"), false);
+    assert.equal(serialized.includes("must-not-persist"), false);
+
+    await assert.rejects(
+      persistAgentRunPluginSnapshot(lease(claim), { ...snapshot, snapshotId: identifier("snapshot") }),
+      /plugin snapshot is immutable/,
+    );
+  } finally {
+    await cleanup(sessionId);
+  }
+});
+
+test("lease takeover increments the epoch and fences the old Turn owner", { skip: !enabled }, async () => {
+  const { sessionId, userId } = await createSession();
+  try {
+    const claim = await claimSubmit(sessionId, userId);
+    await getDb()
+      .update(turnLeases)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(turnLeases.turnId, claim.runId));
+    const next = await acquireRunLease(sessionId, claim.runId);
+    assert.equal(next.attemptEpoch, claim.attemptEpoch + 1n);
+    await assert.rejects(
+      persistAgentRunPluginSnapshot(lease(claim), {
+        schemaVersion: 1,
+        snapshotId: identifier("snapshot"),
+        snapshotDigest: "a".repeat(64),
+        workspaceRevision: 1,
+        tenantId: "tenant",
+        workspaceId: "workspace",
+        resolvedAt: new Date().toISOString(),
+        plugins: [],
+        connectionGrants: [],
+      }),
+      (error: unknown) => error instanceof ConflictError && error.code === "run_lease_lost",
+    );
+    await releaseRun(lease(claim));
+    const [current] = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
+    assert.equal(current?.attemptEpoch, next.attemptEpoch, "stale release must not delete the new owner lease");
+    await releaseRun(next);
   } finally {
     await cleanup(sessionId);
   }
@@ -173,14 +256,14 @@ test("history selection reclaims terminal and expired run leases", { skip: !enab
       const claim = await claimSubmit(sessionId, userId);
       if (staleKind === "terminal") {
         await getDb()
-          .update(agentRuns)
-          .set({ status: "completed", finishedAt: new Date() })
-          .where(eq(agentRuns.id, claim.runId));
+          .update(turns)
+          .set({ status: "completed", completedAt: new Date() })
+          .where(eq(turns.id, claim.runId));
       } else {
         await getDb()
-          .update(sessionRunLeases)
+          .update(turnLeases)
           .set({ expiresAt: new Date(0) })
-          .where(eq(sessionRunLeases.runId, claim.runId));
+          .where(eq(turnLeases.turnId, claim.runId));
       }
 
       const detail = await selectSessionHistory(auth, sessionId, {
@@ -189,9 +272,9 @@ test("history selection reclaims terminal and expired run leases", { skip: !enab
       });
       assert.equal(detail.selected_message_id, claim.inputMessageId);
       assert.equal(detail.revision, 2);
-      const [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
+      const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
       assert.equal(run?.status, staleKind === "terminal" ? "completed" : "interrupted");
-      const leases = await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, sessionId));
+      const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId));
       assert.equal(leases.length, 0);
     } finally {
       await cleanup(sessionId);
@@ -204,23 +287,20 @@ test("terminal run cleanup and session deletion cannot leave blocking leases", {
   const deleted = await createSession();
   try {
     const finishedClaim = await claimSubmit(finished.sessionId, finished.userId);
-    await finishAgentRun({ runId: finishedClaim.runId, status: "failed", error: "provider failed" });
+    await finishAgentRun({ ...lease(finishedClaim), status: "failed", error: "provider failed" });
     assert.equal(
-      (await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, finished.sessionId))).length,
+      (await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, finished.sessionId))).length,
       0,
     );
 
     const deletedClaim = await claimSubmit(deleted.sessionId, deleted.userId);
     await getDb()
-      .update(agentRuns)
-      .set({ status: "completed", finishedAt: new Date() })
-      .where(eq(agentRuns.id, deletedClaim.runId));
+      .update(turns)
+      .set({ status: "completed", completedAt: new Date() })
+      .where(eq(turns.id, deletedClaim.runId));
     await deleteSession(deleted.auth, deleted.sessionId);
-    assert.equal((await getDb().select().from(sessions).where(eq(sessions.id, deleted.sessionId))).length, 0);
-    assert.equal(
-      (await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, deleted.sessionId))).length,
-      0,
-    );
+    assert.equal((await getDb().select().from(threads).where(eq(threads.id, deleted.sessionId))).length, 0);
+    assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, deleted.sessionId))).length, 0);
   } finally {
     await cleanup(finished.sessionId);
     await cleanup(deleted.sessionId);
@@ -235,7 +315,7 @@ test("message listing reads the selected pointer and graph from one ordered snap
     let listing: ReturnType<typeof listMessages> | undefined;
     await getSql().begin(async (tx) => {
       const [blocker] = await tx`select pg_backend_pid() as pid`;
-      await tx`lock table sessions in access exclusive mode`;
+      await tx`lock table threads in access exclusive mode`;
       listing = listMessages(sessionId);
       const deadline = Date.now() + 5_000;
       while (true) {
@@ -249,17 +329,23 @@ test("message listing reads the selected pointer and graph from one ordered snap
         });
       }
       await tx`
-        insert into messages (
-          id, session_id, role, content, status, parent_message_id, branch_index, created_at
-        ) values (
-          ${newLeafId}, ${sessionId}, 'assistant',
-          ${JSON.stringify({ version: 2, parts: [{ type: "text", text: "new leaf" }] })}::jsonb,
-          'ok', ${claim.inputMessageId}, 0, now()
+        with next_item as (
+          update threads
+          set item_sequence = item_sequence + 1,
+              history_revision = history_revision + 1,
+              selected_item_id = ${newLeafId},
+              updated_at = now()
+          where id = ${sessionId}
+          returning item_sequence
         )
-      `;
-      await tx`
-        update sessions set selected_message_id = ${newLeafId}, updated_at = now()
-        where id = ${sessionId}
+        insert into thread_items (
+          id, thread_id, turn_id, ordinal, role, content, status,
+          parent_item_id, branch_index, revision, created_at, updated_at
+        )
+        select ${newLeafId}, ${sessionId}, ${claim.runId}, next_item.item_sequence, 'assistant',
+          ${JSON.stringify({ version: 2, parts: [{ type: "text", text: "new leaf" }] })}::jsonb,
+          'ok', ${claim.inputMessageId}, 0, 1, now(), now()
+        from next_item
       `;
     });
 
@@ -302,8 +388,8 @@ test("an exact request retry reuses its run while changed payload is rejected", 
       (error: unknown) => error instanceof ConflictError && error.code === "request_id_conflict",
     );
 
-    const runs = await getDb().select().from(agentRuns).where(eq(agentRuns.sessionId, sessionId));
-    const persistedMessages = await getDb().select().from(messages).where(eq(messages.sessionId, sessionId));
+    const runs = await getDb().select().from(turns).where(eq(turns.threadId, sessionId));
+    const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
     assert.equal(runs.length, 1);
     assert.equal(persistedMessages.length, 1);
   } finally {
@@ -316,9 +402,9 @@ test("journal finalization rolls tool updates back with message failure", { skip
   try {
     const claim = await claimSubmit(sessionId, userId);
     const toolCallId = identifier("tool");
-    await getDb().insert(agentToolCalls).values({
+    await getDb().insert(toolExecutions).values({
       id: toolCallId,
-      runId: claim.runId,
+      turnId: claim.runId,
       toolName: "test_tool",
       status: "running",
       inputJson: {},
@@ -328,7 +414,7 @@ test("journal finalization rolls tool updates back with message failure", { skip
     const output = { ok: true, status: "completed", data: { value: 1 } };
     await assert.rejects(
       finalizeAgentRunJournal({
-        runId: claim.runId,
+        ...lease(claim),
         parts: [{ type: "tool-test_tool", toolCallId, state: "output-available", output }],
         aborted: false,
         message: {
@@ -340,14 +426,14 @@ test("journal finalization rolls tool updates back with message failure", { skip
       }),
     );
 
-    const [toolCall] = await getDb().select().from(agentToolCalls).where(eq(agentToolCalls.id, toolCallId));
-    const [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
-    const leases = await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.runId, claim.runId));
-    const persistedMessages = await getDb().select().from(messages).where(eq(messages.sessionId, sessionId));
+    const [toolCall] = await getDb().select().from(toolExecutions).where(eq(toolExecutions.id, toolCallId));
+    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
+    const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
     assert.equal(toolCall?.status, "running");
     assert.equal(toolCall?.outputJson, null);
     assert.equal(run?.status, "running");
-    assert.equal(run?.outputMessageId, null);
+    assert.equal(run?.outputItemId, null);
     assert.equal(leases.length, 1);
     assert.equal(persistedMessages.length, 1);
   } finally {
@@ -372,11 +458,11 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
       },
     };
     await getDb()
-      .insert(agentToolCalls)
+      .insert(toolExecutions)
       .values([
         {
           id: runningToolId,
-          runId: claim.runId,
+          turnId: claim.runId,
           toolName: "client_tool",
           status: "running",
           inputJson: {},
@@ -384,18 +470,18 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
         },
         {
           id: todoToolId,
-          runId: claim.runId,
+          turnId: claim.runId,
           toolName: "update_todos",
           status: "completed",
           inputJson: {},
           outputJson: todoOutput,
           createdAt: new Date(),
-          finishedAt: new Date(),
+          completedAt: new Date(),
         },
       ]);
     const outputMessageId = identifier("msg");
     const first = await finalizeAgentRunJournal({
-      runId: claim.runId,
+      ...lease(claim),
       parts: [{ type: "tool-client_tool", toolCallId: runningToolId, state: "output-error", errorText: "已取消。" }],
       aborted: true,
       message: {
@@ -406,7 +492,7 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
       status: "cancelled",
     });
     const duplicate = await finalizeAgentRunJournal({
-      runId: claim.runId,
+      ...lease(claim),
       parts: [],
       aborted: false,
       message: {
@@ -419,7 +505,7 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
 
     assert.deepEqual(duplicate, first);
     assert.equal(first.outputMessageId, outputMessageId);
-    const toolCalls = await getDb().select().from(agentToolCalls).where(eq(agentToolCalls.runId, claim.runId));
+    const toolCalls = await getDb().select().from(toolExecutions).where(eq(toolExecutions.turnId, claim.runId));
     const running = toolCalls.find((row) => row.id === runningToolId);
     const todo = toolCalls.find((row) => row.id === todoToolId);
     assert.equal(running?.status, "failed");
@@ -433,11 +519,11 @@ test("journal finalization is idempotent and cancellation closes tool state", { 
         ],
       },
     });
-    const [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
-    const persistedMessages = await getDb().select().from(messages).where(eq(messages.sessionId, sessionId));
-    const leases = await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.runId, claim.runId));
+    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const persistedMessages = await getDb().select().from(threadItems).where(eq(threadItems.threadId, sessionId));
+    const leases = await getDb().select().from(turnLeases).where(eq(turnLeases.turnId, claim.runId));
     assert.equal(run?.status, "cancelled");
-    assert.equal(run?.outputMessageId, outputMessageId);
+    assert.equal(run?.outputItemId, outputMessageId);
     assert.equal(persistedMessages.length, 2);
     assert.equal(leases.length, 0);
   } finally {
@@ -462,7 +548,7 @@ test("client continuation validation and journal merge share the claim transacti
       toolMetadata: { agent: { execution: "client" } },
     };
     await finalizeAgentRunJournal({
-      runId: claim.runId,
+      ...lease(claim),
       parts: [awaiting],
       aborted: false,
       status: "completed",
@@ -493,21 +579,18 @@ test("client continuation validation and journal merge share the claim transacti
       claimAgentRunOperation({ ...operation, continuationMessage: response("forged") }),
       /unknown choice/,
     );
-    const [unchanged] = await getDb().select().from(sessions).where(eq(sessions.id, sessionId));
-    const [message] = await getDb().select().from(messages).where(eq(messages.id, assistantId));
+    const [unchanged] = await getDb().select().from(threads).where(eq(threads.id, sessionId));
+    const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, assistantId));
     assert.equal(unchanged?.historyRevision, 1n);
     assert.deepEqual(message?.content.parts, [awaiting]);
-    assert.equal((await getDb().select().from(agentRuns).where(eq(agentRuns.sessionId, sessionId))).length, 1);
-    assert.equal(
-      (await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, sessionId))).length,
-      0,
-    );
+    assert.equal((await getDb().select().from(turns).where(eq(turns.threadId, sessionId))).length, 1);
+    assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId))).length, 0);
     const valid = { ...operation, continuationMessage: response("a") };
     const continued = await claimAgentRunOperation(valid);
     const retried = await claimAgentRunOperation(valid);
     assert.equal(retried.runId, continued.runId);
     assert.equal(retried.duplicate, true);
-    const [merged] = await getDb().select().from(messages).where(eq(messages.id, assistantId));
+    const [merged] = await getDb().select().from(threadItems).where(eq(threadItems.id, assistantId));
     assert.deepEqual(merged?.content.parts, valid.continuationMessage.parts);
   } finally {
     await cleanup(sessionId);
@@ -524,9 +607,9 @@ test(
       const claim = await claimSubmit(sessionId, userId);
       await getSql().begin(async (tx) => {
         const [blocker] = await tx`select pg_backend_pid() as pid`;
-        await tx`select id from sessions where id = ${sessionId} for update`;
+        await tx`select id from threads where id = ${sessionId} for update`;
         finalizing = finalizeAgentRunJournal({
-          runId: claim.runId,
+          ...lease(claim),
           parts: [],
           aborted: false,
           message: null,
@@ -544,7 +627,7 @@ test(
             setTimeout(resolve, 10);
           });
         }
-        await tx`select id from agent_runs where id = ${claim.runId} for update nowait`;
+        await tx`select id from turns where id = ${claim.runId} for update nowait`;
       });
     } finally {
       await finalizing;
@@ -560,8 +643,8 @@ test("terminal cleanup locks session before run and lease", { skip: !enabled }, 
     const claim = await claimSubmit(sessionId, userId);
     await getSql().begin(async (tx) => {
       const [blocker] = await tx`select pg_backend_pid() as pid`;
-      await tx`select id from sessions where id = ${sessionId} for update`;
-      finishing = finishAgentRun({ runId: claim.runId, status: "failed", error: "provider failed" });
+      await tx`select id from threads where id = ${sessionId} for update`;
+      finishing = finishAgentRun({ ...lease(claim), status: "failed", error: "provider failed" });
       const deadline = Date.now() + 5_000;
       while (true) {
         const blocked = await getSql()`
@@ -573,8 +656,8 @@ test("terminal cleanup locks session before run and lease", { skip: !enabled }, 
           setTimeout(resolve, 10);
         });
       }
-      await tx`select id from agent_runs where id = ${claim.runId} for update nowait`;
-      await tx`select run_id from session_run_leases where run_id = ${claim.runId} for update nowait`;
+      await tx`select id from turns where id = ${claim.runId} for update nowait`;
+      await tx`select turn_id from turn_leases where turn_id = ${claim.runId} for update nowait`;
     });
   } finally {
     await finishing;
@@ -587,10 +670,10 @@ test("a trace completion gap cannot override the SDK outcome or leave a running 
   try {
     const claim = await claimSubmit(sessionId, userId);
     await getDb()
-      .insert(agentSteps)
+      .insert(turnSteps)
       .values({
         id: identifier("step"),
-        runId: claim.runId,
+        turnId: claim.runId,
         stepIndex: 0,
         kind: "model",
         status: "running",
@@ -598,7 +681,7 @@ test("a trace completion gap cannot override the SDK outcome or leave a running 
       });
     const messageId = identifier("msg");
     await finalizeAgentRunJournal({
-      runId: claim.runId,
+      ...lease(claim),
       parts: [{ type: "text", text: "partial" }],
       aborted: false,
       status: "completed",
@@ -608,9 +691,9 @@ test("a trace completion gap cannot override the SDK outcome or leave a running 
         content: { version: 2, parts: [{ type: "text", text: "partial" }], metadata: { status: "completed" } },
       },
     });
-    const [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
-    const [message] = await getDb().select().from(messages).where(eq(messages.id, messageId));
-    const [step] = await getDb().select().from(agentSteps).where(eq(agentSteps.runId, claim.runId));
+    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, messageId));
+    const [step] = await getDb().select().from(turnSteps).where(eq(turnSteps.turnId, claim.runId));
     assert.equal(run?.status, "completed");
     assert.equal(message?.status, "ok");
     assert.equal(message?.content.metadata?.status, "completed");
@@ -628,9 +711,9 @@ test("cancellation committed after the stream snapshot wins in journal finalizat
     const claim = await claimSubmit(sessionId, userId);
     const toolCallId = identifier("tool");
     const parts = [{ type: "tool-ask_user", toolCallId, state: "input-available", input: {} }];
-    await getDb().insert(agentToolCalls).values({
+    await getDb().insert(toolExecutions).values({
       id: toolCallId,
-      runId: claim.runId,
+      turnId: claim.runId,
       toolName: "ask_user",
       status: "running",
       inputJson: {},
@@ -639,7 +722,7 @@ test("cancellation committed after the stream snapshot wins in journal finalizat
     await requestAgentRunCancellation(claim.runId);
     const messageId = identifier("msg");
     await finalizeAgentRunJournal({
-      runId: claim.runId,
+      ...lease(claim),
       parts,
       aborted: false,
       status: "completed",
@@ -649,9 +732,9 @@ test("cancellation committed after the stream snapshot wins in journal finalizat
         content: { version: 2, parts, metadata: { status: "completed" } },
       },
     });
-    const [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
-    const [message] = await getDb().select().from(messages).where(eq(messages.id, messageId));
-    const [toolCall] = await getDb().select().from(agentToolCalls).where(eq(agentToolCalls.id, toolCallId));
+    const [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
+    const [message] = await getDb().select().from(threadItems).where(eq(threadItems.id, messageId));
+    const [toolCall] = await getDb().select().from(toolExecutions).where(eq(toolExecutions.id, toolCallId));
     assert.equal(run?.status, "cancelled");
     assert.equal(message?.status, "failed");
     assert.equal(message?.content.metadata?.status, "cancelled");
@@ -671,17 +754,17 @@ test(
     try {
       const claim = await claimSubmit(sessionId, userId);
       await finalizeAgentRunJournal({
-        runId: claim.runId,
+        ...lease(claim),
         parts: [],
         aborted: false,
         message: null,
         status: "completed",
       });
-      await finishAgentRun({ runId: claim.runId, status: "failed", error: "cleanup failed after commit" });
-      let [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
+      await finishAgentRun({ ...lease(claim), status: "failed", error: "cleanup failed after commit" });
+      let [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
       assert.equal(run?.status, "completed");
       await interruptRuns([claim.runId]);
-      [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
+      [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
       assert.equal(run?.status, "completed");
     } finally {
       await cleanup(sessionId);
@@ -694,14 +777,14 @@ test("orphan reconciliation rechecks a renewed lease before interrupting", { ski
   try {
     const claim = await claimSubmit(sessionId, userId);
     await interruptRuns([claim.runId]);
-    let [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
+    let [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
     assert.equal(run?.status, "running");
     await getDb()
-      .update(sessionRunLeases)
+      .update(turnLeases)
       .set({ expiresAt: new Date(0) })
-      .where(eq(sessionRunLeases.runId, claim.runId));
+      .where(eq(turnLeases.turnId, claim.runId));
     await interruptRuns([claim.runId]);
-    [run] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, claim.runId));
+    [run] = await getDb().select().from(turns).where(eq(turns.id, claim.runId));
     assert.equal(run?.status, "interrupted");
   } finally {
     await cleanup(sessionId);
@@ -733,11 +816,8 @@ test(
       );
       assert.deepEqual(await listAgentRunInputs({ sessionId, runId: claim.runId, userId }), [accepted]);
 
-      await finishAgentRun({ runId: claim.runId, status: "completed" });
-      const [settled] = await getDb()
-        .select()
-        .from(agentRunInputs)
-        .where(eq(agentRunInputs.clientMessageId, clientMessageId));
+      await finishAgentRun({ ...lease(claim), status: "completed" });
+      const [settled] = await getDb().select().from(turnInputs).where(eq(turnInputs.id, clientMessageId));
       assert.equal(settled?.state, "not_delivered");
       assert.equal(settled?.reason, "finished");
       const retried = await acceptAgentRunInput(input);

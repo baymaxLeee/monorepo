@@ -1,23 +1,49 @@
+-- Chat v1.0.0 fresh-install baseline.
+-- Chat owns product metadata and a durable mapping saga only. Runtime owns the
+-- Thread journal, Turns, Items, tools, files, approvals and execution state.
+
 CREATE TABLE conversations (
     id varchar(32) PRIMARY KEY,
-    runtime_session_id varchar(32) NOT NULL UNIQUE,
+    state varchar(20) NOT NULL DEFAULT 'creating',
+    operation varchar(20) NOT NULL,
+    runtime_thread_id varchar(32) UNIQUE,
     create_request_id varchar(64) NOT NULL,
+    create_fingerprint varchar(64) NOT NULL,
+    runtime_request jsonb NOT NULL,
+    source_conversation_id varchar(32),
+    source_message_id varchar(32),
     user_id varchar(128) NOT NULL,
     tenant_id varchar(128) NOT NULL,
     workspace_id varchar(128) NOT NULL,
     title varchar(200) NOT NULL DEFAULT '新对话',
-    project_id varchar(36),
-    canvas_id varchar(36),
+    plugin_selections_json jsonb NOT NULL DEFAULT '[]'::jsonb,
+    attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    next_attempt_at timestamptz NOT NULL,
+    last_error text,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL
+    updated_at timestamptz NOT NULL,
+    CONSTRAINT conversations_state_check CHECK (state IN ('creating', 'ready', 'deleting')),
+    CONSTRAINT conversations_operation_check CHECK (operation IN ('create', 'fork')),
+    CONSTRAINT conversations_plugin_selections_check CHECK (
+        jsonb_typeof(plugin_selections_json) = 'array'
+        AND jsonb_array_length(plugin_selections_json) <= 16
+    ),
+    CONSTRAINT conversations_runtime_binding_check CHECK (
+        (state = 'creating') OR runtime_thread_id IS NOT NULL
+    ),
+    CONSTRAINT conversations_fork_source_check CHECK (
+        (operation = 'create' AND source_conversation_id IS NULL AND source_message_id IS NULL)
+        OR (operation = 'fork' AND source_conversation_id IS NOT NULL AND source_message_id IS NOT NULL)
+    )
 );
 
 CREATE INDEX ix_conversations_scope_updated
-    ON conversations (tenant_id, workspace_id, user_id, updated_at DESC);
+    ON conversations (tenant_id, workspace_id, user_id, updated_at DESC)
+    WHERE state = 'ready';
+
+CREATE INDEX ix_conversations_reconcile
+    ON conversations (state, next_attempt_at, created_at)
+    WHERE state IN ('creating', 'deleting');
 
 CREATE UNIQUE INDEX ux_conversations_create_request
     ON conversations (tenant_id, workspace_id, user_id, create_request_id);
-
-CREATE UNIQUE INDEX ux_conversations_canvas_owner
-    ON conversations (tenant_id, workspace_id, user_id, project_id, canvas_id)
-    WHERE project_id IS NOT NULL AND canvas_id IS NOT NULL;

@@ -4,18 +4,20 @@ import { DatabaseSync } from "node:sqlite";
 
 import { parseRuntimeCompactionState } from "@repo/agent-runtime/context/compaction";
 import type { RuntimeContextCheckpoint, RuntimeContextCheckpointWrite } from "@repo/agent-runtime/context/manager";
+import { toPersistedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
+import type { PersistedTurnPluginSnapshot, ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
 import type { UIMessage } from "ai";
 
 import type { LocalThread } from "../../contracts/bridge.generated";
 
-/** SQLite rollout store for the local host. It is intentionally not compatible with the pre-kernel sessions database. */
+/** SQLite rollout store for the local host. Previous Desktop database filenames are intentionally not imported. */
 export class LocalJournal {
   private readonly db: DatabaseSync;
 
   constructor(directory: string) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     chmodSync(directory, 0o700);
-    this.db = new DatabaseSync(join(directory, "runtime-v1.sqlite"));
+    this.db = new DatabaseSync(join(directory, "runtime.sqlite"));
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;");
     const version = Number(this.db.prepare("PRAGMA user_version").get()?.user_version ?? 0);
     if (version !== 0 && version !== 1) {
@@ -53,6 +55,13 @@ export class LocalJournal {
           state TEXT NOT NULL,
           estimated_tokens INTEGER NOT NULL,
           updated_at TEXT NOT NULL
+        );
+        CREATE TABLE turn_plugin_snapshots (
+          turn_id TEXT PRIMARY KEY REFERENCES turns(id) ON DELETE CASCADE,
+          snapshot_id TEXT NOT NULL,
+          snapshot_digest TEXT NOT NULL CHECK(length(snapshot_digest) = 71 AND snapshot_digest GLOB 'sha256:*'),
+          value TEXT NOT NULL CHECK(json_valid(value)),
+          created_at TEXT NOT NULL
         );
         PRAGMA user_version=1;
         COMMIT;`);
@@ -173,6 +182,27 @@ export class LocalJournal {
         checkpoint.expectedRevision,
       );
     if (result.changes !== 1) throw new Error("local context checkpoint revision conflict");
+  }
+
+  savePluginSnapshot(turnId: string, snapshot: ResolvedTurnPluginSnapshot): void {
+    const persisted = toPersistedTurnPluginSnapshot(snapshot);
+    const value = JSON.stringify(persisted);
+    const existing = this.db.prepare("SELECT value FROM turn_plugin_snapshots WHERE turn_id=?").get(turnId);
+    if (existing) {
+      if (String(existing.value) !== value) throw new Error("local turn plugin snapshot is immutable");
+      return;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO turn_plugin_snapshots(turn_id,snapshot_id,snapshot_digest,value,created_at)
+         VALUES(?,?,?,?,?)`,
+      )
+      .run(turnId, persisted.snapshotId, persisted.snapshotDigest, value, new Date().toISOString());
+  }
+
+  getPluginSnapshot(turnId: string): PersistedTurnPluginSnapshot | null {
+    const row = this.db.prepare("SELECT value FROM turn_plugin_snapshots WHERE turn_id=?").get(turnId);
+    return row ? (JSON.parse(String(row.value)) as PersistedTurnPluginSnapshot) : null;
   }
 
   remove(id: string): void {

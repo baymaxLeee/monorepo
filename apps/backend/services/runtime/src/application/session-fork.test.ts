@@ -42,9 +42,10 @@ function setup() {
         providerId: "provider",
         reasoningEffort: "medium",
         executionMode: "cloud",
-        runRevision: 0n,
+        turnSequence: 0n,
+        itemSequence: 3n,
         historyRevision: 0n,
-        selectedMessageId: "2",
+        selectedItemId: "2",
         createdAt: new Date(),
         updatedAt: new Date(),
       };

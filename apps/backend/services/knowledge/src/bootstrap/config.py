@@ -26,6 +26,19 @@ class Settings(BaseSettings):
 
     admin_rpc_target: str = "localhost:9001"
     storage_rpc_target: str = "localhost:9013"
+    internal_service_tokens: dict[str, str] = Field(default_factory=lambda: {"runtime": "dev-runtime-internal-token"})
+    mcp_allowed_hosts: list[str] = Field(
+        default_factory=lambda: [
+            "localhost",
+            "localhost:*",
+            "127.0.0.1",
+            "127.0.0.1:*",
+            "[::1]",
+            "[::1]:*",
+            "knowledge",
+            "knowledge:*",
+        ]
+    )
 
     media_max_object_bytes: int = 512 * 1024 * 1024
     attachment_max_upload_bytes: int = 10 * 1024 * 1024
@@ -60,16 +73,27 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.environment == "production"
 
+    @property
+    def runtime_caller_token(self) -> str:
+        return self.internal_service_tokens["runtime"]
+
     @model_validator(mode="after")
     def _enforce_production_safety(self) -> Settings:
         missing: list[str] = []
         if self.ingest_max_batch_bytes < self.attachment_max_upload_bytes:
             raise ValueError("INGEST_MAX_BATCH_BYTES must be at least ATTACHMENT_MAX_UPLOAD_BYTES")
+        if not self.mcp_allowed_hosts or any(not value.strip() for value in self.mcp_allowed_hosts):
+            raise ValueError("MCP_ALLOWED_HOSTS must contain explicit non-empty hosts")
+        runtime_token = self.internal_service_tokens.get("runtime")
+        if set(self.internal_service_tokens) != {"runtime"} or not runtime_token:
+            raise ValueError("INTERNAL_SERVICE_TOKENS must define exactly runtime")
         if self.environment != "development":
             if self.postgres_password.strip().lower() in _INSECURE_PASSWORDS:
                 missing.append("POSTGRES_PASSWORD")
             if self.postgres_host in {"localhost", "127.0.0.1"}:
                 missing.append("POSTGRES_HOST")
+            if len(runtime_token) < 32 or runtime_token.startswith("dev-"):
+                missing.append("INTERNAL_SERVICE_TOKENS")
         if missing:
             raise ValueError("deployed environment requires explicit values for: " + ", ".join(missing))
         return self

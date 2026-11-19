@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { createApp } from "../../../bootstrap/server-app.js";
 import { markBootReady } from "../../../infrastructure/health/readiness.js";
 import { getDb, getSql } from "../../../infrastructure/persistence/index.js";
-import { sessions } from "../../../infrastructure/persistence/schema.js";
+import { threads as sessions } from "../../../infrastructure/persistence/schema.js";
 import { closeRedisClient, getRedisClient } from "../../../infrastructure/redis/index.js";
 import {
   AGENT_STREAM_MAX_BYTES,

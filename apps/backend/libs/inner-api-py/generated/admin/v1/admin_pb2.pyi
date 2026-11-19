@@ -301,6 +301,226 @@ class GetCanvasSettingsResponse(_message.Message):
     settings: CanvasSettings
     def __init__(self, settings: _Optional[_Union[CanvasSettings, _Mapping]] = ...) -> None: ...
 
+class ListAgentPluginsRequest(_message.Message):
+    __slots__ = ("actor",)
+    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    actor: _context_pb2.ActorContext
+    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ...) -> None: ...
+
+class ListAgentPluginsResponse(_message.Message):
+    __slots__ = ("plugins",)
+    PLUGINS_FIELD_NUMBER: _ClassVar[int]
+    plugins: _containers.RepeatedCompositeFieldContainer[AgentPluginCatalogItem]
+    def __init__(self, plugins: _Optional[_Iterable[_Union[AgentPluginCatalogItem, _Mapping]]] = ...) -> None: ...
+
+class AgentPluginCatalogItem(_message.Message):
+    __slots__ = ("plugin_id", "display_name", "description", "source", "trust", "install_policy", "availability", "installed", "enabled", "state_revision", "latest_release")
+    PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
+    DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    TRUST_FIELD_NUMBER: _ClassVar[int]
+    INSTALL_POLICY_FIELD_NUMBER: _ClassVar[int]
+    AVAILABILITY_FIELD_NUMBER: _ClassVar[int]
+    INSTALLED_FIELD_NUMBER: _ClassVar[int]
+    ENABLED_FIELD_NUMBER: _ClassVar[int]
+    STATE_REVISION_FIELD_NUMBER: _ClassVar[int]
+    LATEST_RELEASE_FIELD_NUMBER: _ClassVar[int]
+    plugin_id: str
+    display_name: str
+    description: str
+    source: str
+    trust: str
+    install_policy: str
+    availability: str
+    installed: bool
+    enabled: bool
+    state_revision: int
+    latest_release: AgentPluginManifest
+    def __init__(self, plugin_id: _Optional[str] = ..., display_name: _Optional[str] = ..., description: _Optional[str] = ..., source: _Optional[str] = ..., trust: _Optional[str] = ..., install_policy: _Optional[str] = ..., availability: _Optional[str] = ..., installed: _Optional[bool] = ..., enabled: _Optional[bool] = ..., state_revision: _Optional[int] = ..., latest_release: _Optional[_Union[AgentPluginManifest, _Mapping]] = ...) -> None: ...
+
+class AgentPluginActivation(_message.Message):
+    __slots__ = ("plugin_id", "bindings")
+    class BindingsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
+    BINDINGS_FIELD_NUMBER: _ClassVar[int]
+    plugin_id: str
+    bindings: _containers.ScalarMap[str, str]
+    def __init__(self, plugin_id: _Optional[str] = ..., bindings: _Optional[_Mapping[str, str]] = ...) -> None: ...
+
+class ResolveAgentPluginsRequest(_message.Message):
+    __slots__ = ("actor", "activations", "workspace_role")
+    ACTOR_FIELD_NUMBER: _ClassVar[int]
+    ACTIVATIONS_FIELD_NUMBER: _ClassVar[int]
+    WORKSPACE_ROLE_FIELD_NUMBER: _ClassVar[int]
+    actor: _context_pb2.ActorContext
+    activations: _containers.RepeatedCompositeFieldContainer[AgentPluginActivation]
+    workspace_role: str
+    def __init__(self, actor: _Optional[_Union[_context_pb2.ActorContext, _Mapping]] = ..., activations: _Optional[_Iterable[_Union[AgentPluginActivation, _Mapping]]] = ..., workspace_role: _Optional[str] = ...) -> None: ...
+
+class AgentPluginToolPolicy(_message.Message):
+    __slots__ = ("capability", "callable_by_code_mode", "effect", "trust", "execution", "source_projection", "streaming", "ui_kind")
+    CAPABILITY_FIELD_NUMBER: _ClassVar[int]
+    CALLABLE_BY_CODE_MODE_FIELD_NUMBER: _ClassVar[int]
+    EFFECT_FIELD_NUMBER: _ClassVar[int]
+    TRUST_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_PROJECTION_FIELD_NUMBER: _ClassVar[int]
+    STREAMING_FIELD_NUMBER: _ClassVar[int]
+    UI_KIND_FIELD_NUMBER: _ClassVar[int]
+    capability: str
+    callable_by_code_mode: bool
+    effect: str
+    trust: str
+    execution: str
+    source_projection: _struct_pb2.Struct
+    streaming: bool
+    ui_kind: str
+    def __init__(self, capability: _Optional[str] = ..., callable_by_code_mode: _Optional[bool] = ..., effect: _Optional[str] = ..., trust: _Optional[str] = ..., execution: _Optional[str] = ..., source_projection: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ..., streaming: _Optional[bool] = ..., ui_kind: _Optional[str] = ...) -> None: ...
+
+class AgentPluginToolPlanning(_message.Message):
+    __slots__ = ("summary", "constraints", "prerequisites", "parallelizable")
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    CONSTRAINTS_FIELD_NUMBER: _ClassVar[int]
+    PREREQUISITES_FIELD_NUMBER: _ClassVar[int]
+    PARALLELIZABLE_FIELD_NUMBER: _ClassVar[int]
+    summary: str
+    constraints: _containers.RepeatedScalarFieldContainer[str]
+    prerequisites: _containers.RepeatedScalarFieldContainer[str]
+    parallelizable: bool
+    def __init__(self, summary: _Optional[str] = ..., constraints: _Optional[_Iterable[str]] = ..., prerequisites: _Optional[_Iterable[str]] = ..., parallelizable: _Optional[bool] = ...) -> None: ...
+
+class AgentPluginMCPTool(_message.Message):
+    __slots__ = ("name", "description", "input_schema", "output_schema", "policy", "planning")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    INPUT_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    POLICY_FIELD_NUMBER: _ClassVar[int]
+    PLANNING_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    description: str
+    input_schema: _struct_pb2.Struct
+    output_schema: _struct_pb2.Struct
+    policy: AgentPluginToolPolicy
+    planning: AgentPluginToolPlanning
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., input_schema: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ..., output_schema: _Optional[_Union[_struct_pb2.Struct, _Mapping]] = ..., policy: _Optional[_Union[AgentPluginToolPolicy, _Mapping]] = ..., planning: _Optional[_Union[AgentPluginToolPlanning, _Mapping]] = ...) -> None: ...
+
+class AgentPluginMCPServer(_message.Message):
+    __slots__ = ("name", "url", "required_bindings", "optional_bindings", "tools")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    REQUIRED_BINDINGS_FIELD_NUMBER: _ClassVar[int]
+    OPTIONAL_BINDINGS_FIELD_NUMBER: _ClassVar[int]
+    TOOLS_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    url: str
+    required_bindings: _containers.RepeatedScalarFieldContainer[str]
+    optional_bindings: _containers.RepeatedScalarFieldContainer[str]
+    tools: _containers.RepeatedCompositeFieldContainer[AgentPluginMCPTool]
+    def __init__(self, name: _Optional[str] = ..., url: _Optional[str] = ..., required_bindings: _Optional[_Iterable[str]] = ..., optional_bindings: _Optional[_Iterable[str]] = ..., tools: _Optional[_Iterable[_Union[AgentPluginMCPTool, _Mapping]]] = ...) -> None: ...
+
+class AgentPluginSkillContribution(_message.Message):
+    __slots__ = ("id", "name", "description", "asset_id", "revision_id", "sha256")
+    ID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    ASSET_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_ID_FIELD_NUMBER: _ClassVar[int]
+    SHA256_FIELD_NUMBER: _ClassVar[int]
+    id: str
+    name: str
+    description: str
+    asset_id: str
+    revision_id: str
+    sha256: str
+    def __init__(self, id: _Optional[str] = ..., name: _Optional[str] = ..., description: _Optional[str] = ..., asset_id: _Optional[str] = ..., revision_id: _Optional[str] = ..., sha256: _Optional[str] = ...) -> None: ...
+
+class AgentPluginManifest(_message.Message):
+    __slots__ = ("schema_version", "plugin_id", "version", "digest", "display_name", "description", "source", "trust", "mcp_servers", "skills")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    DIGEST_FIELD_NUMBER: _ClassVar[int]
+    DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    TRUST_FIELD_NUMBER: _ClassVar[int]
+    MCP_SERVERS_FIELD_NUMBER: _ClassVar[int]
+    SKILLS_FIELD_NUMBER: _ClassVar[int]
+    schema_version: int
+    plugin_id: str
+    version: str
+    digest: str
+    display_name: str
+    description: str
+    source: str
+    trust: str
+    mcp_servers: _containers.RepeatedCompositeFieldContainer[AgentPluginMCPServer]
+    skills: _containers.RepeatedCompositeFieldContainer[AgentPluginSkillContribution]
+    def __init__(self, schema_version: _Optional[int] = ..., plugin_id: _Optional[str] = ..., version: _Optional[str] = ..., digest: _Optional[str] = ..., display_name: _Optional[str] = ..., description: _Optional[str] = ..., source: _Optional[str] = ..., trust: _Optional[str] = ..., mcp_servers: _Optional[_Iterable[_Union[AgentPluginMCPServer, _Mapping]]] = ..., skills: _Optional[_Iterable[_Union[AgentPluginSkillContribution, _Mapping]]] = ...) -> None: ...
+
+class ResolvedAgentPlugin(_message.Message):
+    __slots__ = ("manifest", "activation")
+    MANIFEST_FIELD_NUMBER: _ClassVar[int]
+    ACTIVATION_FIELD_NUMBER: _ClassVar[int]
+    manifest: AgentPluginManifest
+    activation: AgentPluginActivation
+    def __init__(self, manifest: _Optional[_Union[AgentPluginManifest, _Mapping]] = ..., activation: _Optional[_Union[AgentPluginActivation, _Mapping]] = ...) -> None: ...
+
+class AgentPluginConnectionGrant(_message.Message):
+    __slots__ = ("plugin_id", "server_name", "headers", "expires_at")
+    class HeadersEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
+    SERVER_NAME_FIELD_NUMBER: _ClassVar[int]
+    HEADERS_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
+    plugin_id: str
+    server_name: str
+    headers: _containers.ScalarMap[str, str]
+    expires_at: _timestamp_pb2.Timestamp
+    def __init__(self, plugin_id: _Optional[str] = ..., server_name: _Optional[str] = ..., headers: _Optional[_Mapping[str, str]] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
+class ResolvedAgentPluginSnapshot(_message.Message):
+    __slots__ = ("schema_version", "snapshot_id", "snapshot_digest", "workspace_revision", "tenant_id", "workspace_id", "resolved_at", "plugins", "connection_grants")
+    SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
+    SNAPSHOT_ID_FIELD_NUMBER: _ClassVar[int]
+    SNAPSHOT_DIGEST_FIELD_NUMBER: _ClassVar[int]
+    WORKSPACE_REVISION_FIELD_NUMBER: _ClassVar[int]
+    TENANT_ID_FIELD_NUMBER: _ClassVar[int]
+    WORKSPACE_ID_FIELD_NUMBER: _ClassVar[int]
+    RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
+    PLUGINS_FIELD_NUMBER: _ClassVar[int]
+    CONNECTION_GRANTS_FIELD_NUMBER: _ClassVar[int]
+    schema_version: int
+    snapshot_id: str
+    snapshot_digest: str
+    workspace_revision: int
+    tenant_id: str
+    workspace_id: str
+    resolved_at: _timestamp_pb2.Timestamp
+    plugins: _containers.RepeatedCompositeFieldContainer[ResolvedAgentPlugin]
+    connection_grants: _containers.RepeatedCompositeFieldContainer[AgentPluginConnectionGrant]
+    def __init__(self, schema_version: _Optional[int] = ..., snapshot_id: _Optional[str] = ..., snapshot_digest: _Optional[str] = ..., workspace_revision: _Optional[int] = ..., tenant_id: _Optional[str] = ..., workspace_id: _Optional[str] = ..., resolved_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., plugins: _Optional[_Iterable[_Union[ResolvedAgentPlugin, _Mapping]]] = ..., connection_grants: _Optional[_Iterable[_Union[AgentPluginConnectionGrant, _Mapping]]] = ...) -> None: ...
+
+class ResolveAgentPluginsResponse(_message.Message):
+    __slots__ = ("snapshot",)
+    SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
+    snapshot: ResolvedAgentPluginSnapshot
+    def __init__(self, snapshot: _Optional[_Union[ResolvedAgentPluginSnapshot, _Mapping]] = ...) -> None: ...
+
 class BenefitPackage(_message.Message):
     __slots__ = ("id", "is_preset", "name", "project_name", "has_access_key_id", "has_secret_access_key", "enabled", "model_ids", "material_used", "material_reserved", "material_limit", "revision", "created_by", "updated_by", "created_at", "updated_at")
     ID_FIELD_NUMBER: _ClassVar[int]

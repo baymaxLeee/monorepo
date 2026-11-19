@@ -321,6 +321,7 @@ services:
       POSTGRES_DATABASE: canvas
       POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   canvas-worker:
@@ -347,6 +348,7 @@ services:
       POSTGRES_DATABASE: canvas
       POSTGRES_SSLMODE: disable
       REDIS_URL: redis://redis:6379/3
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   chat:
@@ -391,8 +393,9 @@ services:
       REDIS_DB: "2"
       ADMIN_RPC_TARGET: admin:9001
       KNOWLEDGE_RPC_TARGET: knowledge:9010
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      CANVAS_SERVICE_URL: http://canvas:8012
       STORAGE_RPC_TARGET: storage:9013
-      CANVAS_RPC_TARGET: canvas:9012
       RUNTIME_WORKER_URL: http://runtime-worker:8011
       RUNTIME_SANDBOX_URL: http://runtime-sandbox:8014
       INTERNAL_API_TOKEN: ${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}
@@ -505,6 +508,7 @@ services:
       POSTGRES_DATABASE: knowledge
       ADMIN_RPC_TARGET: admin:9001
       STORAGE_RPC_TARGET: storage:9013
+      INTERNAL_SERVICE_TOKENS: '{"runtime":"${RUNTIME_INTERNAL_API_TOKEN:?RUNTIME_INTERNAL_API_TOKEN is required}"}'
     <<: *restart_policy
 
   telemetry:

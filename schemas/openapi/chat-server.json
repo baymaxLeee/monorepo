@@ -90,26 +90,6 @@
             "minimum": 0,
             "type": "integer"
           },
-          "host_context": {
-            "additionalProperties": false,
-            "properties": {
-              "canvas_id": {
-                "maxLength": 36,
-                "minLength": 1,
-                "type": "string"
-              },
-              "project_id": {
-                "maxLength": 36,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "project_id",
-              "canvas_id"
-            ],
-            "type": "object"
-          },
           "id": {
             "type": "string"
           },
@@ -392,10 +372,6 @@
       },
       "Conversation": {
         "properties": {
-          "canvas_id": {
-            "nullable": true,
-            "type": "string"
-          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -403,9 +379,11 @@
           "id": {
             "type": "string"
           },
-          "project_id": {
-            "nullable": true,
-            "type": "string"
+          "plugin_selections": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationPluginSelection"
+            },
+            "type": "array"
           },
           "tenant_id": {
             "type": "string"
@@ -430,8 +408,7 @@
           "tenant_id",
           "workspace_id",
           "title",
-          "project_id",
-          "canvas_id",
+          "plugin_selections",
           "created_at",
           "updated_at"
         ],
@@ -512,10 +489,6 @@
             },
             "type": "array"
           },
-          "canvas_id": {
-            "nullable": true,
-            "type": "string"
-          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -542,9 +515,11 @@
           "model": {
             "type": "string"
           },
-          "project_id": {
-            "nullable": true,
-            "type": "string"
+          "plugin_selections": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationPluginSelection"
+            },
+            "type": "array"
           },
           "provider_id": {
             "type": "string"
@@ -594,7 +569,8 @@
           "documents",
           "active_run_id",
           "latest_run_id",
-          "title"
+          "title",
+          "plugin_selections"
         ],
         "type": "object"
       },
@@ -859,16 +835,78 @@
         ],
         "type": "object"
       },
-      "CreateConversationInput": {
+      "ConversationPluginSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "plugin_id": {
+            "maxLength": 129,
+            "minLength": 3,
+            "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?@[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plugin_id"
+        ],
+        "type": "object"
+      },
+      "CreateCanvasConversationInput": {
         "additionalProperties": false,
         "properties": {
           "canvas_id": {
             "maxLength": 36,
+            "minLength": 1,
             "type": "string"
           },
           "project_id": {
             "maxLength": 36,
+            "minLength": 1,
             "type": "string"
+          },
+          "provider_id": {
+            "maxLength": 32,
+            "nullable": true,
+            "type": "string"
+          },
+          "reasoning_effort": {
+            "$ref": "#/components/schemas/ReasoningEffort",
+            "nullable": true
+          },
+          "request_id": {
+            "maxLength": 64,
+            "minLength": 8,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "project_id",
+          "canvas_id"
+        ],
+        "type": "object"
+      },
+      "CreateConversationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "plugin_selections": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationPluginSelection"
+            },
+            "maxItems": 16,
+            "type": "array"
           },
           "provider_id": {
             "maxLength": 32,
@@ -1967,7 +2005,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateConversationInput"
+                "$ref": "#/components/schemas/CreateCanvasConversationInput"
               }
             }
           },
@@ -3220,6 +3258,65 @@
               }
             },
             "description": "Authorized local model configuration, without provider secrets"
+          }
+        }
+      }
+    },
+    "/local-inference/plugins/resolve": {
+      "post": {
+        "description": "Resolve the immutable plugin release snapshot and ephemeral connection grants for one native Desktop turn. Grants are held only in the utility process and must not cross the preload bridge or persistence boundary.",
+        "operationId": "resolveLocalInferencePlugins",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "activations": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bindings": {
+                          "additionalProperties": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "pluginId": {
+                          "pattern": "^[a-z0-9._-]+@[a-z0-9._-]+$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "pluginId"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 16,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "activations"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Turn-frozen native plugin snapshot with ephemeral connection grants"
           }
         }
       }

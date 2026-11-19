@@ -25,6 +25,7 @@ K8S_BASE = ROOT / "infra" / "k8s" / "base"
 REQUIRED = ("root", "runtime", "port", "publicRoutes", "bindings", "databases")
 RUNTIMES = {"go", "python", "node"}
 RUNTIME_MARKERS = {"go": "go.mod", "python": "pyproject.toml", "node": "package.json"}
+BINDING_TRANSPORTS = {"http", "rpc"}
 
 
 def fail(message: str) -> None:
@@ -80,10 +81,14 @@ def validate_schema(services: dict[str, dict[str, Any]]) -> None:
             fail(f"port conflict: {port} used by {ports[port]} and {service_id}")
         ports[port] = service_id
 
-        for field in ("publicRoutes", "bindings", "databases"):
+        for field in ("publicRoutes", "databases"):
             value = config[field]
             if not isinstance(value, list) or len(value) != len(set(value)):
                 fail(f"{service_id}: {field} must be a list without duplicates")
+
+        bindings = config["bindings"]
+        if not isinstance(bindings, dict):
+            fail(f"{service_id}: bindings must map service ids to transport lists")
 
         for database in config["databases"]:
             if not isinstance(database, str) or not database:
@@ -92,11 +97,23 @@ def validate_schema(services: dict[str, dict[str, Any]]) -> None:
                 fail(f"database ownership conflict: {database} owned by {database_owners[database]} and {service_id}")
             database_owners[database] = service_id
 
-        for dependency in config["bindings"]:
+        for dependency, transports in bindings.items():
+            if not isinstance(dependency, str) or not dependency:
+                fail(f"{service_id}: binding names must be non-empty strings")
             if dependency not in services:
                 fail(f"{service_id}: binding {dependency} is not a declared service")
             if dependency == service_id:
                 fail(f"{service_id}: cannot bind to itself")
+            if (
+                not isinstance(transports, list)
+                or not transports
+                or len(transports) != len(set(transports))
+                or any(transport not in BINDING_TRANSPORTS for transport in transports)
+            ):
+                fail(
+                    f"{service_id}: binding {dependency} transports must be a non-empty unique list from "
+                    f"{sorted(BINDING_TRANSPORTS)}"
+                )
 
         for route in config["publicRoutes"]:
             if not isinstance(route, str) or not route.startswith("/"):
@@ -208,14 +225,17 @@ def env_from_example(service_id: str) -> dict[str, str]:
     return values
 
 
-def binding_key(service_id: str, dependency: str) -> str:
-    if service_id == "gateway" or (service_id == "chat" and dependency == "runtime"):
-        return f"{dependency.upper()}_SERVICE_URL"
-    return f"{dependency.upper()}_RPC_TARGET"
+def binding_key(dependency: str, transport: str) -> str:
+    suffix = "SERVICE_URL" if transport == "http" else "RPC_TARGET"
+    return f"{dependency.upper()}_{suffix}"
 
 
-def expected_binding_keys(service_id: str, config: dict[str, Any]) -> set[str]:
-    return {binding_key(service_id, dependency) for dependency in config["bindings"]}
+def expected_binding_keys(config: dict[str, Any]) -> set[str]:
+    return {
+        binding_key(dependency, transport)
+        for dependency, transports in config["bindings"].items()
+        for transport in transports
+    }
 
 
 def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
@@ -225,7 +245,7 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
         fail("single-vps compose must define services")
 
     for service_id, config in services.items():
-        expected = expected_binding_keys(service_id, config)
+        expected = expected_binding_keys(config)
         local_env = env_from_example(service_id)
         local = {key for key in local_env if key.endswith(("_SERVICE_URL", "_RPC_TARGET"))}
         if local != expected:
@@ -247,15 +267,16 @@ def validate_binding_environment(services: dict[str, dict[str, Any]]) -> None:
         if compose_keys != expected:
             fail(f"{service_id}: single-vps bindings drift: expected={sorted(expected)} actual={sorted(compose_keys)}")
 
-        for dependency in config["bindings"]:
-            key = binding_key(service_id, dependency)
+        for dependency, transports in config["bindings"].items():
             target = services[dependency]
-            port = target["port"] if key.endswith("_SERVICE_URL") else target.get("rpcPort")
-            if port is None:
-                fail(f"{dependency}: services.yaml must declare rpcPort for RPC binding from {service_id}")
-            expected_fragment = f"{dependency}:{port}"
-            if expected_fragment not in str(k8s_data[key]) or expected_fragment not in str(compose_env[key]):
-                fail(f"{service_id}: {key} must target {expected_fragment} in K8s and single-vps")
+            for transport in transports:
+                key = binding_key(dependency, transport)
+                port = target["port"] if transport == "http" else target.get("rpcPort")
+                if port is None:
+                    fail(f"{dependency}: services.yaml must declare rpcPort for RPC binding from {service_id}")
+                expected_fragment = f"{dependency}:{port}"
+                if expected_fragment not in str(k8s_data[key]) or expected_fragment not in str(compose_env[key]):
+                    fail(f"{service_id}: {key} must target {expected_fragment} in K8s and single-vps")
 
         if config["databases"]:
             database_key = "IAM_POSTGRES_DATABASE" if service_id == "iam" else "POSTGRES_DATABASE"

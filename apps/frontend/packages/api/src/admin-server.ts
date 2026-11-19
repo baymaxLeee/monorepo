@@ -6,6 +6,255 @@
  * OpenAPI spec version: 0.1.0
  */
 import { apiMutator } from "./orval-mutator";
+export type AgentPluginToolPolicyCapability =
+  (typeof AgentPluginToolPolicyCapability)[keyof typeof AgentPluginToolPolicyCapability];
+
+export const AgentPluginToolPolicyCapability = {
+  search: "search",
+  files: "files",
+  planning: "planning",
+  interaction: "interaction",
+  media: "media",
+  memory: "memory",
+  external: "external",
+} as const;
+
+export type AgentPluginToolPolicyEffect =
+  (typeof AgentPluginToolPolicyEffect)[keyof typeof AgentPluginToolPolicyEffect];
+
+export const AgentPluginToolPolicyEffect = {
+  read: "read",
+  write: "write",
+  add: "add",
+  update: "update",
+  destructive: "destructive",
+  none: "none",
+  unknown: "unknown",
+} as const;
+
+export type AgentPluginToolPolicyTrust = (typeof AgentPluginToolPolicyTrust)[keyof typeof AgentPluginToolPolicyTrust];
+
+export const AgentPluginToolPolicyTrust = {
+  closed: "closed",
+  "private-untrusted": "private-untrusted",
+  "open-world": "open-world",
+  unknown: "unknown",
+} as const;
+
+export type AgentPluginToolPolicyExecution =
+  (typeof AgentPluginToolPolicyExecution)[keyof typeof AgentPluginToolPolicyExecution];
+
+export const AgentPluginToolPolicyExecution = {
+  client: "client",
+  inline: "inline",
+  durable: "durable",
+} as const;
+
+export type AgentPluginToolPolicySourceProjection = { [key: string]: unknown };
+
+export type AgentPluginToolPolicyUiKind =
+  (typeof AgentPluginToolPolicyUiKind)[keyof typeof AgentPluginToolPolicyUiKind];
+
+export const AgentPluginToolPolicyUiKind = {
+  artifact: "artifact",
+  "ask-user": "ask-user",
+  "image-gallery": "image-gallery",
+  "todo-list": "todo-list",
+  video: "video",
+  terminal: "terminal",
+  subagent: "subagent",
+} as const;
+
+export interface AgentPluginToolPolicy {
+  capability: AgentPluginToolPolicyCapability;
+  callableByCodeMode?: boolean;
+  effect: AgentPluginToolPolicyEffect;
+  trust: AgentPluginToolPolicyTrust;
+  execution: AgentPluginToolPolicyExecution;
+  sourceProjection?: AgentPluginToolPolicySourceProjection;
+  streaming?: boolean;
+  uiKind?: AgentPluginToolPolicyUiKind;
+}
+
+export interface AgentPluginToolPlanning {
+  summary: string;
+  constraints?: string[];
+  prerequisites?: string[];
+  parallelizable?: boolean;
+}
+
+export type AgentPluginMCPToolInputSchema = { [key: string]: unknown };
+
+export type AgentPluginMCPToolOutputSchema = { [key: string]: unknown };
+
+export interface AgentPluginMCPTool {
+  name: string;
+  description: string;
+  inputSchema: AgentPluginMCPToolInputSchema;
+  outputSchema?: AgentPluginMCPToolOutputSchema;
+  policy: AgentPluginToolPolicy;
+  planning: AgentPluginToolPlanning;
+}
+
+export type AgentPluginMCPServerBindingHeaders = { [key: string]: string };
+
+export type AgentPluginMCPServerConfigHeaders = { [key: string]: string };
+
+export type AgentPluginMCPServerSecretHeaders = { [key: string]: string };
+
+export interface AgentPluginMCPServer {
+  name: string;
+  url: string;
+  requiredBindings?: string[];
+  optionalBindings?: string[];
+  bindingHeaders?: AgentPluginMCPServerBindingHeaders;
+  configHeaders?: AgentPluginMCPServerConfigHeaders;
+  secretHeaders?: AgentPluginMCPServerSecretHeaders;
+  /** @minItems 1 */
+  tools: AgentPluginMCPTool[];
+}
+
+export interface AgentPluginSkill {
+  id: string;
+  name: string;
+  description: string;
+  assetId: string;
+  revisionId: string;
+  /** @pattern ^[0-9a-f]{64}$ */
+  sha256: string;
+}
+
+export type AgentPluginManifestInputSchemaVersion =
+  (typeof AgentPluginManifestInputSchemaVersion)[keyof typeof AgentPluginManifestInputSchemaVersion];
+
+export const AgentPluginManifestInputSchemaVersion = {
+  NUMBER_1: 1,
+} as const;
+
+export type AgentPluginManifestInputSource =
+  (typeof AgentPluginManifestInputSource)[keyof typeof AgentPluginManifestInputSource];
+
+export const AgentPluginManifestInputSource = {
+  system: "system",
+  "external-mcp": "external-mcp",
+} as const;
+
+export type AgentPluginManifestInputTrust =
+  (typeof AgentPluginManifestInputTrust)[keyof typeof AgentPluginManifestInputTrust];
+
+export const AgentPluginManifestInputTrust = {
+  system: "system",
+  verified: "verified",
+  unverified: "unverified",
+} as const;
+
+export interface AgentPluginManifestInput {
+  schemaVersion: AgentPluginManifestInputSchemaVersion;
+  id: string;
+  version: string;
+  displayName: string;
+  description: string;
+  source: AgentPluginManifestInputSource;
+  trust: AgentPluginManifestInputTrust;
+  mcpServers: AgentPluginMCPServer[];
+  skills?: AgentPluginSkill[];
+}
+
+export type AgentPluginManifest = AgentPluginManifestInput & {
+  /** @pattern ^sha256:[0-9a-f]{64}$ */
+  digest: string;
+};
+
+export type AgentPluginListItemSource = (typeof AgentPluginListItemSource)[keyof typeof AgentPluginListItemSource];
+
+export const AgentPluginListItemSource = {
+  system: "system",
+  "external-mcp": "external-mcp",
+} as const;
+
+export type AgentPluginListItemTrust = (typeof AgentPluginListItemTrust)[keyof typeof AgentPluginListItemTrust];
+
+export const AgentPluginListItemTrust = {
+  system: "system",
+  verified: "verified",
+  unverified: "unverified",
+} as const;
+
+export type AgentPluginListItemInstallPolicy =
+  (typeof AgentPluginListItemInstallPolicy)[keyof typeof AgentPluginListItemInstallPolicy];
+
+export const AgentPluginListItemInstallPolicy = {
+  available: "available",
+  "installed-by-default": "installed-by-default",
+  "not-available": "not-available",
+} as const;
+
+export interface AgentPluginListItem {
+  pluginId: string;
+  displayName: string;
+  description: string;
+  source: AgentPluginListItemSource;
+  trust: AgentPluginListItemTrust;
+  installPolicy: AgentPluginListItemInstallPolicy;
+  availability: string;
+  latestReleaseDigest: string;
+  listed: boolean;
+  manifest: AgentPluginManifest;
+  installed: boolean;
+  enabled: boolean;
+  stateRevision: number;
+}
+
+export interface AgentPluginSelectionOption {
+  pluginId: string;
+  displayName: string;
+  description: string;
+  selectedByDefault: boolean;
+  requiresBindings: boolean;
+}
+
+export type PublishAgentPluginInputInstallPolicy =
+  (typeof PublishAgentPluginInputInstallPolicy)[keyof typeof PublishAgentPluginInputInstallPolicy];
+
+export const PublishAgentPluginInputInstallPolicy = {
+  available: "available",
+  "installed-by-default": "installed-by-default",
+  "not-available": "not-available",
+} as const;
+
+export interface PublishAgentPluginInput {
+  manifest: AgentPluginManifestInput;
+  installPolicy: PublishAgentPluginInputInstallPolicy;
+  availability: string;
+  listed: boolean;
+}
+
+export type InstallAgentPluginInputConfig = { [key: string]: string };
+
+export type InstallAgentPluginInputSecrets = { [key: string]: string };
+
+export interface InstallAgentPluginInput {
+  releaseDigest: string;
+  enabled: boolean;
+  config?: InstallAgentPluginInputConfig;
+  secrets?: InstallAgentPluginInputSecrets;
+}
+
+export interface SetAgentPluginEnabledInput {
+  enabled: boolean;
+}
+
+export type AgentPluginInstallationConfig = { [key: string]: string };
+
+export interface AgentPluginInstallation {
+  pluginId: string;
+  releaseDigest: string;
+  enabled: boolean;
+  revision: number;
+  config: AgentPluginInstallationConfig;
+  updatedAt: string;
+}
+
 export interface App {
   id: string;
   title: string;
@@ -914,6 +1163,89 @@ export type DeleteSkillNodeParams = {
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
+ * @summary List Agent Plugin Selection Options
+ */
+export const listAgentPluginOptions = (options?: SecondParameter<typeof apiMutator<AgentPluginSelectionOption[]>>) => {
+  return apiMutator<AgentPluginSelectionOption[]>(
+    { url: `/api/admin-server/agent-plugin-options`, method: "GET" },
+    options,
+  );
+};
+
+/**
+ * @summary List Agent Plugins
+ */
+export const listAgentPlugins = (options?: SecondParameter<typeof apiMutator<AgentPluginListItem[]>>) => {
+  return apiMutator<AgentPluginListItem[]>({ url: `/api/admin-server/agent-plugins`, method: "GET" }, options);
+};
+
+/**
+ * @summary Publish Agent Plugin Release
+ */
+export const publishAgentPlugin = (
+  publishAgentPluginInput: PublishAgentPluginInput,
+  options?: SecondParameter<typeof apiMutator<AgentPluginListItem>>,
+) => {
+  return apiMutator<AgentPluginListItem>(
+    {
+      url: `/api/admin-server/agent-plugins`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: publishAgentPluginInput,
+    },
+    options,
+  );
+};
+
+/**
+ * @summary Install Agent Plugin
+ */
+export const installAgentPlugin = (
+  pluginId: string,
+  installAgentPluginInput: InstallAgentPluginInput,
+  options?: SecondParameter<typeof apiMutator<AgentPluginInstallation>>,
+) => {
+  return apiMutator<AgentPluginInstallation>(
+    {
+      url: `/api/admin-server/agent-plugins/${pluginId}/installation`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: installAgentPluginInput,
+    },
+    options,
+  );
+};
+
+/**
+ * @summary Set Agent Plugin Enabled
+ */
+export const setAgentPluginEnabled = (
+  pluginId: string,
+  setAgentPluginEnabledInput: SetAgentPluginEnabledInput,
+  options?: SecondParameter<typeof apiMutator<AgentPluginInstallation>>,
+) => {
+  return apiMutator<AgentPluginInstallation>(
+    {
+      url: `/api/admin-server/agent-plugins/${pluginId}/installation`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: setAgentPluginEnabledInput,
+    },
+    options,
+  );
+};
+
+/**
+ * @summary Uninstall Agent Plugin
+ */
+export const uninstallAgentPlugin = (pluginId: string, options?: SecondParameter<typeof apiMutator<void>>) => {
+  return apiMutator<void>(
+    { url: `/api/admin-server/agent-plugins/${pluginId}/installation`, method: "DELETE" },
+    options,
+  );
+};
+
+/**
  * @summary Livez
  */
 export const livez = (options?: SecondParameter<typeof apiMutator<Livez200>>) => {
@@ -1482,6 +1814,12 @@ export const deleteApp = (appId: string, options?: SecondParameter<typeof apiMut
   return apiMutator<void>({ url: `/api/admin-server/apps/${appId}`, method: "DELETE" }, options);
 };
 
+export type ListAgentPluginOptionsResult = NonNullable<Awaited<ReturnType<typeof listAgentPluginOptions>>>;
+export type ListAgentPluginsResult = NonNullable<Awaited<ReturnType<typeof listAgentPlugins>>>;
+export type PublishAgentPluginResult = NonNullable<Awaited<ReturnType<typeof publishAgentPlugin>>>;
+export type InstallAgentPluginResult = NonNullable<Awaited<ReturnType<typeof installAgentPlugin>>>;
+export type SetAgentPluginEnabledResult = NonNullable<Awaited<ReturnType<typeof setAgentPluginEnabled>>>;
+export type UninstallAgentPluginResult = NonNullable<Awaited<ReturnType<typeof uninstallAgentPlugin>>>;
 export type LivezResult = NonNullable<Awaited<ReturnType<typeof livez>>>;
 export type ReadyzResult = NonNullable<Awaited<ReturnType<typeof readyz>>>;
 export type HealthzResult = NonNullable<Awaited<ReturnType<typeof healthz>>>;

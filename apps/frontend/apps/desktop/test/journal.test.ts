@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { COMPACTION_STATE_VERSION } from "@repo/agent-runtime/context/compaction";
+import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
 import { afterEach, expect, it } from "vitest";
 
 import type { LocalThread } from "../contracts/bridge.generated";
@@ -23,12 +24,33 @@ function thread(id: string, title: string): LocalThread {
     providerId: "provider",
     reasoningEffort: "medium",
     approvalMode: "auto",
+    pluginActivations: [],
     status: "idle",
     turnId: "33333333-3333-4333-8333-333333333333",
     error: null,
     updatedAt: "2026-01-01T00:00:00.000Z",
     pendingInputs: [],
     messages: [{ id: `${id}-message`, role: "user", parts: [{ type: "text", text: title }] }],
+  };
+}
+
+function pluginSnapshot(): ResolvedTurnPluginSnapshot {
+  return {
+    schemaVersion: 1,
+    snapshotId: "snapshot-1",
+    snapshotDigest: `sha256:${"1".repeat(64)}`,
+    workspaceRevision: 1,
+    tenantId: "tenant",
+    workspaceId: "workspace",
+    resolvedAt: "2026-01-01T00:00:00.000Z",
+    plugins: [],
+    connectionGrants: [
+      {
+        pluginId: "knowledge@platform",
+        serverName: "knowledge",
+        headers: { Authorization: "Bearer secret" },
+      },
+    ],
   };
 }
 
@@ -76,5 +98,31 @@ it("installs context checkpoints with revision fencing", async () => {
       estimatedTokens: 1,
     }),
   ).toThrow("revision conflict");
+  journal.close();
+});
+
+it("persists an immutable Turn plugin snapshot without connection grants", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "runtime-plugin-snapshot-"));
+  directories.push(directory);
+  const id = "44444444-4444-4444-8444-444444444444";
+  const journal = new LocalJournal(directory);
+  const value = thread(id, "plugins");
+  journal.save(value);
+  const snapshot = pluginSnapshot();
+
+  journal.savePluginSnapshot(value.turnId!, snapshot);
+  journal.savePluginSnapshot(value.turnId!, snapshot);
+
+  const persisted = journal.getPluginSnapshot(value.turnId!);
+  expect(persisted).toMatchObject({ snapshotId: "snapshot-1", snapshotDigest: snapshot.snapshotDigest });
+  expect(JSON.stringify(persisted)).not.toContain("Authorization");
+  expect(JSON.stringify(persisted)).not.toContain("Bearer secret");
+  expect(() =>
+    journal.savePluginSnapshot(value.turnId!, {
+      ...snapshot,
+      snapshotId: "snapshot-2",
+      snapshotDigest: `sha256:${"2".repeat(64)}`,
+    }),
+  ).toThrow("immutable");
   journal.close();
 });

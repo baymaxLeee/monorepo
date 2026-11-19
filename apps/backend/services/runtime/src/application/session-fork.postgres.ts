@@ -6,16 +6,16 @@ import { eq } from "drizzle-orm";
 import postgres from "postgres";
 
 import { getDb, getSql } from "../infrastructure/persistence/index.js";
-import { sessionArtifactCleanupOutbox, sessions, messages } from "../infrastructure/persistence/schema.js";
+import { threadArtifactCleanupOutbox, threadItems, threads } from "../infrastructure/persistence/schema.js";
 import { acquireRunLease, releaseRun } from "./agent/runs/lease.js";
 import { createAgentRun, finishAgentRun } from "./agent/runs/repository.js";
 import { sessionForkDependencies, forkSession } from "./session-fork.js";
 import { listMessages } from "./sessions.js";
 
 // Explicit integration entry, not part of the database-free unit suite.
-// Run against an isolated, migrated Chat database with CHAT_FORK_TEST_URL.
-const url = process.env.CHAT_FORK_TEST_URL;
-if (!url) throw new Error("CHAT_FORK_TEST_URL must point to an isolated migrated Chat database");
+// Run against an isolated, migrated Runtime database with RUNTIME_FORK_TEST_URL.
+const url = process.env.RUNTIME_FORK_TEST_URL;
+if (!url) throw new Error("RUNTIME_FORK_TEST_URL must point to an isolated migrated Runtime database");
 const connection = new URL(url);
 Object.assign(process.env, {
   ENVIRONMENT: "development",
@@ -54,37 +54,42 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       replyId = id(),
       userMessageId = id(),
       now = new Date();
-    await getDb().insert(sessions).values({
-      id: sourceId,
-      userId: auth.userId,
-      tenantId: auth.tenantId,
-      workspaceId: auth.workspaceId,
-      createRequestId: id(),
-      selectedMessageId: replyId,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await getDb()
-      .insert(messages)
-      .values([
+    await getDb().transaction(async (tx) => {
+      await tx.insert(threads).values({
+        id: sourceId,
+        userId: auth.userId,
+        tenantId: auth.tenantId,
+        workspaceId: auth.workspaceId,
+        createRequestId: id(),
+        itemSequence: 2n,
+        selectedItemId: replyId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await tx.insert(threadItems).values([
         {
           id: userMessageId,
-          sessionId: sourceId,
+          threadId: sourceId,
+          ordinal: 1n,
           role: "user",
           content: { version: 2, parts: [{ type: "text", text: "问题" }] },
           status: "ok",
           createdAt: now,
+          updatedAt: now,
         },
         {
           id: replyId,
-          parentMessageId: userMessageId,
-          sessionId: sourceId,
+          parentItemId: userMessageId,
+          threadId: sourceId,
+          ordinal: 2n,
           role: "assistant",
           content: { version: 1, parts: [{ type: "text", text: "已有回复" }] },
           status: "ok",
           createdAt: now,
+          updatedAt: now,
         },
       ]);
+    });
     return { sourceId, replyId };
   }
   for (const finished of [false, true])
@@ -108,21 +113,21 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       );
       await copying.promise;
       const runId = await createAgentRun({ sessionId: sourceId, userId: auth.userId, providerId: "", model: "" });
-      await acquireRunLease(sourceId, runId);
+      const lease = await acquireRunLease(sourceId, runId);
       if (finished) {
-        await finishAgentRun({ runId, status: "completed" });
-        await releaseRun(runId);
+        await finishAgentRun({ ...lease, status: "completed" });
+        await releaseRun(lease);
       }
       copied.open();
       const outcome = await result;
-      if (!finished) await releaseRun(runId);
+      if (!finished) await releaseRun(lease);
       assert.equal(outcome.value, undefined, "an overlapping run must invalidate the copied snapshot");
       assert.match(String(outcome.error), /生成|分支/);
-      assert.equal((await getDb().select().from(sessions).where(eq(sessions.id, target))).length, 0);
+      assert.equal((await getDb().select().from(threads).where(eq(threads.id, target))).length, 0);
       const [intent] = await getDb()
         .select()
-        .from(sessionArtifactCleanupOutbox)
-        .where(eq(sessionArtifactCleanupOutbox.sessionId, target));
+        .from(threadArtifactCleanupOutbox)
+        .where(eq(threadArtifactCleanupOutbox.threadId, target));
       assert.equal(intent.claimedAt, null, "failed snapshot remains eligible for durable cleanup");
     });
   await t.test("publication excludes run acquisition until the branch commits", async () => {
@@ -134,7 +139,7 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       ...sessionForkDependencies,
       forkSessionDocuments: async (input) => {
         blocker = peer.begin(async (tx) => {
-          await tx`select session_id from session_artifact_cleanup_outbox where session_id = ${input.sessionId} for update`;
+          await tx`select thread_id from thread_artifact_cleanup_outbox where thread_id = ${input.sessionId} for update`;
           locked.open();
           await release.promise;
         });
@@ -155,17 +160,21 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       }
       assert.fail(`no blocked query containing ${queryFragment}`);
     }
-    let acquired = false;
-    let acquiring: Promise<void> | undefined;
+    let admitted = false;
+    let admitting: Promise<void> | undefined;
     let runId: string | undefined;
+    let runLease: Awaited<ReturnType<typeof acquireRunLease>> | undefined;
     try {
-      await waitForLock('delete from "session_artifact_cleanup_outbox"');
-      runId = await createAgentRun({ sessionId: sourceId, userId: auth.userId, providerId: "", model: "" });
-      acquiring = acquireRunLease(sourceId, runId).then(() => {
-        acquired = true;
-      });
-      await waitForLock('insert into "session_run_leases"');
-      assert.equal(acquired, false);
+      await waitForLock('delete from "thread_artifact_cleanup_outbox"');
+      admitting = createAgentRun({ sessionId: sourceId, userId: auth.userId, providerId: "", model: "" }).then(
+        async (id) => {
+          runId = id;
+          runLease = await acquireRunLease(sourceId, id);
+          admitted = true;
+        },
+      );
+      await waitForLock('from "threads"');
+      assert.equal(admitted, false);
     } finally {
       release.open();
       await blocker;
@@ -179,27 +188,26 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
         copied.map((row) => row.branch_index),
         [0, 0],
       );
-      await acquiring;
-      if (runId) await releaseRun(runId);
+      await admitting;
+      if (runLease) await releaseRun(runLease);
       await observer.end();
     }
   });
-  await t.test("rejected lease acquisition rolls back its revision and active runs reject before copying", async () => {
+  await t.test("rejected Turn admission rolls back its ordinal and active Turns reject before copying", async () => {
     const { sourceId, replyId } = await seed();
     const runId = await createAgentRun({ sessionId: sourceId, userId: auth.userId, providerId: "", model: "" });
-    await acquireRunLease(sourceId, runId);
-    const [before] = await getDb().select().from(sessions).where(eq(sessions.id, sourceId));
-    const competing = await createAgentRun({
-      sessionId: sourceId,
-      userId: auth.userId,
-      providerId: "",
-      model: "",
-    });
-    // Direct legacy INSERT exercises the trigger's rollback under a unique-key conflict.
-    await assert.rejects(peer`insert into session_run_leases (session_id,run_id,heartbeat_at,expires_at)
-      values (${sourceId},${competing},now(),now()+interval '1 minute')`);
-    const [after] = await getDb().select().from(sessions).where(eq(sessions.id, sourceId));
-    assert.equal(before.runRevision, after.runRevision);
+    const lease = await acquireRunLease(sourceId, runId);
+    const [before] = await getDb().select().from(threads).where(eq(threads.id, sourceId));
+    await assert.rejects(
+      createAgentRun({
+        sessionId: sourceId,
+        userId: auth.userId,
+        providerId: "",
+        model: "",
+      }),
+    );
+    const [after] = await getDb().select().from(threads).where(eq(threads.id, sourceId));
+    assert.equal(before.turnSequence, after.turnSequence);
     let copied = false;
     await assert.rejects(
       forkSession(auth, sourceId, replyId, {
@@ -212,6 +220,6 @@ test("PostgreSQL fork/run interleavings and compensation", { timeout: 20000 }, a
       /停止/,
     );
     assert.equal(copied, false);
-    await releaseRun(runId);
+    await releaseRun(lease);
   });
 });

@@ -157,6 +157,27 @@ async function start() {
             providerId: z.string().min(1).max(32),
             reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
             approvalMode: z.enum(["request", "auto", "full"]),
+            pluginActivations: z
+              .array(
+                z.strictObject({
+                  pluginId: z
+                    .string()
+                    .min(3)
+                    .max(129)
+                    .regex(/^[a-z0-9._-]+@[a-z0-9._-]+$/),
+                  bindings: z
+                    .record(
+                      z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+                      z
+                        .string()
+                        .min(1)
+                        .max(256)
+                        .refine((value) => !/[\u0000-\u001f\u007f]/u.test(value)),
+                    )
+                    .optional(),
+                }),
+              )
+              .max(16),
           })
           .parse(payload);
         const threads = await scopedCall<{ workspace: string }[]>("list");

@@ -10,4 +10,11 @@ Runtime 是 Web Chat、Desktop、Canvas 等宿主共用的 Agent 执行内核，
 
 Chat 只持有 Web 产品 conversation 元数据与 Runtime Session 映射。Runtime 业务数据使用 PostgreSQL `runtime`；Workflow World 使用独立的 `workflow` database 和官方迁移，不作为业务查询接口。
 
+Runtime 自有 Media/Memory tools；Knowledge、Canvas 与外部 MCP 都由 Admin workspace installation
+在 Turn 开始时解析，不由 server composition root 固定绑定。Chat/renderer 只传稳定 `pluginId` 和
+非秘密 bindings；Runtime 先保存去密 snapshot，再由 shared plugin manager 懒连接并在结束、失败或
+取消时释放资源。当前 `knowledge@platform` 只有 `knowledge_search`，`canvas@platform` 只有只读
+`get_canvas`，不提供节点更新、生成或故事板提交。完整边界见
+[Agent plugin ADR](../ADR/agent-plugins.md)。
+
 本地命令：`pnpm dev:server`、`pnpm dev:worker`、`pnpm dev:sandbox`。验证：`just test backend/runtime`、`just build runtime`、`just check-repo`。

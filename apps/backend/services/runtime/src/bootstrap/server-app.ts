@@ -6,16 +6,18 @@ import { requestLogger, traceMiddleware } from "#runtime/foundation";
 
 import { authMiddleware } from "../api/http/middleware/auth.js";
 import { problemJson } from "../api/http/problem.js";
-import { agentsRoutes } from "../api/http/routes/agents.js";
+import { createAgentsRoutes } from "../api/http/routes/agents.js";
 import { localInferenceRoutes } from "../api/http/routes/local-inference.js";
 import { memoriesRoutes } from "../api/http/routes/memories.js";
 import { sessionsRoutes } from "../api/http/routes/sessions.js";
+import { ToolCatalog } from "../application/agent/tools/catalog.js";
 import { getServerSettings } from "../config/server.js";
 import { checkReadiness, currentBootState, isBootReady } from "../infrastructure/health/readiness.js";
 import { logger } from "../infrastructure/observability/logger.js";
 
 export function createApp() {
   const settings = getServerSettings();
+  const toolCatalog = new ToolCatalog();
   const app = new Hono();
 
   app.use("*", traceMiddleware());
@@ -60,7 +62,7 @@ export function createApp() {
   });
   api.use("*", authMiddleware);
   api.route("/v1/sessions", sessionsRoutes);
-  api.route("/v1/sessions", agentsRoutes);
+  api.route("/v1/sessions", createAgentsRoutes({ toolCatalog }));
   api.route("/memories", memoriesRoutes);
   api.route("/local-inference", localInferenceRoutes);
   app.route("/", api);

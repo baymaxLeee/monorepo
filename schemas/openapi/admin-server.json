@@ -6,6 +6,165 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/agent-plugin-options": {
+      "get": {
+        "tags": [
+          "agent-plugins"
+        ],
+        "summary": "List Agent Plugin Selection Options",
+        "operationId": "listAgentPluginOptions",
+        "responses": {
+          "200": {
+            "description": "Safe installed plugin projection for execution-host selectors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentPluginSelectionOption"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent-plugins": {
+      "get": {
+        "tags": [
+          "agent-plugins"
+        ],
+        "summary": "List Agent Plugins",
+        "operationId": "listAgentPlugins",
+        "responses": {
+          "200": {
+            "description": "Agent plugin catalog and workspace installation state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentPluginListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "agent-plugins"
+        ],
+        "summary": "Publish Agent Plugin Release",
+        "operationId": "publishAgentPlugin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishAgentPluginInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Published immutable release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPluginListItem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent-plugins/{plugin_id}/installation": {
+      "parameters": [
+        {
+          "name": "plugin_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "tags": [
+          "agent-plugins"
+        ],
+        "summary": "Install Agent Plugin",
+        "operationId": "installAgentPlugin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallAgentPluginInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace installation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPluginInstallation"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "agent-plugins"
+        ],
+        "summary": "Set Agent Plugin Enabled",
+        "operationId": "setAgentPluginEnabled",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAgentPluginEnabledInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace installation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPluginInstallation"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "agent-plugins"
+        ],
+        "summary": "Uninstall Agent Plugin",
+        "operationId": "uninstallAgentPlugin",
+        "responses": {
+          "204": {
+            "description": "Plugin uninstalled"
+          }
+        }
+      }
+    },
     "/livez": {
       "get": {
         "tags": [
@@ -6213,6 +6372,521 @@
   },
   "components": {
     "schemas": {
+      "AgentPluginToolPolicy": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability",
+          "effect",
+          "trust",
+          "execution"
+        ],
+        "properties": {
+          "capability": {
+            "type": "string",
+            "enum": [
+              "search",
+              "files",
+              "planning",
+              "interaction",
+              "media",
+              "memory",
+              "external"
+            ]
+          },
+          "callableByCodeMode": {
+            "type": "boolean",
+            "default": false
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "add",
+              "update",
+              "destructive",
+              "none",
+              "unknown"
+            ]
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "closed",
+              "private-untrusted",
+              "open-world",
+              "unknown"
+            ]
+          },
+          "execution": {
+            "type": "string",
+            "enum": [
+              "client",
+              "inline",
+              "durable"
+            ]
+          },
+          "sourceProjection": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "streaming": {
+            "type": "boolean",
+            "default": false
+          },
+          "uiKind": {
+            "type": "string",
+            "enum": [
+              "artifact",
+              "ask-user",
+              "image-gallery",
+              "todo-list",
+              "video",
+              "terminal",
+              "subagent"
+            ]
+          }
+        }
+      },
+      "AgentPluginToolPlanning": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "summary"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prerequisites": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parallelizable": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "AgentPluginMCPTool": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "inputSchema",
+          "policy",
+          "planning"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "policy": {
+            "$ref": "#/components/schemas/AgentPluginToolPolicy"
+          },
+          "planning": {
+            "$ref": "#/components/schemas/AgentPluginToolPlanning"
+          }
+        }
+      },
+      "AgentPluginMCPServer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "url",
+          "tools"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "requiredBindings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "optionalBindings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bindingHeaders": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "configHeaders": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "secretHeaders": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/AgentPluginMCPTool"
+            }
+          }
+        }
+      },
+      "AgentPluginSkill": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "description",
+          "assetId",
+          "revisionId",
+          "sha256"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "assetId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "AgentPluginManifestInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "id",
+          "version",
+          "displayName",
+          "description",
+          "source",
+          "trust",
+          "mcpServers"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "system",
+              "external-mcp"
+            ]
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "system",
+              "verified",
+              "unverified"
+            ]
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPluginMCPServer"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPluginSkill"
+            }
+          }
+        }
+      },
+      "AgentPluginManifest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AgentPluginManifestInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "digest"
+            ],
+            "properties": {
+              "digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            }
+          }
+        ]
+      },
+      "AgentPluginListItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pluginId",
+          "displayName",
+          "description",
+          "source",
+          "trust",
+          "installPolicy",
+          "availability",
+          "latestReleaseDigest",
+          "listed",
+          "manifest",
+          "installed",
+          "enabled",
+          "stateRevision"
+        ],
+        "properties": {
+          "pluginId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "system",
+              "external-mcp"
+            ]
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "system",
+              "verified",
+              "unverified"
+            ]
+          },
+          "installPolicy": {
+            "type": "string",
+            "enum": [
+              "available",
+              "installed-by-default",
+              "not-available"
+            ]
+          },
+          "availability": {
+            "type": "string"
+          },
+          "latestReleaseDigest": {
+            "type": "string"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/AgentPluginManifest"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "stateRevision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AgentPluginSelectionOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pluginId",
+          "displayName",
+          "description",
+          "selectedByDefault",
+          "requiresBindings"
+        ],
+        "properties": {
+          "pluginId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "selectedByDefault": {
+            "type": "boolean"
+          },
+          "requiresBindings": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PublishAgentPluginInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "manifest",
+          "installPolicy",
+          "availability",
+          "listed"
+        ],
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/AgentPluginManifestInput"
+          },
+          "installPolicy": {
+            "type": "string",
+            "enum": [
+              "available",
+              "installed-by-default",
+              "not-available"
+            ]
+          },
+          "availability": {
+            "type": "string"
+          },
+          "listed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "InstallAgentPluginInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "releaseDigest",
+          "enabled"
+        ],
+        "properties": {
+          "releaseDigest": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "secrets": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SetAgentPluginEnabledInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AgentPluginInstallation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pluginId",
+          "releaseDigest",
+          "enabled",
+          "revision",
+          "config",
+          "updatedAt"
+        ],
+        "properties": {
+          "pluginId": {
+            "type": "string"
+          },
+          "releaseDigest": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "App": {
         "properties": {
           "id": {

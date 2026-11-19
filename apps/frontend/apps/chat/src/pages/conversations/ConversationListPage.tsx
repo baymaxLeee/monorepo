@@ -9,13 +9,20 @@ import {
 import { buildUserFilePart } from "@repo/ai-elements/conversation/lib/file-parts";
 import { uploadConversationFiles } from "@repo/ai-elements/conversation/lib/upload-conversation-files";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
-import { listProviders, type ModelProvider } from "@repo/api/admin";
+import {
+  listAgentPluginOptions,
+  listProviders,
+  type AgentPluginSelectionOption,
+  type ModelProvider,
+} from "@repo/api/admin";
 import { createConversation, type ReasoningEffort } from "@repo/api/chat";
 import { getDesktopBridge } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
 import { BotIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+import { PluginPicker } from "./PluginPicker";
 
 export function ConversationListPage() {
   const bridge = getDesktopBridge();
@@ -30,6 +37,8 @@ export function ConversationListPage() {
   const promptRef = useRef<PromptInputRef>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
+  const [plugins, setPlugins] = useState<AgentPluginSelectionOption[]>([]);
+  const [selectedPluginIds, setSelectedPluginIds] = useState<string[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
 
@@ -46,6 +55,22 @@ export function ConversationListPage() {
         );
       })
       .catch(() => setModels([]));
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listAgentPluginOptions({ signal: controller.signal, skipErrorNotify: true })
+      .then((items) => {
+        setPlugins(items);
+        setSelectedPluginIds(
+          items
+            .filter((plugin) => plugin.selectedByDefault)
+            .map((plugin) => plugin.pluginId)
+            .sort(),
+        );
+      })
+      .catch(() => setPlugins([]));
     return () => controller.abort();
   }, []);
 
@@ -139,7 +164,13 @@ export function ConversationListPage() {
         if (!bridge) throw new Error("本地电脑需要桌面应用");
         if (!project) throw new Error("请先选择项目");
         if (!selectedModelId) throw new Error("请选择推理模型");
-        const thread = await bridge.createThread(project, selectedModelId, reasoningEffort, approvalMode);
+        const thread = await bridge.createThread(
+          project,
+          selectedModelId,
+          reasoningEffort,
+          approvalMode,
+          selectedPluginIds.map((pluginId) => ({ pluginId })),
+        );
         // Navigate even if inference fails: the local journal retains the request and error.
         try {
           await bridge.send(thread.id, value.text, randomId());
@@ -152,6 +183,7 @@ export function ConversationListPage() {
           request_id: randomId(),
           provider_id: selectedModelId,
           reasoning_effort: reasoningEffort,
+          plugin_selections: selectedPluginIds.map((plugin_id) => ({ plugin_id })),
         });
         const parts = await prepareCloudRequest(conversation.id, value);
         void navigate(`/platform/chat/conversations/${conversation.id}`, {
@@ -215,6 +247,12 @@ export function ConversationListPage() {
                 onReasoningEffortChange={setReasoningEffort}
                 disabled={busy}
               />
+              <PluginPicker
+                plugins={plugins}
+                selected={selectedPluginIds}
+                onChange={setSelectedPluginIds}
+                disabled={busy}
+              />
             </>
           ) : (
             <>
@@ -224,6 +262,12 @@ export function ConversationListPage() {
                 onSelectModel={setSelectedModelId}
                 reasoningEffort={reasoningEffort}
                 onReasoningEffortChange={setReasoningEffort}
+                disabled={busy}
+              />
+              <PluginPicker
+                plugins={plugins}
+                selected={selectedPluginIds}
+                onChange={setSelectedPluginIds}
                 disabled={busy}
               />
               <ApprovalMode value={approvalMode} onChange={setApprovalMode} disabled={busy} />

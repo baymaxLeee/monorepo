@@ -40,6 +40,15 @@ caller allowlist 与显式 tenant/workspace/user 字段共同授权。
 
 字节上传和内容读取使用 Storage API，不经过 Knowledge 的 public media route。
 
+## Agent MCP surface
+
+Knowledge 同一服务进程挂载官方 Python MCP SDK 的 stateless Streamable HTTP `/mcp`。它只接受
+`x-caller-service=runtime` 及完整 user/tenant/workspace/role identity headers，并通过现有 retrieval
+application 查询当前 workspace；edge 请求不能直接调用。当前 inventory 严格只有
+`knowledge_search`，返回的文档内容标记为 untrusted。Runtime 不再持有内建 Knowledge search tool；
+Admin release 负责固定 endpoint、schema 和 source projection，执行与 cleanup 由共享插件 runtime
+负责，见 [Agent plugin ADR](../ADR/agent-plugins.md)。
+
 会话分支在与写入/清理相同的会话锁内检查源和目标 tombstone、目标为空以及资源 scope。
 复制文档为不再索引的只读 artifact 快照；原 source 文档继续独立保留。副本沿用精确的
 Asset/revision，生成新的 document owner 与 durable Claim intent。返回映射用于 Runtime

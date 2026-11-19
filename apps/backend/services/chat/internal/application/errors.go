@@ -17,6 +17,10 @@ func BadRequest(message string) error {
 	return &Error{Status: http.StatusBadRequest, Code: "bad_request", Message: message}
 }
 
+func Conflict(code, message string) error {
+	return &Error{Status: http.StatusConflict, Code: code, Message: message}
+}
+
 func NotFound(message string) error {
 	return &Error{Status: http.StatusNotFound, Code: "not_found", Message: message}
 }

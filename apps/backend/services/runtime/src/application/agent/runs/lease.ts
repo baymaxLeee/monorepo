@@ -1,126 +1,157 @@
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, gt, inArray, lte } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { sessionRunLeases } from "../../../infrastructure/persistence/schema.js";
+import { turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError } from "../../errors.js";
 import { deactivateAgentStream } from "../streams/service.js";
 import {
-  finishAgentRun,
+  assertRunLease,
   getAgentRunById,
   interruptRuns,
   listOrphanedRuns,
   requestAgentRunCancellation,
   RUN_LEASE_MS,
+  type RunLeaseToken,
 } from "./repository.js";
 import { markSandboxExecutionsReleasing, reconcileSandboxExecutions } from "./sandbox-executions.js";
 
-const controllers = new Map<string, AbortController>();
+const controllers = new Map<
+  string,
+  {
+    token: RunLeaseToken;
+    controller: AbortController;
+    heartbeat: ReturnType<typeof setInterval>;
+    cancellationPoll: ReturnType<typeof setInterval>;
+  }
+>();
 const completions = new Map<string, { promise: Promise<void>; resolve: () => void }>();
-const heartbeats = new Map<string, ReturnType<typeof setInterval>>();
-const cancellationPolls = new Map<string, ReturnType<typeof setInterval>>();
 const CANCELLATION_POLL_MS = 1_000;
 const CANCELLATION_WAIT_MS = 30_000;
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
 
-export async function acquireRunLease(sessionId: string, runId: string): Promise<void> {
+export async function acquireRunLease(sessionId: string, runId: string): Promise<RunLeaseToken> {
   const db = getDb();
   const now = new Date();
   // Reap expired leases, verify no active lease, and claim in one transaction so
   // the read-then-write is atomic (Drizzle rolls back on any throw). A lost race
   // rolls back the reap too; the next acquire re-reaps — expired rows are inert.
-  const expired = await db.transaction(async (tx) => {
+  const claimed = await db.transaction(async (tx) => {
     const expiredLeases = await tx
       .select()
-      .from(sessionRunLeases)
-      .where(and(eq(sessionRunLeases.sessionId, sessionId), lte(sessionRunLeases.expiresAt, now)));
-    await tx
-      .delete(sessionRunLeases)
-      .where(and(eq(sessionRunLeases.sessionId, sessionId), lte(sessionRunLeases.expiresAt, now)));
-    const [active] = await tx.select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, sessionId));
+      .from(turnLeases)
+      .where(and(eq(turnLeases.threadId, sessionId), lte(turnLeases.expiresAt, now)));
+    await tx.delete(turnLeases).where(and(eq(turnLeases.threadId, sessionId), lte(turnLeases.expiresAt, now)));
+    const [active] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, sessionId));
     if (active) {
       throw new ConflictError("this session already has an active run", "active_run_exists", {
-        run_id: active.runId,
+        run_id: active.turnId,
       });
     }
+    const [run] = await tx.select().from(turns).where(eq(turns.id, runId)).for("update");
+    if (!run || run.threadId !== sessionId || !["running", "cancel_requested"].includes(run.status)) {
+      throw new ConflictError("agent run cannot acquire a lease", "run_lease_unavailable");
+    }
+    const reclaimedSameRun = expiredLeases.some((lease) => lease.turnId === runId);
+    const attemptEpoch = reclaimedSameRun ? run.attemptEpoch + 1n : run.attemptEpoch;
+    if (reclaimedSameRun) {
+      await tx.update(turns).set({ attemptEpoch }).where(eq(turns.id, runId));
+    }
     try {
-      await tx.insert(sessionRunLeases).values({
-        sessionId,
-        runId,
+      await tx.insert(turnLeases).values({
+        threadId: sessionId,
+        turnId: runId,
+        attemptEpoch,
         heartbeatAt: now,
         expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
       });
     } catch {
       throw new ConflictError("this session already has an active run", "active_run_exists");
     }
-    return expiredLeases;
+    return { expiredLeases, token: { runId, attemptEpoch } satisfies RunLeaseToken };
   });
   // Cross-table run finalization for the leases we just reclaimed runs outside
   // the lease transaction — a slow/failed run update must not widen the window.
-  await Promise.all(
-    expired.map((lease) => finishAgentRun({ runId: lease.runId, status: "interrupted" }).catch(() => undefined)),
-  );
+  await interruptRuns(
+    claimed.expiredLeases.filter((lease) => lease.turnId !== runId).map((lease) => lease.turnId),
+  ).catch(() => []);
+  return claimed.token;
 }
 
-export function registerRunController(runId: string): AbortSignal {
+export function registerRunController(token: RunLeaseToken): AbortSignal {
+  const runId = token.runId;
+  const previous = controllers.get(runId);
+  if (previous) {
+    previous.controller.abort(new DOMException("agent run ownership was replaced", "AbortError"));
+    clearInterval(previous.heartbeat);
+    clearInterval(previous.cancellationPoll);
+  }
   const controller = new AbortController();
-  controllers.set(runId, controller);
   let resolve: () => void = () => {};
   const promise = new Promise<void>((done) => {
     resolve = done;
   });
   completions.set(runId, { promise, resolve });
-  heartbeats.set(
-    runId,
-    setInterval(() => {
-      const now = new Date();
-      void getDb()
-        .update(sessionRunLeases)
-        .set({
-          heartbeatAt: now,
-          expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
-        })
-        .where(eq(sessionRunLeases.runId, runId))
-        .catch((error) => logger.error({ err: error }, "run lease heartbeat failed"));
-    }, 60_000),
-  );
-  cancellationPolls.set(
-    runId,
-    setInterval(() => {
-      void getAgentRunById(runId)
-        .then((run) => {
-          if (run?.status === "cancel_requested") {
-            controller.abort(new DOMException("agent run cancelled", "AbortError"));
-          }
-        })
-        .catch((error) => logger.error({ err: error }, "cancellation poll failed"));
-    }, CANCELLATION_POLL_MS),
-  );
+  const loseOwnership = (error?: unknown) => {
+    if (error) logger.error({ err: error, runId, attemptEpoch: token.attemptEpoch.toString() }, "run lease lost");
+    if (!controller.signal.aborted) {
+      controller.abort(new DOMException("agent run ownership was lost", "AbortError"));
+    }
+  };
+  const heartbeat = setInterval(() => {
+    const now = new Date();
+    void getDb()
+      .update(turnLeases)
+      .set({
+        heartbeatAt: now,
+        expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
+      })
+      .where(
+        and(
+          eq(turnLeases.turnId, runId),
+          eq(turnLeases.attemptEpoch, token.attemptEpoch),
+          gt(turnLeases.expiresAt, now),
+        ),
+      )
+      .returning({ runId: turnLeases.turnId })
+      .then((rows) => {
+        if (rows.length !== 1) loseOwnership();
+      })
+      .catch(loseOwnership);
+  }, 60_000);
+  const cancellationPoll = setInterval(() => {
+    void Promise.all([assertRunLease(token), getAgentRunById(runId)])
+      .then(([, run]) => {
+        if (run?.status === "cancel_requested") {
+          controller.abort(new DOMException("agent run cancelled", "AbortError"));
+        }
+      })
+      .catch(loseOwnership);
+  }, CANCELLATION_POLL_MS);
+  controllers.set(runId, { token, controller, heartbeat, cancellationPoll });
   return controller.signal;
 }
 
 export function abortRun(runId: string, reason: unknown): boolean {
-  const controller = controllers.get(runId);
+  const controller = controllers.get(runId)?.controller;
   if (!controller || controller.signal.aborted) return false;
   controller.abort(reason);
   return true;
 }
 
-export async function releaseRun(runId: string): Promise<void> {
-  controllers.delete(runId);
+export async function releaseRun(token: RunLeaseToken): Promise<void> {
+  const runId = token.runId;
+  const active = controllers.get(runId);
+  if (active?.token.attemptEpoch === token.attemptEpoch) {
+    clearInterval(active.heartbeat);
+    clearInterval(active.cancellationPoll);
+    controllers.delete(runId);
+  }
   completions.get(runId)?.resolve();
   completions.delete(runId);
-  const heartbeat = heartbeats.get(runId);
-  if (heartbeat) {
-    clearInterval(heartbeat);
-  }
-  heartbeats.delete(runId);
-  const cancellationPoll = cancellationPolls.get(runId);
-  if (cancellationPoll) {
-    clearInterval(cancellationPoll);
-  }
-  cancellationPolls.delete(runId);
-  await getDb().delete(sessionRunLeases).where(eq(sessionRunLeases.runId, runId));
+  await getDb()
+    .delete(turnLeases)
+    .where(and(eq(turnLeases.turnId, runId), eq(turnLeases.attemptEpoch, token.attemptEpoch)));
 }
 
 export async function cancelRun(sessionId: string, runId: string): Promise<boolean> {
@@ -130,7 +161,7 @@ export async function cancelRun(sessionId: string, runId: string): Promise<boole
   }
   await requestAgentRunCancellation(runId);
   const completion = completions.get(runId)?.promise;
-  controllers.get(runId)?.abort(new DOMException("agent run cancelled", "AbortError"));
+  controllers.get(runId)?.controller.abort(new DOMException("agent run cancelled", "AbortError"));
   if (completion) {
     await completion;
   } else {
@@ -168,7 +199,7 @@ export async function reconcileOrphanedRuns(): Promise<void> {
       ),
     ),
   );
-  await getDb().delete(sessionRunLeases).where(inArray(sessionRunLeases.runId, runIds));
+  await getDb().delete(turnLeases).where(inArray(turnLeases.turnId, runIds));
   logger.info({ count: interrupted.length }, "reconciled orphaned runs");
 }
 

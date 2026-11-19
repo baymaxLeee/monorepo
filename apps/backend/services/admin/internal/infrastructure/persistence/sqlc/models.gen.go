@@ -8,6 +8,43 @@ import (
 	"time"
 )
 
+type AgentPluginCatalog struct {
+	ID                  string
+	DisplayName         string
+	Description         string
+	Source              string
+	Trust               string
+	InstallPolicy       string
+	Availability        string
+	LatestReleaseDigest string
+	Listed              bool
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type AgentPluginInstallation struct {
+	TenantID             string
+	WorkspaceID          string
+	PluginID             string
+	ReleaseDigest        string
+	Enabled              bool
+	Revision             int64
+	ConfigJson           []byte
+	EncryptedSecretsJson []byte
+	InstalledBy          string
+	UpdatedBy            string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type AgentPluginRelease struct {
+	PluginID     string
+	Digest       string
+	Version      string
+	ManifestJson []byte
+	CreatedAt    time.Time
+}
+
 type App struct {
 	ID            string
 	Title         string

@@ -75,9 +75,11 @@
 `packages/agent-runtime` 是两个执行位置唯一的 Turn/context kernel，使用官方 AI SDK 的工具执行、审批与流原语。
 Bash 定义、网页读取、网页检索契约、Code Mode、tool search、Ask User、Todo、Skill loader 与 subagent 核心
 等非业务原子能力均归该包；其中 `createPortableToolRegistry` 是所有宿主复用的唯一公共定义注册表，宿主
-不能维护第二份公共名单或增加 Agent profile 选择层。Runtime 与 Desktop 直接追加各自宿主/领域/MCP
-manifests，重名能力失败关闭；本地与云端 Bash 由各自 execution host 追加，而不是分叉 Agent 能力模型。
-Runtime 只保留 Knowledge、Canvas、Memory、Media、Storage 发布及 provider 等服务适配。Backend
+不能维护第二份公共名单或增加 Agent profile 选择层。Runtime 与 Desktop 直接追加各自宿主 manifests
+和 Turn-frozen plugin manifests，重名能力失败关闭；本地与云端 Bash 由各自 execution host 追加，
+而不是分叉 Agent 能力模型。Runtime 只保留 Memory、Media、Storage 发布、文件投影及 provider 等
+真实 host adapter；Knowledge search、Canvas 和外部 MCP tools 统一走
+[Agent plugin lifecycle](agent-plugins.md)。Backend
 `application/agent/runtime/cloud-turn.ts` 注入云端资源和观测；Electron
 `electron/runtime/session-manager.ts` 注入本地 sandbox、relay 和 journal。两者都创建 shared
 `RuntimeTurn`，不能直接创建 `ToolLoopAgent`。宿主不自定义第二套输入队列、上下文策略、终止策略或工具结果协议；暂不支持 SDK client-tool continuation 的
@@ -110,8 +112,9 @@ Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MF
 Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息渲染和 `ChatPrompt` 富文本输入框。两种 controller 共同渲染唯一 `ConversationSessionView` 会话骨架；标题栏、消息区、问题区和 composer 布局不按 runtime 复制。可选能力用回调/adapter 显式注入，缺失时不渲染对应动作，不传空函数伪装支持。Electron 新建会话默认「此计算机」，并在输入框工具栏内先选择历史项目或通过原生目录选择新增项目；发送只在已选且已授权的项目中创建本地会话，不得再触发目录选择。切到云端后使用与云端会话一致的 composer 能力。Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。云端与本地选中文件复用同一 `FileArtifactPanel` 预览、编辑、保存和未保存确认 UI；差异只保留在数据源 adapter：云端调用 Runtime/Storage，Electron 调用受限 Desktop bridge。本地目录浏览仍是桌面工作区能力，不复制选中文件的编辑器。
 
 - `apps/frontend/apps/desktop/electron` 的 main 管理身份与原生授权，utility process 通过 shared `RuntimeTurn` 执行，`electron/runtime/` 只管理 SQLite journal、workspace、relay 和 sandbox adapters。Chat MFE `/local/:id?` 通过 `useChat` 与 IPC `ChatTransport` 消费 SDK 原生 UIMessageChunk；重连从原始消息及当前流片段重放，仅取消订阅不会 Stop。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
-- 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/runtime-v1.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
-- `runtime-v1.sqlite` 直接使用 Thread/Turn/Item/context checkpoint schema，并以 revision CAS 安装摘要。它不读取或迁移旧 `sessions.sqlite`；旧文件不会被覆盖或删除。SQLite 是本项目的 journal adapter，不是 renderer、CLI 或云端数据库的 wire contract。
+- 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/runtime.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
+- `runtime.sqlite` 直接使用 Thread/Turn/Item/context checkpoint/Turn plugin snapshot schema，并以 revision CAS 安装摘要。它不读取或迁移旧 `runtime-v1.sqlite`、`sessions.sqlite`；旧文件不会被覆盖或删除。SQLite 是本项目的 journal adapter，不是 renderer、CLI 或云端数据库的 wire contract。
+- Bridge v3 只把 plugin activation ID/bindings 放入本地 Thread。utility process 经受信 main/Chat/Runtime 通道解析 snapshot；去密 projection 在模型调用前落 SQLite，connection grant 只留内存并随 Turn cleanup。renderer 不接触 MCP endpoint、header 或 token。
 - 原生目录授权由 main 显示确认；工具审批沿用共享 manifest/policy 与 SDK 原生审批状态；账户/租户/工作区和 origin 分区保存 journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。
 - macOS Seatbelt 同时约束 Bash 和文件 helper，目录身份在每次调用前复核；命令网络默认开放，但文件读写始终限制在用户授权目录及隔离的临时目录，应用控制目录被拒绝访问。native supervisor 通过继承的独立策略标记识别后代、监测父进程死亡并清理 detached 子进程；依赖 macOS sandbox SPI，启动探测失败即拒绝执行，需在每个支持的 OS 版本/架构上验证，不能等同于受支持的公共 Apple API。
 - 文件工具与用户保存按同一本地目录串行；同目录至多一个活跃 Agent。普通 UTF-8 文件编辑上限 2 MiB，hash 比较拒绝旧内容覆盖，保留文件执行权限。目录观察提供变更提示，文件真实内容仍是权威来源；外部编辑器与 shell 不参与全局事务。
@@ -398,7 +401,12 @@ Runtime `v1.0.0.0` 直接建立稳定 workspace path、generation、tombstone、
 
 云端还待生产验证真实 Docker/gVisor/K8s 的大目录恢复、Storage 故障、进程崩溃、TTL 丢失和节点缩容指标。当前 Docker 的 `/workspace` 使用 tmpfs，K8s 使用磁盘型 emptyDir；两者资源行为不能当作一致。
 
-本地侧已实现 Electron utility runtime、Seatbelt 执行边界、受约束 inference relay、新 `runtime-v1.sqlite` journal/进程生命周期及 UI 接入；正式签名、真实 provider 与支持的 macOS 版本矩阵仍待环境验收。当前 [Admin client](../../apps/backend/services/runtime/src/infrastructure/clients/admin.ts) 的内部 provider snapshot 包含 `apiKey`，不能直接复用为桌面配置契约。
+本地侧已实现 Electron utility runtime、Seatbelt 执行边界、受约束 inference/plugin relay、新
+`runtime.sqlite` journal/进程生命周期及 UI 接入；正式签名、真实 provider、真实外部 MCP 与支持的
+macOS 版本矩阵仍待环境验收。当前
+[Admin client](../../apps/backend/services/runtime/src/infrastructure/clients/admin.ts) 的内部 provider
+snapshot 包含 `apiKey`，不能直接复用为桌面配置契约；插件 resolve 则使用独立的 activation/snapshot
+contract，grants 不进入 preload 或 SQLite。
 
 所有权落点：Runtime 负责云端 Session、消息、文件路径/引用、Agent loop、durable Job 与编辑协调；Admin 保留配置和 provider secret；Gateway 仅执行认证与路由；Storage 负责内容与保留；Runtime sandbox role 负责云端实例、进程及文件桥；本地运行时负责本地会话、Agent loop、工具及 OS 隔离。Chat 只保留 Web 产品投影。前端消费明确的文件和执行结果；新增流字段须遵守 [UIMessage 契约](../../schemas/streaming/chat-uimessage-stream.md)。
 

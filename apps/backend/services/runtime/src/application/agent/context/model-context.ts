@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { createProviderModel, type LanguageProviderSnapshot } from "#runtime/provider-model";
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
-import { sessionContexts } from "../../../infrastructure/persistence/schema.js";
+import { contextCheckpoints } from "../../../infrastructure/persistence/schema.js";
 import { transformFilePartsForModel } from "./model-files.js";
 
 type AnyUIMessage = UIMessage<unknown, any, any>;
@@ -17,24 +17,29 @@ async function saveCheckpoint(sessionId: string, checkpoint: RuntimeContextCheck
   const now = new Date();
   if (checkpoint.expectedRevision != null) {
     const updated = await db
-      .update(sessionContexts)
+      .update(contextCheckpoints)
       .set({
-        revision: checkpoint.expectedRevision + 1,
-        coveredThroughMessageId: checkpoint.coveredThroughMessageId,
+        revision: BigInt(checkpoint.expectedRevision + 1),
+        coveredItemId: checkpoint.coveredThroughMessageId,
         summary: checkpoint.state.summary,
         stateJson: checkpoint.state as unknown as Record<string, unknown>,
         estimatedTokens: checkpoint.estimatedTokens,
         updatedAt: now,
       })
-      .where(and(eq(sessionContexts.sessionId, sessionId), eq(sessionContexts.revision, checkpoint.expectedRevision)))
-      .returning({ revision: sessionContexts.revision });
+      .where(
+        and(
+          eq(contextCheckpoints.threadId, sessionId),
+          eq(contextCheckpoints.revision, BigInt(checkpoint.expectedRevision)),
+        ),
+      )
+      .returning({ revision: contextCheckpoints.revision });
     if (updated.length !== 1) throw new Error("session context checkpoint revision conflict");
     return;
   }
-  await db.insert(sessionContexts).values({
-    sessionId,
-    revision: 1,
-    coveredThroughMessageId: checkpoint.coveredThroughMessageId,
+  await db.insert(contextCheckpoints).values({
+    threadId: sessionId,
+    revision: 1n,
+    coveredItemId: checkpoint.coveredThroughMessageId,
     summary: checkpoint.state.summary,
     stateJson: checkpoint.state as unknown as Record<string, unknown>,
     estimatedTokens: checkpoint.estimatedTokens,
@@ -53,13 +58,16 @@ export async function projectModelContext(input: {
   messages: AnyUIMessage[];
   onCompactionUsage?: (usage: RuntimeTokenUsage) => void;
 }) {
-  const [stored] = await getDb().select().from(sessionContexts).where(eq(sessionContexts.sessionId, input.sessionId));
+  const [stored] = await getDb()
+    .select()
+    .from(contextCheckpoints)
+    .where(eq(contextCheckpoints.threadId, input.sessionId));
   const state = parseRuntimeCompactionState(stored?.stateJson);
   const checkpoint =
-    stored && stored.coveredThroughMessageId && state
+    stored && stored.coveredItemId && state
       ? {
-          revision: stored.revision,
-          coveredThroughMessageId: stored.coveredThroughMessageId,
+          revision: Number(stored.revision),
+          coveredThroughMessageId: stored.coveredItemId,
           state: state satisfies RuntimeCompactionState,
         }
       : null;

@@ -34,6 +34,11 @@ service BenefitPackageService {
   rpc DeleteReviewedAsset(DeleteReviewedAssetRequest) returns (DeleteReviewedAssetResponse);
 }
 
+service AgentPluginService {
+  rpc ListAgentPlugins(ListAgentPluginsRequest) returns (ListAgentPluginsResponse);
+  rpc ResolveAgentPlugins(ResolveAgentPluginsRequest) returns (ResolveAgentPluginsResponse);
+}
+
 enum ProviderKind {
   PROVIDER_KIND_UNSPECIFIED = 0;
   PROVIDER_KIND_CHAT = 1;
@@ -211,6 +216,124 @@ message GetCanvasSettingsRequest {
 
 message GetCanvasSettingsResponse {
   CanvasSettings settings = 1;
+}
+
+message ListAgentPluginsRequest {
+  common.v1.ActorContext actor = 1;
+}
+
+message ListAgentPluginsResponse {
+  repeated AgentPluginCatalogItem plugins = 1;
+}
+
+message AgentPluginCatalogItem {
+  string plugin_id = 1;
+  string display_name = 2;
+  string description = 3;
+  string source = 4;
+  string trust = 5;
+  string install_policy = 6;
+  string availability = 7;
+  bool installed = 8;
+  bool enabled = 9;
+  int64 state_revision = 10;
+  AgentPluginManifest latest_release = 11;
+}
+
+message AgentPluginActivation {
+  string plugin_id = 1;
+  map<string, string> bindings = 2;
+}
+
+message ResolveAgentPluginsRequest {
+  common.v1.ActorContext actor = 1;
+  repeated AgentPluginActivation activations = 2;
+  string workspace_role = 3;
+}
+
+message AgentPluginToolPolicy {
+  string capability = 1;
+  bool callable_by_code_mode = 2;
+  string effect = 3;
+  string trust = 4;
+  string execution = 5;
+  optional google.protobuf.Struct source_projection = 6;
+  bool streaming = 7;
+  optional string ui_kind = 8;
+}
+
+message AgentPluginToolPlanning {
+  string summary = 1;
+  repeated string constraints = 2;
+  repeated string prerequisites = 3;
+  bool parallelizable = 4;
+}
+
+message AgentPluginMCPTool {
+  string name = 1;
+  string description = 2;
+  google.protobuf.Struct input_schema = 3;
+  optional google.protobuf.Struct output_schema = 4;
+  AgentPluginToolPolicy policy = 5;
+  AgentPluginToolPlanning planning = 6;
+}
+
+message AgentPluginMCPServer {
+  string name = 1;
+  string url = 2;
+  repeated string required_bindings = 3;
+  repeated string optional_bindings = 4;
+  repeated AgentPluginMCPTool tools = 5;
+}
+
+message AgentPluginSkillContribution {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string asset_id = 4;
+  string revision_id = 5;
+  string sha256 = 6;
+}
+
+message AgentPluginManifest {
+  int32 schema_version = 1;
+  string plugin_id = 2;
+  string version = 3;
+  string digest = 4;
+  string display_name = 5;
+  string description = 6;
+  string source = 7;
+  string trust = 8;
+  repeated AgentPluginMCPServer mcp_servers = 9;
+  repeated AgentPluginSkillContribution skills = 10;
+}
+
+message ResolvedAgentPlugin {
+  AgentPluginManifest manifest = 1;
+  AgentPluginActivation activation = 2;
+}
+
+message AgentPluginConnectionGrant {
+  string plugin_id = 1;
+  string server_name = 2;
+  map<string, string> headers = 3;
+  optional google.protobuf.Timestamp expires_at = 4;
+}
+
+message ResolvedAgentPluginSnapshot {
+  int32 schema_version = 1;
+  string snapshot_id = 2;
+  string snapshot_digest = 3;
+  int64 workspace_revision = 4;
+  string tenant_id = 5;
+  string workspace_id = 6;
+  google.protobuf.Timestamp resolved_at = 7;
+  repeated ResolvedAgentPlugin plugins = 8;
+  repeated AgentPluginConnectionGrant connection_grants = 9;
+}
+
+message ResolveAgentPluginsResponse {
+  ResolvedAgentPluginSnapshot snapshot = 1;
 }
 
 message BenefitPackage {

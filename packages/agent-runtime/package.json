@@ -7,6 +7,7 @@
     ".": "./src/runtime/turn.ts",
     "./context/*": "./src/context/*.ts",
     "./instructions/*": "./src/instructions/*.ts",
+    "./plugins/*": "./src/plugins/*.ts",
     "./protocol/*": "./src/protocol/*.ts",
     "./runtime/environment": "./src/runtime/environment.ts",
     "./runtime/execution-host": "./src/runtime/execution-host.ts",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@ai-sdk/code-mode": "catalog:",
+    "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/provider": "^4.0.38",
     "@ai-sdk/provider-utils": "^5.0.81",
     "@ai-sdk/tool-web-fetch": "catalog:",

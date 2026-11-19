@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
 import {
@@ -14,12 +14,12 @@ import {
 import { storageClient } from "../infrastructure/clients/storage.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
-  agentRuns,
-  sessionArtifactCleanupOutbox,
-  sessionRunLeases,
-  sessions,
-  messages,
-  type PersistedMessageContent,
+  threadArtifactCleanupOutbox,
+  threadItems,
+  threads,
+  turnLeases,
+  turns,
+  type PersistedThreadItemContent,
 } from "../infrastructure/persistence/schema.js";
 import type { ReasoningEffort } from "../infrastructure/provider/provider-model.js";
 import { coordinateCloudWorkspaceUserEdit } from "./cloud-workspace-edit.js";
@@ -109,7 +109,7 @@ export interface Message {
   id: string;
   session_id: string;
   role: "user" | "assistant" | "system";
-  content: PersistedMessageContent;
+  content: PersistedThreadItemContent;
   status: "ok" | "streaming" | "failed";
   parent_message_id: string | null;
   branch_index: number;
@@ -189,7 +189,7 @@ function iso(d: Date): string {
   return d.toISOString().replace("+00:00", "Z");
 }
 
-function toSession(row: typeof sessions.$inferSelect): Session {
+function toSession(row: typeof threads.$inferSelect): Session {
   return {
     id: row.id,
     user_id: row.userId,
@@ -201,18 +201,18 @@ function toSession(row: typeof sessions.$inferSelect): Session {
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
     revision: Number(row.historyRevision),
-    selected_message_id: row.selectedMessageId,
+    selected_message_id: row.selectedItemId,
   };
 }
 
-function toMessage(row: typeof messages.$inferSelect): Message {
+function toMessage(row: typeof threadItems.$inferSelect): Message {
   return {
     id: row.id,
-    session_id: row.sessionId,
+    session_id: row.threadId,
     role: row.role as Message["role"],
     content: row.content,
     status: row.status as Message["status"],
-    parent_message_id: row.parentMessageId,
+    parent_message_id: row.parentItemId,
     branch_index: row.branchIndex,
     created_at: iso(row.createdAt),
   };
@@ -294,15 +294,15 @@ export async function listSessions(auth: AuthContext): Promise<Session[]> {
   const db = getDb();
   const rows = await db
     .select()
-    .from(sessions)
+    .from(threads)
     .where(
       and(
-        eq(sessions.userId, auth.userId),
-        eq(sessions.tenantId, auth.tenantId),
-        eq(sessions.workspaceId, auth.workspaceId),
+        eq(threads.userId, auth.userId),
+        eq(threads.tenantId, auth.tenantId),
+        eq(threads.workspaceId, auth.workspaceId),
       ),
     )
-    .orderBy(desc(sessions.updatedAt));
+    .orderBy(desc(threads.updatedAt));
   return rows.map(toSession);
 }
 
@@ -311,14 +311,14 @@ export async function getSession(auth: AuthContext, sessionId: string): Promise<
   const db = getDb();
   const messageRows = await db
     .select()
-    .from(messages)
-    .where(eq(messages.sessionId, sessionId))
-    .orderBy(asc(messages.createdAt), asc(messages.id));
+    .from(threadItems)
+    .where(eq(threadItems.threadId, sessionId))
+    .orderBy(asc(threadItems.ordinal));
   const [latestRun] = await db
-    .select({ id: agentRuns.id })
-    .from(agentRuns)
-    .where(eq(agentRuns.sessionId, sessionId))
-    .orderBy(desc(agentRuns.createdAt))
+    .select({ id: turns.id })
+    .from(turns)
+    .where(eq(turns.threadId, sessionId))
+    .orderBy(desc(turns.ordinal))
     .limit(1);
   let documentRows: KnowledgeDocument[] = [];
   try {
@@ -327,7 +327,7 @@ export async function getSession(auth: AuthContext, sessionId: string): Promise<
     documentRows = [];
   }
   const allMessages = messageRows.map(toMessage);
-  const selectedMessages = selectMessagePath(allMessages, row.selectedMessageId);
+  const selectedMessages = selectMessagePath(allMessages, row.selectedItemId);
   return {
     ...toSession(row),
     messages: selectedMessages,
@@ -362,17 +362,17 @@ export async function createSession(
     createdAt: now,
     updatedAt: now,
   };
-  const [inserted] = await db.insert(sessions).values(values).onConflictDoNothing().returning();
+  const [inserted] = await db.insert(threads).values(values).onConflictDoNothing().returning();
   if (inserted) return toSession(inserted);
   const [row] = await db
     .select()
-    .from(sessions)
+    .from(threads)
     .where(
       and(
-        eq(sessions.userId, auth.userId),
-        eq(sessions.tenantId, auth.tenantId),
-        eq(sessions.workspaceId, auth.workspaceId),
-        eq(sessions.createRequestId, input.request_id),
+        eq(threads.userId, auth.userId),
+        eq(threads.tenantId, auth.tenantId),
+        eq(threads.workspaceId, auth.workspaceId),
+        eq(threads.createRequestId, input.request_id),
       ),
     );
   if (!row) throw new ConflictError("session creation conflict");
@@ -395,13 +395,13 @@ export async function selectSessionHistory(
   await db.transaction(async (tx) => {
     const [session] = await tx
       .select()
-      .from(sessions)
+      .from(threads)
       .where(
         and(
-          eq(sessions.id, sessionId),
-          eq(sessions.userId, auth.userId),
-          eq(sessions.tenantId, auth.tenantId),
-          eq(sessions.workspaceId, auth.workspaceId),
+          eq(threads.id, sessionId),
+          eq(threads.userId, auth.userId),
+          eq(threads.tenantId, auth.tenantId),
+          eq(threads.workspaceId, auth.workspaceId),
         ),
       )
       .for("update");
@@ -413,41 +413,37 @@ export async function selectSessionHistory(
       });
     }
     const now = new Date();
-    const [lease] = await tx
-      .select()
-      .from(sessionRunLeases)
-      .where(eq(sessionRunLeases.sessionId, sessionId))
-      .for("update");
+    const [lease] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, sessionId)).for("update");
     const [leasedRun] = lease
-      ? await tx.select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, lease.runId)).for("update")
+      ? await tx.select({ status: turns.status }).from(turns).where(eq(turns.id, lease.turnId)).for("update")
       : [];
     if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status) && lease.expiresAt > now) {
       throw new ConflictError("cannot switch history while an agent run is active", "active_run_exists", {
-        run_id: lease.runId,
+        run_id: lease.turnId,
       });
     }
     if (lease) {
-      await tx.delete(sessionRunLeases).where(eq(sessionRunLeases.runId, lease.runId));
+      await tx.delete(turnLeases).where(eq(turnLeases.turnId, lease.turnId));
       if (leasedRun && ["running", "cancel_requested"].includes(leasedRun.status)) {
         await tx
-          .update(agentRuns)
-          .set({ status: "interrupted", finishedAt: now, error: "run lease expired" })
-          .where(eq(agentRuns.id, lease.runId));
+          .update(turns)
+          .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
+          .where(eq(turns.id, lease.turnId));
       }
     }
     const [leaf] = await tx
-      .select({ id: messages.id })
-      .from(messages)
-      .where(and(eq(messages.id, input.leaf_message_id), eq(messages.sessionId, sessionId)));
+      .select({ id: threadItems.id })
+      .from(threadItems)
+      .where(and(eq(threadItems.id, input.leaf_message_id), eq(threadItems.threadId, sessionId)));
     if (!leaf) throw new NotFoundError(`message ${input.leaf_message_id} not found in session ${sessionId}`);
     await tx
-      .update(sessions)
+      .update(threads)
       .set({
-        selectedMessageId: leaf.id,
+        selectedItemId: leaf.id,
         historyRevision: session.historyRevision + 1n,
         updatedAt: new Date(),
       })
-      .where(eq(sessions.id, sessionId));
+      .where(eq(threads.id, sessionId));
   });
   return getSession(auth, sessionId);
 }
@@ -458,41 +454,37 @@ export async function deleteSession(auth: AuthContext, sessionId: string): Promi
   await db.transaction(async (tx) => {
     const [row] = await tx
       .select()
-      .from(sessions)
+      .from(threads)
       .where(
         and(
-          eq(sessions.id, sessionId),
-          eq(sessions.userId, auth.userId),
-          eq(sessions.tenantId, auth.tenantId),
-          eq(sessions.workspaceId, auth.workspaceId),
+          eq(threads.id, sessionId),
+          eq(threads.userId, auth.userId),
+          eq(threads.tenantId, auth.tenantId),
+          eq(threads.workspaceId, auth.workspaceId),
         ),
       )
       .for("update");
     if (!row) throw new NotFoundError(`session ${sessionId} not found`);
-    const [lease] = await tx
-      .select()
-      .from(sessionRunLeases)
-      .where(eq(sessionRunLeases.sessionId, row.id))
-      .for("update");
+    const [lease] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, row.id)).for("update");
     const [leasedRun] = lease
-      ? await tx.select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, lease.runId)).for("update")
+      ? await tx.select({ status: turns.status }).from(turns).where(eq(turns.id, lease.turnId)).for("update")
       : [];
     if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status) && lease.expiresAt > now) {
       throw new ConflictError("session has an active agent run; cancel it before deleting", "active_run_exists", {
-        run_id: lease.runId,
+        run_id: lease.turnId,
       });
     }
     if (lease && leasedRun && ["running", "cancel_requested"].includes(leasedRun.status)) {
       await tx
-        .update(agentRuns)
-        .set({ status: "interrupted", finishedAt: now, error: "run lease expired" })
-        .where(eq(agentRuns.id, lease.runId));
+        .update(turns)
+        .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
+        .where(eq(turns.id, lease.turnId));
     }
-    if (lease) await tx.delete(sessionRunLeases).where(eq(sessionRunLeases.runId, lease.runId));
+    if (lease) await tx.delete(turnLeases).where(eq(turnLeases.turnId, lease.turnId));
     await tx
-      .insert(sessionArtifactCleanupOutbox)
+      .insert(threadArtifactCleanupOutbox)
       .values({
-        sessionId: row.id,
+        threadId: row.id,
         userId: row.userId,
         tenantId: row.tenantId,
         workspaceId: row.workspaceId,
@@ -506,7 +498,7 @@ export async function deleteSession(auth: AuthContext, sessionId: string): Promi
       tenantId: row.tenantId,
       workspaceId: row.workspaceId,
     });
-    await tx.delete(sessions).where(eq(sessions.id, row.id));
+    await tx.delete(threads).where(eq(threads.id, row.id));
   });
 }
 
@@ -553,18 +545,18 @@ export async function updateSessionDocument(
 
 export async function touchSession(sessionId: string): Promise<void> {
   const db = getDb();
-  await db.update(sessions).set({ updatedAt: new Date() }).where(eq(sessions.id, sessionId));
+  await db.update(threads).set({ updatedAt: new Date() }).where(eq(threads.id, sessionId));
 }
 
-export async function getSessionRow(auth: AuthContext, sessionId: string): Promise<typeof sessions.$inferSelect> {
+export async function getSessionRow(auth: AuthContext, sessionId: string): Promise<typeof threads.$inferSelect> {
   const db = getDb();
   const condition = and(
-    eq(sessions.id, sessionId),
-    eq(sessions.userId, auth.userId),
-    eq(sessions.tenantId, auth.tenantId),
-    eq(sessions.workspaceId, auth.workspaceId),
+    eq(threads.id, sessionId),
+    eq(threads.userId, auth.userId),
+    eq(threads.tenantId, auth.tenantId),
+    eq(threads.workspaceId, auth.workspaceId),
   );
-  const [row] = await db.select().from(sessions).where(condition);
+  const [row] = await db.select().from(threads).where(condition);
   if (!row) {
     throw new NotFoundError(`session ${sessionId} not found`);
   }
@@ -575,15 +567,15 @@ export async function listMessages(sessionId: string, leafMessageId?: string | n
   const db = getDb();
   return db.transaction(async (tx) => {
     const [session] = await tx
-      .select({ selectedMessageId: sessions.selectedMessageId })
-      .from(sessions)
-      .where(eq(sessions.id, sessionId));
+      .select({ selectedItemId: threads.selectedItemId })
+      .from(threads)
+      .where(eq(threads.id, sessionId));
     const rows = await tx
       .select()
-      .from(messages)
-      .where(eq(messages.sessionId, sessionId))
-      .orderBy(asc(messages.createdAt), asc(messages.id));
-    const selectedLeaf = leafMessageId === undefined ? (session?.selectedMessageId ?? null) : leafMessageId;
+      .from(threadItems)
+      .where(eq(threadItems.threadId, sessionId))
+      .orderBy(asc(threadItems.ordinal));
+    const selectedLeaf = leafMessageId === undefined ? (session?.selectedItemId ?? null) : leafMessageId;
     return selectMessagePath(rows.map(toMessage), selectedLeaf);
   });
 }
@@ -592,7 +584,7 @@ export async function createMessage(input: {
   id?: string;
   sessionId: string;
   role: string;
-  content: PersistedMessageContent;
+  content: PersistedThreadItemContent;
   status?: string;
   parentMessageId?: string | null;
   branchIndex?: number;
@@ -601,42 +593,58 @@ export async function createMessage(input: {
   const db = getDb();
   const id = input.id ?? randomBytes(8).toString("hex");
   const now = new Date();
-  await db
-    .insert(messages)
-    .values({
-      id,
-      sessionId: input.sessionId,
-      role: input.role,
-      content: input.content,
-      status: input.status ?? "ok",
-      parentMessageId: input.parentMessageId ?? null,
-      branchIndex: input.branchIndex ?? 0,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
-  const [row] = await db.select().from(messages).where(eq(messages.id, id));
-  if (!row || row.sessionId !== input.sessionId || row.role !== input.role) {
-    throw new Error(`message id ${id} already belongs to a different message`);
-  }
-  if (input.select) {
-    await db
-      .update(sessions)
-      .set({ selectedMessageId: row.id, updatedAt: now })
-      .where(eq(sessions.id, input.sessionId));
-  }
-  return toMessage(row);
+  return db.transaction(async (tx) => {
+    const [thread] = await tx.select().from(threads).where(eq(threads.id, input.sessionId)).for("update");
+    if (!thread) throw new NotFoundError(`session ${input.sessionId} not found`);
+    const ordinal = thread.itemSequence + 1n;
+    await tx
+      .insert(threadItems)
+      .values({
+        id,
+        threadId: input.sessionId,
+        ordinal,
+        role: input.role,
+        content: input.content,
+        status: input.status ?? "ok",
+        parentItemId: input.parentMessageId ?? null,
+        branchIndex: input.branchIndex ?? 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
+    const [row] = await tx.select().from(threadItems).where(eq(threadItems.id, id));
+    if (!row || row.threadId !== input.sessionId || row.role !== input.role) {
+      throw new Error(`message id ${id} already belongs to a different message`);
+    }
+    if (row.ordinal === ordinal) {
+      await tx
+        .update(threads)
+        .set({
+          itemSequence: ordinal,
+          ...(input.select ? { selectedItemId: row.id } : {}),
+          updatedAt: now,
+        })
+        .where(eq(threads.id, input.sessionId));
+    }
+    return toMessage(row);
+  });
 }
 
 export async function updateMessageContent(input: {
   id: string;
   sessionId: string;
-  content: PersistedMessageContent;
+  content: PersistedThreadItemContent;
   status?: string;
 }): Promise<void> {
   await getDb()
-    .update(messages)
-    .set({ content: input.content, status: input.status ?? "ok" })
-    .where(and(eq(messages.id, input.id), eq(messages.sessionId, input.sessionId)));
+    .update(threadItems)
+    .set({
+      content: input.content,
+      status: input.status ?? "ok",
+      revision: sql`${threadItems.revision} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(threadItems.id, input.id), eq(threadItems.threadId, input.sessionId)));
 }
 
 export async function updateSessionModel(
@@ -647,14 +655,14 @@ export async function updateSessionModel(
   await getSessionRow(auth, sessionId);
   const db = getDb();
   const [row] = await db
-    .update(sessions)
+    .update(threads)
     .set({
       providerId: input.providerId,
       model: input.model,
       reasoningEffort: input.reasoningEffort,
       updatedAt: new Date(),
     })
-    .where(eq(sessions.id, sessionId))
+    .where(eq(threads.id, sessionId))
     .returning();
   if (!row) throw new NotFoundError("session not found");
   return toSession(row);

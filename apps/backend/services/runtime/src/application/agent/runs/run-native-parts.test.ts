@@ -145,8 +145,23 @@ test("real SDK stream projects completed search results and keeps the native too
   const parts = createPublishedAgentPartStream({
     modelStream: modelStream([
       { type: "start" },
-      { type: "tool-call", toolCallId: "search", toolName: "web_search", input, dynamic: true },
-      { type: "tool-result", toolCallId: "search", toolName: "web_search", input, output: outcome, dynamic: true },
+      {
+        type: "tool-call",
+        toolCallId: "search",
+        toolName: "web_search",
+        input,
+        toolMetadata: { agent: { sourceProjection: { kind: "url-results" } } },
+        dynamic: true,
+      },
+      {
+        type: "tool-result",
+        toolCallId: "search",
+        toolName: "web_search",
+        input,
+        output: outcome,
+        toolMetadata: { agent: { sourceProjection: { kind: "url-results" } } },
+        dynamic: true,
+      },
       finishPart(),
     ]),
     tools: {},
@@ -172,6 +187,70 @@ test("real SDK stream projects completed search results and keeps the native too
   const tool = end.responseMessage.parts.find((part) => part.type === "dynamic-tool");
   assert.ok(tool?.state === "output-available");
   assert.deepEqual(tool.output, outcome);
+});
+
+test("namespaced MCP document search projects sources from manifest metadata", async () => {
+  const input = { query: "runtime" };
+  const outcome = {
+    ok: true as const,
+    status: "completed" as const,
+    data: {
+      results: [
+        {
+          document_id: "document",
+          title: "Runtime architecture",
+          filename: "runtime.pdf",
+          media_type: "application/pdf",
+        },
+      ],
+    },
+  };
+  const metadata = {
+    agent: { sourceProjection: { kind: "document-results", resolver: "knowledge-document" } },
+  };
+  const parts = createPublishedAgentPartStream({
+    modelStream: modelStream([
+      { type: "start" },
+      {
+        type: "tool-call",
+        toolCallId: "knowledge",
+        toolName: "mcp__knowledge__knowledge_search",
+        input,
+        toolMetadata: metadata,
+        dynamic: true,
+      },
+      {
+        type: "tool-result",
+        toolCallId: "knowledge",
+        toolName: "mcp__knowledge__knowledge_search",
+        input,
+        output: outcome,
+        toolMetadata: metadata,
+        dynamic: true,
+      },
+      finishPart(),
+    ]),
+    tools: {},
+    originalMessages: [userMessage],
+    assistantMessageId: "assistant",
+    publicationContext,
+    onError: () => "failed",
+    dependencies: dependencies(),
+  });
+
+  const chunks = await collect(parts.stream);
+  await parts.end;
+  assert.deepEqual(
+    chunks.find((chunk) => chunk.type === "source-document"),
+    {
+      type: "source-document",
+      sourceId: "document",
+      mediaType: "application/pdf",
+      title: "Runtime architecture",
+      filename: "runtime.pdf",
+      providerMetadata: { chat: { resolver: "knowledge-document" } },
+    },
+  );
 });
 
 test("real SDK stream projects a published file result into a persistent artifact data part", async () => {

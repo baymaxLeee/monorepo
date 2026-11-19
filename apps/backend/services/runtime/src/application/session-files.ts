@@ -6,9 +6,9 @@ import type { AuthContext } from "../api/http/middleware/auth.js";
 import { getDb } from "../infrastructure/persistence/index.js";
 import {
   assetClaimIntents,
-  sessionFiles,
-  sessionFileSaveOperations,
-  sessions,
+  threadFiles as sessionFiles,
+  threadFileSaveOperations as sessionFileSaveOperations,
+  threads as sessions,
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError, RequestError } from "./errors.js";
 import { assertEditableFileSize, editableFileByteLimit } from "./file-edit-limits.js";
@@ -47,7 +47,7 @@ type ChatTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transacti
 function toSessionFile(row: typeof sessionFiles.$inferSelect): SessionFile {
   return {
     id: row.id,
-    session_id: row.sessionId,
+    session_id: row.threadId,
     title: row.title,
     filename: row.filename,
     workspace_path: row.workspacePath,
@@ -123,7 +123,7 @@ export async function listSessionFiles(scope: FileScope): Promise<SessionFile[]>
   const rows = await getDb()
     .select({ file: sessionFiles })
     .from(sessionFiles)
-    .innerJoin(sessions, eq(sessions.id, sessionFiles.sessionId))
+    .innerJoin(sessions, eq(sessions.id, sessionFiles.threadId))
     .where(and(scopeCondition(scope), eq(sessionFiles.workspaceState, "live")))
     .orderBy(asc(sessionFiles.createdAt), asc(sessionFiles.id));
   return rows.map(({ file }) => toSessionFile(file));
@@ -137,7 +137,7 @@ export async function getSessionFile(
   const [row] = await getDb()
     .select({ file: sessionFiles })
     .from(sessionFiles)
-    .innerJoin(sessions, eq(sessions.id, sessionFiles.sessionId))
+    .innerJoin(sessions, eq(sessions.id, sessionFiles.threadId))
     .where(
       and(
         scopeCondition({ ...auth, sessionId }),
@@ -179,7 +179,7 @@ export async function publishSessionFile(
           eq(sessionFiles.tenantId, input.tenantId),
           eq(sessionFiles.workspaceId, input.workspaceId),
           eq(sessionFiles.userId, input.userId),
-          eq(sessionFiles.sessionId, input.sessionId),
+          eq(sessionFiles.threadId, input.sessionId),
           eq(sessionFiles.idempotencyKey, input.idempotencyKey),
         ),
       );
@@ -204,7 +204,7 @@ export async function publishSessionFile(
       .insert(sessionFiles)
       .values({
         id: randomBytes(16).toString("hex"),
-        sessionId: input.sessionId,
+        threadId: input.sessionId,
         userId: input.userId,
         tenantId: input.tenantId,
         workspaceId: input.workspaceId,
@@ -287,7 +287,7 @@ function operationCondition(input: SessionFileSaveInput) {
     eq(sessionFileSaveOperations.tenantId, input.tenantId),
     eq(sessionFileSaveOperations.workspaceId, input.workspaceId),
     eq(sessionFileSaveOperations.userId, input.userId),
-    eq(sessionFileSaveOperations.sessionId, input.sessionId),
+    eq(sessionFileSaveOperations.threadId, input.sessionId),
     eq(sessionFileSaveOperations.operationId, input.operationId),
   );
 }
@@ -338,7 +338,7 @@ async function prepareSessionFileSave(input: SessionFileSaveInput): Promise<Save
       .where(
         and(
           eq(sessionFiles.id, input.fileId),
-          eq(sessionFiles.sessionId, input.sessionId),
+          eq(sessionFiles.threadId, input.sessionId),
           eq(sessionFiles.userId, input.userId),
           eq(sessionFiles.tenantId, input.tenantId),
           eq(sessionFiles.workspaceId, input.workspaceId),
@@ -385,7 +385,7 @@ async function prepareSessionFileSave(input: SessionFileSaveInput): Promise<Save
         tenantId: input.tenantId,
         workspaceId: input.workspaceId,
         userId: input.userId,
-        sessionId: input.sessionId,
+        threadId: input.sessionId,
         operationId: input.operationId,
         fileId: input.fileId,
         expectedEtag: input.expectedEtag,
@@ -494,7 +494,7 @@ export async function saveSessionFile(
       .where(
         and(
           eq(sessionFiles.id, input.fileId),
-          eq(sessionFiles.sessionId, input.sessionId),
+          eq(sessionFiles.threadId, input.sessionId),
           eq(sessionFiles.userId, input.userId),
           eq(sessionFiles.tenantId, input.tenantId),
           eq(sessionFiles.workspaceId, input.workspaceId),
@@ -603,7 +603,7 @@ export async function deleteWorkspaceSessionFile(
       .where(
         and(
           eq(sessionFiles.id, input.fileId),
-          eq(sessionFiles.sessionId, input.sessionId),
+          eq(sessionFiles.threadId, input.sessionId),
           eq(sessionFiles.userId, input.userId),
           eq(sessionFiles.tenantId, input.tenantId),
           eq(sessionFiles.workspaceId, input.workspaceId),
@@ -641,7 +641,7 @@ export async function releaseSessionFileClaims(tx: ChatTransaction, scope: FileS
     .from(sessionFiles)
     .where(
       and(
-        eq(sessionFiles.sessionId, scope.sessionId),
+        eq(sessionFiles.threadId, scope.sessionId),
         eq(sessionFiles.userId, scope.userId),
         eq(sessionFiles.tenantId, scope.tenantId),
         eq(sessionFiles.workspaceId, scope.workspaceId),
@@ -687,7 +687,7 @@ export async function forkSessionFileRows(
     .from(sessionFiles)
     .where(
       and(
-        eq(sessionFiles.sessionId, input.sourceSessionId),
+        eq(sessionFiles.threadId, input.sourceSessionId),
         eq(sessionFiles.userId, input.userId),
         eq(sessionFiles.tenantId, input.tenantId),
         eq(sessionFiles.workspaceId, input.workspaceId),
@@ -700,7 +700,7 @@ export async function forkSessionFileRows(
   await tx.insert(sessionFiles).values(
     sourceFiles.map((file) => ({
       id: fileIds[file.id]!,
-      sessionId: input.sessionId,
+      threadId: input.sessionId,
       userId: input.userId,
       tenantId: input.tenantId,
       workspaceId: input.workspaceId,

@@ -16,8 +16,14 @@ type titleRepositoryStub struct {
 
 func (*titleRepositoryStub) Ping(context.Context) error { return nil }
 func (*titleRepositoryStub) Close()                     {}
-func (*titleRepositoryStub) Create(context.Context, AuthContext, string, CreateConversationInput) (Conversation, error) {
+func (*titleRepositoryStub) Reserve(context.Context, AuthContext, ConversationIntent) (Conversation, error) {
 	return Conversation{}, nil
+}
+func (*titleRepositoryStub) BindRuntimeThread(context.Context, AuthContext, string, string) (Conversation, error) {
+	return Conversation{}, nil
+}
+func (*titleRepositoryStub) RecordSagaFailure(context.Context, AuthContext, string, ConversationState, error) error {
+	return nil
 }
 func (*titleRepositoryStub) List(context.Context, AuthContext) ([]Conversation, error) {
 	return nil, nil
@@ -38,8 +44,11 @@ func (stub *titleRepositoryStub) UpdateTitleIfDefault(_ context.Context, _ AuthC
 	value := stub.conversation
 	return &value, nil
 }
-func (*titleRepositoryStub) Delete(context.Context, AuthContext, string) (*Conversation, error) {
+func (*titleRepositoryStub) BeginDelete(context.Context, AuthContext, string) (*Conversation, error) {
 	return nil, nil
+}
+func (*titleRepositoryStub) CompleteDelete(context.Context, AuthContext, string, string) error {
+	return nil
 }
 
 type titleRuntimeStub struct {
@@ -75,7 +84,8 @@ func TestProxyConversationPersistsFirstStreamedTitleWithoutChangingSSE(t *testin
 	}
 	payload := strings.Join(payloadChunks, "")
 	repository := &titleRepositoryStub{conversation: Conversation{
-		ID: "conversation", RuntimeSessionID: "session", UserID: "user", TenantID: "tenant", WorkspaceID: "workspace",
+		ID: "conversation", State: ConversationReady, Operation: ConversationCreate, RuntimeThreadID: "thread",
+		UserID: "user", TenantID: "tenant", WorkspaceID: "workspace",
 		Title: "新对话", CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}}
 	service := NewService(repository, titleRuntimeStub{response: &http.Response{

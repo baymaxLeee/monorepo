@@ -1,4 +1,5 @@
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
+import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
@@ -7,19 +8,21 @@ import type { SkillFileResource, SkillSummary } from "../../../infrastructure/cl
 export interface AgentRuntimeContext {
   [key: string]: unknown;
   runId: string;
+  attemptEpoch: bigint;
   userId: string;
   sessionId: string;
 }
 
 export interface CloudTurnInput {
-  projectId?: string | null;
-  canvasId?: string | null;
   workspaceRole?: string;
   runId: string;
+  attemptEpoch: bigint;
   userId: string;
   tenantId: string;
   workspaceId: string;
   sessionId: string;
+  signal?: AbortSignal;
+  pluginSnapshot: ResolvedTurnPluginSnapshot;
   provider: LanguageProviderSnapshot;
   reasoningEffort: ReasoningEffort;
   previousResponseId?: string | null;

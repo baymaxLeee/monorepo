@@ -7,16 +7,17 @@ import { and, eq } from "drizzle-orm";
 import { getDb, getSql } from "../infrastructure/persistence/index.js";
 import {
   assetClaimIntents,
-  sessionFiles,
-  sessionFileSaveOperations,
-  sessionRunLeases,
-  sessions,
+  threadFiles as sessionFiles,
+  threadFileSaveOperations as sessionFileSaveOperations,
+  turnLeases as sessionRunLeases,
+  threads as sessions,
+  turns,
 } from "../infrastructure/persistence/schema.js";
 import { ConflictError } from "./errors.js";
 import { saveSessionFile, type SessionFileSaveCandidate } from "./session-files.js";
 
-const url = process.env.CHAT_FILE_SAVE_TEST_URL;
-if (!url) throw new Error("CHAT_FILE_SAVE_TEST_URL must point to an isolated migrated Chat database");
+const url = process.env.RUNTIME_FILE_SAVE_TEST_URL;
+if (!url) throw new Error("RUNTIME_FILE_SAVE_TEST_URL must point to an isolated migrated Runtime database");
 const connection = new URL(url);
 Object.assign(process.env, {
   ENVIRONMENT: "development",
@@ -65,7 +66,7 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
       .insert(sessionFiles)
       .values({
         id: fileId,
-        sessionId,
+        threadId: sessionId,
         ...scope,
         assetId,
         revisionId,
@@ -239,7 +240,7 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
       .from(sessionFileSaveOperations)
       .where(
         and(
-          eq(sessionFileSaveOperations.sessionId, seeded.sessionId),
+          eq(sessionFileSaveOperations.threadId, seeded.sessionId),
           eq(sessionFileSaveOperations.fileId, seeded.fileId),
         ),
       );
@@ -248,11 +249,22 @@ test("session file save CAS, idempotency, no-op, and Claim switch", { timeout: 2
 
   await t.test("the save primitive accepts a user commit after workspace coordination", async () => {
     const seeded = await seed();
+    const turnId = id();
+    await getDb().insert(turns).values({
+      id: turnId,
+      threadId: seeded.sessionId,
+      ordinal: 1n,
+      userId: scope.userId,
+      status: "running",
+      createdAt: new Date(),
+      startedAt: new Date(),
+    });
     await getDb()
       .insert(sessionRunLeases)
       .values({
-        sessionId: seeded.sessionId,
-        runId: id(),
+        threadId: seeded.sessionId,
+        turnId,
+        attemptEpoch: 1n,
         heartbeatAt: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
       });

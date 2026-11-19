@@ -11,7 +11,7 @@
 | iam | Go | 8002 | `/api/iam-server/*` | PostgreSQL `iam` | — | 身份 / 会话 |
 | admin | Go | 8001 | `/api/admin-server/*` | PostgreSQL `admin` | storage | 管理与配置平面 |
 | chat | Go | 8009 | `/api/chat-server/*` | PostgreSQL `chat` | runtime | Web Chat 产品会话与呈现投影 |
-| [runtime](runtime.md) | TypeScript | 8015（server）/ 8011（worker）/ 8014（sandbox） | **internal-only** | PostgreSQL `runtime` + Workflow `workflow` | admin, knowledge, canvas, storage | Session/messages、ToolLoopAgent、Sandbox 与 durable Job |
+| [runtime](runtime.md) | TypeScript | 8015（server）/ 8011（worker）/ 8014（sandbox） | **internal-only** | PostgreSQL `runtime` + Workflow `workflow` | admin, knowledge, storage | Session/messages、ToolLoopAgent、Sandbox 与 durable Job |
 | canvas | Go | 8012 | `/api/canvas-server/*` | PostgreSQL `canvas` | admin, storage | 项目 / 画布 / 素材 |
 | knowledge | Python | 8010 | `/api/knowledge-server/*` | PostgreSQL `knowledge` | admin, storage | 知识库 / ingest / RAG |
 | telemetry | Go | 8008 | `/api/telemetry-server/*` | PostgreSQL `telemetry` | — | 可观测 / RUM |

@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/example/monorepo/admin/internal/application"
+	"github.com/example/monorepo/admin/internal/domain"
 	adminv1 "github.com/example/monorepo/inner-api-go/gen/admin/v1"
 	commonv1 "github.com/example/monorepo/inner-api-go/gen/common/v1"
 	innerruntime "github.com/example/monorepo/inner-api-go/runtime"
@@ -14,23 +16,27 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Server struct {
 	adminv1.UnimplementedProviderServiceServer
 	adminv1.UnimplementedConfigurationServiceServer
 	adminv1.UnimplementedBenefitPackageServiceServer
+	adminv1.UnimplementedAgentPluginServiceServer
 	Providers application.ProviderService
 	Canvas    application.CanvasSettingsService
 	Skills    *application.SkillService
 	Benefits  application.BenefitPackageService
+	Plugins   application.AgentPluginService
 }
 
-func Register(server *grpc.Server, providers application.ProviderService, canvas application.CanvasSettingsService, skills *application.SkillService, benefits application.BenefitPackageService) {
-	adapter := &Server{Providers: providers, Canvas: canvas, Skills: skills, Benefits: benefits}
+func Register(server *grpc.Server, providers application.ProviderService, canvas application.CanvasSettingsService, skills *application.SkillService, benefits application.BenefitPackageService, plugins application.AgentPluginService) {
+	adapter := &Server{Providers: providers, Canvas: canvas, Skills: skills, Benefits: benefits, Plugins: plugins}
 	adminv1.RegisterProviderServiceServer(server, adapter)
 	adminv1.RegisterConfigurationServiceServer(server, adapter)
 	adminv1.RegisterBenefitPackageServiceServer(server, adapter)
+	adminv1.RegisterAgentPluginServiceServer(server, adapter)
 }
 
 func Authorizer() innerruntime.Authorizer {
@@ -44,6 +50,9 @@ func Authorizer() innerruntime.Authorizer {
 		}
 		if strings.HasPrefix(method, "/admin.v1.BenefitPackageService/") {
 			return caller == "canvas"
+		}
+		if strings.HasPrefix(method, "/admin.v1.AgentPluginService/") {
+			return caller == "runtime"
 		}
 		return strings.HasPrefix(method, "/admin.v1.ProviderService/") || strings.HasPrefix(method, "/admin.v1.ConfigurationService/")
 	})
@@ -127,6 +136,131 @@ func (s *Server) ListProviderCatalog(ctx context.Context, request *adminv1.ListP
 		result = append(result, &adminv1.ProviderCatalogItem{Id: value.ID, Name: value.Name, Model: value.Model, ProviderKind: providerKind(value.Kind), Pricing: pricing, IsDefault: value.IsDefault, IsEnabled: value.IsEnabled})
 	}
 	return &adminv1.ListProviderCatalogResponse{Providers: result}, nil
+}
+
+func (s *Server) ListAgentPlugins(ctx context.Context, request *adminv1.ListAgentPluginsRequest) (*adminv1.ListAgentPluginsResponse, error) {
+	values, err := s.Plugins.List(ctx, actor(request.GetActor()))
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	result := make([]*adminv1.AgentPluginCatalogItem, 0, len(values))
+	for _, value := range values {
+		manifest, err := agentPluginManifest(value.Manifest)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "stored agent plugin release is invalid")
+		}
+		result = append(result, &adminv1.AgentPluginCatalogItem{
+			PluginId: value.Catalog.ID, DisplayName: value.Catalog.DisplayName, Description: value.Catalog.Description,
+			Source: string(value.Catalog.Source), Trust: string(value.Catalog.Trust), InstallPolicy: string(value.Catalog.InstallPolicy),
+			Availability: value.Catalog.Availability, Installed: value.Installed, Enabled: value.Enabled,
+			StateRevision: value.StateRevision, LatestRelease: manifest,
+		})
+	}
+	return &adminv1.ListAgentPluginsResponse{Plugins: result}, nil
+}
+
+func (s *Server) ResolveAgentPlugins(ctx context.Context, request *adminv1.ResolveAgentPluginsRequest) (*adminv1.ResolveAgentPluginsResponse, error) {
+	activations := make([]domain.AgentPluginActivation, 0, len(request.GetActivations()))
+	for _, value := range request.GetActivations() {
+		activations = append(activations, domain.AgentPluginActivation{PluginID: value.GetPluginId(), Bindings: value.GetBindings()})
+	}
+	requestActor := actor(request.GetActor())
+	requestActor.WorkspaceRole = request.GetWorkspaceRole()
+	value, err := s.Plugins.Resolve(ctx, requestActor, activations)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	plugins := make([]*adminv1.ResolvedAgentPlugin, 0, len(value.Plugins))
+	for _, resolved := range value.Plugins {
+		manifest, err := agentPluginManifest(resolved.Manifest)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "stored agent plugin release is invalid")
+		}
+		plugins = append(plugins, &adminv1.ResolvedAgentPlugin{
+			Manifest:   manifest,
+			Activation: &adminv1.AgentPluginActivation{PluginId: resolved.Activation.PluginID, Bindings: resolved.Activation.Bindings},
+		})
+	}
+	grants := make([]*adminv1.AgentPluginConnectionGrant, 0, len(value.ConnectionGrants))
+	for _, grant := range value.ConnectionGrants {
+		item := &adminv1.AgentPluginConnectionGrant{PluginId: grant.PluginID, ServerName: grant.ServerName, Headers: grant.Headers}
+		if grant.ExpiresAt != nil {
+			item.ExpiresAt = timestamppb.New(*grant.ExpiresAt)
+		}
+		grants = append(grants, item)
+	}
+	return &adminv1.ResolveAgentPluginsResponse{Snapshot: &adminv1.ResolvedAgentPluginSnapshot{
+		SchemaVersion: int32(value.SchemaVersion), SnapshotId: value.SnapshotID, SnapshotDigest: value.SnapshotDigest,
+		WorkspaceRevision: value.WorkspaceRevision, TenantId: value.TenantID, WorkspaceId: value.WorkspaceID,
+		ResolvedAt: timestamppb.New(value.ResolvedAt), Plugins: plugins, ConnectionGrants: grants,
+	}}, nil
+}
+
+func agentPluginManifest(value domain.AgentPluginManifest) (*adminv1.AgentPluginManifest, error) {
+	servers := make([]*adminv1.AgentPluginMCPServer, 0, len(value.MCPServers))
+	for _, server := range value.MCPServers {
+		tools := make([]*adminv1.AgentPluginMCPTool, 0, len(server.Tools))
+		for _, tool := range server.Tools {
+			input, err := rawStruct(tool.InputSchema)
+			if err != nil {
+				return nil, fmt.Errorf("decode %s/%s input schema: %w", value.ID, tool.Name, err)
+			}
+			var output *structpb.Struct
+			if len(tool.OutputSchema) > 0 {
+				output, err = rawStruct(tool.OutputSchema)
+				if err != nil {
+					return nil, fmt.Errorf("decode %s/%s output schema: %w", value.ID, tool.Name, err)
+				}
+			}
+			var sourceProjection *structpb.Struct
+			if tool.Policy.SourceProjection != nil {
+				sourceProjection, err = structpb.NewStruct(tool.Policy.SourceProjection)
+				if err != nil {
+					return nil, fmt.Errorf("decode %s/%s source projection: %w", value.ID, tool.Name, err)
+				}
+			}
+			policy := &adminv1.AgentPluginToolPolicy{
+				Capability: tool.Policy.Capability, CallableByCodeMode: tool.Policy.CallableByCodeMode,
+				Effect: tool.Policy.Effect, Trust: tool.Policy.Trust, Execution: tool.Policy.Execution,
+				SourceProjection: sourceProjection, Streaming: tool.Policy.Streaming,
+			}
+			if tool.Policy.UIKind != "" {
+				policy.UiKind = &tool.Policy.UIKind
+			}
+			tools = append(tools, &adminv1.AgentPluginMCPTool{
+				Name: tool.Name, Description: tool.Description, InputSchema: input, OutputSchema: output,
+				Policy: policy,
+				Planning: &adminv1.AgentPluginToolPlanning{
+					Summary: tool.Planning.Summary, Constraints: tool.Planning.Constraints,
+					Prerequisites: tool.Planning.Prerequisites, Parallelizable: tool.Planning.Parallelizable,
+				},
+			})
+		}
+		servers = append(servers, &adminv1.AgentPluginMCPServer{
+			Name: server.Name, Url: server.URL, RequiredBindings: server.RequiredBindings,
+			OptionalBindings: server.OptionalBindings, Tools: tools,
+		})
+	}
+	skills := make([]*adminv1.AgentPluginSkillContribution, 0, len(value.Skills))
+	for _, skill := range value.Skills {
+		skills = append(skills, &adminv1.AgentPluginSkillContribution{
+			Id: skill.ID, Name: skill.Name, Description: skill.Description,
+			AssetId: skill.AssetID, RevisionId: skill.RevisionID, Sha256: skill.SHA256,
+		})
+	}
+	return &adminv1.AgentPluginManifest{
+		SchemaVersion: int32(value.SchemaVersion), PluginId: value.ID, Version: value.Version,
+		Digest: value.Digest, DisplayName: value.DisplayName, Description: value.Description,
+		Source: string(value.Source), Trust: string(value.Trust), McpServers: servers, Skills: skills,
+	}, nil
+}
+
+func rawStruct(raw json.RawMessage) (*structpb.Struct, error) {
+	var value map[string]interface{}
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, err
+	}
+	return structpb.NewStruct(value)
 }
 
 func (s *Server) ListSkills(ctx context.Context, request *adminv1.ListSkillsRequest) (*adminv1.ListSkillsResponse, error) {

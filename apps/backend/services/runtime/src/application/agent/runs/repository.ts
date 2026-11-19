@@ -1,20 +1,28 @@
 import { createHash, randomBytes } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 
+import { toPersistedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
+import type {
+  PersistedTurnPluginSnapshot,
+  PluginActivation,
+  ResolvedTurnPluginSnapshot,
+} from "@repo/agent-runtime/plugins/types";
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
 import type { UIMessage } from "ai";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import {
-  agentRuns,
-  agentRunInputs,
-  agentSteps,
-  agentToolCalls,
-  sessions,
-  sessionRunLeases,
-  messages,
+  threadItems,
+  threads,
+  toolExecutions,
+  turnInputs,
+  turnLeases,
+  turnPluginSnapshots,
+  turns,
+  turnSteps,
 } from "../../../infrastructure/persistence/schema.js";
-import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
+import type { PersistedThreadItemContent } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, RequestError } from "../../errors.js";
 import { parseSessionContextSnapshot, type SessionContextSnapshot } from "../context/context-snapshot.js";
 import { cancelTodoOutput, finalizeCancelledParts } from "./cancellation.js";
@@ -27,10 +35,54 @@ export type AgentRunOperation = "submit-message" | "edit-message" | "regenerate-
 
 export interface ClaimedAgentRun {
   runId: string;
+  attemptEpoch: bigint;
   duplicate: boolean;
   historyRevision: number;
   historyMessageId: string;
   inputMessageId: string | null;
+}
+
+export interface RunLeaseToken {
+  runId: string;
+  attemptEpoch: bigint;
+}
+
+type RuntimeTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+async function requireOwnedRun(
+  tx: RuntimeTransaction,
+  token: RunLeaseToken,
+  options: { allowTerminal?: boolean } = {},
+): Promise<typeof turns.$inferSelect> {
+  const [run] = await tx.select().from(turns).where(eq(turns.id, token.runId));
+  if (!run || run.attemptEpoch !== token.attemptEpoch) {
+    throw new ConflictError("agent run ownership was lost", "run_lease_lost");
+  }
+  if (options.allowTerminal && ["completed", "failed", "cancelled", "interrupted"].includes(run.status)) {
+    return run;
+  }
+  const now = new Date();
+  const [lease] = await tx
+    .select({ turnId: turnLeases.turnId })
+    .from(turnLeases)
+    .where(
+      and(
+        eq(turnLeases.turnId, token.runId),
+        eq(turnLeases.attemptEpoch, token.attemptEpoch),
+        gt(turnLeases.expiresAt, now),
+      ),
+    )
+    .for("update");
+  if (!lease || !["running", "cancel_requested"].includes(run.status)) {
+    throw new ConflictError("agent run ownership was lost", "run_lease_lost");
+  }
+  return run;
+}
+
+export async function assertRunLease(token: RunLeaseToken): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, token);
+  });
 }
 
 function id(bytes = 8): string {
@@ -71,20 +123,52 @@ export async function createAgentRun(input: {
 }): Promise<string> {
   const now = new Date();
   const runId = id(16);
-  await getDb()
-    .insert(agentRuns)
-    .values({
+  await getDb().transaction(async (tx) => {
+    const [thread] = await tx.select().from(threads).where(eq(threads.id, input.sessionId)).for("update");
+    if (!thread) throw new Error(`thread ${input.sessionId} does not exist`);
+    const ordinal = thread.turnSequence + 1n;
+    await tx.insert(turns).values({
       id: runId,
-      sessionId: input.sessionId,
+      threadId: input.sessionId,
+      ordinal,
       userId: input.userId,
       providerId: input.providerId,
       model: input.model,
       status: "running",
-      inputMessageId: input.inputMessageId ?? null,
+      inputItemId: input.inputMessageId ?? null,
       createdAt: now,
       startedAt: now,
     });
+    await tx.update(threads).set({ turnSequence: ordinal, updatedAt: now }).where(eq(threads.id, input.sessionId));
+  });
   return runId;
+}
+
+/** Persist a Turn's immutable plugin projection without ever crossing the grant/credential boundary. */
+export async function persistAgentRunPluginSnapshot(
+  token: RunLeaseToken,
+  resolved: ResolvedTurnPluginSnapshot,
+): Promise<PersistedTurnPluginSnapshot> {
+  const snapshot = toPersistedTurnPluginSnapshot(resolved);
+  return getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, token);
+    const inserted = await tx
+      .insert(turnPluginSnapshots)
+      .values({ turnId: token.runId, snapshot, createdAt: new Date() })
+      .onConflictDoNothing({ target: turnPluginSnapshots.turnId })
+      .returning({ turnId: turnPluginSnapshots.turnId });
+    if (inserted.length > 0) return snapshot;
+
+    const [existing] = await tx
+      .select({ snapshot: turnPluginSnapshots.snapshot })
+      .from(turnPluginSnapshots)
+      .where(eq(turnPluginSnapshots.turnId, token.runId));
+    if (!existing) throw new Error(`agent run ${token.runId} plugin snapshot could not be persisted`);
+    if (!isDeepStrictEqual(existing.snapshot, snapshot)) {
+      throw new Error(`agent run ${token.runId} plugin snapshot is immutable`);
+    }
+    return existing.snapshot;
+  });
 }
 
 export async function claimAgentRunOperation(input: {
@@ -97,11 +181,11 @@ export async function claimAgentRunOperation(input: {
   operation: AgentRunOperation;
   targetMessageId?: string | null;
   continuationMessage?: UIMessage<unknown, any, any>;
-  requestContext?: { reasoningEffort?: string };
+  requestContext?: { reasoningEffort?: string; pluginActivations?: PluginActivation[] };
   inputMessage?: {
     id: string;
     role: "user";
-    content: PersistedMessageContent;
+    content: PersistedThreadItemContent;
   };
 }): Promise<ClaimedAgentRun> {
   const db = getDb();
@@ -123,34 +207,35 @@ export async function claimAgentRunOperation(input: {
     const findExisting = async () => {
       const [existing] = await tx
         .select()
-        .from(agentRuns)
-        .where(and(eq(agentRuns.sessionId, input.sessionId), eq(agentRuns.requestId, input.requestId)))
+        .from(turns)
+        .where(and(eq(turns.threadId, input.sessionId), eq(turns.requestId, input.requestId)))
         .limit(1);
       if (!existing) return null;
       if (
         existing.userId !== input.userId ||
         existing.requestFingerprint !== requestFingerprint ||
         existing.operation !== input.operation ||
-        (existing.targetMessageId ?? null) !== (input.targetMessageId ?? null)
+        (existing.targetItemId ?? null) !== (input.targetMessageId ?? null)
       ) {
         throw new ConflictError("request_id is already bound to a different chat operation", "request_id_conflict");
       }
-      if (!existing.historyMessageId || existing.historyRevision == null) {
+      if (!existing.historyItemId || existing.historyRevision == null) {
         throw new Error(`agent run ${existing.id} is missing its history binding`);
       }
       return {
         runId: existing.id,
+        attemptEpoch: existing.attemptEpoch,
         duplicate: true,
         historyRevision: Number(existing.historyRevision),
-        historyMessageId: existing.historyMessageId,
-        inputMessageId: existing.inputMessageId,
+        historyMessageId: existing.historyItemId,
+        inputMessageId: existing.inputItemId,
       } satisfies ClaimedAgentRun;
     };
 
     const beforeLock = await findExisting();
     if (beforeLock) return beforeLock;
 
-    const [session] = await tx.select().from(sessions).where(eq(sessions.id, input.sessionId)).for("update");
+    const [session] = await tx.select().from(threads).where(eq(threads.id, input.sessionId)).for("update");
     if (!session || session.userId !== input.userId) {
       throw new RequestError("session does not belong to this user");
     }
@@ -166,35 +251,32 @@ export async function claimAgentRunOperation(input: {
 
     const rows = await tx
       .select({
-        id: messages.id,
-        parentMessageId: messages.parentMessageId,
-        role: messages.role,
-        branchIndex: messages.branchIndex,
-        content: messages.content,
-        status: messages.status,
+        id: threadItems.id,
+        parentMessageId: threadItems.parentItemId,
+        role: threadItems.role,
+        branchIndex: threadItems.branchIndex,
+        content: threadItems.content,
+        status: threadItems.status,
       })
-      .from(messages)
-      .where(eq(messages.sessionId, input.sessionId));
+      .from(threadItems)
+      .where(eq(threadItems.threadId, input.sessionId));
     const now = new Date();
-    const [activeLease] = await tx
-      .select()
-      .from(sessionRunLeases)
-      .where(eq(sessionRunLeases.sessionId, input.sessionId));
+    const [activeLease] = await tx.select().from(turnLeases).where(eq(turnLeases.threadId, input.sessionId));
     if (activeLease && activeLease.expiresAt > now) {
       throw new ConflictError("this session already has an active run", "active_run_exists", {
-        run_id: activeLease.runId,
+        run_id: activeLease.turnId,
       });
     }
     if (activeLease) {
-      await tx.delete(sessionRunLeases).where(eq(sessionRunLeases.runId, activeLease.runId));
+      await tx.delete(turnLeases).where(eq(turnLeases.turnId, activeLease.turnId));
       await tx
-        .update(agentRuns)
-        .set({ status: "interrupted", finishedAt: now, error: "run lease expired" })
-        .where(and(eq(agentRuns.id, activeLease.runId), inArray(agentRuns.status, ["running", "cancel_requested"])));
+        .update(turns)
+        .set({ status: "interrupted", completedAt: now, error: "turn lease expired" })
+        .where(and(eq(turns.id, activeLease.turnId), inArray(turns.status, ["running", "cancel_requested"])));
     }
     const byId = new Map(rows.map((row) => [row.id, row] as const));
     const selectedIds = new Set<string>();
-    let selected = session.selectedMessageId ? byId.get(session.selectedMessageId) : undefined;
+    let selected = session.selectedItemId ? byId.get(session.selectedItemId) : undefined;
     while (selected) {
       if (selectedIds.has(selected.id)) throw new Error("selected message history contains a cycle");
       selectedIds.add(selected.id);
@@ -208,7 +290,7 @@ export async function claimAgentRunOperation(input: {
 
     let historyMessageId: string;
     let inputMessageId: string | null = null;
-    let selectedMessageId = session.selectedMessageId;
+    let selectedMessageId = session.selectedItemId;
     if (input.operation === "submit-message" || input.operation === "edit-message") {
       if (!input.inputMessage) throw new RequestError("user message is required for this operation");
       if (byId.has(input.inputMessage.id)) {
@@ -218,19 +300,22 @@ export async function claimAgentRunOperation(input: {
         throw new RequestError("edited message must target a selected user message");
       }
       const parentMessageId =
-        input.operation === "edit-message" ? (target?.parentMessageId ?? null) : session.selectedMessageId;
+        input.operation === "edit-message" ? (target?.parentMessageId ?? null) : session.selectedItemId;
       const branchIndex = rows
         .filter((row) => row.parentMessageId === parentMessageId)
         .reduce((maximum, row) => Math.max(maximum, row.branchIndex + 1), 0);
-      await tx.insert(messages).values({
+      const inputOrdinal = session.itemSequence + 1n;
+      await tx.insert(threadItems).values({
         id: input.inputMessage.id,
-        sessionId: input.sessionId,
+        threadId: input.sessionId,
+        ordinal: inputOrdinal,
         role: "user",
         content: input.inputMessage.content,
         status: "ok",
-        parentMessageId,
+        parentItemId: parentMessageId,
         branchIndex,
-        createdAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       });
       historyMessageId = input.inputMessage.id;
       inputMessageId = input.inputMessage.id;
@@ -241,7 +326,7 @@ export async function claimAgentRunOperation(input: {
       }
       historyMessageId = target.parentMessageId;
     } else {
-      if (!target || target.role !== "assistant" || session.selectedMessageId !== target.id) {
+      if (!target || target.role !== "assistant" || session.selectedItemId !== target.id) {
         throw new RequestError("tool continuation must target the selected assistant message");
       }
       if (!input.continuationMessage || target.status !== "ok") {
@@ -257,17 +342,23 @@ export async function claimAgentRunOperation(input: {
         input.continuationMessage,
       );
       await tx
-        .update(messages)
-        .set({ content: { ...target.content, parts: merged.parts } })
-        .where(eq(messages.id, target.id));
+        .update(threadItems)
+        .set({
+          content: { ...target.content, parts: merged.parts },
+          revision: sql`${threadItems.revision} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(threadItems.id, target.id));
       historyMessageId = target.id;
     }
 
     const historyRevision = input.expectedRevision + 1;
     const runId = id(16);
-    await tx.insert(agentRuns).values({
+    const turnOrdinal = session.turnSequence + 1n;
+    await tx.insert(turns).values({
       id: runId,
-      sessionId: input.sessionId,
+      threadId: input.sessionId,
+      ordinal: turnOrdinal,
       userId: input.userId,
       providerId: input.providerId,
       model: input.model,
@@ -275,24 +366,31 @@ export async function claimAgentRunOperation(input: {
       requestId: input.requestId,
       requestFingerprint,
       operation: input.operation,
-      targetMessageId: input.targetMessageId ?? null,
-      historyMessageId,
+      targetItemId: input.targetMessageId ?? null,
+      historyItemId: historyMessageId,
       historyRevision: BigInt(historyRevision),
-      inputMessageId,
+      inputItemId: inputMessageId,
       createdAt: now,
       startedAt: now,
     });
-    await tx.insert(sessionRunLeases).values({
-      sessionId: input.sessionId,
-      runId,
+    await tx.insert(turnLeases).values({
+      threadId: input.sessionId,
+      turnId: runId,
+      attemptEpoch: 1n,
       heartbeatAt: now,
       expiresAt: new Date(now.getTime() + RUN_LEASE_MS),
     });
     await tx
-      .update(sessions)
-      .set({ historyRevision: BigInt(historyRevision), selectedMessageId, updatedAt: now })
-      .where(eq(sessions.id, input.sessionId));
-    return { runId, duplicate: false, historyRevision, historyMessageId, inputMessageId };
+      .update(threads)
+      .set({
+        turnSequence: turnOrdinal,
+        itemSequence: inputMessageId ? session.itemSequence + 1n : session.itemSequence,
+        historyRevision: BigInt(historyRevision),
+        selectedItemId: selectedMessageId,
+        updatedAt: now,
+      })
+      .where(eq(threads.id, input.sessionId));
+    return { runId, attemptEpoch: 1n, duplicate: false, historyRevision, historyMessageId, inputMessageId };
   });
 }
 
@@ -308,26 +406,27 @@ export async function getAgentRunById(runId: string): Promise<{
   historyMessageId: string | null;
   historyRevision: number | null;
 } | null> {
-  const [row] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, runId));
+  const [row] = await getDb().select().from(turns).where(eq(turns.id, runId));
   if (!row) {
     return null;
   }
   return {
     id: row.id,
-    sessionId: row.sessionId,
+    sessionId: row.threadId,
     userId: row.userId,
     providerId: row.providerId,
     status: row.status as AgentRunStatus,
     requestId: row.requestId,
     operation: row.operation as AgentRunOperation | null,
-    targetMessageId: row.targetMessageId,
-    historyMessageId: row.historyMessageId,
+    targetMessageId: row.targetItemId,
+    historyMessageId: row.historyItemId,
     historyRevision: row.historyRevision == null ? null : Number(row.historyRevision),
   };
 }
 
 export async function finishAgentRun(input: {
   runId: string;
+  attemptEpoch: bigint;
   status: AgentRunStatus;
   error?: unknown;
   outputMessageId?: string | null;
@@ -338,23 +437,23 @@ export async function finishAgentRun(input: {
   totalTokens?: number | null;
 }): Promise<void> {
   await getDb().transaction(async (tx) => {
-    const [binding] = await tx
-      .select({ sessionId: agentRuns.sessionId })
-      .from(agentRuns)
-      .where(eq(agentRuns.id, input.runId));
+    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, input.runId));
     if (!binding) return;
-    await tx.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, binding.sessionId)).for("update");
-    const [run] = await tx.select().from(agentRuns).where(eq(agentRuns.id, input.runId)).for("update");
+    await tx.select({ id: threads.id }).from(threads).where(eq(threads.id, binding.threadId)).for("update");
+    const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
     if (!run) return;
+    if (run.attemptEpoch !== input.attemptEpoch) {
+      throw new ConflictError("agent run ownership was lost", "run_lease_lost");
+    }
     if (!["running", "cancel_requested"].includes(run.status)) {
-      await tx.delete(sessionRunLeases).where(eq(sessionRunLeases.runId, input.runId));
       return;
     }
+    await requireOwnedRun(tx, input);
     const { status, error } = input;
     const now = new Date();
 
     await tx
-      .update(agentSteps)
+      .update(turnSteps)
       .set({
         status: "failed",
         summary:
@@ -363,43 +462,46 @@ export async function finishAgentRun(input: {
             : error == null
               ? `run ${status}`
               : errorText(error).slice(0, 4000),
-        finishedAt: now,
+        completedAt: now,
       })
-      .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")));
+      .where(and(eq(turnSteps.turnId, input.runId), eq(turnSteps.status, "running")));
 
     await tx
-      .update(agentRuns)
+      .update(turns)
       .set({
         status,
         error: error == null ? null : errorText(error).slice(0, 4000),
-        outputMessageId: input.outputMessageId ?? undefined,
+        outputItemId: input.outputMessageId ?? undefined,
         inputTokens: input.inputTokens ?? undefined,
         outputTokens: input.outputTokens ?? undefined,
         cachedInputTokens: input.cachedInputTokens ?? undefined,
         reasoningTokens: input.reasoningTokens ?? undefined,
         totalTokens: input.totalTokens ?? undefined,
-        finishedAt: now,
+        completedAt: now,
       })
-      .where(eq(agentRuns.id, input.runId));
+      .where(eq(turns.id, input.runId));
     await tx
-      .update(agentRunInputs)
+      .update(turnInputs)
       .set({ state: "not_delivered", reason: "finished", updatedAt: now })
-      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.state, "accepted")));
+      .where(and(eq(turnInputs.turnId, input.runId), eq(turnInputs.state, "accepted")));
     await tx
-      .update(agentRunInputs)
+      .update(turnInputs)
       .set({ state: "unconfirmed", reason: "run ended before delivery was confirmed", updatedAt: now })
-      .where(and(eq(agentRunInputs.runId, input.runId), eq(agentRunInputs.state, "dispatching")));
-    await tx.delete(sessionRunLeases).where(eq(sessionRunLeases.runId, input.runId));
+      .where(and(eq(turnInputs.turnId, input.runId), eq(turnInputs.state, "dispatching")));
+    await tx
+      .delete(turnLeases)
+      .where(and(eq(turnLeases.turnId, input.runId), eq(turnLeases.attemptEpoch, input.attemptEpoch)));
   });
 }
 
 export async function finalizeAgentRunJournal(input: {
   runId: string;
+  attemptEpoch: bigint;
   parts: unknown[];
   aborted: boolean;
   message: {
     id: string;
-    content: PersistedMessageContent;
+    content: PersistedThreadItemContent;
     status: "ok" | "failed";
   } | null;
   status: AgentRunStatus;
@@ -411,26 +513,27 @@ export async function finalizeAgentRunJournal(input: {
   totalTokens?: number | null;
 }): Promise<{ outputMessageId: string | null; historyRevision: number; status: AgentRunStatus }> {
   return getDb().transaction(async (tx) => {
-    const [binding] = await tx
-      .select({ sessionId: agentRuns.sessionId })
-      .from(agentRuns)
-      .where(eq(agentRuns.id, input.runId));
+    const [binding] = await tx.select({ threadId: turns.threadId }).from(turns).where(eq(turns.id, input.runId));
     if (!binding) throw new Error(`agent run ${input.runId} has no journal binding`);
     // Claim and finalization must acquire shared rows in the same order.
     // Otherwise an expired lease claim can deadlock with its old finalizer.
     const [session] = await tx
-      .select({ historyRevision: sessions.historyRevision })
-      .from(sessions)
-      .where(eq(sessions.id, binding.sessionId))
+      .select({ historyRevision: threads.historyRevision, itemSequence: threads.itemSequence })
+      .from(threads)
+      .where(eq(threads.id, binding.threadId))
       .for("update");
-    const [run] = await tx.select().from(agentRuns).where(eq(agentRuns.id, input.runId)).for("update");
-    if (!run || !run.operation || !run.historyMessageId || run.historyRevision == null) {
+    const [run] = await tx.select().from(turns).where(eq(turns.id, input.runId)).for("update");
+    if (!run || !run.operation || !run.historyItemId || run.historyRevision == null) {
       throw new Error(`agent run ${input.runId} has no journal binding`);
     }
     const historyRevision = Number(run.historyRevision);
-    if (["completed", "failed", "cancelled", "interrupted"].includes(run.status)) {
-      return { outputMessageId: run.outputMessageId, historyRevision, status: run.status as AgentRunStatus };
+    if (run.attemptEpoch !== input.attemptEpoch) {
+      throw new ConflictError("agent run ownership was lost", "run_lease_lost");
     }
+    if (["completed", "failed", "cancelled", "interrupted"].includes(run.status)) {
+      return { outputMessageId: run.outputItemId, historyRevision, status: run.status as AgentRunStatus };
+    }
+    await requireOwnedRun(tx, input);
 
     if (!session || session.historyRevision !== run.historyRevision) {
       throw new ConflictError("run history binding is no longer current", "run_history_conflict");
@@ -460,24 +563,25 @@ export async function finalizeAgentRunJournal(input: {
           },
         }
       : null;
-    const toolCalls = await tx.select().from(agentToolCalls).where(eq(agentToolCalls.runId, input.runId));
+    const toolCalls = await tx.select().from(toolExecutions).where(eq(toolExecutions.turnId, input.runId));
     if (aborted) {
       for (const toolCall of toolCalls) {
         if (toolCall.status === "running") {
           await tx
-            .update(agentToolCalls)
+            .update(toolExecutions)
             .set({
               status: "failed",
               error: "已取消。",
               durationMs: Math.max(0, now.getTime() - toolCall.createdAt.getTime()),
-              finishedAt: now,
+              completedAt: now,
+              itemId: message?.id ?? null,
             })
-            .where(eq(agentToolCalls.id, toolCall.id));
+            .where(eq(toolExecutions.id, toolCall.id));
         } else if (toolCall.toolName === "update_todos" && toolCall.status === "completed") {
           await tx
-            .update(agentToolCalls)
-            .set({ outputJson: cancelTodoOutput(toolCall.outputJson) })
-            .where(eq(agentToolCalls.id, toolCall.id));
+            .update(toolExecutions)
+            .set({ outputJson: cancelTodoOutput(toolCall.outputJson), itemId: message?.id ?? null })
+            .where(eq(toolExecutions.id, toolCall.id));
         }
       }
     } else {
@@ -491,54 +595,64 @@ export async function finalizeAgentRunJournal(input: {
         const terminal = terminalById.get(toolCall.id);
         if (!terminal) continue;
         await tx
-          .update(agentToolCalls)
+          .update(toolExecutions)
           .set({
             status: terminal.status,
             outputJson: terminal.output === undefined ? undefined : asJsonValue(terminal.output),
             error: terminal.status === "failed" ? errorText(terminal.error).slice(0, 4000) : null,
             durationMs: Math.max(0, now.getTime() - toolCall.createdAt.getTime()),
-            finishedAt: now,
+            completedAt: now,
+            itemId: message?.id ?? null,
           })
-          .where(eq(agentToolCalls.id, toolCall.id));
+          .where(eq(toolExecutions.id, toolCall.id));
       }
     }
 
     let outputMessageId: string | null = null;
     if (message) {
       if (run.operation === "tool-continuation") {
-        if (message.id !== run.targetMessageId) {
+        if (message.id !== run.targetItemId) {
           throw new Error("continuation output message id does not match its target");
         }
         const updated = await tx
-          .update(messages)
-          .set({ content: message.content, status: message.status })
-          .where(and(eq(messages.id, message.id), eq(messages.sessionId, run.sessionId)))
-          .returning({ id: messages.id });
+          .update(threadItems)
+          .set({
+            content: message.content,
+            status: message.status,
+            revision: sql`${threadItems.revision} + 1`,
+            updatedAt: now,
+          })
+          .where(and(eq(threadItems.id, message.id), eq(threadItems.threadId, run.threadId)))
+          .returning({ id: threadItems.id });
         if (!updated[0]) throw new Error(`continuation message ${message.id} is missing`);
         outputMessageId = message.id;
       } else {
         const siblings = await tx
-          .select({ branchIndex: messages.branchIndex })
-          .from(messages)
-          .where(and(eq(messages.sessionId, run.sessionId), eq(messages.parentMessageId, run.historyMessageId)));
+          .select({ branchIndex: threadItems.branchIndex })
+          .from(threadItems)
+          .where(and(eq(threadItems.threadId, run.threadId), eq(threadItems.parentItemId, run.historyItemId)));
         const branchIndex = siblings.reduce((maximum, row) => Math.max(maximum, row.branchIndex + 1), 0);
-        await tx.insert(messages).values({
+        await tx.insert(threadItems).values({
           id: message.id,
-          sessionId: run.sessionId,
+          threadId: run.threadId,
+          turnId: run.id,
+          ordinal: session.itemSequence + 1n,
           role: "assistant",
           content: message.content,
           status: message.status,
-          parentMessageId: run.historyMessageId,
+          parentItemId: run.historyItemId,
           branchIndex,
-          createdAt: new Date(),
+          createdAt: now,
+          updatedAt: now,
         });
         outputMessageId = message.id;
       }
+      await tx.update(toolExecutions).set({ itemId: message.id }).where(eq(toolExecutions.turnId, input.runId));
     }
 
     // Trace gaps must not rewrite the authoritative SDK outcome.
     await tx
-      .update(agentSteps)
+      .update(turnSteps)
       .set({
         status: "failed",
         summary:
@@ -547,37 +661,45 @@ export async function finalizeAgentRunJournal(input: {
             : error == null
               ? `run ${status}`
               : errorText(error).slice(0, 4000),
-        finishedAt: now,
+        completedAt: now,
       })
-      .where(and(eq(agentSteps.runId, input.runId), eq(agentSteps.status, "running")));
+      .where(and(eq(turnSteps.turnId, input.runId), eq(turnSteps.status, "running")));
     await tx
-      .update(agentRuns)
+      .update(turns)
       .set({
         status,
         error: error == null ? null : errorText(error).slice(0, 4000),
-        outputMessageId,
+        outputItemId: outputMessageId,
         inputTokens: input.inputTokens ?? undefined,
         outputTokens: input.outputTokens ?? undefined,
         cachedInputTokens: input.cachedInputTokens ?? undefined,
         reasoningTokens: input.reasoningTokens ?? undefined,
         totalTokens: input.totalTokens ?? undefined,
-        finishedAt: now,
+        completedAt: now,
       })
-      .where(eq(agentRuns.id, input.runId));
+      .where(eq(turns.id, input.runId));
     await tx
-      .update(sessions)
-      .set({ ...(outputMessageId ? { selectedMessageId: outputMessageId } : {}), updatedAt: now })
-      .where(eq(sessions.id, run.sessionId));
-    await tx.delete(sessionRunLeases).where(eq(sessionRunLeases.runId, input.runId));
+      .update(threads)
+      .set({
+        ...(outputMessageId ? { selectedItemId: outputMessageId } : {}),
+        ...(outputMessageId && run.operation !== "tool-continuation"
+          ? { itemSequence: session.itemSequence + 1n }
+          : {}),
+        updatedAt: now,
+      })
+      .where(eq(threads.id, run.threadId));
+    await tx
+      .delete(turnLeases)
+      .where(and(eq(turnLeases.turnId, input.runId), eq(turnLeases.attemptEpoch, input.attemptEpoch)));
     return { outputMessageId, historyRevision, status };
   });
 }
 
 export async function requestAgentRunCancellation(runId: string): Promise<void> {
   await getDb()
-    .update(agentRuns)
+    .update(turns)
     .set({ status: "cancel_requested" })
-    .where(and(eq(agentRuns.id, runId), inArray(agentRuns.status, ["running", "cancel_requested"])));
+    .where(and(eq(turns.id, runId), inArray(turns.status, ["running", "cancel_requested"])));
 }
 
 export async function isRunActive(runId: string): Promise<boolean> {
@@ -587,13 +709,13 @@ export async function isRunActive(runId: string): Promise<boolean> {
 
 export async function listOrphanedRuns(now = new Date()): Promise<Array<{ id: string; sessionId: string }>> {
   return getDb()
-    .select({ id: agentRuns.id, sessionId: agentRuns.sessionId })
-    .from(agentRuns)
-    .leftJoin(sessionRunLeases, eq(sessionRunLeases.runId, agentRuns.id))
+    .select({ id: turns.id, sessionId: turns.threadId })
+    .from(turns)
+    .leftJoin(turnLeases, eq(turnLeases.turnId, turns.id))
     .where(
       and(
-        inArray(agentRuns.status, ["running", "cancel_requested"]),
-        or(isNull(sessionRunLeases.runId), lte(sessionRunLeases.expiresAt, now)),
+        inArray(turns.status, ["running", "cancel_requested"]),
+        or(isNull(turnLeases.turnId), lte(turnLeases.expiresAt, now)),
       ),
     );
 }
@@ -605,31 +727,31 @@ export async function interruptRuns(runIds: string[]): Promise<Array<{ id: strin
   return getDb().transaction(async (tx) => {
     const now = new Date();
     const interrupted = await tx
-      .update(agentRuns)
-      .set({ status: "interrupted", finishedAt: now })
+      .update(turns)
+      .set({ status: "interrupted", completedAt: now })
       .where(
         and(
-          inArray(agentRuns.id, runIds),
-          inArray(agentRuns.status, ["running", "cancel_requested"]),
+          inArray(turns.id, runIds),
+          inArray(turns.status, ["running", "cancel_requested"]),
           notExists(
             tx
-              .select({ runId: sessionRunLeases.runId })
-              .from(sessionRunLeases)
-              .where(and(eq(sessionRunLeases.runId, agentRuns.id), gt(sessionRunLeases.expiresAt, now))),
+              .select({ turnId: turnLeases.turnId })
+              .from(turnLeases)
+              .where(and(eq(turnLeases.turnId, turns.id), gt(turnLeases.expiresAt, now))),
           ),
         ),
       )
-      .returning({ id: agentRuns.id, sessionId: agentRuns.sessionId });
+      .returning({ id: turns.id, sessionId: turns.threadId });
     const interruptedIds = interrupted.map((run) => run.id);
     if (interruptedIds.length === 0) return interrupted;
     await tx
-      .update(agentRunInputs)
+      .update(turnInputs)
       .set({ state: "not_delivered", reason: "finished", updatedAt: now })
-      .where(and(inArray(agentRunInputs.runId, interruptedIds), eq(agentRunInputs.state, "accepted")));
+      .where(and(inArray(turnInputs.turnId, interruptedIds), eq(turnInputs.state, "accepted")));
     await tx
-      .update(agentRunInputs)
+      .update(turnInputs)
       .set({ state: "unconfirmed", reason: "run ownership was lost before delivery was confirmed", updatedAt: now })
-      .where(and(inArray(agentRunInputs.runId, interruptedIds), eq(agentRunInputs.state, "dispatching")));
+      .where(and(inArray(turnInputs.turnId, interruptedIds), eq(turnInputs.state, "dispatching")));
     return interrupted;
   });
 }
@@ -690,15 +812,15 @@ export async function getLatestResponseLineage(input: {
 }): Promise<{ responseId: string; outputMessageId: string; inputTokens: number | null } | null> {
   const [latestRun] = await getDb()
     .select({
-      id: agentRuns.id,
-      status: agentRuns.status,
-      outputMessageId: agentRuns.outputMessageId,
-      providerId: agentRuns.providerId,
-      model: agentRuns.model,
+      id: turns.id,
+      status: turns.status,
+      outputMessageId: turns.outputItemId,
+      providerId: turns.providerId,
+      model: turns.model,
     })
-    .from(agentRuns)
-    .where(and(ne(agentRuns.id, input.runId), eq(agentRuns.sessionId, input.sessionId)))
-    .orderBy(desc(agentRuns.createdAt))
+    .from(turns)
+    .where(and(ne(turns.id, input.runId), eq(turns.threadId, input.sessionId)))
+    .orderBy(desc(turns.ordinal))
     .limit(1);
   if (
     latestRun?.status !== "completed" ||
@@ -710,15 +832,15 @@ export async function getLatestResponseLineage(input: {
   }
   const [[row], [outputMessage]] = await Promise.all([
     getDb()
-      .select({ metadata: agentSteps.metadata, inputTokens: agentSteps.inputTokens, status: agentSteps.status })
-      .from(agentSteps)
-      .where(and(eq(agentSteps.runId, latestRun.id), eq(agentSteps.kind, "model")))
-      .orderBy(desc(agentSteps.stepIndex))
+      .select({ metadata: turnSteps.metadata, inputTokens: turnSteps.inputTokens, status: turnSteps.status })
+      .from(turnSteps)
+      .where(and(eq(turnSteps.turnId, latestRun.id), eq(turnSteps.kind, "model")))
+      .orderBy(desc(turnSteps.stepIndex))
       .limit(1),
     getDb()
-      .select({ content: messages.content })
-      .from(messages)
-      .where(eq(messages.id, latestRun.outputMessageId))
+      .select({ content: threadItems.content })
+      .from(threadItems)
+      .where(eq(threadItems.id, latestRun.outputMessageId))
       .limit(1),
   ]);
   if (row?.status !== "completed") {
@@ -738,20 +860,16 @@ function isoOrNull(d: Date | null): string | null {
 
 export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> {
   const db = getDb();
-  const [run] = await db.select().from(agentRuns).where(eq(agentRuns.id, runId));
+  const [run] = await db.select().from(turns).where(eq(turns.id, runId));
   if (!run) {
     return null;
   }
-  const steps = await db
-    .select()
-    .from(agentSteps)
-    .where(eq(agentSteps.runId, runId))
-    .orderBy(asc(agentSteps.stepIndex));
+  const steps = await db.select().from(turnSteps).where(eq(turnSteps.turnId, runId)).orderBy(asc(turnSteps.stepIndex));
   const toolCalls = await db
     .select()
-    .from(agentToolCalls)
-    .where(eq(agentToolCalls.runId, runId))
-    .orderBy(asc(agentToolCalls.createdAt));
+    .from(toolExecutions)
+    .where(eq(toolExecutions.turnId, runId))
+    .orderBy(asc(toolExecutions.createdAt));
   return {
     runId: run.id,
     status: run.status as AgentRunStatus,
@@ -769,7 +887,7 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
       status: s.status as AgentStepStatus,
       summary: s.summary,
       createdAt: isoOrNull(s.createdAt) ?? "",
-      finishedAt: isoOrNull(s.finishedAt),
+      finishedAt: isoOrNull(s.completedAt),
       inputTokens: s.inputTokens ?? null,
       outputTokens: s.outputTokens ?? null,
       totalTokens: s.totalTokens ?? null,
@@ -789,29 +907,29 @@ export async function getRunTrace(runId: string): Promise<AgentRunTrace | null> 
 export async function getLatestSessionContextRecord(sessionId: string): Promise<LatestSessionContextRecord | null> {
   const [row] = await getDb()
     .select({
-      runId: agentRuns.id,
-      stepId: agentSteps.id,
-      providerId: agentRuns.providerId,
-      model: agentRuns.model,
-      metadata: agentSteps.metadata,
-      inputTokens: agentSteps.inputTokens,
-      runCreatedAt: agentRuns.createdAt,
-      finishedAt: agentSteps.finishedAt,
+      runId: turns.id,
+      stepId: turnSteps.id,
+      providerId: turns.providerId,
+      model: turns.model,
+      metadata: turnSteps.metadata,
+      inputTokens: turnSteps.inputTokens,
+      runCreatedAt: turns.createdAt,
+      finishedAt: turnSteps.completedAt,
     })
-    .from(agentSteps)
-    .innerJoin(agentRuns, eq(agentRuns.id, agentSteps.runId))
+    .from(turnSteps)
+    .innerJoin(turns, eq(turns.id, turnSteps.turnId))
     .where(
       and(
-        eq(agentRuns.sessionId, sessionId),
-        eq(agentSteps.kind, "model"),
-        inArray(agentSteps.status, ["completed", "failed"]),
-        sql`${agentSteps.metadata}->'context_snapshot' IS NOT NULL`,
+        eq(turns.threadId, sessionId),
+        eq(turnSteps.kind, "model"),
+        inArray(turnSteps.status, ["completed", "failed"]),
+        sql`${turnSteps.metadata}->'context_snapshot' IS NOT NULL`,
       ),
     )
     .orderBy(
-      desc(agentRuns.createdAt),
-      desc(sql<number>`CASE WHEN ${agentSteps.inputTokens} > 0 THEN 1 ELSE 0 END`),
-      desc(agentSteps.stepIndex),
+      desc(turns.ordinal),
+      desc(sql<number>`CASE WHEN ${turnSteps.inputTokens} > 0 THEN 1 ELSE 0 END`),
+      desc(turnSteps.stepIndex),
     )
     .limit(1);
   if (!row) {
@@ -840,17 +958,25 @@ export async function getLatestSessionContextRecord(sessionId: string): Promise<
   };
 }
 
-export async function recordAgentStepContextSnapshot(stepId: string, snapshot: SessionContextSnapshot): Promise<void> {
-  await getDb()
-    .update(agentSteps)
-    .set({
-      metadata: sql`COALESCE(${agentSteps.metadata}, '{}'::jsonb) || jsonb_build_object('context_snapshot', ${JSON.stringify(snapshot)}::jsonb)`,
-    })
-    .where(eq(agentSteps.id, stepId));
+export async function recordAgentStepContextSnapshot(
+  token: RunLeaseToken,
+  stepId: string,
+  snapshot: SessionContextSnapshot,
+): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, token);
+    await tx
+      .update(turnSteps)
+      .set({
+        metadata: sql`COALESCE(${turnSteps.metadata}, '{}'::jsonb) || jsonb_build_object('context_snapshot', ${JSON.stringify(snapshot)}::jsonb)`,
+      })
+      .where(and(eq(turnSteps.id, stepId), eq(turnSteps.turnId, token.runId)));
+  });
 }
 
 export async function startAgentStep(input: {
   runId: string;
+  attemptEpoch: bigint;
   stepIndex: number;
   kind: string;
   summary?: string;
@@ -858,31 +984,36 @@ export async function startAgentStep(input: {
   stepId?: string;
 }): Promise<string> {
   const stepId = input.stepId ?? id(16);
-  await getDb()
-    .insert(agentSteps)
-    .values({
-      id: stepId,
-      runId: input.runId,
-      stepIndex: input.stepIndex,
-      kind: input.kind,
-      status: "running",
-      summary: input.summary ?? null,
-      metadata: input.metadata ?? null,
-      createdAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: agentSteps.id,
-      set: {
+  await getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, input);
+    await tx
+      .insert(turnSteps)
+      .values({
+        id: stepId,
+        turnId: input.runId,
+        stepIndex: input.stepIndex,
+        kind: input.kind,
         status: "running",
         summary: input.summary ?? null,
         metadata: input.metadata ?? null,
-        finishedAt: null,
-      },
-    });
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: turnSteps.id,
+        set: {
+          status: "running",
+          summary: input.summary ?? null,
+          metadata: input.metadata ?? null,
+          completedAt: null,
+        },
+      });
+  });
   return stepId;
 }
 
 export async function finishAgentStep(input: {
+  runId: string;
+  attemptEpoch: bigint;
   stepId: string;
   status: AgentStepStatus;
   summary?: string | null;
@@ -891,71 +1022,83 @@ export async function finishAgentStep(input: {
   outputTokens?: number | null;
   totalTokens?: number | null;
 }): Promise<void> {
-  await getDb()
-    .update(agentSteps)
-    .set({
-      status: input.status,
-      summary: input.summary ?? undefined,
-      metadata: input.metadata ?? undefined,
-      inputTokens: input.inputTokens ?? undefined,
-      outputTokens: input.outputTokens ?? undefined,
-      totalTokens: input.totalTokens ?? undefined,
-      finishedAt: new Date(),
-    })
-    .where(eq(agentSteps.id, input.stepId));
+  await getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, input);
+    await tx
+      .update(turnSteps)
+      .set({
+        status: input.status,
+        summary: input.summary ?? undefined,
+        metadata: input.metadata ?? undefined,
+        inputTokens: input.inputTokens ?? undefined,
+        outputTokens: input.outputTokens ?? undefined,
+        totalTokens: input.totalTokens ?? undefined,
+        completedAt: new Date(),
+      })
+      .where(and(eq(turnSteps.id, input.stepId), eq(turnSteps.turnId, input.runId)));
+  });
 }
 
 export async function recordToolCallStart(input: {
   runId: string;
+  attemptEpoch: bigint;
   toolCallId: string;
   stepIndex?: number | null;
   toolName: string;
   toolInput: unknown;
 }): Promise<void> {
-  await getDb()
-    .insert(agentToolCalls)
-    .values({
-      id: input.toolCallId,
-      runId: input.runId,
-      stepIndex: input.stepIndex ?? null,
-      toolName: input.toolName,
-      status: "running",
-      inputJson: asJsonValue(input.toolInput),
-      createdAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: agentToolCalls.id,
-      set: {
-        runId: input.runId,
+  await getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, input);
+    await tx
+      .insert(toolExecutions)
+      .values({
+        id: input.toolCallId,
+        turnId: input.runId,
         stepIndex: input.stepIndex ?? null,
         toolName: input.toolName,
         status: "running",
         inputJson: asJsonValue(input.toolInput),
-        error: null,
-        finishedAt: null,
-        durationMs: null,
-        outputJson: sql`NULL`,
-      },
-    });
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: toolExecutions.id,
+        set: {
+          turnId: input.runId,
+          stepIndex: input.stepIndex ?? null,
+          toolName: input.toolName,
+          status: "running",
+          inputJson: asJsonValue(input.toolInput),
+          error: null,
+          completedAt: null,
+          durationMs: null,
+          outputJson: sql`NULL`,
+        },
+      });
+  });
 }
 
 export async function recordToolCallFinish(input: {
+  runId: string;
+  attemptEpoch: bigint;
   toolCallId: string;
   status: "completed" | "failed";
   output?: unknown;
   error?: unknown;
   durationMs?: number | null;
 }): Promise<void> {
-  await getDb()
-    .update(agentToolCalls)
-    .set({
-      status: input.status,
-      outputJson: input.output === undefined ? undefined : asJsonValue(input.output),
-      error: input.error == null ? null : errorText(input.error).slice(0, 4000),
-      durationMs: input.durationMs ?? null,
-      finishedAt: new Date(),
-    })
-    .where(eq(agentToolCalls.id, input.toolCallId));
+  await getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, input);
+    await tx
+      .update(toolExecutions)
+      .set({
+        status: input.status,
+        outputJson: input.output === undefined ? undefined : asJsonValue(input.output),
+        error: input.error == null ? null : errorText(input.error).slice(0, 4000),
+        durationMs: input.durationMs ?? null,
+        completedAt: new Date(),
+      })
+      .where(and(eq(toolExecutions.id, input.toolCallId), eq(toolExecutions.turnId, input.runId)));
+  });
 }
 
 function terminalToolPart(part: unknown): {

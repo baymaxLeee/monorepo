@@ -14,6 +14,7 @@ const scope = {
   user_id: "user",
   conversation_id: "conversation",
   run_id: "run",
+  attempt_epoch: "1",
 };
 const config = getSandboxSettings({ ENVIRONMENT: "development" });
 

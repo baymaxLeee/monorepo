@@ -7,7 +7,7 @@ import { TransportError } from "#runtime/transport";
 import type { AuthContext } from "../api/http/middleware/auth.js";
 import { sandboxClient } from "../infrastructure/clients/sandbox.js";
 import { getDb } from "../infrastructure/persistence/index.js";
-import { sandboxExecutions } from "../infrastructure/persistence/schema.js";
+import { turnLeases, turnSandboxExecutions as sandboxExecutions } from "../infrastructure/persistence/schema.js";
 import { ConflictError } from "./errors.js";
 import { editableFileByteLimit } from "./file-edit-limits.js";
 import { getSessionFile, type SessionFile } from "./session-files.js";
@@ -26,6 +26,7 @@ interface ActiveWorkspace {
     user_id: string;
     session_id: string;
     run_id: string;
+    attempt_epoch: string;
   };
 }
 
@@ -49,9 +50,16 @@ const defaults: CloudWorkspaceEditDependencies = {
     const [row] = await getDb()
       .select({ execution: sandboxExecutions })
       .from(sandboxExecutions)
+      .innerJoin(
+        turnLeases,
+        and(
+          eq(turnLeases.turnId, sandboxExecutions.turnId),
+          eq(turnLeases.attemptEpoch, sandboxExecutions.attemptEpoch),
+        ),
+      )
       .where(
         and(
-          eq(sandboxExecutions.sessionId, input.sessionId),
+          eq(sandboxExecutions.threadId, input.sessionId),
           eq(sandboxExecutions.userId, input.userId),
           eq(sandboxExecutions.tenantId, input.tenantId),
           eq(sandboxExecutions.workspaceId, input.workspaceId),
@@ -67,8 +75,9 @@ const defaults: CloudWorkspaceEditDependencies = {
         tenant_id: row.execution.tenantId,
         workspace_id: row.execution.workspaceId,
         user_id: row.execution.userId,
-        session_id: row.execution.sessionId,
-        run_id: row.execution.runId,
+        session_id: row.execution.threadId,
+        run_id: row.execution.turnId,
+        attempt_epoch: row.execution.attemptEpoch.toString(),
       },
     };
   },

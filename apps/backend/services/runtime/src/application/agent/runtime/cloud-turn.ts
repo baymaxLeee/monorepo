@@ -29,7 +29,8 @@ import {
   recordToolStart,
   startModelStep,
 } from "../observability/lifecycle.js";
-import { ToolCatalog } from "../tools/catalog.js";
+import { assertRunLease } from "../runs/repository.js";
+import type { ToolCatalog } from "../tools/catalog.js";
 import type { AgentRuntimeContext, CloudTurnInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
@@ -59,7 +60,11 @@ function toolCallIdFromOptions(options: unknown): string | undefined {
   return undefined;
 }
 
-function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<typeof startSpan>>): ToolSet {
+function withActiveToolSpans(
+  tools: ToolSet,
+  toolSpans: Map<string, ReturnType<typeof startSpan>>,
+  input: CloudTurnInput,
+): ToolSet {
   return Object.fromEntries(
     Object.entries(tools).map(([name, definition]) => {
       if (!("execute" in definition) || typeof definition.execute !== "function") {
@@ -71,13 +76,16 @@ function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<t
           const execute = (candidate as ExecutableTool).execute;
           return {
             ...candidate,
-            execute: (...args: unknown[]) => {
+            execute: async (...args: unknown[]) => {
+              input.signal?.throwIfAborted();
+              await assertRunLease({ runId: input.runId, attemptEpoch: input.attemptEpoch });
+              input.signal?.throwIfAborted();
               const toolCallId = toolCallIdFromOptions(args[1]);
               const span = toolCallId ? toolSpans.get(toolCallId) : undefined;
               if (!span) {
-                return execute(...args);
+                return await execute(...args);
               }
-              return runWithActiveSpan(span, () => execute(...args));
+              return await runWithActiveSpan(span, () => execute(...args));
             },
           } satisfies ExecutableTool;
         }),
@@ -86,7 +94,7 @@ function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<t
   );
 }
 
-export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolCatalog = new ToolCatalog()) {
+export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolCatalog) {
   const provider = input.provider;
   let previousResponseId = input.previousResponseId ?? null;
   let responseId: string | null = null;
@@ -97,31 +105,35 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   const skillSource =
     botSkills.length > 0 && loadSkillBody
       ? {
-          skills: botSkills,
+          skills: botSkills.map((skill) => ({
+            ...skill,
+            loadBody: () => loadSkillBody(skill.id),
+            ...(loadSkillFile ? { loadFile: (path: string) => loadSkillFile(skill.id, path) } : {}),
+          })),
           activeSkillName: input.activeSkillName,
-          loadBody: loadSkillBody,
-          loadFile: loadSkillFile,
         }
       : null;
   const resolvedTools = await toolCatalog.resolve(
     {
-      projectId: input.projectId,
-      canvasId: input.canvasId,
-      runId: input.runId,
+      turnId: input.runId,
+      threadId: input.sessionId,
       userId: input.userId,
-      sessionId: input.sessionId,
+      tenantId: input.tenantId,
+      workspaceId: input.workspaceId,
+      workspaceRole: input.workspaceRole ?? "",
+      signal: input.signal,
     },
     {
       textProvider: provider,
     },
+    input.pluginSnapshot,
     skillSource,
   );
   const { tools } = resolvedTools;
   const toolContext = {
-    projectId: input.projectId,
-    canvasId: input.canvasId,
     workspaceRole: input.workspaceRole ?? "",
     runId: input.runId,
+    attemptEpoch: input.attemptEpoch.toString(),
     userId: input.userId,
     tenantId: input.tenantId,
     workspaceId: input.workspaceId,
@@ -137,12 +149,13 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   const contextEstimates = new Map<number, ContextEstimate>();
   const modelStepSpans = new Map<number, ReturnType<typeof startSpan>>();
   const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
-  const instrumentedTools = withActiveToolSpans(tools, toolSpans);
+  const instrumentedTools = withActiveToolSpans(tools, toolSpans, input);
 
   const sandbox = new RunSandbox(toolContext);
   await sandbox.observeWorkspaceBaseline();
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
+    attemptEpoch: input.attemptEpoch,
     userId: input.userId,
     sessionId: input.sessionId,
   };
@@ -165,6 +178,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         "capture model context",
         captureModelStepContext({
           runId: input.runId,
+          attemptEpoch: input.attemptEpoch,
           stepNumber: currentStepNumber,
           contextEstimate,
         }),
@@ -194,6 +208,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         "record rejected tool call",
         recordRejectedToolCall({
           runId: input.runId,
+          attemptEpoch: input.attemptEpoch,
           toolCallId: toolCall.toolCallId,
           stepNumber: currentStepNumber,
           toolName: toolCall.toolName,
@@ -243,6 +258,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         "start model step",
         startModelStep({
           runId: input.runId,
+          attemptEpoch: input.attemptEpoch,
           stepNumber: currentStepNumber,
           model: provider.model,
         }),
@@ -281,6 +297,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         "finish model step",
         finishModelStep({
           runId: input.runId,
+          attemptEpoch: input.attemptEpoch,
           stepNumber: currentStepNumber,
           finishReason: event.finishReason,
           usage: event.usage,
@@ -308,6 +325,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
         "start tool",
         recordToolStart({
           runId: input.runId,
+          attemptEpoch: input.attemptEpoch,
           toolCallId: event.toolCall.toolCallId,
           stepNumber: currentStepNumber,
           toolName: event.toolCall.toolName,
@@ -337,6 +355,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
       return observe(
         "finish tool",
         recordToolEnd({
+          runId: input.runId,
+          attemptEpoch: input.attemptEpoch,
           toolCallId: event.toolCall.toolCallId,
           toolName: event.toolCall.toolName,
           success: executionSucceeded,

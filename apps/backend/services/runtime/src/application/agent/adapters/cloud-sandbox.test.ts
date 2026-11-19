@@ -7,7 +7,14 @@ import type { KnowledgeDocument } from "../../../infrastructure/clients/knowledg
 import type { SessionFile } from "../../session-files.js";
 import { RunSandbox, type SandboxDependencies } from "./cloud-sandbox.js";
 
-const context = { tenantId: "t", workspaceId: "w", userId: "u", sessionId: "c", runId: "r" };
+const context = {
+  tenantId: "t",
+  workspaceId: "w",
+  userId: "u",
+  sessionId: "c",
+  runId: "r",
+  attemptEpoch: "1",
+};
 const bytes = Uint8Array.from([0, 255, 1, 128, 10]);
 const document = {
   id: "doc",

@@ -821,3 +821,118 @@ class BenefitPackageService:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class AgentPluginServiceStub:
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.ListAgentPlugins = channel.unary_unary(
+                '/admin.v1.AgentPluginService/ListAgentPlugins',
+                request_serializer=admin_dot_v1_dot_admin__pb2.ListAgentPluginsRequest.SerializeToString,
+                response_deserializer=admin_dot_v1_dot_admin__pb2.ListAgentPluginsResponse.FromString,
+                _registered_method=True)
+        self.ResolveAgentPlugins = channel.unary_unary(
+                '/admin.v1.AgentPluginService/ResolveAgentPlugins',
+                request_serializer=admin_dot_v1_dot_admin__pb2.ResolveAgentPluginsRequest.SerializeToString,
+                response_deserializer=admin_dot_v1_dot_admin__pb2.ResolveAgentPluginsResponse.FromString,
+                _registered_method=True)
+
+
+class AgentPluginServiceServicer:
+    """Missing associated documentation comment in .proto file."""
+
+    def ListAgentPlugins(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ResolveAgentPlugins(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_AgentPluginServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'ListAgentPlugins': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListAgentPlugins,
+                    request_deserializer=admin_dot_v1_dot_admin__pb2.ListAgentPluginsRequest.FromString,
+                    response_serializer=admin_dot_v1_dot_admin__pb2.ListAgentPluginsResponse.SerializeToString,
+            ),
+            'ResolveAgentPlugins': grpc.unary_unary_rpc_method_handler(
+                    servicer.ResolveAgentPlugins,
+                    request_deserializer=admin_dot_v1_dot_admin__pb2.ResolveAgentPluginsRequest.FromString,
+                    response_serializer=admin_dot_v1_dot_admin__pb2.ResolveAgentPluginsResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'admin.v1.AgentPluginService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('admin.v1.AgentPluginService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class AgentPluginService:
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def ListAgentPlugins(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/admin.v1.AgentPluginService/ListAgentPlugins',
+            admin_dot_v1_dot_admin__pb2.ListAgentPluginsRequest.SerializeToString,
+            admin_dot_v1_dot_admin__pb2.ListAgentPluginsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ResolveAgentPlugins(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/admin.v1.AgentPluginService/ResolveAgentPlugins',
+            admin_dot_v1_dot_admin__pb2.ResolveAgentPluginsRequest.SerializeToString,
+            admin_dot_v1_dot_admin__pb2.ResolveAgentPluginsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

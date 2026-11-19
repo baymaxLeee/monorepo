@@ -4,6 +4,11 @@ export type LocalReasoningEffort = "none" | "minimal" | "low" | "medium" | "high
 
 export type LocalApprovalMode = "request" | "auto" | "full";
 
+export interface LocalPluginActivation {
+  pluginId: string;
+  bindings?: Record<string, string>;
+}
+
 export interface LocalPendingInput {
   id: string;
   turnId: string;
@@ -21,6 +26,7 @@ export interface LocalThread {
   providerId: string;
   reasoningEffort: LocalReasoningEffort;
   approvalMode: LocalApprovalMode;
+  pluginActivations: LocalPluginActivation[];
   status: "idle" | "running" | "waiting" | "interrupted" | "cancelled" | "error";
   turnId: string | null;
   error: string | null;
@@ -51,7 +57,7 @@ export type DesktopEvent =
 // Only these capabilities cross preload. No arbitrary channel, path grant,
 // process spawn, fetch URL or provider credential is exposed to page code.
 export interface DesktopBridge {
-  readonly version: 2;
+  readonly version: 3;
   info(): Promise<{ platform: string; localAvailable: boolean; origin: string }>;
   bindSession(accessToken: string, expiresAt: string): Promise<void>;
   clearSession(): Promise<void>;
@@ -63,6 +69,7 @@ export interface DesktopBridge {
     providerId: string,
     reasoningEffort: LocalReasoningEffort,
     approvalMode: LocalApprovalMode,
+    pluginActivations: LocalPluginActivation[],
   ): Promise<LocalThread>;
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;

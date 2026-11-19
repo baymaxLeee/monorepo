@@ -188,6 +188,8 @@ export function defineAgentTool(
     execution: resolvedPolicy.execution,
     source: resolvedPolicy.source,
     trust: resolvedPolicy.trust,
+    ...(resolvedPolicy.pluginId ? { pluginId: resolvedPolicy.pluginId } : {}),
+    ...(resolvedPolicy.sourceProjection ? { sourceProjection: resolvedPolicy.sourceProjection } : {}),
     ...(resolvedPolicy.streaming ? { streaming: true } : {}),
     ...(resolvedPolicy.uiKind ? { uiKind: resolvedPolicy.uiKind } : {}),
   } satisfies JSONObject;

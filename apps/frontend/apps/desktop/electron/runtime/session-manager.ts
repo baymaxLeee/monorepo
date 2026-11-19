@@ -7,6 +7,13 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { createRuntimeTurn, type RuntimeInputQueue, type RuntimeTurn } from "@repo/agent-runtime";
 import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
 import { projectRuntimeContext } from "@repo/agent-runtime/context/manager";
+import { PluginManager } from "@repo/agent-runtime/plugins/manager";
+import type {
+  AgentPluginContext,
+  PluginActivation,
+  ResolvedPluginSet,
+  ResolvedTurnPluginSnapshot,
+} from "@repo/agent-runtime/plugins/types";
 import { fileDataChunks, workspaceMediaType, type PublishedWorkspaceFile } from "@repo/agent-runtime/protocol/artifact";
 import {
   applyToolApprovalResponse,
@@ -16,13 +23,19 @@ import {
 import { attachExecutionEnvironment, type ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
 import { createExecutionHostManifests } from "@repo/agent-runtime/runtime/execution-host";
 import { DIRECT_TOOL_CALL } from "@repo/agent-runtime/tools/code-mode";
-import { manifestsToTools } from "@repo/agent-runtime/tools/manifest";
+import { manifestsToTools, transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
 import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
 import { isToolUIPart, readUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 
-import type { DesktopEvent, LocalApprovalMode, LocalPendingInput, LocalThread } from "../../contracts/bridge.generated";
+import type {
+  DesktopEvent,
+  LocalApprovalMode,
+  LocalPendingInput,
+  LocalPluginActivation,
+  LocalThread,
+} from "../../contracts/bridge.generated";
 import type { InferenceConfig, ReasoningEffort } from "../../contracts/inference.generated";
 import { LocalSandbox, type SandboxOptions } from "../sandbox";
 import { LocalJournal } from "./journal";
@@ -58,9 +71,13 @@ export interface DesktopSessionOptions {
   executable: string;
   fileWorker: string;
   config(providerId: string, reasoningEffort: ReasoningEffort, signal: AbortSignal): Promise<InferenceConfig>;
+  resolvePlugins(activations: readonly PluginActivation[], signal: AbortSignal): Promise<ResolvedTurnPluginSnapshot>;
   webSearch(input: WebSearchInput, signal?: AbortSignal): Promise<WebSearchOutput>;
   call: RelayCall;
   emit(event: DesktopEvent): void;
+  pluginLoader?: {
+    load(snapshot: ResolvedTurnPluginSnapshot, context: AgentPluginContext): Promise<ResolvedPluginSet>;
+  };
 }
 interface Workspace {
   sandbox: LocalSandbox;
@@ -83,6 +100,7 @@ interface ActiveRun {
 
 export class DesktopSessionManager {
   readonly journal: LocalJournal;
+  private readonly plugins: NonNullable<DesktopSessionOptions["pluginLoader"]>;
   private workspaces = new Map<string, Promise<Workspace>>();
   private active = new Map<string, ActiveRun>();
   private closed = false;
@@ -91,6 +109,7 @@ export class DesktopSessionManager {
   private observedWorkspaceEpochs = new Map<string, number>();
   constructor(private readonly options: DesktopSessionOptions) {
     this.journal = new LocalJournal(options.directory);
+    this.plugins = options.pluginLoader ?? new PluginManager();
     for (const metadata of this.journal.list())
       if (metadata.status === "running") {
         const thread = this.journal.get(metadata.id);
@@ -121,6 +140,7 @@ export class DesktopSessionManager {
     providerId: string,
     reasoningEffort: ReasoningEffort,
     approvalMode: LocalApprovalMode,
+    pluginActivations: LocalPluginActivation[],
   ) {
     if (this.closed) throw new Error("本地运行时正在关闭");
     const thread: LocalThread = {
@@ -131,6 +151,7 @@ export class DesktopSessionManager {
       providerId,
       reasoningEffort,
       approvalMode,
+      pluginActivations: structuredClone(pluginActivations),
       status: "idle",
       turnId: null,
       error: null,
@@ -324,9 +345,27 @@ export class DesktopSessionManager {
     settlements: Set<Promise<void>>,
   ) {
     let workspace: Workspace | undefined;
+    let pluginSet: ResolvedPluginSet | undefined;
     try {
       workspace = await this.workspace(thread);
       const runWorkspace = workspace;
+      const turnId = thread.turnId;
+      if (!turnId) throw new Error("本地轮次缺少标识");
+      const pluginSnapshot = await this.options.resolvePlugins(thread.pluginActivations, signal);
+      this.journal.savePluginSnapshot(turnId, pluginSnapshot);
+      const pluginContext: AgentPluginContext = {
+        turnId,
+        threadId: thread.id,
+        userId: "desktop-host",
+        tenantId: pluginSnapshot.tenantId,
+        workspaceId: pluginSnapshot.workspaceId,
+        workspaceRole: "",
+        signal,
+      };
+      pluginSet = await this.plugins.load(pluginSnapshot, pluginContext);
+      if (pluginSet.skills.length > 0) {
+        throw new Error("本地执行尚未配置插件 Skill asset loader");
+      }
       const config = await this.options.config(thread.providerId, thread.reasoningEffort, signal);
       const model = relayModel(config, this.options.call);
       let modelEpoch = runWorkspace.epoch;
@@ -421,7 +460,21 @@ export class DesktopSessionManager {
             };
           }),
       });
-      const manifests = [...portableTools.manifests, ...executionManifests];
+      const pluginManifests = pluginSet.manifests.map((manifest) => {
+        if (manifest.policy.source !== "mcp") {
+          throw new Error(`agent plugin ${manifest.policy.pluginId ?? "unknown"} contributed a non-MCP tool`);
+        }
+        return manifest.tool
+          ? {
+              ...manifest,
+              tool: transformToolPreservingCaller(manifest.tool, (definition) => ({
+                ...definition,
+                deferLoading: true,
+              })),
+            }
+          : manifest;
+      });
+      const manifests = [...portableTools.manifests, ...executionManifests, ...pluginManifests];
       const tools = manifestsToTools(manifests);
       const activeTools = Object.keys(tools);
       const codeModeToolCallers = Object.fromEntries(
@@ -524,6 +577,7 @@ export class DesktopSessionManager {
     } finally {
       this.active.get(thread.id)?.abort.abort();
       await runtimeTurn.dispose();
+      await pluginSet?.dispose();
       workspace?.sandbox.cancel();
       if (workspace) await workspace.queue;
       await Promise.allSettled([...settlements]);

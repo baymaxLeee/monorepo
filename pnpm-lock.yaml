@@ -184,6 +184,9 @@ catalogs:
     '@ai-sdk/code-mode':
       specifier: 1.0.129
       version: 1.0.129
+    '@ai-sdk/mcp':
+      specifier: 2.0.99
+      version: 2.0.99
     '@ai-sdk/openai':
       specifier: ^4.0.117
       version: 4.0.117
@@ -1451,6 +1454,9 @@ importers:
       '@ai-sdk/code-mode':
         specifier: 'catalog:'
         version: 1.0.129(ai@7.0.172(zod@4.6.5))(typescript@7.0.2)
+      '@ai-sdk/mcp':
+        specifier: 'catalog:'
+        version: 2.0.99(zod@4.6.5)
       '@ai-sdk/provider':
         specifier: ^4.0.38
         version: 4.0.38
@@ -1498,7 +1504,7 @@ packages:
     resolution: {integrity: sha512-9yDWp5WABLMRNKYuLrLIXGtJpIkjwXAdJyYUSu5XpD0cqtuM11LGqk3gb5XGiShco3RT/79W8CkqXskegTtWKw==}
     engines: {node: '>=22'}
     peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
+      zod: ^4.6.5
 
   '@ai-sdk/openai@4.0.117':
     resolution: {integrity: sha512-iRa4elI5AtKfzeOsuFwMS71Oga9MMOP1A15IYFBQL0dC3q+hvMxp02ytNOBZvk+E9zh7IvHyr0rLmC8uISDVig==}

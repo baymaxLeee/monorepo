@@ -5,12 +5,7 @@ import { and, eq } from "drizzle-orm";
 import type { AuthContext } from "../api/http/middleware/auth.js";
 import { forkSessionDocuments } from "../infrastructure/clients/knowledge.js";
 import { getDb } from "../infrastructure/persistence/index.js";
-import {
-  sessionArtifactCleanupOutbox,
-  sessionRunLeases,
-  sessions,
-  messages,
-} from "../infrastructure/persistence/schema.js";
+import { threadArtifactCleanupOutbox, threadItems, threads, turnLeases } from "../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError } from "./errors.js";
 import { forkSessionFileRows } from "./session-files.js";
 import { forkMessageContent } from "./session-fork-content.js";
@@ -29,14 +24,14 @@ export const sessionForkDependencies = {
   listMessages,
   forkSessionDocuments,
   async hasActiveRun(id: string) {
-    const rows = await getDb().select().from(sessionRunLeases).where(eq(sessionRunLeases.sessionId, id));
+    const rows = await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, id));
     return rows.length > 0;
   },
   async reserve(auth: AuthContext, id: string, now: Date) {
     // The existing cleanup relay leases this compensation intent. If the
     // process dies before publication, it releases the orphaned file claims.
-    await getDb().insert(sessionArtifactCleanupOutbox).values({
-      sessionId: id,
+    await getDb().insert(threadArtifactCleanupOutbox).values({
+      threadId: id,
       userId: auth.userId,
       tenantId: auth.tenantId,
       workspaceId: auth.workspaceId,
@@ -53,33 +48,33 @@ export const sessionForkDependencies = {
     documentIds: Record<string, string>,
   ) {
     await getDb().transaction(async (tx) => {
-      // The lease INSERT trigger advances this revision under the same row lock.
-      // A run that starts AND ends during the external copy still invalidates it.
+      // Turn admission advances turnSequence under the same Thread row lock.
+      // A Turn that starts AND ends during the external copy still invalidates it.
       const [current] = await tx
-        .select({ runRevision: sessions.runRevision, historyRevision: sessions.historyRevision })
-        .from(sessions)
-        .where(eq(sessions.id, source.id))
+        .select({ turnSequence: threads.turnSequence, historyRevision: threads.historyRevision })
+        .from(threads)
+        .where(eq(threads.id, source.id))
         .for("no key update");
       if (
         !current ||
-        current.runRevision !== source.runRevision ||
+        current.turnSequence !== source.turnSequence ||
         current.historyRevision !== source.historyRevision
       ) {
         throw new ConflictError("原会话已开始新的生成，请重试创建分支");
       }
       const reserved = await tx
-        .delete(sessionArtifactCleanupOutbox)
+        .delete(threadArtifactCleanupOutbox)
         .where(
           and(
-            eq(sessionArtifactCleanupOutbox.sessionId, id),
-            eq(sessionArtifactCleanupOutbox.claimedAt, now),
-            eq(sessionArtifactCleanupOutbox.attempts, 0),
+            eq(threadArtifactCleanupOutbox.threadId, id),
+            eq(threadArtifactCleanupOutbox.claimedAt, now),
+            eq(threadArtifactCleanupOutbox.attempts, 0),
           ),
         )
         .returning();
       if (!reserved.length) throw new ConflictError("分支文件准备超时，请重试");
       const copiedIds = history.map(() => randomBytes(16).toString("hex"));
-      await tx.insert(sessions).values({
+      await tx.insert(threads).values({
         id,
         userId: source.userId,
         tenantId: source.tenantId,
@@ -87,7 +82,8 @@ export const sessionForkDependencies = {
         createRequestId: `fork:${id}`,
         model: source.model,
         providerId: source.providerId,
-        selectedMessageId: copiedIds.at(-1) ?? null,
+        itemSequence: BigInt(history.length),
+        selectedItemId: copiedIds.at(-1) ?? null,
         createdAt: now,
         updatedAt: now,
       });
@@ -99,12 +95,13 @@ export const sessionForkDependencies = {
         workspaceId: source.workspaceId,
         now,
       });
-      await tx.insert(messages).values(
+      await tx.insert(threadItems).values(
         history.map((message, index) => ({
           id: copiedIds[index],
-          parentMessageId: copiedIds[index - 1] ?? null,
+          parentItemId: copiedIds[index - 1] ?? null,
           branchIndex: 0,
-          sessionId: id,
+          threadId: id,
+          ordinal: BigInt(index + 1),
           role: message.role,
           content: forkMessageContent(message.content, {
             sourceId: source.id,
@@ -116,15 +113,16 @@ export const sessionForkDependencies = {
           status: message.status === "streaming" ? "failed" : message.status,
           // Preserve exact transcript order even when original timestamps tie.
           createdAt: new Date(now.getTime() - history.length + index),
+          updatedAt: new Date(now.getTime() - history.length + index),
         })),
       );
     });
   },
   async release(id: string, now: Date) {
     await getDb()
-      .update(sessionArtifactCleanupOutbox)
+      .update(threadArtifactCleanupOutbox)
       .set({ claimedAt: null })
-      .where(and(eq(sessionArtifactCleanupOutbox.sessionId, id), eq(sessionArtifactCleanupOutbox.claimedAt, now)));
+      .where(and(eq(threadArtifactCleanupOutbox.threadId, id), eq(threadArtifactCleanupOutbox.claimedAt, now)));
   },
 };
 

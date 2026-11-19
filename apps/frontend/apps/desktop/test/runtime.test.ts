@@ -4,8 +4,15 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import { isToolUIPart } from "ai";
-import { afterEach, describe, expect, it } from "vitest";
+import type {
+  AgentPluginManifest,
+  PluginActivation,
+  ResolvedTurnPluginSnapshot,
+} from "@repo/agent-runtime/plugins/types";
+import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
+import { isToolUIPart, tool } from "ai";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import type { InferenceRequest } from "../contracts/inference.generated";
 import { DesktopSessionManager, type DesktopSessionOptions } from "../electron/runtime/session-manager";
@@ -39,7 +46,11 @@ afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close();
   for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true });
 });
-async function fixture(call: DesktopSessionOptions["call"]) {
+async function fixture(
+  call: DesktopSessionOptions["call"],
+  overrides: Partial<Pick<DesktopSessionOptions, "pluginLoader" | "resolvePlugins">> = {},
+  pluginActivations: PluginActivation[] = [],
+) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "local-agent-")));
   directories.push(directory);
   const workspace = join(directory, "project");
@@ -59,13 +70,25 @@ async function fixture(call: DesktopSessionOptions["call"]) {
       maxOutputTokens: 4000,
       instructions: "",
     }),
+    resolvePlugins: async () => ({
+      schemaVersion: 1,
+      snapshotId: "empty",
+      snapshotDigest: `sha256:${"0".repeat(64)}`,
+      workspaceRevision: 1,
+      tenantId: "tenant",
+      workspaceId: "workspace",
+      resolvedAt: "2026-01-01T00:00:00.000Z",
+      plugins: [],
+      connectionGrants: [],
+    }),
     webSearch: async (input) => ({ query: input.query, untrusted: true, results: [] }),
     call,
     emit() {},
+    ...overrides,
   };
   const runtime = new DesktopSessionManager(options);
   runtimes.push(runtime);
-  const thread = await runtime.create(workspace, "provider", "medium", "auto");
+  const thread = await runtime.create(workspace, "provider", "medium", "auto", pluginActivations);
   return { runtime, thread, options };
 }
 async function done(runtime: DesktopSessionManager, id: string) {
@@ -74,6 +97,112 @@ async function done(runtime: DesktopSessionManager, id: string) {
 }
 
 describe.skipIf(process.platform !== "darwin")("local assistant owns execution and recovery", () => {
+  it("freezes plugin tools for the Turn, persists only the audit snapshot and disposes resources", async () => {
+    const requests: InferenceRequest[] = [];
+    const dispose = vi.fn(async () => {});
+    const manifest: AgentPluginManifest = {
+      schemaVersion: 1,
+      id: "docs@external",
+      version: "1.0.0",
+      digest: `sha256:${"a".repeat(64)}`,
+      displayName: "Docs",
+      description: "External document search",
+      source: "external-mcp",
+      trust: "unverified",
+      mcpServers: [
+        {
+          name: "docs",
+          tools: [
+            {
+              name: "search",
+              description: "Search documents",
+              inputSchema: { type: "object", properties: {}, additionalProperties: false },
+              policy: { capability: "external", effect: "read", trust: "open-world", execution: "inline" },
+              planning: { summary: "Search knowledge" },
+            },
+          ],
+          url: "https://docs.example/mcp",
+        },
+      ],
+    };
+    const snapshot: ResolvedTurnPluginSnapshot = {
+      schemaVersion: 1,
+      snapshotId: "docs-snapshot",
+      snapshotDigest: `sha256:${"b".repeat(64)}`,
+      workspaceRevision: 1,
+      tenantId: "tenant",
+      workspaceId: "workspace",
+      resolvedAt: "2026-01-01T00:00:00.000Z",
+      plugins: [{ manifest, activation: { pluginId: manifest.id } }],
+      connectionGrants: [
+        {
+          pluginId: manifest.id,
+          serverName: "docs",
+          headers: { Authorization: "Bearer desktop-secret" },
+        },
+      ],
+    };
+    const f = await fixture(
+      async (request) => {
+        requests.push(request);
+        return reply(
+          requests.length === 1
+            ? [
+                {
+                  type: "tool-call",
+                  toolCallId: "discover-docs",
+                  toolName: "tool_search",
+                  input: JSON.stringify({ query: "document search" }),
+                },
+              ]
+            : text(),
+        );
+      },
+      {
+        resolvePlugins: async () => snapshot,
+        pluginLoader: {
+          load: async () => ({
+            snapshotId: snapshot.snapshotId,
+            snapshotDigest: snapshot.snapshotDigest,
+            activePlugins: [manifest],
+            skills: [],
+            manifests: [
+              defineAgentTool(
+                "mcp__docs__search",
+                tool({
+                  description: "Search knowledge",
+                  inputSchema: z.object({}),
+                  execute: async () => ({ results: [] }),
+                }),
+                {
+                  capability: "external",
+                  effect: "read",
+                  trust: "open-world",
+                  execution: "inline",
+                  source: "mcp",
+                  pluginId: manifest.id,
+                },
+                { summary: "Search knowledge" },
+              ),
+            ],
+            dispose,
+          }),
+        },
+      },
+      [{ pluginId: manifest.id }],
+    );
+
+    f.runtime.send(f.thread.id, "search", randomUUID());
+    expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
+    expect(requests).toHaveLength(2);
+    expect(requests[0]!.options.tools?.map((candidate) => candidate.name)).not.toContain("mcp__docs__search");
+    expect(requests[1]!.options.tools?.map((candidate) => candidate.name)).toContain("mcp__docs__search");
+    const persisted = f.runtime.journal.getPluginSnapshot(f.runtime.get(f.thread.id).turnId!);
+    expect(persisted?.plugins[0]?.manifest.id).toBe(manifest.id);
+    expect(JSON.stringify(persisted)).not.toContain("desktop-secret");
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
   it("does not invent workspace changes for a capability question", async () => {
     const requests: InferenceRequest[] = [];
     const f = await fixture(async (request) => {

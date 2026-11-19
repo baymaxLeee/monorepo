@@ -78,13 +78,21 @@ export class RuntimeHost {
                 `/api/chat-server/local-inference/config?provider_id=${encodeURIComponent((message.payload as { providerId: string }).providerId)}&reasoning_effort=${encodeURIComponent((message.payload as { reasoningEffort: string }).reasoningEffort)}`,
                 { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15_000)]) },
               )
-            : method === "web-search"
-              ? this.fetchApi("/api/chat-server/local-inference/web-search", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(message.payload),
-                  signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30_000)]),
-                })
+            : method === "web-search" || method === "plugins"
+              ? this.fetchApi(
+                  method === "plugins"
+                    ? "/api/chat-server/local-inference/plugins/resolve"
+                    : "/api/chat-server/local-inference/web-search",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(message.payload),
+                    signal: AbortSignal.any([
+                      abort.signal,
+                      AbortSignal.timeout(method === "plugins" ? 15_000 : 30_000),
+                    ]),
+                  },
+                )
               : Promise.reject(new Error("未知本地运行时请求"));
         void request
           .then((response) => response.json())
