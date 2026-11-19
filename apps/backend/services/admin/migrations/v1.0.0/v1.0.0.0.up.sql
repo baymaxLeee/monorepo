@@ -213,36 +213,6 @@ CREATE TABLE public.benefit_packages (
 
 
 
-CREATE TABLE public.bot_skills (
-    bot_id character varying(32) NOT NULL,
-    skill_id character varying(32) NOT NULL,
-    sort integer DEFAULT 0 NOT NULL
-);
-
-
-
-CREATE TABLE public.bots (
-    id character varying(32) NOT NULL,
-    user_id character varying(26) NOT NULL,
-    name character varying(100) NOT NULL,
-    status character varying(20) DEFAULT 'draft'::character varying NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    text_provider_id character varying(32),
-    image_provider_id character varying(32),
-    video_provider_id character varying(32),
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    workspace_id character varying(26) NOT NULL,
-    role_description text,
-    domain_description text,
-    audience character varying(200),
-    tone character varying(20) DEFAULT 'professional'::character varying NOT NULL,
-    welcome_message text,
-    suggested_questions jsonb DEFAULT '[]'::jsonb NOT NULL,
-    tenant_id character varying(26) NOT NULL
-);
-
-
-
 CREATE TABLE public.canvas_settings (
     workspace_id character varying(26) NOT NULL,
     revision bigint NOT NULL,
@@ -275,7 +245,7 @@ CREATE TABLE public.model_providers (
     pricing_json text,
     tenant_id character varying(26) NOT NULL,
     responses_dialect character varying(32),
-    CONSTRAINT ck_model_providers_responses_dialect CHECK (((responses_dialect IS NULL) OR ((responses_dialect)::text = ANY (ARRAY[('openai_responses'::character varying)::text, ('ark_responses'::character varying)::text, ('deepseek_responses'::character varying)::text])))),
+    CONSTRAINT ck_model_providers_responses_dialect CHECK (((responses_dialect IS NULL) OR ((responses_dialect)::text = 'ark_responses'::text))),
     CONSTRAINT ck_model_providers_responses_dialect_kind CHECK (((((provider_kind)::text = 'chat'::text) AND (responses_dialect IS NOT NULL)) OR (((provider_kind)::text <> 'chat'::text) AND (responses_dialect IS NULL))))
 );
 
@@ -424,16 +394,6 @@ ALTER TABLE ONLY public.benefit_packages
 
 
 
-ALTER TABLE ONLY public.bot_skills
-    ADD CONSTRAINT bot_skills_pkey PRIMARY KEY (bot_id, skill_id);
-
-
-
-ALTER TABLE ONLY public.bots
-    ADD CONSTRAINT bots_pkey PRIMARY KEY (id);
-
-
-
 ALTER TABLE ONLY public.canvas_settings
     ADD CONSTRAINT canvas_settings_pkey PRIMARY KEY (workspace_id);
 
@@ -504,18 +464,6 @@ CREATE INDEX ix_agent_plugin_catalog_listing ON public.agent_plugin_catalog USIN
 
 
 CREATE INDEX ix_agent_plugin_installations_workspace ON public.agent_plugin_installations USING btree (tenant_id, workspace_id, enabled, plugin_id);
-
-
-
-CREATE INDEX ix_bot_skills_skill_id ON public.bot_skills USING btree (skill_id);
-
-
-
-CREATE INDEX ix_bots_org_id ON public.bots USING btree (workspace_id);
-
-
-
-CREATE INDEX ix_bots_user_id ON public.bots USING btree (user_id);
 
 
 

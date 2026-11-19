@@ -111,16 +111,19 @@ just migrate-check                   # 离线检查全仓迁移清单，不连�
 ## 开发与发布
 
 ```bash
-just migrate-up canvas           # 只升级 Canvas，保留所有业务数据
-just migrate-up canvas v1.0.1    # 升级到该发布清单的最后一步
-just migrate-up canvas v1.0.1.0  # 精确升级到某一步；UP 不允许降级
+just migrate-up <service>           # 升级到仓库中的最高版本
+just migrate-up <service> v1.0.0    # 升级到该发布清单的最后一步
+just migrate-up <service> v1.0.0.0  # 精确升级到某一步；UP 不允许降级
 just dev
 ```
 
 发布变更应说明源版本、目标版本、涉及表、数据转换、旧应用兼容范围和失败恢复方法。
 先在隔离数据库恢复代表性旧数据，运行升级、重复执行、失败回滚及业务读写验证。
-本次 Canvas `v1.0.1/v1.0.1.0.up.sql` 仅新增事件 checkpoint/日志表和索引，保留项目、画布、节点、
-任务与生成历史；空库执行 `v1.0.0 → v1.0.1`，旧库仅执行 `v1.0.1`。
+
+当前 Admin、Canvas、Knowledge、Storage 的 `v1.0.0/v1.0.0.0.up.sql` 是重装基线，
+不兼容这些服务的既有 migration history 或业务数据；旧增量文件已合并并删除。
+部署该基线前必须重建对应服务数据库。基线落地后恢复本节的常规规则：已应用文件不可修改，
+后续 schema 变化只能追加连续步骤。
 
 VPS 继续使用 [现有部署入口](../../infra/single-vps/README.md)，构建并发布包含全部
 迁移文件的 `db-init` 镜像。不要设置 `RESET_DATA=true`。迁移失败时部署应停止，
@@ -163,7 +166,7 @@ IMAGE_TAG=<已验证兼容的旧应用SHA> DB_INIT_IMAGE_TAG=<当前schema对应
 
 这个选项只分离业务库迁移镜像，不证明任意旧版本兼容，也不替代 Workflow World
 自身的版本要求。K8s 回退应用 Deployment 时同样保留兼容的迁移 Job，不自动执行
-DOWN。本次 Canvas 的新增表可保留供旧代码忽略，回退不需要删事件表。
+DOWN。
 
 ## 每次变更的 UP / DOWN 审查要求
 
@@ -180,19 +183,6 @@ DOWN 必须指定目标，按反序撤销高于目标的步骤，不能撤销 `v
 旧库先验证已有 history/audit，再一次性补录来源；从未记录过的 DOWN 无法追溯历史内容，
 首次接入须审查，之后不可改写。旧库首次运行自动补录活动历史。
 DOWN 不创建数据库、不修改角色凭据；必须在已存在的服务库上执行。
-
-Canvas 本次升级的演练入口（隔离库或已停写且确认空事件表的环境）：
-
-```bash
-just migrate-up canvas v1.0.1
-just migrate-down canvas v1.0.0
-just migrate-up canvas v1.0.1
-```
-
-Canvas 逆操作获取两张事件表的排他锁并检查是否有行；只在均为空时删除表和索引。
-任何事件或 checkpoint 存在都会拒绝，项目、画布、节点及事件数据全部保留。
-不要为通过检查而删除数据。已有事件时优先保留 schema 回退应用，或新增向前修复。
-停写期间禁止新应用重启；完成降级后只能启动兼容目标 schema 的应用。
 
 部署镜像打包完整 `migrations/`，正常部署始终 UP；DOWN 是单独的维护操作。
 在具有服务凭据的迁移容器内使用 `DB_MIGRATE_TRANSPORT=tcp`、`DATABASE_USER`、

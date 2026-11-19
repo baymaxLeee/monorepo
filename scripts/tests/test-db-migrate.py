@@ -202,52 +202,21 @@ class MigrationTest(unittest.TestCase):
                     str(len(list(source.glob("v*/*.up.sql")))),
                 )
 
-    def test_canvas_existing_data_upgrade_and_fresh_install(self):
+    def test_canvas_reinstall_baseline_installs_terminal_schema_and_repeats(self):
         source = ROOT / "apps/backend/services/canvas/migrations"
-        service = self.service("canvas", (source / "v1.0.0/v1.0.0.0.up.sql").read_text())
-        self.success(self.migrate(service))
-        self.sql(
-            "canvas",
-            "DROP TABLE IF EXISTS public.migration_history; CREATE TABLE public.keep_data(value text); INSERT INTO public.keep_data VALUES ('historical canvas data');",
-        )
-        self.sql(
-            "canvas",
-            "INSERT INTO public.projects (id,tenant_id,name,created_by,created_at,updated_at,deleted_at) VALUES ('project','tenant','historical project','alice',NOW(),NOW(),0); INSERT INTO public.canvases (id,tenant_id,project_id,name,created_by,created_at,updated_at,deleted_at) VALUES ('canvas','tenant','project','historical canvas','alice',NOW(),NOW(),0); INSERT INTO public.canvas_nodes (id,tenant_id,project_id,canvas_id,type,storyboard_rank,revision,created_by,created_at,updated_at,deleted_at,node_data) VALUES ('node','tenant','project','canvas',1,0,7,'alice',NOW(),NOW(),0,'{\"text\":\"历史正文\"}');",
-        )
-        archive_task_id = "019a0000-0000-7000-8000-000000000001"
-        self.sql(
-            "canvas",
-            f"INSERT INTO public.task_runs (id,tenant_id,created_by,run_type,subject_type,subject_id,is_internal,status,error_code,error_message,state_version,created_at,updated_at) VALUES ('{archive_task_id}','tenant','alice','CANVAS_VIDEO_ARCHIVE_EXPORT','canvas','canvas',false,'queued','','',1,NOW(),NOW()); INSERT INTO public.canvas_archive_workflows (task_run_id,created_at,updated_at) VALUES ('{archive_task_id}',NOW(),NOW());",
-        )
-        shutil.copytree(source / "v1.0.1", service / "migrations/v1.0.1")
-        self.success(self.migrate(service))
+        service = self.fixtures / "canvas"
+        shutil.copytree(source, service / "migrations")
         self.assertEqual(
-            self.sql("canvas", "SELECT value FROM public.keep_data;"),
-            "historical canvas data",
+            [path.relative_to(source).as_posix() for path in source.glob("v*/*.up.sql")],
+            ["v1.0.0/v1.0.0.0.up.sql"],
         )
+        self.assertEqual(list(source.glob("v*/*.down.sql")), [])
+        self.success(self.migrate(service))
         self.assertEqual(
             self.sql("canvas", "SELECT version FROM public.migration WHERE id=1;"),
-            "v1.0.1.2",
+            "v1.0.0.0",
         )
-        self.assertEqual(self.sql("canvas", "SELECT count(*) FROM public.migration_history;"), "4")
-        self.assertEqual(
-            self.sql(
-                "canvas",
-                f"SELECT run_type || '|' || execution_state FROM public.async_dispatches WHERE task_run_id='{archive_task_id}';",
-            ),
-            "CANVAS_VIDEO_ARCHIVE_EXPORT|WAITING",
-        )
-        self.assertEqual(
-            self.sql("canvas", "SELECT name FROM public.canvases WHERE id='canvas';"),
-            "historical canvas",
-        )
-        self.assertEqual(
-            self.sql(
-                "canvas",
-                "SELECT revision,node_data->>'text' FROM public.canvas_nodes WHERE id='node';",
-            ),
-            "7|历史正文",
-        )
+        self.assertEqual(self.sql("canvas", "SELECT count(*) FROM public.migration_history;"), "1")
         self.assertEqual(
             self.sql(
                 "canvas",
@@ -255,12 +224,14 @@ class MigrationTest(unittest.TestCase):
             ),
             "canvas_events|canvas_event_heads",
         )
+        self.assertEqual(
+            self.sql(
+                "canvas",
+                "SELECT count(*) FROM pg_trigger WHERE tgname='capture_projection_change' AND NOT tgisinternal;",
+            ),
+            "9",
+        )
         self.success(self.migrate(service, tcp=True))
-        fresh = self.service("fresh_canvas", (source / "v1.0.0/v1.0.0.0.up.sql").read_text())
-        shutil.copytree(source / "v1.0.1", fresh / "migrations/v1.0.1")
-        self.success(self.migrate(fresh, tcp=True))
-        schema = "SELECT table_name,column_name,data_type FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('canvas_events','canvas_event_heads') ORDER BY table_name,ordinal_position;"
-        self.assertEqual(self.sql("canvas", schema), self.sql("fresh_canvas", schema))
 
     def test_search_path_does_not_leak_between_pending_steps(self):
         service = self.service(
@@ -373,33 +344,6 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(self.sql("roundtrip", "SELECT count(*) FROM migration_audit WHERE direction='down'"), "1")
         reverse.write_text("SELECT 1;")
         self.assertNotEqual(self.migrate(service, "v1.0.0", direction="down").returncode, 0)
-
-    def test_canvas_down_preserves_events_and_roundtrip(self):
-        service = self.fixtures / "canvas_reverse"
-        shutil.copytree(ROOT / "apps/backend/services/canvas/migrations", service / "migrations")
-        self.success(self.migrate(service))
-        self.success(self.migrate(service, "v1.0.1.1", direction="down"))
-        self.assertEqual(self.sql("canvas_reverse", "SELECT version FROM migration"), "v1.0.1.1")
-        self.assertEqual(
-            self.sql(
-                "canvas_reverse",
-                "SELECT to_regprocedure('capture_canvas_projection_change()') IS NULL",
-            ),
-            "t",
-        )
-        self.success(self.migrate(service))
-        self.assertEqual(self.sql("canvas_reverse", "SELECT version FROM migration"), "v1.0.1.2")
-        self.sql("canvas_reverse", "INSERT INTO canvas_events VALUES ('canvas', 1, '{}', NOW());")
-        result = self.migrate(service, "v1.0.0", direction="down")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("persisted events", result.stderr)
-        self.assertEqual(self.sql("canvas_reverse", "SELECT count(*) FROM canvas_events"), "1")
-        self.assertEqual(self.sql("canvas_reverse", "SELECT version FROM migration"), "v1.0.1.2")
-        self.sql("canvas_reverse", "DELETE FROM canvas_events;")
-        self.success(self.migrate(service, "v1.0.0", direction="down"))
-        self.assertEqual(self.sql("canvas_reverse", "SELECT to_regclass('canvas_events') IS NULL"), "t")
-        self.success(self.migrate(service))
-        self.assertEqual(self.sql("canvas_reverse", "SELECT count(*) FROM canvas_events"), "0")
 
     def test_missing_down_and_wrong_direction_are_rejected(self):
         service = self.service("irreversible")

@@ -132,6 +132,13 @@ CREATE TABLE public.upload_sessions (
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    target_asset_id uuid,
+    base_revision_id uuid,
+    claim_owner_type character varying(64),
+    claim_owner_id character varying(128),
+    claim_slot character varying(128),
+    claim_generation bigint,
+    CONSTRAINT upload_sessions_append_target_fields_check CHECK ((((target_asset_id IS NULL) AND (base_revision_id IS NULL) AND (claim_owner_type IS NULL) AND (claim_owner_id IS NULL) AND (claim_slot IS NULL) AND (claim_generation IS NULL)) OR ((target_asset_id IS NOT NULL) AND (base_revision_id IS NOT NULL) AND (claim_owner_type IS NOT NULL) AND (claim_owner_id IS NOT NULL) AND (claim_slot IS NOT NULL) AND (claim_generation > 0)))),
     CONSTRAINT upload_sessions_declared_size_bytes_check CHECK ((declared_size_bytes >= 0)),
     CONSTRAINT upload_sessions_state_check CHECK (((state)::text = ANY (ARRAY[('pending'::character varying)::text, ('uploading'::character varying)::text, ('completed'::character varying)::text, ('failed'::character varying)::text, ('aborted'::character varying)::text])))
 );
@@ -211,6 +218,10 @@ CREATE INDEX ix_upload_sessions_expiry ON public.upload_sessions USING btree (st
 
 
 
+CREATE INDEX ix_upload_sessions_append_target ON public.upload_sessions USING btree (target_asset_id, base_revision_id) WHERE (target_asset_id IS NOT NULL);
+
+
+
 CREATE UNIQUE INDEX uq_upload_sessions_idempotency ON public.upload_sessions USING btree (tenant_id, workspace_id, caller_service, idempotency_key) WHERE (idempotency_key IS NOT NULL);
 
 
@@ -265,4 +276,14 @@ ALTER TABLE ONLY public.upload_sessions
 
 
 ALTER TABLE ONLY public.upload_sessions
+    ADD CONSTRAINT upload_sessions_base_revision_id_fkey FOREIGN KEY (base_revision_id) REFERENCES public.asset_revisions(id);
+
+
+
+ALTER TABLE ONLY public.upload_sessions
     ADD CONSTRAINT upload_sessions_revision_id_fkey FOREIGN KEY (revision_id) REFERENCES public.asset_revisions(id);
+
+
+
+ALTER TABLE ONLY public.upload_sessions
+    ADD CONSTRAINT upload_sessions_target_asset_id_fkey FOREIGN KEY (target_asset_id) REFERENCES public.assets(id);

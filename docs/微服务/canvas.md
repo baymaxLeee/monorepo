@@ -45,5 +45,6 @@ Studio 保留 HTTP `getCanvasGraph` 作为首次加载及恢复的大快照入�
 前端正式状态仅从顶层投影派生；命令回执只等待 cursor，不回填正式图，也不触发成功后的整图刷新。
 协议、失败恢复与验证命令见 [Canvas events](../../schemas/streaming/canvas-events.md)，设计见 [ADR-0077](../ADR/0077-canvas-event-projection.md)。
 
-事件表通过 `v1.0.1/v1.0.1.0.up.sql` 增量创建，原 `v1.0.0` 不变。已有库运行 `just migrate-up canvas`
-即可保留数据升级；VPS 的 `db-init` 执行相同迁移。参见 [数据库迁移规范](../开发规范/database-migrations.md)。
+事件表和投影触发器属于当前 `v1.0.0/v1.0.0.0.up.sql` 重装基线。该基线不提供旧 Canvas
+数据库的保留数据升级路径；部署前必须重建 Canvas 应用数据。后续已发布 schema 变更仍按
+[数据库迁移规范](../开发规范/database-migrations.md) 追加迁移。

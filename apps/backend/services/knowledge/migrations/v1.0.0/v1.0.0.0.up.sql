@@ -101,56 +101,8 @@ CREATE TABLE public.documents (
     processing_dispatched_at timestamp with time zone,
     asset_id uuid,
     source_revision_id uuid,
-    source_sha256 character varying(64)
-);
-
-
-
-CREATE TABLE public.file_change_set_entries (
-    id character varying(32) NOT NULL,
-    change_set_id character varying(32) NOT NULL,
-    path character varying(512) NOT NULL,
-    mime_type character varying(120) NOT NULL,
-    content text NOT NULL,
-    sha256 character varying(64) NOT NULL,
-    writable boolean DEFAULT true NOT NULL,
-    derived boolean DEFAULT false NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
-);
-
-
-
-CREATE TABLE public.file_change_sets (
-    id character varying(32) NOT NULL,
-    user_id character varying(26) NOT NULL,
-    workspace_id character varying(26) NOT NULL,
-    conversation_id character varying(32) NOT NULL,
-    status character varying(24) NOT NULL,
-    baseline_sha256 jsonb NOT NULL,
-    metadata_json jsonb,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    tenant_id character varying(26) NOT NULL
-);
-
-
-
-CREATE TABLE public.file_entries (
-    id character varying(32) NOT NULL,
-    user_id character varying(26) NOT NULL,
-    workspace_id character varying(26) NOT NULL,
-    conversation_id character varying(32) NOT NULL,
-    path character varying(512) NOT NULL,
-    mime_type character varying(120) NOT NULL,
-    content text NOT NULL,
-    sha256 character varying(64) NOT NULL,
-    writable boolean DEFAULT true NOT NULL,
-    derived boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    tenant_id character varying(26) NOT NULL
+    source_sha256 character varying(64),
+    editable_source boolean DEFAULT false NOT NULL
 );
 
 
@@ -198,26 +150,6 @@ ALTER TABLE ONLY public.documents
 
 
 
-ALTER TABLE ONLY public.file_change_set_entries
-    ADD CONSTRAINT file_change_set_entries_pkey PRIMARY KEY (id);
-
-
-
-ALTER TABLE ONLY public.file_change_sets
-    ADD CONSTRAINT file_change_sets_pkey PRIMARY KEY (id);
-
-
-
-ALTER TABLE ONLY public.file_entries
-    ADD CONSTRAINT file_entries_pkey PRIMARY KEY (id);
-
-
-
-ALTER TABLE ONLY public.staged_media
-    ADD CONSTRAINT staged_media_idempotency_key_key UNIQUE (idempotency_key);
-
-
-
 ALTER TABLE ONLY public.staged_media
     ADD CONSTRAINT staged_media_pkey PRIMARY KEY (id);
 
@@ -225,16 +157,6 @@ ALTER TABLE ONLY public.staged_media
 
 ALTER TABLE ONLY public.document_chunks
     ADD CONSTRAINT ux_document_chunks_doc_index UNIQUE (document_id, chunk_index);
-
-
-
-ALTER TABLE ONLY public.file_change_set_entries
-    ADD CONSTRAINT ux_file_change_set_path UNIQUE (change_set_id, path);
-
-
-
-ALTER TABLE ONLY public.file_entries
-    ADD CONSTRAINT ux_file_entry_root_path UNIQUE (user_id, conversation_id, path);
 
 
 
@@ -290,18 +212,6 @@ CREATE INDEX ix_documents_user_id ON public.documents USING btree (user_id);
 
 
 
-CREATE INDEX ix_file_change_set_entries_change_set ON public.file_change_set_entries USING btree (change_set_id);
-
-
-
-CREATE INDEX ix_file_change_sets_root ON public.file_change_sets USING btree (user_id, conversation_id, status);
-
-
-
-CREATE INDEX ix_file_entries_conversation ON public.file_entries USING btree (user_id, conversation_id);
-
-
-
 CREATE INDEX ix_staged_media_asset_revision ON public.staged_media USING btree (asset_id, revision_id) WHERE (asset_id IS NOT NULL);
 
 
@@ -315,6 +225,10 @@ CREATE INDEX ix_staged_media_org_id ON public.staged_media USING btree (workspac
 
 
 CREATE INDEX ix_staged_media_user_id ON public.staged_media USING btree (user_id);
+
+
+
+CREATE UNIQUE INDEX ux_staged_media_idempotency_scope ON public.staged_media USING btree (tenant_id, workspace_id, user_id, COALESCE(conversation_id, ''::character varying), idempotency_key) WHERE (idempotency_key IS NOT NULL);
 
 
 

@@ -29,8 +29,10 @@ Storage 的 PostgreSQL database/role 与服务同名为 `storage`。字节卷使
 旧迁移器。大规模回填由数据所属服务实现可重入批处理，不占用发布 DDL 长事务。
 具体协议、恢复边界及验证入口见 [数据库迁移规范](../开发规范/database-migrations.md)。
 
-Chat/Runtime 的一次性 v1 重构是已明确授权的 fresh baseline 例外：两者只保留
-`v1.0.0.0`，不读取旧 Chat/Executor/Sandbox 数据；边界见 [Session Runtime](session-runtime.md)。
+Admin、Canvas、Chat、Knowledge、Runtime、Storage 的一次性 v1 重构是已明确授权的
+fresh baseline 例外：这些服务只保留 `v1.0.0.0`，不读取旧 migration history 或业务数据。
+Canvas 事件表与触发器直接属于基线；Chat/Runtime 边界见
+[Session Runtime](session-runtime.md)。基线落地后的变更重新遵循不可变追加规则。
 
 ## 部署与密钥
 
