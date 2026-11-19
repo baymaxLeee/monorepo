@@ -17,6 +17,6 @@ test("an error finish reason fails even when the stream outcome has no error", (
   assert.equal(terminalStreamError({ status: "completed" }, "error"), "model stream ended with an error");
 });
 
-test("an aborted stream is handled by cancellation rather than failure", () => {
-  assert.equal(terminalStreamError({ status: "aborted" }, undefined), null);
+test("an internally aborted stream fails unless the run AbortSignal establishes explicit cancellation", () => {
+  assert.equal(terminalStreamError({ status: "aborted" }, undefined), "model stream timed out or aborted unexpectedly");
 });

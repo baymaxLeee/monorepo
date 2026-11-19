@@ -1,4 +1,4 @@
-import { CornerDownLeft } from "lucide-react";
+import { MessageScrollerItem } from "@repo/design-system";
 
 export interface PendingAgentInput {
   id: string;
@@ -11,29 +11,24 @@ export function PendingInputStack({ inputs }: { inputs: readonly PendingAgentInp
   if (inputs.length === 0) return null;
 
   return (
-    <div
-      className="mb-2 overflow-hidden rounded-2xl border bg-background/95 shadow-sm"
-      aria-label="待发送消息"
-      aria-live="polite"
-    >
+    <div aria-label="待发送消息" aria-live="polite" className="contents">
       {inputs.map((input) => (
-        <div
-          key={input.id}
-          className="flex min-h-11 items-center gap-3 border-b px-4 last:border-b-0"
-          title={input.text}
-        >
-          <CornerDownLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{input.text}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {input.state === "unconfirmed"
-              ? "状态待确认"
-              : input.state === "not_delivered"
-                ? "未加入当前任务"
-                : input.mode === "next-turn"
-                  ? "下一项"
-                  : "引导当前任务"}
-          </span>
-        </div>
+        <MessageScrollerItem key={input.id} messageId={`pending-${input.id}`} scrollAnchor>
+          <div className="flex w-full justify-end">
+            <div className="flex max-w-[85%] flex-col items-end gap-1 rounded-2xl bg-muted px-4 py-2 leading-relaxed">
+              <span className="whitespace-pre-wrap break-words">{input.text}</span>
+              <span className="text-xs text-muted-foreground">
+                {input.state === "unconfirmed"
+                  ? "发送状态待确认"
+                  : input.state === "not_delivered"
+                    ? "未加入当前任务"
+                    : input.mode === "next-turn"
+                      ? "已排到下一项"
+                      : "已发送，等待当前步骤结束后加入"}
+              </span>
+            </div>
+          </div>
+        </MessageScrollerItem>
       ))}
     </div>
   );

@@ -9,7 +9,6 @@ import { uploadConversationFiles } from "../lib/upload-conversation-files";
 import { ChatComposerControls, type ReasoningEffort } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatPrompt } from "./ChatPrompt";
-import type { PendingAgentInput } from "./PendingInputStack";
 
 type ChatComposerProps = {
   id: string;
@@ -20,7 +19,6 @@ type ChatComposerProps = {
   onUpdateModelBinding: (id: string, effort: ReasoningEffort) => Promise<void>;
   busy: boolean;
   runActive: boolean;
-  pendingInputs: readonly PendingAgentInput[];
   activatedSkillName: string | null;
   setActivatedSkillName: (name: string | null) => void;
   traceRefreshKey: number;
@@ -38,7 +36,6 @@ export const ChatComposer = memo(function ChatComposer({
   onUpdateModelBinding,
   busy,
   runActive,
-  pendingInputs,
   activatedSkillName,
   setActivatedSkillName,
   traceRefreshKey,
@@ -71,7 +68,6 @@ export const ChatComposer = memo(function ChatComposer({
       disabled={false}
       loading={busy}
       submitWhileLoading={runActive}
-      pendingInputs={pendingInputs}
       placeholder={runActive ? "补充当前任务…" : "发送消息或创建任务…"}
       maxFiles={8}
       maxFileSize={10 * 1024 * 1024}

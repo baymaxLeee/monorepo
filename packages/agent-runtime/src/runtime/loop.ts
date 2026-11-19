@@ -7,13 +7,9 @@ import {
   type UserModelMessage,
 } from "ai";
 
-import { RuntimeInputControl } from "./input-control.js";
-import { createRuntimeInputQueue, type RuntimeInputQueue } from "./input-queue.js";
 import type { RuntimeTurnSettings } from "./types.js";
 
-type AgentLoopSettings<C extends Record<string, unknown>> = RuntimeTurnSettings<C> & {
-  inputChannel?: RuntimeInputQueue;
-};
+type AgentLoopSettings<C extends Record<string, unknown>> = RuntimeTurnSettings<C>;
 
 function preserveSteeringMessages(messages: ModelMessage[], steeringMessages: UserModelMessage[]): ModelMessage[] {
   const available = new Map<string, number>();
@@ -34,33 +30,28 @@ function preserveSteeringMessages(messages: ModelMessage[], steeringMessages: Us
 
 /** Internal AI SDK adapter. Session and turn lifecycle belong to RuntimeTurn. */
 export function createAgentLoop<C extends Record<string, unknown>>(options: AgentLoopSettings<C>) {
-  const { inputChannel: providedInputChannel, middleware = [], prepareStep, ...settings } = options;
-  const inputChannel = providedInputChannel ?? createRuntimeInputQueue();
-  const inputControl = new RuntimeInputControl(inputChannel);
+  const { middleware = [], prepareStep, ...settings } = options;
   const prepareNextStep = async (step: Parameters<NonNullable<RuntimeTurnSettings<C>["prepareStep"]>>[0]) => {
     const prepared = await prepareStep?.(step);
     const steeringMessages = step.experimental_steeringMessages ?? [];
-    inputControl.prepareStep(steeringMessages);
-    const preparedMessages = inputControl.mergeContinuationMessages(prepared?.messages, prepared?.providerOptions);
     return {
       ...prepared,
-      ...(preparedMessages
+      ...(prepared?.messages
         ? {
             messages:
               steeringMessages.length > 0
-                ? preserveSteeringMessages(preparedMessages, steeringMessages)
-                : preparedMessages,
+                ? preserveSteeringMessages(prepared.messages, steeringMessages)
+                : prepared.messages,
           }
         : {}),
     };
   };
   return new ToolLoopAgent<never, ToolSet, C>({
     ...settings,
-    tools: inputControl.wrapTools(settings.tools),
     id: settings.id ?? "runtime-agent",
     model: wrapLanguageModel({
       model: options.model,
-      middleware: [addToolInputExamplesMiddleware(), ...middleware, inputControl.middleware],
+      middleware: [addToolInputExamplesMiddleware(), ...middleware],
     }),
     toolOrder: settings.toolOrder ?? Object.keys(settings.tools ?? {}).sort(),
     prepareStep: prepareNextStep,

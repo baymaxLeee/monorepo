@@ -16,7 +16,7 @@ import { createBashTool } from "../tools/bash.js";
 import { manifestsToTools } from "../tools/manifest.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import { attachExecutionEnvironment, type ExecutionEnvironment } from "./environment.js";
-import { createRuntimeInputQueue, RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON } from "./input-queue.js";
+import { createRuntimeInputQueue } from "./input-queue.js";
 import { createAgentLoop } from "./loop.js";
 
 const finish: LanguageModelV4StreamPart = {
@@ -272,7 +272,6 @@ test("SDK steering is delivered, streamed as an official part, and replayed into
     mode: "follow-up",
   });
   const agent = createAgentLoop({
-    inputChannel,
     tools: {},
     model: model((options) => {
       assert.deepEqual(
@@ -323,7 +322,6 @@ test("next-turn waits for the active task's final answer before entering model h
   });
   let calls = 0;
   const agent = createAgentLoop({
-    inputChannel,
     tools: {},
     model: model((options) => {
       calls += 1;
@@ -371,7 +369,6 @@ test("stored-response continuation keeps steering sent during a tool in the next
   let calls = 0;
   const inputChannel = createRuntimeInputQueue();
   const agent = createAgentLoop({
-    inputChannel,
     tools,
     model: model((options) => {
       calls++;
@@ -419,10 +416,10 @@ test("stored-response continuation keeps steering sent during a tool in the next
     stepNumber: 1,
   });
   assert.equal(calls, 3);
-  assert.equal(executions, 1);
+  assert.equal(executions, 2);
 });
 
-test("follow-up arriving during sampling prevents later tool calls from the stale response", async () => {
+test("follow-up arriving during sampling preserves the current response and its tool calls", async () => {
   let releaseSampling: () => void = () => {};
   let markSamplingStarted: () => void = () => {};
   const samplingStarted = new Promise<void>((resolve) => {
@@ -441,7 +438,6 @@ test("follow-up arriving during sampling prevents later tool calls from the stal
   ]);
   const inputChannel = createRuntimeInputQueue();
   const agent = createAgentLoop({
-    inputChannel,
     tools,
     model: {
       specificationVersion: "v4",
@@ -475,22 +471,9 @@ test("follow-up arriving during sampling prevents later tool calls from the stal
           };
         }
         assert.match(JSON.stringify(options.prompt), /先告诉我 npm 是什么/);
-        assert.match(JSON.stringify(options.prompt), /execution-denied/);
-        assert.equal(
-          (options.providerOptions?.openai as { previousResponseId?: string } | undefined)?.previousResponseId,
-          "response-before-follow-up",
-        );
+        assert.match(JSON.stringify(options.prompt), /stale/);
         return model(() => text).doStream(options);
       },
-    },
-    prepareStep: ({ steps }) => {
-      const lastStep = steps.at(-1);
-      return lastStep?.rawFinishReason === RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON && lastStep.response.id
-        ? {
-            providerOptions: { openai: { previousResponseId: lastStep.response.id } },
-            messages: [],
-          }
-        : {};
     },
   });
   const result = await agent.stream({
@@ -511,7 +494,7 @@ test("follow-up arriving during sampling prevents later tool calls from the stal
   releaseSampling();
   await consumed;
 
-  assert.equal(executions, 0);
+  assert.equal(executions, 1);
   assert.equal(calls, 2);
   assert.deepEqual(await outcomePromise, {
     type: "delivered",
@@ -521,7 +504,7 @@ test("follow-up arriving during sampling prevents later tool calls from the stal
   });
 });
 
-test("follow-up admitted between prepareStep and the sampling watcher still preempts the stale response", async () => {
+test("follow-up admitted while sampling still preserves the sampled tool call", async () => {
   let executions = 0;
   let calls = 0;
   let outcomePromise: Promise<unknown> | undefined;
@@ -539,7 +522,6 @@ test("follow-up admitted between prepareStep and the sampling watcher still pree
     },
   };
   const agent = createAgentLoop({
-    inputChannel,
     middleware: [submitInSamplingGap],
     tools: manifestsToTools([
       createBashTool(async () => {
@@ -550,7 +532,14 @@ test("follow-up admitted between prepareStep and the sampling watcher still pree
     model: model((options) => {
       calls++;
       if (calls === 1) {
-        return [{ type: "tool-call", toolCallId: "stale-gap-tool", toolName: "bash", input: "{}" }];
+        return [
+          {
+            type: "tool-call",
+            toolCallId: "current-gap-tool",
+            toolName: "bash",
+            input: '{"command":"echo current"}',
+          },
+        ];
       }
       assert.match(JSON.stringify(options.prompt), /先回答新问题，再继续/);
       return text;
@@ -562,11 +551,11 @@ test("follow-up admitted between prepareStep and the sampling watcher still pree
     experimental_steering: inputChannel.steering,
   });
   for await (const _ of result.fullStream) {
-    // Consuming drives both the preempted sampling and its follow-up.
+    // Consuming drives both the current sampling and its follow-up.
   }
 
   assert.ok(outcomePromise);
-  assert.equal(executions, 0);
+  assert.equal(executions, 1);
   assert.equal(calls, 2);
   assert.deepEqual(await outcomePromise, {
     type: "delivered",
@@ -576,7 +565,7 @@ test("follow-up admitted between prepareStep and the sampling watcher still pree
   });
 });
 
-test("follow-up response gate blocks a tool-only step until the model emits visible text", async () => {
+test("follow-up relies on the SDK loop and allows the model to continue with a tool-only step", async () => {
   const commands: string[] = [];
   const tools = manifestsToTools([
     createBashTool(async ({ command }) => {
@@ -591,7 +580,6 @@ test("follow-up response gate blocks a tool-only step until the model emits visi
   });
   let calls = 0;
   const agent = createAgentLoop({
-    inputChannel,
     tools,
     model: model((options) => {
       calls++;
@@ -602,25 +590,7 @@ test("follow-up response gate blocks a tool-only step until the model emits visi
             type: "tool-call",
             toolCallId: "tool-before-answer",
             toolName: "bash",
-            input: '{"command":"echo must-not-run"}',
-          },
-        ];
-      }
-      if (calls === 2) {
-        assert.match(JSON.stringify(options.prompt), /FOLLOW_UP_RESPONSE_REQUIRED/);
-        return [
-          { type: "text-start", id: "npm-answer" },
-          {
-            type: "text-delta",
-            id: "npm-answer",
-            delta: "npm 是 Node.js 的包管理器；下面继续原调研。",
-          },
-          { type: "text-end", id: "npm-answer" },
-          {
-            type: "tool-call",
-            toolCallId: "tool-after-answer",
-            toolName: "bash",
-            input: '{"command":"echo allowed"}',
+            input: '{"command":"echo continue"}',
           },
         ];
       }
@@ -633,11 +603,11 @@ test("follow-up response gate blocks a tool-only step until the model emits visi
     experimental_steering: inputChannel.steering,
   });
   for await (const _ of result.fullStream) {
-    // Consuming drives the response gate and the following tool continuation.
+    // Consuming drives the tool continuation selected by the model.
   }
 
-  assert.deepEqual(commands, ["echo allowed"]);
-  assert.equal(calls, 3);
+  assert.deepEqual(commands, ["echo continue"]);
+  assert.equal(calls, 2);
   assert.deepEqual(await outcomePromise, {
     type: "delivered",
     id: "answer-before-tools",
@@ -665,7 +635,6 @@ test("next-turn arriving during sampling does not preempt the active task", asyn
   ]);
   const inputChannel = createRuntimeInputQueue();
   const agent = createAgentLoop({
-    inputChannel,
     tools,
     model: {
       specificationVersion: "v4",

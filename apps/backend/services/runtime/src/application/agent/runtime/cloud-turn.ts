@@ -5,7 +5,6 @@ import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
 import { newMessagesForStoredResponse } from "@repo/agent-runtime/context/response-continuation";
 import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
 import { attachExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
-import { RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON } from "@repo/agent-runtime/runtime/input-queue";
 import type { RuntimeTurnSettings } from "@repo/agent-runtime/runtime/types";
 import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
@@ -223,9 +222,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     prepareStep: async ({ steps, messages }) => {
       const lastStep = steps.at(-1);
       const toolResultMessages = lastStep?.response.messages.filter((message) => message.role === "tool") ?? [];
-      const samplingWasPreempted = lastStep?.rawFinishReason === RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON;
       const continuation =
-        previousResponseId && (steps.length === 0 || toolResultMessages.length > 0 || samplingWasPreempted)
+        previousResponseId && (steps.length === 0 || toolResultMessages.length > 0)
           ? {
               providerOptions: { openai: { previousResponseId } },
               messages: steps.length > 0 ? toolResultMessages : newMessagesForStoredResponse(messages),

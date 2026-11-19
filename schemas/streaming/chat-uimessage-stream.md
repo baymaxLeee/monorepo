@@ -123,9 +123,9 @@ PostgreSQL is the semantic source of truth. The finalizer atomically commits too
 
 运行中的用户输入走独立的非流式 admission/status API，但最终语义仍回到同一条 UIMessage stream。POST `/inputs` 必须携带 route 一致的 `expected_run_id`、稳定 `client_message_id`、正文和 `follow-up|next-turn` mode；同 id 仅允许完全相同重试。普通 composer 固定使用 `follow-up`，使补充或纠偏优先进入同一 run 的下一次模型决策；`next-turn` 只表达“当前任务终答后再做下一项”。显式 cancel 是独立 API，任一输入 mode 都不得暗中取消当前工具或整轮。Chat 在 PostgreSQL `agent_run_inputs` 保存 `accepted → dispatching → delivered|not_delivered|unconfirmed`，持有 run lease 的进程才可调用底层 SDK steering。`delivered` 以官方 `steering-message` part 持久化；`not_delivered` 与 `unconfirmed` 均保留给用户判断，客户端不得自动创建下一 turn 或盲目重发。GET 单项状态用于实时对账，run 级列表用于刷新后的 pending 恢复。
 
-`follow-up` admission 同时唤醒 shared harness 的 sampling watcher。若 provider 正在采样，stream 在 activity signal 之后不再向 SDK 发布新的旧 response item，但仍被 drain 到 finish 以保留 usage、response id 和 provider 结算；已发布 item 与已 dispatch 工具不回滚，普通 follow-up 不取消正在运行的工具。抢占后才出现的 client tool call 不进入 UIMessage/执行器；stored-response continuation 为其发送 model-only `execution-denied`，随后发送最新 user message，因此 `previousResponseId` 不因普通抢占默认断开。`next-turn` 不触发 watcher，显式 cancel 才使用 run AbortSignal。
+`follow-up` 使用 AI SDK `steer()` 的安全 step boundary：当前采样 response 及其已经生成的工具调用保持完整，工具完成后最新 user message 才进入下一次模型决策。普通 follow-up 不取消工具、不截断 sampling、不伪造 `execution-denied`，也不使用 run AbortSignal；显式 cancel 才会中断整轮。`next-turn` 使用 `queue()`，等当前任务终答后再进入后续任务。
 
-Shared Agent harness 将实际收到 `follow-up` 的 step 视为一次性 re-orientation boundary：用户正文仍作为最新的普通 `role:user` 消息传入，不复制进 system instruction；临时指令要求只变更受影响任务并让最新明确约束覆盖冲突旧约束。除此之外还有结构性 response gate：该 follow-up 尚未得到非空 assistant text 时，execution tool 不得产生副作用；tool-only 响应得到 `FOLLOW_UP_RESPONSE_REQUIRED` 并在下一 step 继续等待。模型可以先直接回答即时问题，或用简短可见文字说明如何吸收补充，然后在同一响应继续未受影响的工具工作。该 gate 不把补充解释为取消/暂停，不作用于 `next-turn`，也不替代显式 cancel。
+Shared Agent harness 保留 SDK 提供的 steering message，把正文作为最新普通 `role:user` 消息传入，不复制进 system instruction，也不增加一套 response gate 或工具副作用策略。模型在下一 step 决定如何吸收补充并继续原任务。客户端在 input admission 成功后立即把补充作为临时用户行渲染进正文；官方 `steering-message` 到达后按稳定 id 去重，`not_delivered`/`unconfirmed` 则保留可见状态供用户判断。
 
 ## 5. Checklist when adding a streamed field (paste into your PR reasoning)
 

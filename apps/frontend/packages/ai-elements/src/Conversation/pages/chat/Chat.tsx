@@ -331,6 +331,7 @@ export function ChatSession({
       conversationId={id}
       loading={loading}
       branches={detail?.branches ?? []}
+      pendingInputs={pendingInputs}
       scrollRef={conversationScrollRef}
       onStatusChange={setStatus}
       onCanvasChange={onCanvasChange}
@@ -362,7 +363,6 @@ export function ChatSession({
           onUpdateModelBinding={updateModelBinding}
           busy={busy}
           runActive={runActive}
-          pendingInputs={pendingInputs}
           activatedSkillName={activatedSkillName}
           setActivatedSkillName={setActivatedSkillName}
           traceRefreshKey={traceRefreshKey}

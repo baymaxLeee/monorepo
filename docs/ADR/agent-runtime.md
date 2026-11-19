@@ -14,7 +14,7 @@ Thread/Turn/Item、input queue、rollout、tool runtime 与 cancellation 模型�
 
 ```text
 packages/agent-runtime/src/
-├── runtime/       # RuntimeTurn、input queue、sampling preemption、私有 AI SDK loop adapter
+├── runtime/       # RuntimeTurn、input queue、私有 AI SDK loop adapter
 ├── context/       # journal → model projection、budget、compaction、checkpoint contract
 ├── tools/         # manifest/policy/outcome、portable tools、公平执行 scheduler
 ├── protocol/      # UIMessage artifact 与 lifecycle 原语
@@ -76,11 +76,11 @@ machine，也不覆盖 SDK 默认 stop condition。普通工具失败作为观�
 `steering-message` part；任何 `prepareStep` override 都必须保留 SDK 提供的 steering message。
 `not_delivered` 与 `unconfirmed` 是可见的持久状态，不自动重放或偷偷转成下一 turn。
 
-Codex 式 sampling preemption 只停止发布新 follow-up 到达后尚未提交的旧采样 item，并继续
-drain provider stream 取得 response id、usage 和终态。已发布 item 和已 dispatch 工具保留；
-尚未 dispatch 的 client tool call 被抑制，stored-response continuation 为其补
-`execution-denied`。这不是整轮 Abort。含 follow-up 的下一次采样必须先产生可见文字；在此之前
-execution tool 由 gate 返回 `FOLLOW_UP_RESPONSE_REQUIRED`，避免模型无视用户纠偏继续副作用。
+普通用户 follow-up 不抢占正在采样的 response，也不抑制该 response 已生成的 tool call；AI SDK
+在当前 step 及其工具完成后的安全 boundary 注入 steering message。这样与 Codex 的 user-input
+queue 一致：补充输入改变后续决策，但不会被解释成对原任务的停止。只有显式 Stop 使用 run
+AbortSignal。前端在 admission 成功后立即把补充投影到正文，并在官方 `steering-message` 以同一
+id 到达时去重；该乐观投影不是 journal authority，刷新后仍以持久 input 状态和 stream 为准。
 
 ## Journal、模型上下文与压缩
 
@@ -168,6 +168,6 @@ cursor 作为事实源、静默压缩失败、通过 middleware 丢弃 tool call
 - Desktop host：[session manager](../../apps/frontend/apps/desktop/electron/runtime/session-manager.ts)、[journal](../../apps/frontend/apps/desktop/electron/runtime/journal.ts)
 
 最低验证包括 shared、Backend、Desktop tests/typecheck/build，checkpoint 冲突、queued tool cancel、
-turn 资源只释放一次、steer/queue、sampling preemption、interrupted recovery 和 host finalizer。
+turn 资源只释放一次、steer/queue、非抢占式 follow-up、interrupted recovery 和 host finalizer。
 PostgreSQL/Redis integration skip、真实 provider、Docker/gVisor/Kubernetes、macOS 版本矩阵和发行
 签名仍是独立环境验收，不能由 mock 单测或类型检查替代。

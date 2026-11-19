@@ -297,7 +297,7 @@ test("a published text delta is visible in the same UI commit", async () => {
   expect(screen.getByText("实时增量")).toBeTruthy();
 });
 
-test("a running submission clears only after durable admission and renders above the editor", async () => {
+test("a running submission clears only after durable admission and renders in the transcript", async () => {
   let admit: (value: unknown) => void = () => {};
   state.submitInput.mockReturnValue(
     new Promise((resolve) => {
@@ -329,7 +329,7 @@ test("a running submission clears only after durable admission and renders above
   });
   await waitFor(() => expect(state.promptClear).toHaveBeenCalledOnce());
   expect(screen.getByLabelText("待发送消息").textContent).toContain("补充输入");
-  expect(screen.getByLabelText("待发送消息").textContent).toContain("引导当前任务");
+  expect(screen.getByLabelText("待发送消息").textContent).toContain("等待当前步骤结束后加入");
   expect(screen.getByRole("textbox").getAttribute("data-submit-while-loading")).toBe("true");
   expect(state.submitInput).toHaveBeenCalledWith(
     "conversation",
@@ -342,6 +342,22 @@ test("a running submission clears only after durable admission and renders above
     },
     { skipErrorNotify: true },
   );
+
+  state.messages = [
+    {
+      id: "assistant",
+      role: "assistant",
+      parts: [
+        {
+          type: "steering-message",
+          id: "client-message",
+          parts: [{ type: "text", text: "补充输入" }],
+        },
+      ],
+    },
+  ];
+  await publish();
+  expect(screen.queryByLabelText("待发送消息")).toBeNull();
 });
 
 test("a recovered not-delivered supplement stays visible and never starts another turn automatically", async () => {

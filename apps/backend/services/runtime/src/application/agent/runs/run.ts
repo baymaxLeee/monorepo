@@ -539,8 +539,7 @@ export async function createAgentRunResponse(
         await titlePromise;
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
-        const aborted =
-          capacityError == null && (end.isAborted || runSignal.aborted || currentRun?.status === "cancel_requested");
+        const aborted = capacityError == null && (runSignal.aborted || currentRun?.status === "cancel_requested");
         const streamError = capacityError ?? terminalStreamError(end.outcome, end.finishReason);
         const failed = streamError != null;
         const usage = await Promise.resolve(result.totalUsage).catch(() => null);
@@ -566,11 +565,10 @@ export async function createAgentRunResponse(
         writer.write({ type: "finish", finishReason: end.finishReason, messageMetadata: metadata });
       },
       onError: describeStreamError,
-      onEnd: async ({ responseMessage, isContinuation, isAborted, finishReason, outcome }) => {
+      onEnd: async ({ responseMessage, isContinuation, finishReason, outcome }) => {
         const currentRun = await getAgentRunById(runId).catch(() => null);
         const capacityError = runSignal.reason instanceof AgentStreamCapacityError ? runSignal.reason : null;
-        const aborted =
-          capacityError == null && (isAborted || runSignal.aborted || currentRun?.status === "cancel_requested");
+        const aborted = capacityError == null && (runSignal.aborted || currentRun?.status === "cancel_requested");
         const streamError = capacityError ?? terminalStreamError(outcome, finishReason);
         try {
           if (isContinuation !== (operation === "tool-continuation")) {

@@ -144,6 +144,11 @@ export function LocalSession({
       conversationId={initial.id}
       loading={false}
       branches={[]}
+      pendingInputs={state.pendingInputs.flatMap((input) =>
+        input.state === "accepted" || input.state === "not_delivered" || input.state === "unconfirmed"
+          ? [{ id: input.id, text: input.text, mode: input.mode, state: input.state }]
+          : [],
+      )}
       onToolApproval={(id, accepted) => void approve(id, accepted)}
       onOpenWorkspaceFile={onOpenFile}
       issue={
@@ -157,11 +162,6 @@ export function LocalSession({
         <ChatPrompt
           ref={promptRef}
           placeholder={busy ? "补充当前任务…" : "发送消息或创建任务…"}
-          pendingInputs={state.pendingInputs.flatMap((input) =>
-            input.state === "accepted" || input.state === "not_delivered" || input.state === "unconfirmed"
-              ? [{ id: input.id, text: input.text, mode: input.mode, state: input.state }]
-              : [],
-          )}
           maxFiles={0}
           onError={setError}
           onSubmit={(value) => {

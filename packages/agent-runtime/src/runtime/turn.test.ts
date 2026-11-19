@@ -40,17 +40,19 @@ function model(): LanguageModelV4 {
 
 test("owns the input queue before sampling and finalizes host resources once", async () => {
   const turn = createRuntimeTurn();
-  assert.equal(turn.input.activity.currentFollowUpVersion(), 0);
   let disposals = 0;
   const started = await turn.start({
     messages: [{ role: "user", content: "work" }],
-    prepare: async () => ({
-      settings: { model: model(), tools: {} },
-      host: { kind: "test" },
-      dispose: async () => {
-        disposals += 1;
-      },
-    }),
+    prepare: async (input) => {
+      assert.equal(input, turn.input);
+      return {
+        settings: { model: model(), tools: {} },
+        host: { kind: "test" },
+        dispose: async () => {
+          disposals += 1;
+        },
+      };
+    },
   });
   assert.equal(await started.result.text, "done");
   assert.deepEqual(started.host, { kind: "test" });

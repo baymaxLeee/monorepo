@@ -40,7 +40,7 @@ export class RuntimeTurn {
     try {
       const prepared = await options.prepare(this.input);
       this.prepared = prepared;
-      const agent = createAgentLoop({ ...prepared.settings, inputChannel: this.input });
+      const agent = createAgentLoop(prepared.settings);
       const result = await agent.stream({
         messages: options.messages,
         abortSignal: options.signal,

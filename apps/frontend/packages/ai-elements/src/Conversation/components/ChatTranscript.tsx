@@ -5,6 +5,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatMessageView, type ChatMessageViewProps } from "./ChatMessageView";
 import { collectDeliverableCompletion, findLatestUpdateTodosCallId } from "./ChatTodoListCard";
+import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 
 // SDK snapshots preserve historical messages, but derived sets/arrays may be
 // recreated on each delta. Compare only that small context, never message text
@@ -41,6 +42,7 @@ type ChatTranscriptProps = Pick<
   status: "submitted" | "streaming" | "ready" | "error";
   loading: boolean;
   branches: NonNullable<ChatMessageViewProps["branch"]>[];
+  pendingInputs?: readonly PendingAgentInput[];
 };
 
 function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
@@ -61,6 +63,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   status,
   loading,
   branches,
+  pendingInputs = [],
   onOpenArtifact,
   onOpenFile,
   onOpenWorkspaceFile,
@@ -93,6 +96,16 @@ export const ChatTranscript = memo(function ChatTranscript({
     () => new Map(branches.map((branch) => [branch.selected_message_id, branch] as const)),
     [branches],
   );
+  const deliveredSteeringIds = useMemo(
+    () =>
+      new Set(
+        messages.flatMap((message) =>
+          message.parts.flatMap((part) => (part.type === "steering-message" ? [part.id] : [])),
+        ),
+      ),
+    [messages],
+  );
+  const visiblePendingInputs = pendingInputs.filter((input) => !deliveredSteeringIds.has(input.id));
 
   return (
     <>
@@ -140,6 +153,7 @@ export const ChatTranscript = memo(function ChatTranscript({
           </MessageScrollerItem>
         ))
       )}
+      <PendingInputStack inputs={visiblePendingInputs} />
       {showThinkingPlaceholder ? (
         <MessageScrollerItem
           className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
