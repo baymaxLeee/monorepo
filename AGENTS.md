@@ -44,6 +44,11 @@ Read only relevant routes and every closer AGENTS file. See the
    plus Redis sessions and the Storage and ClickHouse data volumes. Never
    substitute `reset_data=true`, which destroys the whole stack. Observe the
    resulting deploy through health checks.
+3. **VPS maintenance SSH — `ssh ubuntu@124.222.245.5`.** This is the canonical
+   passwordless maintenance entry point for `/opt/monorepo`. Use direct SSH for
+   read-only diagnosis and explicitly authorized reset-only operations that must
+   leave the stack stopped; normal releases still go through the deployment
+   workflow.
 
 ## Architectural invariants
 
