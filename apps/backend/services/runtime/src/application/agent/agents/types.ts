@@ -1,3 +1,4 @@
+import type { AgentRunInputChannel } from "@repo/agent-runtime/agent/steering";
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
 import type { ModelMessage } from "ai";
 
@@ -25,6 +26,7 @@ export interface ChatAgentInput {
   reasoningEffort: ReasoningEffort;
   modelMessages: ModelMessage[];
   previousResponseId?: string | null;
+  inputChannel: AgentRunInputChannel;
   attachedImageDocumentIds?: string[];
   instructionInput: InstructionInput;
   /** Skill already active in the logical turn, including client-tool continuations. */

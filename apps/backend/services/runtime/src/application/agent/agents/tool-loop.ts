@@ -3,6 +3,7 @@ import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import { createAgentHarness } from "@repo/agent-runtime";
 import { newMessagesForStoredResponse } from "@repo/agent-runtime/agent/response-continuation";
+import { FOLLOW_UP_PREEMPTED_FINISH_REASON } from "@repo/agent-runtime/agent/run-input-control";
 import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
 import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
@@ -176,6 +177,7 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     id: "chat-agent",
     model: providerModel,
     environment: resolvedTools.environment,
+    inputChannel: input.inputChannel,
     middleware: [contextCaptureMiddleware],
     workspace: {
       consumeChanges: async () => (await sandbox.consumeExternalFileChanges()).map((change) => change.path),
@@ -206,9 +208,11 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
     continuation: ({ steps, messages }) => {
-      const toolResultMessages = steps.at(-1)?.response.messages.filter((message) => message.role === "tool") ?? [];
+      const lastStep = steps.at(-1);
+      const toolResultMessages = lastStep?.response.messages.filter((message) => message.role === "tool") ?? [];
+      const samplingWasPreempted = lastStep?.rawFinishReason === FOLLOW_UP_PREEMPTED_FINISH_REASON;
       const continuation =
-        previousResponseId && (steps.length === 0 || toolResultMessages.length > 0)
+        previousResponseId && (steps.length === 0 || toolResultMessages.length > 0 || samplingWasPreempted)
           ? {
               providerOptions: { openai: { previousResponseId } },
               messages: steps.length > 0 ? toolResultMessages : newMessagesForStoredResponse(messages),

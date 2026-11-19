@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4StreamPart } from "@ai-sdk/provider";
+import type {
+  LanguageModelV4,
+  LanguageModelV4CallOptions,
+  LanguageModelV4Middleware,
+  LanguageModelV4StreamPart,
+} from "@ai-sdk/provider";
 import { convertToModelMessages, isToolUIPart, readUIMessageStream, toUIMessageStream, type UIMessage } from "ai";
 
 import { assembleInstructions } from "../instructions/index.js";
@@ -10,6 +15,7 @@ import { manifestsToTools } from "../tools/manifest.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
 import type { ExecutionEnvironment } from "./execution-environment.js";
 import { createAgentHarness } from "./harness.js";
+import { FOLLOW_UP_PREEMPTED_FINISH_REASON } from "./run-input-control.js";
 import { createAgentRunInputChannel } from "./steering.js";
 
 const finish: LanguageModelV4StreamPart = {
@@ -233,6 +239,7 @@ test("SDK steering is delivered, streamed as an official part, and replayed into
   });
   const agent = createAgentHarness({
     environment: environment("cloud"),
+    inputChannel,
     tools: {},
     model: model((options) => {
       assert.deepEqual(
@@ -284,6 +291,7 @@ test("next-turn waits for the active task's final answer before entering model h
   let calls = 0;
   const agent = createAgentHarness({
     environment: environment("cloud"),
+    inputChannel,
     tools: {},
     model: model((options) => {
       calls += 1;
@@ -319,8 +327,10 @@ test("stored-response continuation keeps steering sent during a tool in the next
   const toolRelease = new Promise<void>((resolve) => {
     releaseTool = resolve;
   });
+  let executions = 0;
   const tools = manifestsToTools([
     createBashTool(async () => {
+      executions++;
       markToolStarted();
       await toolRelease;
       return { exitCode: 0, stdout: "done", stderr: "" };
@@ -330,6 +340,7 @@ test("stored-response continuation keeps steering sent during a tool in the next
   const inputChannel = createAgentRunInputChannel();
   const agent = createAgentHarness({
     environment: environment("cloud"),
+    inputChannel,
     tools,
     model: model((options) => {
       calls++;
@@ -345,7 +356,7 @@ test("stored-response continuation keeps steering sent during a tool in the next
         assert.match(prompt, /follow_up_reorientation/);
         assert.match(prompt, /keep completed work and unaffected pending work/);
         assert.match(prompt, /Extra context does not by itself pause, cancel, reorder, or replace the original task/);
-        assert.doesNotMatch(prompt, /begin the next assistant response.*before any further tool call/);
+        assert.match(prompt, /user-visible text before any further tool execution/);
         return [
           { type: "tool-call", toolCallId: "bash-after-steer", toolName: "bash", input: '{"command":"echo next"}' },
         ];
@@ -381,4 +392,319 @@ test("stored-response continuation keeps steering sent during a tool in the next
     stepNumber: 1,
   });
   assert.equal(calls, 3);
+  assert.equal(executions, 1);
+});
+
+test("follow-up arriving during sampling prevents later tool calls from the stale response", async () => {
+  let releaseSampling: () => void = () => {};
+  let markSamplingStarted: () => void = () => {};
+  const samplingStarted = new Promise<void>((resolve) => {
+    markSamplingStarted = resolve;
+  });
+  const samplingRelease = new Promise<void>((resolve) => {
+    releaseSampling = resolve;
+  });
+  let calls = 0;
+  let executions = 0;
+  const tools = manifestsToTools([
+    createBashTool(async () => {
+      executions++;
+      return { exitCode: 0, stdout: "stale", stderr: "" };
+    }),
+  ]);
+  const inputChannel = createAgentRunInputChannel();
+  const agent = createAgentHarness({
+    environment: environment("cloud"),
+    inputChannel,
+    tools,
+    model: {
+      specificationVersion: "v4",
+      provider: "test",
+      modelId: "test",
+      supportedUrls: {},
+      doGenerate: async () => {
+        throw new Error("stream only");
+      },
+      doStream: async (options) => {
+        calls++;
+        if (calls === 1) {
+          return {
+            stream: new ReadableStream<LanguageModelV4StreamPart>({
+              start(controller) {
+                controller.enqueue({ type: "stream-start", warnings: [] });
+                controller.enqueue({ type: "response-metadata", id: "response-before-follow-up" });
+                markSamplingStarted();
+                void samplingRelease.then(() => {
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId: "stale-bash",
+                    toolName: "bash",
+                    input: '{"command":"echo stale"}',
+                  });
+                  controller.enqueue(finish);
+                  controller.close();
+                });
+              },
+            }),
+          };
+        }
+        assert.match(JSON.stringify(options.prompt), /先告诉我 npm 是什么/);
+        assert.match(JSON.stringify(options.prompt), /execution-denied/);
+        assert.equal(
+          (options.providerOptions?.openai as { previousResponseId?: string } | undefined)?.previousResponseId,
+          "response-before-follow-up",
+        );
+        return model(() => text).doStream(options);
+      },
+    },
+    continuation: ({ steps }) => {
+      const lastStep = steps.at(-1);
+      return lastStep?.rawFinishReason === FOLLOW_UP_PREEMPTED_FINISH_REASON && lastStep.response.id
+        ? {
+            providerOptions: { openai: { previousResponseId: lastStep.response.id } },
+            messages: [],
+          }
+        : {};
+    },
+  });
+  const result = await agent.stream({
+    messages: await convertToModelMessages(request),
+    experimental_steering: inputChannel.steering,
+  });
+  const consumed = (async () => {
+    for await (const _ of result.fullStream) {
+      // Consuming drives the model/tool loop.
+    }
+  })();
+
+  await samplingStarted;
+  const outcomePromise = inputChannel.submit("先告诉我 npm 是什么，再继续任务", {
+    id: "sampling-follow-up",
+    mode: "follow-up",
+  });
+  releaseSampling();
+  await consumed;
+
+  assert.equal(executions, 0);
+  assert.equal(calls, 2);
+  assert.deepEqual(await outcomePromise, {
+    type: "delivered",
+    id: "sampling-follow-up",
+    message: { role: "user", content: "先告诉我 npm 是什么，再继续任务" },
+    stepNumber: 1,
+  });
+});
+
+test("follow-up admitted between prepareStep and the sampling watcher still preempts the stale response", async () => {
+  let executions = 0;
+  let calls = 0;
+  let outcomePromise: Promise<unknown> | undefined;
+  const inputChannel = createAgentRunInputChannel();
+  const submitInSamplingGap: LanguageModelV4Middleware = {
+    specificationVersion: "v4",
+    wrapStream: async ({ doStream }) => {
+      if (!outcomePromise) {
+        outcomePromise = inputChannel.submit("先回答新问题，再继续", {
+          id: "follow-up-in-sampling-gap",
+          mode: "follow-up",
+        });
+      }
+      return doStream();
+    },
+  };
+  const agent = createAgentHarness({
+    environment: environment("cloud"),
+    inputChannel,
+    middleware: [submitInSamplingGap],
+    tools: manifestsToTools([
+      createBashTool(async () => {
+        executions++;
+        return { exitCode: 0, stdout: "stale", stderr: "" };
+      }),
+    ]),
+    model: model((options) => {
+      calls++;
+      if (calls === 1) {
+        return [{ type: "tool-call", toolCallId: "stale-gap-tool", toolName: "bash", input: "{}" }];
+      }
+      assert.match(JSON.stringify(options.prompt), /先回答新问题，再继续/);
+      return text;
+    }),
+  });
+
+  const result = await agent.stream({
+    messages: await convertToModelMessages(request),
+    experimental_steering: inputChannel.steering,
+  });
+  for await (const _ of result.fullStream) {
+    // Consuming drives both the preempted sampling and its follow-up.
+  }
+
+  assert.ok(outcomePromise);
+  assert.equal(executions, 0);
+  assert.equal(calls, 2);
+  assert.deepEqual(await outcomePromise, {
+    type: "delivered",
+    id: "follow-up-in-sampling-gap",
+    message: { role: "user", content: "先回答新问题，再继续" },
+    stepNumber: 1,
+  });
+});
+
+test("follow-up response gate blocks a tool-only step until the model emits visible text", async () => {
+  const commands: string[] = [];
+  const tools = manifestsToTools([
+    createBashTool(async ({ command }) => {
+      commands.push(command);
+      return { exitCode: 0, stdout: "done", stderr: "" };
+    }),
+  ]);
+  const inputChannel = createAgentRunInputChannel();
+  const outcomePromise = inputChannel.submit("先告诉我 npm 是什么，再继续任务", {
+    id: "answer-before-tools",
+    mode: "follow-up",
+  });
+  let calls = 0;
+  const agent = createAgentHarness({
+    environment: environment("cloud"),
+    inputChannel,
+    tools,
+    model: model((options) => {
+      calls++;
+      if (calls === 1) {
+        assert.match(JSON.stringify(options.prompt), /先告诉我 npm 是什么/);
+        return [
+          {
+            type: "tool-call",
+            toolCallId: "tool-before-answer",
+            toolName: "bash",
+            input: '{"command":"echo must-not-run"}',
+          },
+        ];
+      }
+      if (calls === 2) {
+        assert.match(JSON.stringify(options.prompt), /FOLLOW_UP_RESPONSE_REQUIRED/);
+        return [
+          { type: "text-start", id: "npm-answer" },
+          {
+            type: "text-delta",
+            id: "npm-answer",
+            delta: "npm 是 Node.js 的包管理器；下面继续原调研。",
+          },
+          { type: "text-end", id: "npm-answer" },
+          {
+            type: "tool-call",
+            toolCallId: "tool-after-answer",
+            toolName: "bash",
+            input: '{"command":"echo allowed"}',
+          },
+        ];
+      }
+      return text;
+    }),
+  });
+
+  const result = await agent.stream({
+    messages: await convertToModelMessages(request),
+    experimental_steering: inputChannel.steering,
+  });
+  for await (const _ of result.fullStream) {
+    // Consuming drives the response gate and the following tool continuation.
+  }
+
+  assert.deepEqual(commands, ["echo allowed"]);
+  assert.equal(calls, 3);
+  assert.deepEqual(await outcomePromise, {
+    type: "delivered",
+    id: "answer-before-tools",
+    message: { role: "user", content: "先告诉我 npm 是什么，再继续任务" },
+    stepNumber: 0,
+  });
+});
+
+test("next-turn arriving during sampling does not preempt the active task", async () => {
+  let releaseSampling: () => void = () => {};
+  let markSamplingStarted: () => void = () => {};
+  const samplingStarted = new Promise<void>((resolve) => {
+    markSamplingStarted = resolve;
+  });
+  const samplingRelease = new Promise<void>((resolve) => {
+    releaseSampling = resolve;
+  });
+  let calls = 0;
+  let executions = 0;
+  const tools = manifestsToTools([
+    createBashTool(async () => {
+      executions++;
+      return { exitCode: 0, stdout: "current task", stderr: "" };
+    }),
+  ]);
+  const inputChannel = createAgentRunInputChannel();
+  const agent = createAgentHarness({
+    environment: environment("cloud"),
+    inputChannel,
+    tools,
+    model: {
+      specificationVersion: "v4",
+      provider: "test",
+      modelId: "test",
+      supportedUrls: {},
+      doGenerate: async () => {
+        throw new Error("stream only");
+      },
+      doStream: async (options) => {
+        calls++;
+        if (calls === 1) {
+          return {
+            stream: new ReadableStream<LanguageModelV4StreamPart>({
+              start(controller) {
+                controller.enqueue({ type: "stream-start", warnings: [] });
+                markSamplingStarted();
+                void samplingRelease.then(() => {
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId: "current-task-tool",
+                    toolName: "bash",
+                    input: '{"command":"echo current"}',
+                  });
+                  controller.enqueue(finish);
+                  controller.close();
+                });
+              },
+            }),
+          };
+        }
+        const prompt = JSON.stringify(options.prompt);
+        if (calls === 2) assert.doesNotMatch(prompt, /完成后总结/);
+        if (calls === 3) assert.match(prompt, /完成后总结/);
+        return model(() => text).doStream(options);
+      },
+    },
+  });
+  const result = await agent.stream({
+    messages: await convertToModelMessages(request),
+    experimental_steering: inputChannel.steering,
+  });
+  const consumed = (async () => {
+    for await (const _ of result.fullStream) {
+      // Consuming drives the current task and then the queued task.
+    }
+  })();
+
+  await samplingStarted;
+  const outcomePromise = inputChannel.submit("完成后总结", {
+    id: "queued-during-sampling",
+    mode: "next-turn",
+  });
+  releaseSampling();
+  await consumed;
+
+  assert.equal(executions, 1);
+  assert.equal(calls, 3);
+  assert.deepEqual(await outcomePromise, {
+    type: "delivered",
+    id: "queued-during-sampling",
+    message: { role: "user", content: "完成后总结" },
+    stepNumber: 2,
+  });
 });

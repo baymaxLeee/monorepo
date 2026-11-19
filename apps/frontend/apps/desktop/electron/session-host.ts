@@ -438,6 +438,7 @@ export class LocalSessionHost {
       const agent = createAgentHarness({
         model,
         environment,
+        inputChannel,
         tools,
         toolApproval: createToolApprovalPolicy({ getApprovalMode: () => thread.approvalMode }),
         activeTools,

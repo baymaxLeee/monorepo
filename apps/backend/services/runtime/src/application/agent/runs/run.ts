@@ -427,6 +427,7 @@ export async function createAgentRunResponse(
     }
     const assistantMessageId =
       operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex");
+    const inputChannel = createAgentRunInputChannel();
     const agentInstance = await createToolLoopAgent({
       projectId: input.projectId,
       canvasId: input.canvasId,
@@ -440,6 +441,7 @@ export async function createAgentRunResponse(
       reasoningEffort: input.reasoningEffort,
       modelMessages,
       previousResponseId: continueStoredLineage ? lineage.responseId : null,
+      inputChannel,
       attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
       instructionInput,
       activeSkillName: instructionInput.activatedSkill?.name ?? null,
@@ -452,7 +454,6 @@ export async function createAgentRunResponse(
     });
     const agent = agentInstance.agent;
     disposeAgentResources = agentInstance.dispose;
-    const inputChannel = createAgentRunInputChannel();
     runInputInbox = startAgentRunInputInbox(runId, inputChannel);
     const result = await agent.stream({
       messages: modelMessages,

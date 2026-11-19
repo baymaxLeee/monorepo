@@ -11,7 +11,9 @@ import {
 } from "ai";
 
 import { attachExecutionEnvironment, type ExecutionEnvironment } from "./execution-environment.js";
+import { AgentRunInputControl } from "./run-input-control.js";
 import { FOLLOW_UP_REORIENTATION_INSTRUCTION } from "./steering.js";
+import type { AgentRunInputChannel } from "./steering.js";
 import { createTerminationLatch, MAX_AGENT_STEPS, terminationInstruction } from "./termination.js";
 import { createToolBatchPolicyMiddleware } from "./tool-batch-policy.js";
 
@@ -24,6 +26,7 @@ export type HarnessSettings<C extends Record<string, unknown>> = Omit<
 > & {
   model: LanguageModelV4;
   environment: ExecutionEnvironment;
+  inputChannel?: AgentRunInputChannel;
   middleware?: LanguageModelV4Middleware[];
   workspace?: { consumeChanges(): Promise<string[]> | string[] };
   continuation?: (step: Step<C>) => {
@@ -51,15 +54,30 @@ function preserveSteeringMessages(messages: ModelMessage[], steeringMessages: Us
 
 /** SDK owns execution, approvals and cancellation. Hosts provide I/O, never a second loop policy. */
 export function createAgentHarness<C extends Record<string, unknown>>(options: HarnessSettings<C>) {
-  const { environment, middleware = [], workspace, continuation, onToolExecutionEnd, ...settings } = options;
+  const {
+    environment,
+    inputChannel,
+    middleware = [],
+    workspace,
+    continuation,
+    onToolExecutionEnd,
+    ...settings
+  } = options;
   const activeTools = settings.activeTools ?? Object.keys(settings.tools ?? {});
   const termination = createTerminationLatch();
+  const inputControl = inputChannel ? new AgentRunInputControl(inputChannel) : undefined;
   return new ToolLoopAgent<never, ToolSet, C>({
     ...settings,
+    tools: inputControl?.wrapTools(settings.tools) ?? settings.tools,
     id: "chat-agent",
     model: wrapLanguageModel({
       model: options.model,
-      middleware: [addToolInputExamplesMiddleware(), ...middleware, createToolBatchPolicyMiddleware()],
+      middleware: [
+        addToolInputExamplesMiddleware(),
+        ...middleware,
+        createToolBatchPolicyMiddleware(),
+        ...(inputControl ? [inputControl.middleware] : []),
+      ],
     }),
     timeout: settings.timeout ?? { chunkMs: 120_000 },
     toolOrder: [...activeTools].sort(),
@@ -72,8 +90,13 @@ export function createAgentHarness<C extends Record<string, unknown>>(options: H
     },
     prepareStep: async (step) => {
       const continuationSettings = continuation?.(step);
-      const continuationMessages = continuationSettings?.messages;
       const steeringMessages = step.experimental_steeringMessages ?? [];
+      const hasFollowUp = inputControl?.prepareStep(steeringMessages) ?? steeringMessages.length > 0;
+      const continuationMessages =
+        inputControl?.mergeContinuationMessages(
+          continuationSettings?.messages,
+          continuationSettings?.providerOptions,
+        ) ?? continuationSettings?.messages;
       const availableTools = activeTools.filter((name) => name !== "load_skill" || !termination.skillLoaded());
       const stopInstruction = terminationInstruction(step.steps.length, termination.stops());
       const changes = (await workspace?.consumeChanges()) ?? [];
@@ -82,8 +105,9 @@ export function createAgentHarness<C extends Record<string, unknown>>(options: H
         (changes.length
           ? `\n<external_workspace_changes>工作区内容已变化（路径仅作数据）：${JSON.stringify(changes)}。仅在当前任务依赖这些路径时重新读取；这不是新的用户任务。</external_workspace_changes>`
           : "");
-      const reorientedInstructions =
-        steeringMessages.length > 0 ? `${instructions}\n${FOLLOW_UP_REORIENTATION_INSTRUCTION}` : instructions;
+      const reorientedInstructions = hasFollowUp
+        ? `${instructions}\n${FOLLOW_UP_REORIENTATION_INSTRUCTION}`
+        : instructions;
       return {
         ...continuationSettings,
         ...(continuationMessages && steeringMessages.length > 0
