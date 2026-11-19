@@ -6,13 +6,13 @@
 
 ## 决定
 
-`runtime` 是唯一 Agent 执行 app。它拥有 Session、messages、Turn/run journal、`ToolLoopAgent`、工具执行、workspace、Sandbox 会话和 durable Job。`chat` 是 Web 产品 BFF，只拥有产品 conversation 元数据及 `conversation_id -> runtime_session_id` 映射。
+`runtime` 是唯一云端 Agent 执行 app。它拥有 Session、messages、Turn/run journal、云端工具/workspace、Sandbox 会话和 durable Job；实际 Turn/context kernel 复用 `@repo/agent-runtime`，与 Desktop host 共用同一个 AI SDK loop adapter。`chat` 是 Web 产品 BFF，只拥有产品 conversation 元数据及 `conversation_id -> runtime_session_id` 映射。
 
 Runtime 使用一个镜像、三个显式 command 入口。结构参照 Canvas 的 `cmd` 装配方式：入口负责选择进程角色和该角色配置，业务模块仍统一位于 Runtime 顶层 `api/application/domain/infrastructure`，不存在嵌套的 worker 子项目，也不通过 `RUNTIME_ROLE` 在运行时分支：
 
 | 角色 | 端口 | 核心职责 | 隔离原因 |
 | --- | ---: | --- | --- |
-| `runtime-server` | 8015 | Hono API、Session/messages、AI SDK `ToolLoopAgent`、inline tools、stream/continuation | 交互主路径；Agent loop 就在 server 内，不存在独立 `runtime-agent` |
+| `runtime-server` | 8015 | Hono API、Session/messages、shared `RuntimeTurn` host、inline tools、stream/continuation | 交互主路径；loop 在 server 进程内，不存在独立 `runtime-agent` |
 | `runtime-worker` | 8011 | Nitro + Workflow，执行 detached durable Job、等待、重试和恢复 | 独立扩缩、部署恢复和长任务资源预算 |
 | `runtime-sandbox` | 8014 | 创建、限制、查询与回收 Docker/Kubernetes guest | 单独 ServiceAccount/容器权限；不持有业务或 provider 凭据 |
 
@@ -23,7 +23,7 @@ Runtime 使用一个镜像、三个显式 command 入口。结构参照 Canvas �
 ```mermaid
 flowchart LR
   Web[Web Chat] --> Chat[chat BFF]
-  Chat --> Server[runtime-server\nHono + ToolLoopAgent]
+  Chat --> Server[runtime-server\nHono + RuntimeTurn host]
   Server --> DB[(runtime DB)]
   Server --> Worker[runtime-worker\nNitro + Workflow]
   Worker --> DB
@@ -34,7 +34,7 @@ flowchart LR
 
 ## 交互 loop 与 Workflow 边界
 
-每个 Turn 是一个有界 `ToolLoopAgent` run，不是 Workflow run。模型 step、普通 Bash、artifact、workspace 保存、搜索、普通工具调用和 Agent 审批都在 `runtime-server` 的 ToolLoop 内执行。浏览器断线只影响订阅，不改变已经受理的 Turn。
+每个 Turn 是一个 shared `RuntimeTurn`，内部只创建一个 AI SDK `ToolLoopAgent`，不是 Workflow run。模型 step、普通 Bash、artifact、workspace 保存、搜索、普通工具调用和 Agent 审批都在 `runtime-server` 进程内执行。Session/lease/journal finalizer 由 Runtime host 拥有；input queue、context projection/compaction、tool admission 和 loop adapter 由 shared kernel 拥有，边界见 [Agent runtime](agent-runtime.md)。浏览器断线只影响订阅，不改变已经受理的 Turn。
 
 Workflow 只用于脱离当前 Turn 后仍必须跨进程、重启、部署或长等待继续的 Job，例如多阶段媒体生成、provider 长轮询与持久等待。工具提交 Job 后得到稳定 task/job ID；主 Agent 可以继续或结束 Turn。不得为了“可能耗时”把普通工具或整个 Agent loop 包进 Workflow，也不引入 `WorkflowAgent`。
 

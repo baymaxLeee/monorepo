@@ -5,7 +5,7 @@ import { createUploadArtifactsTool, type PublishedWorkspaceFile } from "../proto
 import { createBashTool, type BashInput, type BashResult } from "../tools/bash.js";
 import { defineAgentTool } from "../tools/manifest.js";
 import type { AgentToolManifest } from "../tools/types.js";
-import type { ExecutionEnvironment } from "./execution-environment.js";
+import type { ExecutionEnvironment } from "./environment.js";
 
 export interface ExecutionHost<CONTEXT extends Record<string, unknown> = Record<string, unknown>> {
   environment: ExecutionEnvironment;

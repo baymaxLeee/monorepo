@@ -20,7 +20,7 @@ MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just desktop-dev
 
 登录后，只有 Desktop App 在 Chat 新建会话时渲染执行位置选择器；选择“本地电脑”后通过原生目录选择器授权目录。Web 不渲染该选择器并固定创建云端会话。云端会话由 Chat 持久化，可在 App 与 Web 继续；本地会话只属于当前本地主机，不上传或同步到 Web。文件直接在授权目录读写，不上传 Storage；本地 SQLite 保存会话，按 Platform origin、用户、租户和组织工作区隔离。模型推理所需上下文会发送给平台配置的 provider。服务端不保存本地会话/文件；只保存推理请求的授权和用量元数据。
 
-本地 journal 不归属于某个 Electron 应用名。默认 runtime home 是 `~/.monorepo-agent`，会话数据库位于 `sessions/<identity-scope>/sessions.sqlite`；可通过绝对路径环境变量 `MONOREPO_AGENT_HOME` 覆盖，供同机 Desktop 与未来 CLI 指向同一 authority。首次打开身份分区时会一次性导入旧 Electron `userData/local/<scope>` 下开发版和打包版数据库，冲突保留 `updatedAt` 较新的完整会话；旧数据库暂不删除，已导入来源不会重复导入，因此删除的会话不会被旧库复活。runtime home 和 Electron `userData` 都属于 Agent 禁止访问的控制目录。
+本地 journal 不归属于某个 Electron 应用名。默认 runtime home 是 `~/.monorepo-agent`，新 Thread/Turn/Item 数据库位于 `sessions/<identity-scope>/runtime-v1.sqlite`；可通过绝对路径环境变量 `MONOREPO_AGENT_HOME` 覆盖，供同机 Desktop 与未来 CLI 指向同一 authority。这个 schema 是零兼容切换：旧 `sessions.sqlite` 与旧 Electron `userData/local/<scope>` 不读取、不导入，也不覆盖或删除。runtime home 和 Electron `userData` 都属于 Agent 禁止访问的控制目录。
 
 Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 Admin 模型授权，不需要本地专属额度配置。接纳请求记录预留用量，完成后按 usage 结算；取消、崩溃或未知结果保留预留用量用于 accounting，不以独立日配额拒绝本地请求。重复请求与并发请求仍受准入保护，没有自动重试模型请求。
 
@@ -30,7 +30,7 @@ Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 
 
 utility runtime 意外退出时，main 只启动一次替代进程并重新打开同一 scope 的 SQLite journal；出错中的 IPC 明确失败且不自动重放，恢复完成后页面重载权威会话。替代进程再次退出则 fail closed，要求重启应用，避免崩溃循环。
 
-Agent 核心与云端共用 `@repo/agent-runtime`。`electron/session-host.ts` 只管理本地 journal、工作区和流订阅；文件操作使用同一个 Bash manifest、ToolOutcome 与终端 UI，不维护本地专属文件工具。审批响应、待审批判断及取消/异常退出后的工具终态复用共享 lifecycle；本地 IPC 与云端 SSE 只是 transport adapter，不产生第二套 Agent 协议。
+Agent 核心与云端共用 `@repo/agent-runtime` 的 `RuntimeTurn`、input queue、context manager、tool scheduler 和 AI SDK loop adapter。`electron/runtime/session-manager.ts` 只管理本地 journal、工作区、relay、sandbox 和流订阅；文件操作使用同一个 Bash manifest、ToolOutcome 与终端 UI，不维护本地专属文件工具。审批响应、待审批判断及取消/异常退出后的工具终态复用共享 lifecycle；本地 IPC 与云端 SSE 只是 transport adapter，不产生第二套 Agent 协议。
 
 ## 发行验收 TODO
 

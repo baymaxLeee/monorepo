@@ -23,6 +23,7 @@ export interface AgentToolPolicy {
   trust: ToolTrust;
   execution: ToolExecution;
   source: ToolSource;
+  streaming?: boolean;
   uiKind?: "artifact" | "ask-user" | "image-gallery" | "todo-list" | "video" | "terminal" | "subagent";
 }
 

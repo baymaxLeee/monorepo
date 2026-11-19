@@ -1,4 +1,4 @@
-import type { AgentRunInputChannel, AgentRunInputMode, AgentRunInputOutcome } from "@repo/agent-runtime/agent/steering";
+import type { RuntimeInputMode, RuntimeInputOutcome, RuntimeInputQueue } from "@repo/agent-runtime/runtime/input-queue";
 import { and, eq } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
@@ -10,7 +10,7 @@ export type AgentRunInputState = "accepted" | "dispatching" | "delivered" | "not
 export interface AgentRunInputView {
   clientMessageId: string;
   runId: string;
-  mode: AgentRunInputMode;
+  mode: RuntimeInputMode;
   text: string;
   state: AgentRunInputState;
   stepNumber: number | null;
@@ -21,7 +21,7 @@ function view(row: typeof agentRunInputs.$inferSelect): AgentRunInputView {
   return {
     clientMessageId: row.clientMessageId,
     runId: row.runId,
-    mode: row.mode as AgentRunInputMode,
+    mode: row.mode as RuntimeInputMode,
     text: row.text,
     state: row.state as AgentRunInputState,
     stepNumber: row.stepNumber,
@@ -34,7 +34,7 @@ export async function acceptAgentRunInput(input: {
   runId: string;
   userId: string;
   clientMessageId: string;
-  mode: AgentRunInputMode;
+  mode: RuntimeInputMode;
   text: string;
 }): Promise<AgentRunInputView> {
   return getDb().transaction(async (tx) => {
@@ -140,7 +140,7 @@ export async function listAgentRunInputs(input: {
   return rows.map((row) => view(row.agent_run_inputs));
 }
 
-async function settle(runId: string, clientMessageId: string, outcome: AgentRunInputOutcome): Promise<void> {
+async function settle(runId: string, clientMessageId: string, outcome: RuntimeInputOutcome): Promise<void> {
   await getDb()
     .update(agentRunInputs)
     .set(
@@ -157,7 +157,7 @@ async function settle(runId: string, clientMessageId: string, outcome: AgentRunI
     );
 }
 
-export function startAgentRunInputInbox(runId: string, inputChannel: AgentRunInputChannel) {
+export function startAgentRunInputInbox(runId: string, inputChannel: RuntimeInputQueue) {
   let closed = false;
   let polling: Promise<void> | null = null;
   const settlements = new Set<Promise<void>>();
@@ -172,7 +172,7 @@ export function startAgentRunInputInbox(runId: string, inputChannel: AgentRunInp
       rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       for (const row of rows) {
         const outcome = inputChannel
-          .submit(row.text, { id: row.clientMessageId, mode: row.mode as AgentRunInputMode })
+          .submit(row.text, { id: row.clientMessageId, mode: row.mode as RuntimeInputMode })
           .then((result) => settle(runId, row.clientMessageId, result))
           .finally(() => settlements.delete(outcome));
         settlements.add(outcome);

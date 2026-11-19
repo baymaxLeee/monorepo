@@ -70,7 +70,7 @@ export function createWebSearchManifest(
       execute: search,
     }),
     { ...readPolicy, callableByCodeMode: true },
-    { summary: "Search current and public web sources." },
+    { summary: "Search current and public web sources.", parallelizable: true },
   );
 }
 

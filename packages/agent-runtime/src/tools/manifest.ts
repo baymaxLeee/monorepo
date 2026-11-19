@@ -7,6 +7,7 @@ import {
 import type { ToolSet } from "ai";
 import { z } from "zod";
 
+import { ToolExecutionScheduler } from "./execution-scheduler.js";
 import {
   isToolEmission,
   normalizeToolIssue,
@@ -22,6 +23,22 @@ import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy, ToolAvailab
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return Boolean(value && (typeof value === "object" || typeof value === "function") && Symbol.asyncIterator in value);
+}
+
+function attachPlanningGuidance(definition: ToolSet[string], planning: AgentToolPlanning): ToolSet[string] {
+  const guidance = [
+    ...(planning.prerequisites?.map((item) => `Prerequisite: ${item}`) ?? []),
+    ...(planning.constraints?.map((item) => `Constraint: ${item}`) ?? []),
+  ];
+  if (guidance.length === 0) return definition;
+  return transformToolPreservingCaller(
+    definition,
+    (candidate) =>
+      ({
+        ...candidate,
+        description: [candidate.description, ...guidance].filter(Boolean).join("\n"),
+      }) as unknown as ToolSet[string],
+  );
 }
 
 function caughtErrorOutcome(error: unknown, toolCallId?: string): ToolOutcome {
@@ -171,10 +188,12 @@ export function defineAgentTool(
     execution: resolvedPolicy.execution,
     source: resolvedPolicy.source,
     trust: resolvedPolicy.trust,
+    ...(resolvedPolicy.streaming ? { streaming: true } : {}),
     ...(resolvedPolicy.uiKind ? { uiKind: resolvedPolicy.uiKind } : {}),
   } satisfies JSONObject;
 
-  const wrapped = wrapToolDefinition(definition, {
+  const described = attachPlanningGuidance(definition, planning);
+  const wrapped = wrapToolDefinition(described, {
     strictByDefault: resolvedPolicy.source === "builtin",
   });
   const wrappedWithMetadata = transformToolPreservingCaller(wrapped, (candidate) => ({
@@ -211,13 +230,29 @@ export function defineUnavailableCapability(
 export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {
   const names = new Set<string>();
   const tools: ToolSet = {};
+  const scheduler = new ToolExecutionScheduler();
   for (const manifest of manifests) {
     if (names.has(manifest.name)) {
       throw new Error(`duplicate agent tool ${manifest.name}`);
     }
     names.add(manifest.name);
     if (manifest.tool) {
-      tools[manifest.name] = manifest.tool;
+      tools[manifest.name] = transformToolPreservingCaller(manifest.tool, (definition) => {
+        if (!("execute" in definition) || typeof definition.execute !== "function") return definition;
+        const executable = definition as ToolSet[string] & {
+          execute(input: unknown, options: { abortSignal?: AbortSignal }): unknown;
+        };
+        const execute = executable.execute.bind(executable);
+        const parallel = manifest.planning.parallelizable === true;
+        return {
+          ...definition,
+          execute: manifest.policy.streaming
+            ? (input: unknown, options: { abortSignal?: AbortSignal }) =>
+                scheduler.stream(parallel, () => execute(input, options) as AsyncIterable<unknown>, options.abortSignal)
+            : (input: unknown, options: { abortSignal?: AbortSignal }) =>
+                scheduler.run(parallel, () => execute(input, options), options.abortSignal),
+        } as ToolSet[string];
+      });
     }
   }
   return tools;

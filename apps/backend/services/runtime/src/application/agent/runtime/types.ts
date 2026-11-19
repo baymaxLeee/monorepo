@@ -1,6 +1,4 @@
-import type { AgentRunInputChannel } from "@repo/agent-runtime/agent/steering";
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
-import type { ModelMessage } from "ai";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
@@ -13,7 +11,7 @@ export interface AgentRuntimeContext {
   sessionId: string;
 }
 
-export interface ChatAgentInput {
+export interface CloudTurnInput {
   projectId?: string | null;
   canvasId?: string | null;
   workspaceRole?: string;
@@ -24,9 +22,7 @@ export interface ChatAgentInput {
   sessionId: string;
   provider: LanguageProviderSnapshot;
   reasoningEffort: ReasoningEffort;
-  modelMessages: ModelMessage[];
   previousResponseId?: string | null;
-  inputChannel: AgentRunInputChannel;
   attachedImageDocumentIds?: string[];
   instructionInput: InstructionInput;
   /** Skill already active in the logical turn, including client-tool continuations. */

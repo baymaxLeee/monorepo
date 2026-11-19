@@ -1,7 +1,7 @@
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
 import type { GenericToolApprovalFunction, ToolSet } from "ai";
 
-import type { ApprovalMode } from "../agent/types.js";
+import type { ApprovalMode } from "../runtime/types.js";
 import { toolPolicyFromMetadata } from "./manifest.js";
 
 const NETWORK_COMMAND =

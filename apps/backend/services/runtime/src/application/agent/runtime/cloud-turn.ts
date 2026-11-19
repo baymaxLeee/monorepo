@@ -1,10 +1,12 @@
 import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
-import { createAgentHarness } from "@repo/agent-runtime";
-import { newMessagesForStoredResponse } from "@repo/agent-runtime/agent/response-continuation";
-import { FOLLOW_UP_PREEMPTED_FINISH_REASON } from "@repo/agent-runtime/agent/run-input-control";
+import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
+import { newMessagesForStoredResponse } from "@repo/agent-runtime/context/response-continuation";
 import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
+import { attachExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
+import { RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON } from "@repo/agent-runtime/runtime/input-queue";
+import type { RuntimeTurnSettings } from "@repo/agent-runtime/runtime/types";
 import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
 import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
@@ -28,7 +30,7 @@ import {
   startModelStep,
 } from "../observability/lifecycle.js";
 import { ToolCatalog } from "../tools/catalog.js";
-import type { AgentRuntimeContext, ChatAgentInput } from "./types.js";
+import type { AgentRuntimeContext, CloudTurnInput } from "./types.js";
 
 function observe(label: string, operation: Promise<void>): Promise<void> {
   return operation.catch((error) => {
@@ -84,7 +86,7 @@ function withActiveToolSpans(tools: ToolSet, toolSpans: Map<string, ReturnType<t
   );
 }
 
-export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: ToolCatalog = new ToolCatalog()) {
+export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolCatalog = new ToolCatalog()) {
   const provider = input.provider;
   let previousResponseId = input.previousResponseId ?? null;
   let responseId: string | null = null;
@@ -144,7 +146,10 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
     userId: input.userId,
     sessionId: input.sessionId,
   };
-  const instructions = assembleInstructions(input.instructionInput, resolvedTools.contributions);
+  const instructions = attachExecutionEnvironment(
+    assembleInstructions(input.instructionInput, resolvedTools.contributions),
+    resolvedTools.environment,
+  );
   const providerModel = createInferenceModel(provider, input.reasoningEffort);
   const toolSources = new Map(resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]));
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
@@ -171,17 +176,10 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
   const codeModeToolCallers = Object.fromEntries(
     resolvedTools.codeModeTools.map((name) => [name, ["code_mode", DIRECT_TOOL_CALL] as const]),
   );
-  // The provider may emit multiple calls per model response, and the AI SDK executes retained calls concurrently by
-  // default because toolCallConcurrency is intentionally unset. The batch middleware only preserves semantic barriers.
-  const agent = createAgentHarness<AgentRuntimeContext>({
+  const settings = {
     id: "chat-agent",
     model: providerModel,
-    environment: resolvedTools.environment,
-    inputChannel: input.inputChannel,
     middleware: [contextCaptureMiddleware],
-    workspace: {
-      consumeChanges: async () => (await sandbox.consumeExternalFileChanges()).map((change) => change.path),
-    },
     instructions,
     maxOutputTokens: provider.maxOutputTokens,
     timeout: { chunkMs: 120_000 },
@@ -207,10 +205,10 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
       return null;
     },
     prepareCall: (settings) => Object.assign({}, settings, { experimental_toolApprovalSecret: toolApprovalSecret }),
-    continuation: ({ steps, messages }) => {
+    prepareStep: async ({ steps, messages }) => {
       const lastStep = steps.at(-1);
       const toolResultMessages = lastStep?.response.messages.filter((message) => message.role === "tool") ?? [];
-      const samplingWasPreempted = lastStep?.rawFinishReason === FOLLOW_UP_PREEMPTED_FINISH_REASON;
+      const samplingWasPreempted = lastStep?.rawFinishReason === RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON;
       const continuation =
         previousResponseId && (steps.length === 0 || toolResultMessages.length > 0 || samplingWasPreempted)
           ? {
@@ -218,7 +216,13 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
               messages: steps.length > 0 ? toolResultMessages : newMessagesForStoredResponse(messages),
             }
           : {};
-      return continuation;
+      const changes = (await sandbox.consumeExternalFileChanges()).map((change) => change.path);
+      return changes.length > 0
+        ? {
+            ...continuation,
+            messages: appendWorkspaceChangeEvent(continuation.messages ?? messages, changes),
+          }
+        : continuation;
     },
     // Generic ToolSet context requirements are conditional; the catalog still builds the inferred context map above.
     // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
@@ -342,13 +346,16 @@ export async function createToolLoopAgent(input: ChatAgentInput, toolCatalog: To
         }),
       );
     },
-  });
+  } satisfies RuntimeTurnSettings<AgentRuntimeContext>;
   return {
-    agent,
+    settings,
     sandbox,
+    host: {
+      sandbox,
+      responseLineage: () => ({ responseId, parentResponseId }),
+    },
     dispose: async () => {
       await Promise.all([sandbox.dispose(), resolvedTools.dispose()]);
     },
-    responseLineage: () => ({ responseId, parentResponseId }),
   };
 }

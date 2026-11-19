@@ -1,23 +1,16 @@
 import { renderMemory } from "./context-data.js";
 import { CORE_POLICY } from "./core-policy.js";
-import { renderExecutionProtocol } from "./execution.js";
-import { renderRuntimeContract } from "./runtime.js";
 import { INSTRUCTION_SECTION_TAGS } from "./section-tags.js";
 import { type InstructionContributions, type InstructionInput, type SkillListing } from "./types.js";
 import { escapeXmlText, xmlSection } from "./xml.js";
 
 /**
- * The single, fixed-order instruction assembler. Section order is code-owned and
- * cannot be reordered by callers. Trust flows top→bottom: code-owned policy and
- * runtime and execution protocol first, then code-generated capabilities and
- * available skills, data, and server facts.
+ * Stable run-level instructions only. Tool workflows live with tool definitions;
+ * step facts enter the transcript through context events.
  */
 export function assembleInstructions(input: InstructionInput, contributions: InstructionContributions = {}): string {
   const sections = [
     xmlSection(INSTRUCTION_SECTION_TAGS.corePolicy, CORE_POLICY),
-    renderRuntimeContract(),
-    renderExecutionProtocol(),
-    xmlSection(INSTRUCTION_SECTION_TAGS.capabilityContract, contributions.capabilities ?? null),
     renderAvailableSkills(contributions.skills),
     input.activatedSkill
       ? xmlSection(INSTRUCTION_SECTION_TAGS.activatedSkill, escapeXmlText(input.activatedSkill.body), {
@@ -41,7 +34,7 @@ function renderAvailableSkills(skills: SkillListing[] | null | undefined): strin
     return null;
   }
   const body = [
-    "Load one skill before substantive work when the user's request clearly matches its description. At most one Skill may be loaded in the current logical turn. A Skill loaded in an earlier logical turn is not active now; load it again before reading its files when the current request clearly needs it. The load_skill call must be the only tool call in that step: observe the loaded instructions before deciding any clarification or workflow action. Do not load skills for unrelated requests.",
+    "Skills available for on-demand loading. Follow the load_skill tool contract when one clearly matches the current request.",
     ...skills.map((skill) => `- ${escapeXmlText(skill.name)}: ${escapeXmlText(skill.description)}`),
   ].join("\n");
   return xmlSection(INSTRUCTION_SECTION_TAGS.availableSkills, body);

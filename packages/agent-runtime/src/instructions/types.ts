@@ -25,18 +25,7 @@ export interface SkillListing {
   description: string;
 }
 
-/**
- * The thin router seam. Everything tool / skill / MCP resolution contributes to
- * the instruction layers flows through this typed shape — the assembler never
- * learns the internals of a skill or an MCP server, it only renders their
- * structured contributions into fixed sections. Future skill/MCP assembly plugs
- * in by populating these fields (see `tools/catalog.ts`).
- *
- * `capabilities` is code-generated from the resolved tool catalog, never
- * caller-authored. `skills` is structured data the renderer turns into markup —
- * there is deliberately no free-text instruction channel here.
- */
+/** Structured run-level contributions; tool behavior remains in tool definitions. */
 export interface InstructionContributions {
-  capabilities?: string | null;
   skills?: SkillListing[];
 }

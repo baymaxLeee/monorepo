@@ -1,5 +1,5 @@
-import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
-import { createExecutionHostManifests } from "@repo/agent-runtime/agent/execution-host";
+import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
+import { createExecutionHostManifests } from "@repo/agent-runtime/runtime/execution-host";
 
 import { artifactToolContextSchema } from "../tools/context.js";
 import { requireRunSandbox } from "./cloud-sandbox.js";

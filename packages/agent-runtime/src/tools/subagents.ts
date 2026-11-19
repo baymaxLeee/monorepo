@@ -418,6 +418,7 @@ export function createSubagentsManifest<CONTEXT extends Record<string, unknown> 
       effect: "read",
       trust: "open-world",
       execution: "inline",
+      streaming: true,
       uiKind: "subagent",
     },
     {

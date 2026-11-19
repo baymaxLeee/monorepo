@@ -8,7 +8,7 @@ import { isToolUIPart } from "ai";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { InferenceRequest } from "../contracts/inference.generated";
-import { LocalSessionHost, type SessionHostOptions } from "../electron/session-host";
+import { DesktopSessionManager, type DesktopSessionOptions } from "../electron/runtime/session-manager";
 
 const finish: LanguageModelV4StreamPart = {
   type: "finish",
@@ -34,17 +34,17 @@ const text = (): LanguageModelV4StreamPart[] => [
   { type: "text-end", id: "t" },
 ];
 const directories: string[] = [],
-  runtimes: LocalSessionHost[] = [];
+  runtimes: DesktopSessionManager[] = [];
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close();
   for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true });
 });
-async function fixture(call: SessionHostOptions["call"]) {
+async function fixture(call: DesktopSessionOptions["call"]) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "local-agent-")));
   directories.push(directory);
   const workspace = join(directory, "project");
   await mkdir(workspace);
-  const options: SessionHostOptions = {
+  const options: DesktopSessionOptions = {
     directory: join(directory, "state"),
     controlDirectories: [join(directory, "state")],
     supervisor: resolve(import.meta.dirname, "../dist/supervisor"),
@@ -63,12 +63,12 @@ async function fixture(call: SessionHostOptions["call"]) {
     call,
     emit() {},
   };
-  const runtime = new LocalSessionHost(options);
+  const runtime = new DesktopSessionManager(options);
   runtimes.push(runtime);
   const thread = await runtime.create(workspace, "provider", "medium", "auto");
   return { runtime, thread, options };
 }
-async function done(runtime: LocalSessionHost, id: string) {
+async function done(runtime: DesktopSessionManager, id: string) {
   await expect.poll(() => runtime.get(id).status, { timeout: 8000 }).not.toBe("running");
   return runtime.get(id);
 }
@@ -146,10 +146,20 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     await expect.poll(() => edited).toBe(true);
     f.runtime.send(f.thread.id, "check edits", randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
-    expect(JSON.stringify(requests.at(-1)?.options.prompt)).toContain("工作区内容已变化");
+    const nextPromptText =
+      requests
+        .at(-1)
+        ?.options.prompt.flatMap((message) =>
+          typeof message.content === "string"
+            ? [message.content]
+            : message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+        )
+        .join("\n") ?? "";
+    expect(nextPromptText).toContain('<runtime_context type="workspace_changes">');
+    expect(nextPromptText).toContain("demo.js");
     await f.runtime.close();
     runtimes.splice(runtimes.indexOf(f.runtime), 1);
-    const reopened = new LocalSessionHost(f.options);
+    const reopened = new DesktopSessionManager(f.options);
     runtimes.push(reopened);
     expect(reopened.get(f.thread.id).messages.filter((message) => message.role === "user")).toHaveLength(2);
     expect(await readFile(join(f.thread.workspace, "demo.js"), "utf8")).toBe("user edited");
@@ -302,7 +312,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     f.runtime.journal.save(interrupted);
     await f.runtime.close();
     runtimes.splice(runtimes.indexOf(f.runtime), 1);
-    const reopened = new LocalSessionHost(f.options);
+    const reopened = new DesktopSessionManager(f.options);
     runtimes.push(reopened);
     expect(reopened.get(f.thread.id).status).toBe("interrupted");
   });

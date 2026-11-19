@@ -10,7 +10,7 @@ import { APP_ORIGIN, APP_SCHEME, APP_URL, registerEmbeddedPlatform } from "./emb
 import { RuntimeHost } from "./host-runtime";
 import { selectPlatform } from "./platform-selector";
 import { type PackagedPlatform, platformLaunch, platformUrl } from "./platform-url";
-import { legacySessionDirectories, resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
+import { resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
 import { WorkspaceGrants } from "./workspace-grants";
 
 if (!app.isReady())
@@ -80,7 +80,6 @@ async function start() {
     if (scope) {
       await runtime!.call("open", {
         directory: scopedSessionDirectory(runtimeHome, scope),
-        legacyDirectories: legacySessionDirectories(app.getPath("appData"), app.getPath("userData"), scope),
         controlDirectories: [runtimeHome, app.getPath("userData")],
         supervisor: join(unpackedDirectory, "supervisor"),
         executable: process.execPath,

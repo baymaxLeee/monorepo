@@ -1,5 +1,5 @@
 import type { LanguageModelV4, LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import { estimateTextTokens } from "@repo/agent-runtime/agent/context-budget";
+import { estimateTextTokens } from "@repo/agent-runtime/context/token-estimate";
 
 import type { AuthContext } from "../../api/http/middleware/auth.js";
 import { AppError, ForbiddenError, RequestError } from "../errors.js";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { attachExecutionEnvironment, type ExecutionEnvironment } from "./execution-environment.js";
+import { attachExecutionEnvironment, type ExecutionEnvironment } from "./environment.js";
 
 const environment = {
   location: "cloud",

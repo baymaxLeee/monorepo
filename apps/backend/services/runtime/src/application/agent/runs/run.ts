@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
-import { createAgentRunInputChannel } from "@repo/agent-runtime/agent/steering";
+import { createRuntimeTurn } from "@repo/agent-runtime";
+import { shouldResetStoredResponseLineage } from "@repo/agent-runtime/context/budget";
 import {
   consumeStream,
   createUIMessageStream,
@@ -20,9 +21,7 @@ import { logger } from "../../../infrastructure/observability/logger.js";
 import type { PersistedMessageContent } from "../../../infrastructure/persistence/schema.js";
 import { NotFoundError, RequestError } from "../../errors.js";
 import { getSessionRow, listMessages, type Message } from "../../sessions.js";
-import { createToolLoopAgent } from "../agents/tool-loop.js";
 import { chatDataSchemas, chatMessageMetadataSchema } from "../chat-ui-schema.js";
-import { shouldResetStoredResponseLineage } from "../context/budget.js";
 import type { ContextCategoryId } from "../context/context-snapshot.js";
 import {
   activatedSkillNameFromParts,
@@ -31,7 +30,7 @@ import {
   referencedDocumentIdsFromParts,
 } from "../context/file-parts.js";
 import { loadInstructionContext } from "../context/instruction-loader.js";
-import { projectModelContext } from "../context/projector.js";
+import { projectModelContext } from "../context/model-context.js";
 import { extractMemoryCandidates } from "../memory/extractor.js";
 import {
   addUsage,
@@ -40,6 +39,7 @@ import {
   failAgentRun,
   type UsageTokens,
 } from "../observability/lifecycle.js";
+import { prepareCloudTurn } from "../runtime/cloud-turn.js";
 import { createPublishedAgentPartStream } from "../streams/native-parts.js";
 import {
   AgentStreamCapacityError,
@@ -388,7 +388,6 @@ export async function createAgentRunResponse(
       ? removeStoredResponseReferences(projectionSource.map(compactHistoricalSkillOutputs))
       : projectionSource.map(compactHistoricalSkillOutputs);
     const projected = await projectModelContext({
-      runId,
       sessionId: session.id,
       userId: session.userId,
       tenantId: session.tenantId,
@@ -427,40 +426,41 @@ export async function createAgentRunResponse(
     }
     const assistantMessageId =
       operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex");
-    const inputChannel = createAgentRunInputChannel();
-    const agentInstance = await createToolLoopAgent({
-      projectId: input.projectId,
-      canvasId: input.canvasId,
-      workspaceRole: auth.workspaceRole,
-      runId,
-      userId: session.userId,
-      tenantId: auth.tenantId,
-      workspaceId: auth.workspaceId,
-      sessionId: session.id,
-      provider,
-      reasoningEffort: input.reasoningEffort,
-      modelMessages,
-      previousResponseId: continueStoredLineage ? lineage.responseId : null,
-      inputChannel,
-      attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
-      instructionInput,
-      activeSkillName: instructionInput.activatedSkill?.name ?? null,
-      skills,
-      loadSkillBody: async (skillId: string) => {
-        const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
-        return skill.files.length ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}` : skill.body;
-      },
-      loadSkillFile: (skillId: string, path: string) => getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
-    });
-    const agent = agentInstance.agent;
-    disposeAgentResources = agentInstance.dispose;
-    runInputInbox = startAgentRunInputInbox(runId, inputChannel);
-    const result = await agent.stream({
+    const runtimeTurn = createRuntimeTurn();
+    const turn = await runtimeTurn.start({
       messages: modelMessages,
-      abortSignal: runSignal,
-      experimental_sandbox: agentInstance.sandbox,
-      experimental_steering: inputChannel.steering,
+      signal: runSignal,
+      prepare: () =>
+        prepareCloudTurn({
+          projectId: input.projectId,
+          canvasId: input.canvasId,
+          workspaceRole: auth.workspaceRole,
+          runId,
+          userId: session.userId,
+          tenantId: auth.tenantId,
+          workspaceId: auth.workspaceId,
+          sessionId: session.id,
+          provider,
+          reasoningEffort: input.reasoningEffort,
+          previousResponseId: continueStoredLineage ? lineage.responseId : null,
+          attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
+          instructionInput,
+          activeSkillName: instructionInput.activatedSkill?.name ?? null,
+          skills,
+          loadSkillBody: async (skillId: string) => {
+            const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
+            return skill.files.length
+              ? `${skill.body}\n\nAvailable skill files:\n${skill.files.join("\n")}`
+              : skill.body;
+          },
+          loadSkillFile: (skillId: string, path: string) =>
+            getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
+        }),
     });
+    const agent = turn.agent;
+    disposeAgentResources = () => runtimeTurn.dispose();
+    runInputInbox = startAgentRunInputInbox(runId, runtimeTurn.input);
+    const result = turn.result;
     logger.info({ sessionId: session.id, runId, setupMs: Math.round(performance.now() - startedAt) }, "run accepted");
     const agentParts = createPublishedAgentPartStream({
       modelStream: result.stream,
@@ -474,7 +474,7 @@ export async function createAgentRunResponse(
         tenantId: auth.tenantId,
         workspaceId: auth.workspaceId,
         signal: runSignal,
-        stageWorkspaceFile: (path, content, signal) => agentInstance.sandbox.stagePublishedFile(path, content, signal),
+        stageWorkspaceFile: (path, content, signal) => turn.host.sandbox.stagePublishedFile(path, content, signal),
       },
       onError: (error) => {
         logger.error({ err: error }, "stream failed");
@@ -486,7 +486,7 @@ export async function createAgentRunResponse(
       originalMessages: modelUiMessages,
       generateId: () => assistantMessageId,
       execute: async ({ writer }) => {
-        const initialLineage = agentInstance.responseLineage();
+        const initialLineage = turn.host.responseLineage();
         writer.write({
           type: "start",
           messageId: assistantMessageId,
@@ -518,7 +518,7 @@ export async function createAgentRunResponse(
         const failed = streamError != null;
         const usage = await Promise.resolve(result.totalUsage).catch(() => null);
         const tokens = addUsage(extractUsageTokens(usage), contextUsage);
-        const lineage = agentInstance.responseLineage();
+        const lineage = turn.host.responseLineage();
         const metadata: ChatMessageMetadata = {
           runId,
           providerId: provider.id,
@@ -550,7 +550,7 @@ export async function createAgentRunResponse(
             throw new Error("SDK continuation identity does not match the claimed operation");
           }
           const parts = aborted ? finalizeCancelledParts(responseMessage.parts) : responseMessage.parts;
-          const lineage = agentInstance.responseLineage();
+          const lineage = turn.host.responseLineage();
           const usage = await Promise.resolve(result.totalUsage).catch(() => null);
           const tokens = addUsage(extractUsageTokens(usage), contextUsage);
           // Sandbox disposal is the run finalizer boundary. It must finish (or
@@ -559,7 +559,7 @@ export async function createAgentRunResponse(
           const settled = await finalizeAfterAgentDisposal({
             dispose: async () => {
               try {
-                await agentInstance.dispose();
+                await runtimeTurn.dispose();
               } finally {
                 disposeAgentResources = null;
               }

@@ -483,6 +483,7 @@ export function createMediaToolManifests() {
     effect: "add" as const,
     trust: "closed" as const,
     execution: "durable" as const,
+    streaming: true,
     uiKind: "image-gallery" as const,
   };
   const videoPolicy = {
@@ -490,6 +491,7 @@ export function createMediaToolManifests() {
     effect: "add" as const,
     trust: "closed" as const,
     execution: "durable" as const,
+    streaming: true,
     uiKind: "video" as const,
   };
   const imagePlanning = {

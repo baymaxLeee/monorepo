@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ExecutionEnvironment } from "./execution-environment.js";
+import type { ExecutionEnvironment } from "./environment.js";
 import { createExecutionHostManifests } from "./execution-host.js";
 
 const environment = {

@@ -4,35 +4,29 @@ import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
-import { createAgentHarness } from "@repo/agent-runtime";
-import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
-import { createExecutionHostManifests } from "@repo/agent-runtime/agent/execution-host";
-import { createAgentRunInputChannel, type AgentRunInputChannel } from "@repo/agent-runtime/agent/steering";
+import { createRuntimeTurn, type RuntimeInputQueue, type RuntimeTurn } from "@repo/agent-runtime";
+import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
+import { projectRuntimeContext } from "@repo/agent-runtime/context/manager";
 import { fileDataChunks, workspaceMediaType, type PublishedWorkspaceFile } from "@repo/agent-runtime/protocol/artifact";
 import {
   applyToolApprovalResponse,
   finalizeInterruptedMessages,
   hasPendingToolApprovals,
 } from "@repo/agent-runtime/protocol/lifecycle";
+import { attachExecutionEnvironment, type ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
+import { createExecutionHostManifests } from "@repo/agent-runtime/runtime/execution-host";
 import { DIRECT_TOOL_CALL } from "@repo/agent-runtime/tools/code-mode";
 import { manifestsToTools } from "@repo/agent-runtime/tools/manifest";
 import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
-import {
-  convertToModelMessages,
-  isToolUIPart,
-  readUIMessageStream,
-  toUIMessageStream,
-  type UIMessage,
-  type UIMessageChunk,
-} from "ai";
+import { isToolUIPart, readUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 
-import type { DesktopEvent, LocalApprovalMode, LocalPendingInput, LocalThread } from "../contracts/bridge.generated";
-import type { InferenceConfig, ReasoningEffort } from "../contracts/inference.generated";
+import type { DesktopEvent, LocalApprovalMode, LocalPendingInput, LocalThread } from "../../contracts/bridge.generated";
+import type { InferenceConfig, ReasoningEffort } from "../../contracts/inference.generated";
+import { LocalSandbox, type SandboxOptions } from "../sandbox";
 import { LocalJournal } from "./journal";
 import { relayModel, type RelayCall } from "./relay-model";
-import { LocalSandbox, type SandboxOptions } from "./sandbox";
 
 function localWorkspacePath(root: string, value: string): string {
   const absolute = isAbsolute(value) ? resolve(value) : resolve(root, value);
@@ -57,9 +51,8 @@ function publishedArtifacts(messages: UIMessage[]): Map<string, PublishedWorkspa
   return artifacts;
 }
 
-export interface SessionHostOptions {
+export interface DesktopSessionOptions {
   directory: string;
-  legacyDirectories?: string[];
   controlDirectories: string[];
   supervisor: string;
   executable: string;
@@ -83,12 +76,12 @@ interface Workspace {
 interface ActiveRun {
   abort: AbortController;
   done: Promise<void>;
-  inputChannel: AgentRunInputChannel;
+  inputChannel: RuntimeInputQueue;
   settlements: Set<Promise<void>>;
   turnId: string;
 }
 
-export class LocalSessionHost {
+export class DesktopSessionManager {
   readonly journal: LocalJournal;
   private workspaces = new Map<string, Promise<Workspace>>();
   private active = new Map<string, ActiveRun>();
@@ -96,8 +89,8 @@ export class LocalSessionHost {
   private segments = new Map<string, { id: string; messages: UIMessage[]; chunks: UIMessageChunk[]; done: boolean }>();
   private current = new Map<string, LocalThread>();
   private observedWorkspaceEpochs = new Map<string, number>();
-  constructor(private readonly options: SessionHostOptions) {
-    this.journal = new LocalJournal(options.directory, options.legacyDirectories);
+  constructor(private readonly options: DesktopSessionOptions) {
+    this.journal = new LocalJournal(options.directory);
     for (const metadata of this.journal.list())
       if (metadata.status === "running") {
         const thread = this.journal.get(metadata.id);
@@ -310,11 +303,12 @@ export class LocalSessionHost {
     this.current.set(thread.id, thread);
     this.save(thread);
     const abort = new AbortController();
-    const inputChannel = createAgentRunInputChannel();
+    const runtimeTurn = createRuntimeTurn();
+    const inputChannel = runtimeTurn.input;
     const turnId = thread.turnId;
     if (!turnId) throw new Error("本地轮次缺少标识");
     const settlements = new Set<Promise<void>>();
-    const done = Promise.resolve().then(() => this.run(thread, abort.signal, inputChannel, settlements));
+    const done = Promise.resolve().then(() => this.run(thread, abort.signal, runtimeTurn, settlements));
     this.active.set(thread.id, { abort, done, inputChannel, settlements, turnId });
     void done
       .finally(() => {
@@ -326,7 +320,7 @@ export class LocalSessionHost {
   private async run(
     thread: LocalThread,
     signal: AbortSignal,
-    inputChannel: AgentRunInputChannel,
+    runtimeTurn: RuntimeTurn,
     settlements: Set<Promise<void>>,
   ) {
     let workspace: Workspace | undefined;
@@ -435,34 +429,41 @@ export class LocalSessionHost {
           .filter((manifest) => manifest.policy.callableByCodeMode)
           .map((manifest) => [manifest.name, ["code_mode", DIRECT_TOOL_CALL] as const]),
       );
-      const agent = createAgentHarness({
-        model,
-        environment,
-        inputChannel,
-        tools,
-        toolApproval: createToolApprovalPolicy({ getApprovalMode: () => thread.approvalMode }),
-        activeTools,
-        toolOrder: [...activeTools].sort(),
-        experimental_toolCallers: codeModeToolCallers as never,
-        maxOutputTokens: config.maxOutputTokens,
-        instructions: config.instructions,
-        workspace: {
-          consumeChanges: () => {
-            workspace!.flushChanges();
-            modelEpoch = workspace!.epoch;
-            const observed = this.observedWorkspaceEpochs.get(thread.id) ?? 0;
-            const changes = [...workspace!.changed].filter(([, epoch]) => epoch > observed).map(([path]) => path);
-            this.observedWorkspaceEpochs.set(thread.id, modelEpoch);
-            return changes;
-          },
-        },
-      });
       const original = structuredClone(thread.messages);
-      const result = await agent.stream({
-        messages: await convertToModelMessages(original),
-        abortSignal: signal,
-        experimental_steering: inputChannel.steering,
+      const projected = await projectRuntimeContext({
+        messages: original,
+        model,
+        limits: config,
+        checkpoint: this.journal.getCheckpoint(thread.id),
+        signal,
+        saveCheckpoint: async (checkpoint) => this.journal.saveCheckpoint(thread.id, checkpoint),
       });
+      const started = await runtimeTurn.start({
+        messages: projected.messages,
+        signal,
+        prepare: async () => ({
+          settings: {
+            model,
+            tools,
+            toolApproval: createToolApprovalPolicy({ getApprovalMode: () => thread.approvalMode }),
+            activeTools,
+            toolOrder: [...activeTools].sort(),
+            experimental_toolCallers: codeModeToolCallers as never,
+            maxOutputTokens: config.maxOutputTokens,
+            instructions: attachExecutionEnvironment(config.instructions, environment),
+            prepareStep: ({ messages }) => {
+              workspace!.flushChanges();
+              modelEpoch = workspace!.epoch;
+              const observed = this.observedWorkspaceEpochs.get(thread.id) ?? 0;
+              const changes = [...workspace!.changed].filter(([, epoch]) => epoch > observed).map(([path]) => path);
+              this.observedWorkspaceEpochs.set(thread.id, modelEpoch);
+              return changes.length > 0 ? { messages: appendWorkspaceChangeEvent(messages, changes) } : {};
+            },
+          },
+          host: null,
+        }),
+      });
+      const result = started.result;
       const stream = toUIMessageStream({
         stream: result.stream,
         tools,
@@ -522,6 +523,7 @@ export class LocalSessionHost {
       thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
     } finally {
       this.active.get(thread.id)?.abort.abort();
+      await runtimeTurn.dispose();
       workspace?.sandbox.cancel();
       if (workspace) await workspace.queue;
       await Promise.allSettled([...settlements]);

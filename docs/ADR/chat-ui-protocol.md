@@ -127,7 +127,7 @@ flowchart LR
 
 生成中的消息允许按官方状态递进；等待客户端回答的 assistant 消息继续使用原 id。已终结消息的修改通过新的历史分支表达。流的 `originalMessages` 必须与当前选中的权威历史一致，避免 SDK 把新回复误判为上一条 assistant 的 continuation。
 
-模型上下文从 journal 经过独立 projector 生成，再使用 `convertToModelMessages`。上下文裁剪、摘要、工具输出压缩和文件字节加载只作用于模型投影，不改写用户能重放的原始消息。provider 游标/引用的使用由所选 provider 与有效执行链决定；不会因模型投影需要重建，就把 journal 的 citations、tool metadata 或 custom 内容统一删掉。
+模型上下文从 journal 经过 shared context manager 生成，再使用 `convertToModelMessages`。上下文裁剪、摘要、工具输出压缩和文件字节加载只作用于模型投影，不改写用户能重放的原始消息；Backend 仅在 `context/model-context.ts` 绑定 PostgreSQL checkpoint 和受权文件读取。provider 游标/引用的使用由所选 provider 与有效执行链决定；不会因模型投影需要重建，就把 journal 的 citations、tool metadata 或 custom 内容统一删掉。
 
 持久化 data part 不意味着 SDK 自动把它发给模型。每个类型必须显式决定 `convertDataPart` 投影；Plan/Skill 引用由各自业务入口解析，UI 进度没有必要进入模型。
 
@@ -247,7 +247,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 
 | 情况 | 使用的原生表达 | 产品行为 |
 | --- | --- | --- |
-| 用户上传附件 | user `file` part | 上传/授权成功后发送稳定引用，由 projector 决定模型读取方式 |
+| 用户上传附件 | user `file` part | 上传/授权成功后发送稳定引用，由 context host adapter 决定模型读取方式 |
 | 模型直接输出图片/文件 | assistant `file` part | 文件发布后展示预览/下载卡，保留 MIME、filename 和原生 metadata |
 | 云端 `upload_artifacts` 发布产物 | 一个批量 `tool-*` 终态 output + 每文件一个 `data-file` | 工具结果保留调用、审批、失败与执行记录；成功文件在正文显示紧凑 file tag |
 
@@ -259,7 +259,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 
 当前发布入口接收 SDK data URL 或已有受权会话资源，拒绝任意远端 URL。后续 provider 如需 hosted output，必须提供可验证的来源与现有网络边界，不能凭模型给出的 URL 增加通用服务器代取能力。前端点击时经资源 owner 解析访问能力，复用图片、音视频、PDF 和文件工作区。刷新、链接过期和取消加载都有明确状态。实际存储、授权与字节交付遵循 [Files and assets](files-and-assets.md)，不在 Chat 增加第二套签名或文件数据库。
 
-`reasoning-file` 保留自己的 part 类型，放入推理披露区域。服务端从 provider 产生的 `providerReference` 按 provider 语义保存和投影，不当作公开下载地址；客户端提交的 user file 不得自带 providerReference 绕过会话文档授权，入口与 projector 都拒绝。图片投影通过 Knowledge/Storage 的受权读取派生最长边 1536 的模型输入，不把未限制的原始大图整体 base64 进 provider 请求；journal 继续保存稳定资源引用。工具、附件和文档来源可以引用同一不可变资源，UI 通过资源身份避免重复交付展示。
+`reasoning-file` 保留自己的 part 类型，放入推理披露区域。服务端从 provider 产生的 `providerReference` 按 provider 语义保存和投影，不当作公开下载地址；客户端提交的 user file 不得自带 providerReference 绕过会话文档授权，入口与 context host adapter 都拒绝。图片投影通过 Knowledge/Storage 的受权读取派生最长边 1536 的模型输入，不把未限制的原始大图整体 base64 进 provider 请求；journal 继续保存稳定资源引用。工具、附件和文档来源可以引用同一不可变资源，UI 通过资源身份避免重复交付展示。
 
 ### 9.3 给模型的多模态工具结果
 
@@ -269,7 +269,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 
 消息 metadata 保存 run/model/usage/finishReason 等消息级信息。run metadata 与 fork provenance 分别有明确 schema，不能用断言将只含 fork 的历史消息当作完整 run。前端 hydration、完成刷新和恢复都保留 metadata；message-level 展示不另开 data channel。
 
-`status`、SDK `finishReason` 与具体 part 状态共同解释结果：一次 run 已结束可以仍有等待客户端回答的工具；不能由 `ready`、EOF 或 token usage 推断整个任务完成。单条消息 usage 与整个会话可用上下文不是同一指标，ContextUsage 继续使用上下文 projector 的实际快照和模型容量；不把所有历史 token 简单相加当作当前窗口占用。
+`status`、SDK `finishReason` 与具体 part 状态共同解释结果：一次 run 已结束可以仍有等待客户端回答的工具；不能由 `ready`、EOF 或 token usage 推断整个任务完成。单条消息 usage 与整个会话可用上下文不是同一指标，ContextUsage 使用 context manager 的实际投影快照和模型容量；不把所有历史 token 简单相加当作当前窗口占用。
 
 对没有原生对应类型的业务动态数据，使用注册的 `data-*`：需要重放的对象给稳定 id，更新同一对象使用同一 id；瞬时通知使用 `transient: true` 和 `onData`。持久数据渲染从 `message.parts` 读取，不能在 `onData` 中另维护一份会与历史漂移的对象集合。标题、Plan、Skill 的具体字段仍归 stream 契约；不为 token、来源、文件、工具进度再发明 data part。
 
@@ -352,7 +352,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | [agents route](../../apps/backend/services/runtime/src/api/http/routes/agents.ts) | 识别官方操作、scope/归属校验、恢复与取消响应 |
 | [run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts) | 权威历史、composition、单一 finalizer、请求/run 对应关系 |
 | [continuation](../../apps/backend/services/runtime/src/application/agent/runs/continuation.ts) | 不可变调用身份、输出/审批 schema、响应去重和状态转换 |
-| [model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[projector](../../apps/backend/services/runtime/src/application/agent/context/projector.ts) | journal 与模型表示分离、数据引用、多模态输入 |
+| [model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared context manager](../../packages/agent-runtime/src/context/manager.ts) | journal 与模型表示分离、数据引用、多模态输入 |
 | [stream service](../../apps/backend/services/runtime/src/application/agent/streams/service.ts) | 原生 SSE 重放、取消 subscriber、active pointer 一致性 |
 | [tool manifest](../../packages/agent-runtime/src/tools/manifest.ts) | 原生工具定义、业务 outcome、展示 metadata 与 toModelOutput |
 | [frontend transport](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.ts) | 精简但完整的操作语义、认证、原生 replay 配置 |
@@ -382,7 +382,7 @@ Redis 只保存 active run 的原生 SSE，GET 恢复与初始 POST 使用相同
 | 请求并发 | 双提交、模糊网络失败、同请求单 replay、旧 revision、迟到 history/detail 响应、pointer/graph 一致快照、陈旧 lease 回收；只认领一次执行 | [repository integration](../../apps/backend/services/runtime/src/application/agent/runs/repository.integration.test.ts)、[transport tests](../../apps/frontend/packages/ai-elements/src/Conversation/lib/transport.test.ts)、[late response tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 恢复与停止 | 初始加载、空闲不探针、部分流断开、完整重放不重复、204、后台恢复、切换会话、响应头前 Stop；旧取消不影响新 run | [Redis stream integration](../../apps/backend/services/runtime/src/application/agent/streams/service.integration.test.ts)、[useConversationChat tests](../../apps/frontend/packages/ai-elements/src/Conversation/hooks/useConversationChat.test.tsx) |
 | 异常收口 | provider 失败、critical persistence 失败、取消、进程丢失的权威 run 状态；部分内容保持可见 | [stream outcome tests](../../apps/backend/services/runtime/src/application/agent/runs/stream-outcome.test.ts)、[run native parts tests](../../apps/backend/services/runtime/src/application/agent/runs/run-native-parts.test.ts)、[repository integration](../../apps/backend/services/runtime/src/application/agent/runs/repository.integration.test.ts) |
-| 模型投影 | 仅当前分支进入模型；data part 是否入模按定义；多模态工具确实发送受权内容而不只是文件 ID | [run history tests](../../apps/backend/services/runtime/src/application/agent/runs/run-history.test.ts)、[message branch tests](../../apps/backend/services/runtime/src/application/message-branches.test.ts)、[model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[projector](../../apps/backend/services/runtime/src/application/agent/context/projector.ts) |
+| 模型投影 | 仅当前分支进入模型；data part 是否入模按定义；多模态工具确实发送受权内容而不只是文件 ID | [run history tests](../../apps/backend/services/runtime/src/application/agent/runs/run-history.test.ts)、[message branch tests](../../apps/backend/services/runtime/src/application/message-branches.test.ts)、[model file tests](../../apps/backend/services/runtime/src/application/agent/context/model-files.test.ts)、[Backend context adapter](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)、[shared manager tests](../../packages/agent-runtime/src/context/manager.test.ts) |
 | UI | 错误与待交互状态可访问，键盘操作、滚动稳定、窄屏、媒体按需加载、完成消息不随无关 delta 重渲染 | [ChatMessageView tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatMessageView.test.tsx)、[stream performance tests](../../apps/frontend/packages/ai-elements/src/Conversation/components/ChatStreamingPerformance.test.tsx)、UI contracts 和真实浏览器验收 |
 
 从仓库根目录执行相关验证：

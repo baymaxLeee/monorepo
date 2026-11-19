@@ -16,13 +16,3 @@ export function scopedSessionDirectory(runtimeHome: string, scope: string): stri
   if (!/^[a-f0-9]{64}$/.test(scope)) throw new Error("本地会话身份分区无效");
   return join(runtimeHome, "sessions", scope);
 }
-
-export function legacySessionDirectories(appData: string, userData: string, scope: string): string[] {
-  const candidates = [
-    join(userData, "local", scope),
-    join(appData, "desktop", "local", scope),
-    join(appData, "monorepo-desktop", "local", scope),
-    join(appData, "Monorepo", "local", scope),
-  ];
-  return [...new Set(candidates.map((directory) => resolve(directory)))];
-}

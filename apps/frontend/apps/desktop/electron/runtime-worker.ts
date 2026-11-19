@@ -5,14 +5,14 @@ import { webSearchOutputSchema } from "@repo/agent-runtime/tools/web";
 import { z } from "zod";
 
 import { inferenceConfigSchema } from "../contracts/inference.generated";
-import { LocalSessionHost } from "./session-host";
+import { DesktopSessionManager } from "./runtime/session-manager";
 
 const port = process.parentPort;
 if (!port) throw new Error("Local runtime requires an Electron utility parent");
 const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>();
 const cleanups = new Map<string, () => void>();
 const streams = new Map<string, ReadableStreamDefaultController<LanguageModelV4StreamPart>>();
-let runtime: LocalSessionHost | null = null;
+let runtime: DesktopSessionManager | null = null;
 let closing = false;
 const ownerPid = process.ppid;
 // Keep command ownership tied to the desktop even if the browser process dies
@@ -51,14 +51,13 @@ async function dispatch(method: string, payload: unknown) {
     const settings = z
       .object({
         directory: z.string(),
-        legacyDirectories: z.array(z.string()),
         controlDirectories: z.array(z.string()).min(1),
         supervisor: z.string(),
         executable: z.string(),
         fileWorker: z.string(),
       })
       .parse(payload);
-    runtime = new LocalSessionHost({
+    runtime = new DesktopSessionManager({
       ...settings,
       config: async (providerId, reasoningEffort, signal) =>
         inferenceConfigSchema.parse(await request("config", { providerId, reasoningEffort }, signal)),

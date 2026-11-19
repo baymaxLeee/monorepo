@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4StreamPart } from "@ai-sdk/provider";
 
-import { inferenceRequestSchema, type InferenceConfig, type InferenceRequest } from "../contracts/inference.generated";
+import {
+  inferenceRequestSchema,
+  type InferenceConfig,
+  type InferenceRequest,
+} from "../../contracts/inference.generated";
 
 export type RelayCall = (
   request: InferenceRequest,

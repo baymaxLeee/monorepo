@@ -1,9 +1,5 @@
 export const INSTRUCTION_SECTION_TAGS = {
   corePolicy: "core_policy",
-  runtimeContract: "runtime_contract",
-  executionProtocol: "execution_protocol",
-  capabilityContract: "capability_contract",
-  executionStopped: "execution_stopped",
   availableSkills: "available_skills",
   activatedSkill: "activated_skill",
   userMemoryData: "user_memory_data",

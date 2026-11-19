@@ -4,7 +4,7 @@ import { escapeXmlText, xmlSection } from "../instructions/xml.js";
 export type NetworkAccess = "disabled" | "environment" | "public";
 
 /**
- * Behavioral facts about the host selected for this thread. The model sees this
+ * Immutable behavioral facts about the host selected for this thread. The model sees this
  * shape, while transport details such as proxy sockets, containers and IPC stay
  * behind the host boundary.
  */

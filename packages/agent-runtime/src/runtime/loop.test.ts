@@ -7,16 +7,17 @@ import type {
   LanguageModelV4Middleware,
   LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
-import { convertToModelMessages, isToolUIPart, readUIMessageStream, toUIMessageStream, type UIMessage } from "ai";
+import { convertToModelMessages, isToolUIPart, readUIMessageStream, toUIMessageStream, tool, type UIMessage } from "ai";
+import { z } from "zod";
 
+import { appendWorkspaceChangeEvent } from "../context/events.js";
 import { assembleInstructions } from "../instructions/index.js";
 import { createBashTool } from "../tools/bash.js";
 import { manifestsToTools } from "../tools/manifest.js";
 import { createToolApprovalPolicy } from "../tools/policy.js";
-import type { ExecutionEnvironment } from "./execution-environment.js";
-import { createAgentHarness } from "./harness.js";
-import { FOLLOW_UP_PREEMPTED_FINISH_REASON } from "./run-input-control.js";
-import { createAgentRunInputChannel } from "./steering.js";
+import { attachExecutionEnvironment, type ExecutionEnvironment } from "./environment.js";
+import { createRuntimeInputQueue, RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON } from "./input-queue.js";
+import { createAgentLoop } from "./loop.js";
 
 const finish: LanguageModelV4StreamPart = {
   type: "finish",
@@ -89,7 +90,7 @@ function environment(storage: "cloud" | "local"): ExecutionEnvironment {
         approvals: "auto",
       };
 }
-async function consume(agent: ReturnType<typeof createAgentHarness>, messages = request) {
+async function consume(agent: ReturnType<typeof createAgentLoop>, messages = request) {
   const result = await agent.stream({ messages: await convertToModelMessages(messages) });
   let answer: UIMessage | undefined;
   for await (const item of readUIMessageStream({
@@ -106,6 +107,40 @@ async function consume(agent: ReturnType<typeof createAgentHarness>, messages = 
   assert.ok(answer);
   return answer;
 }
+
+test("preserves every tool call emitted by one model response", async () => {
+  const executed: string[] = [];
+  let calls = 0;
+  const agent = createAgentLoop({
+    tools: {
+      load_skill: tool({
+        inputSchema: z.object({}),
+        execute: async () => {
+          executed.push("load_skill");
+          return "loaded";
+        },
+      }),
+      web_fetch: tool({
+        inputSchema: z.object({}),
+        execute: async () => {
+          executed.push("web_fetch");
+          return "fetched";
+        },
+      }),
+    },
+    model: model(() =>
+      ++calls === 1
+        ? [
+            { type: "tool-call", toolCallId: "skill", toolName: "load_skill", input: "{}" },
+            { type: "tool-call", toolCallId: "fetch", toolName: "web_fetch", input: "{}" },
+          ]
+        : text,
+    ),
+  });
+
+  await consume(agent);
+  assert.deepEqual(executed.sort(), ["load_skill", "web_fetch"]);
+});
 for (const storage of ["cloud", "local"] as const) {
   test(`${storage}: capability question finishes without sandbox calls or synthetic user messages`, async () => {
     let calls = 0;
@@ -114,10 +149,9 @@ for (const storage of ["cloud", "local"] as const) {
         throw new Error("must not inspect workspace");
       }),
     ]);
-    const agent = createAgentHarness({
-      environment: environment(storage),
+    const agent = createAgentLoop({
       tools,
-      instructions: assembleInstructions({ memories: [] }),
+      instructions: attachExecutionEnvironment(assembleInstructions({ memories: [] }), environment(storage)),
       model: model((options) => {
         calls++;
         assert.equal(options.prompt.filter((m) => m.role === "user").length, 1);
@@ -131,26 +165,29 @@ for (const storage of ["cloud", "local"] as const) {
     assert.equal(calls, 1);
     assert.equal(answer.parts.filter(isToolUIPart).length, 0);
   });
-  test(`${storage}: one transient workspace notification and the same terminal ToolOutcome`, async () => {
+  test(`${storage}: records one workspace event in model history and preserves the terminal ToolOutcome`, async () => {
     let calls = 0,
       consumed = false;
     const tools = manifestsToTools([
       createBashTool(async () => ({ exitCode: 7, stdout: "partial", stderr: "failed command" })),
     ]);
-    const agent = createAgentHarness({
-      environment: environment(storage),
+    const agent = createAgentLoop({
       tools,
       toolApproval: createToolApprovalPolicy(),
-      instructions: assembleInstructions({ memories: [] }),
-      workspace: { consumeChanges: () => (consumed ? [] : ((consumed = true), ["external.txt"])) },
+      instructions: attachExecutionEnvironment(assembleInstructions({ memories: [] }), environment(storage)),
+      prepareStep: ({ messages }) => {
+        const changes = consumed ? [] : ((consumed = true), ["external.txt"]);
+        return changes.length > 0 ? { messages: appendWorkspaceChangeEvent(messages, changes) } : {};
+      },
       model: model((options) => {
         calls++;
-        assert.equal(options.prompt.filter((m) => m.role === "user").length, 1);
+        assert.equal(JSON.stringify(options.prompt).match(/external_workspace_changes/g)?.length ?? 0, 0);
+        assert.equal(JSON.stringify(options.prompt).match(/runtime_context/g)?.length, 2);
         if (calls === 1) {
-          assert.match(JSON.stringify(options.prompt), /external_workspace_changes/);
+          assert.match(JSON.stringify(options.prompt), /external\.txt/);
           return [{ type: "tool-call", toolCallId: "bash", toolName: "bash", input: '{"command":"false"}' }];
         }
-        assert.doesNotMatch(JSON.stringify(options.prompt), /external_workspace_changes/);
+        assert.match(JSON.stringify(options.prompt), /external\.txt/);
         return text;
       }),
     });
@@ -169,7 +206,7 @@ for (const storage of ["cloud", "local"] as const) {
   });
 }
 
-test("a terminal sandbox failure ends the tool phase without planning a recovery path", async () => {
+test("a terminal sandbox failure remains visible without hiding the tool catalog", async () => {
   let calls = 0;
   const tools = manifestsToTools([
     createBashTool(async () => {
@@ -180,8 +217,7 @@ test("a terminal sandbox failure ends the tool phase without planning a recovery
       });
     }),
   ]);
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const agent = createAgentLoop({
     tools,
     model: model((options) => {
       calls++;
@@ -189,8 +225,7 @@ test("a terminal sandbox failure ends the tool phase without planning a recovery
         assert.match(JSON.stringify(options.tools), /bash/);
         return [{ type: "tool-call", toolCallId: "bash-missing", toolName: "bash", input: '{"command":"pwd"}' }];
       }
-      assert.doesNotMatch(JSON.stringify(options.tools ?? {}), /bash/);
-      assert.match(JSON.stringify(options.prompt), /ended active execution/i);
+      assert.match(JSON.stringify(options.tools ?? {}), /bash/);
       assert.match(JSON.stringify(options.prompt), /SANDBOX_UNAVAILABLE/);
       return text;
     }),
@@ -210,8 +245,7 @@ for (const approved of [false, true]) {
     // A capability requiring consent uses the same SDK protocol on either host.
     const tools = manifestsToTools([manifest]);
     tools.bash = { ...tools.bash!, needsApproval: true };
-    const agent = createAgentHarness({
-      environment: environment("cloud"),
+    const agent = createAgentLoop({
       tools,
       model: model(() =>
         ++calls === 1
@@ -232,13 +266,12 @@ for (const approved of [false, true]) {
 }
 
 test("SDK steering is delivered, streamed as an official part, and replayed into model history", async () => {
-  const inputChannel = createAgentRunInputChannel();
+  const inputChannel = createRuntimeInputQueue();
   const outcomePromise = inputChannel.submit("改成巴黎德州。", {
     id: "steer-client-message",
     mode: "follow-up",
   });
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const agent = createAgentLoop({
     inputChannel,
     tools: {},
     model: model((options) => {
@@ -283,14 +316,13 @@ test("SDK steering is delivered, streamed as an official part, and replayed into
 });
 
 test("next-turn waits for the active task's final answer before entering model history", async () => {
-  const inputChannel = createAgentRunInputChannel();
+  const inputChannel = createRuntimeInputQueue();
   const outcomePromise = inputChannel.submit("完成后再总结风险。", {
     id: "next-turn-client-message",
     mode: "next-turn",
   });
   let calls = 0;
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const agent = createAgentLoop({
     inputChannel,
     tools: {},
     model: model((options) => {
@@ -337,9 +369,8 @@ test("stored-response continuation keeps steering sent during a tool in the next
     }),
   ]);
   let calls = 0;
-  const inputChannel = createAgentRunInputChannel();
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const inputChannel = createRuntimeInputQueue();
+  const agent = createAgentLoop({
     inputChannel,
     tools,
     model: model((options) => {
@@ -353,18 +384,14 @@ test("stored-response continuation keeps steering sent during a tool in the next
         const prompt = JSON.stringify(options.prompt);
         assert.equal(JSON.stringify(userMessages.at(-1)?.content).includes("继续检查日志"), true);
         assert.doesNotMatch(JSON.stringify(systemMessages), /继续检查日志/);
-        assert.match(prompt, /follow_up_reorientation/);
-        assert.match(prompt, /keep completed work and unaffected pending work/);
-        assert.match(prompt, /Extra context does not by itself pause, cancel, reorder, or replace the original task/);
-        assert.match(prompt, /user-visible text before any further tool execution/);
+        assert.doesNotMatch(prompt, /follow_up_reorientation/);
         return [
           { type: "tool-call", toolCallId: "bash-after-steer", toolName: "bash", input: '{"command":"echo next"}' },
         ];
       }
-      assert.doesNotMatch(JSON.stringify(options.prompt), /follow_up_reorientation/);
       return text;
     }),
-    continuation: ({ steps, messages }) => ({
+    prepareStep: ({ steps, messages }) => ({
       providerOptions: { openai: { previousResponseId: "response-1" } },
       messages:
         steps.length > 0
@@ -412,9 +439,8 @@ test("follow-up arriving during sampling prevents later tool calls from the stal
       return { exitCode: 0, stdout: "stale", stderr: "" };
     }),
   ]);
-  const inputChannel = createAgentRunInputChannel();
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const inputChannel = createRuntimeInputQueue();
+  const agent = createAgentLoop({
     inputChannel,
     tools,
     model: {
@@ -457,9 +483,9 @@ test("follow-up arriving during sampling prevents later tool calls from the stal
         return model(() => text).doStream(options);
       },
     },
-    continuation: ({ steps }) => {
+    prepareStep: ({ steps }) => {
       const lastStep = steps.at(-1);
-      return lastStep?.rawFinishReason === FOLLOW_UP_PREEMPTED_FINISH_REASON && lastStep.response.id
+      return lastStep?.rawFinishReason === RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON && lastStep.response.id
         ? {
             providerOptions: { openai: { previousResponseId: lastStep.response.id } },
             messages: [],
@@ -499,7 +525,7 @@ test("follow-up admitted between prepareStep and the sampling watcher still pree
   let executions = 0;
   let calls = 0;
   let outcomePromise: Promise<unknown> | undefined;
-  const inputChannel = createAgentRunInputChannel();
+  const inputChannel = createRuntimeInputQueue();
   const submitInSamplingGap: LanguageModelV4Middleware = {
     specificationVersion: "v4",
     wrapStream: async ({ doStream }) => {
@@ -512,8 +538,7 @@ test("follow-up admitted between prepareStep and the sampling watcher still pree
       return doStream();
     },
   };
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const agent = createAgentLoop({
     inputChannel,
     middleware: [submitInSamplingGap],
     tools: manifestsToTools([
@@ -559,14 +584,13 @@ test("follow-up response gate blocks a tool-only step until the model emits visi
       return { exitCode: 0, stdout: "done", stderr: "" };
     }),
   ]);
-  const inputChannel = createAgentRunInputChannel();
+  const inputChannel = createRuntimeInputQueue();
   const outcomePromise = inputChannel.submit("先告诉我 npm 是什么，再继续任务", {
     id: "answer-before-tools",
     mode: "follow-up",
   });
   let calls = 0;
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const agent = createAgentLoop({
     inputChannel,
     tools,
     model: model((options) => {
@@ -639,9 +663,8 @@ test("next-turn arriving during sampling does not preempt the active task", asyn
       return { exitCode: 0, stdout: "current task", stderr: "" };
     }),
   ]);
-  const inputChannel = createAgentRunInputChannel();
-  const agent = createAgentHarness({
-    environment: environment("cloud"),
+  const inputChannel = createRuntimeInputQueue();
+  const agent = createAgentLoop({
     inputChannel,
     tools,
     model: {

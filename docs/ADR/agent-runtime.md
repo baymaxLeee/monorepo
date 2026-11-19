@@ -1,81 +1,167 @@
-# 当前决策：交互 Agent 与上下文
+# 当前决策：Codex-shaped Agent Runtime Kernel
 
-主循环唯一实现为 `@repo/agent-runtime`，由 Runtime server 与 Electron utility process 共同调用。固定提示词组装、step 控制、tool manifest/outcome、Bash 定义和审批策略共享；审批响应、待审批判断和未完成工具的取消/中断终态也由共享 lifecycle 实现。两端只注入模型、工作区、存储及观测适配器。不得另建本地 Agent-loop 或按执行位置复制 UI 工具协议。环境差异见 [执行模式](sandbox-execution-modes.md)。
+状态：当前。Runtime server 与 Electron utility process 已迁移到同一个
+`@repo/agent-runtime` kernel；旧 `agent/` harness、Backend 私有 ToolLoop/context
+projector 和 Desktop 私有 session host 不再是兼容入口。
 
-状态：当前。以 Runtime 的 run、唯一 ToolLoop、context 和 tool catalog 为云端实现入口。
+决策键：在继续使用 Vercel AI SDK `ToolLoopAgent` 的前提下，如何按 Codex 的
+Thread/Turn/Item、input queue、rollout、tool runtime 与 cancellation 模型重建一套薄、
+可恢复且可由云端和本地宿主共同使用的 runtime。
 
-本地/云端执行与文件生命周期见 [Sandbox 双模式决策](sandbox-execution-modes.md)；其中标记为部分实现或 TODO 的边界仍须按该文档完成，本文不另建兼容模型。
+## 所有权与模块边界
 
-## 执行与传输
+`@repo/agent-runtime` 只拥有跨宿主必须一致的 control plane：
 
-Runtime 使用 AI SDK 7 的 `Agent` interface 和一个主 `ToolLoopAgent`。Run 直接创建该唯一实现，
-不存在 Agent factory、runtime profile 或按业务语义装配不同 Agent 的选择层。主 agent 持有用户意图、
-任务状态、交付顺序和最终综合权。 `subagents` 可作为普通 tool 并行创建 1–3 个短时、只读、独立
-context 的 child `ToolLoopAgent`，但 child 不继承父会话或 response lineage，也不成为第二个规划权威。
-SDK 拥有模型/工具循环，harness 只处理真实边界：租约、权限、取消、上下文与持久化。主模型在同一个
-ReAct loop 中根据工具描述自行决定直接回答、调用普通工具或委派 child；harness 不增加意图分类器、
-难度分级、router、planner 或预先任务拆解。
+```text
+packages/agent-runtime/src/
+├── runtime/       # RuntimeTurn、input queue、sampling preemption、私有 AI SDK loop adapter
+├── context/       # journal → model projection、budget、compaction、checkpoint contract
+├── tools/         # manifest/policy/outcome、portable tools、公平执行 scheduler
+├── protocol/      # UIMessage artifact 与 lifecycle 原语
+└── instructions/  # 少量稳定策略、Skill/Memory/环境的结构化渲染
+```
 
-ToolLoopAgent 使用 50 个 model step 的硬上限，并保留最后一步做禁止工具调用的真实结果总结；这只是异常情况下的成本边界，不是正常退出或任务规划机制。Harness 不回扫 step 历史计算连续失败，不判断任务难度，不挑选替代工具，也不安排“恢复 step”。普通 `COMMAND_FAILED` 等结果完整返回模型，由模型根据用户目标和当前证据决定修正、换工具或回答。工具边界只有在统一 `ToolOutcome` 已确认本 turn 无法继续时锁存 stop reason：`SANDBOX_UNAVAILABLE`、`SERVICE_PERMISSION_DENIED`、`PROVIDER_RATE_LIMITED`、`COMMAND_TIMEOUT`、`CODE_MODE_TIMEOUT` 或内部 tool protocol 破坏。下一 model step 固定 `toolChoice: none`，并携带原始 tool 名称及 error code/source/message，要求模型基于已有证据说明根因、已完成/未完成内容和恢复建议。Harness 不自动重放、不动态路由，也不为终态错误发起隐藏 continuation。Transport 的瞬态重试使用自己的有限预算；预算耗尽后才向 ToolOutcome 暴露终态事实。
+包根只导出 `createRuntimeTurn`/`RuntimeTurn`；其他能力从所属分组子路径导入。不得恢复
+`agent/`、flat alias、Agent factory、Agent profile 或按产品类型挑选 capability 的装配层。
+`runtime/loop.ts` 是 kernel 内部的 AI SDK adapter，不是宿主可自行替换的第二个 harness。
 
-Bash 采用 Codex exec 的短默认 deadline：`timeout_ms` 默认 10 秒，模型只有在用户目标确实需要已知有界命令时才能显式提高，最大 120 秒。超时返回 `COMMAND_TIMEOUT` 和已有 stdout/stderr，不被随后 sandbox snapshot/destroy 错误覆盖；Runtime sandbox 先终止所有 guest process，保留已停止的 workspace 供 finalizer snapshot，持久化后再销毁 compute。简单问答不得为了追求未要求的穷举精度扩大成候选构建、指标聚合或自建数据流水线。Provider 请求显式启用 `parallel_tool_calls`，SDK 本地工具执行保留默认并发；batch middleware 只实现真实执行约束：`load_skill` 屏障、`ask_user` 独占以及有副作用工具的顺序，不承担规划。
+宿主拥有事实来源和受信能力，不能反向进入 shared kernel：
 
-生成期间 composer 保持可编辑并可提交输入。产品契约只有三种互不混用的动作：`follow-up` 是当前 turn 的补充或纠偏，并优先进入下一次模型决策；`next-turn` 等当前任务产生终答后再开始下一项；显式 Stop/interrupt 取消当前执行。`follow-up` 到达采样期时，shared harness 立即停止向 SDK 发布该旧响应尚未提交的 item，同时继续 drain provider stream 到真实 finish 以取得 response id、usage 与结算状态；已经发布的 item、已经 dispatch 的工具及其结果保留，普通补充不取消正在执行的工具或整轮 run。旧响应在抢占后产生的 client tool call 不执行；stored-response continuation 为这些 call 提交 `execution-denied`，再把最新 user message 作为最后输入。这样实现的是 Codex 式 sampling preemption，不是整轮 Abort，也不是丢弃已完成工作的 send-now。
+| 边界 | Backend Runtime | Desktop |
+| --- | --- | --- |
+| Session/Thread authority | PostgreSQL Session、run、message journal、lease | scope 隔离的 SQLite Thread/Turn/Item journal |
+| Turn host | `application/agent/runtime/cloud-turn.ts` | `electron/runtime/session-manager.ts` |
+| Context adapter | PostgreSQL checkpoint、文件授权投影、provider lineage | SQLite checkpoint、本地 journal、relay model |
+| Execution | Runtime Sandbox/Storage/领域 tools | Seatbelt workspace、local file/command adapters |
+| Transport | 原生 UIMessage SSE + Redis 活跃流重放 | 原生 UIMessageChunk + 受限 IPC |
 
-每个活跃 run 创建一个产品侧 `AgentRunInputChannel`，其 `follow-up`/`next-turn` 在共享边界映射到 AI SDK 的 `steer()`/`queue()`。SDK 继续拥有 step 循环、投递顺序、去重和官方 `steering-message` UIMessage part；宿主不得手工插入第二条用户消息或建立平行 loop。Channel 另向 shared harness 发出仅限 `follow-up` 的采样 activity signal；`next-turn` 不抢占当前采样。`follow-up` 作为最新的普通 `role:user` 输入保留完整上下文：最新明确约束只覆盖冲突的旧约束，已完成工作与未受影响任务继续有效，只有用户明确取消或替换的部分才停止。
+Backend 和 Desktop 只能准备 model、tools、environment、sandbox、persistence 与 observation
+capability；不得再实现 `ToolLoopAgent`、input queue、context budget/compaction、tool batch
+planner 或另一套 approval/message protocol。浏览器、Redis 和 provider cursor 都不是 Session
+authority。
 
-含 `follow-up` 的下一次采样是一个 user-visible response boundary。Shared harness 加一次性 re-orientation instruction，但正确性不依赖该提示：execution tool 在看到非空 assistant text 前被 gate；若模型只产出 reasoning/tool call，真实工具不执行并返回 `FOLLOW_UP_RESPONSE_REQUIRED`，后续 step 仍保持 gate，直到先产生可见文字。文字可以是对即时问题的直接回答，也可以是对补充上下文的简短处理说明，之后同一响应即可继续未受影响的工具工作；它不是默认取消、暂停或另开任务。任何 `prepareStep` message override 都必须保留 SDK 提供的当前 run input。抢占响应已有 provider response id 时继续该 lineage：发送已完成工具结果与未 dispatch call 的 denial，再追加 steering user message；只有 response id 缺失或 lineage 本身无效时才从本地消息重建。
+## Session、Turn、Item 与 lifecycle
 
-Desktop 在本地 journal 记录 admission，Chat 在 PostgreSQL `agent_run_inputs` 记录 admission 并由持有 run lease 的进程投递，使任意服务实例都可接收请求。前端只在 admission 确认后清空原草稿，待投递项显示在 editor 上方；`delivered` 后由 transcript 中的官方 part 接管。`not_delivered` 与 `unconfirmed` 都保留为可见状态，不得自动创建下一 turn 或盲目重发，由用户明确决定是否作为新消息再次发送。client message id 与精确 run/turn、正文和 mode 绑定，重试只允许完全相同的输入。
+这个映射采用 Codex 的职责形态，但不复制其 wire format：
 
-PostgreSQL UIMessage 是语义会话记录；Redis 只在 run 活跃期间保存有界的原生 UIMessage SSE replay buffer，负责浏览器断网后的 transport resume；Runtime worker Workflow 负责跨进程的 execution resume。三者不可混同。Redis 的租约、容量、超限和终态删除由 [Chat 活跃流恢复决策](chat-stream-resumption.md) 统一拥有。断开浏览器只释放 subscriber；显式 Stop 才传播用户取消，收口未完成工具为官方 error 状态、取消未完成 todo，并等待 run finalizer。
+| Codex 概念 | 本项目语义 |
+| --- | --- |
+| Thread/Session | 宿主持久化的会话及其 workspace 绑定 |
+| Turn | 一次用户任务；可包含多个 model step 和 tool call |
+| Item/rollout | journal 中可恢复的原生 UIMessage/工具状态与 runtime fact |
+| TurnContext | turn 开始时冻结的 model、tools、instructions、environment 和 host capability |
+| InputQueue | `RuntimeInputQueue` 对 AI SDK `steer()`/`queue()` 的唯一映射 |
+| tool runtime | manifest 元数据、approval policy 与公平、可取消的执行 admission |
 
-Run finalizer 必须先尝试 sandbox workspace 持久化与资源释放，再提交 terminal journal 和释放 session lease。若 sandbox 已不存在，snapshot 属于不可恢复失败：生命周期直接转入 release/destroy/released，reconciler 不得每 30 秒重复 snapshot。Dispose/snapshot 失败仍把已经生成的 assistant parts 与失败 metadata 原子写入 journal，再把 run 标记为 failed；资源清理失败不能导致已生成回答从会话记录中消失，也不能把 run 伪装为 completed。
+`createRuntimeTurn()` 在任何异步准备前同步创建 input queue，因此 run-input admission 不依赖
+sandbox/provider 初始化是否已经完成。一个 `RuntimeTurn` 只能 `start()` 一次；prepare 之后由
+kernel 创建唯一 AI SDK loop，宿主消费其原生 stream；turn 结束、失败或取消后，宿主必须调用
+`dispose()`，而 kernel 保证已取得的 host resource 只释放一次。Session lease、stream journal
+finalizer 和进程级 recovery 仍由宿主拥有，不能把一次 HTTP/IPC 生命周期当作 Turn。
 
-Runtime worker 状态经内部 SSE 汇入原生 preliminary tool results，浏览器仍消费同一条 Chat UIMessage 流。trace 持久化失败不阻断生成。自定义 part 必须遵守 [stream 契约](../../schemas/streaming/chat-uimessage-stream.md)。
+AI SDK 继续拥有 model/tool loop、stable tool ordering、approval、`prepareStep`、stream 和
+AbortSignal。kernel 不复制 planner、router、failure counter、repair model 或另一套 stop state
+machine，也不覆盖 SDK 默认 stop condition。普通工具失败作为观察结果回到同一 loop；持久化、
+权限或协议破坏则 fail closed。
 
-消息协议、客户端续跑、引用、文件和恢复遵守当前 [Chat UI 协议](chat-ui-protocol.md)。
+## 运行中输入与取消
 
-## 上下文与权限
+运行中只有三个不同动作：
 
-Instructions 使用代码拥有的固定层次：稳定策略、执行契约、Skill、已批准记忆与服务端环境。
-Tool schema 是输入契约；历史会话和 todo 内容不伪装成系统指令。配置字符串的转义不等于权限控制，
-可用工具、scope 和审批仍由代码验证。
+- `follow-up` 调用 `steer()`，在当前 turn 的下一个安全 model boundary 进入上下文；
+- `next-turn` 调用 `queue()`，等待当前任务终答后创建下一 turn；
+- Stop/interrupt 使用宿主的 AbortSignal，取消当前执行，不伪装成一条输入。
 
-UIMessage 到 ModelMessage 的投影保留近期原生语义，预算不足才增量压缩旧前缀。摘要记录覆盖位置并以 revision CAS 写入；失败不推进未完成的覆盖范围。历史文件写入保留路径、SHA、结果和失败事实，不重复大正文与旧工具参数。
+每个 turn 只有一个 `RuntimeInputQueue`。AI SDK 拥有 delivery、去重和官方
+`steering-message` part；任何 `prepareStep` override 都必须保留 SDK 提供的 steering message。
+`not_delivered` 与 `unconfirmed` 是可见的持久状态，不自动重放或偷偷转成下一 turn。
 
-所有文本模型统一通过火山 Ark Responses 接入，PostgreSQL UIMessage journal 始终是可重建的业务事实源。有效 lineage 固定使用 Ark 的 `store: true` 与 `previous_response_id`：同一 run 的后续 step 只发送新产生的 `function_call_output` 和真实 steering，不能重复发送已存储的 system/user/assistant 输入，也不能插入工具目录等合成 user message。Stored continuation 只允许连接同 provider/model 且紧邻当前 journal 输入的最后一个已完成输出；切换模型、切换分支、cursor 缺失或最后一步 usage 不可观测时都必须从完整 journal 重建。每个已完成 run 的最后一个 model step input usage 达到有效输入预算（扣除最大输出与 harness/tool 预留）的 80% 水位时，下一次 HTTP run 断开 `previous_response_id` lineage，增量摘要旧前缀并保留近期原生消息。Runtime 不向 Ark 请求注入 OpenAI 私有 `context_management`，也不按模型名称或厂商推断 continuation/reasoning 能力。断链重放会移除 provider stored item reference，不能把它误当成跨 provider 的会话事实。摘要模型、结构化输出或批次处理失败时，本次主模型调用失败且不推进 coverage；不得用“内容已省略”占位符静默丢弃未压缩历史，已经成功的压缩批次 usage 仍计入失败 run。
+Codex 式 sampling preemption 只停止发布新 follow-up 到达后尚未提交的旧采样 item，并继续
+drain provider stream 取得 response id、usage 和终态。已发布 item 和已 dispatch 工具保留；
+尚未 dispatch 的 client tool call 被抑制，stored-response continuation 为其补
+`execution-denied`。这不是整轮 Abort。含 follow-up 的下一次采样必须先产生可见文字；在此之前
+execution tool 由 gate 返回 `FOLLOW_UP_RESPONSE_REQUIRED`，避免模型无视用户纠偏继续副作用。
 
-首次 Bash 自动导入当前会话 source，运行中的工作副本不会随其他保存实时漂移。只有其他工具在同一 run 新增或更新会话资源后才调用 `refresh_conversation_sources`。每个 run 仍从所属服务读取已发布 Skill 和配置等可变权威信息。历史搜索结果是证据，只有刷新/最新需求且现有证据不足时重新查询。Skill 初始仅暴露名称/描述，激活后按需读取资源；草稿不进入执行上下文。
+## Journal、模型上下文与压缩
 
-## 工具与模型
+PostgreSQL/SQLite journal 是唯一可重建的会话事实源。provider response id 只是同
+provider/model 且与 journal 直接相邻时可用的优化；切换模型、分支、cursor 缺失、lineage
+不匹配或到达水位后都从 journal 重建。不能把 provider cursor、Redis replay 或内存中的
+`ToolLoopAgent` 当作历史。
 
-`@repo/agent-runtime` 只拥有 tool 协议、manifest/outcome、agent-loop 可复用原子能力及其测试，不得依赖
-Runtime 服务的领域 client。`createPortableToolRegistry` 是云端与本地唯一的公共工具定义与执行端口注册表，
-统一提供 Web Fetch、Code Mode、Tool Search、Planning、Interaction、Skills 与 Subagents。Runtime 与
-Desktop 直接使用这套公共 manifests，再追加各自真实执行环境和领域拥有的 manifests；不存在
-`AgentToolProfile`、默认能力二次选择或按业务语义装配 Agent。工具名必须全局唯一，宿主追加重名 manifest
-时拒绝启动，不能静默替换公共能力。宿主不得复制公共名单，只注入模型、Web Search、Bash sandbox、
-上下文/观测等真实执行差异。最终 manifests/tools 直接交给 SDK，`activeTools` 只表达本次真实可执行集合。
-Canvas、Media、Knowledge、Memory 等当前直连领域系统的工具暂留 Runtime 领域边界。共享层不得反向导入
-这些具体实现。
+shared context manager 将完整 UIMessage journal 投影为 bounded ModelMessage：
 
-- `ask_user` 是无 server execute 的 client tool，批量询问已知独立问题，客户端 `addToolOutput` 后 continuation；依赖答案的后续问题再提出。
-- 应用工具使用 ToolOutcome；业务失败可在 UI/persistence 保留结构化结果，同时向模型投影为 error-json。Abort、审批拒绝、输入/协议错误保留原生控制流。 `toolSearch()` 保留原生结果以激活延迟工具。
-- Bash 使用 Runtime sandbox role 的真实 Linux 环境，按 run 懒创建并销毁。Runtime server 管理附件导入、明确发布和 finalizer；Runtime worker 只管理已声明的 durable 业务任务。AI SDK `SandboxSession` 的 `run`/file/spawn 接口映射到受限命令、文件与进程 API；模型可见 `bash` 负责普通命令，SDK 写入只能落在临时 `work/outputs`，`sources` 保持只读。权限由 OS/runtime 与出口代理执行，不能靠模型自律。Code Mode 使用 AI SDK local tool caller 与 `toolDiscovery: "description"`，把当前工具目录放在 `code_mode` tool definition 中，不在 Ark stored continuation 的 `input` 中插入合成 user message；它仅编排 manifest 显式声明可进入 Code Mode 的公开 `web_search` / `web_fetch` 读取，两者同时保留 direct call。每个工具的 schema/description 说明自身适用边界，主模型从真实 catalog 自主选择满足用户核心目标的最短链路；中央 instructions 不复制一套按查询数量或任务标签分类的 router。Manifest policy 仍是 Code Mode 的强制能力边界。Code Mode 墙钟预算为 90 秒，覆盖 45 秒 search 与 30 秒 fetch 的串行阶段；独立调用应使用 `Promise.all`，每个调用必须被 await。ToolOutcome、AbortSignal 与 active span 包装在 caller bind 后继续生效；超时、未等待调用和缺失 QuickJS global 会返回带纠正动作的结构化失败。Bash、私有 Knowledge、审批、client/durable 工具和业务写入不得进入 Code Mode。详见 [Sandbox](../微服务/sandbox.md) 与 AI SDK [Code Mode](https://ai-sdk.dev/docs/ai-sdk-core/code-mode)。
-- 单个、公开数据驱动的 HTML 交付优先走最短路径：先观察一次公开来源，再在确有缺失时换取同一来源的原始表示；尽量用一次 Bash 完成文件生成与交付物特定的轻量检查，随后显式发布。固定浏览器/ECharts loader 契约不在用户 run 内通过下载运行时、安装测试依赖或另建 harness 重复验证。
-- 生成交付物按主 agent 计划串行；普通文件均由主 agent 在 run sandbox 中生成并逐个发布，不存在平行的 durable 文件批次或第二套对话意图。todo 是官方工具结果中的替换快照。
-- `subagents` 只在有界 web 调查能从 fresh disposable context 获得实质收益，或 2–3 个真正独立的调查值得并行时使用。调研、报告、多实体或 deep research 这些标签本身都不构成强制委派；小型、串行、依赖主上下文或可由主模型直接调用 `web_search`/`web_fetch` 完成的工作留在主 loop。一次调用仍接受 1–3 个任务，但多个任务必须由模型判断为可独立并发，不能由 harness 自动拆解。
-- 每个任务以显式 task/可选冻结 context 创建 fresh child，只开放自动执行的 `web_search`/`web_fetch`，禁止审批、写入和递归委派。子执行通过一个 `tool-subagents` part 的 preliminary result 分别携带有界的紧凑 nested progress；完整 nested UIMessage 只在 terminal result 出现，从而避免逐 delta 累计快照形成 O(n²) transport storage，具体边界归 [Chat 活跃流恢复决策](chat-stream-resumption.md)。用户可见每条委派任务，主模型经 `toModelOutput` 只收到压缩后的各任务结果。父 Stop 的 AbortSignal 必须透传，child step/tool/token 用量分别关联父 toolCall span；进程丢失不恢复该内联执行。child 在自己的 reasoning-and-action loop 中决定具体检索调用，严格保持父模型给出的任务范围，证据足够即停止；缺失信息作为限制返回，不触发开放式补查流水线。
-- `subagents` 是 inline child Agent 批次，不等同于 Runtime worker Workflow。Runtime worker 继续承载视频制片、文档处理和 Canvas 等已注册耐久任务，不承载通用文件生成。
-- 文本模型只有一个传输契约：Admin 接受并持久化 Ark Responses，Runtime 不再接收可选 dialect，也不按 Kimi、DeepSeek 或豆包模型名分支。所有文本 provider 在压缩水位内使用 Ark response lineage，达到水位或 chain 无效时从本地 journal 重建；provider cursor 不是唯一会话记录。媒体/embedding/rerank 仍使用各自 Ark API。
+1. 有效输入窗口为 `max(512, contextWindow - maxOutputTokens - 8000)`；stored lineage 在该窗口
+   80% 水位断开并回到 journal。
+2. 近期 tail 保留原生消息，并为 compacted prefix 预留 6000 tokens；只压缩超出窗口的旧前缀。
+3. compactor 以流式模型调用增量合并旧摘要和新 prefix，输出版本化
+   `runtime-context-v1` durable summary；消息内容按不可信数据处理。
+4. checkpoint 记录 `coveredThroughMessageId` 和 revision。PostgreSQL/SQLite 通过 CAS 安装；
+   compaction 或 checkpoint 写入失败会终止本次主模型调用，不能假装压缩成功或推进 coverage。
+5. 文件授权/字节加载是 host 的 `prepareRecent` adapter；shared manager 不访问 Storage、数据库
+   或本地文件系统。持久 journal 从不因 projection/pruning/compaction 被改写。
 
-## 取舍与事实源
+Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和
+checkpoint 机制。其新 authority 是每个 identity scope 下的 `runtime-v1.sqlite`，schema 为
+`threads`、`turns`、`items`、`context_checkpoints`，`user_version=1`。旧 `sessions.sqlite` 不读取、
+不迁移、不覆盖；这是明确的零兼容切换。
 
-薄 harness 减少重复调度与状态机，但持久任务、授权、run-input admission、sampling preemption 和取消仍需要明确代码边界。不得把传输重连声称为主 agent 的进程崩溃恢复，也不增加隐藏 classifier/repair model。底层消息 delivery 使用 AI SDK 7 的实验 steering 能力；shared model middleware 只过滤抢占点之后尚未提交的旧 response item 并 drain 结算，tool gate 只阻止 follow-up 尚未获得可见响应时的副作用，二者都不另建模型/工具 loop。版本升级必须用真实 SDK producer/consumer 测试确认 outcome、`steering-message` 流、抢占后的 step continuation 和 `convertToModelMessages` 回放仍保持同一顺序。
+## 工具 runtime
 
-业内边界以当前一手资料为准：Codex `session/turn_input.rs` 先把 steer 原子加入 active turn，`session/input_queue.rs::watch_user_input` 用独立 activity signal 抢占当前 sampling，`session/turn.rs` 在下一次 model request 前 drain pending input，并在旧响应 drain 时保留 response id/terminal decision、拒绝后续工具；hard turn interrupt 与 tool cancellation 是另外的 token。Claude Code 官方 Interactive mode 将普通 queued message、send-now 与 Esc interrupt 分开；Anthropic Agent SDK 将 streaming input 与 `interrupt()` 分开；Gemini CLI model steering 对更新做 add/modify/cancel/context 分类并要求不显式取消就保留未受影响任务。引用实现用于确定生命周期，不引入厂商私有传输或隐藏模型调用。
+工具 schema/description 是输入和局部规划约束的事实源。前置条件与限制附着在对应 manifest，
+core instructions 不复制一套工具路由或产品工作流。`ToolOutcome`、native approval、UI metadata
+和 streaming semantics 保持 AI SDK 原语。
 
-这一边界采用 [pi-agent core loop](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/agent-loop.ts) 的极简形态：模型输出 tool call，宿主校验并执行，tool result 回到同一 loop；没有工具调用时结束，宿主不复制 planner。硬执行边界参考 [Codex exec](https://github.com/openai/codex/blob/main/codex-rs/core/src/exec.rs)：短默认 timeout、调用方显式选择更长 deadline、超时/取消各自保留因果状态。它也采用 OpenAI Agents SDK 的 [LLM orchestration 与 agents-as-tools](https://openai.github.io/openai-agents-python/multi_agent/) 模式和 Anthropic [fold subagents into the main loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop) 建议：主模型保留最终综合权，只在真正的上下文隔离或并行收益存在时委派。这些来源证明设计形态，不替本项目规定业务工具、预算或权限；具体边界仍由本 ADR、实现和测试拥有。
+SDK 可以并发发出 tool call，但实际执行必须经过每个 catalog 实例的
+`ToolExecutionScheduler`：
 
-实现：[run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、 [ToolLoop](../../apps/backend/services/runtime/src/application/agent/agents/tool-loop.ts)、 [projector](../../apps/backend/services/runtime/src/application/agent/context/projector.ts)、 [tool catalog](../../apps/backend/services/runtime/src/application/agent/tools/catalog.ts)、[共享工具](../../packages/agent-runtime/src/tools)。验证：`just test backend/runtime`、`just test shared/agent-runtime`、`just test frontend/@repo/ai-elements` 和受影响构建；流变更同时验证生产者与 UI。依赖版本以 workspace catalogs/lockfile 为准。
+- 默认工具独占，只有 manifest 明确 `planning.parallelizable: true` 才共享读 admission；
+- 排队顺序公平，独占项形成 barrier，后到的并行调用不能越过；
+- 排队期间的 AbortSignal 会在执行前移除 waiter，已取得 admission 的操作在 `finally` 释放；
+- async iterable 工具必须声明 `policy.streaming`，scheduler 持有 admission 直到 terminal yield；
+- duplicate tool name 启动即失败，不允许宿主静默替换 shared capability。
+
+ToolLoop 中间件不通过删除 provider tool call 来制造串行；并发、权限和副作用边界在 executor
+admission 执行。Portable registry 只含已证明跨 Backend/Desktop 共用的基础能力；Canvas、Media、
+Knowledge、Memory 等领域能力留在 Runtime host。
+
+## Instructions 与 runtime facts
+
+system instructions 在一个 turn 内固定，只保留：证据与完成状态、最小动作、失败不静默重试等
+runtime invariant，以及已批准 Skill/Memory 和日期。HTML、图表、搜索数量、交付模板、工具调用顺序
+等产品 workflow 不属于 core prompt；需要的约束放进 Skill 或 tool declaration。
+
+`<execution_environment>` 是 turn snapshot，由 shared renderer 从宿主结构化 capability 生成。
+运行中 workspace change 是 transcript 中的
+`<runtime_context type="workspace_changes">` user-role runtime fact，不修改 system prompt，也不
+冒充新的产品用户请求。路径是不可信数据；模型只重读与当前任务相关的文件。
+
+## 取舍与一手证据
+
+采用的基线来自本地 `openai/codex` 当前实现中的 session/turn/input queue/conversation history/
+tool runtime 分层，以及公开 [Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
+和 [App Server](https://developers.openai.com/codex/app-server/) 的 Thread/Turn/Item 模型。采用
+[pi-agent core loop](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/agent-loop.ts)
+的极简 model → tool → result 形态，并以 Anthropic 公开的
+[agent loop/subagent guidance](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)
+校验 prompt/context 边界。Codex 的 Rust loop、provider protocol、approval wire format 和产品
+提示词不复制；许可证受限文本不进入本仓库。
+
+与 Codex 的主要有意差异是：实际 loop、消息、approval、stream 和 tool execution 仍由本仓库已
+采用的 [Vercel AI SDK `ToolLoopAgent`](https://ai-sdk.dev/docs/reference/ai-sdk-core/tool-loop-agent)
+提供；shared kernel 只实现 SDK 没有拥有的 Session/Turn control-plane boundary。云端与本地使用
+不同持久化/隔离 adapter，但遵守同一 lifecycle contract。
+
+被否决：保留旧 `agent/` facade、host 各自维护 loop/context、中央 prompt 编排工具、provider
+cursor 作为事实源、静默压缩失败、通过 middleware 丢弃 tool call、为了迁移旧 SQLite 建双轨 adapter。
+
+## 实现与验证边界
+
+- shared kernel：[RuntimeTurn](../../packages/agent-runtime/src/runtime/turn.ts)、[context manager](../../packages/agent-runtime/src/context/manager.ts)、[tool scheduler](../../packages/agent-runtime/src/tools/execution-scheduler.ts)
+- Backend host：[run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、[cloud turn](../../apps/backend/services/runtime/src/application/agent/runtime/cloud-turn.ts)、[model context](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)
+- Desktop host：[session manager](../../apps/frontend/apps/desktop/electron/runtime/session-manager.ts)、[journal](../../apps/frontend/apps/desktop/electron/runtime/journal.ts)
+
+最低验证包括 shared、Backend、Desktop tests/typecheck/build，checkpoint 冲突、queued tool cancel、
+turn 资源只释放一次、steer/queue、sampling preemption、interrupted recovery 和 host finalizer。
+PostgreSQL/Redis integration skip、真实 provider、Docker/gVisor/Kubernetes、macOS 版本矩阵和发行
+签名仍是独立环境验收，不能由 mock 单测或类型检查替代。

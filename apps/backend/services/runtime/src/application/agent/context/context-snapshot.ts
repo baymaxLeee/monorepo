@@ -29,12 +29,7 @@ export interface SessionContextSnapshot {
 type ProviderTool = LanguageModelV4FunctionTool | LanguageModelV4ProviderTool;
 
 const SYSTEM_TAGS = [INSTRUCTION_SECTION_TAGS.corePolicy, INSTRUCTION_SECTION_TAGS.environment];
-const RULE_TAGS = [
-  INSTRUCTION_SECTION_TAGS.runtimeContract,
-  INSTRUCTION_SECTION_TAGS.executionProtocol,
-  INSTRUCTION_SECTION_TAGS.capabilityContract,
-  INSTRUCTION_SECTION_TAGS.executionStopped,
-];
+const RULE_TAGS: string[] = [];
 const SKILL_TAGS = [INSTRUCTION_SECTION_TAGS.availableSkills, INSTRUCTION_SECTION_TAGS.activatedSkill];
 const MEMORY_TAGS = [INSTRUCTION_SECTION_TAGS.userMemoryData];
 

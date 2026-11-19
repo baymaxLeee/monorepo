@@ -1,4 +1,4 @@
-/** Conservative tokenizer-independent estimate for text, JSON and source code. */
+/** Conservative tokenizer-independent estimate for transcript text, JSON and source code. */
 export function estimateTextTokens(value: string): number {
   // CJK and surrogate pairs can approach one or more tokens per code unit; ASCII / 2 is conservative for JSON and code.
   let asciiChars = 0;

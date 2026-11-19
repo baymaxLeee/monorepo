@@ -1,5 +1,5 @@
-import type { ExecutionEnvironment } from "@repo/agent-runtime/agent/execution-environment";
 import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
+import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
 import { defineAgentTool, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { AdminSkillSource } from "@repo/agent-runtime/tools/skills";

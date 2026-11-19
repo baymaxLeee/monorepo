@@ -3,9 +3,7 @@ import type { ModelMessage, ToolSet, UserModelMessage } from "ai";
 
 import { transformToolPreservingCaller } from "../tools/manifest.js";
 import type { ToolOutcome } from "../tools/outcome.js";
-import type { AgentRunInputChannel } from "./steering.js";
-
-export const FOLLOW_UP_PREEMPTED_FINISH_REASON = "follow-up-preempted";
+import { RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON, type RuntimeInputQueue } from "./input-queue.js";
 
 type ExecutableTool = ToolSet[string] & {
   execute: (...args: unknown[]) => unknown;
@@ -98,12 +96,12 @@ function storedResponseEnabled(providerOptions: unknown): boolean {
   );
 }
 
-export class AgentRunInputControl {
+export class RuntimeInputControl {
   private readonly gate = new FollowUpResponseGate();
   private suppressedToolCalls: SuppressedToolCall[] = [];
   private handledFollowUpVersion = 0;
 
-  constructor(private readonly channel: AgentRunInputChannel) {}
+  constructor(private readonly channel: RuntimeInputQueue) {}
 
   prepareStep(messages: UserModelMessage[]): boolean {
     let hasFollowUp = false;
@@ -224,7 +222,7 @@ export class AgentRunInputControl {
                   toolBuffers.clear();
                   controller.enqueue({
                     ...part,
-                    finishReason: { unified: "stop", raw: FOLLOW_UP_PREEMPTED_FINISH_REASON },
+                    finishReason: { unified: "stop", raw: RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON },
                   });
                   return;
                 }
@@ -248,7 +246,7 @@ export class AgentRunInputControl {
               if (preempted && !sawFinish) {
                 controller.enqueue({
                   type: "finish",
-                  finishReason: { unified: "stop", raw: FOLLOW_UP_PREEMPTED_FINISH_REASON },
+                  finishReason: { unified: "stop", raw: RUNTIME_FOLLOW_UP_PREEMPTED_FINISH_REASON },
                   usage: emptyUsage(),
                 });
               }
