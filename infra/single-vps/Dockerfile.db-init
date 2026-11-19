@@ -42,9 +42,9 @@ COPY apps/backend/services/runtime/migrations   /schema/runtime/migrations
 COPY apps/backend/services/knowledge/migrations /schema/knowledge/migrations
 COPY apps/backend/services/telemetry/migrations /schema/telemetry/migrations
 
-# Prod-only seed data (env-specific config rows, e.g. the app-registry with
-# same-origin MFE manifest URLs). Layout: /seed/<db>/*.sql, applied AFTER schema.
-COPY infra/single-vps/seed /seed
+# Service-owned deployment seed data. Layout: /seed/<db>/*.sql, applied AFTER
+# schema. The same Admin app registry is used by local bootstrap.
+COPY apps/backend/services/admin/seed/apps.sql /seed/admin/apps.sql
 
 ENTRYPOINT ["/init.sh"]
 

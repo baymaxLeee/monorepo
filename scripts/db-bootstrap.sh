@@ -43,9 +43,15 @@ for service_dir in "${SERVICE_DIRS[@]}"; do
     "$ROOT/scripts/db-migrate.sh" "$service_dir"
 done
 
-IAM_DIR="$SERVICES_DIR/iam"
+ADMIN_SEED="$SERVICES_DIR/admin/seed/apps.sql"
+ADMIN_PASSWORD="${ADMIN_POSTGRES_PASSWORD:-admin}"
 
-echo "→ Admin and Chat demo resources are created through their HTTP APIs"
+echo "→ Seeding Admin app registry..."
+docker exec -i -e PGPASSWORD="$ADMIN_PASSWORD" "$PG_CONTAINER" \
+  psql -v ON_ERROR_STOP=1 -U admin -d admin < "$ADMIN_SEED"
+echo "✓ Admin app registry ready"
+
+IAM_DIR="$SERVICES_DIR/iam"
 
 echo "→ Bootstrapping iam identity (super-admin + guest-workspace)..."
 cd "$IAM_DIR"
