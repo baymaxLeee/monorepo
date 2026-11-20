@@ -17,6 +17,7 @@
     "@repo/agent-runtime": "workspace:*",
     "@repo/shared": "workspace:*",
     "ai": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

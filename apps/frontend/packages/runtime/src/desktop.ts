@@ -1,6 +1,7 @@
 import type { DesktopBridge } from "./generated/desktop";
 export type {
   DesktopBridge,
+  InstalledLocalPlugin,
   DesktopEvent,
   LocalDirectoryEntry,
   LocalFile,
@@ -11,5 +12,5 @@ export type {
 
 export function getDesktopBridge(): DesktopBridge | null {
   const bridge = (globalThis as typeof globalThis & { desktop?: DesktopBridge }).desktop;
-  return bridge?.version === 6 ? bridge : null;
+  return bridge?.version === 7 ? bridge : null;
 }

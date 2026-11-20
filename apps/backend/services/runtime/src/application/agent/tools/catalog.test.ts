@@ -118,7 +118,7 @@ void test("core tool catalog does not install plugins outside the resolved Turn 
       false,
     );
     assert.equal(
-      resolved.manifests.some((manifest) => manifest.name === "get_canvas"),
+      resolved.manifests.some((manifest) => manifest.name === "get_canvas_context"),
       false,
     );
   } finally {

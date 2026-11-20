@@ -16,8 +16,8 @@ import { attachExecutionEnvironment } from "@repo/agent-runtime/execution/enviro
 import { ExecPolicy } from "@repo/agent-runtime/execution/exec-policy";
 import { compilePermissionProfile, type ApprovalPolicy } from "@repo/agent-runtime/execution/permissions";
 import { ToolOrchestrator } from "@repo/agent-runtime/execution/tool-orchestrator";
+import { renderAvailableSkills } from "@repo/agent-runtime/instructions/index";
 import { PluginManager } from "@repo/agent-runtime/plugins/manager";
-import { resolveTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
 import type {
   AgentPluginContext,
   PluginActivation,
@@ -33,6 +33,7 @@ import {
 import type { RuntimeTurnSettings } from "@repo/agent-runtime/session/types";
 import { compileTurnTools } from "@repo/agent-runtime/tools/catalog";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
+import { continuedSkillName } from "@repo/agent-runtime/tools/skills";
 import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
 import { readUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 
@@ -49,6 +50,7 @@ import type { InferenceConfig, ReasoningEffort } from "../../contracts/inference
 import { localUserMessagePreview } from "../local-user-message";
 import { localExecutionTools } from "./execution-tools";
 import { LocalJournal } from "./journal";
+import { resolveDesktopPlugins } from "./local-plugins";
 import { relayModel, type RelayCall } from "./relay-model";
 import { LocalWorkspaces } from "./workspace";
 
@@ -83,7 +85,6 @@ export class DesktopSessionManager {
   private segments = new Map<string, { id: string; messages: UIMessage[]; chunks: UIMessageChunk[]; done: boolean }>();
   private current = new Map<string, LocalThread>();
   private observedWorkspaceEpochs = new Map<string, number>();
-  private orchestrators = new Map<string, ToolOrchestrator>();
   constructor(private readonly options: DesktopSessionOptions) {
     this.journal = new LocalJournal(options.directory);
     this.workspaces = new LocalWorkspaces(
@@ -283,10 +284,12 @@ export class DesktopSessionManager {
     signal.throwIfAborted();
     const turnId = thread.turnId;
     if (!turnId) throw new Error("本地轮次缺少标识");
-    const pluginSnapshot = await resolveTurnPluginSnapshot(
+    const { snapshot: pluginSnapshot, bodies } = await resolveDesktopPlugins(
+      this.options.directory,
       this.journal.getPluginSnapshot(turnId),
       thread.pluginActivations,
-      (selection) => this.options.resolvePlugins(selection, signal),
+      (selection, abort) => this.options.resolvePlugins(selection, abort),
+      signal,
     );
     this.journal.savePluginSnapshot(turnId, pluginSnapshot);
     const pluginContext: AgentPluginContext = {
@@ -300,7 +303,7 @@ export class DesktopSessionManager {
     };
     const pluginSet = await this.plugins.load(pluginSnapshot, pluginContext);
     scope.defer(() => pluginSet.dispose());
-    if (pluginSet.skills.length > 0) {
+    if (pluginSet.skills.some((skill) => !bodies.has(`${skill.pluginId}:${skill.name}`))) {
       throw new Error("本地执行尚未配置插件 Skill asset loader");
     }
     const config = await this.options.config(thread.providerId, thread.reasoningEffort, signal);
@@ -317,22 +320,22 @@ export class DesktopSessionManager {
       // Local transport does not yet accept SDK client-tool results. This is
       // a host protocol gap, not a separately curated portable default set.
       clientInteraction: false,
+      skillSource: { skills: [...bodies.values()], activeSkillName: continuedSkillName(thread.messages.at(-1)) },
     });
     const activePermission = compilePermissionProfile(thread.permissionProfile, { workspaceRoot: thread.workspace });
-    const orchestrator =
-      this.orchestrators.get(turnId) ??
-      new ToolOrchestrator({
-        approvalPolicy: thread.approvalPolicy as ApprovalPolicy,
-        permissionProfile: activePermission.profile,
-        fileSystemPolicy: {
-          workspaceRoot: thread.workspace,
-          workingDirectory: thread.workspace,
-          immutableWriteRoots: this.options.controlDirectories,
-        },
-        execPolicy: new ExecPolicy(),
-        processManager: runWorkspace.sandbox.processes,
-      });
-    this.orchestrators.set(turnId, orchestrator);
+    const orchestrator = new ToolOrchestrator({
+      continuation: thread.messages.at(-1),
+      approvalPolicy: thread.approvalPolicy as ApprovalPolicy,
+      permissionProfile: activePermission.profile,
+      fileSystemPolicy: {
+        workspaceRoot: thread.workspace,
+        workingDirectory: thread.workspace,
+        immutableWriteRoots: this.options.controlDirectories,
+      },
+      execPolicy: new ExecPolicy(),
+      processManager: runWorkspace.sandbox.processes,
+    });
+    scope.defer(() => orchestrator.close());
     const { environment, executionManifests } = localExecutionTools(
       thread,
       this.workspaces,
@@ -371,7 +374,10 @@ export class DesktopSessionManager {
         activeTools,
         experimental_toolCallers: toolCallers as never,
         maxOutputTokens: config.maxOutputTokens,
-        instructions: attachExecutionEnvironment(config.instructions, environment),
+        instructions: attachExecutionEnvironment(
+          [config.instructions, renderAvailableSkills(portableTools.skills)].filter(Boolean).join("\n\n"),
+          environment,
+        ),
         onStepEnd: (event) => {
           const usage = runtimeTokenUsage(event.usage);
           const snapshot = finalizeSessionContext(contextEstimate, usage);
@@ -468,10 +474,6 @@ export class DesktopSessionManager {
         thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
       }
       await Promise.allSettled([...settlements]);
-      if (thread.status !== "waiting" && thread.turnId) {
-        this.orchestrators.get(thread.turnId)?.close();
-        this.orchestrators.delete(thread.turnId);
-      }
       thread.pendingInputs = thread.pendingInputs.filter((input) => input.state !== "delivered");
       try {
         this.save(thread);
@@ -505,29 +507,18 @@ export class DesktopSessionManager {
       thread.error = "用户停止了待审批轮次";
       thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
       this.save(thread);
-      if (thread.turnId) {
-        this.orchestrators.get(thread.turnId)?.close();
-        this.orchestrators.delete(thread.turnId);
-      }
     }
   }
   async remove(id: string) {
     await this.stop(id);
     this.segments.delete(id);
     this.observedWorkspaceEpochs.delete(id);
-    const turnId = this.get(id).turnId;
-    if (turnId) {
-      this.orchestrators.get(turnId)?.close();
-      this.orchestrators.delete(turnId);
-    }
     this.journal.remove(id);
   }
   async close() {
     this.closed = true;
     await Promise.all([...this.active.keys()].map((id) => this.stop(id)));
     await this.workspaces.close();
-    for (const orchestrator of this.orchestrators.values()) orchestrator.close();
-    this.orchestrators.clear();
     this.journal.close();
   }
 }

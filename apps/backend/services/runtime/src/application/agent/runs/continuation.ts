@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { askUserInputSchema, askUserOutcomeSchema } from "@repo/agent-runtime/tools/interaction";
 import { toolOutcomeData } from "@repo/agent-runtime/tools/outcome";
+import { continuedSkillName } from "@repo/agent-runtime/tools/skills";
 import { getToolName, isToolUIPart, type UIMessage, type UIMessagePart } from "ai";
 
 import { RequestError } from "../../errors.js";
@@ -209,25 +210,12 @@ export function mergeClientContinuation(persisted: AnyUIMessage, client: AnyUIMe
 }
 
 export function continuedSkillReference(message: AnyUIMessage): ContinuedSkillReference | null {
-  let loaded: ContinuedSkillReference | null = null;
-  for (const part of message.parts) {
-    if (!isToolUIPart(part) || getToolName(part) !== "load_skill" || part.state !== "output-available") {
-      continue;
-    }
-    const output = toolOutcomeData("output" in part ? part.output : null);
-    if (!output || typeof output !== "object") {
-      continue;
-    }
-    const name = "name" in output && typeof output.name === "string" ? output.name : "";
-    if (!name) {
-      continue;
-    }
-    if (loaded && loaded.name !== name) {
-      throw new RequestError("client continuation contains multiple loaded skills");
-    }
-    loaded ??= { name };
+  try {
+    const name = continuedSkillName(message);
+    return name ? { name } : null;
+  } catch (error) {
+    throw new RequestError(error instanceof Error ? error.message : String(error));
   }
-  return loaded;
 }
 
 export function compactHistoricalSkillOutputs(message: AnyUIMessage): AnyUIMessage {

@@ -1,13 +1,13 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -95,7 +95,14 @@ func ValidateAgentPluginManifest(manifest domain.AgentPluginManifest) error {
 		return err
 	}
 	if manifest.Digest != want {
-		return fmt.Errorf("agent plugin %s release digest does not match its manifest", manifest.ID)
+		// Previously published releases used the struct serialization directly.
+		// Accept the old digest only when the stored content still verifies.
+		previous := manifest
+		previous.Digest = ""
+		raw, err := json.Marshal(previous)
+		if err != nil || releaseChecksum(raw) != manifest.Digest {
+			return fmt.Errorf("agent plugin %s release digest does not match its manifest", manifest.ID)
+		}
 	}
 	return nil
 }
@@ -123,21 +130,20 @@ func (s AgentPluginService) ReconcileSystemReleases(ctx context.Context, seeds [
 		}
 		seed.Catalog.LatestReleaseDigest = seed.Manifest.Digest
 		if err := s.Repository.Transaction(ctx, func(repository AgentPluginRepository) error {
+			existing, err := repository.GetRelease(ctx, seed.Manifest.ID, seed.Manifest.Digest)
+			if err == nil {
+				if existing.Digest != seed.Manifest.Digest {
+					return fmt.Errorf("unexpected stored release identity for %s", seed.Manifest.ID)
+				}
+				return ValidateAgentPluginManifest(existing)
+			}
+			if !s.isNotFound(err) {
+				return err
+			}
 			if err := repository.UpsertCatalogEntry(ctx, seed.Catalog); err != nil {
 				return err
 			}
-			existing, err := repository.GetRelease(ctx, seed.Manifest.ID, seed.Manifest.Digest)
-			if err != nil && !s.isNotFound(err) {
-				return err
-			}
-			if err == nil {
-				if !reflect.DeepEqual(existing, seed.Manifest) {
-					return fmt.Errorf("immutable agent plugin release %s/%s changed", seed.Manifest.ID, seed.Manifest.Digest)
-				}
-			} else if err = repository.CreateRelease(ctx, seed.Manifest); err != nil {
-				return err
-			}
-			return nil
+			return repository.CreateRelease(ctx, seed.Manifest)
 		}); err != nil {
 			return err
 		}
@@ -147,7 +153,7 @@ func (s AgentPluginService) ReconcileSystemReleases(ctx context.Context, seeds [
 
 // PublishRelease records a reviewed immutable release. Publishing is resource governance only:
 // it never contacts the MCP endpoint or activates the plugin for a workspace. System releases
-// may be entered manually by a super-admin when deployment-time seeding is intentionally absent.
+// may also be published explicitly by a super-admin.
 func (s AgentPluginService) PublishRelease(ctx context.Context, actor Actor, input PublishAgentPluginInput) (domain.AgentPluginCatalogEntry, domain.AgentPluginManifest, error) {
 	if !actor.IsSuperAdmin() {
 		return domain.AgentPluginCatalogEntry{}, domain.AgentPluginManifest{}, Forbidden("super_admin role required")
@@ -173,7 +179,7 @@ func (s AgentPluginService) PublishRelease(ctx context.Context, actor Actor, inp
 			return getErr
 		}
 		if getErr == nil {
-			if !reflect.DeepEqual(existing, manifest) {
+			if existing.Digest != manifest.Digest || ValidateAgentPluginManifest(existing) != nil {
 				return fmt.Errorf("immutable agent plugin release %s/%s changed", manifest.ID, manifest.Digest)
 			}
 			return nil
@@ -675,8 +681,24 @@ func manifestDigest(manifest domain.AgentPluginManifest) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("marshal agent plugin manifest: %w", err)
 	}
+	// JSONB reorders object keys, including those inside raw MCP schemas.
+	// UseNumber preserves the precision of numeric constraints during canonicalization.
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var content map[string]any
+	if err = decoder.Decode(&content); err != nil {
+		return "", err
+	}
+	canonical, err := json.Marshal(content)
+	if err != nil {
+		return "", err
+	}
+	return releaseChecksum(canonical), nil
+}
+
+func releaseChecksum(raw []byte) string {
 	hash := sha256.Sum256(raw)
-	return "sha256:" + hex.EncodeToString(hash[:]), nil
+	return "sha256:" + hex.EncodeToString(hash[:])
 }
 
 func snapshotDigest(snapshot domain.ResolvedAgentPluginSnapshot) (string, error) {

@@ -4,17 +4,15 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import type {
-  AgentPluginManifest,
-  PluginActivation,
-  ResolvedTurnPluginSnapshot,
-} from "@repo/agent-runtime/plugins/types";
+import type { AgentPluginManifest, ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
 import { defineAgentTool } from "@repo/agent-runtime/tools/manifest";
 import { isToolUIPart, tool } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import type { LocalPluginActivation } from "../contracts/bridge.generated";
 import type { InferenceRequest } from "../contracts/inference.generated";
+import { importLocalPlugin, listLocalPlugins } from "../electron/runtime/local-plugins";
 import { DesktopSessionManager, type DesktopSessionOptions } from "../electron/runtime/session-manager";
 
 const finish: LanguageModelV4StreamPart = {
@@ -50,7 +48,7 @@ afterEach(async () => {
 async function fixture(
   call: DesktopSessionOptions["call"],
   overrides: Partial<Pick<DesktopSessionOptions, "pluginLoader" | "resolvePlugins">> = {},
-  pluginActivations: PluginActivation[] = [],
+  pluginActivations: LocalPluginActivation[] = [],
 ) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "local-agent-")));
   directories.push(directory);
@@ -176,6 +174,53 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     f.runtime.send(f.thread.id, user("run"), randomUUID());
     expect(() => f.runtime.setModelBinding(f.thread.id, "provider", "low")).toThrow("当前轮次的模型与推理深度已冻结");
     await done(f.runtime, f.thread.id);
+  });
+
+  it("loads an installed local Codex skill alongside the Admin selection in one frozen turn", async () => {
+    const platform = docsSnapshot();
+    const resolvePlatform = vi.fn(async () => platform);
+    const requests: InferenceRequest[] = [];
+    const f = await fixture(
+      async (request) => {
+        requests.push(request);
+        return reply(
+          requests.length === 1
+            ? [
+                {
+                  type: "tool-call",
+                  toolCallId: "skill",
+                  toolName: "load_skill",
+                  input: JSON.stringify({ name: "writing@local:proofread" }),
+                },
+              ]
+            : text(),
+        );
+      },
+      { resolvePlugins: resolvePlatform },
+      [{ pluginId: platform.plugins[0]!.manifest.id }, { origin: "local", pluginId: "writing@local" }],
+    );
+    const root = join(f.thread.workspace, "writing-source");
+    await mkdir(join(root, ".codex-plugin"), { recursive: true });
+    await mkdir(join(root, "skills", "proofread"), { recursive: true });
+    await writeFile(join(root, ".codex-plugin/plugin.json"), JSON.stringify({ name: "writing", version: "1.0.0" }));
+    await writeFile(
+      join(root, "skills/proofread/SKILL.md"),
+      "---\nname: proofread\ndescription: Review spelling\n---\nUse the local spelling guide.",
+    );
+    const installed = await importLocalPlugin(f.options.directory, root);
+    expect(await listLocalPlugins(f.options.directory)).toEqual([installed]);
+    await rm(root, { recursive: true });
+    f.runtime.send(f.thread.id, user("proofread"), randomUUID());
+    const thread = await done(f.runtime, f.thread.id);
+    expect(thread.status).toBe("idle");
+    const snapshot = f.runtime.journal.getPluginSnapshot(thread.turnId!);
+    expect(snapshot?.plugins.map(({ manifest }) => manifest.id)).toEqual([
+      platform.plugins[0]!.manifest.id,
+      "writing@local",
+    ]);
+    expect(JSON.stringify(requests[0]?.options.prompt)).toContain("writing@local:proofread");
+    expect(JSON.stringify(requests[1]?.options.prompt)).toContain("Use the local spelling guide.");
+    expect(JSON.stringify(resolvePlatform.mock.calls)).not.toContain("writing@local");
   });
 
   it("freezes plugin tools for the Turn, persists only the audit snapshot and disposes resources", async () => {

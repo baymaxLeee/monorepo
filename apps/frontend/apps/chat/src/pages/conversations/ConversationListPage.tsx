@@ -7,7 +7,7 @@ import {
   type ModelProvider,
 } from "@repo/api/admin";
 import { createConversation, type ReasoningEffort } from "@repo/api/chat";
-import { getDesktopBridge } from "@repo/runtime/desktop";
+import { getDesktopBridge, type InstalledLocalPlugin } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -31,6 +31,8 @@ export function ConversationListPage() {
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
   const [pluginOptions, setPluginOptions] = useState<AgentPluginSelectionOption[] | null>(null);
+  const [installed, setInstalled] = useState<InstalledLocalPlugin[]>([]);
+  const [selectedLocal, setSelectedLocal] = useState<string[]>([]);
   const [pluginOverrides, setPluginOverrides] = useState<Record<string, boolean>>({});
   const selectedPluginIds = (pluginOptions ?? [])
     .filter(
@@ -100,6 +102,32 @@ export function ConversationListPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (!bridge || location !== "local" || !localAvailable) return;
+    let current = true;
+    void bridge
+      .listLocalPlugins()
+      .then((items) => {
+        if (current) setInstalled(items);
+      })
+      .catch((cause) => {
+        if (current) setError(getErrorMessage(cause, "无法加载本地插件"));
+      });
+    return () => {
+      current = false;
+    };
+  }, [bridge, location, localAvailable]);
+
+  async function importPlugin() {
+    if (!bridge) return;
+    try {
+      const plugin = await bridge.importLocalPlugin();
+      if (plugin) setInstalled(await bridge.listLocalPlugins());
+    } catch (cause) {
+      setError(getErrorMessage(cause, "无法导入本地插件"));
+    }
+  }
+
   async function submit(value: PromptInputValue) {
     if (pending.current || (!value.text.trim() && value.tokens.length === 0)) return;
     pending.current = true;
@@ -119,7 +147,10 @@ export function ConversationListPage() {
           reasoningEffort,
           approvalPolicy,
           permissionProfile,
-          selectedPluginIds.map((pluginId) => ({ pluginId })),
+          [
+            ...selectedPluginIds.map((pluginId) => ({ pluginId })),
+            ...selectedLocal.map((pluginId) => ({ pluginId, origin: "local" as const })),
+          ],
         );
         try {
           await bridge.send(thread.id, parts, randomId());
@@ -167,6 +198,14 @@ export function ConversationListPage() {
           disabled={busy}
         />
         <ConversationPluginPicker
+          installed={installed}
+          selectedLocal={selectedLocal}
+          onToggleLocal={(id, checked) =>
+            setSelectedLocal((previous) =>
+              checked ? [...new Set([...previous, id])] : previous.filter((candidate) => candidate !== id),
+            )
+          }
+          onImport={() => void importPlugin()}
           options={pluginOptions ?? []}
           local={location === "local"}
           selected={selectedPluginIds}

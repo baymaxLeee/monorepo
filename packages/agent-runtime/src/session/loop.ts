@@ -1,5 +1,6 @@
 import {
   addToolInputExamplesMiddleware,
+  isLoopFinished,
   ToolLoopAgent,
   wrapLanguageModel,
   type ModelMessage,
@@ -47,6 +48,7 @@ export function createAgentLoop<C extends Record<string, unknown>>(options: Agen
     };
   };
   return new ToolLoopAgent<never, ToolSet, C>({
+    stopWhen: isLoopFinished(),
     ...settings,
     id: settings.id ?? "runtime-agent",
     model: wrapLanguageModel({

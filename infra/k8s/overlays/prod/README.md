@@ -72,7 +72,7 @@ GitHub Actions deploy job:
 1. Build & push image with tag = `${GITHUB_SHA::8}` to 火山 CR
 2. Run the checked-in `db-init` migration image as a one-shot Job; the deploy stops before IAM bootstrap and rollout if any service migration fails. Run the Workflow World schema setup with its official CLI before Runtime worker rollout.
 3. Pin the application images, including `storage`, in the prod overlay.
-4. Run the idempotent IAM identity bootstrap Job and wait for completion.
+4. Apply release ConfigMaps, then run the IAM identity bootstrap and Admin built-in plugin release Jobs and wait for both to complete. Workspace admins manage plugin installations.
 5. Render/apply the prod overlay; placeholder Secrets are removed by the overlay.
 6. Wait for every application Deployment rollout, including `storage`.
 

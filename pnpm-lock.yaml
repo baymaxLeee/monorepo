@@ -388,6 +388,9 @@ catalogs:
     workflow:
       specifier: 5.2.3
       version: 5.2.3
+    yaml:
+      specifier: 2.9.0
+      version: 2.9.0
 
 overrides:
   '@workflow/builders': 5.0.6
@@ -892,6 +895,9 @@ importers:
       ai:
         specifier: ^7.0.172
         version: 7.0.172(zod@4.6.5)
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
       zod:
         specifier: ^4.6.5
         version: 4.6.5

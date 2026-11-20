@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import json
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -48,36 +50,18 @@ def _scope_credential(headers: dict[str, str]) -> str:
 
 _TRUSTED_HEADERS["X-Runtime-Scope-Credential"] = _scope_credential(_TRUSTED_HEADERS)
 
-_PUBLISHED_INPUT_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "title": "_searchArguments",
-    "properties": {
-        "query": {
-            "type": "string",
-            "title": "Query",
-            "description": "Focused semantic query for private knowledge.",
-            "minLength": 1,
-            "maxLength": 2000,
-        },
-        "top_k": {
-            "title": "Top K",
-            "description": "Optional maximum passage count.",
-            "default": None,
-            "anyOf": [
-                {"type": "integer", "minimum": 1, "maximum": 20},
-                {"type": "null"},
-            ],
-        },
-    },
-    "required": ["query"],
-}
-
 
 @pytest.mark.asyncio
 async def test_inventory_matches_the_published_release_schema() -> None:
     tools = await server.mcp.list_tools()
 
-    assert [(tool.name, tool.inputSchema) for tool in tools] == [("knowledge_search", _PUBLISHED_INPUT_SCHEMA)]
+    releases = json.loads((Path(__file__).resolve().parents[7] / "schemas/mcp/system-plugins.json").read_text())
+    published = next(release for release in releases if release["id"] == "knowledge@platform")["mcpServers"][0]["tools"]
+    assert len(tools) == len(published) == 1
+    assert tools[0].name == published[0]["name"] == "knowledge_search"
+    assert tools[0].inputSchema == published[0]["inputSchema"]
+    assert tools[0].outputSchema == published[0]["outputSchema"]
+    assert tools[0].description == published[0]["description"]
 
 
 @pytest.mark.asyncio

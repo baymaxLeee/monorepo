@@ -122,7 +122,7 @@ ssh "${REMOTE}" "docker info --format '{{json .Runtimes}}' | grep -q runsc"
 echo "→ starting/restarting services"
 if ! ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans"; then
     echo "✗ compose startup failed; collecting one-shot container logs" >&2
-    ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env logs --tail=80 db-init workflow-db-init iam-bootstrap" || true
+    ssh "${REMOTE}" "cd ${DEPLOY_DIR} && docker compose -f docker-compose.prod.yml --env-file .env logs --tail=80 db-init workflow-db-init iam-bootstrap admin-plugin-seed" || true
     exit 1
 fi
 

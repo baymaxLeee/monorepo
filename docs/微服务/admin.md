@@ -42,9 +42,7 @@
   release 由 canonical manifest digest 寻址且不可变；installation 固定 workspace、release、enabled、
   config、加密 secrets 与单调 revision。Chat/renderer 只能提交 `pluginId` 和 manifest 声明的非秘密
   bindings；resolve 校验 scope 后返回 Turn-frozen snapshot，connection grants 只供 Runtime/Desktop
-  执行进程内存使用。服务启动不隐式 seed；系统插件当前可手工发布/安装，未来部署 one-shot seed
-  也必须调用同一 application service。完整生命周期见
-  [Agent plugin ADR](../ADR/agent-plugins.md)。
+  执行进程内存使用。本地 bootstrap 和部署前的一次性 `seed-plugins` 使用 Admin 的发布逻辑将 Knowledge 和 Canvas 两个内置 release 加入目录。工作区管理员管理安装与启用，重跑同一版本保留选择。[Agent plugin ADR](../ADR/agent-plugins.md)
 
 ## 不负责
 

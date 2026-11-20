@@ -357,6 +357,7 @@ export async function createAgentRunResponse(
       titleSourceText.length > 0;
 
     const modelUiMessages = persistedMessagesToModelUiMessages(persistedMessages);
+    let persistedContinuation: AnyUIMessage | undefined;
     let continuedSkill: ContinuedSkillReference | null = null;
     if (operation === "tool-continuation") {
       const continuationIndex = modelUiMessages.findIndex(
@@ -365,7 +366,7 @@ export async function createAgentRunResponse(
       if (continuationIndex < 0) {
         throw new RequestError("client tool continuation message was not found");
       }
-      const persistedContinuation = modelUiMessages[continuationIndex];
+      persistedContinuation = modelUiMessages[continuationIndex];
       continuedSkill = continuedSkillReference(persistedContinuation);
     }
 
@@ -451,6 +452,7 @@ export async function createAgentRunResponse(
             sessionId: session.id,
             signal: scope.signal,
             pluginSnapshot,
+            continuation: persistedContinuation,
             provider,
             reasoningEffort: input.reasoningEffort,
             approvalPolicy: session.approvalPolicy as ApprovalPolicy,

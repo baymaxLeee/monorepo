@@ -11,7 +11,9 @@ thread history. Adding a project invokes native directory selection and records 
 one-shot grant; local thread creation consumes that selected grant and never opens
 the directory picker as a side effect of sending.
 
-Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. Bridge v6
+The native plugin picker installs a user-selected package into the authenticated scope. Listing and import return only a plugin ID and display name. Local thread creation marks personal activations with `origin: "local"`. Only platform activations cross the inference relay's plugin resolver.
+
+Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. Bridge v7
 accepts bounded native `text` and inline `file` user parts; main and utility-process
 admission both reject remote file URLs, malformed data URLs and oversized payloads.
 The native transport does not use cloud conversation APIs or add custom `data-*` parts. A stream segment starts from its original

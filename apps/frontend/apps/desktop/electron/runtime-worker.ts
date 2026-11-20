@@ -120,6 +120,7 @@ async function dispatch(method: string, payload: unknown) {
             .array(
               z
                 .object({
+                  origin: z.literal("local").optional(),
                   pluginId: z
                     .string()
                     .min(3)

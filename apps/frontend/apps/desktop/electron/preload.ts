@@ -8,11 +8,13 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
   const call = <T>(method: string, payload?: unknown): Promise<T> =>
     ipcRenderer.invoke("desktop:invoke", method, payload);
   const bridge: DesktopBridge = {
-    version: 6,
+    version: 7,
     info: () => call("info"),
     bindSession: (accessToken, expiresAt) => call("bindSession", { accessToken, expiresAt }),
     clearSession: () => call("clearSession"),
     refreshSession: () => call("refreshSession"),
+    importLocalPlugin: () => call("importLocalPlugin"),
+    listLocalPlugins: () => call("listLocalPlugins"),
     listThreads: () => call("list"),
     selectWorkspace: () => call("selectWorkspace"),
     createThread: (workspace, providerId, reasoningEffort, approvalPolicy, permissionProfile, pluginActivations) =>

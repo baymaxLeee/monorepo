@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   providers: vi.fn(),
   plugins: vi.fn(),
+  listLocalPlugins: vi.fn(),
+  importLocalPlugin: vi.fn(),
   desktop: false,
 }));
 vi.mock("@repo/api/chat", () => ({ createConversation: mocks.create }));
@@ -36,19 +38,19 @@ vi.mock("@repo/api/admin", () => ({ listAgentPluginOptions: mocks.plugins, listP
 vi.mock("@repo/ai-elements/conversation/lib/upload-conversation-files", () => ({
   uploadConversationFiles: mocks.upload,
 }));
-vi.mock("@repo/runtime/desktop", () => ({
-  getDesktopBridge: () =>
-    mocks.desktop
-      ? {
-          createThread: mocks.local,
-          info: mocks.info,
-          listThreads: mocks.list,
-          removeThread: mocks.remove,
-          selectWorkspace: mocks.selectWorkspace,
-          send: mocks.send,
-        }
-      : null,
-}));
+vi.mock("@repo/runtime/desktop", () => {
+  const bridge = {
+    createThread: mocks.local,
+    info: mocks.info,
+    listThreads: mocks.list,
+    removeThread: mocks.remove,
+    selectWorkspace: mocks.selectWorkspace,
+    send: mocks.send,
+    listLocalPlugins: mocks.listLocalPlugins,
+    importLocalPlugin: mocks.importLocalPlugin,
+  };
+  return { getDesktopBridge: () => (mocks.desktop ? bridge : null) };
+});
 vi.mock("react-router-dom", async (original) => ({
   ...(await original<typeof Router>()),
   useNavigate: () => mocks.navigate,
@@ -132,6 +134,7 @@ vi.mock("./DesktopNewConversationPrompt", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.desktop = false;
+  mocks.listLocalPlugins.mockResolvedValue([]);
   mocks.create.mockResolvedValue({ id: "cloud" });
   mocks.local.mockResolvedValue({ id: "local" });
   mocks.list.mockResolvedValue([{ workspace: "/projects/monorepo" }]);
@@ -204,7 +207,7 @@ test("Desktop uses the Codex-style local editor and starts in the selected proje
   );
   expect((await screen.findByRole("combobox", { name: "执行位置" })).textContent).toContain("此计算机");
   await waitFor(() => expect(screen.getByRole("button", { name: "选择项目" }).textContent).toContain("monorepo"));
-  expect(screen.queryByRole("button", { name: "选择插件" })).toBeNull();
+  expect(screen.getByRole("button", { name: "选择插件" })).toBeTruthy();
   expect(screen.getByRole("heading").textContent).toContain("你想让我们在 monorepo 中构建什么？");
   expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
@@ -386,4 +389,37 @@ test("a thread can opt out of an installed default plugin", async () => {
   fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "文档搜索" }));
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() => expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ plugin_selections: [] })));
+});
+
+test("importing a local plugin leaves it unchecked until the user selects it", async () => {
+  mocks.desktop = true;
+  const installed = { pluginId: "writing@local", displayName: "写作插件" };
+  mocks.importLocalPlugin.mockImplementation(async () => {
+    mocks.listLocalPlugins.mockResolvedValue([installed]);
+    return installed;
+  });
+  render(
+    <MemoryRouter>
+      <ConversationListPage />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(mocks.listLocalPlugins).toHaveBeenCalled());
+  fireEvent.click(await screen.findByRole("button", { name: "选择插件" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "导入本地插件…" }));
+  await waitFor(() => expect(mocks.importLocalPlugin).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole("button", { name: "选择插件" }));
+  const item = await screen.findByRole("menuitemcheckbox", { name: /写作插件/ });
+  expect(item.getAttribute("aria-checked")).toBe("false");
+  fireEvent.click(item);
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() =>
+    expect(mocks.local).toHaveBeenCalledWith(
+      "/projects/monorepo",
+      "cloud-model",
+      "medium",
+      "on-request",
+      ":workspace",
+      [{ pluginId: "writing@local", origin: "local" }],
+    ),
+  );
 });

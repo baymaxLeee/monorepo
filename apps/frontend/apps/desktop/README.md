@@ -28,13 +28,9 @@ Thread/Turn/Item 数据库位于 `sessions/<identity-scope>/runtime.sqlite`；�
 切换：旧 `runtime-v1.sqlite`、`sessions.sqlite` 与旧 Electron `userData/local/<scope>` 不读取、
 不导入，也不覆盖或删除。runtime home 和 Electron `userData` 都属于 Agent 禁止访问的控制目录。
 
-Desktop bridge v6 在创建本地 Thread 时只接收 plugin IDs 和非秘密 bindings；用户消息只接收经过 main 与 utility process 双重校验的 bounded `text` / inline `file` parts，拒绝远程文件 URL。每个
-Turn 由 utility process 经 main → Chat BFF → Runtime 的 IAM-scoped `/local-inference/plugins/resolve`
-通道解析当前 Admin installation；renderer 不接触 endpoint、header 或 token。去密的 manifest/
-activation snapshot 在首次模型调用前写入本地 `turn_plugin_snapshots`，connection grant 只驻留 utility
-进程内存。MCP tools 通过 AI SDK 原生 `tool_search` 懒披露，Turn 结束、取消或失败后释放。当前本地
-验证面只有 `knowledge_search` 与只读 `get_canvas`；含插件 Skill 的 snapshot 因尚无受认证 asset
-loader 而 fail closed。
+在“此计算机 → 插件 → 导入本地插件…”选择带 `plugin.json`（Agent Plugins v1）或 `.codex-plugin/plugin.json` 的目录。导入会创建当前账号和工作区的本机副本。新会话可同时勾选该插件和 Admin 已开放的本机可用插件。个人插件默认未勾选，支持 Skill 正文、`references/` 文本资源和 HTTP MCP。平台系统插件及含平台 Skill 的 release 仍在云端运行。
+
+Desktop bridge v7 传递所选插件 ID、来源和非秘密 bindings。utility process 经 main、Chat BFF 和 Runtime 解析平台选择，再合并本机选择。模型调用前持久化去密的 Turn 快照，MCP 工具执行使用内存中的授权，请求结束后释放连接。用户消息经过 main 与 utility process 双重校验，仅接收 bounded `text` 和 inline `file` parts。
 
 Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 Admin 模型授权，不需要本地专属额度配置。接纳请求记录预留用量，完成后按 usage 结算；取消、崩溃或未知结果保留预留用量用于 accounting，不以独立日配额拒绝本地请求。重复请求与并发请求仍受准入保护，没有自动重试模型请求。
 

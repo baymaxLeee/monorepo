@@ -51,6 +51,15 @@ docker exec -i -e PGPASSWORD="$ADMIN_PASSWORD" "$PG_CONTAINER" \
   psql -v ON_ERROR_STOP=1 -U admin -d admin < "$ADMIN_SEED"
 echo "✓ Admin app registry ready"
 
+echo "→ Publishing built-in Knowledge and Canvas plugins..."
+(
+  cd "$SERVICES_DIR/admin"
+  PGHOST="${POSTGRES_HOST:-localhost}" PGPORT="${POSTGRES_PORT:-5432}" \
+    PGUSER=admin PGDATABASE=admin PGPASSWORD="$ADMIN_PASSWORD" \
+    KNOWLEDGE_SERVICE_URL="${KNOWLEDGE_SERVICE_URL:-http://localhost:8010}" \
+    CANVAS_SERVICE_URL="${CANVAS_SERVICE_URL:-http://localhost:8012}" go run ./cmd/seed-plugins
+)
+
 IAM_DIR="$SERVICES_DIR/iam"
 
 echo "→ Bootstrapping iam identity (super-admin + guest-workspace)..."

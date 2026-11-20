@@ -6,7 +6,13 @@ export type LocalReasoningEffort = "none" | "minimal" | "low" | "medium" | "high
 export type LocalApprovalPolicy = "never" | "on-request" | "unless-trusted" | "granular";
 export type LocalPermissionProfileId = ":read-only" | ":workspace" | ":danger-full-access";
 
+export interface InstalledLocalPlugin {
+  pluginId: string;
+  displayName: string;
+}
+
 export interface LocalPluginActivation {
+  origin?: "local";
   pluginId: string;
   bindings?: Record<string, string>;
 }
@@ -77,11 +83,13 @@ export type DesktopEvent =
 // Only these capabilities cross preload. No arbitrary channel, path grant,
 // process spawn, fetch URL or provider credential is exposed to page code.
 export interface DesktopBridge {
-  readonly version: 6;
+  readonly version: 7;
   info(): Promise<{ platform: string; localAvailable: boolean; origin: string }>;
   bindSession(accessToken: string, expiresAt: string): Promise<void>;
   clearSession(): Promise<void>;
   refreshSession(): Promise<unknown>;
+  listLocalPlugins(): Promise<InstalledLocalPlugin[]>;
+  importLocalPlugin(): Promise<InstalledLocalPlugin | null>;
   listThreads(): Promise<LocalThread[]>;
   selectWorkspace(): Promise<string | null>;
   createThread(

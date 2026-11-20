@@ -155,6 +155,15 @@ jobs:
             exit 1
           fi
 
+      # Bootstrap Jobs consume the ConfigMaps from the release being installed.
+      - name: Apply release configuration for bootstrap jobs
+        run: |
+          ruby -ryaml -rjson -e '
+            items = YAML.load_stream(File.read(ARGV.fetch(0))).compact.select { |doc| doc["kind"] == "ConfigMap" && %w[admin-config iam-config runtime-server-config].include?(doc.dig("metadata", "name")) }
+            abort "missing bootstrap ConfigMaps" unless items.length == 3
+            puts JSON.generate(apiVersion: "v1", kind: "List", items: items)
+          ' /tmp/prod-manifest.yaml | kubectl apply -n monorepo-prod -f -
+
       # One-shot identity bootstrap Job: run BEFORE rolling the Deployments so the
       # super-admin + guest-org exist before any iam replica serves traffic. The
       # bootstrap is idempotent — safe to re-run every deploy. If it fails, the
@@ -215,6 +224,43 @@ jobs:
             --timeout=5m job/${JOB_NAME}; then
             kubectl -n monorepo-prod describe job/${JOB_NAME}
             kubectl -n monorepo-prod logs job/${JOB_NAME} --all-containers=true || true
+            exit 1
+          fi
+
+      - name: Publish built-in Admin plugin releases
+        run: |
+          REG="${{ steps.vars.outputs.registry }}"
+          TAG="${{ steps.vars.outputs.tag }}"
+          JOB_NAME="admin-plugin-seed-$(date +%s)"
+          cat <<EOF | kubectl apply -n monorepo-prod -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata: { name: ${JOB_NAME} }
+          spec:
+            backoffLimit: 0
+            ttlSecondsAfterFinished: 86400
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: seed
+                    image: ${REG}/admin:${TAG}
+                    command: ["/seed-plugins"]
+                    resources:
+                      requests: { cpu: 50m, memory: 32Mi }
+                      limits: { cpu: 500m, memory: 128Mi }
+                    env:
+                      - { name: PGHOST, valueFrom: { secretKeyRef: { name: admin-secrets, key: POSTGRES_HOST } } }
+                      - { name: PGUSER, valueFrom: { secretKeyRef: { name: admin-secrets, key: POSTGRES_USER } } }
+                      - { name: PGPASSWORD, valueFrom: { secretKeyRef: { name: admin-secrets, key: POSTGRES_PASSWORD } } }
+                      - { name: PGPORT, valueFrom: { configMapKeyRef: { name: admin-config, key: POSTGRES_PORT } } }
+                      - { name: PGDATABASE, valueFrom: { configMapKeyRef: { name: admin-config, key: POSTGRES_DATABASE } } }
+                      - { name: KNOWLEDGE_SERVICE_URL, valueFrom: { configMapKeyRef: { name: runtime-server-config, key: KNOWLEDGE_SERVICE_URL } } }
+                      - { name: CANVAS_SERVICE_URL, valueFrom: { configMapKeyRef: { name: runtime-server-config, key: CANVAS_SERVICE_URL } } }
+          EOF
+          if ! kubectl -n monorepo-prod wait --for=condition=complete --timeout=5m "job/${JOB_NAME}"; then
+            kubectl -n monorepo-prod describe "job/${JOB_NAME}"
+            kubectl -n monorepo-prod logs "job/${JOB_NAME}" --all-containers=true || true
             exit 1
           fi
 

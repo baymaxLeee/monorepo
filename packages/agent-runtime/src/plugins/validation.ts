@@ -66,7 +66,7 @@ function validateManifest(manifest: AgentPluginManifest, activation: PluginActiv
   if (!manifest.displayName.trim() || !manifest.description.trim()) {
     throw new Error(`agent plugin ${manifest.id} has incomplete display metadata`);
   }
-  if (manifest.source === "external-mcp" && manifest.trust === "system") {
+  if (manifest.source !== "system" && manifest.trust === "system") {
     throw new Error(`external agent plugin ${manifest.id} cannot claim system trust`);
   }
   unique(

@@ -1,9 +1,9 @@
-import { tool } from "ai";
+import { getToolName, isToolUIPart, tool, type UIMessage } from "ai";
 import { z } from "zod";
 
 import type { SkillListing } from "../instructions/index.js";
 import { defineAgentTool } from "./manifest.js";
-import { ToolBlockedError } from "./outcome.js";
+import { ToolBlockedError, toolOutcomeData } from "./outcome.js";
 import type { AgentToolManifest } from "./types.js";
 
 export type SkillFileResource =
@@ -30,6 +30,27 @@ export interface SkillSourceEntry {
 export interface SkillSource {
   skills: SkillSourceEntry[];
   activeSkillName?: string | null;
+}
+
+/** Recover the single selected skill from the host's journal on an approval continuation. */
+export function continuedSkillName(message: UIMessage | undefined): string | null {
+  let loaded: string | null = null;
+  if (message?.role !== "assistant") return null;
+  for (const part of message.parts) {
+    if (
+      !isToolUIPart(part) ||
+      getToolName(part) !== "load_skill" ||
+      part.state !== "output-available" ||
+      part.preliminary
+    )
+      continue;
+    const output = toolOutcomeData(part.output);
+    if (!output || typeof output !== "object" || !("name" in output) || typeof output.name !== "string" || !output.name)
+      continue;
+    if (loaded && loaded !== output.name) throw new Error("client continuation contains multiple loaded skills");
+    loaded = output.name;
+  }
+  return loaded;
 }
 
 const loadSkillOutputSchema = z.object({
@@ -132,7 +153,7 @@ export function resolveSkills(source?: SkillSource | null): {
     "read_skill_file",
     tool({
       description:
-        "Read one relative file listed by a loaded admin-managed skill. Use only when SKILL.md requires that resource.",
+        "Read one relative file from the currently loaded skill. Use only when SKILL.md requires that resource.",
       inputSchema: z.object({
         name: z.string().min(1),
         path: z.string().min(1).max(1024),

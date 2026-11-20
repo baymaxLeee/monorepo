@@ -47,7 +47,7 @@ agent/
   合入 `ToolCatalog`。grant 只在进程内存；加载失败、取消或 Turn 结束必须释放已取得资源。
 - 插件 tools 默认由 AI SDK 原生 `tool_search` 渐进披露，并以
   `mcp__<server>__<tool>` 命名。当前 `knowledge@platform` 只有 `knowledge_search`，
-  `canvas@platform` 只有只读 `get_canvas`；不存在 Runtime 固定 client、旧写 Canvas tools 或 alias。
+  `canvas@platform` 只有只读 `get_canvas_context`；不存在 Runtime 固定 client、旧写 Canvas tools 或 alias。
 - Skills 渐进披露：初始 instructions 只有 name/description，命中后由 `load_skill` 读取已发布
   asset revision 并校验 digest。MCP inventory/schema 必须与 immutable release 一致，漂移 fail closed。
 

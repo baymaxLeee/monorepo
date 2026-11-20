@@ -2,7 +2,7 @@ import type { JSONSchema7 } from "@ai-sdk/provider";
 
 import type { AgentToolManifest, AgentToolPlanning, AgentToolPolicy } from "../tools/types.js";
 
-export type PluginSourceKind = "system" | "external-mcp";
+export type PluginSourceKind = "system" | "external-mcp" | "local";
 export type PluginTrustLevel = "system" | "verified" | "unverified";
 
 /** User-owned selection. Endpoints, credentials and tool policy never enter this shape. */

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -13,6 +13,14 @@ async function run() {
   const directory = await mkdtemp(join(tmpdir(), "electron-local-e2e-"));
   const workspace = join(directory, "project");
   await mkdir(workspace);
+  const plugin = join(directory, "plugin");
+  await mkdir(join(plugin, ".codex-plugin"), { recursive: true });
+  await mkdir(join(plugin, "skills", "style"), { recursive: true });
+  await writeFile(join(plugin, ".codex-plugin/plugin.json"), JSON.stringify({ name: "style" }));
+  await writeFile(
+    join(plugin, "skills/style/SKILL.md"),
+    "---\nname: style\ndescription: Style guide\n---\nUse short sentences.",
+  );
   let calls = 0;
   const server = createServer((request, response) => {
     if (request.url === "/") {
@@ -127,7 +135,10 @@ async function run() {
   const port = server.address().port;
   process.env.MONOREPO_AGENT_HOME = join(directory, "agent-home");
   process.argv.push(`--platform-url=http://127.0.0.1:${port}`, `--user-data=${join(directory, "state")}`);
-  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspace] });
+  dialog.showOpenDialog = async (_window, options) => ({
+    canceled: false,
+    filePaths: [options?.title === "导入本地插件" ? plugin : workspace],
+  });
   dialog.showMessageBox = async (_window, options) => {
     const message = options ?? _window;
     if (message.type === "error") throw new Error(message.detail ?? message.message);
@@ -159,10 +170,13 @@ async function run() {
         `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "on-request", ":workspace", [])`,
       ),
     );
+    const installed = await execute("desktop.importLocalPlugin()");
+    assert.deepEqual(installed, { pluginId: "style@local", displayName: "style" });
+    assert.deepEqual(await execute("desktop.listLocalPlugins()"), [installed]);
     const selectedWorkspace = await execute("desktop.selectWorkspace()");
     assert.equal(selectedWorkspace, workspace);
     const thread = await execute(
-      `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "on-request", ":workspace", [])`,
+      `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "on-request", ":workspace", [{pluginId: "style@local", origin: "local"}])`,
     );
     assert.equal(thread.mode, "local");
     await execute(
@@ -197,6 +211,7 @@ async function run() {
     process.stderr.write(String(error.stack ?? error));
     process.exitCode = 1;
   } finally {
+    server.closeAllConnections();
     await new Promise((resolve) => {
       server.close(resolve);
     });

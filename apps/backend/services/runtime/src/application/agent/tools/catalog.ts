@@ -11,6 +11,7 @@ import { deferAgentToolLoading } from "@repo/agent-runtime/tools/manifest";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { SkillSource } from "@repo/agent-runtime/tools/skills";
 import type { AgentToolManifest } from "@repo/agent-runtime/tools/types";
+import type { UIMessage } from "ai";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
@@ -60,9 +61,10 @@ export class ToolCatalog {
       approvalPolicy: "on-request",
       permissionProfile: ":workspace",
     },
+    continuation?: UIMessage,
   ) {
     await using acquired = new AsyncDisposableStack();
-    const cloudAdapters = await createCloudToolAdapters(executionPolicy);
+    const cloudAdapters = await createCloudToolAdapters(executionPolicy, continuation);
     acquired.defer(cloudAdapters.dispose);
     const pluginSet = await this.#plugins.load(pluginSnapshot, context);
     acquired.defer(pluginSet.dispose);

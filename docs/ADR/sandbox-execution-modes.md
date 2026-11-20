@@ -218,7 +218,7 @@ host executable 绝对路径，防止同名可执行文件或工作区 PATH shad
    exit/output signature 归类，但必须集中实现并测试后返回统一类型；orchestrator、工具和业务层不得
    各自用任意 stderr regex 猜测升级。
 5. 只有可升级的真实 denial 才能请求第二次审批，并展示第一次输出、被拒路径或目标 host 以及将
-   扩大的 authority。审批通过后最多重试一次；不透明重放、循环升级和失败后自动改写命令均禁止。
+   扩大的 authority。审批续跑从可信 assistant journal 配对拒绝和已批准的工具调用，恢复的凭据绑定原命令、请求权限与调用 ID。审批通过后最多重试一次；不透明重放、循环升级和失败后自动改写命令均禁止。
 6. 若基础 profile 有 deny-read，第二次 attempt 仍在 sandbox 中，仅扩大批准的 write/network；绝不
    通过 unsandboxed retry 丢失 deny-read。普通结果和第二次失败原样终止。
 
@@ -283,11 +283,11 @@ Electron 仍是现有 Platform 的宿主。Web 与 Electron 共享云端 Chat �
 - `apps/frontend/apps/desktop/electron` 提供 native runtime 与受限 bridge；Chat MFE 只在 Desktop 新会话 editor 和 local controller 消费这些能力。云端附件走 Conversation/Storage；本地 `+` 选择的文件以 bounded AI SDK 原生 `file` parts 送入本地 thread，不产生 Storage 副本。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
 - 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/runtime.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
 - `runtime.sqlite` 直接使用 Thread/Turn/Item/context checkpoint/Turn plugin snapshot schema，并以 revision CAS 安装摘要。它不读取或迁移旧 `runtime-v1.sqlite`、`sessions.sqlite`；旧文件不会被覆盖或删除。SQLite 是本项目的 journal adapter，不是 renderer、CLI 或云端数据库的 wire contract。
-- Bridge v6 只把 plugin activation ID/bindings 放入本地 Thread，并只接收 main 与 utility process 双重校验的 bounded `text` / inline `file` 用户消息；远程文件 URL 与不匹配的 data URL fail closed。utility process 经受信 main/Chat/Runtime 通道解析 plugin snapshot；去密 projection 在模型调用前落 SQLite，connection grant 只留内存并随 Turn cleanup。renderer 不接触 MCP endpoint、header 或 token。
-- 原生目录授权由 main 显示确认；账户/租户/工作区和 origin 分区保存 journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。Bridge v6 分别持久化 `approvalPolicy` 与 `permissionProfile`；旧 `approvalMode` 或缺失新字段的 journal 直接 fail closed，不迁移、不映射。
+- Bridge v7 把用户勾选的插件 ID、来源和非秘密 bindings 放入本地 Thread，并只接收 main 与 utility process 双重校验的 bounded `text` / inline `file` 用户消息；远程文件 URL 与不匹配的 data URL fail closed。utility process 经受信 main/Chat/Runtime 通道解析平台插件，再合并本机安装的所选 Skills 与 HTTP MCP；去密 projection 在模型调用前落 SQLite，connection grant 只留内存并随 Turn cleanup。renderer 不接触 MCP endpoint、header 或 token。
+- 原生目录授权由 main 显示确认；账户/租户/工作区和 origin 分区保存 journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。Bridge v7 分别持久化 `approvalPolicy` 与 `permissionProfile`；旧 `approvalMode` 或缺失新字段的 journal 直接 fail closed，不迁移、不映射。
 - macOS Seatbelt 当前同时约束 Bash 和文件 helper，目录身份在每次调用前复核；文件写入限制在 profile 授权目录及隔离临时目录，应用控制目录被拒绝访问。`:workspace` 默认禁止命令网络，只有有效 profile 明确启用网络或批准 `require_escalated` 才扩大能力；普通命令批准不解除 Seatbelt。当前仍没有按 host enforcement 的本地网络 broker，因此 `restricted.allowedHosts` 不能作为已实现网络能力。native supervisor 通过继承的独立策略标记识别后代、监测父进程死亡并清理 detached 子进程；依赖 macOS sandbox SPI，启动探测失败即拒绝执行，需在每个支持的 OS 版本/架构上验证，不能等同于受支持的公共 Apple API。
 - 文件工具与用户保存按同一本地目录串行；同目录至多一个活跃 Agent。普通 UTF-8 文件编辑上限 2 MiB，hash 比较拒绝旧内容覆盖，保留文件执行权限。目录观察提供变更提示，文件真实内容仍是权威来源；外部编辑器与 shell 不参与全局事务。
-- 当前首发实现由 `PermissionProfile` 编译工作区读写、只读运行依赖、受保护路径和网络开关，支持单次追加文件权限与 typed denial retry；不支持持久开发服务或 Windows/Linux 本地执行。Bash 与模型可见的 `read_file`、`apply_patch`、`write_file` 共用 Turn 级 `ToolOrchestrator + ProcessManager`；文件工具经 Seatbelt file worker 执行、携带同一 process identity/AbortSignal，并以 SHA-256 条件写入或删除拒绝过期覆盖，不存在另一个不受控文件 helper。当前没有本地 stdio MCP/plugin 子进程。Node 由 Electron 提供，用户 shell 配置和 Homebrew 环境不会自动继承。模型 Bash 默认 deadline 为 10 秒，调用可显式扩展到 120 秒；底层命令捕获上限 8 MiB，模型观察再按每流最后 2000 行/50 KiB 收敛；文件 helper 30 秒。模型 loop 使用 AI SDK 的默认 stop condition，单段 UI replay 16 MiB，超限失败并清理，均为本项目运行保护策略。
+- 当前首发实现由 `PermissionProfile` 编译工作区读写、只读运行依赖、受保护路径和网络开关，支持单次追加文件权限与 typed denial retry；不支持持久开发服务或 Windows/Linux 本地执行。Bash 与模型可见的 `read_file`、`apply_patch`、`write_file` 共用 Turn 级 `ToolOrchestrator + ProcessManager`；文件工具经 Seatbelt file worker 执行、携带同一 process identity/AbortSignal，并以 SHA-256 条件写入或删除拒绝过期覆盖，不存在另一个不受控文件 helper。当前没有本地 stdio MCP/plugin 子进程。Node 由 Electron 提供，用户 shell 配置和 Homebrew 环境不会自动继承。模型 Bash 默认 deadline 为 10 秒，调用可显式扩展到 120 秒；底层命令捕获上限 8 MiB，模型观察再按每流最后 2000 行/50 KiB 收敛；文件 helper 30 秒。交互模型 loop 使用 AI SDK 的 `isLoopFinished()` 自然终止条件，单段 UI replay 16 MiB，超限失败并清理，均为本项目运行保护策略。
 - 本地模型不使用远端 stored response lineage。shared context manager 从 SQLite journal 保留 recent tail、压缩旧 prefix 并 CAS 写入 checkpoint；relay 预算不足、压缩失败或 checkpoint 冲突时本次调用失败且保留完整历史，不能静默丢弃内容或声称无限上下文。
 - Chat relay 只做一次模型推理，验证 IAM scope、Admin 授权模型与生成参数；每用户/组织工作区一个并发请求，PostgreSQL 事务记录预留与实际 usage，未知结果保留预留用量。本地与云端共用 IAM/Admin 授权规则，不设置本地专属日额度或默认关闭开关；既有用量表保留用于 accounting，不承担独立配额准入。不保存 prompt、工具结果或文件。上游五分钟硬限时、8 MiB 输出上限，不自动重试。
 - 工作区创建不产生虚假变更提示。真实 watcher 变更按会话和版本仅通知一次，以 `<runtime_context type="workspace_changes">` 的 user-role runtime fact 进入 transcript，不修改 system prompt，也不被当作新的产品用户请求；普通问候和能力介绍不要求读取目录。

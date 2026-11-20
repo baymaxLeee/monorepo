@@ -184,7 +184,7 @@ func testAgentPluginManifest(t *testing.T, id, serverName string) domain.AgentPl
 			BindingHeaders:   map[string]string{"X-Project-ID": "project_id", "X-Canvas-ID": "canvas_id"},
 			SecretHeaders:    map[string]string{"Authorization": "access_token"},
 			Tools: []domain.AgentPluginMCPTool{{
-				Name: "get_canvas", Description: "Read the selected canvas.",
+				Name: "get_canvas_context", Description: "Read the selected canvas.",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 				Policy:      domain.AgentPluginToolPolicy{Capability: "files", Effect: "read", Trust: "closed", Execution: "inline"},
 				Planning:    domain.AgentPluginToolPlanning{Summary: "Read the selected canvas.", Parallelizable: true},
@@ -476,5 +476,13 @@ func TestAgentPluginUninstallIsIdempotentAndRemovesResolution(t *testing.T) {
 	}
 	if _, err := service.Resolve(context.Background(), actor, []domain.AgentPluginActivation{{PluginID: manifest.ID, Bindings: map[string]string{"project_id": "p", "canvas_id": "c"}}}); err == nil {
 		t.Fatal("uninstalled plugin was resolved")
+	}
+}
+
+func TestImmutableReleaseSurvivesJSONBKeyReordering(t *testing.T) {
+	manifest := testAgentPluginManifest(t, "canvas@platform", "canvas")
+	manifest.MCPServers[0].Tools[0].InputSchema = json.RawMessage(`{"additionalProperties": false, "type": "object", "properties": {}}`)
+	if err := ValidateAgentPluginManifest(manifest); err != nil {
+		t.Fatal(err)
 	}
 }

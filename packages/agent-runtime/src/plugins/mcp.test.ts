@@ -153,6 +153,32 @@ void test("MCP connections are lazy and use immutable manifest policy", async ()
   assert.equal(lastEvent?.type === "mcp-connection" && lastEvent.status, "closed");
 });
 
+test("an MCP tool-level error is a failed tool outcome even when the transport succeeds", async () => {
+  const loaded = loadMcpServer(
+    resolved(),
+    context,
+    {},
+    {
+      createClient: async () => ({
+        ...fakeClient({ closes: () => {}, calls: () => {} }),
+        callTool: async () => ({ isError: true, content: [{ type: "text" as const, text: "Index unavailable" }] }),
+      }),
+    },
+  );
+  const tool = loaded.manifests[0]!.tool as {
+    execute(input: unknown, options: object): Promise<{ status: string; error?: { message: string } }>;
+    toModelOutput(options: { output: unknown }): { type: string };
+  };
+  try {
+    const outcome = await tool.execute({ query: "runtime" }, {});
+    assert.equal(outcome.status, "failed");
+    assert.match(outcome.error!.message, /Index unavailable/);
+    assert.equal(tool.toModelOutput({ output: outcome }).type, "error-json");
+  } finally {
+    await loaded.dispose?.();
+  }
+});
+
 void test("MCP catalog drift fails before the first tool side effect and closes the client", async () => {
   let closes = 0;
   let calls = 0;

@@ -1,4 +1,4 @@
-export { assembleInstructions } from "./assembler.js";
+export { assembleInstructions, renderAvailableSkills } from "./assembler.js";
 export {
   type ActivatedSkillInstruction,
   type InstructionContributions,

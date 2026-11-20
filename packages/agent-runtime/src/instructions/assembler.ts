@@ -29,7 +29,7 @@ export function assembleInstructions(input: InstructionInput, contributions: Ins
  * skill's name/description; contributors supply structured `SkillListing`s only,
  * so no free-text can enter the model context through this channel.
  */
-function renderAvailableSkills(skills: SkillListing[] | null | undefined): string | null {
+export function renderAvailableSkills(skills: SkillListing[] | null | undefined): string | null {
   if (!skills || skills.length === 0) {
     return null;
   }

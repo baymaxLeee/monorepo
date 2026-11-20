@@ -125,6 +125,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     input.pluginSnapshot,
     skillSource,
     { approvalPolicy: input.approvalPolicy, permissionProfile: input.permissionProfile },
+    input.continuation,
   );
   scope.defer(resolvedTools.dispose);
   const { tools } = resolvedTools;

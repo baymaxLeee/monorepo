@@ -11,6 +11,7 @@ import {
 } from "@repo/agent-runtime/execution/permissions";
 import { ProcessManager } from "@repo/agent-runtime/execution/process-manager";
 import { ToolOrchestrator, type SandboxViolation } from "@repo/agent-runtime/execution/tool-orchestrator";
+import type { UIMessage } from "ai";
 
 import { artifactToolContextSchema } from "../tools/context.js";
 import { requireRunSandbox } from "./cloud-sandbox.js";
@@ -68,6 +69,7 @@ export async function createCloudToolAdapters(
     approvalPolicy: ApprovalPolicy;
     permissionProfile: BuiltInPermissionProfileId;
   } = { approvalPolicy: "on-request", permissionProfile: ":workspace" },
+  continuation?: UIMessage,
 ) {
   const permissionProfile = cloudPermissionProfile(settings.permissionProfile);
   const environment: ExecutionEnvironment = {
@@ -83,6 +85,7 @@ export async function createCloudToolAdapters(
     approvalPolicy: settings.approvalPolicy,
     permissionProfile,
     processManager,
+    continuation,
     fileSystemPolicy: {
       workspaceRoot: "/workspace",
       workingDirectory: "/workspace/work",

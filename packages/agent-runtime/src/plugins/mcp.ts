@@ -4,6 +4,7 @@ import { jsonSchema, type ToolResultOutput } from "@ai-sdk/provider-utils";
 import { dynamicTool, type ToolSet } from "ai";
 
 import { defineAgentTool } from "../tools/manifest.js";
+import { normalizeToolIssue, toolFailed } from "../tools/outcome.js";
 import type {
   AgentPluginContext,
   AgentPluginManifest,
@@ -83,7 +84,7 @@ function mcpToModelOutput({ output }: { output: unknown }): ToolResultOutput {
   return {
     type: "content",
     value: output.content.map((part: Record<string, unknown>) => {
-      if (part.type === "text" && typeof part.text === "string") {
+      if (part?.type === "text" && typeof part.text === "string") {
         return { type: "text" as const, text: part.text };
       }
       if (part.type === "image" && typeof part.data === "string" && typeof part.mimeType === "string") {
@@ -100,6 +101,53 @@ function mcpToModelOutput({ output }: { output: unknown }): ToolResultOutput {
 
 async function observe(options: PluginRuntimeOptions, event: PluginRuntimeEvent): Promise<void> {
   await options.observe?.(event);
+}
+
+function connectHttpMcp(
+  url: string,
+  headers: Readonly<Record<string, string>>,
+  signal: AbortSignal,
+  createClient: McpPluginDependencies["createClient"],
+  options: PluginRuntimeOptions = {},
+) {
+  return createClient({
+    clientName: "monorepo-agent-runtime",
+    version: "1.0.0",
+    maxRetries: 0,
+    initializationOptions: { signal, timeout: MCP_HANDSHAKE_TIMEOUT_MS },
+    ...(options.onUncaughtError ? { onUncaughtError: options.onUncaughtError } : {}),
+    transport: { type: "http", url, headers: { ...headers }, redirect: "error", terminateSessionOnClose: true },
+  });
+}
+
+/** Local installations have no Admin release inventory. Freeze the advertised
+ * schemas before exposing tools, and keep privileges independent of server annotations. */
+export async function discoverInstalledMcpServer(
+  name: string,
+  url: string,
+  headers: Record<string, string>,
+  signal: AbortSignal,
+): Promise<McpServerContribution> {
+  const client = await connectHttpMcp(url, headers, signal, createMCPClient);
+  try {
+    const inventory = await listAllTools(client, signal);
+    return {
+      name,
+      url,
+      tools: inventory
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((item) => ({
+          name: item.name,
+          description: item.description?.trim() || item.name,
+          inputSchema: item.inputSchema as JSONSchema7,
+          ...(item.outputSchema ? { outputSchema: item.outputSchema as JSONSchema7 } : {}),
+          policy: { capability: "external", effect: "unknown", trust: "open-world", execution: "inline" },
+          planning: { summary: item.description?.trim() || item.name },
+        })),
+    };
+  } finally {
+    await client.close();
+  }
 }
 
 /**
@@ -131,23 +179,7 @@ export function loadMcpServer(
       });
       try {
         signal.throwIfAborted();
-        const client = await dependencies.createClient({
-          clientName: "monorepo-agent-runtime",
-          version: "1.0.0",
-          maxRetries: 0,
-          initializationOptions: {
-            signal,
-            timeout: MCP_HANDSHAKE_TIMEOUT_MS,
-          },
-          ...(options.onUncaughtError ? { onUncaughtError: options.onUncaughtError } : {}),
-          transport: {
-            type: "http",
-            url: server.url,
-            headers: { ...grant.headers },
-            redirect: "error",
-            terminateSessionOnClose: true,
-          },
-        });
+        const client = await connectHttpMcp(server.url, grant.headers, signal, dependencies.createClient, options);
         try {
           const inventory = await listAllTools(client, signal);
           if (inventory.length !== server.tools.length) {
@@ -220,6 +252,17 @@ export function loadMcpServer(
           arguments: input as Record<string, unknown>,
           options: { signal: callSignal },
         });
+        if (result.isError) {
+          const message = (Array.isArray(result.content) ? result.content : [])
+            .flatMap((part) => (part?.type === "text" && typeof part.text === "string" ? [part.text] : []))
+            .join("\n");
+          return toolFailed(
+            normalizeToolIssue(new Error(message || "MCP tool reported an error"), {
+              code: "MCP_TOOL_ERROR",
+              source: exposedName,
+            }),
+          );
+        }
         return result;
       },
       toModelOutput: mcpToModelOutput,

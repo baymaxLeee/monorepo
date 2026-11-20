@@ -86,7 +86,7 @@ WHERE plugin_id = $1 AND digest = $2;
 
 -- name: CreateAgentPluginRelease :exec
 INSERT INTO agent_plugin_releases (plugin_id, digest, version, manifest_json, created_at)
-VALUES ($1, $2, $3, $4, $5);
+VALUES ($1, $2, $3, $4, $5) ON CONFLICT (plugin_id, digest) DO NOTHING;
 
 -- name: GetAgentPluginInstallation :one
 SELECT *

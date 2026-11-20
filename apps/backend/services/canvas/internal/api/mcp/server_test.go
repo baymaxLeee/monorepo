@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -127,17 +128,46 @@ func TestCanvasMCPInitializeListAndCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inventory.Tools) != 1 || inventory.Tools[0].Name != "get_canvas" || inventory.Tools[0].Description != getCanvasDescription {
+	if len(inventory.Tools) != 1 || inventory.Tools[0].Name != "get_canvas_context" || inventory.Tools[0].Description != getCanvasDescription {
 		t.Fatalf("inventory = %#v", inventory.Tools)
 	}
-	inputSchema, err := json.Marshal(inventory.Tools[0].InputSchema)
+	type toolContract struct {
+		Name         string
+		Description  string
+		InputSchema  map[string]any
+		OutputSchema map[string]any
+	}
+	var releases []struct {
+		ID         string
+		MCPServers []struct{ Tools []toolContract }
+	}
+	catalog, err := os.ReadFile("../../../../../../../schemas/mcp/system-plugins.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(inputSchema) != `{"additionalProperties":false,"type":"object"}` {
-		t.Fatalf("input schema = %s", inputSchema)
+	if err := json.Unmarshal(catalog, &releases); err != nil {
+		t.Fatal(err)
 	}
-	result, err := session.CallTool(t.Context(), &officialmcp.CallToolParams{Name: "get_canvas", Arguments: map[string]any{}})
+	var published []toolContract
+	for _, release := range releases {
+		if release.ID == "canvas@platform" {
+			for _, server := range release.MCPServers {
+				published = append(published, server.Tools...)
+			}
+		}
+	}
+	raw, err := json.Marshal(inventory.Tools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var live []toolContract
+	if err := json.Unmarshal(raw, &live); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(live, published) {
+		t.Fatalf("Canvas MCP inventory differs from the built-in release: %s", raw)
+	}
+	result, err := session.CallTool(t.Context(), &officialmcp.CallToolParams{Name: "get_canvas_context", Arguments: map[string]any{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +269,7 @@ func TestCanvasMCPPropagatesRequestCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	finished := make(chan error, 1)
 	go func() {
-		_, err := session.CallTool(ctx, &officialmcp.CallToolParams{Name: "get_canvas", Arguments: map[string]any{}})
+		_, err := session.CallTool(ctx, &officialmcp.CallToolParams{Name: "get_canvas_context", Arguments: map[string]any{}})
 		finished <- err
 	}()
 	select {

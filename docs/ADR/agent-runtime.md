@@ -66,7 +66,7 @@ finalizer 和进程级 recovery 仍由宿主拥有。前端 transport 持有自�
 
 AI SDK 继续拥有 model/tool loop、stable tool ordering、approval、`prepareStep`、stream 和
 原生流式取消。TurnScope 将宿主取消与本轮资源的生命周期绑定。kernel 不复制 planner、router、failure counter、repair model 或另一套 stop state
-machine，也不覆盖 SDK 默认 stop condition。普通工具失败作为观察结果回到同一 loop；持久化、
+machine。交互 Turn 显式使用 SDK 的 `isLoopFinished()`，连续工具调用可以超过 20 步，模型给出最终回复、等待外部输入、取消或失败时交回宿主。普通工具失败作为观察结果回到同一 loop；持久化、
 权限或协议破坏则 fail closed。
 
 ## 运行中输入与取消
@@ -158,7 +158,7 @@ admission 执行。Portable registry 只含已证明跨 Backend/Desktop 共用�
 Media、Memory 作为 host manifest；Knowledge、Canvas 和外部 MCP 都通过同一套 catalog/release/
 installation/activation/Turn snapshot/connection lifecycle 注入，Runtime 不再持有固定服务 tool
 client 或第二套插件 adapter。完整 ownership、去密持久化、lazy discovery、MCP fail-closed 与当前
-仅 `knowledge_search`/`get_canvas` 的能力面见 [Agent plugins](agent-plugins.md)。
+仅 `knowledge_search`/`get_canvas_context` 的能力面见 [Agent plugins](agent-plugins.md)。
 
 ## Instructions 与 runtime facts
 

@@ -12,6 +12,7 @@ import { parseLocalUserMessageParts } from "./local-user-message";
 import { selectPlatform } from "./platform-selector";
 import { type PackagedPlatform, platformLaunch, platformUrl } from "./platform-url";
 import { resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
+import { listLocalPlugins, importLocalPlugin } from "./runtime/local-plugins";
 import { WorkspaceGrants } from "./workspace-grants";
 
 if (!app.isReady())
@@ -120,16 +121,37 @@ async function start() {
     if (!signedIn) throw new Error("请先登录并选择组织工作区");
     if (process.platform !== "darwin") throw new Error("本地模式目前仅支持 macOS");
     const scope = auth.identity();
-    const scopedCall = async <T = unknown>(operation: string, input?: unknown): Promise<T> => {
+    const assertScope = async () => {
       await authReady;
       if (!signedIn || auth.identity() !== scope) throw new Error("登录身份已改变，请重试");
+    };
+    const scopedCall = async <T = unknown>(operation: string, input?: unknown): Promise<T> => {
+      await assertScope();
       const result = await runtime!.call<T>(operation, input);
-      if (!signedIn || auth.identity() !== scope) throw new Error("登录身份已改变，请重试");
+      await assertScope();
       return result;
     };
     switch (method) {
       case "list":
         return scopedCall("list");
+      case "listLocalPlugins": {
+        if (!scope) throw new Error("请先登录");
+        const plugins = await listLocalPlugins(scopedSessionDirectory(runtimeHome, scope));
+        await assertScope();
+        return plugins;
+      }
+      case "importLocalPlugin": {
+        if (!scope) throw new Error("请先登录");
+        const selected = await dialog.showOpenDialog(window, {
+          title: "导入本地插件",
+          properties: ["openDirectory"],
+        });
+        if (selected.canceled || !selected.filePaths[0]) return null;
+        await assertScope();
+        const plugin = await importLocalPlugin(scopedSessionDirectory(runtimeHome, scope), selected.filePaths[0]);
+        await assertScope();
+        return plugin;
+      }
       case "selectWorkspace": {
         const selected = await dialog.showOpenDialog(window, {
           title: "选择 Agent 可以修改的项目目录",
@@ -162,6 +184,7 @@ async function start() {
             pluginActivations: z
               .array(
                 z.strictObject({
+                  origin: z.literal("local").optional(),
                   pluginId: z
                     .string()
                     .min(3)

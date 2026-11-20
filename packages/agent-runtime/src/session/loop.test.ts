@@ -110,6 +110,21 @@ async function consume(agent: ReturnType<typeof createAgentLoop>, messages = req
   return answer;
 }
 
+test("an interactive turn continues through the twentieth tool step until the model answers", async () => {
+  let calls = 0;
+  let executed = 0;
+  const agent = createAgentLoop({
+    tools: { check: tool({ inputSchema: z.object({}), execute: async () => ++executed }) },
+    model: model(() =>
+      ++calls <= 21 ? [{ type: "tool-call", toolCallId: String(calls), toolName: "check", input: "{}" }] : text,
+    ),
+  });
+  const answer = await consume(agent);
+  assert.equal(executed, 21);
+  assert.equal(calls, 22);
+  assert.ok(answer.parts.some((part) => part.type === "text" && part.text.includes("处理文件")));
+});
+
 test("preserves every tool call emitted by one model response", async () => {
   const executed: string[] = [];
   let calls = 0;

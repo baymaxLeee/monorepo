@@ -136,6 +136,7 @@ gen-sql service:
 
 # ─── Cross-stack ────────────────────────────────────────────
 sync:
+    cp schemas/mcp/system-plugins.json apps/backend/services/admin/seed/system-plugins.generated.json
     node schemas/codegen/generate-chat-ui.mjs
     node schemas/codegen/generate-desktop.mjs
     cd apps/backend && just gen-openapi-all
@@ -254,6 +255,7 @@ check:
     @just sync-check
 
 sync-check:
+    cmp schemas/mcp/system-plugins.json apps/backend/services/admin/seed/system-plugins.generated.json
     node schemas/codegen/generate-chat-ui.mjs --check
     node schemas/codegen/generate-desktop.mjs --check
     cd apps/backend && just gen-openapi-all

@@ -1,6 +1,7 @@
 import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
 import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import type { UIMessage } from "ai";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
@@ -28,6 +29,7 @@ export interface CloudTurnInput {
   reasoningEffort: ReasoningEffort;
   approvalPolicy: ApprovalPolicy;
   permissionProfile: BuiltInPermissionProfileId;
+  continuation?: UIMessage;
   previousResponseId?: string | null;
   attachedImageDocumentIds?: string[];
   instructionInput: InstructionInput;

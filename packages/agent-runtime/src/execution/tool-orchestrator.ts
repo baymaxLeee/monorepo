@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
-import type { GenericToolApprovalFunction, ToolSet } from "ai";
+import type { GenericToolApprovalFunction, ToolSet, UIMessage } from "ai";
 
 import { toolPolicyFromMetadata } from "../tools/manifest.js";
 import { type ExecApprovalRequirement, ExecPolicy } from "./exec-policy.js";
@@ -25,6 +25,7 @@ import {
   type SandboxPermissions,
 } from "./permissions.js";
 import { ProcessManager, type ProcessIdentity } from "./process-manager.js";
+import { pendingBashRetries } from "./retry-journal.js";
 
 export interface BashExecutionInput {
   command: string;
@@ -97,6 +98,7 @@ interface Admission {
 }
 
 interface RetryRecord {
+  approvedCall?: { id: string; identity: string };
   identity: string;
   violation: SandboxViolation;
   consumed: boolean;
@@ -196,11 +198,22 @@ export class ToolOrchestrator {
       execPolicy?: ExecPolicy;
       retryId?: () => string;
       processManager?: ProcessManager;
+      continuation?: UIMessage;
       fileSystemPolicy?: FileSystemPolicy;
     },
   ) {
     this.retryId = settings.retryId ?? randomUUID;
     this.processes = settings.processManager ?? new ProcessManager();
+    if (settings.continuation) {
+      for (const retry of pendingBashRetries(settings.continuation)) {
+        this.retries.set(retry.retryId, {
+          identity: executionIdentity(retry.original, false),
+          violation: retry.violation,
+          consumed: false,
+          approvedCall: { id: retry.toolCallId, identity: executionIdentity(retry.input, true) },
+        });
+      }
+    }
   }
 
   reviewBash(toolCallId: string, input: BashExecutionInput): ExecApprovalRequirement {
@@ -219,6 +232,11 @@ export class ToolOrchestrator {
       const retry = this.retries.get(input.retry_of);
       if (!retry) {
         requirement = { type: "forbidden", reason: "sandbox retry does not reference a current denial" };
+      } else if (
+        retry.approvedCall &&
+        (retry.approvedCall.id !== toolCallId || retry.approvedCall.identity !== identity)
+      ) {
+        requirement = { type: "forbidden", reason: "sandbox retry differs from the approved continuation" };
       } else if (retry.identity !== executionIdentity(input, false)) {
         requirement = { type: "forbidden", reason: "sandbox retry changed the denied command or working directory" };
       } else if (input.sandbox_permissions === "use_default") {

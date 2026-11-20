@@ -177,7 +177,22 @@ class DeploymentSecretsTest(unittest.TestCase):
             environment = services["knowledge"]["environment"]
             self.assertEqual(environment["ADMIN_RPC_TARGET"], "admin:9001")
             self.assertEqual(environment["STORAGE_RPC_TARGET"], "storage:9013")
-            self.assertNotIn("INTERNAL_SERVICE_TOKENS", environment)
+        for service in ("canvas", "knowledge"):
+            with self.subTest(service=service):
+                self.assertEqual(
+                    json.loads(services[service]["environment"]["INTERNAL_SERVICE_TOKENS"]),
+                    {"runtime": values["RUNTIME_INTERNAL_API_TOKEN"]},
+                )
+        with self.subTest(service="admin-plugin-seed"):
+            seed = services["admin-plugin-seed"]
+            self.assertEqual(seed["entrypoint"], ["/seed-plugins"])
+            self.assertEqual(seed["environment"]["PGUSER"], "admin")
+            self.assertEqual(seed["environment"]["PGPASSWORD"], values["ADMIN_POSTGRES_PASSWORD"])
+            for name in ("CANVAS_SERVICE_URL", "KNOWLEDGE_SERVICE_URL"):
+                self.assertEqual(seed["environment"][name], services["runtime"]["environment"][name])
+            self.assertEqual(
+                services["admin"]["depends_on"]["admin-plugin-seed"]["condition"], "service_completed_successfully"
+            )
 
     def test_k8s_secret_templates(self):
         base = ROOT / "infra/k8s/base"
@@ -187,7 +202,7 @@ class DeploymentSecretsTest(unittest.TestCase):
             self.assertIn("STORAGE_SIGNING_KEY", storage)
             self.assertNotIn("INTERNAL_SERVICE_TOKENS", storage)
         with self.subTest(service="knowledge"):
-            self.assertNotIn("INTERNAL_SERVICE_TOKENS", knowledge)
+            self.assertEqual(json.loads(knowledge["INTERNAL_SERVICE_TOKENS"]), {"runtime": "REPLACE_RUNTIME_TOKEN"})
             self.assertNotIn("INTERNAL_API_TOKEN", knowledge)
 
 

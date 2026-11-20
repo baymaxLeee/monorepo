@@ -9,9 +9,11 @@ WORKDIR /src/services/admin
 RUN --mount=type=cache,id=go-mod-v2,target=/go/pkg/mod go mod download
 RUN --mount=type=cache,id=go-mod-v2,target=/go/pkg/mod \
     --mount=type=cache,id=go-build-v2,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/admin-server ./cmd/server
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/admin-server ./cmd/server && \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/seed-plugins ./cmd/seed-plugins
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /out/admin-server /admin-server
+COPY --from=builder /out/seed-plugins /seed-plugins
 EXPOSE 8001 9001
 ENTRYPOINT ["/admin-server"]

@@ -270,6 +270,21 @@ services:
       - storage_data:/data/assets
     <<: *restart_policy
 
+  admin-plugin-seed:
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/admin:${IMAGE_TAG:-main}
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+    entrypoint: ["/seed-plugins"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: admin
+      PGUSER: admin
+      PGPASSWORD: ${ADMIN_POSTGRES_PASSWORD:?ADMIN_POSTGRES_PASSWORD is required}
+      KNOWLEDGE_SERVICE_URL: http://knowledge:8010
+      CANVAS_SERVICE_URL: http://canvas:8012
+    restart: "no"
+
   admin:
     image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/admin:${IMAGE_TAG:-main}
     container_name: monorepo-admin
@@ -277,6 +292,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       db-init: { condition: service_completed_successfully }
+      admin-plugin-seed: { condition: service_completed_successfully }
     environment:
       ENVIRONMENT: single-vps
       OTEL_SERVICE_NAME: admin

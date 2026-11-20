@@ -112,3 +112,79 @@ test("cloud adapters compile the session execution policy instead of using fixed
     await unrestricted.dispose();
   }
 });
+
+test("a replacement cloud execution resumes only the approved retry in its assistant journal", async () => {
+  const input = { command: "echo ok", sandbox_permissions: "use_default", timeout_ms: 10_000 };
+  const retry = {
+    ...input,
+    retry_of: "denial",
+    sandbox_permissions: "with_additional_permissions",
+    additional_permissions: { network: { allowedHosts: ["test.invalid"] } },
+  };
+  const continuation = {
+    id: "assistant",
+    role: "assistant" as const,
+    parts: [
+      {
+        type: "tool-bash" as const,
+        toolCallId: "original",
+        state: "output-available" as const,
+        input,
+        output: {
+          ok: false,
+          status: "partial",
+          error: { code: "SANDBOX_DENIED", message: "denied", retryable: true },
+          data: {
+            termination: {
+              type: "sandbox-violation",
+              retryId: "denial",
+              violation: { type: "network", host: "test.invalid", protocol: "https", port: 443 },
+            },
+          },
+        },
+      },
+      {
+        type: "tool-bash" as const,
+        toolCallId: "retry",
+        state: "approval-responded" as const,
+        input: retry,
+        approval: { id: "approval", approved: true },
+      },
+    ],
+  };
+  const runtime = await createCloudToolAdapters(undefined, continuation);
+  const review = (toolCallId: string, candidate = retry) =>
+    runtime.toolApproval({
+      toolCall: { toolCallId, toolName: "bash", input: candidate },
+      messages: [],
+    } as never);
+  try {
+    assert.equal(((await review("different")) as { type: string }).type, "denied");
+    assert.equal(((await review("retry")) as { type: string }).type, "user-approval");
+  } finally {
+    await runtime.dispose();
+  }
+  const consumed = await createCloudToolAdapters(undefined, {
+    ...continuation,
+    parts: [
+      ...continuation.parts,
+      {
+        type: "tool-bash",
+        state: "output-available",
+        toolCallId: "executed",
+        input: retry,
+        output: {},
+      },
+    ],
+  });
+  assert.equal(
+    (
+      (await consumed.toolApproval({
+        toolCall: { toolCallId: "retry", toolName: "bash", input: retry },
+        messages: [],
+      } as never)) as { type: string }
+    ).type,
+    "denied",
+  );
+  await consumed.dispose();
+});

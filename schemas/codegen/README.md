@@ -19,3 +19,5 @@ Chat → Runtime streaming and Runtime's worker/sandbox role APIs remain explici
 HTTP/SSE adapters because buffering them into unary RPC would change their
 streaming or process boundary semantics. They do not use the cross-service
 OpenAPI client generator.
+
+The two built-in MCP releases are defined in [the system plugin catalog](../mcp/system-plugins.json). `just sync` packages that catalog with the Admin seed command. Both MCP providers check their live tool inventories against the catalog. Deployment supplies their service URLs before sealing releases.
