@@ -57,3 +57,10 @@ export function isClientTool(part: Extract<ChatUIMessage["parts"][number], { too
     agent.execution === "client"
   );
 }
+
+export function toolUiKind(part: Extract<ChatUIMessage["parts"][number], { toolCallId: string }>): string | null {
+  const agent = part.toolMetadata?.agent;
+  return agent && typeof agent === "object" && "uiKind" in agent && typeof agent.uiKind === "string"
+    ? agent.uiKind
+    : null;
+}

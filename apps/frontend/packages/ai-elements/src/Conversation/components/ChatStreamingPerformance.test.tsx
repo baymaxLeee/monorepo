@@ -42,7 +42,6 @@ vi.mock("@repo/ai-elements/terminal", () => ({
 const props: Omit<ChatMessageViewProps, "message"> = {
   conversationId: "conversation",
   streaming: true,
-  deliverableCompletion: { artifact: [], image: [], video: [] },
   onOpenArtifact: vi.fn(),
   onOpenFile: vi.fn(),
   onAnswerClientTool: vi.fn(),

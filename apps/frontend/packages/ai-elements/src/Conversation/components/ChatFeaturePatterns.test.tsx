@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { UIMessage } from "ai";
 import { expect, test, vi } from "vitest";
 
+import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { ChatCitedResponse } from "./ChatCitedResponse";
 import { ChatComposerControls } from "./ChatComposerControls";
-import { collectDeliverableCompletion } from "./ChatTodoListCard";
+import { projectMessageTodos } from "./ChatTodoListCard";
 import { ExecutionPolicy } from "./ExecutionPolicy";
 
 test("shared composer controls combine model and reasoning selection in one popover", async () => {
@@ -220,29 +220,32 @@ test("document citations use the application resolver and unpositioned evidence 
 test.each(["completed", "running", "failed"] as const)(
   "sandbox publication %s settles the associated artifact todo from real outcomes",
   (status) => {
-    const messages: UIMessage[] = [
+    const todo = {
+      type: "tool-update_todos",
+      toolCallId: "todo",
+      toolMetadata: { agent: { uiKind: "todo-list" } },
+      state: "output-available",
+      input: {},
+      output: { ok: true, status: "completed", data: { todos: [] } },
+    } as const;
+    const parts: ChatUIMessage["parts"] = [
+      todo,
       {
-        id: "reply",
-        role: "assistant",
-        parts: [
-          { type: "tool-update_todos", toolCallId: "todo", state: "output-available", input: {}, output: {} },
-          {
-            type: "tool-upload_artifacts",
-            toolCallId: "save",
-            state: "output-available",
-            input: {},
-            toolMetadata: { agent: { uiKind: "artifact" } },
-            output:
-              status === "failed"
-                ? { ok: false, status, error: { code: "failed", message: "failed", retryable: false } }
-                : status === "running"
-                  ? { ok: true, status, progress: { done: 1, total: 2 } }
-                  : { ok: true, status, data: { files: [{ file_id: "file", filename: "report.md" }] } },
-          },
-        ],
+        type: "tool-upload_artifacts",
+        toolCallId: "save",
+        state: "output-available",
+        input: {},
+        toolMetadata: { agent: { uiKind: "artifact" } },
+        output:
+          status === "failed"
+            ? { ok: false, status, error: { code: "failed", message: "failed", retryable: false } }
+            : status === "running"
+              ? { ok: true, status, progress: { done: 1, total: 2 } }
+              : { ok: true, status, data: { files: [{ file_id: "file", filename: "report.md" }] } },
       },
     ];
-    expect(collectDeliverableCompletion(messages, "todo").artifact).toEqual([status === "failed" ? "error" : status]);
+    expect(projectMessageTodos(parts).deliverableCompletion.artifact).toEqual([status === "failed" ? "error" : status]);
+    expect(projectMessageTodos([...parts, { ...todo, toolCallId: "next" }]).deliverableCompletion.artifact).toEqual([]);
   },
 );
 test("checkpoint prevents duplicate requests and preserves retry after failure", async () => {

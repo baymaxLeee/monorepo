@@ -25,14 +25,13 @@ import { useChatStore } from "../store/useChatStore";
 import { ChatCheckpoint } from "./ChatCheckpoint";
 import { Sources } from "./ChatCitedResponse";
 import { ChatMessagePart } from "./ChatMessagePart";
-import type { DeliverableCompletion } from "./ChatTodoListCard";
+import { projectMessageTodos } from "./ChatTodoListCard";
 
 export interface ChatMessageViewProps {
   message: ChatUIMessage;
   onFork?: (messageId: string) => Promise<void>;
   conversationId: string;
   streaming: boolean;
-  deliverableCompletion: DeliverableCompletion;
   onOpenArtifact?: (documentId: string) => void;
   onOpenFile?: (fileId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -52,7 +51,6 @@ export function ChatMessageView({
   onFork,
   conversationId,
   streaming,
-  deliverableCompletion,
   onOpenArtifact,
   onOpenFile,
   onOpenWorkspaceFile,
@@ -78,6 +76,10 @@ export function ChatMessageView({
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const { visibleParts, todoIndex, deliverableCompletion } = useMemo(
+    () => projectMessageTodos(message.parts),
+    [message.parts],
+  );
   const sources = useMemo(
     () => message.parts.filter((part) => part.type === "source-url" || part.type === "source-document"),
     [message.parts],
@@ -107,26 +109,29 @@ export function ChatMessageView({
       <MessageContent
         className={cn(isUser ? "flex flex-wrap items-center gap-x-1 gap-y-2 leading-relaxed" : "w-full space-y-3")}
       >
-        {message.parts.map((part, index) => (
-          <ChatMessagePart
-            key={partKey(message.id, part, index)}
-            part={part}
-            sources={sources}
-            partIndex={index}
-            conversationId={conversationId}
-            streaming={streaming}
-            variant={variant}
-            deliverableCompletion={deliverableCompletion}
-            onOpenArtifact={onOpenArtifact}
-            onOpenFile={onOpenFile}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            resolveSourceHref={resolveSourceHref}
-            resolveSourceAction={resolveSourceAction}
-            onOpenImage={onOpenImage}
-            onAnswerClientTool={onAnswerClientTool}
-            onToolApproval={onToolApproval}
-          />
-        ))}
+        {visibleParts.map(
+          (part, index) =>
+            part && (
+              <ChatMessagePart
+                key={index === todoIndex ? `todo-list:${message.id}` : partKey(message.id, part, index)}
+                part={part}
+                sources={sources}
+                partIndex={index}
+                conversationId={conversationId}
+                streaming={streaming}
+                variant={variant}
+                deliverableCompletion={deliverableCompletion}
+                onOpenArtifact={onOpenArtifact}
+                onOpenFile={onOpenFile}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                resolveSourceHref={resolveSourceHref}
+                resolveSourceAction={resolveSourceAction}
+                onOpenImage={onOpenImage}
+                onAnswerClientTool={onAnswerClientTool}
+                onToolApproval={onToolApproval}
+              />
+            ),
+        )}
         {!isUser && (
           <Sources sources={sources} resolveSourceHref={resolveSourceHref} resolveSourceAction={resolveSourceAction} />
         )}

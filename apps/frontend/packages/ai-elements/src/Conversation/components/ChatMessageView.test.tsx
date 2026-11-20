@@ -16,7 +16,6 @@ vi.stubGlobal(
 const props: Omit<ChatMessageViewProps, "message"> = {
   conversationId: "conversation",
   streaming: true,
-  deliverableCompletion: { artifact: [], image: [], video: [] },
   onOpenArtifact: vi.fn(),
   onOpenFile: vi.fn(),
   onOpenWorkspaceFile: vi.fn(),
@@ -82,7 +81,7 @@ test("tool metadata cannot hide a tool call", async () => {
   expect(await screen.findByRole("button", { name: /previously_internal\s*执行中/ })).toBeTruthy();
 });
 
-test("superseded todo tool calls remain observable", async () => {
+test("only the latest todo snapshot is rendered within a message", async () => {
   render(
     <ChatMessageView
       {...props}
@@ -114,11 +113,24 @@ test("superseded todo tool calls remain observable", async () => {
               data: { todos: [{ id: "task", content: "新计划", status: "completed" }] },
             },
           },
+          {
+            type: "tool-update_todos",
+            toolCallId: "awaiting-approval",
+            state: "approval-requested",
+            input: {},
+            toolMetadata: { agent: { uiKind: "todo-list" } },
+            approval: { id: "todo-approval" },
+          },
         ],
       }}
     />,
   );
-  expect(await screen.findAllByRole("button", { name: /update_todos\s*已完成/ })).toHaveLength(2);
+  const trigger = await screen.findByRole("button", { name: /update_todos\s*已完成/ });
+  fireEvent.click(trigger);
+  expect(screen.getByText("新计划")).toBeTruthy();
+  expect(screen.queryByText("旧计划")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "允许" }));
+  expect(props.onToolApproval).toHaveBeenCalledWith("todo-approval", true);
 });
 
 test("structured tool failures drive the native header state", async () => {

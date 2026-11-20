@@ -4,37 +4,24 @@ import { memo, useEffect, useMemo, useState } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatMessageView, type ChatMessageViewProps } from "./ChatMessageView";
-import { collectDeliverableCompletion, findLatestUpdateTodosCallId } from "./ChatTodoListCard";
 import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 
-// SDK snapshots preserve historical messages, but derived sets/arrays may be
-// recreated on each delta. Compare only that small context, never message text
-// or tool payloads; action callbacks still participate in the comparison.
 type TranscriptMessageRowProps = Omit<ChatMessageViewProps, "message"> & {
   message: ChatUIMessage | null;
   pending: boolean;
 };
 
-const TranscriptMessageRow = memo(
-  function TranscriptMessageRow({ message, pending, ...props }: TranscriptMessageRowProps) {
-    return (
-      <MessageScrollerItem messageId={message?.id} scrollAnchor={message?.role === "user"}>
-        {pending || !message ? <ThinkingStatus /> : <ChatMessageView key={message.id} message={message} {...props} />}
-      </MessageScrollerItem>
-    );
-  },
-  (previous, next) =>
-    (Object.keys(previous) as (keyof TranscriptMessageRowProps)[]).every((key) => {
-      if (key === "deliverableCompletion") {
-        return (["artifact", "image", "video"] as const).every((kind) => {
-          const before = previous.deliverableCompletion[kind];
-          const after = next.deliverableCompletion[kind];
-          return before.length === after.length && before.every((status, index) => status === after[index]);
-        });
-      }
-      return previous[key] === next[key];
-    }),
-);
+const TranscriptMessageRow = memo(function TranscriptMessageRow({
+  message,
+  pending,
+  ...props
+}: TranscriptMessageRowProps) {
+  return (
+    <MessageScrollerItem messageId={message?.id} scrollAnchor={message?.role === "user"}>
+      {pending || !message ? <ThinkingStatus /> : <ChatMessageView key={message.id} message={message} {...props} />}
+    </MessageScrollerItem>
+  );
+});
 
 type ChatTranscriptProps = Pick<
   ChatMessageViewProps,
@@ -110,11 +97,6 @@ export const ChatTranscript = memo(function ChatTranscript({
   const lastMessage = messages.at(-1);
   const pendingAssistantId = busy && isPendingAssistantMessage(lastMessage) ? lastMessage?.id : undefined;
   if (busy && lastMessage?.role === "user") visibleMessages.push(null);
-  const latestTodoCallId = useMemo(() => findLatestUpdateTodosCallId(messages), [messages]);
-  const deliverableCompletion = useMemo(
-    () => collectDeliverableCompletion(messages, latestTodoCallId),
-    [messages, latestTodoCallId],
-  );
   const branchBySelectedMessage = useMemo(
     () => new Map(branches.map((branch) => [branch.selected_message_id, branch] as const)),
     [branches],
@@ -166,7 +148,6 @@ export const ChatTranscript = memo(function ChatTranscript({
               pending={message?.id === pendingAssistantId}
               conversationId={conversationId}
               streaming={busy && message?.role === "assistant" && message === lastMessage}
-              deliverableCompletion={deliverableCompletion}
               onOpenArtifact={onOpenArtifact}
               onOpenFile={onOpenFile}
               onOpenWorkspaceFile={onOpenWorkspaceFile}

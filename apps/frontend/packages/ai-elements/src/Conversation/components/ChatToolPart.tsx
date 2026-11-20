@@ -14,7 +14,7 @@ import {
 import { getToolName, type UIMessage } from "ai";
 
 import { parseAskUserInput } from "../lib/ask-user";
-import { isClientTool } from "../lib/conversation-messages";
+import { isClientTool, toolUiKind } from "../lib/conversation-messages";
 import { parseToolOutcome } from "../lib/tool-outcome";
 import { AskUserAnsweredCard } from "./AskUserAnsweredCard";
 import { AskUserToolCard } from "./AskUserToolCard";
@@ -214,18 +214,6 @@ export function ChatToolPart({
       </ToolContent>
     </Tool>
   );
-}
-
-function toolUiKind(part: Extract<UIMessage["parts"][number], { toolCallId: string }>): string | null {
-  if (!("toolMetadata" in part) || !part.toolMetadata) {
-    return null;
-  }
-  const agent = part.toolMetadata.agent;
-  if (!agent || typeof agent !== "object" || Array.isArray(agent)) {
-    return null;
-  }
-  const value = agent as Record<string, unknown>;
-  return typeof value.uiKind === "string" ? value.uiKind : null;
 }
 
 function parseToolOutputError(output: unknown): string | null {
