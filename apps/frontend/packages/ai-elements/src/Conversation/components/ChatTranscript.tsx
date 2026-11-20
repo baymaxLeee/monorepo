@@ -10,14 +10,16 @@ import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 // SDK snapshots preserve historical messages, but derived sets/arrays may be
 // recreated on each delta. Compare only that small context, never message text
 // or tool payloads; action callbacks still participate in the comparison.
-type TranscriptMessageRowProps = ChatMessageViewProps & { pending: boolean };
+type TranscriptMessageRowProps = Omit<ChatMessageViewProps, "message"> & {
+  message: ChatUIMessage | null;
+  pending: boolean;
+};
 
 const TranscriptMessageRow = memo(
   function TranscriptMessageRow({ message, pending, ...props }: TranscriptMessageRowProps) {
     return (
-      <MessageScrollerItem messageId={message.id} scrollAnchor={message.role === "user"}>
-        <ChatMessageView message={message} {...props} />
-        {pending ? <ThinkingStatus /> : null}
+      <MessageScrollerItem messageId={message?.id} scrollAnchor={message?.role === "user"}>
+        {pending || !message ? <ThinkingStatus /> : <ChatMessageView key={message.id} message={message} {...props} />}
       </MessageScrollerItem>
     );
   },
@@ -64,7 +66,7 @@ function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
     if (part.type === "text" || part.type === "reasoning") {
       return !part.text.trim();
     }
-    return part.type === "step-start" || part.type === "steering-message";
+    return part.type === "step-start";
   });
 }
 
@@ -103,11 +105,11 @@ export const ChatTranscript = memo(function ChatTranscript({
   useEffect(() => {
     if (anchorIndex < 0) setFirstVisibleId(messages[start]?.id ?? null);
   }, [anchorIndex, messages, start]);
-  const visibleMessages = messages.slice(start);
+  const visibleMessages: (ChatUIMessage | null)[] = messages.slice(start);
   const busy = status === "streaming" || status === "submitted";
   const lastMessage = messages.at(-1);
   const pendingAssistantId = busy && isPendingAssistantMessage(lastMessage) ? lastMessage?.id : undefined;
-  const showStandaloneThinking = busy && lastMessage?.role !== "assistant";
+  if (busy && lastMessage?.role === "user") visibleMessages.push(null);
   const latestTodoCallId = useMemo(() => findLatestUpdateTodosCallId(messages), [messages]);
   const deliverableCompletion = useMemo(
     () => collectDeliverableCompletion(messages, latestTodoCallId),
@@ -150,36 +152,39 @@ export const ChatTranscript = memo(function ChatTranscript({
           <ConversationEmptyState title="开始对话" description="输入你的问题，或粘贴、拖入文件开始。" />
         </MessageScrollerItem>
       ) : (
-        visibleMessages.map((message) => (
-          <TranscriptMessageRow
-            key={message.id}
-            message={message}
-            pending={message.id === pendingAssistantId}
-            conversationId={conversationId}
-            streaming={busy && message === messages.at(-1)}
-            deliverableCompletion={deliverableCompletion}
-            onOpenArtifact={onOpenArtifact}
-            onOpenFile={onOpenFile}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            resolveSourceHref={resolveSourceHref}
-            resolveSourceAction={resolveSourceAction}
-            branch={branchBySelectedMessage.get(message.id)}
-            onSelectBranch={onSelectBranch}
-            onEditMessage={onEditMessage}
-            onRegenerate={onRegenerate}
-            onAnswerClientTool={onAnswerClientTool}
-            onToolApproval={onToolApproval}
-            onFork={onFork}
-            busy={busy}
-          />
-        ))
+        visibleMessages.map((message, index) => {
+          const previous = messages[start + index - 1];
+          // Keep the reply row mounted between submission and the first assistant delta.
+          const key =
+            previous?.role === "user" && (!message || message.role === "assistant")
+              ? `reply:${previous.id}`
+              : `message:${message?.id}`;
+          return (
+            <TranscriptMessageRow
+              key={key}
+              message={message}
+              pending={message?.id === pendingAssistantId}
+              conversationId={conversationId}
+              streaming={busy && message?.role === "assistant" && message === lastMessage}
+              deliverableCompletion={deliverableCompletion}
+              onOpenArtifact={onOpenArtifact}
+              onOpenFile={onOpenFile}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              resolveSourceHref={resolveSourceHref}
+              resolveSourceAction={resolveSourceAction}
+              branch={message ? branchBySelectedMessage.get(message.id) : undefined}
+              onSelectBranch={onSelectBranch}
+              onEditMessage={onEditMessage}
+              onRegenerate={onRegenerate}
+              onAnswerClientTool={onAnswerClientTool}
+              onToolApproval={onToolApproval}
+              onFork={onFork}
+              busy={busy}
+            />
+          );
+        })
       )}
       <PendingInputStack inputs={visiblePendingInputs} />
-      {showStandaloneThinking ? (
-        <MessageScrollerItem>
-          <ThinkingStatus />
-        </MessageScrollerItem>
-      ) : null}
     </>
   );
 });

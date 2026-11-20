@@ -33,3 +33,35 @@ test("an empty streaming assistant uses one stable message row for its pending s
     true,
   );
 });
+
+test("submission keeps the same pending indicator until assistant content arrives", () => {
+  const user: ChatUIMessage = { id: "user", role: "user", parts: [{ type: "text", text: "hello" }] };
+  const assistant: ChatUIMessage = {
+    id: "answer",
+    role: "assistant",
+    parts: [{ type: "reasoning", text: "", state: "streaming" }],
+  };
+  function transcript(messages: ChatUIMessage[], status: "submitted" | "streaming") {
+    return (
+      <Conversation>
+        <ConversationContent>
+          <ChatTranscript conversationId="chat" loading={false} branches={[]} messages={messages} status={status} />
+        </ConversationContent>
+      </Conversation>
+    );
+  }
+  const view = render(transcript([user], "submitted"));
+  const pending = screen.getByRole("status");
+  const replyRow = pending.closest('[data-slot="message-scroller-item"]');
+  view.rerender(transcript([user, assistant], "streaming"));
+  expect(screen.getByRole("status")).toBe(pending);
+  expect(screen.queryByText("思考中…")).toBeNull();
+  view.rerender(
+    transcript(
+      [user, { ...assistant, parts: [{ type: "text", text: "first delta", state: "streaming" }] }],
+      "streaming",
+    ),
+  );
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(replyRow?.contains(screen.getByText("first delta"))).toBe(true);
+});

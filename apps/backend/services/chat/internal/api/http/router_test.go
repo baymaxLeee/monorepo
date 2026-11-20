@@ -145,3 +145,33 @@ func TestCreateInputRejectsSecretBearingOrEndpointPluginFields(t *testing.T) {
 		t.Fatal("plugin endpoint field was accepted from the renderer")
 	}
 }
+
+func TestLocalInferenceDeliversFirstRecordBeforeStreamEnds(t *testing.T) {
+	reader, upstream := io.Pipe()
+	handler, _ := testRouter(&http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/x-ndjson; charset=utf-8"}},
+		Body:       reader,
+	})
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	defer upstream.Close()
+	const first = "{\"type\":\"text-start\",\"id\":\"answer\"}\n"
+	go func() { _, _ = io.WriteString(upstream, first) }()
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/local-inference/stream", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header = scopedRequest(http.MethodPost, "/", nil).Header
+	client := server.Client()
+	client.Timeout = 2 * time.Second
+	response, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	got := make([]byte, len(first))
+	if _, err := io.ReadFull(response.Body, got); err != nil || string(got) != first {
+		t.Fatalf("first live record = %q, err = %v", got, err)
+	}
+}

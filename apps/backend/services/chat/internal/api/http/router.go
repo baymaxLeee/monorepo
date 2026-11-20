@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -341,7 +342,8 @@ func writeUpstream(writer http.ResponseWriter, response *http.Response) {
 	if response.Body == nil {
 		return
 	}
-	if strings.Contains(response.Header.Get("Content-Type"), "text/event-stream") {
+	mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	if mediaType == "text/event-stream" || mediaType == "application/x-ndjson" {
 		copyStreaming(writer, response.Body)
 		return
 	}
