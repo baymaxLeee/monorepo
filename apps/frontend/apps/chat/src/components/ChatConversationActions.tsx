@@ -1,4 +1,3 @@
-import { type Conversation } from "@repo/api/chat";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,22 +14,34 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/design-system";
+import { getErrorMessage } from "@repo/shared";
 import { DownloadIcon, MoreHorizontalIcon, RouteIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 
 export function ChatConversationActions({
   conversation,
   onDelete,
+  nativeConfirmation = false,
   onExport,
   onOpenTrace,
 }: {
-  conversation: Conversation;
+  conversation: { id: string; title: string };
+  nativeConfirmation?: boolean;
   onDelete: (id: string) => Promise<void>;
   onExport: (id: string) => Promise<void>;
-  onOpenTrace: (id: string) => void;
+  onOpenTrace?: (id: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  function remove() {
+    setDeleting(true);
+    setError(null);
+    void onDelete(conversation.id)
+      .then(() => setConfirming(false))
+      .catch((cause) => setError(getErrorMessage(cause)))
+      .finally(() => setDeleting(false));
+  }
   return (
     <>
       <DropdownMenu>
@@ -47,38 +58,56 @@ export function ChatConversationActions({
           <MoreHorizontalIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => onOpenTrace(conversation.id)}>
-            <RouteIcon />
-            执行轨迹
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void onExport(conversation.id).catch(() => {})}>
+          {onOpenTrace && (
+            <DropdownMenuItem onClick={() => onOpenTrace(conversation.id)}>
+              <RouteIcon />
+              执行轨迹
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onClick={() => void onExport(conversation.id).catch((cause) => setError(getErrorMessage(cause)))}
+          >
             <DownloadIcon />
             导出 Markdown
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={() => setConfirming(true)}>
+          <DropdownMenuItem
+            disabled={deleting}
+            variant="destructive"
+            onClick={() => {
+              setError(null);
+              if (nativeConfirmation) remove();
+              else setConfirming(true);
+            }}
+          >
             <Trash2Icon />
             删除会话
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {error && !confirming && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除此会话？</AlertDialogTitle>
             <AlertDialogDescription>“{conversation.title}”及其会话记录将被删除。</AlertDialogDescription>
           </AlertDialogHeader>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting}
               onClick={(event) => {
                 event.preventDefault();
-                setDeleting(true);
-                void onDelete(conversation.id)
-                  .then(() => setConfirming(false))
-                  .catch(() => {})
-                  .finally(() => setDeleting(false));
+                remove();
               }}
             >
               {deleting ? "删除中…" : "删除"}

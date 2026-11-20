@@ -13,12 +13,14 @@ export interface ConversationHistoryItem {
 }
 
 export function ConversationHistoryList({
+  desktop = false,
   label,
   items,
   onSelect,
   onLoadMore,
   loadMoreLabel = "显示更早的会话",
 }: {
+  desktop?: boolean;
   label: string;
   items: readonly ConversationHistoryItem[];
   onSelect: () => void;
@@ -31,22 +33,43 @@ export function ConversationHistoryList({
         <SidebarMenuItem key={item.key}>
           <Link
             to={item.href}
+            title={desktop ? item.title : undefined}
             aria-current={item.active ? "page" : undefined}
             onClick={onSelect}
             className={cn(
               buttonVariants({ variant: item.active ? "secondary" : "ghost" }),
-              "h-9 w-full min-w-0 justify-start gap-2 rounded-lg pr-9 text-sm font-normal",
+              "w-full min-w-0 justify-start gap-2 rounded-lg text-sm font-normal",
+              desktop
+                ? "h-[1.9375rem] border-0 px-2 pr-6 text-sidebar-foreground/80 hover:bg-sidebar-accent focus-visible:bg-sidebar-accent"
+                : "h-9 pr-9",
+              desktop && item.actions && "group-hover/menu-item:pr-8 group-focus-within/menu-item:pr-8",
             )}
           >
             {item.icon}
-            <span className="truncate">{item.title}</span>
+            <span
+              className={
+                desktop
+                  ? "min-w-0 overflow-hidden whitespace-nowrap mask-r-from-[calc(100%-0.75rem)] mask-r-to-100% pr-3"
+                  : "truncate"
+              }
+            >
+              {item.title}
+            </span>
           </Link>
           {item.actions}
         </SidebarMenuItem>
       ))}
       {onLoadMore ? (
         <SidebarMenuItem>
-          <Button variant="ghost" className="w-full" onClick={onLoadMore}>
+          <Button
+            variant="ghost"
+            className={
+              desktop
+                ? "h-[1.9375rem] w-full justify-start border-0 px-2 text-sm font-normal text-muted-foreground"
+                : "w-full"
+            }
+            onClick={onLoadMore}
+          >
             {loadMoreLabel}
           </Button>
         </SidebarMenuItem>

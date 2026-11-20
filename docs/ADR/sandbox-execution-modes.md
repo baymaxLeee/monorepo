@@ -278,7 +278,7 @@ Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MF
 
 ### 当前本地实现与边界
 
-Electron 仍是现有 Platform 的宿主。Web 与 Electron 共享云端 Chat 路由、`ConversationSessionView`、侧栏、`ChatStream`、`ChatPrompt`、上传和 Artifact/视频 inspector。唯一的 capability-gated 产品差异是 Electron 新会话 editor：它使用 Codex 风格 context bar 选择本地/云端及本地项目。Web 新会话保持统一云端 composer。创建后的本地 thread 由隐藏的 `/local/:id` controller 注入 shared `ConversationSessionView`、`ChatStream`、`ChatPrompt` 和 composer controls；不提供本地历史列表、本地工作区/文件侧栏、第二套会话 frame 或 Desktop preview/inspector。旧本地 SQLite schema 不迁移、不列出，也没有兼容入口。
+Electron 仍是现有 Platform 的宿主。Web 与 Electron 共享云端 Chat 路由、`ConversationSessionView`、侧栏、`ChatStream`、`ChatPrompt`、上传和 Artifact/视频 inspector。Electron 新会话 editor 使用 Codex 风格 context bar 选择本地/云端及本地项目。Web 新会话保持统一云端 composer。Electron 在共享侧栏的“最近”上方按 workspace 分组列出本地会话。点击会话后由 `/local/:id` controller 注入 shared `ConversationSessionView`、`ChatStream`、`ChatPrompt` 和 composer controls；不提供本地工作区/文件侧栏、第二套会话 frame 或 Desktop preview/inspector。旧本地 SQLite schema 不迁移、不列出，也没有兼容入口。
 
 - `apps/frontend/apps/desktop/electron` 提供 native runtime 与受限 bridge；Chat MFE 只在 Desktop 新会话 editor 和 local controller 消费这些能力。云端附件走 Conversation/Storage；本地 `+` 选择的文件以 bounded AI SDK 原生 `file` parts 送入本地 thread，不产生 Storage 副本。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
 - 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/runtime.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
@@ -303,7 +303,7 @@ Electron renderer 只在新会话 editor 暴露本地/云端与项目选择，�
 
 用户指定的工作目录构成写入授权范围，读取范围、临时目录、运行时依赖和网络权限由有效策略明确决定。文件工具与命令都必须执行相应策略，覆盖路径穿越、符号链接和目录替换；不能仅凭字符串前缀判断安全。平台能力不足时明确失败，不隐式改为无约束执行。
 
-本地创建与续聊复用 PromptInput/ChatPrompt 以及统一权限 controls；只有新会话 context bar 是 Desktop 专属组合。不得从 bridge capability 恢复旧本地历史、workspace sidebar、文件浏览器、preview 或 Inspector。
+本地创建与续聊复用 PromptInput/ChatPrompt 以及统一权限 controls；项目分组从 Desktop bridge 的当前 thread 列表读取。不得从 bridge capability 恢复 workspace sidebar、文件浏览器、preview 或 Inspector。
 
 ### 本地推理与 provider 凭据
 

@@ -18,9 +18,9 @@ MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just desktop-dev
 
 显式传给开发入口的 `--platform-url` 仍直接加载 URL，默认值为 `http://localhost:3000`；远程 HTTP 必须带 `--allow-http`。应用不提供浏览器通用文件或命令接口。当前包会做完整 ad-hoc 签名和签名校验，但未使用 Developer ID、hardened runtime 或 Apple 公证，因此是可安装的内部正式构建，不是可对外无提示分发的 macOS 公证版本。
 
-登录后，Desktop App 与 Web 共享云端会话、历史、Artifact/视频 inspector 和 `/conversations/*` 路由。唯一的 Desktop 专属产品面是新会话 editor：它按 Codex App 的上下文栏布局选择“此计算机”或“云端”，本地模式再选择经过 native 授权的项目。云端继续使用统一 Conversation/Storage 上传；本地 `+` 选择的文件作为受限 AI SDK `file` parts 进入本地 thread，不创建云端 conversation 或 Storage 文档。
+登录后，Desktop App 与 Web 共享云端会话、历史、Artifact/视频 inspector 和 `/conversations/*` 路由。桌面端新会话 editor 按 Codex App 的上下文栏布局选择“此计算机”或“云端”，本地模式再选择经过 native 授权的项目。云端继续使用统一 Conversation/Storage 上传；本地 `+` 选择的文件作为受限 AI SDK `file` parts 进入本地 thread，不创建云端 conversation 或 Storage 文档。
 
-本地 thread 通过隐藏的 `/local/:id` controller 打开，但复用 `ConversationSessionView`、`ChatStream`、`ChatPrompt` 与 composer controls；不恢复本地历史列表、工作区/文件侧栏、第二套会话 UI 或 Desktop inspector。此前旧 schema 的本地 SQLite 会话不迁移、不列出、不暴露兼容入口。
+Chat 侧栏在“最近”上方按项目分组展示本地会话，“最近”按更新时间合并本地与云端会话。同一本地会话在两处共用路由、操作菜单和删除结果。会话通过 `/local/:id` controller 打开，但复用 `ConversationSessionView`、`ChatStream`、`ChatPrompt` 与 composer controls；不恢复工作区/文件侧栏、第二套会话 UI 或 Desktop inspector。此前旧 schema 的本地 SQLite 会话不迁移、不列出、不暴露兼容入口。
 
 本地 journal 不归属于某个 Electron 应用名。默认 runtime home 是 `~/.monorepo-agent`，新
 Thread/Turn/Item 数据库位于 `sessions/<identity-scope>/runtime.sqlite`；可通过绝对路径环境变量

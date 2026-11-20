@@ -2,10 +2,10 @@
 
 `bridge.ts` defines the versioned, capability-only preload interface. `just sync`
 generates the Electron and `@repo/runtime/desktop` consumers. Chat consumes these
-capabilities only from Electron's new-conversation editor and the hidden local-thread
-controller. The visible exception selects local/cloud execution and a natively granted
-project; local threads otherwise reuse the shared Chat session surface and do not add a
-parallel history, workspace browser or inspector. Page code never receives Node, IPC channels, arbitrary HTTP access, a provider secret or an
+capabilities from Electron's new-conversation editor, project groups in the shared Chat sidebar,
+and the local-thread controller. The editor selects local/cloud execution and a natively
+granted project. The sidebar groups local threads by workspace and links to the
+shared Chat session surface. Page code never receives Node, IPC channels, arbitrary HTTP access, a provider secret or an
 MCP endpoint/header/grant, or an arbitrary directory grant. The renderer can reuse projects from trusted local
 thread history. Adding a project invokes native directory selection and records a
 one-shot grant; local thread creation consumes that selected grant and never opens

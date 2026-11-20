@@ -82,7 +82,7 @@ export function useConversationHistory() {
       if (!mounted.current) return;
       revision.current++;
       setConversations((list) => list?.filter((item) => item.id !== id) ?? null);
-      if (currentPath.current.endsWith(`/${id}`)) navigate("/platform/chat/conversations");
+      if (currentPath.current === `/platform/chat/conversations/${id}`) navigate("/platform/chat/conversations");
     },
     [navigate],
   );

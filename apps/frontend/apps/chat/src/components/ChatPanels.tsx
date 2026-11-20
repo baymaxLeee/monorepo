@@ -18,6 +18,7 @@ import {
   usePanelRef,
   useSidebar,
 } from "@repo/design-system";
+import { getDesktopBridge } from "@repo/runtime/desktop";
 import { memo, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
@@ -106,7 +107,7 @@ export function ChatPanels() {
             key="history"
             id="history"
             panelRef={historyPanel}
-            defaultSize="16rem"
+            defaultSize={getDesktopBridge() ? "15rem" : "16rem"}
             minSize="12rem"
             maxSize="24rem"
             collapsible
