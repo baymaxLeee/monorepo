@@ -91,6 +91,9 @@ Desktop bridge v3 只把 activation 带入本地 Thread。Electron main 校验�
 及 bounded bindings；renderer 永远拿不到 manifest endpoint、headers 或 grants。utility process resolve
 完成后，将去密 snapshot 写进 identity-scoped `runtime.sqlite` 的 `turn_plugin_snapshots`，再开始模型
 调用。相同 Turn 的 snapshot 只能幂等重复写入，内容变化会失败；旧 `runtime-v1.sqlite` 不读取或迁移。
+审批恢复（含应用重启后）沿用该 Turn 已保存的 snapshot。需要重建 MCP 连接时，宿主用原 activation
+重新申请临时 grant，并核对 tenant、workspace、workspace revision 及完整的插件清单和绑定。
+任一项变化就结束本轮，用户可在新轮次使用最新配置。
 
 云端 PostgreSQL 使用同名语义的 `turn_plugin_snapshots` 作为 audit/recovery 事实。两种持久层都不凭
 snapshot 自动重放工具；崩溃恢复只恢复已提交 journal。connection grant 仅在执行进程内存中存在，

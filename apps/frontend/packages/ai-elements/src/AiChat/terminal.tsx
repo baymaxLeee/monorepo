@@ -24,25 +24,29 @@ export type TerminalProps = ComponentProps<"div"> & {
   output: string;
   isStreaming?: boolean;
   exitCode?: number;
+  failed?: boolean;
 };
-export function Terminal({ command, output, isStreaming = false, exitCode, ...props }: TerminalProps) {
+export function Terminal({ command, output, isStreaming = false, exitCode, failed = false, ...props }: TerminalProps) {
   const [open, setOpen] = useState(false);
+  const hasError = failed || (exitCode !== undefined && exitCode !== 0);
   const lines = useHighlightedCode(output, "ansi");
   return (
     <Trace {...props}>
       <TraceCollapsible open={open} onOpenChange={setOpen}>
         <TraceCollapsibleTrigger>
-          <TraceLine
-            status={
-              isStreaming ? "running" : exitCode === undefined ? undefined : exitCode === 0 ? "completed" : "error"
-            }
-          >
+          <TraceLine status={isStreaming ? "running" : hasError ? "error" : exitCode === 0 ? "completed" : undefined}>
             <TraceIcon>
               <TerminalIcon />
             </TraceIcon>
             <TraceTitle>{command.split("\n")[0] || "Bash"}</TraceTitle>
             <TraceDescription>
-              {isStreaming ? "运行中" : exitCode ? `失败（退出码 ${exitCode}）` : "已完成"}
+              {isStreaming
+                ? "运行中"
+                : hasError
+                  ? exitCode === undefined
+                    ? "执行失败"
+                    : `失败（退出码 ${exitCode}）`
+                  : "已完成"}
             </TraceDescription>
           </TraceLine>
         </TraceCollapsibleTrigger>
@@ -54,7 +58,7 @@ export function Terminal({ command, output, isStreaming = false, exitCode, ...pr
             </CodeBlockHeader>
             <CodeBlockContent wrap>{command}</CodeBlockContent>
           </CodeBlock>
-          <CodeBlock size="sm" variant={exitCode ? "destructive" : "default"}>
+          <CodeBlock size="sm" variant={hasError ? "destructive" : "default"}>
             <CodeBlockHeader>
               <CodeBlockTitle>
                 {isStreaming ? "运行中" : exitCode === undefined ? "输出" : `退出码 ${exitCode}`}

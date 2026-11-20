@@ -22,6 +22,15 @@ export function ChatTerminalTool({
   const outcome = parseToolOutcome(output);
   const payload = outcome ? toolOutcomePayload(outcome) : output;
   const result = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const termination = result.termination;
+  const exitCode =
+    termination &&
+    typeof termination === "object" &&
+    "type" in termination &&
+    termination.type === "exit" &&
+    "exitCode" in termination
+      ? termination.exitCode
+      : result.exitCode;
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const failure = errorText ?? (outcome?.ok === false ? outcome.error.message : undefined);
@@ -32,7 +41,7 @@ export function ChatTerminalTool({
       stderr={stderr}
       failure={failure}
       running={running}
-      exitCode={typeof result.exitCode === "number" ? result.exitCode : failure ? 1 : undefined}
+      exitCode={typeof exitCode === "number" ? exitCode : undefined}
     />
   );
 }
@@ -63,7 +72,13 @@ const TerminalContent = memo(function TerminalContent({
     <>
       {suites && <TestResults suites={suites} />}
       <Suspense fallback={<Skeleton className="h-5 w-48" />}>
-        <Terminal command={command} output={output} isStreaming={running} exitCode={exitCode} />
+        <Terminal
+          command={command}
+          output={output}
+          isStreaming={running}
+          failed={failure !== undefined}
+          exitCode={exitCode}
+        />
       </Suspense>
     </>
   );

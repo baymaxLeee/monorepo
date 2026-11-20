@@ -3,6 +3,7 @@ import { watch, type FSWatcher } from "node:fs";
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import { createRuntimeTurn, type RuntimeInputQueue, type RuntimeTurn } from "@repo/agent-runtime";
@@ -16,6 +17,7 @@ import {
   type ContextEstimate,
 } from "@repo/agent-runtime/context/usage";
 import { PluginManager } from "@repo/agent-runtime/plugins/manager";
+import { toPersistedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
 import type {
   AgentPluginContext,
   PluginActivation,
@@ -389,6 +391,37 @@ export class DesktopSessionManager {
       })
       .catch(() => undefined);
   }
+  private async turnPlugins(
+    turnId: string,
+    activations: readonly PluginActivation[],
+    signal: AbortSignal,
+  ): Promise<ResolvedTurnPluginSnapshot> {
+    const frozen = this.journal.getPluginSnapshot(turnId);
+    if (!frozen) {
+      const resolved = await this.options.resolvePlugins(activations, signal);
+      this.journal.savePluginSnapshot(turnId, resolved);
+      return resolved;
+    }
+    if (frozen.plugins.every(({ manifest }) => manifest.mcpServers.length === 0)) {
+      return { ...frozen, connectionGrants: [] };
+    }
+    // Only connection grants are ephemeral. Re-authorize against the original
+    // bindings before attaching fresh credentials to the frozen MCP endpoints.
+    const fresh = await this.options.resolvePlugins(
+      frozen.plugins.map(({ activation }) => activation),
+      signal,
+    );
+    const projected = toPersistedTurnPluginSnapshot(fresh);
+    if (
+      projected.tenantId !== frozen.tenantId ||
+      projected.workspaceId !== frozen.workspaceId ||
+      projected.workspaceRevision !== frozen.workspaceRevision ||
+      !isDeepStrictEqual(projected.plugins, frozen.plugins)
+    ) {
+      throw new Error("插件配置已变更，请开始新一轮会话以使用最新配置");
+    }
+    return { ...frozen, connectionGrants: fresh.connectionGrants };
+  }
   private async run(
     thread: LocalThread,
     signal: AbortSignal,
@@ -402,8 +435,7 @@ export class DesktopSessionManager {
       const runWorkspace = workspace;
       const turnId = thread.turnId;
       if (!turnId) throw new Error("本地轮次缺少标识");
-      const pluginSnapshot = await this.options.resolvePlugins(thread.pluginActivations, signal);
-      this.journal.savePluginSnapshot(turnId, pluginSnapshot);
+      const pluginSnapshot = await this.turnPlugins(turnId, thread.pluginActivations, signal);
       const pluginContext: AgentPluginContext = {
         turnId,
         threadId: thread.id,

@@ -1,6 +1,7 @@
 import { fireEvent, isInaccessible, render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 
+import { ChatTerminalTool } from "../Conversation/components/ChatTerminalTool";
 import { Terminal } from "./terminal";
 
 vi.mock("@repo/design-system/use-highlighted-code", () => ({
@@ -32,4 +33,25 @@ test("a failed bash call exposes its failure status while details remain collaps
   expect(trigger.getAttribute("aria-expanded")).toBe("false");
   fireEvent.click(trigger);
   expect(isInaccessible(screen.getByText("permission denied"))).toBe(false);
+});
+
+test("tool failure shows the reason and only reports an exit code supplied by the process", async () => {
+  const props = { input: { command: "test" }, running: false };
+  const view = render(<ChatTerminalTool {...props} output={undefined} errorText="审批恢复失败" />);
+  const trigger = await screen.findByRole("button", { name: /test.*失败/ });
+  expect(trigger.textContent).not.toContain("退出码");
+  fireEvent.click(trigger);
+  expect(screen.getByText("审批恢复失败")).toBeTruthy();
+  view.rerender(
+    <ChatTerminalTool
+      {...props}
+      output={{
+        ok: false,
+        status: "partial",
+        error: { code: "bash_exit", message: "command failed", retryable: false },
+        data: { termination: { type: "exit", exitCode: 17 } },
+      }}
+    />,
+  );
+  expect(trigger.textContent).toContain("退出码 17");
 });

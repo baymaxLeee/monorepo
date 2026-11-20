@@ -73,7 +73,7 @@ async function fixture(
     }),
     resolvePlugins: async () => ({
       schemaVersion: 1,
-      snapshotId: "empty",
+      snapshotId: randomUUID(),
       snapshotDigest: `sha256:${"0".repeat(64)}`,
       workspaceRevision: 1,
       tenantId: "tenant",
@@ -97,6 +97,74 @@ async function done(runtime: DesktopSessionManager, id: string) {
   return runtime.get(id);
 }
 
+function reviewedBashCall(): DesktopSessionOptions["call"] {
+  const call = vi.fn<DesktopSessionOptions["call"]>();
+  return call
+    .mockImplementationOnce(async () =>
+      reply([
+        {
+          type: "tool-call",
+          toolCallId: "reviewed",
+          toolName: "bash",
+          input: JSON.stringify({ command: "rm -f temporary.txt && printf x >> marker.txt" }),
+        },
+      ]),
+    )
+    .mockImplementation(async () => reply(text()));
+}
+
+function pendingApproval(thread: ReturnType<DesktopSessionManager["get"]>) {
+  for (const { parts } of thread.messages) {
+    for (const part of parts) if (isToolUIPart(part) && part.state === "approval-requested") return part.approval.id;
+  }
+  throw new Error("missing approval");
+}
+
+function docsSnapshot(): ResolvedTurnPluginSnapshot {
+  const manifest: AgentPluginManifest = {
+    schemaVersion: 1,
+    id: "docs@external",
+    version: "1.0.0",
+    digest: `sha256:${"a".repeat(64)}`,
+    displayName: "Docs",
+    description: "External document search",
+    source: "external-mcp",
+    trust: "unverified",
+    mcpServers: [
+      {
+        name: "docs",
+        tools: [
+          {
+            name: "search",
+            description: "Search documents",
+            inputSchema: { type: "object", properties: {}, additionalProperties: false },
+            policy: { capability: "external", effect: "read", trust: "open-world", execution: "inline" },
+            planning: { summary: "Search knowledge" },
+          },
+        ],
+        url: "https://docs.example/mcp",
+      },
+    ],
+  };
+  return {
+    schemaVersion: 1,
+    snapshotId: "docs-snapshot",
+    snapshotDigest: `sha256:${"b".repeat(64)}`,
+    workspaceRevision: 1,
+    tenantId: "tenant",
+    workspaceId: "workspace",
+    resolvedAt: "2026-01-01T00:00:00.000Z",
+    plugins: [{ manifest, activation: { pluginId: manifest.id } }],
+    connectionGrants: [
+      {
+        pluginId: manifest.id,
+        serverName: "docs",
+        headers: { Authorization: "Bearer desktop-secret" },
+      },
+    ],
+  };
+}
+
 describe.skipIf(process.platform !== "darwin")("local assistant owns execution and recovery", () => {
   it("persists model binding updates and freezes them for the active turn", async () => {
     const f = await fixture(async () => reply(text()));
@@ -113,48 +181,8 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
   it("freezes plugin tools for the Turn, persists only the audit snapshot and disposes resources", async () => {
     const requests: InferenceRequest[] = [];
     const dispose = vi.fn(async () => {});
-    const manifest: AgentPluginManifest = {
-      schemaVersion: 1,
-      id: "docs@external",
-      version: "1.0.0",
-      digest: `sha256:${"a".repeat(64)}`,
-      displayName: "Docs",
-      description: "External document search",
-      source: "external-mcp",
-      trust: "unverified",
-      mcpServers: [
-        {
-          name: "docs",
-          tools: [
-            {
-              name: "search",
-              description: "Search documents",
-              inputSchema: { type: "object", properties: {}, additionalProperties: false },
-              policy: { capability: "external", effect: "read", trust: "open-world", execution: "inline" },
-              planning: { summary: "Search knowledge" },
-            },
-          ],
-          url: "https://docs.example/mcp",
-        },
-      ],
-    };
-    const snapshot: ResolvedTurnPluginSnapshot = {
-      schemaVersion: 1,
-      snapshotId: "docs-snapshot",
-      snapshotDigest: `sha256:${"b".repeat(64)}`,
-      workspaceRevision: 1,
-      tenantId: "tenant",
-      workspaceId: "workspace",
-      resolvedAt: "2026-01-01T00:00:00.000Z",
-      plugins: [{ manifest, activation: { pluginId: manifest.id } }],
-      connectionGrants: [
-        {
-          pluginId: manifest.id,
-          serverName: "docs",
-          headers: { Authorization: "Bearer desktop-secret" },
-        },
-      ],
-    };
+    const snapshot = docsSnapshot();
+    const manifest = snapshot.plugins[0]!.manifest;
     const f = await fixture(
       async (request) => {
         requests.push(request);
@@ -386,6 +414,73 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(JSON.stringify(completed.messages)).toContain('"type":"tool-read_file"');
     expect(JSON.stringify(completed.messages)).toContain('"type":"tool-write_file"');
     expect(JSON.stringify(completed.messages)).toContain('"type":"tool-apply_patch"');
+  });
+
+  it.each([false, true])("resumes the approved call with its frozen snapshot (restart=%s)", async (restart) => {
+    const f = await fixture(reviewedBashCall());
+    const id = f.thread.id;
+    f.runtime.send(id, user("clean up"), randomUUID());
+    const waiting = await done(f.runtime, id);
+    expect(waiting.status).toBe("waiting");
+    const approvalId = pendingApproval(waiting);
+    const snapshot = f.runtime.journal.getPluginSnapshot(waiting.turnId!);
+    let runtime = f.runtime;
+    if (restart) {
+      await runtime.close();
+      runtimes.splice(runtimes.indexOf(runtime), 1);
+      runtime = new DesktopSessionManager(f.options);
+      runtimes.push(runtime);
+    }
+    runtime.approve(id, approvalId, true);
+    const completed = await done(runtime, id);
+    expect(completed.error).toBeNull();
+    expect(completed.status).toBe("idle");
+    expect(runtime.journal.getPluginSnapshot(waiting.turnId!)).toEqual(snapshot);
+    expect(await readFile(join(f.thread.workspace, "marker.txt"), "utf8")).toBe("x");
+  });
+
+  it.each([false, true])("refreshes grants only for the frozen MCP configuration (changed=%s)", async (changed) => {
+    const original = docsSnapshot();
+    const refreshed = structuredClone(original);
+    refreshed.snapshotId = randomUUID();
+    refreshed.connectionGrants = [{ ...original.connectionGrants[0]!, headers: { Authorization: "fresh grant" } }];
+    if (changed) refreshed.workspaceId = "another-workspace";
+    const resolver = vi
+      .fn<DesktopSessionOptions["resolvePlugins"]>()
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce(refreshed);
+    const load = vi.fn(async (snapshot: ResolvedTurnPluginSnapshot) => ({
+      snapshotId: snapshot.snapshotId,
+      snapshotDigest: snapshot.snapshotDigest,
+      activePlugins: [],
+      skills: [],
+      manifests: [],
+      dispose: async () => {},
+    }));
+    const f = await fixture(
+      reviewedBashCall(),
+      { resolvePlugins: resolver, pluginLoader: { load } },
+      original.plugins.map((plugin) => plugin.activation),
+    );
+    f.runtime.send(f.thread.id, user("run"), randomUUID());
+    const waiting = await done(f.runtime, f.thread.id);
+    const approvalId = pendingApproval(waiting);
+    f.runtime.approve(f.thread.id, approvalId, true);
+    const completed = await done(f.runtime, f.thread.id);
+    const marker = join(f.thread.workspace, "marker.txt");
+    if (changed) {
+      expect(completed.status).toBe("error");
+      expect(load).toHaveBeenCalledTimes(1);
+      await expect(readFile(marker)).rejects.toMatchObject({ code: "ENOENT" });
+    } else {
+      expect(completed.error).toBeNull();
+      expect(await readFile(marker, "utf8")).toBe("x");
+      expect(load.mock.calls[1]?.[0]).toMatchObject({
+        snapshotId: original.snapshotId,
+        connectionGrants: refreshed.connectionGrants,
+      });
+    }
+    expect(f.runtime.journal.getPluginSnapshot(waiting.turnId!)).not.toHaveProperty("connectionGrants");
   });
 
   it("uses the common Bash policy and terminal result without a local-only approval gate", async () => {
