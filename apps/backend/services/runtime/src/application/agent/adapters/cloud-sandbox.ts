@@ -162,7 +162,7 @@ export class RunSandbox implements Experimental_SandboxSession {
   private disposal?: Promise<void>;
   private closed = false;
   private readonly abort = new AbortController();
-  private readonly stopListeners = new Map<AbortSignal, () => void>();
+  private readonly ownerStopListener?: () => void;
   private readonly sources = new Map<
     string,
     { fingerprint: string; source: { path: string; document_id?: string; file_id?: string } }
@@ -175,6 +175,7 @@ export class RunSandbox implements Experimental_SandboxSession {
   constructor(
     private readonly context: ArtifactToolContext & { attemptEpoch: string },
     private readonly deps: SandboxDependencies = defaults,
+    private readonly ownerSignal?: AbortSignal,
     private readonly helperPermissionProfile: PermissionProfile = compilePermissionProfile(":workspace", {
       workspaceRoot: "/workspace",
     }).profile,
@@ -188,19 +189,21 @@ export class RunSandbox implements Experimental_SandboxSession {
       run_id: context.runId,
       attempt_epoch: context.attemptEpoch,
     };
+    if (ownerSignal) {
+      // The Turn owns workspace teardown. ProcessManager signals are operation-scoped
+      // and may abort after an ordinary tool failure without ending the Turn.
+      this.ownerStopListener = () => {
+        this.abort.abort(ownerSignal.reason);
+        void this.dispose().catch((error) => logger.error({ err: error }, "sandbox stop cleanup failed"));
+      };
+      if (ownerSignal.aborted) this.ownerStopListener();
+      else ownerSignal.addEventListener("abort", this.ownerStopListener, { once: true });
+    }
   }
 
   private observeStop(signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (this.closed) throw new Error("This run's sandbox is closed; the workspace is no longer attached.");
-    if (signal && !this.stopListeners.has(signal)) {
-      const listener = () => {
-        this.abort.abort(signal.reason);
-        void this.dispose().catch((error) => logger.error({ err: error }, "sandbox stop cleanup failed"));
-      };
-      signal.addEventListener("abort", listener, { once: true });
-      this.stopListeners.set(signal, listener);
-    }
   }
 
   private operationSignal(signal?: AbortSignal) {
@@ -485,7 +488,7 @@ export class RunSandbox implements Experimental_SandboxSession {
     const relative = sandboxRelativePath(options.path);
     const absolute = `/workspace/${relative}`;
     const check = await this.runHelper({
-      command: `test -f -- ${shellQuote(absolute)}`,
+      command: `test -f ${shellQuote(absolute)}`,
       workingDirectory: "/workspace/work",
       abortSignal: options.abortSignal,
     });
@@ -963,8 +966,7 @@ rm -- ${shellQuote(absolute)}`,
     this.closed = true;
     this.helperProcesses.closeAll();
     this.abort.abort();
-    for (const [signal, listener] of this.stopListeners) signal.removeEventListener("abort", listener);
-    this.stopListeners.clear();
+    if (this.ownerStopListener) this.ownerSignal?.removeEventListener("abort", this.ownerStopListener);
     this.disposal = (async () => {
       await this.initializing?.catch(() => {});
       if (this.initializing) {

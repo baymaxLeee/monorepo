@@ -20,6 +20,18 @@ export interface LocalPendingInput {
   stepNumber?: number;
   reason?: string;
 }
+
+export type LocalContextUsageCategoryId = "system" | "tools" | "rules" | "skills" | "mcp" | "memory" | "conversation";
+
+export interface LocalContextUsage {
+  contextWindow: number;
+  autoCompactAt: number;
+  usedTokens: number;
+  estimated: boolean;
+  compacted: boolean;
+  categories: Array<{ id: LocalContextUsageCategoryId; tokens: number }>;
+}
+
 export interface LocalThread {
   id: string;
   mode: "local";
@@ -35,6 +47,7 @@ export interface LocalThread {
   error: string | null;
   updatedAt: string;
   pendingInputs: LocalPendingInput[];
+  contextUsage: LocalContextUsage | null;
   messages: UIMessage[];
 }
 export interface LocalFile {

@@ -13,6 +13,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } 
 
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import {
+  contextCheckpoints,
   threadItems,
   threads,
   toolExecutions,
@@ -956,6 +957,15 @@ export async function getLatestSessionContextRecord(sessionId: string): Promise<
     updatedAt: isoOrNull(row.finishedAt) ?? isoOrNull(row.runCreatedAt) ?? "",
     snapshot,
   };
+}
+
+export async function hasSessionContextCheckpoint(sessionId: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ threadId: contextCheckpoints.threadId })
+    .from(contextCheckpoints)
+    .where(eq(contextCheckpoints.threadId, sessionId))
+    .limit(1);
+  return row !== undefined;
 }
 
 export async function recordAgentStepContextSnapshot(

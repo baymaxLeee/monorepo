@@ -140,6 +140,7 @@ function fixture() {
     turnId: null,
     updatedAt: "",
     pendingInputs: [],
+    contextUsage: null,
     messages: [],
   };
   const off = vi.fn();

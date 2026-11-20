@@ -328,9 +328,9 @@ test("Stop during provisioning waits for creation then deletes it without execut
     await gate;
     return { id: "sandbox", workdir: "/workspace/work", expires_at: "later" };
   };
-  const run = new RunSandbox(context, f.deps);
   const stop = new AbortController();
-  const pending = run.runAttempt(attempt(), { command: "never", abortSignal: stop.signal });
+  const run = new RunSandbox(context, f.deps, stop.signal);
+  const pending = run.runAttempt(attempt(), { command: "never" });
   const rejected = assert.rejects(pending, { name: "AbortError" });
   stop.abort();
   release();
@@ -388,6 +388,56 @@ test("official SDK file methods preserve bytes and keep source snapshots read-on
   assert.deepEqual(f.imported.at(-1), bytes);
   assert.deepEqual(await run.readBinaryFile({ path: "/workspace/work/data.bin" }), bytes);
   await assert.rejects(run.writeTextFile({ path: "/workspace/sources/data.txt", content: "blocked" }), /cannot target/);
+  await run.dispose();
+});
+
+test("file existence checks use the portable test operand form", async () => {
+  const f = fixture();
+  f.client.start = async (_id, input) => ({
+    session_id: "portable-test",
+    stdout: "",
+    stderr: input.command.includes("test -f --") ? "test: --: binary operator expected" : "",
+    termination: { type: "exit", exit_code: input.command.includes("test -f --") ? 2 : 0 },
+    stdout_offset: 0,
+    stderr_offset: input.command.includes("test -f --") ? 32 : 0,
+    truncated: false,
+  });
+  const run = new RunSandbox(context, f.deps);
+
+  assert.deepEqual(await run.readBinaryFile({ path: "/workspace/work/data.bin" }), bytes);
+  await run.dispose();
+});
+
+test("a failed helper operation does not dispose the run-scoped workspace", async () => {
+  const f = fixture();
+  let starts = 0;
+  f.client.start = async () => {
+    starts++;
+    if (starts === 1) throw new Error("file inspection transport failed");
+    return {
+      session_id: "recovered",
+      stdout: "ok",
+      stderr: "",
+      termination: { type: "exit", exit_code: 0 },
+      stdout_offset: 2,
+      stderr_offset: 0,
+      truncated: false,
+    };
+  };
+  const run = new RunSandbox(context, f.deps);
+
+  await assert.rejects(run.readBinaryFile({ path: "/workspace/work/data.bin" }), /transport failed/);
+  assert.equal(f.calls.includes("destroy"), false);
+  assert.deepEqual(await run.runAttempt(attempt(), { command: "continue" }), {
+    type: "exit",
+    exitCode: 0,
+    stdout: "ok",
+    stderr: "",
+    outputMetadata: {
+      stdout: { totalBytes: 2, truncated: false },
+      stderr: { totalBytes: 0, truncated: false },
+    },
+  });
   await run.dispose();
 });
 

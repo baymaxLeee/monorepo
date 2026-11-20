@@ -10,17 +10,28 @@ import { PendingInputStack, type PendingAgentInput } from "./PendingInputStack";
 // SDK snapshots preserve historical messages, but derived sets/arrays may be
 // recreated on each delta. Compare only that small context, never message text
 // or tool payloads; action callbacks still participate in the comparison.
-const TranscriptMessage = memo(ChatMessageView, (previous, next) =>
-  (Object.keys(previous) as (keyof ChatMessageViewProps)[]).every((key) => {
-    if (key === "deliverableCompletion") {
-      return (["artifact", "image", "video"] as const).every((kind) => {
-        const before = previous.deliverableCompletion[kind];
-        const after = next.deliverableCompletion[kind];
-        return before.length === after.length && before.every((status, index) => status === after[index]);
-      });
-    }
-    return previous[key] === next[key];
-  }),
+type TranscriptMessageRowProps = ChatMessageViewProps & { pending: boolean };
+
+const TranscriptMessageRow = memo(
+  function TranscriptMessageRow({ message, pending, ...props }: TranscriptMessageRowProps) {
+    return (
+      <MessageScrollerItem messageId={message.id} scrollAnchor={message.role === "user"}>
+        <ChatMessageView message={message} {...props} />
+        {pending ? <ThinkingStatus /> : null}
+      </MessageScrollerItem>
+    );
+  },
+  (previous, next) =>
+    (Object.keys(previous) as (keyof TranscriptMessageRowProps)[]).every((key) => {
+      if (key === "deliverableCompletion") {
+        return (["artifact", "image", "video"] as const).every((kind) => {
+          const before = previous.deliverableCompletion[kind];
+          const after = next.deliverableCompletion[kind];
+          return before.length === after.length && before.every((status, index) => status === after[index]);
+        });
+      }
+      return previous[key] === next[key];
+    }),
 );
 
 type ChatTranscriptProps = Pick<
@@ -57,6 +68,15 @@ function isPendingAssistantMessage(message: ChatUIMessage | undefined) {
   });
 }
 
+function ThinkingStatus() {
+  return (
+    <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground" role="status" aria-live="polite">
+      <Spinner aria-hidden="true" />
+      正在思考…
+    </div>
+  );
+}
+
 export const ChatTranscript = memo(function ChatTranscript({
   conversationId,
   messages,
@@ -85,8 +105,9 @@ export const ChatTranscript = memo(function ChatTranscript({
   }, [anchorIndex, messages, start]);
   const visibleMessages = messages.slice(start);
   const busy = status === "streaming" || status === "submitted";
-  const showThinkingPlaceholder =
-    status === "submitted" || (status === "streaming" && isPendingAssistantMessage(messages.at(-1)));
+  const lastMessage = messages.at(-1);
+  const pendingAssistantId = busy && isPendingAssistantMessage(lastMessage) ? lastMessage?.id : undefined;
+  const showStandaloneThinking = busy && lastMessage?.role !== "assistant";
   const latestTodoCallId = useMemo(() => findLatestUpdateTodosCallId(messages), [messages]);
   const deliverableCompletion = useMemo(
     () => collectDeliverableCompletion(messages, latestTodoCallId),
@@ -130,38 +151,33 @@ export const ChatTranscript = memo(function ChatTranscript({
         </MessageScrollerItem>
       ) : (
         visibleMessages.map((message) => (
-          <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
-            <TranscriptMessage
-              message={message}
-              conversationId={conversationId}
-              streaming={busy && message === messages.at(-1)}
-              deliverableCompletion={deliverableCompletion}
-              onOpenArtifact={onOpenArtifact}
-              onOpenFile={onOpenFile}
-              onOpenWorkspaceFile={onOpenWorkspaceFile}
-              resolveSourceHref={resolveSourceHref}
-              resolveSourceAction={resolveSourceAction}
-              branch={branchBySelectedMessage.get(message.id)}
-              onSelectBranch={onSelectBranch}
-              onEditMessage={onEditMessage}
-              onRegenerate={onRegenerate}
-              onAnswerClientTool={onAnswerClientTool}
-              onToolApproval={onToolApproval}
-              onFork={onFork}
-              busy={busy}
-            />
-          </MessageScrollerItem>
+          <TranscriptMessageRow
+            key={message.id}
+            message={message}
+            pending={message.id === pendingAssistantId}
+            conversationId={conversationId}
+            streaming={busy && message === messages.at(-1)}
+            deliverableCompletion={deliverableCompletion}
+            onOpenArtifact={onOpenArtifact}
+            onOpenFile={onOpenFile}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            resolveSourceHref={resolveSourceHref}
+            resolveSourceAction={resolveSourceAction}
+            branch={branchBySelectedMessage.get(message.id)}
+            onSelectBranch={onSelectBranch}
+            onEditMessage={onEditMessage}
+            onRegenerate={onRegenerate}
+            onAnswerClientTool={onAnswerClientTool}
+            onToolApproval={onToolApproval}
+            onFork={onFork}
+            busy={busy}
+          />
         ))
       )}
       <PendingInputStack inputs={visiblePendingInputs} />
-      {showThinkingPlaceholder ? (
-        <MessageScrollerItem
-          className="flex items-center gap-2 py-2 text-sm text-muted-foreground"
-          role="status"
-          aria-live="polite"
-        >
-          <Spinner aria-hidden="true" />
-          正在思考…
+      {showStandaloneThinking ? (
+        <MessageScrollerItem>
+          <ThinkingStatus />
         </MessageScrollerItem>
       ) : null}
     </>

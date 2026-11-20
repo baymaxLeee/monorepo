@@ -51,6 +51,9 @@ export function ChatContextUsage({
           ? {
               usedTokens: context.usedTokens,
               contextWindow: context.contextWindow,
+              autoCompactAt: context.autoCompactAt,
+              estimated: context.estimated,
+              compacted: context.compacted,
               categories: context.categories,
             }
           : null

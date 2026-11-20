@@ -41,6 +41,7 @@ function snapshot(): LocalStream {
       error: null,
       updatedAt: "",
       pendingInputs: [],
+      contextUsage: null,
       messages: [],
     },
     segment: { id: "s", messages: [], chunks: [{ type: "start", messageId: "assistant" }], done: false },

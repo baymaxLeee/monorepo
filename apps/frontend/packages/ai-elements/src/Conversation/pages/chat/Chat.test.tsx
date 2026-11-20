@@ -13,9 +13,11 @@ const state = vi.hoisted(() => ({
   messages: [] as UIMessage[],
   status: "streaming",
   composerRenders: 0,
+  conversationRenders: 0,
   sessionRenders: 0,
   listeners: new Set<() => void>(),
   messageRenders: [] as string[],
+  rowRenders: [] as string[],
   sendMessage: vi.fn(),
   editMessage: undefined as ChatMessageViewProps["onEditMessage"],
   setMessages: vi.fn(),
@@ -119,7 +121,10 @@ vi.mock("../../store/useChatStore", () => {
   };
 });
 vi.mock("@repo/ai-elements", () => ({
-  Conversation: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Conversation: ({ children }: { children: ReactNode }) => {
+    state.conversationRenders++;
+    return <div>{children}</div>;
+  },
   ConversationContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ConversationEmptyState: () => null,
   ConversationScrollButton: () => null,
@@ -128,7 +133,10 @@ vi.mock("@repo/design-system", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick: () => void }) => (
     <button onClick={onClick}>{children}</button>
   ),
-  MessageScrollerItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  MessageScrollerItem: ({ children, messageId }: { children: ReactNode; messageId?: string }) => {
+    if (messageId) state.rowRenders.push(messageId);
+    return <div>{children}</div>;
+  },
   Spinner: () => null,
   toast: { add: vi.fn() },
 }));
@@ -219,7 +227,9 @@ beforeEach(() => {
   state.messages = [{ id: "live", role: "assistant", parts: [{ type: "text", text: "输出" }] }];
   state.status = "streaming";
   state.composerRenders = 0;
+  state.conversationRenders = 0;
   state.messageRenders = [];
+  state.rowRenders = [];
   state.suspendedText = null;
   state.editMessage = undefined;
   state.submitInput.mockReset();
@@ -243,7 +253,9 @@ async function mount() {
   await waitFor(() => expect(screen.getByText("Test")).toBeTruthy());
   await waitFor(() => expect(screen.getByTestId(state.messages.at(-1)!.id)).toBeTruthy());
   state.composerRenders = 0;
+  state.conversationRenders = 0;
   state.messageRenders = [];
+  state.rowRenders = [];
   state.sessionRenders = 0;
   return view;
 }
@@ -287,6 +299,7 @@ test("text deltas do not rerender the composer, and typing/stop remain available
   }
   expect(screen.getByText("输出 19")).toBeTruthy();
   expect(state.composerRenders).toBe(0);
+  expect(state.conversationRenders).toBe(0);
   expect(state.sessionRenders).toBe(0);
   expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("正在编辑的下一条消息");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "停止" })));
@@ -294,11 +307,12 @@ test("text deltas do not rerender the composer, and typing/stop remain available
   expect(state.cancel).toHaveBeenCalledWith("conversation", "run", { skipErrorNotify: true });
 });
 
-test("a published text delta is visible in the same UI commit", async () => {
+test("a published text delta is deferred outside the transport commit", async () => {
   await mount();
   state.messages = [{ id: "live", role: "assistant", parts: [{ type: "text", text: "实时增量" }] }];
   flushSync(() => state.listeners.forEach((notify) => notify()));
-  expect(screen.getByText("实时增量")).toBeTruthy();
+  expect(screen.queryByText("实时增量")).toBeNull();
+  expect(await screen.findByText("实时增量")).toBeTruthy();
 });
 
 test("a running submission clears only after durable admission and renders in the transcript", async () => {
@@ -396,6 +410,7 @@ test("a live text delta does not render unchanged historical messages", async ()
   // measure only the render caused by the live SDK snapshot below.
   await publish();
   state.messageRenders = [];
+  state.rowRenders = [];
   state.messages = [
     ...state.messages.slice(0, -1),
     { id: "live", role: "assistant", parts: [{ type: "text", text: "新内容" }] },
@@ -403,6 +418,7 @@ test("a live text delta does not render unchanged historical messages", async ()
   await publish();
   expect(screen.getByText("新内容")).toBeTruthy();
   expect(state.messageRenders).toEqual(["live"]);
+  expect(state.rowRenders).toEqual(["live"]);
 });
 
 test("ready status and changed request options reach memoized controls and tool actions", async () => {
@@ -434,7 +450,8 @@ test("a suspended transcript update does not block edits or cancellation", async
   state.messages = [{ id: "live", role: "assistant", parts: [{ type: "text", text: state.suspendedText }] }];
   await publish();
   expect(screen.queryByText("正文加载中")).toBeNull();
-  expect(screen.getByText("正在更新消息…")).toBeTruthy();
+  expect(screen.getByText("输出")).toBeTruthy();
+  expect(screen.queryByText("正在更新消息…")).toBeNull();
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "仍然可以编辑" } });
   expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("仍然可以编辑");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "停止" })));

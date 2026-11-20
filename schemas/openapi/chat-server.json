@@ -465,15 +465,25 @@
       },
       "ConversationContextView": {
         "properties": {
+          "autoCompactAt": {
+            "nullable": true,
+            "type": "integer"
+          },
           "categories": {
             "items": {
               "$ref": "#/components/schemas/ConversationContextCategory"
             },
             "type": "array"
           },
+          "compacted": {
+            "type": "boolean"
+          },
           "contextWindow": {
             "nullable": true,
             "type": "integer"
+          },
+          "estimated": {
+            "type": "boolean"
           },
           "usedTokens": {
             "type": "integer"
@@ -481,7 +491,10 @@
         },
         "required": [
           "contextWindow",
+          "autoCompactAt",
           "usedTokens",
+          "estimated",
+          "compacted",
           "categories"
         ],
         "type": "object"

@@ -53,7 +53,10 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
       extensions,
       content: defaultValue,
       editable: !disabled,
-      autofocus: autoFocus,
+      // Tiptap's built-in autofocus always dispatches scrollIntoView. The
+      // composer lives below a separately owned message viewport, so that can
+      // move the surrounding page when a new conversation mounts.
+      autofocus: false,
       editorProps: {
         attributes: {
           class: "prompt-input-prosemirror",
@@ -110,6 +113,13 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
     [extensions],
   );
   editorRef.current = editor;
+
+  useEffect(() => {
+    if (!autoFocus || !editor || editor.isDestroyed) {
+      return;
+    }
+    editor.commands.focus(true, { scrollIntoView: false });
+  }, [autoFocus, editor]);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) {

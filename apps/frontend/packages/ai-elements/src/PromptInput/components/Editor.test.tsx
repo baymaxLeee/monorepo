@@ -17,6 +17,22 @@ test("empty draft exposes placeholder state without covering entered text", asyn
   expect(input.dataset.empty).toBe("true");
 });
 
+test("autofocus focuses the composer without requesting page scroll", async () => {
+  const ref = createRef<PromptInputRef>();
+  render(<Editor ref={ref} autoFocus />);
+  const editor = ref.current?.editor;
+  expect(editor).toBeTruthy();
+  const scrollRequests: boolean[] = [];
+  const recordTransaction = ({ transaction }: { transaction: { scrolledIntoView: boolean } }) => {
+    scrollRequests.push(transaction.scrolledIntoView);
+  };
+  editor?.on("transaction", recordTransaction);
+  const input = await screen.findByRole("textbox", { name: "消息" });
+  await waitFor(() => expect(document.activeElement).toBe(input));
+  expect(scrollRequests).not.toContain(true);
+  editor?.off("transaction", recordTransaction);
+});
+
 // ProseMirror measures DOM ranges; jsdom has no layout implementation.
 beforeAll(() => {
   Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });

@@ -92,14 +92,24 @@ provider/model 且与 journal 直接相邻时可用的优化；切换模型、�
 shared context manager 将完整 UIMessage journal 投影为 bounded ModelMessage：
 
 1. 有效输入窗口为 `max(512, contextWindow - maxOutputTokens - 8000)`；stored lineage 在该窗口
-   80% 水位断开并回到 journal。
-2. 近期 tail 保留原生消息，并为 compacted prefix 预留 6000 tokens；只压缩超出窗口的旧前缀。
+   80% 水位断开并回到 journal。这个水位同时是 UI 的 `autoCompactAt` 和 context manager 开始
+   拆分 prefix/tail 的依据，不能出现 lineage 已断开但投影仍不压缩的不同阈值。
+2. 近期 tail 保留原生消息，并在 80% 水位内为 compacted prefix 预留 6000 tokens；只压缩旧前缀。
+   单条超长 prefix 消息按连续 chunk 全量送给 compactor；工具与 `data-*` 的大 payload 可以有界截断，
+   但必须带显式 omitted marker。最终 ModelMessage 投影若仍超过有效输入窗口就拒绝调用，不能依赖
+   provider 隐式截断。
 3. compactor 以流式模型调用增量合并旧摘要和新 prefix，输出版本化
    `runtime-context-v1` durable summary；消息内容按不可信数据处理。
 4. checkpoint 记录 `coveredThroughMessageId` 和 revision。PostgreSQL/SQLite 通过 CAS 安装；
    compaction 或 checkpoint 写入失败会终止本次主模型调用，不能假装压缩成功或推进 coverage。
 5. 文件授权/字节加载是 host 的 `prepareRecent` adapter；shared manager 不访问 Storage、数据库
    或本地文件系统。持久 journal 从不因 projection/pruning/compaction 被改写。
+
+ContextUsage 表示最近一次活动模型上下文，不是会话累计花费：优先采用 provider 返回的 input usage，
+加上会留在后续上下文中的非 reasoning 输出；provider 尚未返回可靠 usage 时使用同一 portable estimator
+并标记 `estimated`。分类始终是估算，分类和等于展示总量。Cloud 从 step snapshot 暴露该值，Desktop
+在同一 model middleware/onStepEnd 边界持久化到 thread；两端都展示原始 model window、自动压缩水位
+和是否已有 checkpoint，且压缩不会删除原始 journal。
 
 Desktop relay 不使用 stored provider lineage，但使用同一个 journal projection、budget 和
 checkpoint 机制。其 authority 是每个 identity scope 下的 `runtime.sqlite`，schema 为

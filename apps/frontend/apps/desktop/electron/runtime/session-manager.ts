@@ -4,9 +4,17 @@ import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
+import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import { createRuntimeTurn, type RuntimeInputQueue, type RuntimeTurn } from "@repo/agent-runtime";
+import { contextCompactionThreshold } from "@repo/agent-runtime/context/budget";
 import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
 import { projectRuntimeContext } from "@repo/agent-runtime/context/manager";
+import { runtimeTokenUsage } from "@repo/agent-runtime/context/token-usage";
+import {
+  estimateSessionContext,
+  finalizeSessionContext,
+  type ContextEstimate,
+} from "@repo/agent-runtime/context/usage";
 import { PluginManager } from "@repo/agent-runtime/plugins/manager";
 import type {
   AgentPluginContext,
@@ -183,6 +191,7 @@ export class DesktopSessionManager {
       error: null,
       updatedAt: new Date().toISOString(),
       pendingInputs: [],
+      contextUsage: null,
       messages: [],
     };
     await this.workspace(thread);
@@ -613,6 +622,15 @@ export class DesktopSessionManager {
       const manifests = [...portableTools.manifests, ...executionManifests, ...pluginManifests];
       const tools = manifestsToTools(manifests);
       const activeTools = Object.keys(tools);
+      const toolSources = new Map(manifests.map((manifest) => [manifest.name, manifest.policy.source]));
+      let contextEstimate: ContextEstimate | undefined;
+      const contextCaptureMiddleware: LanguageModelV4Middleware = {
+        specificationVersion: "v4",
+        transformParams: async ({ params }) => {
+          contextEstimate = estimateSessionContext({ prompt: params.prompt, tools: params.tools, toolSources });
+          return params;
+        },
+      };
       const codeModeToolCallers = Object.fromEntries(
         manifests
           .filter((manifest) => manifest.policy.callableByCodeMode)
@@ -633,6 +651,7 @@ export class DesktopSessionManager {
         prepare: async () => ({
           settings: {
             model,
+            middleware: [contextCaptureMiddleware],
             tools,
             toolApproval: orchestrator.toolApproval,
             activeTools,
@@ -640,6 +659,24 @@ export class DesktopSessionManager {
             experimental_toolCallers: codeModeToolCallers as never,
             maxOutputTokens: config.maxOutputTokens,
             instructions: attachExecutionEnvironment(config.instructions, environment),
+            onStepEnd: (event) => {
+              const usage = runtimeTokenUsage(event.usage);
+              const snapshot = finalizeSessionContext(contextEstimate, usage);
+              contextEstimate = undefined;
+              if (!snapshot) return;
+              thread.contextUsage = {
+                contextWindow: config.contextWindow,
+                autoCompactAt: contextCompactionThreshold(config),
+                usedTokens: snapshot.usedTokens,
+                estimated: !(usage.inputTokens != null && usage.inputTokens > 0),
+                compacted: this.journal.getCheckpoint(thread.id) !== null,
+                categories: snapshot.categories.map((category) => ({
+                  id: category.id === "session" ? "conversation" : category.id,
+                  tokens: category.tokens,
+                })),
+              };
+              this.save(thread);
+            },
             prepareStep: ({ messages }) => {
               workspace!.flushChanges();
               modelEpoch = workspace!.epoch;

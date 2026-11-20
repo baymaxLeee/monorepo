@@ -32,6 +32,7 @@ function thread(id: string, title: string): LocalThread {
     error: null,
     updatedAt: "2026-01-01T00:00:00.000Z",
     pendingInputs: [],
+    contextUsage: null,
     messages: [{ id: `${id}-message`, role: "user", parts: [{ type: "text", text: title }] }],
   };
 }
@@ -111,6 +112,33 @@ it("installs context checkpoints with revision fencing", async () => {
     }),
   ).toThrow("revision conflict");
   journal.close();
+});
+
+it("persists context usage and treats missing legacy usage as unknown", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "runtime-context-usage-"));
+  directories.push(directory);
+  const id = "66666666-6666-4666-8666-666666666666";
+  const journal = new LocalJournal(directory);
+  const value = thread(id, "usage");
+  value.contextUsage = {
+    contextWindow: 128_000,
+    autoCompactAt: 89_600,
+    usedTokens: 42_000,
+    estimated: false,
+    compacted: true,
+    categories: [{ id: "conversation", tokens: 42_000 }],
+  };
+  journal.save(value);
+
+  expect(journal.get(id).contextUsage).toEqual(value.contextUsage);
+  journal.close();
+
+  replaceMetadata(directory, id, (metadata) => {
+    delete metadata.contextUsage;
+  });
+  const legacy = new LocalJournal(directory);
+  expect(legacy.get(id).contextUsage).toBeNull();
+  legacy.close();
 });
 
 it("rejects legacy or incomplete execution policy metadata without migration", async () => {

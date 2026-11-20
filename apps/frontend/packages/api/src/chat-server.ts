@@ -242,9 +242,13 @@ export interface ConversationContextCategory {
 }
 
 export interface ConversationContextView {
+  /** @nullable */
+  autoCompactAt: number | null;
   categories: ConversationContextCategory[];
+  compacted: boolean;
   /** @nullable */
   contextWindow: number | null;
+  estimated: boolean;
   usedTokens: number;
 }
 

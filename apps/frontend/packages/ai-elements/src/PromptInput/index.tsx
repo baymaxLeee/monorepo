@@ -15,7 +15,11 @@ const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(function Prompt
       {...props}
       loader={loadPromptInput}
       ref={ref}
-      fallback={<div style={style} className={cn("prompt-input", className)} />}
+      fallback={
+        <div style={style} className={cn("prompt-input", className)} aria-hidden="true">
+          <div className="min-h-24 w-full rounded-3xl border border-input bg-background" />
+        </div>
+      }
     />
   );
 });

@@ -17,6 +17,12 @@ export function contextCompactionThreshold(limits: ModelContextLimits): number {
   return Math.max(1, Math.floor(effectiveModelInputWindow(limits) * AUTO_COMPACTION_RATIO));
 }
 
+/** Recent verbatim history retained after automatic compaction. The summary and
+ * tail together target the same watermark that disconnects stored lineage. */
+export function recentContextTailBudget(limits: ModelContextLimits): number {
+  return Math.max(512, contextCompactionThreshold(limits) - COMPACTION_SUMMARY_RESERVE_TOKENS);
+}
+
 export function shouldResetStoredResponseLineage(
   inputTokens: number | null | undefined,
   limits: ModelContextLimits,

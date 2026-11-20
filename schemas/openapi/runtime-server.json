@@ -3621,7 +3621,10 @@
         "type": "object",
         "required": [
           "contextWindow",
+          "autoCompactAt",
           "usedTokens",
+          "estimated",
+          "compacted",
           "categories"
         ],
         "properties": {
@@ -3629,8 +3632,18 @@
             "type": "integer",
             "nullable": true
           },
+          "autoCompactAt": {
+            "type": "integer",
+            "nullable": true
+          },
           "usedTokens": {
             "type": "integer"
+          },
+          "estimated": {
+            "type": "boolean"
+          },
+          "compacted": {
+            "type": "boolean"
           },
           "categories": {
             "type": "array",

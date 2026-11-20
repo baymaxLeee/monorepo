@@ -35,6 +35,7 @@ beforeEach(() => {
       turnId: null,
       updatedAt: "",
       pendingInputs: [],
+      contextUsage: null,
       messages: [],
     } satisfies LocalThread,
     {
@@ -52,6 +53,7 @@ beforeEach(() => {
       turnId: null,
       updatedAt: "",
       pendingInputs: [],
+      contextUsage: null,
       messages: [],
     } satisfies LocalThread,
   ]);

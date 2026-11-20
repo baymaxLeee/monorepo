@@ -5,8 +5,7 @@ import {
   ConversationScrollButton,
   type ConversationScrollHandle,
 } from "@repo/ai-elements";
-import { Spinner } from "@repo/design-system";
-import { type ComponentProps, type Ref, Suspense, memo, useEffect, useRef } from "react";
+import { type ComponentProps, type Ref, memo, useDeferredValue, useEffect, useMemo, useRef } from "react";
 
 import type { ChatUIMessage } from "../lib/chat-message";
 import { ChatTranscript } from "./ChatTranscript";
@@ -19,17 +18,21 @@ type ChatStreamProps = Omit<ComponentProps<typeof ChatTranscript>, "messages" | 
   onCanvasChange?: () => void;
 };
 
-// The only live SDK subscriber in the conversation UI. Deltas never enter the
-// shell, history, inspector, or composer. Only status transitions leave here.
-export const ChatStream = memo(function ChatStream({
+type ChatStreamContentProps = Omit<ChatStreamProps, "scrollRef">;
+
+// The only live SDK subscriber in the conversation UI. Keeping it below the
+// scroller shell means text deltas cannot re-render its provider or viewport.
+const ChatStreamContent = memo(function ChatStreamContent({
   chat,
   resume = false,
-  scrollRef,
   onStatusChange,
   onCanvasChange,
   ...props
-}: ChatStreamProps) {
+}: ChatStreamContentProps) {
   const { messages, status } = useChat({ chat, resume, throttle: 50 });
+  // Keep the transport/status subscriber current while React schedules the
+  // high-frequency transcript as one consistent, interruptible snapshot.
+  const transcript = useDeferredValue(useMemo(() => ({ messages, status }), [messages, status]));
   const canvasCallback = useRef(onCanvasChange);
   useEffect(() => {
     canvasCallback.current = onCanvasChange;
@@ -53,19 +56,14 @@ export const ChatStream = memo(function ChatStream({
   useEffect(() => {
     onStatusChange(status);
   }, [status, onStatusChange]);
+  return <ChatTranscript {...props} messages={transcript.messages} status={transcript.status} />;
+});
+
+export const ChatStream = memo(function ChatStream({ scrollRef, ...content }: ChatStreamProps) {
   return (
     <Conversation className="min-h-0 flex-1 basis-0" scrollRef={scrollRef}>
       <ConversationContent className="mx-auto w-full max-w-4xl gap-6 px-4 py-6">
-        <Suspense
-          fallback={
-            <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground" role="status">
-              <Spinner aria-hidden="true" />
-              正在更新消息…
-            </div>
-          }
-        >
-          <ChatTranscript {...props} messages={messages} status={status} />
-        </Suspense>
+        <ChatStreamContent {...content} />
       </ConversationContent>
       <ConversationScrollButton />
     </Conversation>

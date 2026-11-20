@@ -153,7 +153,12 @@ test("reasoning and body share one viewport and follow streamed output", async (
   expect(viewport.classList.contains("scrollbar-hide")).toBe(true);
   expect(viewport.classList.contains("scrollbar-thin")).toBe(false);
   expect(viewport.classList.contains("scrollbar-gutter-stable")).toBe(false);
+  expect(viewport.classList.contains("[overflow-anchor:none]")).toBe(true);
   expect(viewport.querySelectorAll(".overflow-auto, .overflow-y-auto").length).toBe(0);
+  for (const row of transcript.querySelectorAll<HTMLElement>('[data-slot="message-scroller-item"]')) {
+    expect(row.classList.contains("[content-visibility:auto]")).toBe(false);
+    expect(row.classList.contains("[contain-intrinsic-size:auto_10rem]")).toBe(false);
+  }
   expect(transcript.textContent).toContain("推理");
   expect(transcript.textContent).toContain("正文");
   expect(screen.queryByRole("button", { name: "滚动到最新思考内容" })).toBeNull();

@@ -26,7 +26,7 @@ const CATEGORY_META: Record<ContextUsageCategoryId, { label: string; color: stri
   conversation: { label: "对话", color: "bg-orange-500" },
 };
 
-const TOKENS_PER_K = 1024;
+const TOKENS_PER_K = 1_000;
 
 function formatTokens(value: number | null | undefined) {
   if (value == null) {
@@ -44,6 +44,9 @@ function formatTokens(value: number | null | undefined) {
 export interface ContextUsageValue {
   usedTokens: number;
   contextWindow: number | null;
+  autoCompactAt?: number | null;
+  estimated?: boolean;
+  compacted?: boolean;
   categories: ContextUsageCategory[];
 }
 
@@ -56,12 +59,15 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
   const hasUsage = value != null;
   const usedTokens = value?.usedTokens;
   const contextWindow = value?.contextWindow;
+  const autoCompactAt = value?.autoCompactAt;
   const utilization =
     usedTokens != null && contextWindow != null && contextWindow > 0 ? usedTokens / contextWindow : null;
   const fraction = utilization != null ? Math.min(1, Math.max(0, utilization)) : 0;
   const percent = utilization != null ? Math.round(utilization * 100) : null;
   const visibleCategories = (value?.categories ?? []).filter((category) => category.tokens > 0);
-  const categoryDenominator = contextWindow != null && contextWindow > 0 ? contextWindow : usedTokens;
+  const categoryDenominator = usedTokens;
+  const remainingBeforeCompaction =
+    usedTokens != null && autoCompactAt != null ? Math.max(0, autoCompactAt - usedTokens) : null;
   const ringClass = fraction >= 0.9 ? "text-destructive" : fraction >= 0.7 ? "text-amber-500" : "text-muted-foreground";
 
   return (
@@ -73,7 +79,9 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
             size="icon-sm"
             variant="ghost"
             className={`rounded-full ${composerControlClassName}`}
-            aria-label={percent != null ? `上下文已使用 ${percent}%` : "查看上下文用量"}
+            aria-label={
+              percent != null ? `上下文${value?.estimated ? "预计" : "已"}使用 ${percent}%` : "查看上下文用量"
+            }
           />
         }
       >
@@ -103,12 +111,23 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
         {hasUsage ? (
           <>
             <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-              <span>{percent != null ? `已使用 ${percent}%` : "上限未知"}</span>
+              <span>{percent != null ? `${value.estimated ? "预计使用" : "已使用"} ${percent}%` : "上限未知"}</span>
               <span className="shrink-0 tabular-nums">
-                ~{formatTokens(usedTokens)} / {formatTokens(contextWindow)} tokens
+                {value.estimated ? "≈" : ""}
+                {formatTokens(usedTokens)} / {formatTokens(contextWindow)} tokens
               </span>
             </div>
             {percent != null ? <Meter value={Math.min(100, percent)} aria-label="上下文用量" /> : null}
+            {autoCompactAt != null ? (
+              <p className="text-xs text-muted-foreground">
+                {remainingBeforeCompaction && remainingBeforeCompaction > 0
+                  ? `距自动压缩约 ${formatTokens(remainingBeforeCompaction)} tokens`
+                  : "已达到自动压缩阈值，将在下一次上下文重建时压缩"}
+              </p>
+            ) : null}
+            {value.compacted ? (
+              <p className="text-xs text-muted-foreground">较早历史已压缩为摘要；原始消息仍完整保留。</p>
+            ) : null}
             <div className="flex h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
               {visibleCategories.map((category) => (
                 <span
@@ -129,9 +148,14 @@ export function ContextUsage({ value, loading, ...props }: ContextUsageProps) {
                 <ContextUsageRow key={category.id} category={category} />
               ))}
             </div>
+            {visibleCategories.length > 0 ? (
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                分类占比为估算，总量优先采用模型返回的用量。
+              </p>
+            ) : null}
           </>
         ) : (
-          <p className="text-xs text-muted-foreground">{percent != null ? `已使用 ${percent}%` : "暂无数据"}</p>
+          <p className="text-xs text-muted-foreground">{loading ? "正在计算上下文…" : "暂无数据"}</p>
         )}
       </PopoverContent>
     </Popover>

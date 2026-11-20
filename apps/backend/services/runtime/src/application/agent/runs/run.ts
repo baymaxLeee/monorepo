@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { createRuntimeTurn } from "@repo/agent-runtime";
-import { shouldResetStoredResponseLineage } from "@repo/agent-runtime/context/budget";
+import { contextCompactionThreshold, shouldResetStoredResponseLineage } from "@repo/agent-runtime/context/budget";
 import type { PluginActivation } from "@repo/agent-runtime/plugins/types";
 import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/runtime/permissions";
 import {
@@ -71,6 +71,7 @@ import {
   claimAgentRunOperation,
   finalizeAgentRunJournal,
   getAgentRunById,
+  hasSessionContextCheckpoint,
   getLatestResponseLineage,
   getLatestSessionContextRecord,
   getRunTrace,
@@ -710,7 +711,10 @@ export async function getAgentRunTrace(auth: AuthContext, sessionId: string, run
 
 export interface SessionContextView {
   contextWindow: number | null;
+  autoCompactAt: number | null;
   usedTokens: number;
+  estimated: boolean;
+  compacted: boolean;
   categories: Array<{
     id: ContextCategoryId;
     tokens: number;
@@ -721,9 +725,12 @@ export async function getSessionContext(
   auth: AuthContext,
   sessionId: string,
 ): Promise<{ context: SessionContextView | null }> {
-  await getSessionRow(auth, sessionId);
-  const record = await getLatestSessionContextRecord(sessionId);
-  if (!record) {
+  const session = await getSessionRow(auth, sessionId);
+  const [record, compacted] = await Promise.all([
+    getLatestSessionContextRecord(sessionId),
+    hasSessionContextCheckpoint(sessionId),
+  ]);
+  if (!record || record.providerId !== session.providerId || record.model !== session.model) {
     return { context: null };
   }
   const limits = await getProviderLimits(auth.tenantId, auth.workspaceId, record.providerId).catch(() => null);
@@ -731,7 +738,10 @@ export async function getSessionContext(
   return {
     context: {
       contextWindow: limits?.contextWindow ?? null,
+      autoCompactAt: limits ? contextCompactionThreshold(limits) : null,
       usedTokens: snapshot.usedTokens,
+      estimated: record.totalEstimated,
+      compacted,
       categories: snapshot.categories,
     },
   };

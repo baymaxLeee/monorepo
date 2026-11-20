@@ -269,7 +269,7 @@ Provider 提供的来源由 `sendSources: true` 进入原生 parts；原生 cita
 
 消息 metadata 保存 run/model/usage/finishReason 等消息级信息。run metadata 与 fork provenance 分别有明确 schema，不能用断言将只含 fork 的历史消息当作完整 run。前端 hydration、完成刷新和恢复都保留 metadata；message-level 展示不另开 data channel。
 
-`status`、SDK `finishReason` 与具体 part 状态共同解释结果：一次 run 已结束可以仍有等待客户端回答的工具；不能由 `ready`、EOF 或 token usage 推断整个任务完成。单条消息 usage 与整个会话可用上下文不是同一指标，ContextUsage 使用 context manager 的实际投影快照和模型容量；不把所有历史 token 简单相加当作当前窗口占用。
+`status`、SDK `finishReason` 与具体 part 状态共同解释结果：一次 run 已结束可以仍有等待客户端回答的工具；不能由 `ready`、EOF 或 token usage 推断整个任务完成。单条消息 usage 与整个会话可用上下文不是同一指标，ContextUsage 使用 context manager 的最近一次活动投影快照和模型容量；不把所有历史 token 简单相加当作当前窗口占用。它区分 provider 精确总量与预调用估算，显示 model window、`autoCompactAt`、距自动压缩的余量和 checkpoint 状态；分类占比明确标为估算。Cloud 经 conversation context API 提供，Desktop 经 LocalThread 提供，二者使用同一 shared estimator 和 budget。
 
 对没有原生对应类型的业务动态数据，使用注册的 `data-*`：需要重放的对象给稳定 id，更新同一对象使用同一 id；瞬时通知使用 `transient: true` 和 `onData`。持久数据渲染从 `message.parts` 读取，不能在 `onData` 中另维护一份会与历史漂移的对象集合。标题、Plan、Skill 的具体字段仍归 stream 契约；不为 token、来源、文件、工具进度再发明 data part。
 

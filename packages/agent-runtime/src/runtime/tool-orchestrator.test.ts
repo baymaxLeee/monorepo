@@ -291,3 +291,38 @@ test("closing the orchestrator aborts an admitted file operation and rejects its
   release();
   await assert.rejects(running, /process 1 closed/);
 });
+
+test("on-request approval does not interrupt public reads but still guards external writes", async () => {
+  const runtime = orchestrator();
+  const policy = {
+    capability: "search",
+    trust: "open-world",
+    execution: "inline",
+    source: "builtin",
+  } as const;
+
+  assert.equal(
+    await runtime.toolApproval({
+      toolCall: {
+        toolCallId: "web-read",
+        toolName: "web_fetch",
+        input: { url: "https://example.com" },
+        toolMetadata: { agent: { ...policy, effect: "read" } },
+      },
+      messages: [],
+    } as never),
+    "not-applicable",
+  );
+  assert.deepEqual(
+    await runtime.toolApproval({
+      toolCall: {
+        toolCallId: "external-write",
+        toolName: "external_write",
+        input: {},
+        toolMetadata: { agent: { ...policy, effect: "write" } },
+      },
+      messages: [],
+    } as never),
+    { type: "user-approval", reason: "tool acts on an open-world target" },
+  );
+});

@@ -60,6 +60,7 @@ export function LocalSession({
     pendingInputs: initial.pendingInputs,
     providerId: initial.providerId,
     reasoningEffort: initial.reasoningEffort,
+    contextUsage: initial.contextUsage,
     approvalPolicy: initial.approvalPolicy,
     permissionProfile: initial.permissionProfile,
   });
@@ -108,6 +109,7 @@ export function LocalSession({
               pendingInputs: thread.pendingInputs,
               providerId: thread.providerId,
               reasoningEffort: thread.reasoningEffort,
+              contextUsage: thread.contextUsage,
               approvalPolicy: thread.approvalPolicy,
               permissionProfile: thread.permissionProfile,
             });
@@ -124,6 +126,7 @@ export function LocalSession({
           pendingInputs: event.thread.pendingInputs,
           providerId: event.thread.providerId,
           reasoningEffort: event.thread.reasoningEffort,
+          contextUsage: event.thread.contextUsage,
           approvalPolicy: event.thread.approvalPolicy,
           permissionProfile: event.thread.permissionProfile,
         });
@@ -271,7 +274,7 @@ export function LocalSession({
                     .catch((cause) => setError(getErrorMessage(cause)));
                 }}
               />
-              <ContextUsage value={null} loading={busy} />
+              <ContextUsage value={state.contextUsage} loading={busy} />
             </>
           )}
         />

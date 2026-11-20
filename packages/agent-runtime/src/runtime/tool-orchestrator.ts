@@ -339,7 +339,7 @@ export class ToolOrchestrator {
       if (this.settings.approvalPolicy === "unless-trusted" && policy.effect !== "read") {
         return { type: "user-approval", reason: "project is not trusted" };
       }
-      if (this.settings.approvalPolicy === "on-request" && policy.trust === "open-world") {
+      if (this.settings.approvalPolicy === "on-request" && policy.trust === "open-world" && policy.effect !== "read") {
         return { type: "user-approval", reason: "tool acts on an open-world target" };
       }
       return "not-applicable";

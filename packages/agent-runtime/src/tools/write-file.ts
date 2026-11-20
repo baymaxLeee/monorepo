@@ -11,6 +11,7 @@ export const writeFileInputSchema = z
     content: z.string().max(MAX_TEXT_FILE_BYTES).describe("Complete UTF-8 file contents."),
     mode: z
       .enum(["create", "overwrite"])
+      .default("create")
       .describe("create refuses an existing file; overwrite requires expected_sha256."),
     expected_sha256: z
       .string()

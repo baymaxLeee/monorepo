@@ -55,7 +55,9 @@ Chat 使用当前 shadcn/ui Chat 的 `MessageScroller` 组合，正文、展开�
 消息与占位行使用 `MessageScrollerItem`，用户消息作为新轮次锚点。
 上游组件负责尺寸变化、位置和跟随状态；触底后继续向下操作时，通过公开
 `scrollToEnd` 命令补齐 0.3.1 在没有原生 scroll 事件时停止跟随的边界，
-不增加第二套跟随状态或滚动观察器。
+不增加第二套跟随状态或滚动观察器。消息视口关闭浏览器原生 scroll anchoring，
+由 `MessageScroller` 独占位置恢复；当前最多渲染 40 条消息，行高使用真实布局，
+不再用 `content-visibility` 的估算高度与滚动组件的尺寸测量竞争。
 触控板向下、横向或零位移尾部事件保留上游已报告的触底状态，不能把内容
 已增高但尺寸回调尚未执行误当成用户离开底部；向上操作仍停止跟随，阅读
 历史时继续保持位置。
@@ -73,10 +75,12 @@ Base UI Sheet 展示侧栏和预览，正文保持挂载。列宽、键盘缩放
 和可见按钮。全局 Toaster 仍由 platform 唯一挂载。
 
 `useConversationChat` 拥有 AI SDK `Chat` 实例与加载、恢复、停止和结束持久化流程，
-不订阅消息；`ChatStream` 是唯一高频 `useChat` 订阅者，保留 SDK 消息更新节流。
-生成状态变化才通知输入区，文本增量不触发会话容器或编辑器重渲染。
+不订阅消息；高频 `useChat` 订阅下沉到 `ChatStream` 的 transcript 内容叶子，保留 SDK
+消息更新节流。文本增量不重新执行 `Conversation` / `MessageScroller` 壳层或未变化的历史
+消息行；生成状态变化才通知输入区，不触发会话容器或编辑器重渲染。
 正文通过 [React `useDeferredValue`](https://react.dev/reference/react/useDeferredValue) 消费
-消息与状态的一致快照；停止、授权和客户端工具续跑直接读取实时 SDK 状态，Canvas
+消息与状态的一致快照，异步工具和重型内容在各自消息内部收口，不能用一个
+`Suspense` fallback 替换完整 transcript；停止、授权和客户端工具续跑直接读取实时 SDK 状态，Canvas
 完成通知在实时订阅内处理。历史消息按 SDK 引用、操作回调与小型任务/计划上下文复用，
 不深比较正文和工具载荷；真实文档、任务或回调变化仍更新消息。历史分批展示并以消息 id
 固定阅读起点，追加轮次不移除正在阅读的行；存储及模型上下文中的完整历史不被裁剪。
@@ -87,7 +91,8 @@ Base UI Sheet 展示侧栏和预览，正文保持挂载。列宽、键盘缩放
 丢失 modal 层级和焦点边界。附件状态由 UI 的 generic token 表达，文件服务字段由
 `@repo/ai-elements/conversation` 映射。草稿恢复不改变 token 的 inline 位置和空行。Base UI 的 Meter、
 NumberField、Toolbar 补齐容量、数值配置和检查器键盘操作；Toast 继续使用已有
-Base UI 命令式入口，不引入第二套 Sonner 通知。
+Base UI 命令式入口，不引入第二套 Sonner 通知。输入区懒加载占位保持与最终编辑器
+相同的静态高度；新会话自动聚焦只移动焦点，不请求浏览器滚动外层页面。
 
 Streamdown 使用 sanitize + harden，禁止模型 Markdown 图片自动发起网络请求；
 真正媒体走已有受权文件预览。原生 sources 只在明确 URL 匹配时生成行内引用。

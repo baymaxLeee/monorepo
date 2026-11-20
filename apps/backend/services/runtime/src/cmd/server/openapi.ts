@@ -1092,10 +1092,13 @@ const openapi = {
       },
       SessionContextView: {
         type: "object",
-        required: ["contextWindow", "usedTokens", "categories"],
+        required: ["contextWindow", "autoCompactAt", "usedTokens", "estimated", "compacted", "categories"],
         properties: {
           contextWindow: { type: "integer", nullable: true },
+          autoCompactAt: { type: "integer", nullable: true },
           usedTokens: { type: "integer" },
+          estimated: { type: "boolean" },
+          compacted: { type: "boolean" },
           categories: {
             type: "array",
             items: ref("SessionContextCategory"),

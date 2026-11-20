@@ -12,6 +12,44 @@ import type { LocalThread } from "../../contracts/bridge.generated";
 
 const approvalPolicies = new Set(["never", "on-request", "unless-trusted", "granular"]);
 const permissionProfiles = new Set([":read-only", ":workspace", ":danger-full-access"]);
+const contextUsageCategoryIds = new Set(["system", "tools", "rules", "skills", "mcp", "memory", "conversation"]);
+
+function parseContextUsage(value: unknown): LocalThread["contextUsage"] {
+  if (value == null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("本地上下文用量格式无效");
+  const usage = value as Record<string, unknown>;
+  if (
+    typeof usage.contextWindow !== "number" ||
+    !Number.isFinite(usage.contextWindow) ||
+    usage.contextWindow <= 0 ||
+    typeof usage.autoCompactAt !== "number" ||
+    !Number.isFinite(usage.autoCompactAt) ||
+    usage.autoCompactAt <= 0 ||
+    typeof usage.usedTokens !== "number" ||
+    !Number.isFinite(usage.usedTokens) ||
+    usage.usedTokens < 0 ||
+    typeof usage.estimated !== "boolean" ||
+    typeof usage.compacted !== "boolean" ||
+    !Array.isArray(usage.categories)
+  ) {
+    throw new Error("本地上下文用量格式无效");
+  }
+  for (const category of usage.categories) {
+    if (
+      !category ||
+      typeof category !== "object" ||
+      Array.isArray(category) ||
+      typeof category.id !== "string" ||
+      !contextUsageCategoryIds.has(category.id) ||
+      typeof category.tokens !== "number" ||
+      !Number.isFinite(category.tokens) ||
+      category.tokens < 0
+    ) {
+      throw new Error("本地上下文分类用量格式无效");
+    }
+  }
+  return value as LocalThread["contextUsage"];
+}
 
 function parseThreadMetadata(value: string): Omit<LocalThread, "messages"> {
   const metadata: unknown = JSON.parse(value);
@@ -28,7 +66,7 @@ function parseThreadMetadata(value: string): Omit<LocalThread, "messages"> {
   if (typeof record.permissionProfile !== "string" || !permissionProfiles.has(record.permissionProfile)) {
     throw new Error("本地会话缺少有效的 permissionProfile");
   }
-  return record as Omit<LocalThread, "messages">;
+  return { ...record, contextUsage: parseContextUsage(record.contextUsage) } as Omit<LocalThread, "messages">;
 }
 
 /** SQLite rollout store for the local host. Previous Desktop database filenames are intentionally not imported. */
