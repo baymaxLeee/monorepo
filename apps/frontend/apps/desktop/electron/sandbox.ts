@@ -4,13 +4,13 @@ import { realpath, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
-import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
-import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
+import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/execution/permissions";
+import { ProcessManager } from "@repo/agent-runtime/execution/process-manager";
 import type {
   SandboxAttempt,
   SandboxAttemptResult,
   SandboxViolation,
-} from "@repo/agent-runtime/runtime/tool-orchestrator";
+} from "@repo/agent-runtime/execution/tool-orchestrator";
 
 export function within(root: string, target: string): boolean {
   const path = relative(root, target);
@@ -105,7 +105,7 @@ export interface SandboxOptions {
 export class LocalSandbox {
   private identity: { dev: number; ino: number } | null = null;
   private active = new Set<() => void>();
-  readonly processes = new ProcessManager<{ terminate(): void }>();
+  readonly processes = new ProcessManager();
   constructor(readonly options: SandboxOptions) {}
 
   async initialize() {

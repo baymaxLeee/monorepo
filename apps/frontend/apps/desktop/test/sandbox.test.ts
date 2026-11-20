@@ -4,8 +4,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
-import type { SandboxAttempt, SandboxAttemptResult } from "@repo/agent-runtime/runtime/tool-orchestrator";
+import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/execution/permissions";
+import type { SandboxAttempt, SandboxAttemptResult } from "@repo/agent-runtime/execution/tool-orchestrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { LocalSandbox, seatbeltProfile } from "../electron/sandbox";

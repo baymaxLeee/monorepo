@@ -69,7 +69,7 @@ void test("tool catalog exposes the current inline research and sandbox workflow
     for (const name of ["bash", "refresh_session_sources", "upload_artifacts", "subagents"]) {
       assert.ok(resolved.activeTools.includes(name), `${name} should be active`);
     }
-    assert.deepEqual([...resolved.codeModeTools].sort(), ["web_fetch", "web_search"]);
+    assert.deepEqual(Object.keys(resolved.toolCallers).sort(), ["web_fetch", "web_search"]);
     for (const name of [
       "code_mode",
       "subagents",
@@ -92,7 +92,7 @@ void test("tool catalog exposes the current inline research and sandbox workflow
     if (codeModeCaller?.type !== "local") throw new Error("code_mode must use a local tool caller");
     assert.equal(codeModeCaller.prepareModelMessage, undefined);
     const bound = codeModeCaller.bind(
-      Object.fromEntries(resolved.codeModeTools.map((name) => [name, resolved.tools[name]])),
+      Object.fromEntries(Object.keys(resolved.toolCallers).map((name) => [name, resolved.tools[name]])),
     );
     assert.equal(typeof bound.description, "string");
     if (typeof bound.description !== "string") throw new Error("code_mode must have a static description");
@@ -161,17 +161,49 @@ void test("plugin skills use the host immutable loader through progressive discl
   try {
     assert.equal(loaded, 0);
     assert.deepEqual(resolved.contributions.skills, [
-      { name: "Research", description: "Research workspace knowledge." },
+      { name: "knowledge@platform:Research", description: "Research workspace knowledge." },
     ]);
-    const output = await resolved.tools.load_skill!.execute?.({ name: "Research" }, {
+    const output = await resolved.tools.load_skill!.execute?.({ name: "knowledge@platform:Research" }, {
       toolCallId: "load",
       messages: [],
       abortSignal: undefined,
     } as never);
     assert.equal(loaded, 1);
-    assert.deepEqual(output, { ok: true, status: "completed", data: { name: "Research", instructions: "# Research" } });
+    assert.deepEqual(output, {
+      ok: true,
+      status: "completed",
+      data: { name: "knowledge@platform:Research", instructions: "# Research" },
+    });
   } finally {
     await resolved.dispose();
   }
+  const resumed = await catalog.resolve(context, { textProvider }, snapshot, {
+    activeSkillName: "knowledge@platform:Research",
+    skills: [{ id: "ws", name: "Research", description: "workspace skill", loadBody: async () => "workspace" }],
+  });
+  try {
+    assert.deepEqual(resumed.activatedSkill, { name: "knowledge@platform:Research", body: "# Research" });
+    assert.equal(loaded, 2);
+  } finally {
+    await resumed.dispose();
+  }
   assert.equal(disposed, true);
+});
+
+void test("catalog reports cleanup failures and releases each acquired resource once", async () => {
+  let releases = 0;
+  const catalog = new ToolCatalog(
+    loader(async () =>
+      pluginSet({
+        dispose: async () => {
+          releases++;
+          throw new Error("plugin disconnect failed");
+        },
+      }),
+    ),
+  );
+  const resolved = await catalog.resolve(context, { textProvider }, snapshot);
+  await assert.rejects(resolved.dispose(), /plugin disconnect failed/);
+  await resolved.dispose();
+  assert.equal(releases, 1);
 });

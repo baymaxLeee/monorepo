@@ -1,11 +1,11 @@
-import { DIRECT_TOOL_CALL } from "@ai-sdk/code-mode";
 import type { LanguageModelV4Middleware } from "@ai-sdk/provider";
 import type { InferToolSetContext } from "@ai-sdk/provider-utils";
+import type { TurnScope } from "@repo/agent-runtime";
 import { appendWorkspaceChangeEvent } from "@repo/agent-runtime/context/events";
 import { newMessagesForStoredResponse } from "@repo/agent-runtime/context/response-continuation";
+import { attachExecutionEnvironment } from "@repo/agent-runtime/execution/environment";
 import { assembleInstructions } from "@repo/agent-runtime/instructions/index";
-import { attachExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
-import type { RuntimeTurnSettings } from "@repo/agent-runtime/runtime/types";
+import type { RuntimeTurnSettings } from "@repo/agent-runtime/session/types";
 import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
 import { InvalidToolInputError } from "ai";
@@ -92,25 +92,23 @@ function withActiveToolSpans(
   );
 }
 
-export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolCatalog) {
+export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolCatalog, scope: TurnScope) {
   const provider = input.provider;
   let previousResponseId = input.previousResponseId ?? null;
   let responseId: string | null = null;
   let parentResponseId = previousResponseId;
-  const botSkills = input.skills ?? [];
   const loadSkillBody = input.loadSkillBody;
   const loadSkillFile = input.loadSkillFile;
-  const skillSource =
-    botSkills.length > 0 && loadSkillBody
-      ? {
-          skills: botSkills.map((skill) => ({
-            ...skill,
-            loadBody: () => loadSkillBody(skill.id),
-            ...(loadSkillFile ? { loadFile: (path: string) => loadSkillFile(skill.id, path) } : {}),
-          })),
-          activeSkillName: input.activeSkillName,
-        }
-      : null;
+  const skillSource = {
+    skills: loadSkillBody
+      ? (input.skills ?? []).map((skill) => ({
+          ...skill,
+          loadBody: () => loadSkillBody(skill.id),
+          ...(loadSkillFile ? { loadFile: (path: string) => loadSkillFile(skill.id, path) } : {}),
+        }))
+      : [],
+    activeSkillName: input.activeSkillName,
+  };
   const resolvedTools = await toolCatalog.resolve(
     {
       turnId: input.runId,
@@ -128,6 +126,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     skillSource,
     { approvalPolicy: input.approvalPolicy, permissionProfile: input.permissionProfile },
   );
+  scope.defer(resolvedTools.dispose);
   const { tools } = resolvedTools;
   const toolContext = {
     workspaceRole: input.workspaceRole ?? "",
@@ -152,7 +151,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
 
   // Stable workspace restore/persistence is host-owned; model-selected permissions
   // apply only to model-visible commands and file tools.
-  const sandbox = new RunSandbox(toolContext);
+  const sandbox = new RunSandbox(toolContext, undefined, input.signal);
+  scope.defer(() => sandbox.dispose());
   await sandbox.observeWorkspaceBaseline();
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
@@ -161,11 +161,14 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     sessionId: input.sessionId,
   };
   const instructions = attachExecutionEnvironment(
-    assembleInstructions(input.instructionInput, resolvedTools.contributions),
+    assembleInstructions(
+      { ...input.instructionInput, activatedSkill: resolvedTools.activatedSkill },
+      resolvedTools.contributions,
+    ),
     resolvedTools.environment,
   );
   const providerModel = createInferenceModel(provider, input.reasoningEffort);
-  const toolSources = new Map(resolvedTools.manifests.map((manifest) => [manifest.name, manifest.policy.source]));
+  const { toolSources } = resolvedTools;
   const contextCaptureMiddleware: LanguageModelV4Middleware = {
     specificationVersion: "v4",
     transformParams: async ({ params }) => {
@@ -188,9 +191,6 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     },
   };
   const toolApprovalSecret = getServerSettings().toolApprovalSecret;
-  const codeModeToolCallers = Object.fromEntries(
-    resolvedTools.codeModeTools.map((name) => [name, ["code_mode", DIRECT_TOOL_CALL] as const]),
-  );
   const settings = {
     id: "chat-agent",
     model: providerModel,
@@ -200,9 +200,8 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     timeout: { chunkMs: 120_000 },
     tools: instrumentedTools,
     // The catalog is dynamic, so its string-keyed ToolSet cannot retain the caller-name literal type.
-    experimental_toolCallers: codeModeToolCallers as never,
+    experimental_toolCallers: resolvedTools.toolCallers as never,
     activeTools: resolvedTools.activeTools,
-    toolOrder: [...resolvedTools.activeTools].sort(),
     toolApproval: resolvedTools.toolApproval,
     repairToolCall: async ({ toolCall, error }) => {
       await observe(
@@ -373,9 +372,6 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     host: {
       sandbox,
       responseLineage: () => ({ responseId, parentResponseId }),
-    },
-    dispose: async () => {
-      await Promise.all([sandbox.dispose(), resolvedTools.dispose()]);
     },
   };
 }

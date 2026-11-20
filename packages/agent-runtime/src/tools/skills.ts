@@ -73,7 +73,7 @@ export function resolveSkills(source?: SkillSource | null): {
     tool({
       description:
         "Load the full instructions for one skill listed in <available_skills>. At most one skill may be loaded per logical turn. Call this as the only tool in the current step, observe its result, then follow the loaded instructions in the next step.",
-      inputSchema: z.object({ name: z.string().min(1).max(64) }),
+      inputSchema: z.object({ name: z.string().min(1) }),
       outputSchema: loadSkillOutputSchema,
       execute: async ({ name }) => {
         if (loadedSkillName || skillLoadPending) {
@@ -134,7 +134,7 @@ export function resolveSkills(source?: SkillSource | null): {
       description:
         "Read one relative file listed by a loaded admin-managed skill. Use only when SKILL.md requires that resource.",
       inputSchema: z.object({
-        name: z.string().min(1).max(64),
+        name: z.string().min(1),
         path: z.string().min(1).max(1024),
       }),
       outputSchema: z.discriminatedUnion("storageKind", [

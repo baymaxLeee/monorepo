@@ -169,6 +169,9 @@ export function validateResolvedSnapshot(snapshot: ResolvedTurnPluginSnapshot, c
     if (!selected.has(grant.pluginId)) {
       throw new Error(`connection grant references inactive plugin ${grant.pluginId}`);
     }
+    if (serverOwners.get(grant.serverName) !== grant.pluginId) {
+      throw new Error(`connection grant references undeclared MCP server ${grant.pluginId}/${grant.serverName}`);
+    }
     if (
       Object.entries(grant.headers).some(
         ([name, value]) => !name || !value || /[\r\n\u0000]/u.test(name) || /[\r\n\u0000]/u.test(value),

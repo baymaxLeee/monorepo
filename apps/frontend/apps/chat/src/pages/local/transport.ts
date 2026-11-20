@@ -7,13 +7,19 @@ type StreamEvent = Extract<DesktopEvent, { type: "stream" }>;
 
 // Subscribe before taking the native snapshot, then discard replayed indices.
 // Disconnecting a renderer only detaches its subscription; Stop is explicit.
-export async function attachLocalStream(bridge: DesktopBridge, id: string, includeFinished = false) {
+export async function attachLocalStream(
+  bridge: DesktopBridge,
+  id: string,
+  includeFinished = false,
+  signal?: AbortSignal,
+) {
   let pending: StreamEvent[] = [],
     receive: ((event: StreamEvent) => void) | null = null;
   let detach = () => {};
   let failure: string | null = null,
     fail: ((message: string) => void) | null = null;
-  const unsubscribe = bridge.subscribe((event) => {
+  signal?.throwIfAborted();
+  const off = bridge.subscribe((event) => {
     if (event.type === "runtime-error") {
       failure = event.message;
       fail?.(event.message);
@@ -23,8 +29,18 @@ export async function attachLocalStream(bridge: DesktopBridge, id: string, inclu
       else pending.push(event);
     }
   });
+  const disconnect = () => {
+    off();
+    detach();
+  };
+  const unsubscribe = () => {
+    signal?.removeEventListener("abort", disconnect);
+    off();
+  };
+  signal?.addEventListener("abort", disconnect, { once: true });
   try {
     const snapshot = await bridge.openStream(id);
+    signal?.throwIfAborted();
     const segment = snapshot.segment;
     if (!segment || (segment.done && !includeFinished)) {
       unsubscribe();
@@ -90,14 +106,22 @@ export async function attachLocalStream(bridge: DesktopBridge, id: string, inclu
 }
 
 export class LocalChatTransport implements ChatTransport<UIMessage> {
+  private subscription?: AbortController;
   private initial: Awaited<ReturnType<typeof attachLocalStream>> | null = null;
   constructor(
     private readonly bridge: DesktopBridge,
     private readonly id: string,
   ) {}
+  private subscribe(parent?: AbortSignal) {
+    this.dispose();
+    this.subscription = new AbortController();
+    return parent ? AbortSignal.any([parent, this.subscription.signal]) : this.subscription.signal;
+  }
   async load(): Promise<LocalThread> {
-    this.initial?.dispose();
-    this.initial = await attachLocalStream(this.bridge, this.id);
+    const signal = this.subscribe();
+    const connection = await attachLocalStream(this.bridge, this.id, false, signal);
+    signal.throwIfAborted();
+    this.initial = connection;
     return this.initial.thread;
   }
   async sendMessages(options: Parameters<ChatTransport<UIMessage>["sendMessages"]>[0]) {
@@ -106,10 +130,10 @@ export class LocalChatTransport implements ChatTransport<UIMessage> {
     if (last?.role !== "user") throw new Error("需要用户消息");
     const parts = localUIMessageParts(last.parts);
     if (parts.length === 0) throw new Error("需要用户消息");
+    const signal = this.subscribe(options.abortSignal);
+    signal.throwIfAborted();
     await this.bridge.send(this.id, parts, last.id);
-    const connection = await attachLocalStream(this.bridge, this.id, true);
-    const disconnect = () => connection.dispose();
-    options.abortSignal?.addEventListener("abort", disconnect, { once: true });
+    const connection = await attachLocalStream(this.bridge, this.id, true, signal);
     return (
       connection.stream ??
       new ReadableStream<UIMessageChunk>({
@@ -125,10 +149,11 @@ export class LocalChatTransport implements ChatTransport<UIMessage> {
       this.initial = null;
       return connection.stream;
     }
-    return (await attachLocalStream(this.bridge, this.id)).stream;
+    return (await attachLocalStream(this.bridge, this.id, false, this.subscribe())).stream;
   }
   dispose() {
-    this.initial?.dispose();
+    this.subscription?.abort();
+    this.subscription = undefined;
     this.initial = null;
   }
 }

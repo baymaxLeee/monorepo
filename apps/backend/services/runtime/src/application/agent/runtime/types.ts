@@ -1,6 +1,6 @@
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
 import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
-import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/runtime/permissions";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 

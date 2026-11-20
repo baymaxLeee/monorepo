@@ -337,7 +337,7 @@ test("an installed default plugin is frozen into cloud conversation creation", a
     </MemoryRouter>,
   );
   expect(await screen.findByText("Cloud Model")).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "选择插件" })).toBeNull();
+  expect(screen.getByRole("button", { name: "选择插件" })).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
     expect(mocks.create).toHaveBeenCalledWith(
@@ -364,4 +364,26 @@ test("repeated submit while creating cannot create duplicate conversations", asy
   expect(mocks.create).toHaveBeenCalledTimes(1);
   resolve({ id: "cloud" });
   await waitFor(() => expect(mocks.navigate).toHaveBeenCalledTimes(1));
+});
+
+test("a thread can opt out of an installed default plugin", async () => {
+  mocks.plugins.mockResolvedValue([
+    {
+      pluginId: "docs@platform",
+      displayName: "文档搜索",
+      description: "",
+      cloudOnly: false,
+      selectedByDefault: true,
+      requiresBindings: false,
+    },
+  ]);
+  render(
+    <MemoryRouter>
+      <ConversationListPage />
+    </MemoryRouter>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "选择插件" }));
+  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "文档搜索" }));
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ plugin_selections: [] })));
 });

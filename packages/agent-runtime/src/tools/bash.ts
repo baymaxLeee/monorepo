@@ -1,8 +1,8 @@
 import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
-import type { AdditionalPermissionProfile, SandboxPermissions } from "../runtime/permissions.js";
-import type { CommandOutputStreamMetadata, OrchestratedCommandResult } from "../runtime/tool-orchestrator.js";
+import type { AdditionalPermissionProfile, SandboxPermissions } from "../execution/permissions.js";
+import type { CommandOutputStreamMetadata, OrchestratedCommandResult } from "../execution/tool-orchestrator.js";
 import { defineAgentTool } from "./manifest.js";
 import { toolBlocked, toolCompleted, toolFailed, toolPartial } from "./outcome.js";
 

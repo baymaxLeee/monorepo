@@ -214,6 +214,7 @@ func (s AgentPluginService) ListSelectionOptions(ctx context.Context, actor Acto
 			PluginID: candidate.PluginID, DisplayName: candidate.DisplayName, Description: candidate.Description,
 			SelectedByDefault: candidate.InstallPolicy == domain.AgentPluginInstalledByDefault && !requiresBindings,
 			RequiresBindings:  requiresBindings,
+			CloudOnly:         candidate.Manifest.Source == domain.AgentPluginSourceSystem || candidate.Manifest.Trust == domain.AgentPluginTrustSystem || len(candidate.Manifest.Skills) > 0,
 		})
 	}
 	return result, nil

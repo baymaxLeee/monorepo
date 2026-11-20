@@ -185,7 +185,7 @@ function approvalStatus(requirement: ExecApprovalRequirement) {
 export class ToolOrchestrator {
   private readonly admissions = new Map<string, Admission>();
   private readonly retries = new Map<string, RetryRecord>();
-  private readonly processes: ProcessManager<{ terminate(): void }>;
+  private readonly processes: ProcessManager;
   private readonly retryId: () => string;
   private closed = false;
 
@@ -195,7 +195,7 @@ export class ToolOrchestrator {
       permissionProfile: PermissionProfile;
       execPolicy?: ExecPolicy;
       retryId?: () => string;
-      processManager?: ProcessManager<{ terminate(): void }>;
+      processManager?: ProcessManager;
       fileSystemPolicy?: FileSystemPolicy;
     },
   ) {

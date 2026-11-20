@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import type { JSONSchema7 } from "@ai-sdk/provider";
 
 import type { AgentToolPlanning, AgentToolPolicy, ToolSourceProjection } from "../tools/types.js";
@@ -117,4 +119,27 @@ export function toPersistedTurnPluginSnapshot(snapshot: ResolvedTurnPluginSnapsh
     resolvedAt: snapshot.resolvedAt,
     plugins: snapshot.plugins.map(projectResolvedPlugin),
   };
+}
+
+/** Resume the frozen release set with credentials authorized for the current attempt. */
+export async function resolveTurnPluginSnapshot(
+  frozen: PersistedTurnPluginSnapshot | null,
+  activations: readonly PluginActivation[],
+  resolve: (selection: readonly PluginActivation[]) => Promise<ResolvedTurnPluginSnapshot>,
+): Promise<ResolvedTurnPluginSnapshot> {
+  if (!frozen) return resolve(activations);
+  if (frozen.plugins.length === 0) {
+    return { ...frozen, connectionGrants: [] };
+  }
+  const fresh = await resolve(frozen.plugins.map(({ activation }) => activation));
+  const projected = toPersistedTurnPluginSnapshot(fresh);
+  if (
+    projected.tenantId !== frozen.tenantId ||
+    projected.workspaceId !== frozen.workspaceId ||
+    projected.workspaceRevision !== frozen.workspaceRevision ||
+    !isDeepStrictEqual(projected.plugins, frozen.plugins)
+  ) {
+    throw new Error("插件配置已变更，请开始新一轮会话以使用最新配置");
+  }
+  return { ...frozen, connectionGrants: fresh.connectionGrants };
 }

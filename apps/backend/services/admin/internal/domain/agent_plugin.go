@@ -133,11 +133,11 @@ type AgentPluginListItem struct {
 // AgentPluginSelectionCandidate is the installed release projection used to build a
 // renderer-safe selector response. It intentionally excludes endpoint and grant data.
 type AgentPluginSelectionCandidate struct {
-	PluginID     string
-	DisplayName  string
-	Description  string
+	PluginID      string
+	DisplayName   string
+	Description   string
 	InstallPolicy AgentPluginInstallPolicy
-	Manifest     AgentPluginManifest
+	Manifest      AgentPluginManifest
 }
 
 type AgentPluginSelectionOption struct {
@@ -146,6 +146,7 @@ type AgentPluginSelectionOption struct {
 	Description       string
 	SelectedByDefault bool
 	RequiresBindings  bool
+	CloudOnly         bool
 }
 
 // AgentPluginActivation is the only plugin input accepted from Chat/the renderer.

@@ -1,13 +1,12 @@
 import { loadMcpServer } from "./mcp.js";
 import type {
   AgentPluginContext,
-  LoadedPluginContribution,
   McpConnectionGrant,
   PluginRuntimeOptions,
   ResolvedPluginSet,
   ResolvedTurnPluginSnapshot,
 } from "./types.js";
-import { assertPluginId, validateResolvedSnapshot } from "./validation.js";
+import { validateResolvedSnapshot } from "./validation.js";
 
 function connectionGrant(
   grants: readonly McpConnectionGrant[],
@@ -31,55 +30,38 @@ export class PluginManager {
 
   async load(snapshot: ResolvedTurnPluginSnapshot, context: AgentPluginContext): Promise<ResolvedPluginSet> {
     validateResolvedSnapshot(snapshot, context);
-    const loaded: LoadedPluginContribution[] = [];
+    await using acquired = new AsyncDisposableStack();
     const activePlugins = [];
     const manifests = [];
     const skills = [];
 
-    try {
-      for (const resolved of snapshot.plugins) {
-        const plugin = resolved.manifest;
-        assertPluginId(plugin.id);
-        activePlugins.push(plugin);
-        skills.push(...(plugin.skills ?? []).map((skill) => ({ pluginId: plugin.id, ...skill })));
-        for (const server of plugin.mcpServers) {
-          const contribution = loadMcpServer(
-            {
-              plugin,
-              activation: resolved.activation,
-              server,
-              grant: connectionGrant(snapshot.connectionGrants, plugin.id, server.name),
-            },
-            context,
-            this.#options,
-          );
-          loaded.push(contribution);
-          manifests.push(...contribution.manifests);
-        }
+    for (const resolved of snapshot.plugins) {
+      const plugin = resolved.manifest;
+      activePlugins.push(plugin);
+      skills.push(...(plugin.skills ?? []).map((skill) => ({ pluginId: plugin.id, ...skill })));
+      for (const server of plugin.mcpServers) {
+        const contribution = loadMcpServer(
+          {
+            plugin,
+            activation: resolved.activation,
+            server,
+            grant: connectionGrant(snapshot.connectionGrants, plugin.id, server.name),
+          },
+          context,
+          this.#options,
+        );
+        if (contribution.dispose) acquired.defer(contribution.dispose);
+        manifests.push(...contribution.manifests);
       }
-      return {
-        snapshotId: snapshot.snapshotId,
-        snapshotDigest: snapshot.snapshotDigest,
-        manifests,
-        activePlugins,
-        skills,
-        dispose: async () => {
-          await Promise.allSettled(
-            loaded
-              .slice()
-              .reverse()
-              .map((item) => item.dispose?.()),
-          );
-        },
-      };
-    } catch (error) {
-      await Promise.allSettled(
-        loaded
-          .slice()
-          .reverse()
-          .map((item) => item.dispose?.()),
-      );
-      throw error;
     }
+    const resources = acquired.move();
+    return {
+      snapshotId: snapshot.snapshotId,
+      snapshotDigest: snapshot.snapshotDigest,
+      manifests,
+      activePlugins,
+      skills,
+      dispose: () => resources.disposeAsync(),
+    };
   }
 }

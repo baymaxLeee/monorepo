@@ -11,10 +11,10 @@ import { convertToModelMessages, isToolUIPart, readUIMessageStream, toUIMessageS
 import { z } from "zod";
 
 import { appendWorkspaceChangeEvent } from "../context/events.js";
+import { attachExecutionEnvironment, type ExecutionEnvironment } from "../execution/environment.js";
 import { assembleInstructions } from "../instructions/index.js";
 import { createBashTool, type BashResult } from "../tools/bash.js";
 import { manifestsToTools } from "../tools/manifest.js";
-import { attachExecutionEnvironment, type ExecutionEnvironment } from "./environment.js";
 import { createRuntimeInputQueue } from "./input-queue.js";
 import { createAgentLoop } from "./loop.js";
 

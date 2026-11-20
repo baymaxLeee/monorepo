@@ -6761,7 +6761,8 @@
           "displayName",
           "description",
           "selectedByDefault",
-          "requiresBindings"
+          "requiresBindings",
+          "cloudOnly"
         ],
         "properties": {
           "pluginId": {
@@ -6774,6 +6775,9 @@
             "type": "string"
           },
           "selectedByDefault": {
+            "type": "boolean"
+          },
+          "cloudOnly": {
             "type": "boolean"
           },
           "requiresBindings": {

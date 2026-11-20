@@ -210,6 +210,7 @@ export interface AgentPluginSelectionOption {
   displayName: string;
   description: string;
   selectedByDefault: boolean;
+  cloudOnly: boolean;
   requiresBindings: boolean;
 }
 

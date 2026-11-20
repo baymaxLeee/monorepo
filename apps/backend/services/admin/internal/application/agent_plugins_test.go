@@ -308,7 +308,7 @@ func TestAgentPluginSelectionOptionsUseInstalledReleaseAndExposeOnlySelectionPol
 	}
 	want := []domain.AgentPluginSelectionOption{{
 		PluginID: installedRelease.ID, DisplayName: latestRelease.DisplayName, Description: latestRelease.Description,
-		SelectedByDefault: true, RequiresBindings: false,
+		SelectedByDefault: true, RequiresBindings: false, CloudOnly: true,
 	}}
 	if !reflect.DeepEqual(options, want) {
 		t.Fatalf("selection options = %#v, want %#v", options, want)

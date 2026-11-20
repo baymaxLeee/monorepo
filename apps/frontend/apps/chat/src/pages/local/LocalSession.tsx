@@ -207,10 +207,10 @@ export function LocalSession({
       composer={
         <ChatPrompt
           ref={promptRef}
-          placeholder={busy ? "补充当前任务…" : "发送消息或创建任务…"}
-          loading={busy}
-          submitWhileLoading
-          maxFiles={busy ? 0 : 8}
+          placeholder={state.status === "waiting" ? "等待工具审批…" : busy ? "补充当前任务…" : "发送消息或创建任务…"}
+          loading={busy || state.status === "waiting"}
+          submitWhileLoading={busy && state.status !== "waiting"}
+          maxFiles={busy || state.status === "waiting" ? 0 : 8}
           maxFileSize={10 * 1024 * 1024}
           onError={setError}
           onStop={() => void bridge.stop(initial.id).catch((cause) => setError(getErrorMessage(cause)))}

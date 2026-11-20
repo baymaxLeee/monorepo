@@ -142,3 +142,17 @@ void test("plugins cannot expose unsafe tools to Code Mode", async () => {
     /Code Mode tool search has an unsafe policy/,
   );
 });
+
+test("grants are bound to a declared server of the selected plugin", async () => {
+  const original = snapshot();
+  await assert.rejects(
+    new PluginManager().load(
+      {
+        ...original,
+        connectionGrants: [...original.connectionGrants, { ...original.connectionGrants[0]!, serverName: "unlisted" }],
+      },
+      context,
+    ),
+    /undeclared MCP server/,
+  );
+});

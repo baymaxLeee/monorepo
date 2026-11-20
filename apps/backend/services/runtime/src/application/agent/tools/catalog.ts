@@ -1,28 +1,20 @@
-import type { InstructionContributions } from "@repo/agent-runtime/instructions/index";
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
 import { PluginManager } from "@repo/agent-runtime/plugins/manager";
 import type {
   AgentPluginContext,
-  AgentPluginManifest,
   ResolvedPluginSkillContribution,
   ResolvedPluginSet,
   ResolvedTurnPluginSnapshot,
 } from "@repo/agent-runtime/plugins/types";
-import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
-import type {
-  ApprovalPolicy,
-  BuiltInPermissionProfileId,
-  PermissionProfile,
-} from "@repo/agent-runtime/runtime/permissions";
-import type { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
-import type { ToolOrchestrator } from "@repo/agent-runtime/runtime/tool-orchestrator";
-import { deferAgentToolLoading, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
+import { compileTurnTools } from "@repo/agent-runtime/tools/catalog";
+import { deferAgentToolLoading } from "@repo/agent-runtime/tools/manifest";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { SkillSource } from "@repo/agent-runtime/tools/skills";
 import type { AgentToolManifest } from "@repo/agent-runtime/tools/types";
-import type { ToolSet } from "ai";
 
 import type { LanguageProviderSnapshot } from "#runtime/provider-model";
 
+import { RequestError } from "../../errors.js";
 import { createCloudToolAdapters } from "../adapters/cloud-tools.js";
 import { createRuntimePortableToolModel } from "../adapters/core-tools.js";
 import { RuntimePluginSkillAssetLoader } from "../adapters/plugin-skills.js";
@@ -42,7 +34,7 @@ export interface PluginSkillAssetLoader {
   loadBody(skill: ResolvedPluginSkillContribution, context: AgentPluginContext): Promise<string>;
 }
 
-function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
+function domainManifests(): AgentToolManifest[] {
   return [...createMediaToolManifests(), ...createMemoryToolManifests()].map(deferAgentToolLoading);
 }
 
@@ -68,84 +60,48 @@ export class ToolCatalog {
       approvalPolicy: "on-request",
       permissionProfile: ":workspace",
     },
-  ): Promise<{
-    tools: ToolSet;
-    activeTools: string[];
-    codeModeTools: string[];
-    manifests: AgentToolManifest[];
-    activePlugins: AgentPluginManifest[];
-    contributions: InstructionContributions;
-    environment: ExecutionEnvironment;
-    permissionProfile: PermissionProfile;
-    processManager: ProcessManager<{ terminate(): void }>;
-    toolApproval: ToolOrchestrator["toolApproval"];
-    dispose: () => Promise<void>;
-  }> {
+  ) {
+    await using acquired = new AsyncDisposableStack();
     const cloudAdapters = await createCloudToolAdapters(executionPolicy);
-    const disposers: Array<() => void | Promise<void>> = [cloudAdapters.dispose];
-    try {
-      const pluginSet = await this.#plugins.load(pluginSnapshot, context);
-      disposers.push(pluginSet.dispose);
-      const pluginSkillSource: SkillSource = {
-        activeSkillName: skillSource?.activeSkillName,
-        skills: pluginSet.skills.map((skill) => ({
-          id: `${skill.pluginId}/${skill.id}`,
-          name: skill.name,
-          description: skill.description,
-          loadBody: () => this.#pluginSkills.loadBody(skill, context),
-        })),
-      };
-      const portableTools = createPortableToolRegistry({
-        model: createRuntimePortableToolModel(providers.textProvider),
-        webSearch,
-        skillSource: {
-          activeSkillName: skillSource?.activeSkillName,
-          skills: [...(skillSource?.skills ?? []), ...pluginSkillSource.skills],
-        },
-      });
-
-      const additions = [...domainManifests(providers), ...cloudAdapters.manifests];
-      for (const manifest of pluginSet.manifests) {
-        if (manifest.policy.source !== "mcp") {
-          throw new Error(`agent plugin ${manifest.policy.pluginId ?? "unknown"} contributed a non-MCP tool`);
-        }
-        additions.push(deferAgentToolLoading(manifest));
-      }
-
-      const manifests = [...portableTools.manifests, ...additions];
-      const activeManifests = manifests.filter((manifest) => manifest.tool);
-      const tools = manifestsToTools(activeManifests);
-      const activeTools = Object.keys(tools);
-      const codeModeManifests = activeManifests.filter((manifest) => manifest.policy.callableByCodeMode);
-      for (const manifest of codeModeManifests) {
-        if (
-          manifest.policy.effect !== "read" ||
-          manifest.policy.execution !== "inline" ||
-          manifest.policy.trust !== "open-world"
-        ) {
-          throw new Error(`Code Mode tool ${manifest.name} must be an inline, open-world read`);
-        }
-      }
-      const codeModeTools = codeModeManifests.map((manifest) => manifest.name);
-
-      return {
-        tools,
-        activeTools,
-        codeModeTools,
-        manifests,
-        activePlugins: pluginSet.activePlugins,
-        contributions: { skills: [...portableTools.skills] },
-        environment: cloudAdapters.environment,
-        permissionProfile: cloudAdapters.permissionProfile,
-        processManager: cloudAdapters.processManager,
-        toolApproval: cloudAdapters.toolApproval,
-        dispose: async () => {
-          await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
-        },
-      };
-    } catch (error) {
-      await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
-      throw error;
+    acquired.defer(cloudAdapters.dispose);
+    const pluginSet = await this.#plugins.load(pluginSnapshot, context);
+    acquired.defer(pluginSet.dispose);
+    const skills = [
+      ...(skillSource?.skills ?? []),
+      ...pluginSet.skills.map((skill) => ({
+        id: `${skill.pluginId}/${skill.id}`,
+        name: `${skill.pluginId}:${skill.name}`,
+        description: skill.description,
+        loadBody: () => this.#pluginSkills.loadBody(skill, context),
+      })),
+    ];
+    const activeSkillName = skillSource?.activeSkillName;
+    const portableTools = createPortableToolRegistry({
+      model: createRuntimePortableToolModel(providers.textProvider),
+      webSearch,
+      skillSource: { activeSkillName, skills },
+    });
+    let activatedSkill = null;
+    if (activeSkillName) {
+      const skill = skills.find((entry) => entry.name === activeSkillName);
+      if (!skill) throw new RequestError(`skill "${activeSkillName}" is unavailable in this turn`);
+      const body = await skill.loadBody();
+      if (!body.trim()) throw new RequestError(`skill "${activeSkillName}" has no content to load`);
+      activatedSkill = { name: activeSkillName, body };
     }
+
+    const catalog = compileTurnTools(
+      [...portableTools.manifests, ...domainManifests(), ...cloudAdapters.manifests],
+      pluginSet.manifests,
+    );
+    const resources = acquired.move();
+    return {
+      ...catalog,
+      activatedSkill,
+      contributions: { skills: [...portableTools.skills] },
+      environment: cloudAdapters.environment,
+      toolApproval: cloudAdapters.toolApproval,
+      dispose: () => resources.disposeAsync(),
+    };
   }
 }

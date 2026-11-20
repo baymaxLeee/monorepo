@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 
-import { createRuntimeTurn } from "@repo/agent-runtime";
+import { RuntimeTurn } from "@repo/agent-runtime";
 import { contextCompactionThreshold, shouldResetStoredResponseLineage } from "@repo/agent-runtime/context/budget";
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
+import { resolveTurnPluginSnapshot } from "@repo/agent-runtime/plugins/snapshot";
 import type { PluginActivation } from "@repo/agent-runtime/plugins/types";
-import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/runtime/permissions";
 import {
   consumeStream,
   createUIMessageStream,
@@ -77,6 +78,7 @@ import {
   getRunTrace,
   isRunActive,
   persistAgentRunPluginSnapshot,
+  readAgentRunPluginSnapshot,
   type AgentRunOperation,
   type AgentRunTrace,
   type RunLeaseToken,
@@ -334,8 +336,8 @@ export async function createAgentRunResponse(
     logger.error({ err: error }, "failed to activate resumable stream");
   }
 
-  let disposeAgentResources: (() => Promise<void>) | null = null;
-  let runInputInbox: Awaited<ReturnType<typeof startAgentRunInputInbox>> | null = null;
+  const runSignal = registerRunController(leaseToken);
+  const runtimeTurn = new RuntimeTurn(runSignal);
   let contextUsage: UsageTokens = EMPTY_USAGE;
   try {
     const [persistedMessages, instructionInput] = await Promise.all([
@@ -368,95 +370,77 @@ export async function createAgentRunResponse(
     }
 
     const latestUser = [...modelUiMessages].reverse().find((message) => message.role === "user");
-    const memorySourceUser = latestUser ?? [...modelUiMessages].reverse().find((message) => message.role === "user");
-    const memorySourceText = memorySourceUser ? textFromUiMessage(memorySourceUser) : "";
+    const memorySourceText = latestUser ? textFromUiMessage(latestUser) : "";
 
-    const runSignal = registerRunController(leaseToken);
-    const pluginSnapshot = bindTurnPluginGrants(
-      attachPlatformMcpCredential(
-        await resolveAgentPlugins(
-          session.userId,
-          auth.tenantId,
-          auth.workspaceId,
-          auth.workspaceRole,
-          input.pluginActivations ?? [],
-        ),
-        getServerSettings(),
-      ),
-      leaseToken,
-    );
-    await persistAgentRunPluginSnapshot(leaseToken, pluginSnapshot);
-    const lineage = await getLatestResponseLineage({
-      runId,
-      sessionId: session.id,
-      providerId: provider.id,
-      model: provider.model,
-    });
-    const lineageIsCurrent =
-      lineage !== null && isStoredResponseLineageCurrent(modelUiMessages, lineage.outputMessageId);
-    const lineageNeedsCompaction = lineageIsCurrent && shouldResetStoredResponseLineage(lineage.inputTokens, provider);
-    const continueStoredLineage = lineageIsCurrent && !lineageNeedsCompaction;
-    if (lineageNeedsCompaction) {
-      logger.info(
-        {
-          sessionId: session.id,
-          runId,
-          providerId: provider.id,
-          inputTokens: lineage.inputTokens,
-        },
-        "stored response lineage requires compaction or lacks reliable usage; rebuilding from the local journal",
-      );
-    }
-    const projectionSource = continueStoredLineage ? [modelUiMessages.at(-1)!] : modelUiMessages;
-    const replayingFullHistory = !continueStoredLineage;
-    const projectionUiMessages = replayingFullHistory
-      ? removeStoredResponseReferences(projectionSource.map(compactHistoricalSkillOutputs))
-      : projectionSource.map(compactHistoricalSkillOutputs);
-    const projected = await projectModelContext({
-      sessionId: session.id,
-      userId: session.userId,
-      tenantId: session.tenantId,
-      workspaceId: session.workspaceId,
-      provider,
-      abortSignal: runSignal,
-      messages: await validateUIMessages<AnyUIMessage>({
-        messages: projectionUiMessages,
-        metadataSchema: chatMessageMetadataSchema.optional(),
-        dataSchemas: chatDataSchemas,
-      }),
-      onCompactionUsage: (usage) => {
-        contextUsage = addUsage(contextUsage, usage);
-      },
-    });
-    const modelMessages = projected.messages;
-    contextUsage = projected.compactionUsage;
-
-    const skills = input.skills ?? [];
-
-    const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
-    const currentSkillName = continuedSkill?.name ?? activatedSkillName;
-    if (currentSkillName) {
-      const picked = skills.find((skill) => skill.name === currentSkillName);
-      if (!picked) {
-        throw new RequestError(`skill "${currentSkillName}" is not available in this workspace`);
-      }
-      const { body, files } = await getSkillBody(picked.id, auth.tenantId, auth.workspaceId);
-      if (!body.trim()) {
-        throw new RequestError(`skill "${picked.name}" has no content to load`);
-      }
-      instructionInput.activatedSkill = {
-        name: picked.name,
-        body: files.length ? `${body}\n\nAvailable skill files:\n${files.join("\n")}` : body,
-      };
-    }
     const assistantMessageId =
       operation === "tool-continuation" ? claim.historyMessageId : randomBytes(8).toString("hex");
-    const runtimeTurn = createRuntimeTurn();
-    const turn = await runtimeTurn.start({
-      messages: modelMessages,
-      signal: runSignal,
-      prepare: () =>
-        prepareCloudTurn(
+    const turn = await runtimeTurn.start(async (scope) => {
+      const inbox = startAgentRunInputInbox(leaseToken, runtimeTurn.input);
+      scope.defer(() => inbox.close());
+      const resolvedPlugins = await resolveTurnPluginSnapshot(
+        await readAgentRunPluginSnapshot(leaseToken),
+        input.pluginActivations ?? [],
+        (selection) =>
+          resolveAgentPlugins(session.userId, auth.tenantId, auth.workspaceId, auth.workspaceRole, selection),
+      );
+      const pluginSnapshot = bindTurnPluginGrants(
+        attachPlatformMcpCredential(resolvedPlugins, getServerSettings()),
+        leaseToken,
+      );
+      await persistAgentRunPluginSnapshot(leaseToken, pluginSnapshot);
+      const lineage = await getLatestResponseLineage({
+        runId,
+        sessionId: session.id,
+        providerId: provider.id,
+        model: provider.model,
+      });
+      const lineageIsCurrent =
+        lineage !== null && isStoredResponseLineageCurrent(modelUiMessages, lineage.outputMessageId);
+      const lineageNeedsCompaction =
+        lineageIsCurrent && shouldResetStoredResponseLineage(lineage.inputTokens, provider);
+      const continueStoredLineage = lineageIsCurrent && !lineageNeedsCompaction;
+      if (lineageNeedsCompaction) {
+        logger.info(
+          {
+            sessionId: session.id,
+            runId,
+            providerId: provider.id,
+            inputTokens: lineage.inputTokens,
+          },
+          "stored response lineage requires compaction or lacks reliable usage; rebuilding from the local journal",
+        );
+      }
+      const projectionSource = continueStoredLineage ? [modelUiMessages.at(-1)!] : modelUiMessages;
+      const replayingFullHistory = !continueStoredLineage;
+      const projectionUiMessages = replayingFullHistory
+        ? removeStoredResponseReferences(projectionSource.map(compactHistoricalSkillOutputs))
+        : projectionSource.map(compactHistoricalSkillOutputs);
+      const projected = await projectModelContext({
+        sessionId: session.id,
+        userId: session.userId,
+        tenantId: session.tenantId,
+        workspaceId: session.workspaceId,
+        provider,
+        abortSignal: scope.signal,
+        messages: await validateUIMessages<AnyUIMessage>({
+          messages: projectionUiMessages,
+          metadataSchema: chatMessageMetadataSchema.optional(),
+          dataSchemas: chatDataSchemas,
+        }),
+        onCompactionUsage: (usage) => {
+          contextUsage = addUsage(contextUsage, usage);
+        },
+      });
+      const modelMessages = projected.messages;
+      contextUsage = projected.compactionUsage;
+
+      const skills = input.skills ?? [];
+
+      const activatedSkillName = latestUser ? activatedSkillNameFromParts(latestUser.parts) : null;
+      const currentSkillName = continuedSkill?.name ?? activatedSkillName;
+      return {
+        messages: modelMessages,
+        ...(await prepareCloudTurn(
           {
             workspaceRole: auth.workspaceRole,
             runId,
@@ -465,7 +449,7 @@ export async function createAgentRunResponse(
             tenantId: auth.tenantId,
             workspaceId: auth.workspaceId,
             sessionId: session.id,
-            signal: runSignal,
+            signal: scope.signal,
             pluginSnapshot,
             provider,
             reasoningEffort: input.reasoningEffort,
@@ -474,7 +458,7 @@ export async function createAgentRunResponse(
             previousResponseId: continueStoredLineage ? lineage.responseId : null,
             attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
             instructionInput,
-            activeSkillName: instructionInput.activatedSkill?.name ?? null,
+            activeSkillName: currentSkillName,
             skills,
             loadSkillBody: async (skillId: string) => {
               const skill = await getSkillBody(skillId, auth.tenantId, auth.workspaceId);
@@ -486,16 +470,15 @@ export async function createAgentRunResponse(
               getSkillFile(skillId, auth.tenantId, auth.workspaceId, path),
           },
           toolCatalog,
-        ),
+          scope,
+        )),
+      };
     });
-    const agent = turn.agent;
-    disposeAgentResources = () => runtimeTurn.dispose();
-    runInputInbox = startAgentRunInputInbox(runId, runtimeTurn.input);
     const result = turn.result;
     logger.info({ sessionId: session.id, runId, setupMs: Math.round(performance.now() - startedAt) }, "run accepted");
     const agentParts = createPublishedAgentPartStream({
       modelStream: result.stream,
-      tools: agent.tools,
+      tools: turn.tools,
       originalMessages: modelUiMessages,
       assistantMessageId,
       publicationContext: {
@@ -586,16 +569,8 @@ export async function createAgentRunResponse(
           // leave durable release responsibility for the reconciler) before the
           // journal becomes terminal and before the session lease is freed.
           const settled = await finalizeAfterAgentDisposal({
-            dispose: async () => {
-              try {
-                await runtimeTurn.dispose();
-              } finally {
-                disposeAgentResources = null;
-              }
-            },
+            dispose: () => runtimeTurn.dispose(),
             finalize: async (disposalError) => {
-              await runInputInbox?.close();
-              runInputInbox = null;
               const terminalError = disposalError ?? streamError;
               const terminalStatus = aborted ? "cancelled" : terminalError ? "failed" : "completed";
               const metadata: ChatMessageMetadata = {
@@ -679,17 +654,26 @@ export async function createAgentRunResponse(
       },
     });
   } catch (error) {
-    await runInputInbox?.close().catch(() => undefined);
-    runInputInbox = null;
-    await disposeAgentResources?.();
-    if (resumable) {
-      await deactivateAgentStream(session.id, runId).catch((streamError) =>
-        logger.error({ err: streamError }, "failed to clear resumable stream"),
-      );
-    }
-    await failAgentRun({ ...leaseToken, error, usage: contextUsage });
-    await releaseRun(leaseToken).catch(() => undefined);
-    throw error;
+    const { finalized: failure } = await finalizeAfterAgentDisposal({
+      dispose: () => runtimeTurn.dispose(),
+      finalize: async (disposalError) => {
+        if (resumable) {
+          await deactivateAgentStream(session.id, runId).catch((err) =>
+            logger.error({ err }, "failed to clear resumable stream"),
+          );
+        }
+        const failure = disposalError
+          ? new AggregateError([error, disposalError], "run setup and cleanup failed")
+          : error;
+        try {
+          await failAgentRun({ ...leaseToken, error: failure, usage: contextUsage });
+        } finally {
+          await releaseRun(leaseToken).catch((err) => logger.error({ err, runId }, "lease release failed"));
+        }
+        return failure;
+      },
+    });
+    throw failure;
   }
 }
 

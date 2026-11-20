@@ -1,6 +1,6 @@
-import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
-import { canonicalizeShellCommand } from "@repo/agent-runtime/runtime/exec-policy";
-import { createExecutionHostManifests } from "@repo/agent-runtime/runtime/execution-host";
+import type { ExecutionEnvironment } from "@repo/agent-runtime/execution/environment";
+import { canonicalizeShellCommand } from "@repo/agent-runtime/execution/exec-policy";
+import { createExecutionHostManifests } from "@repo/agent-runtime/execution/execution-host";
 import {
   clonePermissionProfile,
   compilePermissionProfile,
@@ -8,9 +8,9 @@ import {
   type ApprovalPolicy,
   type BuiltInPermissionProfileId,
   type PermissionProfile,
-} from "@repo/agent-runtime/runtime/permissions";
-import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
-import { ToolOrchestrator, type SandboxViolation } from "@repo/agent-runtime/runtime/tool-orchestrator";
+} from "@repo/agent-runtime/execution/permissions";
+import { ProcessManager } from "@repo/agent-runtime/execution/process-manager";
+import { ToolOrchestrator, type SandboxViolation } from "@repo/agent-runtime/execution/tool-orchestrator";
 
 import { artifactToolContextSchema } from "../tools/context.js";
 import { requireRunSandbox } from "./cloud-sandbox.js";
@@ -78,7 +78,7 @@ export async function createCloudToolAdapters(
       approvalPolicy: settings.approvalPolicy,
     },
   };
-  const processManager = new ProcessManager<{ terminate(): void }>();
+  const processManager = new ProcessManager();
   const orchestrator = new ToolOrchestrator({
     approvalPolicy: settings.approvalPolicy,
     permissionProfile,

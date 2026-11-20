@@ -1,17 +1,17 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
-import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
-import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
+import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/execution/permissions";
+import { ProcessManager } from "@repo/agent-runtime/execution/process-manager";
 import type {
   CommandOutputMetadata,
   SandboxAttempt,
   SandboxAttemptResult,
   SandboxViolation,
-} from "@repo/agent-runtime/runtime/tool-orchestrator";
+} from "@repo/agent-runtime/execution/tool-orchestrator";
+import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
-import type { SandboxProcess, SandboxSession as SandboxResource } from "#runtime/transport";
+import type { SandboxProcess } from "#runtime/transport";
 
 import {
   knowledgeDocumentSessionId,
@@ -21,8 +21,7 @@ import {
 import { sandboxClient } from "../../../infrastructure/clients/sandbox.js";
 import type { RuntimeSandboxAdapter, SandboxScope } from "../../../infrastructure/clients/sandbox.js";
 import { storageClient, type StorageClient } from "../../../infrastructure/clients/storage.js";
-import { logger } from "../../../infrastructure/observability/logger.js";
-import { isMissingSandboxResourceError, persistCloudWorkspace } from "../../cloud-workspace.js";
+import { persistCloudWorkspace } from "../../cloud-workspace.js";
 import {
   deleteWorkspaceSessionFile,
   listSessionFiles,
@@ -33,6 +32,7 @@ import {
 import { isValidWorkspacePath } from "../../workspace-paths.js";
 import { sandboxExecutionLifecycle, type SandboxExecutionLifecycle } from "../runs/sandbox-executions.js";
 import type { ArtifactToolContext } from "../tools/context.js";
+import { SandboxLease } from "./sandbox-lease.js";
 
 export interface SandboxDependencies {
   sandbox: () => Pick<
@@ -156,13 +156,8 @@ export class RunSandbox implements Experimental_SandboxSession {
   readonly description =
     "A run-scoped Linux sandbox rooted at the session's stable /workspace tree. Business files are restored at their authoritative paths and automatically persisted before teardown; /workspace/sources contains read-only external attachments.";
 
-  private initializing?: Promise<SandboxResource>;
-  private session?: SandboxResource;
+  private readonly lease: SandboxLease;
   private refreshing?: Promise<Array<{ path: string; document_id?: string; file_id?: string }>>;
-  private disposal?: Promise<void>;
-  private closed = false;
-  private readonly abort = new AbortController();
-  private readonly ownerStopListener?: () => void;
   private readonly sources = new Map<
     string,
     { fingerprint: string; source: { path: string; document_id?: string; file_id?: string } }
@@ -175,11 +170,11 @@ export class RunSandbox implements Experimental_SandboxSession {
   constructor(
     private readonly context: ArtifactToolContext & { attemptEpoch: string },
     private readonly deps: SandboxDependencies = defaults,
-    private readonly ownerSignal?: AbortSignal,
+    ownerSignal?: AbortSignal,
     private readonly helperPermissionProfile: PermissionProfile = compilePermissionProfile(":workspace", {
       workspaceRoot: "/workspace",
     }).profile,
-    private readonly helperProcesses: ProcessManager<{ terminate(): void }> = new ProcessManager(),
+    private readonly helperProcesses: ProcessManager = new ProcessManager(),
   ) {
     this.scope = {
       tenant_id: context.tenantId,
@@ -189,51 +184,27 @@ export class RunSandbox implements Experimental_SandboxSession {
       run_id: context.runId,
       attempt_epoch: context.attemptEpoch,
     };
-    if (ownerSignal) {
-      // The Turn owns workspace teardown. ProcessManager signals are operation-scoped
-      // and may abort after an ordinary tool failure without ending the Turn.
-      this.ownerStopListener = () => {
-        this.abort.abort(ownerSignal.reason);
-        void this.dispose().catch((error) => logger.error({ err: error }, "sandbox stop cleanup failed"));
-      };
-      if (ownerSignal.aborted) this.ownerStopListener();
-      else ownerSignal.addEventListener("abort", this.ownerStopListener, { once: true });
-    }
-  }
-
-  private observeStop(signal?: AbortSignal) {
-    signal?.throwIfAborted();
-    if (this.closed) throw new Error("This run's sandbox is closed; the workspace is no longer attached.");
+    this.lease = new SandboxLease({
+      scope: this.scope,
+      client: deps.sandbox,
+      journal: deps.execution,
+      restore: (id) => this.hydrate(id),
+      persist: (id) => persistCloudWorkspace(this.context, id, this.deps),
+      stopProcesses: () => this.helperProcesses.closeAll(),
+      owner: ownerSignal,
+    });
   }
 
   private operationSignal(signal?: AbortSignal) {
-    return signal ? AbortSignal.any([this.abort.signal, signal]) : this.abort.signal;
+    return signal ? AbortSignal.any([this.lease.signal, signal]) : this.lease.signal;
   }
 
-  async ensure(signal?: AbortSignal) {
-    this.observeStop(signal);
-    this.initializing ??= (async () => {
-      // Provisioning is bounded by the transport timeout. Finish observing create
-      // before DELETE so Stop cannot race a late successful resource creation.
-      await this.deps.execution.restoring(this.scope);
-      const session = await this.deps.sandbox().create(this.scope);
-      this.abort.signal.throwIfAborted();
-      await this.hydrate(session.id);
-      await this.deps.execution.active(this.scope, session);
-      this.session = session;
-      return session;
-    })();
-    try {
-      return await this.initializing;
-    } catch (error) {
-      await this.dispose();
-      signal?.throwIfAborted();
-      throw error;
-    }
+  ensure(signal?: AbortSignal) {
+    return this.lease.open(signal);
   }
 
   private async hydrate(id: string) {
-    const signal = this.abort.signal;
+    const signal = this.lease.signal;
     const client = this.deps.sandbox();
     const imported: Array<{ path: string; document_id?: string; file_id?: string }> = [];
     const documents = await this.deps.documents(this.context.userId, this.context.sessionId);
@@ -320,7 +291,7 @@ export class RunSandbox implements Experimental_SandboxSession {
   }
 
   async refresh(signal?: AbortSignal) {
-    const existed = Boolean(this.initializing);
+    const existed = this.lease.started;
     const session = await this.ensure(signal);
     const sources = existed
       ? await (this.refreshing ??= this.hydrate(session.id).finally(() => {
@@ -683,7 +654,7 @@ rm -- ${shellQuote(absolute)}`,
   }
 
   async stagePublishedFile(path: string, content: Uint8Array, signal?: AbortSignal): Promise<boolean> {
-    if (!this.session) return false;
+    if (!this.lease.attached) return false;
     const workspacePath = path.startsWith("/workspace/") ? path : `/workspace/${path}`;
     if (this.workspaceBaseline.has(workspacePath)) {
       throw new Error(`A workspace file already exists at ${workspacePath}.`);
@@ -702,6 +673,7 @@ rm -- ${shellQuote(absolute)}`,
     if (options.stdin) {
       throw new Error("Writable process stdin is not supported by this sandbox transport.");
     }
+    const session = await this.ensure(options.abortSignal);
     const identity = this.helperProcesses.reserve();
     const controller = new AbortController();
     this.helperProcesses.markRunning(identity, { terminate: () => controller.abort(new Error("process closed")) });
@@ -712,7 +684,6 @@ rm -- ${shellQuote(absolute)}`,
       process: identity,
       abortSignal: controller.signal,
     };
-    const session = await this.ensure(options.abortSignal);
     const helperSignal = options.abortSignal
       ? AbortSignal.any([controller.signal, options.abortSignal])
       : controller.signal;
@@ -736,7 +707,7 @@ rm -- ${shellQuote(absolute)}`,
         signal,
       );
     } catch (error) {
-      this.helperProcesses.close(identity);
+      if (this.helperProcesses.contains(identity)) this.helperProcesses.close(identity);
       throw error;
     }
     const encoder = new TextEncoder();
@@ -957,56 +928,8 @@ rm -- ${shellQuote(absolute)}`,
     }
   }
 
-  private async persistWorkspace(session: SandboxResource): Promise<void> {
-    await persistCloudWorkspace(this.context, session.id, this.deps);
-  }
-
   dispose(): Promise<void> {
-    if (this.disposal) return this.disposal;
-    this.closed = true;
-    this.helperProcesses.closeAll();
-    this.abort.abort();
-    if (this.ownerStopListener) this.ownerSignal?.removeEventListener("abort", this.ownerStopListener);
-    this.disposal = (async () => {
-      await this.initializing?.catch(() => {});
-      if (this.initializing) {
-        let persistenceError: unknown;
-        if (this.session) {
-          try {
-            await this.deps.execution.finalizing(this.scope);
-            await this.persistWorkspace(this.session);
-          } catch (error) {
-            persistenceError = error;
-          }
-        }
-        if (persistenceError) {
-          if (isMissingSandboxResourceError(persistenceError)) {
-            await this.deps.execution.releasing(this.scope, persistenceError);
-            try {
-              await this.deps.sandbox().destroy(this.scope);
-            } catch (error) {
-              if (!isMissingSandboxResourceError(error)) {
-                await this.deps.execution.releasing(this.scope, error).catch(() => {});
-                throw persistenceError;
-              }
-            }
-            await this.deps.execution.released(this.scope);
-            throw persistenceError;
-          }
-          await this.deps.execution.finalizationFailed(this.scope, persistenceError).catch(() => {});
-          throw persistenceError;
-        }
-        await this.deps.execution.releasing(this.scope);
-        try {
-          await this.deps.sandbox().destroy(this.scope);
-          await this.deps.execution.released(this.scope);
-        } catch (error) {
-          await this.deps.execution.releasing(this.scope, error).catch(() => {});
-          throw error;
-        }
-      }
-    })();
-    return this.disposal;
+    return this.lease.close();
   }
 }
 

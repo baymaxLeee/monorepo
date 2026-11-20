@@ -1,6 +1,6 @@
 # Runtime
 
-Runtime 是 Web Chat、Desktop、Canvas 等宿主共用的 Agent 执行内核，也是 messages、run journal、工具、Sandbox 与 detached durable Job 的唯一 owner。完整边界见 [Runtime ADR](../ADR/session-runtime.md)。
+共享 TypeScript 内核定义交互 Turn、运行中输入、执行权限与插件生命周期。云 Runtime 服务持有云端 Session、run journal、沙箱租约和独立 durable Job。Electron utility process 用同一个内核运行本地 Turn，以 SQLite 和用户绑定的工作区保存本地事实。见 [内核与宿主](../ADR/agent-runtime.md) 和 [云 Session](../ADR/session-runtime.md)。
 
 一个 Runtime image 提供三个角色：
 

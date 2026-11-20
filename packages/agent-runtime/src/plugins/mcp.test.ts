@@ -129,10 +129,12 @@ void test("MCP connections are lazy and use immutable manifest policy", async ()
   const result = await executable.execute({ query: "runtime" }, {});
   assert.equal(connects, 1);
   assert.equal(calls.length, 1);
+  const call = calls[0] as { options: { signal: AbortSignal } };
+  assert.equal(call.options.signal.aborted, false);
   assert.deepEqual(calls[0], {
     name: "search",
     arguments: { query: "runtime" },
-    options: {},
+    options: { signal: call.options.signal },
   });
   assert.deepEqual(result, {
     ok: true,
@@ -179,4 +181,31 @@ void test("MCP catalog drift fails before the first tool side effect and closes 
   assert.equal(closes, 1);
   assert.equal((result as { status: string }).status, "failed");
   assert.match((result as { error: { message: string } }).error.message, /schema differs from the installed release/);
+});
+
+test("a close failure reaches the owning turn and concurrent disposal closes once", async () => {
+  let closes = 0;
+  const contribution = loadMcpServer(
+    resolved(),
+    context,
+    {},
+    {
+      createClient: async () =>
+        fakeClient({
+          calls: () => {},
+          closes: () => {
+            closes++;
+            throw new Error("disconnect failed");
+          },
+        }),
+    },
+  );
+  const executable = contribution.manifests[0]!.tool as { execute(input: unknown, options: object): Promise<unknown> };
+  await executable.execute({ query: "runtime" }, {});
+  const results = await Promise.allSettled([contribution.dispose!(), contribution.dispose!()]);
+  assert.deepEqual(
+    results.map(({ status }) => status),
+    ["rejected", "rejected"],
+  );
+  assert.equal(closes, 1);
 });

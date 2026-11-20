@@ -1,12 +1,10 @@
-# 当前决策：Codex-shaped Agent Runtime Kernel
+# Agent Runtime 内核与宿主
 
-状态：当前。Runtime server 与 Electron utility process 已迁移到同一个
-`@repo/agent-runtime` kernel；旧 `agent/` harness、Backend 私有 ToolLoop/context
-projector 和 Desktop 私有 session host 不再是兼容入口。
-
-决策键：在继续使用 Vercel AI SDK `ToolLoopAgent` 的前提下，如何按 Codex 的
-Thread/Turn/Item、input queue、rollout、tool runtime 与 cancellation 模型重建一套薄、
-可恢复且可由云端和本地宿主共同使用的 runtime。
+云端 Runtime server 与 Electron utility process 共用 TypeScript 内核。一次用户输入属于一个持久化
+Thread，宿主为本次执行创建 RuntimeTurn。Turn 管理取消信号、运行中输入和资源回收。
+模型调用、工具步骤、审批消息和流由同一 Vercel AI SDK `ToolLoopAgent` 驱动。Workflow worker
+承接脱离交互轮次的持久任务。Pi 对这里的影响集中在工具和宿主边界，模型可以通过少量常用文件工具
+和 Bash 完成工作，其他能力按需发现。
 
 ## 所有权与模块边界
 
@@ -14,16 +12,18 @@ Thread/Turn/Item、input queue、rollout、tool runtime 与 cancellation 模型�
 
 ```text
 packages/agent-runtime/src/
-├── runtime/       # RuntimeTurn、input queue、私有 AI SDK loop adapter
+├── session/       # RuntimeTurn、TurnScope、input queue、私有 AI SDK loop adapter
+├── execution/     # permission profile、exec policy、sandbox attempt、process manager
 ├── context/       # journal → model projection、budget、compaction、checkpoint contract
 ├── tools/         # manifest/policy/outcome、portable tools、公平执行 scheduler
+├── plugins/       # 冻结 release、重授权、MCP 连接与能力投影
 ├── protocol/      # UIMessage artifact 与 lifecycle 原语
 └── instructions/  # 少量稳定策略、Skill/Memory/环境的结构化渲染
 ```
 
-包根只导出 `createRuntimeTurn`/`RuntimeTurn`；其他能力从所属分组子路径导入。不得恢复
+包根只导出 `RuntimeTurn` 与 `TurnScope`；其他能力从所属分组子路径导入。不得恢复
 `agent/`、flat alias、Agent factory、Agent profile 或按产品类型挑选 capability 的装配层。
-`runtime/loop.ts` 是 kernel 内部的 AI SDK adapter，不是宿主可自行替换的第二个 harness。
+`session/loop.ts` 是 kernel 内部的 AI SDK adapter，不是宿主可自行替换的第二个 harness。
 
 宿主拥有事实来源和受信能力，不能反向进入 shared kernel：
 
@@ -53,14 +53,19 @@ authority。
 | InputQueue | `RuntimeInputQueue` 对 AI SDK `steer()`/`queue()` 的唯一映射 |
 | tool runtime | manifest 元数据、approval policy 与公平、可取消的执行 admission |
 
-`createRuntimeTurn()` 在任何异步准备前同步创建 input queue，因此 run-input admission 不依赖
+`new RuntimeTurn(parentSignal?)` 在任何异步准备前同步创建 input queue，因此 run-input admission 不依赖
 sandbox/provider 初始化是否已经完成。一个 `RuntimeTurn` 只能 `start()` 一次；prepare 之后由
 kernel 创建唯一 AI SDK loop，宿主消费其原生 stream；turn 结束、失败或取消后，宿主必须调用
 `dispose()`，而 kernel 保证已取得的 host resource 只释放一次。Session lease、stream journal
-finalizer 和进程级 recovery 仍由宿主拥有，不能把一次 HTTP/IPC 生命周期当作 Turn。
+finalizer 和进程级 recovery 仍由宿主拥有。前端 transport 持有自己的流订阅，页面切换或
+重新连接会释放此前已交给 renderer 的订阅。显式 Stop 才向宿主请求取消执行。
+
+两个宿主都在 `start(prepare)` 中通过 `scope.defer()` 登记每项已取得的资源。准备中途失败
+或正常结束时按获取的逆序释放。云端 Sandbox 使用本次执行的取消信号并先于工具 catalog 完成释放。
+任一释放动作失败时仍继续释放其余资源，并将失败交给 journal finalizer。
 
 AI SDK 继续拥有 model/tool loop、stable tool ordering、approval、`prepareStep`、stream 和
-AbortSignal。kernel 不复制 planner、router、failure counter、repair model 或另一套 stop state
+原生流式取消。TurnScope 将宿主取消与本轮资源的生命周期绑定。kernel 不复制 planner、router、failure counter、repair model 或另一套 stop state
 machine，也不覆盖 SDK 默认 stop condition。普通工具失败作为观察结果回到同一 loop；持久化、
 权限或协议破坏则 fail closed。
 
@@ -72,9 +77,11 @@ machine，也不覆盖 SDK 默认 stop condition。普通工具失败作为观�
 - `next-turn` 调用 `queue()`，等待当前任务终答后创建下一 turn；
 - Stop/interrupt 使用宿主的 AbortSignal，取消当前执行，不伪装成一条输入。
 
-每个 turn 只有一个 `RuntimeInputQueue`。AI SDK 拥有 delivery、去重和官方
-`steering-message` part；任何 `prepareStep` override 都必须保留 SDK 提供的 steering message。
-`not_delivered` 与 `unconfirmed` 是可见的持久状态，不自动重放或偷偷转成下一 turn。
+每个 turn 只有一个 `RuntimeInputQueue`。SDK 在 model step 接收消息时确认投递，按 id 返回
+`steering-message`。准备阶段也允许接收输入，因此 kernel 持有尚未结算的输入；准备失败或
+turn 关闭时，尚未投递的输入以 `not-delivered` 结算，宿主随后可以结束 journal 写入。
+`prepareStep` 改写 messages 时必须保留已接收的 steering message。
+`not_delivered` 和 `unconfirmed` 都向用户可见，由用户决定是否重新提交。
 
 普通用户 follow-up 不抢占正在采样的 response，也不抑制该 response 已生成的 tool call；AI SDK
 在当前 step 及其工具完成后的安全 boundary 注入 steering message。这样与 Codex 的 user-input
@@ -188,7 +195,7 @@ cursor 作为事实源、静默压缩失败、通过 middleware 丢弃 tool call
 
 ## 实现与验证边界
 
-- shared kernel：[RuntimeTurn](../../packages/agent-runtime/src/runtime/turn.ts)、[context manager](../../packages/agent-runtime/src/context/manager.ts)、[tool scheduler](../../packages/agent-runtime/src/tools/execution-scheduler.ts)
+- shared kernel：[RuntimeTurn](../../packages/agent-runtime/src/session/turn.ts)、[context manager](../../packages/agent-runtime/src/context/manager.ts)、[tool scheduler](../../packages/agent-runtime/src/tools/execution-scheduler.ts)
 - Backend host：[run](../../apps/backend/services/runtime/src/application/agent/runs/run.ts)、[cloud turn](../../apps/backend/services/runtime/src/application/agent/runtime/cloud-turn.ts)、[model context](../../apps/backend/services/runtime/src/application/agent/context/model-context.ts)
 - Plugins：[plugin lifecycle](agent-plugins.md)、[shared manager](../../packages/agent-runtime/src/plugins/manager.ts)、[Runtime catalog](../../apps/backend/services/runtime/src/application/agent/tools/catalog.ts)
 - Desktop host：[session manager](../../apps/frontend/apps/desktop/electron/runtime/session-manager.ts)、[journal](../../apps/frontend/apps/desktop/electron/runtime/journal.ts)

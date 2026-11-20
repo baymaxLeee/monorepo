@@ -80,6 +80,13 @@ async function requireOwnedRun(
   return run;
 }
 
+export function withRunLease<T>(token: RunLeaseToken, operation: (tx: RuntimeTransaction) => Promise<T>): Promise<T> {
+  return getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, token);
+    return operation(tx);
+  });
+}
+
 export async function assertRunLease(token: RunLeaseToken): Promise<void> {
   await getDb().transaction(async (tx) => {
     await requireOwnedRun(tx, token);
@@ -143,6 +150,17 @@ export async function createAgentRun(input: {
     await tx.update(threads).set({ turnSequence: ordinal, updatedAt: now }).where(eq(threads.id, input.sessionId));
   });
   return runId;
+}
+
+export async function readAgentRunPluginSnapshot(token: RunLeaseToken): Promise<PersistedTurnPluginSnapshot | null> {
+  return getDb().transaction(async (tx) => {
+    await requireOwnedRun(tx, token);
+    const [record] = await tx
+      .select({ snapshot: turnPluginSnapshots.snapshot })
+      .from(turnPluginSnapshots)
+      .where(eq(turnPluginSnapshots.turnId, token.runId));
+    return record?.snapshot ?? null;
+  });
 }
 
 /** Persist a Turn's immutable plugin projection without ever crossing the grant/credential boundary. */
@@ -253,6 +271,7 @@ export async function claimAgentRunOperation(input: {
     const rows = await tx
       .select({
         id: threadItems.id,
+        turnId: threadItems.turnId,
         parentMessageId: threadItems.parentItemId,
         role: threadItems.role,
         branchIndex: threadItems.branchIndex,
@@ -374,6 +393,18 @@ export async function claimAgentRunOperation(input: {
       createdAt: now,
       startedAt: now,
     });
+    if (input.operation === "tool-continuation") {
+      const [source] = target?.turnId
+        ? await tx
+            .select({ snapshot: turnPluginSnapshots.snapshot })
+            .from(turnPluginSnapshots)
+            .innerJoin(turns, eq(turns.id, turnPluginSnapshots.turnId))
+            .where(and(eq(turns.threadId, input.sessionId), eq(turns.id, target.turnId)))
+        : [];
+      if (!source)
+        throw new ConflictError("tool continuation has no frozen plugin snapshot", "plugin_snapshot_missing");
+      await tx.insert(turnPluginSnapshots).values({ turnId: runId, snapshot: source.snapshot, createdAt: now });
+    }
     await tx.insert(turnLeases).values({
       threadId: input.sessionId,
       turnId: runId,

@@ -30,6 +30,7 @@ import {
   finishAgentRun,
   interruptRuns,
   persistAgentRunPluginSnapshot,
+  readAgentRunPluginSnapshot,
   requestAgentRunCancellation,
 } from "./repository.js";
 import { acceptAgentRunInput, listAgentRunInputs } from "./steering.js";
@@ -175,6 +176,7 @@ test("Turn plugin snapshots are immutable and never persist connection grants", 
       .from(turnPluginSnapshots)
       .where(eq(turnPluginSnapshots.turnId, claim.runId));
     assert.ok(row);
+    assert.deepEqual(await readAgentRunPluginSnapshot(lease(claim)), row.snapshot);
     const serialized = JSON.stringify(row.snapshot);
     assert.equal(serialized.includes("connectionGrants"), false);
     assert.equal(serialized.includes("must-not-persist"), false);
@@ -210,6 +212,10 @@ test("lease takeover increments the epoch and fences the old Turn owner", { skip
         plugins: [],
         connectionGrants: [],
       }),
+      (error: unknown) => error instanceof ConflictError && error.code === "run_lease_lost",
+    );
+    await assert.rejects(
+      readAgentRunPluginSnapshot(lease(claim)),
       (error: unknown) => error instanceof ConflictError && error.code === "run_lease_lost",
     );
     await releaseRun(lease(claim));
@@ -552,6 +558,17 @@ test("client continuation validation and journal merge share the claim transacti
   const { sessionId, userId } = await createSession();
   try {
     const claim = await claimSubmit(sessionId, userId);
+    const frozen = await persistAgentRunPluginSnapshot(lease(claim), {
+      schemaVersion: 1,
+      snapshotId: identifier("frozen"),
+      snapshotDigest: `sha256:${"1".repeat(64)}`,
+      workspaceRevision: 1,
+      tenantId: "tenant",
+      workspaceId: "workspace",
+      resolvedAt: new Date().toISOString(),
+      plugins: [],
+      connectionGrants: [],
+    });
     const assistantId = identifier("msg");
     const awaiting = {
       type: "tool-ask_user" as const,
@@ -604,6 +621,7 @@ test("client continuation validation and journal merge share the claim transacti
     assert.equal((await getDb().select().from(turnLeases).where(eq(turnLeases.threadId, sessionId))).length, 0);
     const valid = { ...operation, continuationMessage: response("a") };
     const continued = await claimAgentRunOperation(valid);
+    assert.deepEqual(await readAgentRunPluginSnapshot(lease(continued)), frozen);
     const retried = await claimAgentRunOperation(valid);
     assert.equal(retried.runId, continued.runId);
     assert.equal(retried.duplicate, true);

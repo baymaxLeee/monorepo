@@ -1,10 +1,11 @@
-import type { RuntimeInputMode, RuntimeInputOutcome, RuntimeInputQueue } from "@repo/agent-runtime/runtime/input-queue";
-import { and, eq } from "drizzle-orm";
+import type { RuntimeInputMode, RuntimeInputOutcome, RuntimeInputQueue } from "@repo/agent-runtime/session/input-queue";
+import { and, eq, gt } from "drizzle-orm";
 
 import { logger } from "../../../infrastructure/observability/logger.js";
 import { getDb } from "../../../infrastructure/persistence/index.js";
 import { threads, turnInputs, turnLeases, turns } from "../../../infrastructure/persistence/schema.js";
 import { ConflictError, NotFoundError } from "../../errors.js";
+import { withRunLease, type RunLeaseToken } from "./repository.js";
 
 export type AgentRunInputState = "accepted" | "dispatching" | "delivered" | "not_delivered" | "unconfirmed";
 export interface AgentRunInputView {
@@ -61,7 +62,7 @@ export async function acceptAgentRunInput(input: {
     const [lease] = await tx
       .select({ turnId: turnLeases.turnId })
       .from(turnLeases)
-      .where(eq(turnLeases.threadId, input.sessionId));
+      .where(and(eq(turnLeases.threadId, input.sessionId), gt(turnLeases.expiresAt, new Date())));
     if (run.status !== "running" || lease?.turnId !== input.runId) {
       throw new ConflictError("agent run no longer accepts input", "agent_run_not_accepting_input");
     }
@@ -130,34 +131,46 @@ export async function listAgentRunInputs(input: {
   return rows.map((row) => view(row.input));
 }
 
-async function settle(runId: string, clientMessageId: string, outcome: RuntimeInputOutcome): Promise<void> {
-  await getDb()
-    .update(turnInputs)
-    .set(
-      outcome.type === "delivered"
-        ? { state: "delivered", stepNumber: outcome.stepNumber, reason: null, updatedAt: new Date() }
-        : { state: "not_delivered", reason: outcome.reason, updatedAt: new Date() },
-    )
-    .where(and(eq(turnInputs.turnId, runId), eq(turnInputs.id, clientMessageId), eq(turnInputs.state, "dispatching")));
+async function settle(token: RunLeaseToken, clientMessageId: string, outcome: RuntimeInputOutcome): Promise<void> {
+  await withRunLease(token, async (tx) =>
+    tx
+      .update(turnInputs)
+      .set(
+        outcome.type === "delivered"
+          ? { state: "delivered", stepNumber: outcome.stepNumber, reason: null, updatedAt: new Date() }
+          : { state: "not_delivered", reason: outcome.reason, updatedAt: new Date() },
+      )
+      .where(
+        and(
+          eq(turnInputs.turnId, token.runId),
+          eq(turnInputs.id, clientMessageId),
+          eq(turnInputs.state, "dispatching"),
+        ),
+      ),
+  );
 }
 
-export function startAgentRunInputInbox(runId: string, inputChannel: RuntimeInputQueue) {
+export function startAgentRunInputInbox(token: RunLeaseToken, inputChannel: RuntimeInputQueue) {
+  const { runId } = token;
   let closed = false;
   let polling: Promise<void> | null = null;
   const settlements = new Set<Promise<void>>();
   const poll = async () => {
     if (closed || polling) return polling;
     polling = (async () => {
-      const rows = await getDb()
-        .update(turnInputs)
-        .set({ state: "dispatching", updatedAt: new Date() })
-        .where(and(eq(turnInputs.turnId, runId), eq(turnInputs.state, "accepted")))
-        .returning();
+      const rows = await withRunLease(token, async (tx) =>
+        tx
+          .update(turnInputs)
+          .set({ state: "dispatching", updatedAt: new Date() })
+          .where(and(eq(turnInputs.turnId, runId), eq(turnInputs.state, "accepted")))
+          .returning(),
+      );
       rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       for (const row of rows) {
         const outcome = inputChannel
           .submit(row.text, { id: row.id, mode: row.mode as RuntimeInputMode })
-          .then((result) => settle(runId, row.id, result))
+          .then((result) => settle(token, row.id, result))
+          .catch((err) => logger.error({ err, runId, inputId: row.id }, "input settlement failed"))
           .finally(() => settlements.delete(outcome));
         settlements.add(outcome);
       }

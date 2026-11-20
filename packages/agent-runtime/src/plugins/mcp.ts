@@ -26,7 +26,7 @@ export interface ResolvedMcpServer {
 }
 
 interface McpPluginDependencies {
-  createClient: typeof createMCPClient;
+  createClient(config: Parameters<typeof createMCPClient>[0]): Promise<MCPClient>;
 }
 
 function component(value: string): string {
@@ -115,10 +115,12 @@ export function loadMcpServer(
 ): LoadedPluginContribution {
   const { plugin, server, grant } = resolved;
   let clientPromise: Promise<MCPClient> | undefined;
-  let closed = false;
+  const lifetime = new AbortController();
+  const signal = context.signal ? AbortSignal.any([context.signal, lifetime.signal]) : lifetime.signal;
+  let closing: Promise<void> | undefined;
 
   const connect = (): Promise<MCPClient> => {
-    if (closed) return Promise.reject(new Error(`MCP server ${server.name} is closed`));
+    signal.throwIfAborted();
     if (clientPromise) return clientPromise;
     clientPromise = (async () => {
       await observe(options, {
@@ -128,13 +130,13 @@ export function loadMcpServer(
         status: "connecting",
       });
       try {
-        context.signal?.throwIfAborted();
+        signal.throwIfAborted();
         const client = await dependencies.createClient({
           clientName: "monorepo-agent-runtime",
           version: "1.0.0",
           maxRetries: 0,
           initializationOptions: {
-            ...(context.signal ? { signal: context.signal } : {}),
+            signal,
             timeout: MCP_HANDSHAKE_TIMEOUT_MS,
           },
           ...(options.onUncaughtError ? { onUncaughtError: options.onUncaughtError } : {}),
@@ -147,7 +149,10 @@ export function loadMcpServer(
           },
         });
         try {
-          const inventory = await listAllTools(client, context.signal);
+          const inventory = await listAllTools(client, signal);
+          if (inventory.length !== server.tools.length) {
+            throw new Error(`MCP server ${server.name} inventory differs from the installed release`);
+          }
           const definitions = new Map(inventory.map((tool) => [tool.name, tool]));
           for (const expected of server.tools) {
             const actual = definitions.get(expected.name);
@@ -156,7 +161,8 @@ export function loadMcpServer(
             }
             if (
               stableJSON(normalizedInputSchema(actual.inputSchema as JSONSchema7)) !==
-              stableJSON(normalizedInputSchema(expected.inputSchema))
+                stableJSON(normalizedInputSchema(expected.inputSchema)) ||
+              stableJSON(actual.outputSchema) !== stableJSON(expected.outputSchema)
             ) {
               throw new Error(
                 `MCP server ${server.name} tool ${expected.name} schema differs from the installed release`,
@@ -205,14 +211,14 @@ export function loadMcpServer(
       description: contribution.description,
       inputSchema: jsonSchema(normalizedInputSchema(contribution.inputSchema)),
       execute: async (input, execution) => {
-        execution.abortSignal?.throwIfAborted();
+        const callSignal = execution.abortSignal ? AbortSignal.any([signal, execution.abortSignal]) : signal;
+        callSignal.throwIfAborted();
         const client = await connect();
+        callSignal.throwIfAborted();
         const result = await client.callTool({
           name: contribution.name,
           arguments: input as Record<string, unknown>,
-          options: {
-            ...(execution.abortSignal ? { signal: execution.abortSignal } : {}),
-          },
+          options: { signal: callSignal },
         });
         return result;
       },
@@ -233,17 +239,20 @@ export function loadMcpServer(
   return {
     manifests,
     skills: [],
-    dispose: async () => {
-      if (closed) return;
-      closed = true;
-      const client = await clientPromise?.catch(() => undefined);
-      await client?.close().catch(() => undefined);
-      await observe(options, {
-        type: "mcp-connection",
-        pluginId: plugin.id,
-        serverName: server.name,
-        status: "closed",
-      });
+    dispose: () => {
+      if (closing) return closing;
+      lifetime.abort();
+      closing = (async () => {
+        const client = await clientPromise?.catch(() => undefined);
+        await client?.close();
+        await observe(options, {
+          type: "mcp-connection",
+          pluginId: plugin.id,
+          serverName: server.name,
+          status: "closed",
+        });
+      })();
+      return closing;
     },
   };
 }

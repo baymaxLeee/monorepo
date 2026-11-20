@@ -1,6 +1,11 @@
 import { ChatPrompt, type ApprovalPolicyValue, type PermissionProfileValue } from "@repo/ai-elements/conversation";
 import type { PromptInputValue } from "@repo/ai-elements/prompt-input";
-import { listAgentPluginOptions, listProviders, type ModelProvider } from "@repo/api/admin";
+import {
+  listAgentPluginOptions,
+  listProviders,
+  type AgentPluginSelectionOption,
+  type ModelProvider,
+} from "@repo/api/admin";
 import { createConversation, type ReasoningEffort } from "@repo/api/chat";
 import { getDesktopBridge } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
@@ -8,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { localPromptMessageParts } from "../local/local-user-message";
+import { ConversationPluginPicker, pluginUnavailableReason } from "./ConversationPluginPicker";
 import { DesktopNewConversationPrompt } from "./DesktopNewConversationPrompt";
 import { NewConversationEndControls, NewConversationStartControls } from "./NewConversationControls";
 import { localProjectLabel, NewConversationHero } from "./NewConversationHero";
@@ -24,7 +30,16 @@ export function ConversationListPage() {
   const pending = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
-  const [selectedPluginIds, setSelectedPluginIds] = useState<string[]>([]);
+  const [pluginOptions, setPluginOptions] = useState<AgentPluginSelectionOption[] | null>(null);
+  const [pluginOverrides, setPluginOverrides] = useState<Record<string, boolean>>({});
+  const selectedPluginIds = (pluginOptions ?? [])
+    .filter(
+      (option) =>
+        !pluginUnavailableReason(option, location === "local") &&
+        (pluginOverrides[option.pluginId] ?? option.selectedByDefault),
+    )
+    .map((option) => option.pluginId)
+    .sort();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
   const [localAvailable, setLocalAvailable] = useState<boolean | null>(() => (bridge ? null : false));
@@ -74,14 +89,14 @@ export function ConversationListPage() {
     const controller = new AbortController();
     void listAgentPluginOptions({ signal: controller.signal, skipErrorNotify: true })
       .then((items) => {
-        setSelectedPluginIds(
-          items
-            .filter((plugin) => plugin.selectedByDefault)
-            .map((plugin) => plugin.pluginId)
-            .sort(),
-        );
+        if (!controller.signal.aborted) setPluginOptions(items);
       })
-      .catch(() => setSelectedPluginIds([]));
+      .catch((cause) => {
+        if (!controller.signal.aborted) {
+          setPluginOptions([]);
+          setError(getErrorMessage(cause, "无法加载会话插件"));
+        }
+      });
     return () => controller.abort();
   }, []);
 
@@ -91,6 +106,7 @@ export function ConversationListPage() {
     setBusy(true);
     setError(null);
     try {
+      if (!pluginOptions) throw new Error("正在加载会话插件");
       if (!selectedModelId) throw new Error("请选择推理模型");
       if (location === "local") {
         if (!bridge) throw new Error("本地会话需要桌面应用");
@@ -138,6 +154,39 @@ export function ConversationListPage() {
     }
   }
 
+  const footerControls = {
+    footerStartRender: () => (
+      <>
+        <NewConversationStartControls
+          approvalPolicy={approvalPolicy}
+          permissionProfile={permissionProfile}
+          onChange={(value) => {
+            setApprovalPolicy(value.approvalPolicy);
+            setPermissionProfile(value.permissionProfile);
+          }}
+          disabled={busy}
+        />
+        <ConversationPluginPicker
+          options={pluginOptions ?? []}
+          local={location === "local"}
+          selected={selectedPluginIds}
+          disabled={busy}
+          onToggle={(id, checked) => setPluginOverrides((previous) => ({ ...previous, [id]: checked }))}
+        />
+      </>
+    ),
+    footerEndRender: () => (
+      <NewConversationEndControls
+        models={models}
+        selectedModelId={selectedModelId}
+        onSelectModel={setSelectedModelId}
+        reasoningEffort={reasoningEffort}
+        onReasoningChange={setReasoningEffort}
+        disabled={busy}
+      />
+    ),
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <NewConversationHero
@@ -168,27 +217,7 @@ export function ConversationListPage() {
           onCreateProject={() => void createProject()}
           selectingProject={selectingProject}
           contextDisabled={busy}
-          footerStartRender={() => (
-            <NewConversationStartControls
-              approvalPolicy={approvalPolicy}
-              permissionProfile={permissionProfile}
-              onChange={(value) => {
-                setApprovalPolicy(value.approvalPolicy);
-                setPermissionProfile(value.permissionProfile);
-              }}
-              disabled={busy}
-            />
-          )}
-          footerEndRender={() => (
-            <NewConversationEndControls
-              models={models}
-              selectedModelId={selectedModelId}
-              onSelectModel={setSelectedModelId}
-              reasoningEffort={reasoningEffort}
-              onReasoningChange={setReasoningEffort}
-              disabled={busy}
-            />
-          )}
+          {...footerControls}
         />
       ) : (
         <ChatPrompt
@@ -200,27 +229,7 @@ export function ConversationListPage() {
           maxFileSize={10 * 1024 * 1024}
           onError={setError}
           onSubmit={(value) => void submit(value)}
-          footerStartRender={() => (
-            <NewConversationStartControls
-              approvalPolicy={approvalPolicy}
-              permissionProfile={permissionProfile}
-              onChange={(value) => {
-                setApprovalPolicy(value.approvalPolicy);
-                setPermissionProfile(value.permissionProfile);
-              }}
-              disabled={busy}
-            />
-          )}
-          footerEndRender={() => (
-            <NewConversationEndControls
-              models={models}
-              selectedModelId={selectedModelId}
-              onSelectModel={setSelectedModelId}
-              reasoningEffort={reasoningEffort}
-              onReasoningChange={setReasoningEffort}
-              disabled={busy}
-            />
-          )}
+          {...footerControls}
         />
       )}
     </div>

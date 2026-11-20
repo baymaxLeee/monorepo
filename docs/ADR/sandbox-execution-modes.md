@@ -599,22 +599,22 @@ contract，grants 不进入 preload 或 SQLite。
 
 执行策略内核现已按本 ADR 一次替换：
 
-- [permission compiler](../../packages/agent-runtime/src/runtime/permissions.ts) 实现
+- [permission compiler](../../packages/agent-runtime/src/execution/permissions.ts) 实现
   `Managed | Disabled | External`、三个内置 profile、路径/host 规范化、同路径
   `deny > write > read` 和不削弱 deny-read 的 additional permissions；
-  [exec policy](../../packages/agent-runtime/src/runtime/exec-policy.ts) 将 shell 输入降为 canonical argv/segments，
+  [exec policy](../../packages/agent-runtime/src/execution/exec-policy.ts) 将 shell 输入降为 canonical argv/segments，
   使用 token prefix rule 和保守危险命令 classifier。普通 allow rule 不隐式 bypass，只有显式
   `bypassSandbox` 且 profile 不含 deny-read 才能解除隔离。
-- [ToolOrchestrator](../../packages/agent-runtime/src/runtime/tool-orchestrator.ts) 按完整输入 identity 冻结
+- [ToolOrchestrator](../../packages/agent-runtime/src/execution/tool-orchestrator.ts) 按完整输入 identity 冻结
   AI SDK admission，生成 typed `SandboxAttempt`，只为 typed violation 发放一次 `retryId`，并验证第二次
-  authority 覆盖原 denial；[ProcessManager](../../packages/agent-runtime/src/runtime/process-manager.ts) 使用
+  authority 覆盖原 denial；[ProcessManager](../../packages/agent-runtime/src/execution/process-manager.ts) 使用
   `processId + entryId` 防止复用后的 stale handle，并在 Turn close 与异步完成竞争时拒绝迟到成功。
 - [Bash tool](../../packages/agent-runtime/src/tools/bash.ts) 只接受新 `sandbox_permissions`、
   `additional_permissions`、`retry_of`、`justification` 与最小 `prefix_rule` 协议，并以
   2000 行/50 KiB 尾部窗口限制每个模型可见输出流、保留结构化 omission metadata；Cloud transport
   同时传播逐流 retention loss 与最终绝对字节 offset，原始行数不可恢复时使用 `null`，stderr 只保留在
   tool data，短 `ToolIssue.message` 不复制输出正文；
-  [ExecutionHost](../../packages/agent-runtime/src/runtime/execution-host.ts) 统一组合 `bash`、`read_file`、
+  [ExecutionHost](../../packages/agent-runtime/src/execution/execution-host.ts) 统一组合 `bash`、`read_file`、
   `apply_patch`、`write_file` 与 `upload_artifacts`；Desktop Seatbelt file worker 和 Cloud conditional
   file bridge 都从 Turn 级共享 orchestrator/process manager 进入 executor，接收冻结后的精确路径、
   permission profile、process identity 与 AbortSignal。当前没有本地 stdio MCP/plugin 子进程，因而没有
@@ -680,6 +680,8 @@ metadata 只能被拒绝。云端 run/workspace lifecycle、本地 Thread/Turn/j
 | Stop、Chat 崩溃、节点丢失、Storage 不可用 | 保存结果如实记录，资源在有界期限内回收，无自动副作用重放 |
 | 旧 worker 迟到、删除会话、并发新 run | 旧写入和错误实例删除被拒绝 |
 | 配额、缓存和垃圾回收 | 不截断文件，不删有效引用，不保留无界实例或历史对象 |
+
+云端 [SandboxLease](../../apps/backend/services/runtime/src/application/agent/adapters/sandbox-lease.ts) 在首次使用时先登记 attempt 所有权，再创建 guest 并恢复 workspace。关闭期间等待创建结果，撤销进程句柄，发布 workspace，最后释放 guest。登记失败时不会删除实例；已取得实例遇到可恢复的保存失败时由 journal 记录，留给恢复流程处理。共享 [ProcessManager](../../packages/agent-runtime/src/execution/process-manager.ts) 先移除全部进程 ID，再逐个调用终止回调，确保回调重入与个别终止失败都不能留下可寻址的旧句柄。此顺序对照 [Codex unified exec](https://github.com/openai/codex/blob/d1d1ba0b837d34f314b7f469896e8babbc91f949/codex-rs/core/src/unified_exec/process_manager.rs)。
 
 现有测试入口包括 [cloud sandbox tests](../../apps/backend/services/runtime/src/application/agent/adapters/cloud-sandbox.test.ts)、[Engine tests](../../apps/backend/services/runtime/src/sandbox/engine.test.ts)、[runtime tests](../../apps/backend/services/runtime/src/sandbox/runtime.test.ts) 和 [Docker integration](../../apps/backend/services/runtime/sandbox-assets/integration/docker.ts)。新增行为需增加能复现失败的测试，不能把已有 suite 当作目标能力已验证。
 

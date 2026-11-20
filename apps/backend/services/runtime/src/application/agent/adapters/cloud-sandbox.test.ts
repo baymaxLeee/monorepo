@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { compilePermissionProfile } from "@repo/agent-runtime/runtime/permissions";
-import type { SandboxAttempt } from "@repo/agent-runtime/runtime/tool-orchestrator";
+import { compilePermissionProfile } from "@repo/agent-runtime/execution/permissions";
+import type { SandboxAttempt } from "@repo/agent-runtime/execution/tool-orchestrator";
 
 import type { SandboxProcess } from "#runtime/transport";
 
@@ -809,4 +809,15 @@ test("missing sandbox cleanup is terminal instead of retrying an impossible snap
   await assert.rejects(run.dispose(), /snapshot failed/);
   assert.ok(f.calls.includes("destroy"));
   assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "release-failed", "released"]);
+});
+
+test("a rejected reservation cannot release a guest belonging to an existing lease", async () => {
+  const f = fixture();
+  f.deps.execution.restoring = async () => {
+    throw new Error("reservation exists");
+  };
+  const run = new RunSandbox(context, f.deps);
+  await assert.rejects(run.ensure(), /reservation exists/);
+  await run.dispose();
+  assert.ok(!f.calls.includes("destroy"));
 });

@@ -208,7 +208,7 @@ func pluginInstallationDTO(value domain.AgentPluginInstallation) adminapi.AgentP
 func pluginSelectionOptionDTO(value domain.AgentPluginSelectionOption) adminapi.AgentPluginSelectionOption {
 	return adminapi.AgentPluginSelectionOption{
 		PluginId: value.PluginID, DisplayName: value.DisplayName, Description: value.Description,
-		SelectedByDefault: value.SelectedByDefault, RequiresBindings: value.RequiresBindings,
+		SelectedByDefault: value.SelectedByDefault, RequiresBindings: value.RequiresBindings, CloudOnly: value.CloudOnly,
 	}
 }
 

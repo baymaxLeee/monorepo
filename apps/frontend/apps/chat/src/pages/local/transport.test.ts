@@ -129,6 +129,19 @@ describe("native UIMessage IPC transport", () => {
     expect((await reader.read()).done).toBe(true);
   });
 
+  test("disposing the transport detaches a replay already handed to the renderer", async () => {
+    const f = fixture(snapshot());
+    const transport = new LocalChatTransport(f.bridge, thread.id);
+    await transport.load();
+    const stream = await transport.reconnectToStream();
+    const reader = stream!.getReader();
+    await reader.read();
+    transport.dispose();
+    expect(f.listeners.size).toBe(0);
+    expect((await reader.read()).done).toBe(true);
+    expect(f.bridge.stop).not.toHaveBeenCalled();
+  });
+
   test("refuses missing chunks", async () => {
     const f = fixture(snapshot());
     const connection = await attachLocalStream(f.bridge, thread.id);

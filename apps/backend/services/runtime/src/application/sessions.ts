@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/runtime/permissions";
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/execution/permissions";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";

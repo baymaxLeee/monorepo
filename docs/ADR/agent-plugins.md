@@ -41,7 +41,7 @@ admin 安装；未来 K8s pre-job 或 VPS one-shot seed 必须调用同一 appli
 ID/release digest 幂等写入，不能让每个 Admin 副本在启动时修改 catalog。`installed-by-default` 只表示
 一个已经安装且 enabled、又不需要业务 binding 的插件在新普通会话中默认选中，不等于自动发布或安装。
 
-普通 Chat 插件选择器只列出当前 workspace 已安装且 enabled 的插件。需要 required bindings 的插件
+普通 Chat 的创建会话页从 Admin 投影读取当前 workspace 已安装且 enabled 的插件，按默认策略勾选，用户可调整。Admin 以 `cloudOnly` 标记系统插件及含 Skill 的 release；本地模式禁选这些项，宿主 resolve 时独立执行同一限制。需要 required bindings 的插件
 不能由普通会话凭空启用；产品宿主负责提供并验证资源上下文。Canvas 会话由 Chat 注入
 `canvas@platform` 及 `project_id`/`canvas_id`，客户端提交不能覆盖该选择。Chat 数据库只保存选择和
 非秘密 bindings，并在创建 Runtime Session 时投影为 `plugin_activations`。
@@ -81,13 +81,13 @@ Code Mode 可见性。只有显式发布为 `read + inline + open-world` 的工�
 `callableByCodeMode`。tool name、schema 或 inventory 漂移必须发布新 release，不能运行时静默接受。
 
 云端插件 Skill 通过 Admin/Storage 的 immutable asset revision 和 SHA-256 装载，initial instructions
-只披露 name/description。Desktop 尚未接入受认证的 Skill asset loader；含 Skill 的 snapshot 在本地
+只披露限定名和描述。限定名使用 `name@marketplace:skill`，避免不同来源发布同名 Skill 时冲突。首次加载与审批恢复都从本次快照和工作区组成的同一目录取正文。Desktop 尚未接入受认证的 Skill asset loader；含 Skill 的 snapshot 在本地
 执行 fail closed，不静默忽略。Knowledge/Canvas 系统插件只在云 Runtime 执行；未来若支持本地调用，
 必须先建立 user/device-bound credential broker，不能复用 Runtime service credential。
 
 ## 本地持久化与安全边界
 
-Desktop bridge v3 只把 activation 带入本地 Thread。Electron main 校验最多 16 个稳定 plugin IDs
+Desktop bridge 只把 activation 带入本地 Thread。Electron main 校验最多 16 个稳定 plugin IDs
 及 bounded bindings；renderer 永远拿不到 manifest endpoint、headers 或 grants。utility process resolve
 完成后，将去密 snapshot 写进 identity-scoped `runtime.sqlite` 的 `turn_plugin_snapshots`，再开始模型
 调用。相同 Turn 的 snapshot 只能幂等重复写入，内容变化会失败；旧 `runtime-v1.sqlite` 不读取或迁移。
@@ -95,11 +95,15 @@ Desktop bridge v3 只把 activation 带入本地 Thread。Electron main 校验�
 重新申请临时 grant，并核对 tenant、workspace、workspace revision 及完整的插件清单和绑定。
 任一项变化就结束本轮，用户可在新轮次使用最新配置。
 
+云端审批或客户端工具续跑生成新 run ID 时，在创建 run 的事务中从原 assistant item 所属 run 复制快照。新 attempt 必须持有效 lease 才能读取快照，并针对冻结的 activation 重新取得 grant。
+
 云端 PostgreSQL 使用同名语义的 `turn_plugin_snapshots` 作为 audit/recovery 事实。两种持久层都不凭
 snapshot 自动重放工具；崩溃恢复只恢复已提交 journal。connection grant 仅在执行进程内存中存在，
 Turn cleanup、utility 退出或 Abort 都结束其可用生命周期。
 
 ## 取舍与一手依据
+
+插件限定名与能力投影对照 [Codex plugin render](https://github.com/openai/codex/blob/d1d1ba0b837d34f314b7f469896e8babbc91f949/codex-rs/core/src/plugins/render.rs)。本仓库用完整市场 ID 作命名空间，Admin 发布不可变版本，执行宿主按 Turn 获取连接。
 
 本设计采用本地及当前 upstream Codex 中 stable plugin identity、manifest/load outcome、capability
 projection、MCP binding 与 Turn-owned cleanup 的职责形态，并保持 Codex Thread/Turn/Item 的冻结上下文
