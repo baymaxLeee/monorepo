@@ -241,6 +241,17 @@ async function start() {
             })
             .parse(payload),
         );
+      case "setModelBinding":
+        return scopedCall(
+          "setModelBinding",
+          z
+            .strictObject({
+              id,
+              providerId: z.string().min(1).max(32),
+              reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
+            })
+            .parse(payload),
+        );
       case "listFiles":
       case "readFile":
         return scopedCall(method, file.parse(payload));

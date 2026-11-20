@@ -9,6 +9,7 @@ import { uploadConversationFiles } from "../lib/upload-conversation-files";
 import { ChatComposerControls, type ReasoningEffort } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatPrompt } from "./ChatPrompt";
+import type { ApprovalPolicyValue, PermissionProfileValue } from "./ExecutionPolicy";
 
 type ChatComposerProps = {
   id: string;
@@ -17,6 +18,12 @@ type ChatComposerProps = {
   initialModelId: string | null;
   initialReasoningEffort: ReasoningEffort;
   onUpdateModelBinding: (id: string, effort: ReasoningEffort) => Promise<void>;
+  initialApprovalPolicy: ApprovalPolicyValue;
+  initialPermissionProfile: PermissionProfileValue;
+  onUpdateExecutionPolicy: (value: {
+    approvalPolicy: ApprovalPolicyValue;
+    permissionProfile: PermissionProfileValue;
+  }) => Promise<void>;
   busy: boolean;
   runActive: boolean;
   activatedSkillName: string | null;
@@ -34,6 +41,9 @@ export const ChatComposer = memo(function ChatComposer({
   initialModelId,
   initialReasoningEffort,
   onUpdateModelBinding,
+  initialApprovalPolicy,
+  initialPermissionProfile,
+  onUpdateExecutionPolicy,
   busy,
   runActive,
   activatedSkillName,
@@ -46,11 +56,15 @@ export const ChatComposer = memo(function ChatComposer({
   const [models, setModels] = useState<ModelProvider[]>([]);
   const [selectedModelId, setSelectedModelId] = useState(initialModelId);
   const [reasoningEffort, setReasoningEffort] = useState(initialReasoningEffort);
+  const [approvalPolicy, setApprovalPolicy] = useState(initialApprovalPolicy);
+  const [permissionProfile, setPermissionProfile] = useState(initialPermissionProfile);
 
   useEffect(() => {
     setSelectedModelId(initialModelId);
     setReasoningEffort(initialReasoningEffort);
-  }, [id, initialModelId, initialReasoningEffort]);
+    setApprovalPolicy(initialApprovalPolicy);
+    setPermissionProfile(initialPermissionProfile);
+  }, [id, initialApprovalPolicy, initialModelId, initialPermissionProfile, initialReasoningEffort]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -163,9 +177,17 @@ export const ChatComposer = memo(function ChatComposer({
               if (!selectedModelId) return;
               void onUpdateModelBinding(selectedModelId, effort).then(() => setReasoningEffort(effort));
             }}
+            approvalPolicy={approvalPolicy}
+            permissionProfile={permissionProfile}
+            onExecutionPolicyChange={(value) => {
+              void onUpdateExecutionPolicy(value).then(() => {
+                setApprovalPolicy(value.approvalPolicy);
+                setPermissionProfile(value.permissionProfile);
+              });
+            }}
             activatedSkillName={activatedSkillName}
             onClearSkill={() => setActivatedSkillName(null)}
-            disabled={busy && !runActive}
+            disabled={busy}
           />
           <ChatContextUsage conversationId={id ?? ""} refreshKey={traceRefreshKey} running={busy} />
         </>

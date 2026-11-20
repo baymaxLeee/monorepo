@@ -61,10 +61,12 @@ func Project(runtimeDocument []byte) ([]byte, error) {
 	schemas["CreateConversationInput"] = map[string]any{
 		"type": "object", "required": []any{"request_id"}, "additionalProperties": false,
 		"properties": map[string]any{
-			"request_id":       map[string]any{"type": "string", "minLength": float64(8), "maxLength": float64(64)},
-			"title":            map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(200)},
-			"provider_id":      map[string]any{"type": "string", "maxLength": float64(32), "nullable": true},
-			"reasoning_effort": map[string]any{"$ref": "#/components/schemas/ReasoningEffort", "nullable": true},
+			"request_id":         map[string]any{"type": "string", "minLength": float64(8), "maxLength": float64(64)},
+			"title":              map[string]any{"type": "string", "minLength": float64(1), "maxLength": float64(200)},
+			"provider_id":        map[string]any{"type": "string", "maxLength": float64(32), "nullable": true},
+			"reasoning_effort":   map[string]any{"$ref": "#/components/schemas/ReasoningEffort", "nullable": true},
+			"approval_policy":    map[string]any{"$ref": "#/components/schemas/ApprovalPolicy", "nullable": true},
+			"permission_profile": map[string]any{"$ref": "#/components/schemas/PermissionProfile", "nullable": true},
 			"plugin_selections": map[string]any{
 				"type": "array", "maxItems": float64(16),
 				"items": map[string]any{"$ref": "#/components/schemas/ConversationPluginSelection"},

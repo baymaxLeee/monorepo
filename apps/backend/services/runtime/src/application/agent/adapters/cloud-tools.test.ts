@@ -74,3 +74,41 @@ test("cloud execution environment describes behavior without exposing transport 
   assert.equal(CLOUD_EXECUTION_ENVIRONMENT.workspace.persistence, "session");
   assert.doesNotMatch(JSON.stringify(CLOUD_EXECUTION_ENVIRONMENT), /proxy|squid|socket/i);
 });
+
+test("cloud adapters compile the session execution policy instead of using fixed defaults", async () => {
+  const readOnly = await createCloudToolAdapters({
+    approvalPolicy: "never",
+    permissionProfile: ":read-only",
+  });
+  try {
+    assert.deepEqual(readOnly.environment.permissions, {
+      profileId: ":read-only",
+      enforcement: "managed",
+      approvalPolicy: "never",
+    });
+    assert.equal(readOnly.permissionProfile.type, "managed");
+    assert.equal(
+      readOnly.permissionProfile.type === "managed" &&
+        readOnly.permissionProfile.fileSystem.type === "restricted" &&
+        readOnly.permissionProfile.fileSystem.entries.some((entry) => entry.access === "write"),
+      false,
+    );
+  } finally {
+    await readOnly.dispose();
+  }
+
+  const unrestricted = await createCloudToolAdapters({
+    approvalPolicy: "granular",
+    permissionProfile: ":danger-full-access",
+  });
+  try {
+    assert.deepEqual(unrestricted.environment.permissions, {
+      profileId: ":danger-full-access",
+      enforcement: "disabled",
+      approvalPolicy: "granular",
+    });
+    assert.deepEqual(unrestricted.permissionProfile, { type: "disabled" });
+  } finally {
+    await unrestricted.dispose();
+  }
+});

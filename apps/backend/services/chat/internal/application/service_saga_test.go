@@ -106,6 +106,8 @@ func runtimeJSON(status int, body string) *http.Response {
 }
 
 func TestCreateConversationReservesBeforeRuntimeAndBindsThread(t *testing.T) {
+	approvalPolicy := "on-request"
+	permissionProfile := ":workspace"
 	var order []string
 	var reserved Conversation
 	repository := &sagaRepositoryStub{
@@ -144,11 +146,17 @@ func TestCreateConversationReservesBeforeRuntimeAndBindsThread(t *testing.T) {
 		if input.RequestID != "request-1234" {
 			t.Fatalf("request id = %q", input.RequestID)
 		}
+		if input.ApprovalPolicy == nil || *input.ApprovalPolicy != approvalPolicy ||
+			input.PermissionProfile == nil || *input.PermissionProfile != permissionProfile {
+			t.Fatalf("execution policy = (%v, %v)", input.ApprovalPolicy, input.PermissionProfile)
+		}
 		return runtimeJSON(http.StatusCreated, `{"id":"runtime-thread"}`), nil
 	}}
 
 	result, err := NewService(repository, runtime).Create(
-		context.Background(), sagaScope(), make(http.Header), CreateConversationInput{RequestID: "request-1234"},
+		context.Background(), sagaScope(), make(http.Header), CreateConversationInput{
+			RequestID: "request-1234", ApprovalPolicy: &approvalPolicy, PermissionProfile: &permissionProfile,
+		},
 	)
 	if err != nil {
 		t.Fatal(err)

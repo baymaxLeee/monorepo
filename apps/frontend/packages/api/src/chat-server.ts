@@ -165,6 +165,15 @@ export interface AgentRunTrace {
   totalTokens: number | null;
 }
 
+export type ApprovalPolicy = (typeof ApprovalPolicy)[keyof typeof ApprovalPolicy];
+
+export const ApprovalPolicy = {
+  never: "never",
+  "on-request": "on-request",
+  "unless-trusted": "unless-trusted",
+  granular: "granular",
+} as const;
+
 export type MemoryCategory = (typeof MemoryCategory)[keyof typeof MemoryCategory];
 
 export const MemoryCategory = {
@@ -355,6 +364,14 @@ export interface ConversationMessage {
   status: ConversationMessageStatus;
 }
 
+export type PermissionProfile = (typeof PermissionProfile)[keyof typeof PermissionProfile];
+
+export const PermissionProfile = {
+  ":read-only": ":read-only",
+  ":workspace": ":workspace",
+  ":danger-full-access": ":danger-full-access",
+} as const;
+
 export type ReasoningEffort = (typeof ReasoningEffort)[keyof typeof ReasoningEffort];
 
 export const ReasoningEffort = {
@@ -370,6 +387,7 @@ export const ReasoningEffort = {
 export interface ConversationDetail {
   /** @nullable */
   active_run_id: string | null;
+  approval_policy: ApprovalPolicy;
   branches: MessageBranchGroup[];
   created_at: string;
   documents: ConversationDocument[];
@@ -378,6 +396,7 @@ export interface ConversationDetail {
   latest_run_id: string | null;
   messages: ConversationMessage[];
   model: string;
+  permission_profile: PermissionProfile;
   plugin_selections: ConversationPluginSelection[];
   provider_id: string;
   reasoning_effort: ReasoningEffort;
@@ -461,6 +480,8 @@ export interface CreateCanvasConversationInput {
 }
 
 export interface CreateConversationInput {
+  approval_policy?: ApprovalPolicy | null;
+  permission_profile?: PermissionProfile | null;
   /** @maxItems 16 */
   plugin_selections?: ConversationPluginSelection[];
   /**
@@ -568,6 +589,11 @@ export interface UpdateConversationDocumentInput {
    * @maxLength 200
    */
   title?: string;
+}
+
+export interface UpdateConversationExecutionPolicyInput {
+  approval_policy: ApprovalPolicy;
+  permission_profile: PermissionProfile;
 }
 
 export interface UpdateConversationFileContentInput {
@@ -1386,6 +1412,22 @@ export const authorizeConversationDocumentDelivery = (
   );
 };
 
+export const updateConversationExecutionPolicy = (
+  conversationId: string,
+  updateConversationExecutionPolicyInput: UpdateConversationExecutionPolicyInput,
+  options?: SecondParameter<typeof apiMutator<Conversation>>,
+) => {
+  return apiMutator<Conversation>(
+    {
+      url: `/api/chat-server/conversations/${conversationId}/execution-policy`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: updateConversationExecutionPolicyInput,
+    },
+    options,
+  );
+};
+
 export const getConversationFile = (
   conversationId: string,
   fileId: string,
@@ -1673,6 +1715,9 @@ export type RedirectConversationDocumentContentResult = NonNullable<
 >;
 export type AuthorizeConversationDocumentDeliveryResult = NonNullable<
   Awaited<ReturnType<typeof authorizeConversationDocumentDelivery>>
+>;
+export type UpdateConversationExecutionPolicyResult = NonNullable<
+  Awaited<ReturnType<typeof updateConversationExecutionPolicy>>
 >;
 export type GetConversationFileResult = NonNullable<Awaited<ReturnType<typeof getConversationFile>>>;
 export type RedirectConversationFileContentResult = NonNullable<

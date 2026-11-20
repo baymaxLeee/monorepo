@@ -179,6 +179,17 @@ async function dispatch(method: string, payload: unknown) {
       runtime.setExecutionPolicy(p.id, p.approvalPolicy, p.permissionProfile);
       return null;
     }
+    case "setModelBinding": {
+      const p = z
+        .object({
+          id: idSchema,
+          providerId: z.string().min(1).max(32),
+          reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
+        })
+        .parse(payload);
+      runtime.setModelBinding(p.id, p.providerId, p.reasoningEffort);
+      return null;
+    }
     case "stop":
       await runtime.stop(idSchema.parse(payload));
       return null;

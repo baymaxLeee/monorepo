@@ -1,5 +1,6 @@
 import type { InstructionInput } from "@repo/agent-runtime/instructions/index";
 import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/runtime/permissions";
 
 import type { LanguageProviderSnapshot, ReasoningEffort } from "#runtime/provider-model";
 
@@ -25,6 +26,8 @@ export interface CloudTurnInput {
   pluginSnapshot: ResolvedTurnPluginSnapshot;
   provider: LanguageProviderSnapshot;
   reasoningEffort: ReasoningEffort;
+  approvalPolicy: ApprovalPolicy;
+  permissionProfile: BuiltInPermissionProfileId;
   previousResponseId?: string | null;
   attachedImageDocumentIds?: string[];
   instructionInput: InstructionInput;

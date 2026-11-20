@@ -340,6 +340,15 @@
         ],
         "type": "object"
       },
+      "ApprovalPolicy": {
+        "enum": [
+          "never",
+          "on-request",
+          "unless-trusted",
+          "granular"
+        ],
+        "type": "string"
+      },
       "ApprovedMemory": {
         "properties": {
           "memory": {
@@ -483,6 +492,9 @@
             "nullable": true,
             "type": "string"
           },
+          "approval_policy": {
+            "$ref": "#/components/schemas/ApprovalPolicy"
+          },
           "branches": {
             "items": {
               "$ref": "#/components/schemas/MessageBranchGroup"
@@ -514,6 +526,9 @@
           },
           "model": {
             "type": "string"
+          },
+          "permission_profile": {
+            "$ref": "#/components/schemas/PermissionProfile"
           },
           "plugin_selections": {
             "items": {
@@ -560,6 +575,8 @@
           "model",
           "provider_id",
           "reasoning_effort",
+          "approval_policy",
+          "permission_profile",
           "created_at",
           "updated_at",
           "revision",
@@ -901,6 +918,14 @@
       "CreateConversationInput": {
         "additionalProperties": false,
         "properties": {
+          "approval_policy": {
+            "$ref": "#/components/schemas/ApprovalPolicy",
+            "nullable": true
+          },
+          "permission_profile": {
+            "$ref": "#/components/schemas/PermissionProfile",
+            "nullable": true
+          },
           "plugin_selections": {
             "items": {
               "$ref": "#/components/schemas/ConversationPluginSelection"
@@ -1169,6 +1194,14 @@
         ],
         "type": "object"
       },
+      "PermissionProfile": {
+        "enum": [
+          ":read-only",
+          ":workspace",
+          ":danger-full-access"
+        ],
+        "type": "string"
+      },
       "PersistedMessageContent": {
         "properties": {
           "metadata": {
@@ -1295,6 +1328,22 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "UpdateConversationExecutionPolicyInput": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_policy": {
+            "$ref": "#/components/schemas/ApprovalPolicy"
+          },
+          "permission_profile": {
+            "$ref": "#/components/schemas/PermissionProfile"
+          }
+        },
+        "required": [
+          "approval_policy",
+          "permission_profile"
+        ],
         "type": "object"
       },
       "UpdateConversationFileContentInput": {
@@ -2578,6 +2627,46 @@
           },
           "404": {
             "description": "document not accessible"
+          }
+        }
+      }
+    },
+    "/conversations/{conversation_id}/execution-policy": {
+      "patch": {
+        "operationId": "updateConversationExecutionPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationExecutionPolicyInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "updated conversation execution policy"
+          },
+          "409": {
+            "description": "conversation has an active run"
           }
         }
       }

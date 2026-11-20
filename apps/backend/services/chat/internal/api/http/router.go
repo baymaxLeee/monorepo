@@ -206,7 +206,14 @@ func decodeCreateInput(request *http.Request) (application.CreateConversationInp
 	if err := decodeJSON(request, &input); err != nil {
 		return input, invalidRequestError()
 	}
-	if err := validateCreateFields(input.RequestID, input.Title, input.ProviderID, input.ReasoningEffort); err != nil {
+	if err := validateCreateFields(
+		input.RequestID,
+		input.Title,
+		input.ProviderID,
+		input.ReasoningEffort,
+		input.ApprovalPolicy,
+		input.PermissionProfile,
+	); err != nil {
 		return input, err
 	}
 	return input, nil
@@ -217,7 +224,7 @@ func decodeCanvasCreateInput(request *http.Request) (application.CreateCanvasCon
 	if err := decodeJSON(request, &input); err != nil {
 		return input, invalidRequestError()
 	}
-	if err := validateCreateFields(input.RequestID, input.Title, input.ProviderID, input.ReasoningEffort); err != nil {
+	if err := validateCreateFields(input.RequestID, input.Title, input.ProviderID, input.ReasoningEffort, nil, nil); err != nil {
 		return input, err
 	}
 	for _, value := range []string{input.ProjectID, input.CanvasID} {
@@ -228,7 +235,7 @@ func decodeCanvasCreateInput(request *http.Request) (application.CreateCanvasCon
 	return input, nil
 }
 
-func validateCreateFields(requestID string, title, providerID, reasoningEffort *string) error {
+func validateCreateFields(requestID string, title, providerID, reasoningEffort, approvalPolicy, permissionProfile *string) error {
 	if length := utf8.RuneCountInString(requestID); length < 8 || length > 64 {
 		return invalidRequestError()
 	}
@@ -247,6 +254,18 @@ func validateCreateFields(requestID string, title, providerID, reasoningEffort *
 	if reasoningEffort != nil {
 		allowed := map[string]bool{"none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true}
 		if !allowed[*reasoningEffort] {
+			return invalidRequestError()
+		}
+	}
+	if approvalPolicy != nil {
+		allowed := map[string]bool{"never": true, "on-request": true, "unless-trusted": true, "granular": true}
+		if !allowed[*approvalPolicy] {
+			return invalidRequestError()
+		}
+	}
+	if permissionProfile != nil {
+		allowed := map[string]bool{":read-only": true, ":workspace": true, ":danger-full-access": true}
+		if !allowed[*permissionProfile] {
 			return invalidRequestError()
 		}
 	}

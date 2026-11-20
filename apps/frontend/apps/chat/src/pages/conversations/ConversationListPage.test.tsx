@@ -59,13 +59,17 @@ vi.mock("@repo/ai-elements/conversation", async (original) => ({
     footerRender,
     onSubmit,
     maxFiles,
+    disabled,
+    loading,
   }: {
     toolbarRender?: () => ReactNode;
     footerRender?: () => ReactNode;
     onSubmit: (value: PromptInputValue) => void;
     maxFiles?: number;
+    disabled?: boolean;
+    loading?: boolean;
   }) => (
-    <div>
+    <div data-testid="new-composer" data-disabled={String(Boolean(disabled))} data-loading={String(Boolean(loading))}>
       <span data-testid="max-files">{maxFiles}</span>
       {toolbarRender?.()}
       {footerRender?.()}
@@ -136,6 +140,7 @@ test("new cloud conversation renders session controls and submits their request 
   await selectExecutionLocation("云端");
   expect(screen.getByTestId("max-files").textContent).toBe("8");
   expect(await screen.findByText("Cloud Model")).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "授权策略" })).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
     expect(mocks.navigate).toHaveBeenCalledWith(
@@ -153,6 +158,8 @@ test("new cloud conversation renders session controls and submits their request 
     request_id: expect.any(String),
     provider_id: "cloud-model",
     reasoning_effort: "medium",
+    approval_policy: "on-request",
+    permission_profile: ":workspace",
     plugin_selections: [],
   });
   expect(mocks.local).not.toHaveBeenCalled();
@@ -184,6 +191,28 @@ test("new cloud conversation uploads attachments before handing the first messag
       }),
     ),
   );
+});
+
+test("new conversation keeps the editor enabled while creation is pending", async () => {
+  let finishCreate!: (value: { id: string }) => void;
+  mocks.create.mockReturnValue(
+    new Promise((resolve) => {
+      finishCreate = resolve;
+    }),
+  );
+  render(
+    <MemoryRouter>
+      <ConversationListPage />
+    </MemoryRouter>,
+  );
+  await selectExecutionLocation("云端");
+  await screen.findByText("Cloud Model");
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+  expect(screen.getByTestId("new-composer").dataset).toMatchObject({ disabled: "false", loading: "true" });
+
+  finishCreate({ id: "cloud" });
+  await waitFor(() => expect(mocks.navigate).toHaveBeenCalled());
 });
 test("Desktop defaults to this computer and creates in the selected existing project", async () => {
   render(

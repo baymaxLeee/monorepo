@@ -250,11 +250,14 @@ func createConversationIntent(input CreateConversationInput) (ConversationIntent
 	}
 	input.PluginSelections = pluginSelections
 	body, err := json.Marshal(struct {
-		RequestID       string  `json:"request_id"`
-		ProviderID      *string `json:"provider_id,omitempty"`
-		ReasoningEffort *string `json:"reasoning_effort,omitempty"`
+		RequestID         string  `json:"request_id"`
+		ProviderID        *string `json:"provider_id,omitempty"`
+		ReasoningEffort   *string `json:"reasoning_effort,omitempty"`
+		ApprovalPolicy    *string `json:"approval_policy,omitempty"`
+		PermissionProfile *string `json:"permission_profile,omitempty"`
 	}{
 		RequestID: input.RequestID, ProviderID: input.ProviderID, ReasoningEffort: input.ReasoningEffort,
+		ApprovalPolicy: input.ApprovalPolicy, PermissionProfile: input.PermissionProfile,
 	})
 	if err != nil {
 		return ConversationIntent{}, err

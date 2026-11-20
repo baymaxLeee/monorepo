@@ -97,6 +97,18 @@ async function done(runtime: DesktopSessionManager, id: string) {
 }
 
 describe.skipIf(process.platform !== "darwin")("local assistant owns execution and recovery", () => {
+  it("persists model binding updates and freezes them for the active turn", async () => {
+    const f = await fixture(async () => reply(text()));
+
+    f.runtime.setModelBinding(f.thread.id, "provider-2", "high");
+    expect(f.runtime.get(f.thread.id)).toMatchObject({ providerId: "provider-2", reasoningEffort: "high" });
+    expect(f.runtime.journal.get(f.thread.id)).toMatchObject({ providerId: "provider-2", reasoningEffort: "high" });
+
+    f.runtime.send(f.thread.id, "run", randomUUID());
+    expect(() => f.runtime.setModelBinding(f.thread.id, "provider", "low")).toThrow("当前轮次的模型与推理深度已冻结");
+    await done(f.runtime, f.thread.id);
+  });
+
   it("freezes plugin tools for the Turn, persists only the audit snapshot and disposes resources", async () => {
     const requests: InferenceRequest[] = [];
     const dispose = vi.fn(async () => {});

@@ -1,5 +1,4 @@
 import {
-  ExecutionPolicy,
   ChatComposerControls,
   ChatPrompt,
   NewConversationEnvironment,
@@ -186,6 +185,8 @@ export function ConversationListPage() {
           request_id: randomId(),
           provider_id: selectedModelId,
           reasoning_effort: reasoningEffort,
+          approval_policy: approvalPolicy,
+          permission_profile: permissionProfile,
           plugin_selections: selectedPluginIds.map((plugin_id) => ({ plugin_id })),
         });
         const parts = await prepareCloudRequest(conversation.id, value);
@@ -218,7 +219,7 @@ export function ConversationListPage() {
         autoFocus
         placeholder="发送消息或创建任务…"
         loading={busy}
-        disabled={busy}
+        disabled={false}
         maxFiles={location === "cloud" ? 8 : 0}
         maxFileSize={10 * 1024 * 1024}
         onError={setError}
@@ -239,52 +240,30 @@ export function ConversationListPage() {
               )
             : undefined
         }
-        footerRender={() =>
-          location === "cloud" ? (
-            <>
-              <ChatComposerControls
-                models={models}
-                selectedModelId={selectedModelId}
-                onSelectModel={setSelectedModelId}
-                reasoningEffort={reasoningEffort}
-                onReasoningEffortChange={setReasoningEffort}
-                disabled={busy}
-              />
-              <PluginPicker
-                plugins={plugins}
-                selected={selectedPluginIds}
-                onChange={setSelectedPluginIds}
-                disabled={busy}
-              />
-            </>
-          ) : (
-            <>
-              <ChatComposerControls
-                models={models}
-                selectedModelId={selectedModelId}
-                onSelectModel={setSelectedModelId}
-                reasoningEffort={reasoningEffort}
-                onReasoningEffortChange={setReasoningEffort}
-                disabled={busy}
-              />
-              <PluginPicker
-                plugins={plugins}
-                selected={selectedPluginIds}
-                onChange={setSelectedPluginIds}
-                disabled={busy}
-              />
-              <ExecutionPolicy
-                approvalPolicy={approvalPolicy}
-                permissionProfile={permissionProfile}
-                onChange={(value) => {
-                  setApprovalPolicy(value.approvalPolicy);
-                  setPermissionProfile(value.permissionProfile);
-                }}
-                disabled={busy}
-              />
-            </>
-          )
-        }
+        footerRender={() => (
+          <>
+            <ChatComposerControls
+              models={models}
+              selectedModelId={selectedModelId}
+              onSelectModel={setSelectedModelId}
+              reasoningEffort={reasoningEffort}
+              onReasoningEffortChange={setReasoningEffort}
+              approvalPolicy={approvalPolicy}
+              permissionProfile={permissionProfile}
+              onExecutionPolicyChange={(value) => {
+                setApprovalPolicy(value.approvalPolicy);
+                setPermissionProfile(value.permissionProfile);
+              }}
+              disabled={busy}
+            />
+            <PluginPicker
+              plugins={plugins}
+              selected={selectedPluginIds}
+              onChange={setSelectedPluginIds}
+              disabled={busy}
+            />
+          </>
+        )}
       />
     </div>
   );

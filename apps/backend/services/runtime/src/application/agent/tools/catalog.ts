@@ -8,7 +8,11 @@ import type {
   ResolvedTurnPluginSnapshot,
 } from "@repo/agent-runtime/plugins/types";
 import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
-import type { PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
+import type {
+  ApprovalPolicy,
+  BuiltInPermissionProfileId,
+  PermissionProfile,
+} from "@repo/agent-runtime/runtime/permissions";
 import type { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
 import type { ToolOrchestrator } from "@repo/agent-runtime/runtime/tool-orchestrator";
 import { deferAgentToolLoading, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
@@ -60,6 +64,10 @@ export class ToolCatalog {
     providers: AgentToolProviders,
     pluginSnapshot: ResolvedTurnPluginSnapshot,
     skillSource?: SkillSource | null,
+    executionPolicy: { approvalPolicy: ApprovalPolicy; permissionProfile: BuiltInPermissionProfileId } = {
+      approvalPolicy: "on-request",
+      permissionProfile: ":workspace",
+    },
   ): Promise<{
     tools: ToolSet;
     activeTools: string[];
@@ -73,7 +81,7 @@ export class ToolCatalog {
     toolApproval: ToolOrchestrator["toolApproval"];
     dispose: () => Promise<void>;
   }> {
-    const cloudAdapters = await createCloudToolAdapters();
+    const cloudAdapters = await createCloudToolAdapters(executionPolicy);
     const disposers: Array<() => void | Promise<void>> = [cloudAdapters.dispose];
     try {
       const pluginSet = await this.#plugins.load(pluginSnapshot, context);

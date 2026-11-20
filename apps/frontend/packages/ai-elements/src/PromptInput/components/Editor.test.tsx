@@ -190,6 +190,8 @@ test("composer keeps one resting surface size with or without custom controls", 
   expect(surface?.querySelector(".prompt-input-footer")?.classList.contains("min-h-10")).toBe(true);
   expect(surface?.classList.contains("has-[[data-slot=input-group-control]:focus-visible]:ring-1")).toBe(true);
   expect(surface?.classList.contains("has-[[data-slot=input-group-control]:focus-visible]:ring-3")).toBe(false);
+  expect(surface?.classList.contains("has-disabled:bg-background!")).toBe(true);
+  expect(surface?.classList.contains("has-disabled:opacity-100!")).toBe(true);
 
   rerender(<Editor footerRender={() => <span>会话控件</span>} />);
   expect(surface?.classList.contains("min-h-24")).toBe(true);

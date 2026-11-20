@@ -4,6 +4,9 @@ import { createExecutionHostManifests } from "@repo/agent-runtime/runtime/execut
 import {
   clonePermissionProfile,
   compilePermissionProfile,
+  permissionProfileSummary,
+  type ApprovalPolicy,
+  type BuiltInPermissionProfileId,
   type PermissionProfile,
 } from "@repo/agent-runtime/runtime/permissions";
 import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
@@ -27,17 +30,16 @@ export const CLOUD_EXECUTION_ENVIRONMENT = {
   permissions: { profileId: ":workspace", enforcement: "managed", approvalPolicy: "on-request" },
 } as const satisfies ExecutionEnvironment;
 
-function cloudPermissionProfile(): PermissionProfile {
-  const profile = compilePermissionProfile(":workspace", { workspaceRoot: "/workspace" }).profile;
-  if (profile.type !== "managed" || profile.fileSystem.type !== "restricted") {
-    throw new Error("cloud workspace profile must use managed filesystem enforcement");
+function cloudPermissionProfile(id: BuiltInPermissionProfileId): PermissionProfile {
+  const profile = compilePermissionProfile(id, { workspaceRoot: "/workspace" }).profile;
+  if (profile.type === "managed" && profile.fileSystem.type === "restricted") {
+    profile.fileSystem.entries.push(
+      { path: "/workspace/sources", access: "read" },
+      { path: "/workspace/.home", access: "deny" },
+      { path: "/run/control", access: "deny" },
+      { path: "/run/egress", access: "deny" },
+    );
   }
-  profile.fileSystem.entries.push(
-    { path: "/workspace/sources", access: "read" },
-    { path: "/workspace/.home", access: "deny" },
-    { path: "/run/control", access: "deny" },
-    { path: "/run/egress", access: "deny" },
-  );
   return clonePermissionProfile(profile);
 }
 
@@ -61,11 +63,24 @@ function networkViolationHint(command: string): SandboxViolation | undefined {
   return undefined;
 }
 
-export async function createCloudToolAdapters() {
-  const permissionProfile = cloudPermissionProfile();
+export async function createCloudToolAdapters(
+  settings: {
+    approvalPolicy: ApprovalPolicy;
+    permissionProfile: BuiltInPermissionProfileId;
+  } = { approvalPolicy: "on-request", permissionProfile: ":workspace" },
+) {
+  const permissionProfile = cloudPermissionProfile(settings.permissionProfile);
+  const environment: ExecutionEnvironment = {
+    ...CLOUD_EXECUTION_ENVIRONMENT,
+    permissions: {
+      profileId: settings.permissionProfile,
+      enforcement: permissionProfileSummary(permissionProfile),
+      approvalPolicy: settings.approvalPolicy,
+    },
+  };
   const processManager = new ProcessManager<{ terminate(): void }>();
   const orchestrator = new ToolOrchestrator({
-    approvalPolicy: "on-request",
+    approvalPolicy: settings.approvalPolicy,
     permissionProfile,
     processManager,
     fileSystemPolicy: {
@@ -76,7 +91,7 @@ export async function createCloudToolAdapters() {
   });
   const manifests = createExecutionHostManifests(
     {
-      environment: CLOUD_EXECUTION_ENVIRONMENT,
+      environment,
       orchestrator,
       run: async (input, attempt, options) => {
         options.abortSignal?.throwIfAborted();
@@ -118,7 +133,7 @@ export async function createCloudToolAdapters() {
     { contextSchema: artifactToolContextSchema },
   );
   return {
-    environment: CLOUD_EXECUTION_ENVIRONMENT,
+    environment,
     manifests,
     permissionProfile,
     processManager,

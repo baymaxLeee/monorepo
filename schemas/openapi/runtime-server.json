@@ -1207,6 +1207,46 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/execution-policy": {
+      "patch": {
+        "operationId": "updateSessionExecutionPolicy",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionExecutionPolicyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "updated conversation execution policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "conversation has an active run"
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/history/select": {
       "post": {
         "operationId": "selectSessionHistory",
@@ -2513,6 +2553,14 @@
           "reasoning_effort": {
             "$ref": "#/components/schemas/ReasoningEffort",
             "nullable": true
+          },
+          "approval_policy": {
+            "$ref": "#/components/schemas/ApprovalPolicy",
+            "nullable": true
+          },
+          "permission_profile": {
+            "$ref": "#/components/schemas/PermissionProfile",
+            "nullable": true
           }
         }
       },
@@ -2526,6 +2574,23 @@
           "high",
           "xhigh",
           "max"
+        ]
+      },
+      "ApprovalPolicy": {
+        "type": "string",
+        "enum": [
+          "never",
+          "on-request",
+          "unless-trusted",
+          "granular"
+        ]
+      },
+      "PermissionProfile": {
+        "type": "string",
+        "enum": [
+          ":read-only",
+          ":workspace",
+          ":danger-full-access"
         ]
       },
       "UpdateSessionModelInput": {
@@ -2546,6 +2611,22 @@
           }
         }
       },
+      "UpdateSessionExecutionPolicyInput": {
+        "type": "object",
+        "required": [
+          "approval_policy",
+          "permission_profile"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "approval_policy": {
+            "$ref": "#/components/schemas/ApprovalPolicy"
+          },
+          "permission_profile": {
+            "$ref": "#/components/schemas/PermissionProfile"
+          }
+        }
+      },
       "Session": {
         "type": "object",
         "required": [
@@ -2556,6 +2637,8 @@
           "model",
           "provider_id",
           "reasoning_effort",
+          "approval_policy",
+          "permission_profile",
           "created_at",
           "updated_at",
           "revision",
@@ -2582,6 +2665,12 @@
           },
           "reasoning_effort": {
             "$ref": "#/components/schemas/ReasoningEffort"
+          },
+          "approval_policy": {
+            "$ref": "#/components/schemas/ApprovalPolicy"
+          },
+          "permission_profile": {
+            "$ref": "#/components/schemas/PermissionProfile"
           },
           "created_at": {
             "type": "string",
@@ -2959,6 +3048,8 @@
           "model",
           "provider_id",
           "reasoning_effort",
+          "approval_policy",
+          "permission_profile",
           "created_at",
           "updated_at",
           "revision",
@@ -2990,6 +3081,12 @@
           },
           "reasoning_effort": {
             "$ref": "#/components/schemas/ReasoningEffort"
+          },
+          "approval_policy": {
+            "$ref": "#/components/schemas/ApprovalPolicy"
+          },
+          "permission_profile": {
+            "$ref": "#/components/schemas/PermissionProfile"
           },
           "created_at": {
             "type": "string",

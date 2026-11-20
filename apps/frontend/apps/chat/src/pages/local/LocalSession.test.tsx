@@ -31,6 +31,12 @@ vi.mock("@repo/api/chat", () => ({
     instructions: "",
   })),
 }));
+vi.mock("@repo/api/admin", () => ({
+  listProviders: vi.fn(async () => [
+    { id: "provider", name: "baymax", model: "test-model", provider_kind: "chat", is_enabled: true },
+    { id: "provider-2", name: "next", model: "next-model", provider_kind: "chat", is_enabled: true },
+  ]),
+}));
 vi.mock("@repo/ai-elements/conversation", () => ({
   ExecutionPolicy: ({ approvalPolicy, permissionProfile }: { approvalPolicy: string; permissionProfile: string }) => (
     <span>
@@ -102,8 +108,20 @@ vi.mock("@repo/ai-elements/conversation", () => ({
       </div>
     );
   },
-  ChatComposerControls: ({ models }: { models: Array<{ name: string }> }) => (
-    <span>模型 {models[0]?.name ?? "推理模型"}</span>
+  ChatComposerControls: ({
+    models,
+    onSelectModel,
+    onReasoningEffortChange,
+  }: {
+    models: Array<{ name: string }>;
+    onSelectModel?: (id: string) => void;
+    onReasoningEffortChange?: (effort: "high") => void;
+  }) => (
+    <span>
+      模型 {models.map((model) => model.name).join(" / ") || "推理模型"}
+      <button onClick={() => onSelectModel?.("provider-2")}>切换本地模型</button>
+      <button onClick={() => onReasoningEffortChange?.("high")}>切换本地推理</button>
+    </span>
   ),
 }));
 function fixture() {
@@ -135,11 +153,25 @@ function fixture() {
     stop: vi.fn(async () => {}),
     send: vi.fn(async () => {}),
     submitRunInput: vi.fn(async () => ({ admission: "accepted", turnId: "turn" })),
+    setModelBinding: vi.fn(async () => {}),
     openStream: vi.fn(async () => ({ thread, segment: null })),
   } as unknown as DesktopBridge;
   const transport = new LocalChatTransport(bridge, thread.id);
   return { thread, bridge, transport, off, emit: (event: DesktopEvent) => listener?.(event) };
 }
+
+test("updates the local model binding through the desktop bridge", async () => {
+  const f = fixture();
+  f.thread.status = "idle";
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} onOpenFiles={vi.fn()} />);
+
+  expect(await screen.findByText(/模型 baymax \/ next/)).toBeTruthy();
+  fireEvent.click(screen.getByText("切换本地模型"));
+  await waitFor(() => expect(f.bridge.setModelBinding).toHaveBeenCalledWith("local", "provider-2", "medium"));
+
+  fireEvent.click(screen.getByText("切换本地推理"));
+  await waitFor(() => expect(f.bridge.setModelBinding).toHaveBeenCalledWith("local", "provider-2", "high"));
+});
 
 test("clears a submitted local prompt immediately and uses the task-oriented placeholder", async () => {
   promptApi.clear.mockClear();

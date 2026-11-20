@@ -126,6 +126,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     },
     input.pluginSnapshot,
     skillSource,
+    { approvalPolicy: input.approvalPolicy, permissionProfile: input.permissionProfile },
   );
   const { tools } = resolvedTools;
   const toolContext = {
@@ -149,7 +150,9 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
   const instrumentedTools = withActiveToolSpans(tools, toolSpans, input);
 
-  const sandbox = new RunSandbox(toolContext, undefined, resolvedTools.permissionProfile, resolvedTools.processManager);
+  // Stable workspace restore/persistence is host-owned; model-selected permissions
+  // apply only to model-visible commands and file tools.
+  const sandbox = new RunSandbox(toolContext);
   await sandbox.observeWorkspaceBaseline();
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,

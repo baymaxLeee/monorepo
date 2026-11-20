@@ -340,6 +340,15 @@ export class DesktopSessionManager {
     thread.permissionProfile = permissionProfile;
     this.save(thread);
   }
+  setModelBinding(id: string, providerId: string, reasoningEffort: ReasoningEffort) {
+    const thread = this.get(id);
+    if (this.active.has(id) || thread.status === "waiting") {
+      throw new Error("当前轮次的模型与推理深度已冻结");
+    }
+    thread.providerId = providerId;
+    thread.reasoningEffort = reasoningEffort;
+    this.save(thread);
+  }
   private start(thread: LocalThread) {
     if (this.closed) throw new Error("本地运行时正在关闭");
     for (const id of this.active.keys())

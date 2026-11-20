@@ -14,6 +14,7 @@ import { BrainCircuitIcon, GaugeIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
 import { composerControlClassName } from "../../composer-control-styles";
+import { ExecutionPolicy, type ApprovalPolicyValue, type PermissionProfileValue } from "./ExecutionPolicy";
 
 export interface ChatComposerControlsProps {
   models: ReadonlyArray<{ id: string; name: string; model?: string }>;
@@ -21,6 +22,12 @@ export interface ChatComposerControlsProps {
   onSelectModel?: (id: string) => void;
   reasoningEffort?: ReasoningEffort;
   onReasoningEffortChange?: (effort: ReasoningEffort) => void;
+  approvalPolicy?: ApprovalPolicyValue;
+  permissionProfile?: PermissionProfileValue;
+  onExecutionPolicyChange?: (value: {
+    approvalPolicy: ApprovalPolicyValue;
+    permissionProfile: PermissionProfileValue;
+  }) => void;
   activatedSkillName?: string | null;
   onClearSkill?: () => void;
   disabled?: boolean;
@@ -44,6 +51,9 @@ export function ChatComposerControls({
   onSelectModel,
   reasoningEffort,
   onReasoningEffortChange,
+  approvalPolicy,
+  permissionProfile,
+  onExecutionPolicyChange,
   activatedSkillName,
   onClearSkill,
   disabled,
@@ -146,6 +156,14 @@ export function ChatComposerControls({
             推理：{reasoningLabel}
           </span>
         )
+      ) : null}
+      {approvalPolicy && permissionProfile ? (
+        <ExecutionPolicy
+          approvalPolicy={approvalPolicy}
+          permissionProfile={permissionProfile}
+          onChange={onExecutionPolicyChange}
+          disabled={disabled}
+        />
       ) : null}
       {activatedSkillName ? (
         <Badge variant="secondary" className="h-8 gap-1 rounded-full pl-2.5 pr-1.5">

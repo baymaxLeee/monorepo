@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/runtime/permissions";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { AuthContext } from "../api/http/middleware/auth.js";
@@ -99,6 +100,8 @@ export interface Session {
   model: string;
   provider_id: string;
   reasoning_effort: ReasoningEffort;
+  approval_policy: ApprovalPolicy;
+  permission_profile: BuiltInPermissionProfileId;
   created_at: string;
   updated_at: string;
   revision: number;
@@ -198,6 +201,8 @@ function toSession(row: typeof threads.$inferSelect): Session {
     model: row.model,
     provider_id: row.providerId,
     reasoning_effort: row.reasoningEffort as ReasoningEffort,
+    approval_policy: row.approvalPolicy as ApprovalPolicy,
+    permission_profile: row.permissionProfile as BuiltInPermissionProfileId,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
     revision: Number(row.historyRevision),
@@ -345,6 +350,8 @@ export async function createSession(
     provider_id?: string | null;
     model?: string | null;
     reasoning_effort?: ReasoningEffort | null;
+    approval_policy?: ApprovalPolicy | null;
+    permission_profile?: BuiltInPermissionProfileId | null;
   },
 ): Promise<Session> {
   const db = getDb();
@@ -358,6 +365,8 @@ export async function createSession(
     model: input.model ?? "",
     providerId: input.provider_id ?? "",
     reasoningEffort: input.reasoning_effort ?? "medium",
+    approvalPolicy: input.approval_policy ?? "on-request",
+    permissionProfile: input.permission_profile ?? ":workspace",
     createRequestId: input.request_id,
     createdAt: now,
     updatedAt: now,
@@ -379,7 +388,9 @@ export async function createSession(
   if (
     row.providerId !== (input.provider_id ?? "") ||
     row.model !== (input.model ?? "") ||
-    row.reasoningEffort !== (input.reasoning_effort ?? "medium")
+    row.reasoningEffort !== (input.reasoning_effort ?? "medium") ||
+    row.approvalPolicy !== (input.approval_policy ?? "on-request") ||
+    row.permissionProfile !== (input.permission_profile ?? ":workspace")
   ) {
     throw new ConflictError("request_id was already used with different session input");
   }
@@ -660,6 +671,25 @@ export async function updateSessionModel(
       providerId: input.providerId,
       model: input.model,
       reasoningEffort: input.reasoningEffort,
+      updatedAt: new Date(),
+    })
+    .where(eq(threads.id, sessionId))
+    .returning();
+  if (!row) throw new NotFoundError("session not found");
+  return toSession(row);
+}
+
+export async function updateSessionExecutionPolicy(
+  auth: AuthContext,
+  sessionId: string,
+  input: { approvalPolicy: ApprovalPolicy; permissionProfile: BuiltInPermissionProfileId },
+): Promise<Session> {
+  await getSessionRow(auth, sessionId);
+  const [row] = await getDb()
+    .update(threads)
+    .set({
+      approvalPolicy: input.approvalPolicy,
+      permissionProfile: input.permissionProfile,
       updatedAt: new Date(),
     })
     .where(eq(threads.id, sessionId))

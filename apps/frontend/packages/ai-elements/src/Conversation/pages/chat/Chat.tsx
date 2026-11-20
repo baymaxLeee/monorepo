@@ -1,7 +1,12 @@
 import { type ConversationScrollHandle } from "@repo/ai-elements";
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
 import { listSkills } from "@repo/api/admin";
-import { type ConversationDocument, type ReasoningEffort, updateConversationModel } from "@repo/api/chat";
+import {
+  type ConversationDocument,
+  type ReasoningEffort,
+  updateConversationExecutionPolicy,
+  updateConversationModel,
+} from "@repo/api/chat";
 import { toast } from "@repo/design-system";
 import { randomId } from "@repo/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +17,7 @@ import type { ReasoningEffort as ComposerReasoningEffort } from "../../component
 import { ChatImagePreview } from "../../components/ChatImagePreview";
 import { ChatSessionIssue } from "../../components/ChatSessionIssue";
 import { ConversationSessionView } from "../../components/ConversationSessionView";
+import type { ApprovalPolicyValue, PermissionProfileValue } from "../../components/ExecutionPolicy";
 import { useAgentRunInputs } from "../../hooks/useAgentRunInputs";
 import { useConversationChat } from "../../hooks/useConversationChat";
 import { useForkConversation } from "../../hooks/useForkConversation";
@@ -141,6 +147,15 @@ export function ChatSession({
       await updateConversationModel(id, {
         provider_id: providerId,
         reasoning_effort: effort as ReasoningEffort,
+      });
+    },
+    [id],
+  );
+  const updateExecutionPolicy = useCallback(
+    async (value: { approvalPolicy: ApprovalPolicyValue; permissionProfile: PermissionProfileValue }) => {
+      await updateConversationExecutionPolicy(id, {
+        approval_policy: value.approvalPolicy,
+        permission_profile: value.permissionProfile,
       });
     },
     [id],
@@ -361,6 +376,9 @@ export function ChatSession({
           initialModelId={detail?.provider_id || null}
           initialReasoningEffort={(detail?.reasoning_effort as ComposerReasoningEffort | undefined) ?? "medium"}
           onUpdateModelBinding={updateModelBinding}
+          initialApprovalPolicy={(detail?.approval_policy as ApprovalPolicyValue | undefined) ?? "on-request"}
+          initialPermissionProfile={(detail?.permission_profile as PermissionProfileValue | undefined) ?? ":workspace"}
+          onUpdateExecutionPolicy={updateExecutionPolicy}
           busy={busy}
           runActive={runActive}
           activatedSkillName={activatedSkillName}

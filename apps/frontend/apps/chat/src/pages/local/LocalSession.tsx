@@ -4,10 +4,10 @@ import {
   ChatComposerControls,
   ChatPrompt,
   ConversationSessionView,
-  ExecutionPolicy,
   type ChatUIMessage,
 } from "@repo/ai-elements/conversation";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
+import { listProviders, type ModelProvider } from "@repo/api/admin";
 import { getLocalInferenceConfig, type GetLocalInferenceConfig200 } from "@repo/api/chat";
 import { Button } from "@repo/design-system";
 import type { DesktopBridge, LocalThread } from "@repo/runtime/desktop";
@@ -32,6 +32,7 @@ export function LocalSession({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [inferenceConfig, setInferenceConfig] = useState<GetLocalInferenceConfig200 | null>(null);
+  const [models, setModels] = useState<ModelProvider[]>([]);
   const promptRef = useRef<PromptInputRef>(null);
   const pendingPrompt = useRef<PromptInputValue | null>(null);
   const pendingRunInputs = useRef(new Map<string, PromptInputValue>());
@@ -57,6 +58,8 @@ export function LocalSession({
     turnId: initial.turnId,
     error: initial.error,
     pendingInputs: initial.pendingInputs,
+    providerId: initial.providerId,
+    reasoningEffort: initial.reasoningEffort,
     approvalPolicy: initial.approvalPolicy,
     permissionProfile: initial.permissionProfile,
   });
@@ -64,8 +67,19 @@ export function LocalSession({
   const scrollRef = useRef<ConversationScrollHandle>(null);
   useEffect(() => {
     const controller = new AbortController();
+    void listProviders({ signal: controller.signal, skipErrorNotify: true })
+      .then((providers) => {
+        if (!controller.signal.aborted) {
+          setModels(providers.filter((provider) => provider.provider_kind === "chat" && provider.is_enabled));
+        }
+      })
+      .catch(() => setModels([]));
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
     void getLocalInferenceConfig(
-      { provider_id: initial.providerId, reasoning_effort: initial.reasoningEffort },
+      { provider_id: state.providerId, reasoning_effort: state.reasoningEffort },
       {
         signal: controller.signal,
         skipErrorNotify: true,
@@ -76,7 +90,7 @@ export function LocalSession({
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [initial.providerId, initial.reasoningEffort]);
+  }, [state.providerId, state.reasoningEffort]);
   useEffect(() => {
     const off = bridge.subscribe((event) => {
       if (event.type === "runtime-error") setError(event.message);
@@ -92,6 +106,8 @@ export function LocalSession({
               turnId: thread.turnId,
               error: thread.error,
               pendingInputs: thread.pendingInputs,
+              providerId: thread.providerId,
+              reasoningEffort: thread.reasoningEffort,
               approvalPolicy: thread.approvalPolicy,
               permissionProfile: thread.permissionProfile,
             });
@@ -106,6 +122,8 @@ export function LocalSession({
           turnId: event.thread.turnId,
           error: event.thread.error,
           pendingInputs: event.thread.pendingInputs,
+          providerId: event.thread.providerId,
+          reasoningEffort: event.thread.reasoningEffort,
           approvalPolicy: event.thread.approvalPolicy,
           permissionProfile: event.thread.permissionProfile,
         });
@@ -217,27 +235,43 @@ export function LocalSession({
                 <PlusIcon />
               </Button>
               <ChatComposerControls
-                models={[
-                  {
-                    id: initial.providerId,
-                    name: inferenceConfig?.providerName ?? inferenceConfig?.model ?? "推理模型",
-                  },
-                ]}
-                selectedModelId={initial.providerId}
-                reasoningEffort={initial.reasoningEffort}
-              />
-              <ContextUsage value={null} loading={busy} />
-              <ExecutionPolicy
+                models={
+                  models.length > 0
+                    ? models
+                    : [
+                        {
+                          id: state.providerId,
+                          name: inferenceConfig?.providerName ?? inferenceConfig?.model ?? "推理模型",
+                        },
+                      ]
+                }
+                selectedModelId={state.providerId}
+                onSelectModel={(providerId) => {
+                  setError(null);
+                  void bridge
+                    .setModelBinding(initial.id, providerId, state.reasoningEffort)
+                    .then(() => setState((current) => ({ ...current, providerId })))
+                    .catch((cause) => setError(getErrorMessage(cause)));
+                }}
+                reasoningEffort={state.reasoningEffort}
+                onReasoningEffortChange={(reasoningEffort) => {
+                  setError(null);
+                  void bridge
+                    .setModelBinding(initial.id, state.providerId, reasoningEffort)
+                    .then(() => setState((current) => ({ ...current, reasoningEffort })))
+                    .catch((cause) => setError(getErrorMessage(cause)));
+                }}
                 approvalPolicy={state.approvalPolicy}
                 permissionProfile={state.permissionProfile}
                 disabled={busy || state.status === "waiting"}
-                onChange={({ approvalPolicy, permissionProfile }) => {
+                onExecutionPolicyChange={({ approvalPolicy, permissionProfile }) => {
                   setError(null);
                   void bridge
                     .setExecutionPolicy(initial.id, approvalPolicy, permissionProfile)
                     .catch((cause) => setError(getErrorMessage(cause)));
                 }}
               />
+              <ContextUsage value={null} loading={busy} />
             </>
           )}
         />

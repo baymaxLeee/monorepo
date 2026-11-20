@@ -235,12 +235,29 @@ test(
       roles: [],
     };
     const requestId = identifier("create");
-    const first = await createRuntimeSession(auth, { request_id: requestId, provider_id: "provider-a" });
+    const first = await createRuntimeSession(auth, {
+      request_id: requestId,
+      provider_id: "provider-a",
+      approval_policy: "unless-trusted",
+      permission_profile: ":read-only",
+    });
     try {
-      const retry = await createRuntimeSession(auth, { request_id: requestId, provider_id: "provider-a" });
+      assert.equal(first.approval_policy, "unless-trusted");
+      assert.equal(first.permission_profile, ":read-only");
+      const retry = await createRuntimeSession(auth, {
+        request_id: requestId,
+        provider_id: "provider-a",
+        approval_policy: "unless-trusted",
+        permission_profile: ":read-only",
+      });
       assert.equal(retry.id, first.id);
       await assert.rejects(
-        createRuntimeSession(auth, { request_id: requestId, provider_id: "provider-b" }),
+        createRuntimeSession(auth, {
+          request_id: requestId,
+          provider_id: "provider-a",
+          approval_policy: "on-request",
+          permission_profile: ":read-only",
+        }),
         (error: unknown) => error instanceof ConflictError,
       );
     } finally {

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { getSessionContext } from "../../../application/agent/index.js";
 import { activeAgentStreamRunId } from "../../../application/agent/streams/service.js";
-import { ForbiddenError, NotFoundError } from "../../../application/errors.js";
+import { ConflictError, ForbiddenError, NotFoundError } from "../../../application/errors.js";
 import { editableFileByteLimit } from "../../../application/file-edit-limits.js";
 import { forkSession } from "../../../application/session-fork.js";
 import {
@@ -21,6 +21,7 @@ import {
   selectSessionHistory,
   updateSessionDocument,
   updateSessionFileContent,
+  updateSessionExecutionPolicy,
   updateSessionModel,
 } from "../../../application/sessions.js";
 import { getProvider } from "../../../infrastructure/clients/admin.js";
@@ -35,16 +36,25 @@ import { getAuth } from "../middleware/auth.js";
 export const sessionsRoutes = new Hono();
 
 const reasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const approvalPolicySchema = z.enum(["never", "on-request", "unless-trusted", "granular"]);
+const permissionProfileSchema = z.enum([":read-only", ":workspace", ":danger-full-access"]);
 
 const createSchema = z.object({
   request_id: z.string().min(8).max(64),
   provider_id: z.string().max(32).optional().nullable(),
   reasoning_effort: reasoningEffortSchema.optional().nullable(),
+  approval_policy: approvalPolicySchema.optional().nullable(),
+  permission_profile: permissionProfileSchema.optional().nullable(),
 });
 
 const updateModelSchema = z.object({
   provider_id: z.string().min(1).max(32),
   reasoning_effort: reasoningEffortSchema,
+});
+
+const updateExecutionPolicySchema = z.object({
+  approval_policy: approvalPolicySchema,
+  permission_profile: permissionProfileSchema,
 });
 
 const selectHistorySchema = z.object({
@@ -211,8 +221,11 @@ sessionsRoutes.get("/:sessionId", async (c) => {
 sessionsRoutes.patch("/:sessionId/model", zValidator("json", updateModelSchema), async (c) => {
   const auth = getAuth(c);
   const sessionId = c.req.param("sessionId");
-  if (await activeAgentStreamRunId(sessionId)) {
-    throw new ForbiddenError("conversation model cannot change while a run is active");
+  const activeRunId = await activeAgentStreamRunId(sessionId);
+  if (activeRunId) {
+    throw new ConflictError("conversation model cannot change while a run is active", "active_run_exists", {
+      run_id: activeRunId,
+    });
   }
   const body = c.req.valid("json");
   const provider = await getProvider(auth.tenantId, auth.workspaceId, body.provider_id);
@@ -221,6 +234,24 @@ sessionsRoutes.patch("/:sessionId/model", zValidator("json", updateModelSchema),
       providerId: provider.id,
       model: provider.model,
       reasoningEffort: body.reasoning_effort,
+    }),
+  );
+});
+
+sessionsRoutes.patch("/:sessionId/execution-policy", zValidator("json", updateExecutionPolicySchema), async (c) => {
+  const auth = getAuth(c);
+  const sessionId = c.req.param("sessionId");
+  const activeRunId = await activeAgentStreamRunId(sessionId);
+  if (activeRunId) {
+    throw new ConflictError("conversation execution policy cannot change while a run is active", "active_run_exists", {
+      run_id: activeRunId,
+    });
+  }
+  const body = c.req.valid("json");
+  return c.json(
+    await updateSessionExecutionPolicy(auth, sessionId, {
+      approvalPolicy: body.approval_policy,
+      permissionProfile: body.permission_profile,
     }),
   );
 });

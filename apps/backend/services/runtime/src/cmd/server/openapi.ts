@@ -207,6 +207,20 @@ const openapi = {
         },
       },
     },
+    "/sessions/{session_id}/execution-policy": {
+      patch: {
+        operationId: "updateSessionExecutionPolicy",
+        parameters: [pathParam],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: ref("UpdateSessionExecutionPolicyInput") } },
+        },
+        responses: {
+          "200": jsonResponse("updated conversation execution policy", ref("Session")),
+          "409": { description: "conversation has an active run" },
+        },
+      },
+    },
     "/sessions/{session_id}/history/select": {
       post: {
         operationId: "selectSessionHistory",
@@ -598,11 +612,21 @@ const openapi = {
           request_id: { type: "string", minLength: 8, maxLength: 64 },
           provider_id: { type: "string", maxLength: 32, nullable: true },
           reasoning_effort: { ...ref("ReasoningEffort"), nullable: true },
+          approval_policy: { ...ref("ApprovalPolicy"), nullable: true },
+          permission_profile: { ...ref("PermissionProfile"), nullable: true },
         },
       },
       ReasoningEffort: {
         type: "string",
         enum: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+      },
+      ApprovalPolicy: {
+        type: "string",
+        enum: ["never", "on-request", "unless-trusted", "granular"],
+      },
+      PermissionProfile: {
+        type: "string",
+        enum: [":read-only", ":workspace", ":danger-full-access"],
       },
       UpdateSessionModelInput: {
         type: "object",
@@ -611,6 +635,15 @@ const openapi = {
         properties: {
           provider_id: { type: "string", minLength: 1, maxLength: 32 },
           reasoning_effort: ref("ReasoningEffort"),
+        },
+      },
+      UpdateSessionExecutionPolicyInput: {
+        type: "object",
+        required: ["approval_policy", "permission_profile"],
+        additionalProperties: false,
+        properties: {
+          approval_policy: ref("ApprovalPolicy"),
+          permission_profile: ref("PermissionProfile"),
         },
       },
       Session: {
@@ -623,6 +656,8 @@ const openapi = {
           "model",
           "provider_id",
           "reasoning_effort",
+          "approval_policy",
+          "permission_profile",
           "created_at",
           "updated_at",
           "revision",
@@ -636,6 +671,8 @@ const openapi = {
           model: { type: "string" },
           provider_id: { type: "string" },
           reasoning_effort: ref("ReasoningEffort"),
+          approval_policy: ref("ApprovalPolicy"),
+          permission_profile: ref("PermissionProfile"),
           created_at: { type: "string", format: "date-time" },
           updated_at: { type: "string", format: "date-time" },
           revision: { type: "integer", minimum: 0 },
@@ -795,6 +832,8 @@ const openapi = {
           "model",
           "provider_id",
           "reasoning_effort",
+          "approval_policy",
+          "permission_profile",
           "created_at",
           "updated_at",
           "revision",
@@ -813,6 +852,8 @@ const openapi = {
           model: { type: "string" },
           provider_id: { type: "string" },
           reasoning_effort: ref("ReasoningEffort"),
+          approval_policy: ref("ApprovalPolicy"),
+          permission_profile: ref("PermissionProfile"),
           created_at: { type: "string", format: "date-time" },
           updated_at: { type: "string", format: "date-time" },
           revision: { type: "integer", minimum: 0 },

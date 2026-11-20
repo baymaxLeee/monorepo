@@ -4,4 +4,4 @@ export const composerControlClassName =
   "focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-ring/40";
 
 export const composerSurfaceClassName =
-  "has-[[data-slot=input-group-control]:focus-visible]:ring-1 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40";
+  "has-disabled:bg-background! has-disabled:opacity-100! dark:has-disabled:bg-input/30! has-[[data-slot=input-group-control]:focus-visible]:ring-1 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40";

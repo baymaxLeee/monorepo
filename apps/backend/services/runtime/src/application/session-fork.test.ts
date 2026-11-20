@@ -41,6 +41,8 @@ function setup() {
         model: "model",
         providerId: "provider",
         reasoningEffort: "medium",
+        approvalPolicy: "on-request",
+        permissionProfile: ":workspace",
         executionMode: "cloud",
         turnSequence: 0n,
         itemSequence: 3n,

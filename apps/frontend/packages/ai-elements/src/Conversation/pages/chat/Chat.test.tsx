@@ -30,6 +30,7 @@ const state = vi.hoisted(() => ({
   promptClear: vi.fn(),
   action: vi.fn(),
   updateModel: vi.fn(),
+  updatePolicy: vi.fn(),
   documents: [] as unknown[],
   suspendedText: null as string | null,
   pendingRender: new Promise<void>(() => {}),
@@ -80,6 +81,8 @@ vi.mock("@repo/api/chat", () => ({
     provider_id: "provider",
     model: "model",
     reasoning_effort: "medium",
+    approval_policy: "on-request",
+    permission_profile: ":workspace",
     documents: state.documents,
     messages: state.messages.map((message) => ({
       id: message.id,
@@ -88,6 +91,7 @@ vi.mock("@repo/api/chat", () => ({
     })),
   }),
   updateConversationModel: state.updateModel,
+  updateConversationExecutionPolicy: state.updatePolicy,
 }));
 vi.mock("@repo/api/admin", () => ({
   listProviders: vi.fn(async () => [

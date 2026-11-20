@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { createRuntimeTurn } from "@repo/agent-runtime";
 import { shouldResetStoredResponseLineage } from "@repo/agent-runtime/context/budget";
 import type { PluginActivation } from "@repo/agent-runtime/plugins/types";
+import type { ApprovalPolicy, BuiltInPermissionProfileId } from "@repo/agent-runtime/runtime/permissions";
 import {
   consumeStream,
   createUIMessageStream,
@@ -467,6 +468,8 @@ export async function createAgentRunResponse(
             pluginSnapshot,
             provider,
             reasoningEffort: input.reasoningEffort,
+            approvalPolicy: session.approvalPolicy as ApprovalPolicy,
+            permissionProfile: session.permissionProfile as BuiltInPermissionProfileId,
             previousResponseId: continueStoredLineage ? lineage.responseId : null,
             attachedImageDocumentIds: latestUser ? attachedImageDocumentIdsFromParts(latestUser.parts) : [],
             instructionInput,

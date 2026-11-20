@@ -52,11 +52,13 @@ const (
 )
 
 type CreateConversationInput struct {
-	RequestID        string                        `json:"request_id"`
-	Title            *string                       `json:"title,omitempty"`
-	ProviderID       *string                       `json:"provider_id,omitempty"`
-	ReasoningEffort  *string                       `json:"reasoning_effort,omitempty"`
-	PluginSelections []ConversationPluginSelection `json:"plugin_selections,omitempty"`
+	RequestID         string                        `json:"request_id"`
+	Title             *string                       `json:"title,omitempty"`
+	ProviderID        *string                       `json:"provider_id,omitempty"`
+	ReasoningEffort   *string                       `json:"reasoning_effort,omitempty"`
+	ApprovalPolicy    *string                       `json:"approval_policy,omitempty"`
+	PermissionProfile *string                       `json:"permission_profile,omitempty"`
+	PluginSelections  []ConversationPluginSelection `json:"plugin_selections,omitempty"`
 }
 
 type CreateCanvasConversationInput struct {

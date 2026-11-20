@@ -31,6 +31,8 @@ export const threads = pgTable(
     model: varchar("model", { length: 120 }).notNull().default(""),
     providerId: varchar("provider_id", { length: 32 }).notNull().default(""),
     reasoningEffort: varchar("reasoning_effort", { length: 16 }).notNull().default("medium"),
+    approvalPolicy: varchar("approval_policy", { length: 24 }).notNull().default("on-request"),
+    permissionProfile: varchar("permission_profile", { length: 32 }).notNull().default(":workspace"),
     executionMode: varchar("execution_mode", { length: 20 }).notNull().default("cloud"),
     turnSequence: bigint("turn_sequence", { mode: "bigint" }).notNull().default(0n),
     itemSequence: bigint("item_sequence", { mode: "bigint" }).notNull().default(0n),
