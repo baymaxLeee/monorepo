@@ -41,12 +41,30 @@ export type SandboxViolation =
   | { type: "file-system"; operation: "read" | "write"; path: string }
   | { type: "network"; host: string; port: number; protocol: "http" | "https" | "tcp" };
 
-export type SandboxAttemptResult =
-  | { type: "exit"; exitCode: number; stdout: string; stderr: string }
-  | { type: "timeout"; timeoutMs: number; stdout: string; stderr: string }
-  | { type: "start-error"; message: string; stdout: string; stderr: string }
-  | { type: "sandbox-unavailable"; message: string; stdout: string; stderr: string }
-  | { type: "sandbox-violation"; violation: SandboxViolation; stdout: string; stderr: string };
+export interface CommandOutputStreamMetadata {
+  totalBytes: number;
+  truncated: boolean;
+}
+
+export interface CommandOutputMetadata {
+  stdout: CommandOutputStreamMetadata;
+  stderr: CommandOutputStreamMetadata;
+}
+
+interface SandboxAttemptOutput {
+  stdout: string;
+  stderr: string;
+  outputMetadata?: CommandOutputMetadata;
+}
+
+export type SandboxAttemptResult = SandboxAttemptOutput &
+  (
+    | { type: "exit"; exitCode: number }
+    | { type: "timeout"; timeoutMs: number }
+    | { type: "start-error"; message: string }
+    | { type: "sandbox-unavailable"; message: string }
+    | { type: "sandbox-violation"; violation: SandboxViolation }
+  );
 
 export interface SandboxAttempt {
   attempt: 1 | 2;
@@ -66,6 +84,7 @@ export type CommandTermination =
 export interface OrchestratedCommandResult {
   stdout: string;
   stderr: string;
+  outputMetadata?: CommandOutputMetadata;
   termination: CommandTermination;
 }
 
@@ -129,7 +148,11 @@ function permissionCoversViolation(additional: AdditionalPermissionProfile | und
 }
 
 function resultFromAttempt(result: SandboxAttemptResult, retryId?: string): OrchestratedCommandResult {
-  const output = { stdout: result.stdout, stderr: result.stderr };
+  const output = {
+    stdout: result.stdout,
+    stderr: result.stderr,
+    ...(result.outputMetadata ? { outputMetadata: result.outputMetadata } : {}),
+  };
   switch (result.type) {
     case "exit":
       return { ...output, termination: { type: "exit", exitCode: result.exitCode } };

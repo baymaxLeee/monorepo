@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { z } from "zod";
+
 import {
   bashInputSchema,
   commandResult,
@@ -10,6 +12,7 @@ import {
   MAX_BASH_TIMEOUT_MS,
   truncateBashStream,
 } from "./bash.js";
+import { isToolOutcome, outcomeFromEmission, toolOutcomeSchema } from "./outcome.js";
 
 test("Bash uses a short default deadline and permits an explicit bounded extension", () => {
   assert.equal(bashInputSchema.parse({ command: "pwd" }).timeout_ms, DEFAULT_BASH_TIMEOUT_MS);
@@ -74,4 +77,54 @@ test("Bash byte truncation preserves valid UTF-8 from the end of one oversized l
   assert.match(result.content, /-final$/u);
   assert.doesNotMatch(result.content, /�/u);
   assert.ok(result.truncation.outputBytes <= MAX_BASH_OUTPUT_BYTES);
+});
+
+test("Bash keeps long stderr in result data without invalidating the ToolOutcome error", () => {
+  const stderr = "failure detail\n".repeat(250);
+  const outcome = outcomeFromEmission(
+    commandResult({
+      stdout: "",
+      stderr,
+      termination: { type: "exit", exitCode: 17 },
+    }),
+  );
+
+  assert.ok(isToolOutcome(outcome));
+  assert.equal(toolOutcomeSchema(z.unknown()).safeParse(outcome).success, true);
+  assert.equal(outcome.status, "partial");
+  assert.equal(outcome.data.stderr, stderr);
+  assert.equal(outcome.error.details?.exit_code, 17);
+  assert.ok(outcome.error.message.length <= 2_000);
+  assert.doesNotMatch(outcome.error.message, /failure detail/u);
+});
+
+test("Bash reports unknown original line counts when the transport retained only an output tail", () => {
+  const outcome = commandResult({
+    stdout: "retained tail\n",
+    stderr: "",
+    outputMetadata: {
+      stdout: { totalBytes: 100_000, truncated: true },
+      stderr: { totalBytes: 0, truncated: false },
+    },
+    termination: { type: "exit", exitCode: 0 },
+  } as Parameters<typeof commandResult>[0] & {
+    outputMetadata: {
+      stdout: { totalBytes: number; truncated: boolean };
+      stderr: { totalBytes: number; truncated: boolean };
+    };
+  });
+
+  assert.equal(outcome.status, "completed");
+  assert.match(outcome.data.stdout, /transport retained only a tail/u);
+  assert.deepEqual(outcome.data.truncation?.stdout, {
+    truncatedBy: "transport",
+    totalLines: null,
+    totalBytes: 100_000,
+    outputLines: 1,
+    outputBytes: Buffer.byteLength("retained tail\n"),
+    omittedLines: null,
+    omittedBytes: 100_000 - Buffer.byteLength("retained tail\n"),
+    partialFirstLine: null,
+    transportTruncated: true,
+  });
 });

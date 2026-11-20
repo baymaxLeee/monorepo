@@ -97,8 +97,10 @@ Bash 定义、网页读取、网页检索契约、Code Mode、tool search、Ask 
 路径集合，并与 Bash 一样进入下述 `ToolOrchestrator + ProcessManager`。manifest metadata 不能自行决定
 审批或绕过 sandbox，文件 helper 也不能从 Node `fs` 旁路这一边界。`read_file` 返回 SHA-256 和有界
 完整行；`write_file` 的 overwrite 强制携带该内容身份；`apply_patch` 在执行前解析全部 source/destination，
-上下文不唯一时拒绝猜测，多文件失败返回已提交变更而不虚构回滚。Bash 保留通用 CLI/目录发现/二进制能力，
-其每个输出流只向模型保留最后 2000 行或 50 KiB 并明确报告遗漏；完整日志须由命令显式重定向到 workspace。
+用 `@@ change_context` 和单调原文件游标定位有序 hunk，只替换 add/remove 区间以保留未触碰缩进与逐行
+terminator；无锚点上下文不唯一时拒绝猜测。多文件失败或写入后取消都返回已提交变更而不虚构回滚。
+Bash 保留通用 CLI/目录发现/二进制能力，其每个输出流只向模型保留最后 2000 行或 50 KiB 并明确报告
+遗漏；远端 retention 已丢弃前缀时继续传播绝对字节游标，并把不可确认的原始行数标为 unknown。完整日志须由命令显式重定向到 workspace。
 两端用同一
 `upload_artifacts({ paths })` 指定交付文件。云端基于工作区导入时的文件身份、ETag 和路径代际提交；
 本地校验授权目录中的普通文件并生成本地引用。两个宿主将工具结果投影为同一 `data-file`，草稿留在
@@ -233,7 +235,7 @@ profile hash、violation 类别和耗时，不记录完整命令输出、文件�
 非 TTY/TTY、poll、stdin、signal、terminate 与 close：
 
 - start request ID 和 stdin write ID 幂等；同 ID 异参拒绝，未知结果不能在新实例自动重放。
-- stdout/stderr 使用有界 retention、单调 offset 与 truncation 标记；慢消费者、断连和微小 chunk
+- stdout/stderr 使用有界 retention、单调绝对 offset 与逐流 truncation 标记；慢消费者、断连和微小 chunk
   不能造成无界 JSON/RPC 队列。
 - timeout、Stop、Turn dispose、宿主丢失、网络 deny 和 TTL 都终止完整受管理进程树；先停止 admission，
   再终止进程、关闭输出、释放 proxy/approval，最后释放 workspace/实例。后台进程只有显式 durable
@@ -613,7 +615,9 @@ contract，grants 不进入 preload 或 SQLite。
   `processId + entryId` 防止复用后的 stale handle，并在 Turn close 与异步完成竞争时拒绝迟到成功。
 - [Bash tool](../../packages/agent-runtime/src/tools/bash.ts) 只接受新 `sandbox_permissions`、
   `additional_permissions`、`retry_of`、`justification` 与最小 `prefix_rule` 协议，并以
-  2000 行/50 KiB 尾部窗口限制每个模型可见输出流、保留结构化 omission metadata；
+  2000 行/50 KiB 尾部窗口限制每个模型可见输出流、保留结构化 omission metadata；Cloud transport
+  同时传播逐流 retention loss 与最终绝对字节 offset，原始行数不可恢复时使用 `null`，stderr 只保留在
+  tool data，短 `ToolIssue.message` 不复制输出正文；
   [ExecutionHost](../../packages/agent-runtime/src/runtime/execution-host.ts) 统一组合 `bash`、`read_file`、
   `apply_patch`、`write_file` 与 `upload_artifacts`；Desktop Seatbelt file worker 和 Cloud conditional
   file bridge 都从 Turn 级共享 orchestrator/process manager 进入 executor，接收冻结后的精确路径、

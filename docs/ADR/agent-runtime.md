@@ -123,7 +123,8 @@ Runtime Media/Memory、source refresh 和 plugin/MCP 等低频或大 schema 能�
 
 `bash` 保留目录发现、CLI、二进制/批处理与原始响应能力，但普通 UTF-8 文件读取、局部修改和完整
 覆写分别优先使用上述三个文件工具。每个 Bash stdout/stderr 对模型只保留最后 2000 行或 50 KiB，
-并返回原始行/字节数与遗漏量；需要完整日志时由命令显式重定向到授权 workspace 文件后再定向读取，
+并返回原始字节数与遗漏量；只有 transport 未提前丢弃输出时才报告原始行数，远端只保留 tail 时行数
+显式为 unknown，不能把 tail 统计伪装成完整输出。需要完整日志时由命令显式重定向到授权 workspace 文件后再定向读取，
 runtime 不暗中创建会被持久化或绕过策略的隐藏文件。
 
 SDK 可以并发发出 tool call，但实际执行必须经过每个 catalog 实例的

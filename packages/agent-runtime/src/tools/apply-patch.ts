@@ -9,6 +9,7 @@ export interface PatchHunkLine {
   text: string;
 }
 export interface PatchHunk {
+  changeContext?: string;
   lines: PatchHunkLine[];
 }
 export type ApplyPatchAction =
@@ -68,7 +69,11 @@ export function parseApplyPatch(patch: string): ParsedApplyPatch {
       }
       const hunks: PatchHunk[] = [];
       while (index < lines.length && !lines[index]!.startsWith("*** ")) {
-        if (!lines[index]!.startsWith("@@")) throw new Error(`update file hunk must start with @@: ${path}`);
+        const marker = lines[index]!;
+        if (marker !== "@@" && !marker.startsWith("@@ ")) {
+          throw new Error(`update file hunk must start with @@: ${path}`);
+        }
+        const changeContext = marker === "@@" ? undefined : marker.slice("@@ ".length);
         index++;
         const hunkLines: PatchHunkLine[] = [];
         while (index < lines.length && !lines[index]!.startsWith("@@") && !lines[index]!.startsWith("*** ")) {
@@ -82,7 +87,7 @@ export function parseApplyPatch(patch: string): ParsedApplyPatch {
         if (hunkLines.length === 0 || !hunkLines.some((line) => line.type !== "context")) {
           throw new Error(`patch hunk must contain a change: ${path}`);
         }
-        hunks.push({ lines: hunkLines });
+        hunks.push({ ...(changeContext !== undefined ? { changeContext } : {}), lines: hunkLines });
       }
       if (hunks.length === 0 && !moveTo) throw new Error(`update file has no hunks: ${path}`);
       actions.push({ type: "update", path, ...(moveTo ? { moveTo } : {}), hunks });
@@ -97,15 +102,59 @@ export function parseApplyPatch(patch: string): ParsedApplyPatch {
   return { actions, paths };
 }
 
-function splitText(content: string) {
+type LineEnding = "\n" | "\r\n" | "\r";
+
+interface SourceLine {
+  text: string;
+  ending?: LineEnding;
+}
+
+interface ParsedText {
+  bom: string;
+  lines: SourceLine[];
+  preferredEnding: LineEnding;
+  finalNewline: boolean;
+}
+
+interface LineReplacement {
+  start: number;
+  oldLength: number;
+  newLines: string[];
+}
+
+function splitText(content: string): ParsedText {
   const bom = content.startsWith("\uFEFF") ? "\uFEFF" : "";
   const body = bom ? content.slice(1) : content;
-  const newline = body.includes("\r\n") && !body.replaceAll("\r\n", "").includes("\n") ? "\r\n" : "\n";
-  const normalized = body.replaceAll("\r\n", "\n");
-  const finalNewline = normalized.endsWith("\n");
-  const lines = normalized.split("\n");
-  if (finalNewline) lines.pop();
-  return { bom, newline, finalNewline, lines };
+  const lines: SourceLine[] = [];
+  let preferredEnding: LineEnding | undefined;
+  let lineStart = 0;
+  let cursor = 0;
+  while (cursor < body.length) {
+    let ending: LineEnding | undefined;
+    let endingLength = 0;
+    if (body[cursor] === "\r") {
+      ending = body[cursor + 1] === "\n" ? "\r\n" : "\r";
+      endingLength = ending.length;
+    } else if (body[cursor] === "\n") {
+      ending = "\n";
+      endingLength = 1;
+    }
+    if (!ending) {
+      cursor++;
+      continue;
+    }
+    preferredEnding ??= ending;
+    lines.push({ text: body.slice(lineStart, cursor), ending });
+    cursor += endingLength;
+    lineStart = cursor;
+  }
+  if (lineStart < body.length) lines.push({ text: body.slice(lineStart) });
+  return {
+    bom,
+    lines,
+    preferredEnding: preferredEnding ?? "\n",
+    finalNewline: lines.at(-1)?.ending !== undefined,
+  };
 }
 
 function matchesAt(lines: string[], expected: string[], index: number, mode: "exact" | "rstrip" | "trim"): boolean {
@@ -132,18 +181,92 @@ function findUniqueMatch(lines: string[], expected: string[], start: number): nu
   throw new Error("apply_patch context was not found; reread the file and regenerate the patch");
 }
 
+function findFirstMatch(lines: string[], expected: string[], start: number): number {
+  for (const mode of ["exact", "rstrip", "trim"] as const) {
+    for (let index = start; index <= lines.length - expected.length; index++) {
+      if (matchesAt(lines, expected, index, mode)) return index;
+    }
+  }
+  throw new Error("apply_patch context was not found; reread the file and regenerate the patch");
+}
+
+function replacementsForHunk(hunk: PatchHunk, start: number): LineReplacement[] {
+  const replacements: LineReplacement[] = [];
+  let sourceOffset = 0;
+  let replacementStart: number | undefined;
+  let oldLength = 0;
+  let newLines: string[] = [];
+  const flush = () => {
+    if (replacementStart === undefined) return;
+    replacements.push({ start: start + replacementStart, oldLength, newLines });
+    replacementStart = undefined;
+    oldLength = 0;
+    newLines = [];
+  };
+  for (const line of hunk.lines) {
+    if (line.type === "context") {
+      flush();
+      sourceOffset++;
+      continue;
+    }
+    replacementStart ??= sourceOffset;
+    if (line.type === "remove") {
+      oldLength++;
+      sourceOffset++;
+    } else {
+      newLines.push(line.text);
+    }
+  }
+  flush();
+  return replacements;
+}
+
+function applyReplacements(source: ParsedText, replacements: LineReplacement[]): string {
+  const result: SourceLine[] = [];
+  let sourceIndex = 0;
+  for (const replacement of replacements) {
+    if (replacement.start < sourceIndex) throw new Error("apply_patch hunks overlap or are out of order");
+    result.push(...source.lines.slice(sourceIndex, replacement.start));
+    result.push(...replacement.newLines.map((text) => ({ text, ending: source.preferredEnding })));
+    sourceIndex = replacement.start + replacement.oldLength;
+  }
+  result.push(...source.lines.slice(sourceIndex));
+
+  for (const line of result.slice(0, -1)) line.ending ??= source.preferredEnding;
+  const finalLine = result.at(-1);
+  if (finalLine) {
+    if (source.finalNewline) finalLine.ending ??= source.preferredEnding;
+    else delete finalLine.ending;
+  }
+  return `${source.bom}${result.map((line) => `${line.text}${line.ending ?? ""}`).join("")}`;
+}
+
 export function applyPatchToText(content: string, action: Extract<ApplyPatchAction, { type: "update" }>): string {
   const source = splitText(content);
-  const result = [...source.lines];
+  const originalLines = source.lines.map((line) => line.text);
+  const replacements: LineReplacement[] = [];
   let cursor = 0;
+  let positioned = false;
   for (const hunk of action.hunks) {
+    if (hunk.changeContext !== undefined) {
+      cursor = findFirstMatch(originalLines, [hunk.changeContext], cursor) + 1;
+      positioned = true;
+    }
     const before = hunk.lines.filter((line) => line.type !== "add").map((line) => line.text);
-    const after = hunk.lines.filter((line) => line.type !== "remove").map((line) => line.text);
-    const index = before.length === 0 ? cursor : findUniqueMatch(result, before, cursor);
-    result.splice(index, before.length, ...after);
-    cursor = index + after.length;
+    const matchStart =
+      before.length === 0
+        ? hunk.changeContext !== undefined
+          ? cursor
+          : originalLines.length
+        : positioned
+          ? findFirstMatch(originalLines, before, cursor)
+          : findUniqueMatch(originalLines, before, cursor);
+    replacements.push(...replacementsForHunk(hunk, matchStart));
+    cursor = matchStart + before.length;
+    positioned = true;
   }
-  return `${source.bom}${result.join(source.newline)}${source.finalNewline ? source.newline : ""}`;
+  replacements.sort((left, right) => left.start - right.start);
+  return applyReplacements(source, replacements);
 }
 
 export interface AppliedFileChange {

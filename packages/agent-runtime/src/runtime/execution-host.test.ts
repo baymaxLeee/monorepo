@@ -159,3 +159,43 @@ test("apply_patch reports exact committed changes when a later file mutation fai
   });
   assert.deepEqual(writes, ["/project/first.txt", "/project/second.txt"]);
 });
+
+test("apply_patch preserves committed changes when cancellation fences the returned result", async () => {
+  const runtime = orchestrator();
+  let committed = false;
+  const manifests = createExecutionHostManifests({
+    environment,
+    orchestrator: runtime,
+    run: async () => ({ type: "exit", exitCode: 0, stdout: "", stderr: "" }),
+    files: {
+      readText: async () => null,
+      writeText: async (input) => {
+        committed = true;
+        runtime.close();
+        return {
+          path: input.path,
+          sha256: "d".repeat(64),
+          bytes: Buffer.byteLength(input.content),
+          created: true,
+        };
+      },
+      deleteFile: async () => undefined,
+    },
+    deliver: async () => published,
+  });
+  const input = { patch: "*** Begin Patch\n*** Add File: committed.txt\n+saved\n*** End Patch" };
+  assert.equal(runtime.reviewFileTool("cancelled-patch", "apply_patch", input).type, "skip");
+
+  const result = await executable(manifests, "apply_patch")(input, {
+    toolCallId: "cancelled-patch",
+    messages: [],
+    context: undefined,
+  });
+
+  assert.equal(committed, true);
+  assert.ok(isToolOutcome(result) && result.status === "partial");
+  assert.deepEqual(result.data, {
+    changes: [{ type: "add", path: "/project/committed.txt", sha256: "d".repeat(64) }],
+  });
+  assert.match(result.error.message, /process 1 closed/u);
+});

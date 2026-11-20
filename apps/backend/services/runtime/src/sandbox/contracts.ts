@@ -99,6 +99,8 @@ export const processSchema = z.object({
   termination: processTerminationSchema.nullable(),
   stdout_offset: z.number(),
   stderr_offset: z.number(),
+  stdout_truncated: z.boolean().optional(),
+  stderr_truncated: z.boolean().optional(),
   truncated: z.boolean(),
 });
 export const sessionSchema = z.object({ id: z.string(), workdir: z.string(), expires_at: z.string() });

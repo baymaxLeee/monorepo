@@ -678,6 +678,8 @@ class Process:
                 "termination": self.termination,
                 "stdout_offset": out_cursor,
                 "stderr_offset": err_cursor,
+                "stdout_truncated": out_truncated,
+                "stderr_truncated": err_truncated,
                 "truncated": out_truncated or err_truncated,
             }
 

@@ -2,7 +2,7 @@ import { tool, type ToolExecutionOptions } from "ai";
 import { z } from "zod";
 
 import type { AdditionalPermissionProfile, SandboxPermissions } from "../runtime/permissions.js";
-import type { OrchestratedCommandResult } from "../runtime/tool-orchestrator.js";
+import type { CommandOutputStreamMetadata, OrchestratedCommandResult } from "../runtime/tool-orchestrator.js";
 import { defineAgentTool } from "./manifest.js";
 import { toolBlocked, toolCompleted, toolFailed, toolPartial } from "./outcome.js";
 
@@ -94,19 +94,20 @@ export const bashInputSchema = z
     }
   });
 export const bashDescription =
-  "Execute one bounded Bash command in the authorized workspace for file discovery, validation, CLI or raw-response handling. Prefer read_file, apply_patch, and write_file for ordinary UTF-8 file operations, and direct search/fetch tools for factual public-web questions. Each output stream keeps its last 2000 lines or 50 KiB with explicit omission metadata; redirect intentionally needed full logs to a workspace file. Respect the supplied workspace and network capabilities. No host access, service credentials, sudo or unsandboxed fallback.";
+  "Execute one bounded Bash command in the authorized workspace for file discovery, validation, CLI or raw-response handling. Prefer read_file, apply_patch, and write_file for ordinary UTF-8 file operations, and direct search/fetch tools for factual public-web questions. Each output stream keeps its last 2000 lines or 50 KiB with explicit omission metadata; if the execution transport retained only a tail, original line counts are reported as unknown. Redirect intentionally needed full logs to a workspace file. Respect the supplied workspace and network capabilities. No host access, service credentials, sudo or unsandboxed fallback.";
 export type BashInput = z.infer<typeof bashInputSchema>;
 export type BashResult = OrchestratedCommandResult;
 
 export interface BashOutputTruncation {
-  truncatedBy: "lines" | "bytes";
-  totalLines: number;
+  truncatedBy: "lines" | "bytes" | "transport";
+  totalLines: number | null;
   totalBytes: number;
   outputLines: number;
   outputBytes: number;
-  omittedLines: number;
+  omittedLines: number | null;
   omittedBytes: number;
-  partialFirstLine: boolean;
+  partialFirstLine: boolean | null;
+  transportTruncated?: true;
 }
 
 export type BashVisibleResult = BashResult & {
@@ -133,62 +134,88 @@ function utf8Tail(content: string, maxBytes: number): string {
 export function truncateBashStream(
   content: string,
   stream: "stdout" | "stderr",
-  options: { maxLines?: number; maxBytes?: number } = {},
+  options: { maxLines?: number; maxBytes?: number; metadata?: CommandOutputStreamMetadata } = {},
 ): { content: string; truncation?: BashOutputTruncation } {
   const maxLines = options.maxLines ?? MAX_BASH_OUTPUT_LINES;
   const maxBytes = options.maxBytes ?? MAX_BASH_OUTPUT_BYTES;
   const sourceLines = lines(content);
-  const totalLines = sourceLines.length;
-  const totalBytes = Buffer.byteLength(content, "utf8");
-  if (totalLines <= maxLines && totalBytes <= maxBytes) return { content };
+  const retainedBytes = Buffer.byteLength(content, "utf8");
+  const transportTruncated = options.metadata?.truncated === true;
+  const totalBytes = Math.max(retainedBytes, options.metadata?.totalBytes ?? retainedBytes);
+  const locallyTruncated = sourceLines.length > maxLines || retainedBytes > maxBytes;
+  if (!locallyTruncated && !transportTruncated) return { content };
 
-  const selected: string[] = [];
-  let selectedBytes = 0;
-  let partialFirstLine = false;
-  let truncatedBy: BashOutputTruncation["truncatedBy"] = totalLines > maxLines ? "lines" : "bytes";
-  for (let index = sourceLines.length - 1; index >= 0 && selected.length < maxLines; index--) {
-    const line = sourceLines[index]!;
-    const separatorBytes = selected.length > 0 ? 1 : 0;
-    const lineBytes = Buffer.byteLength(line, "utf8");
-    if (selectedBytes + separatorBytes + lineBytes > maxBytes) {
-      truncatedBy = "bytes";
-      if (selected.length === 0) {
-        const tail = utf8Tail(line, maxBytes);
-        if (tail) {
-          selected.unshift(tail);
-          selectedBytes = Buffer.byteLength(tail, "utf8");
-          partialFirstLine = tail !== line;
+  let tail = content;
+  let outputLines = sourceLines.length;
+  let outputBytes = retainedBytes;
+  let partialFirstLine: boolean | null = transportTruncated ? null : false;
+  let truncatedBy: BashOutputTruncation["truncatedBy"] = "transport";
+  if (locallyTruncated) {
+    const selected: string[] = [];
+    let selectedBytes = 0;
+    let locallyPartialFirstLine = false;
+    truncatedBy = sourceLines.length > maxLines ? "lines" : "bytes";
+    for (let index = sourceLines.length - 1; index >= 0 && selected.length < maxLines; index--) {
+      const line = sourceLines[index]!;
+      const separatorBytes = selected.length > 0 ? 1 : 0;
+      const lineBytes = Buffer.byteLength(line, "utf8");
+      if (selectedBytes + separatorBytes + lineBytes > maxBytes) {
+        truncatedBy = "bytes";
+        if (selected.length === 0) {
+          const lineTail = utf8Tail(line, maxBytes);
+          if (lineTail) {
+            selected.unshift(lineTail);
+            selectedBytes = Buffer.byteLength(lineTail, "utf8");
+            locallyPartialFirstLine = lineTail !== line;
+          }
         }
+        break;
       }
-      break;
+      selected.unshift(line);
+      selectedBytes += separatorBytes + lineBytes;
     }
-    selected.unshift(line);
-    selectedBytes += separatorBytes + lineBytes;
+    if (selected.length === maxLines && sourceLines.length > maxLines && selectedBytes <= maxBytes) {
+      truncatedBy = "lines";
+    }
+    tail = selected.join("\n");
+    outputLines = selected.length;
+    outputBytes = Buffer.byteLength(tail, "utf8");
+    partialFirstLine = locallyPartialFirstLine
+      ? true
+      : transportTruncated && selected.length === sourceLines.length
+        ? null
+        : false;
   }
-  if (selected.length === maxLines && totalLines > maxLines && selectedBytes <= maxBytes) truncatedBy = "lines";
 
-  const tail = selected.join("\n");
-  const outputBytes = Buffer.byteLength(tail, "utf8");
+  const totalLines = transportTruncated ? null : sourceLines.length;
+  const omittedLines = totalLines === null ? null : Math.max(0, totalLines - outputLines);
   const truncation: BashOutputTruncation = {
     truncatedBy,
     totalLines,
     totalBytes,
-    outputLines: selected.length,
+    outputLines,
     outputBytes,
-    omittedLines: Math.max(0, totalLines - selected.length),
+    omittedLines,
     omittedBytes: Math.max(0, totalBytes - outputBytes),
     partialFirstLine,
+    ...(transportTruncated ? { transportTruncated: true } : {}),
   };
-  const window = partialFirstLine
-    ? `showing the last ${outputBytes} bytes of the final line`
-    : `showing the last ${selected.length} lines`;
-  const notice = `[Earlier ${stream} output truncated: omitted ${truncation.omittedBytes} bytes across ${truncation.omittedLines} complete lines; ${window}. Re-run with narrower filters or redirect full output to a workspace file if needed.]`;
+  const window =
+    partialFirstLine === true
+      ? `showing the last ${outputBytes} bytes of the final line`
+      : locallyTruncated
+        ? `showing the last ${outputLines} lines`
+        : "showing the retained tail";
+  const omission = transportTruncated
+    ? `transport retained only a tail; omitted ${truncation.omittedBytes} earlier bytes; original line count unknown`
+    : `omitted ${truncation.omittedBytes} bytes across ${truncation.omittedLines} complete lines`;
+  const notice = `[Earlier ${stream} output truncated: ${omission}; ${window}. Re-run with narrower filters or redirect full output to a workspace file if needed.]`;
   return { content: tail ? `${notice}\n${tail}` : notice, truncation };
 }
 
 export function boundBashResult(result: BashResult): BashVisibleResult {
-  const stdout = truncateBashStream(result.stdout, "stdout");
-  const stderr = truncateBashStream(result.stderr, "stderr");
+  const stdout = truncateBashStream(result.stdout, "stdout", { metadata: result.outputMetadata?.stdout });
+  const stderr = truncateBashStream(result.stderr, "stderr", { metadata: result.outputMetadata?.stderr });
   const truncation = {
     ...(stdout.truncation ? { stdout: stdout.truncation } : {}),
     ...(stderr.truncation ? { stderr: stderr.truncation } : {}),
@@ -209,7 +236,7 @@ export function commandResult(result: BashResult) {
         ? toolCompleted(visible)
         : toolPartial(visible, {
             code: "COMMAND_FAILED",
-            message: visible.stderr || `Command exited with code ${visible.termination.exitCode}`,
+            message: `Command exited with code ${visible.termination.exitCode}. Inspect stderr in the result data for command output.`,
             retryable: false,
             source: "bash",
             details: { exit_code: visible.termination.exitCode },
@@ -225,7 +252,7 @@ export function commandResult(result: BashResult) {
     case "sandbox-violation":
       return toolPartial(visible, {
         code: "SANDBOX_DENIED",
-        message: visible.stderr || "The sandbox denied the requested authority.",
+        message: "The sandbox denied the requested authority. Inspect stderr in the result data for command output.",
         retryable: Boolean(visible.termination.retryId),
         source: "bash",
         details: {

@@ -15,7 +15,7 @@
 `sources/workspace-manifest.json` 仅提供 file id、路径和 ETag 映射。除 `.home` 和 `sources` 外的业务树
 可写。进程的 cwd 和环境变量不跨命令继承，文件在同一 run 内保留。
 
-- `bash`：模型可见的 command/workdir 工具，通过当前 run 的官方 AI SDK `SandboxSession.run` 执行并等待终态，Stop 传播 AbortSignal。模型默认 deadline 10 秒、可显式扩展到 120 秒；stdout/stderr 各保留最后 2000 行或 50 KiB，并报告原始规模和遗漏量。需要完整日志时命令显式重定向到工作区文件。
+- `bash`：模型可见的 command/workdir 工具，通过当前 run 的官方 AI SDK `SandboxSession.run` 执行并等待终态，Stop 传播 AbortSignal。模型默认 deadline 10 秒、可显式扩展到 120 秒；stdout/stderr 各保留最后 2000 行或 50 KiB，并报告绝对字节规模和遗漏量。guest retention 已丢弃前缀时逐流标记，无法恢复的原始行数明确为 unknown。需要完整日志时命令显式重定向到工作区文件。
 - `read_file`、`apply_patch`、`write_file`：模型可见的原生 UTF-8 文件工具。shared execution host 在执行前
   解析并冻结精确路径集合，拒绝 workspace escape、受保护路径和 profile 未授权访问；Cloud adapter 通过
   条件 upload/delete contract 执行，SHA-256 不匹配时拒绝过期覆盖。它们与 Bash 共用 Turn 级
@@ -71,7 +71,8 @@ proxy 模式只允许 IPv4/IPv6 socket 与 Unix socketpair；两者都拒绝 ptr
 命令 ID 在 guest 内去重；同 ID 同参数的重试先返回原进程结果，不受后来取得的编辑锁或 guest closing 状态影响；
 新命令仍被锁/关闭状态拒绝，同 ID 异参始终拒绝。这只在原 guest 尚存时成立，销毁后不能通过重建 guest 重放未知命令。
 stdin 请求 ID 防止重复写入。有界 stdout/stderr 环形缓存
-返回 offset 和 truncated，避免无限日志占用内存。工具不自动重试命令。超时封闭该
+返回逐流 truncated 与单调绝对 offset，避免无限日志占用内存；Runtime 将这些事实继续传到 Bash
+结果，不能按保留 tail 低报原始规模。工具不自动重试命令。超时封闭该
 workspace，由 supervisor 清理所有 guest UID 的进程，包含脱离原进程组的子孙；
 随后收取已保留输出并删除资源。supervisor 的独立 TTL、Docker auto-remove、Pod
 activeDeadlineSeconds 与控制服务回收扫描共同处理 Runtime/控制器进程丢失。

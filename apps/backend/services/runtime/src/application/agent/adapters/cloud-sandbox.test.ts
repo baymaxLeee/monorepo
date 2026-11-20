@@ -268,6 +268,10 @@ test("command timeout remains the primary result until finalization snapshots th
     stdout: "partial evidence",
     stderr: "",
     timeoutMs: 10_000,
+    outputMetadata: {
+      stdout: { totalBytes: 16, truncated: false },
+      stderr: { totalBytes: 0, truncated: false },
+    },
   });
   assert.equal(f.calls.includes("destroy"), false);
   await run.dispose();
@@ -349,6 +353,31 @@ test("command continuation consumes output offsets and preserves streamed output
   const run = new RunSandbox(context, f.deps);
   const result = await run.runAttempt(attempt(), { command: "cat" });
   assert.equal(result.stdout, "firstsecond");
+  await run.dispose();
+});
+
+test("command results preserve absolute output cursors and per-stream retention loss", async () => {
+  const f = fixture();
+  f.client.start = async () =>
+    ({
+      session_id: "truncated",
+      stdout: "retained stdout tail",
+      stderr: "stderr",
+      termination: { type: "exit", exit_code: 0 },
+      stdout_offset: 100_000,
+      stderr_offset: 6,
+      truncated: true,
+      stdout_truncated: true,
+      stderr_truncated: false,
+    }) as SandboxProcess;
+  const run = new RunSandbox(context, f.deps);
+
+  const result = await run.runAttempt(attempt(), { command: "large-output" });
+
+  assert.deepEqual((result as typeof result & { outputMetadata?: unknown }).outputMetadata, {
+    stdout: { totalBytes: 100_000, truncated: true },
+    stderr: { totalBytes: 6, truncated: false },
+  });
   await run.dispose();
 });
 

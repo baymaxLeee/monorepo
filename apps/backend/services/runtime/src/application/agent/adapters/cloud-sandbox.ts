@@ -4,6 +4,7 @@ import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
 import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
 import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
 import type {
+  CommandOutputMetadata,
   SandboxAttempt,
   SandboxAttemptResult,
   SandboxViolation,
@@ -64,9 +65,17 @@ export function documentSandboxPath(document: Pick<KnowledgeDocument, "id" | "fi
   return `sources/documents/${encodeURIComponent(document.id)}/${name}`;
 }
 
-function appendProcessOutput(target: { stdout: string; stderr: string }, process: SandboxProcess) {
+function appendProcessOutput(
+  target: { stdout: string; stderr: string; outputMetadata: CommandOutputMetadata },
+  process: SandboxProcess,
+) {
+  const retention = process as SandboxProcess & { stdout_truncated?: boolean; stderr_truncated?: boolean };
   target.stdout += process.stdout;
   target.stderr += process.stderr;
+  target.outputMetadata.stdout.totalBytes = process.stdout_offset;
+  target.outputMetadata.stderr.totalBytes = process.stderr_offset;
+  target.outputMetadata.stdout.truncated ||= retention.stdout_truncated ?? process.truncated;
+  target.outputMetadata.stderr.truncated ||= retention.stderr_truncated ?? process.truncated;
 }
 
 function transportSandboxAttempt(attempt: SandboxAttempt) {
@@ -387,7 +396,14 @@ export class RunSandbox implements Experimental_SandboxSession {
       },
       signal,
     );
-    const output = { stdout: "", stderr: "" };
+    const output = {
+      stdout: "",
+      stderr: "",
+      outputMetadata: {
+        stdout: { totalBytes: 0, truncated: false },
+        stderr: { totalBytes: 0, truncated: false },
+      },
+    };
     appendProcessOutput(output, process);
     while (process.termination === null) {
       signal?.throwIfAborted();

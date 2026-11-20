@@ -36,6 +36,38 @@ test("toolCallId admission freezes and rechecks the canonical command before exe
   );
 });
 
+test("Bash orchestration preserves transport output retention metadata", async () => {
+  const runtime = orchestrator();
+  const input = { command: "large-output", timeout_ms: 10_000, sandbox_permissions: "use_default" as const };
+  assert.equal(runtime.reviewBash("output-metadata", input).type, "skip");
+
+  const result = await runtime.runBash(
+    "output-metadata",
+    input,
+    async () =>
+      ({
+        type: "exit",
+        exitCode: 0,
+        stdout: "tail",
+        stderr: "",
+        outputMetadata: {
+          stdout: { totalBytes: 90_000, truncated: true },
+          stderr: { totalBytes: 0, truncated: false },
+        },
+      }) as SandboxAttemptResult & {
+        outputMetadata: {
+          stdout: { totalBytes: number; truncated: boolean };
+          stderr: { totalBytes: number; truncated: boolean };
+        };
+      },
+  );
+
+  assert.deepEqual((result as typeof result & { outputMetadata?: unknown }).outputMetadata, {
+    stdout: { totalBytes: 90_000, truncated: true },
+    stderr: { totalBytes: 0, truncated: false },
+  });
+});
+
 test("a typed denial binds one fresh approved retry to the same command and violation", async () => {
   const runtime = orchestrator();
   const initial = {

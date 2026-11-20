@@ -609,6 +609,8 @@ export interface components {
         | null;
       stdout_offset: number;
       stderr_offset: number;
+      stdout_truncated?: boolean;
+      stderr_truncated?: boolean;
       truncated: boolean;
     };
     SandboxSession: {

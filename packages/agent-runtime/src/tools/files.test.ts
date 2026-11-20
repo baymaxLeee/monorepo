@@ -48,3 +48,45 @@ test("apply_patch rejects ambiguous context instead of guessing", () => {
   if (action?.type !== "update") throw new Error("expected update action");
   assert.throws(() => applyPatchToText("repeat\nkeep\nrepeat\n", action), /matches more than once/);
 });
+
+test("apply_patch uses change context to select the intended repeated body", () => {
+  const action = parseApplyPatch(
+    "*** Begin Patch\n*** Update File: file.ts\n@@ function second() {\n-  return shared;\n+  return changed;\n*** End Patch",
+  ).actions[0];
+  if (action?.type !== "update") throw new Error("expected update action");
+
+  assert.equal(
+    applyPatchToText("function first() {\n  return shared;\n}\n\nfunction second() {\n  return shared;\n}\n", action),
+    "function first() {\n  return shared;\n}\n\nfunction second() {\n  return changed;\n}\n",
+  );
+});
+
+test("apply_patch inserts an add-only hunk after its change context", () => {
+  const action = parseApplyPatch(
+    "*** Begin Patch\n*** Update File: file.ts\n@@ function second() {\n+  initialize();\n*** End Patch",
+  ).actions[0];
+  if (action?.type !== "update") throw new Error("expected update action");
+
+  assert.equal(
+    applyPatchToText("function first() {\n}\n\nfunction second() {\n}\n", action),
+    "function first() {\n}\n\nfunction second() {\n  initialize();\n}\n",
+  );
+});
+
+test("apply_patch fuzzy context matching preserves untouched indentation", () => {
+  const action = parseApplyPatch(
+    "*** Begin Patch\n*** Update File: file.yaml\n@@\n root:\n   keep: yes\n-   old: yes\n+   new: yes\n*** End Patch",
+  ).actions[0];
+  if (action?.type !== "update") throw new Error("expected update action");
+
+  assert.equal(applyPatchToText("root:\n    keep: yes\n    old: yes\n", action), "root:\n    keep: yes\n   new: yes\n");
+});
+
+test("apply_patch preserves untouched line terminators in mixed-ending files", () => {
+  const action = parseApplyPatch(
+    "*** Begin Patch\n*** Update File: file.txt\n@@\n first\n-second\n+changed\n third\n*** End Patch",
+  ).actions[0];
+  if (action?.type !== "update") throw new Error("expected update action");
+
+  assert.equal(applyPatchToText("first\r\nsecond\nthird\r\nfourth\n", action), "first\r\nchanged\r\nthird\r\nfourth\n");
+});

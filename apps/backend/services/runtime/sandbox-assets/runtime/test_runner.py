@@ -197,6 +197,8 @@ class RuntimeTests(unittest.TestCase):
         result = self.start("python3 -c 'print(\"x\" * 10000)' ")
         self.assertLessEqual(len(result["stdout"].encode()), 128)
         self.assertTrue(result["truncated"])
+        self.assertTrue(result["stdout_truncated"])
+        self.assertFalse(result["stderr_truncated"])
 
     def test_command_deduplication_and_conflict(self):
         request = {

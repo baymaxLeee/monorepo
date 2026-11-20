@@ -1259,6 +1259,12 @@
           "stderr_offset": {
             "type": "number"
           },
+          "stdout_truncated": {
+            "type": "boolean"
+          },
+          "stderr_truncated": {
+            "type": "boolean"
+          },
           "truncated": {
             "type": "boolean"
           }

@@ -201,7 +201,7 @@ for (const storage of ["cloud", "local"] as const) {
         data: { stdout: "partial", stderr: "failed command", termination: { type: "exit", exitCode: 7 } },
         error: {
           code: "COMMAND_FAILED",
-          message: "failed command",
+          message: "Command exited with code 7. Inspect stderr in the result data for command output.",
           retryable: false,
           source: "bash",
           details: { exit_code: 7 },

@@ -70,24 +70,24 @@ export function createExecutionHostManifests<CONTEXT extends Record<string, unkn
         return { path, ...snapshot };
       }),
     ),
-    createApplyPatchTool((input, execution) =>
-      host.orchestrator.runFileTool(execution.toolCallId, "apply_patch", input, async (authority) => {
-        const patch = parseApplyPatch(input.patch);
-        if (patch.paths.length !== authority.accesses.length) {
-          throw new Error("apply_patch admission path set changed before execution");
+    createApplyPatchTool(async (input, execution) => {
+      const changes: AppliedFileChange[] = [];
+      const partial = (error: unknown): never => {
+        if (error && typeof error === "object") Object.assign(error, { changes: [...changes] });
+        else {
+          const wrapped = new Error(String(error));
+          Object.assign(wrapped, { changes: [...changes] });
+          throw wrapped;
         }
-        const resolved = new Map(patch.paths.map((path, index) => [path, authority.accesses[index]!.path]));
-        const changes: AppliedFileChange[] = [];
-        const partial = (error: unknown): never => {
-          if (error && typeof error === "object") Object.assign(error, { changes: [...changes] });
-          else {
-            const wrapped = new Error(String(error));
-            Object.assign(wrapped, { changes: [...changes] });
-            throw wrapped;
+        throw error;
+      };
+      try {
+        return await host.orchestrator.runFileTool(execution.toolCallId, "apply_patch", input, async (authority) => {
+          const patch = parseApplyPatch(input.patch);
+          if (patch.paths.length !== authority.accesses.length) {
+            throw new Error("apply_patch admission path set changed before execution");
           }
-          throw error;
-        };
-        try {
+          const resolved = new Map(patch.paths.map((path, index) => [path, authority.accesses[index]!.path]));
           for (const action of patch.actions) {
             const path = resolved.get(action.path)!;
             if (action.type === "add") {
@@ -138,12 +138,12 @@ export function createExecutionHostManifests<CONTEXT extends Record<string, unkn
               changes.push({ type: "update", path, sha256: written.sha256, before_sha256: snapshot.sha256 });
             }
           }
-        } catch (error) {
-          partial(error);
-        }
-        return { changes };
-      }),
-    ),
+          return { changes };
+        });
+      } catch (error) {
+        return partial(error);
+      }
+    }),
     createWriteFileTool((input, execution) =>
       host.orchestrator.runFileTool(execution.toolCallId, "write_file", input, async (authority) => {
         const path = authority.accesses[0]?.path;
