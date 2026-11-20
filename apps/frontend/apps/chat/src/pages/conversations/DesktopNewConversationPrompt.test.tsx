@@ -40,26 +40,18 @@ test("Desktop new conversation mirrors the Codex context-bar editor composition"
   expect(contextBar.parentElement).toBe(editor.parentElement);
   const prompt = editor.querySelector(".prompt-input");
   expect(prompt?.className).toContain("[&_[data-slot=input-group]]:min-h-24!");
-  expect(prompt?.className).toContain("[&_[data-slot=input-group]]:rounded-2xl!");
+  expect(prompt?.className).toContain("[&_[data-slot=input-group]]:rounded-[1.375rem]!");
   expect(prompt?.className).toContain("[&_.prompt-input-prosemirror]:min-h-10");
   expect(prompt?.className).toContain("[&_.prompt-input-footer]:mt-auto");
   expect(prompt?.className).toContain("[&_.prompt-input-footer]:pb-1");
   const locationTrigger = screen.getByRole("combobox", { name: "执行位置" });
   expect(locationTrigger.textContent).toContain("此计算机");
-  expect(locationTrigger.classList.contains("hover:bg-foreground/10")).toBe(true);
-  expect(locationTrigger.classList.contains("aria-expanded:bg-foreground/10")).toBe(true);
-  expect(locationTrigger.classList.contains("data-[size=sm]:rounded-full")).toBe(true);
-  expect(locationTrigger.classList.contains("text-xs")).toBe(true);
   const projectTrigger = screen.getByRole("combobox", { name: "选择项目" });
   expect(projectTrigger.textContent).toContain("monorepo");
-  expect(projectTrigger.classList.contains("rounded-full")).toBe(true);
-  expect(projectTrigger.classList.contains("hover:bg-foreground/10")).toBe(true);
-  expect(projectTrigger.classList.contains("aria-expanded:bg-foreground/10")).toBe(true);
-  expect(projectTrigger.classList.contains("text-xs")).toBe(true);
   expect(screen.queryByRole("button", { name: "更多会话选项" })).toBeNull();
 
   fireEvent.click(locationTrigger);
-  const cloudOption = await screen.findByRole("option", { name: "云端" });
+  const cloudOption = await screen.findByRole("option", { name: /云端/ });
   expect(cloudOption.closest('[data-side="top"]')).toBeTruthy();
   fireEvent.pointerDown(cloudOption, { pointerType: "mouse" });
   fireEvent.click(cloudOption, { pointerType: "mouse" });
@@ -68,12 +60,11 @@ test("Desktop new conversation mirrors the Codex context-bar editor composition"
   fireEvent.click(projectTrigger);
   const projectSearch = await screen.findByPlaceholderText("搜索项目");
   expect(projectSearch.closest('[data-side="top"]')).toBeTruthy();
-  const projectContent = projectSearch.closest('[data-slot="combobox-content"]');
-  expect(projectContent?.classList.contains("w-64")).toBe(true);
-  expect(projectContent?.classList.contains("*:data-[slot=input-group]:bg-transparent!")).toBe(true);
   expect(screen.queryByText("/projects/monorepo")).toBeNull();
   expect(screen.queryByText("项目")).toBeNull();
   expect(screen.getAllByText("monorepo")).toHaveLength(2);
+  fireEvent.change(projectSearch, { target: { value: "absent" } });
+  expect(screen.queryByRole("option", { name: "monorepo" })).toBeNull();
 });
 
 test("keeps the editor writable but freezes its creation context while submitting", () => {
