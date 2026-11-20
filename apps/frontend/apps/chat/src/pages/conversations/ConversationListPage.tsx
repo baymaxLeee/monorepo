@@ -1,14 +1,13 @@
 import {
   ChatComposerControls,
   ChatPrompt,
-  NewConversationEnvironment,
   type ApprovalPolicyValue,
-  type PermissionProfileValue,
   type ChatUIMessage,
+  type PermissionProfileValue,
 } from "@repo/ai-elements/conversation";
 import { buildUserFilePart } from "@repo/ai-elements/conversation/lib/file-parts";
 import { uploadConversationFiles } from "@repo/ai-elements/conversation/lib/upload-conversation-files";
-import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
+import type { PromptInputValue } from "@repo/ai-elements/prompt-input";
 import {
   listAgentPluginOptions,
   listProviders,
@@ -16,7 +15,6 @@ import {
   type ModelProvider,
 } from "@repo/api/admin";
 import { createConversation, type ReasoningEffort } from "@repo/api/chat";
-import { getDesktopBridge } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
 import { BotIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -25,17 +23,11 @@ import { useNavigate } from "react-router-dom";
 import { PluginPicker } from "./PluginPicker";
 
 export function ConversationListPage() {
-  const bridge = getDesktopBridge();
   const navigate = useNavigate();
-  const [location, setLocation] = useState<"cloud" | "local">(() => (bridge ? "local" : "cloud"));
-  const [projects, setProjects] = useState<string[]>([]);
-  const [project, setProject] = useState<string | null>(null);
-  const [selectingProject, setSelectingProject] = useState(false);
   const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicyValue>("on-request");
   const [permissionProfile, setPermissionProfile] = useState<PermissionProfileValue>(":workspace");
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
-  const promptRef = useRef<PromptInputRef>(null);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
   const [plugins, setPlugins] = useState<AgentPluginSelectionOption[]>([]);
@@ -75,40 +67,7 @@ export function ConversationListPage() {
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    if (!bridge) return;
-    const controller = new AbortController();
-    void bridge
-      .listThreads()
-      .then((threads) => {
-        if (controller.signal.aborted) return;
-        const existing = [...new Set(threads.map((thread) => thread.workspace))];
-        setProjects(existing);
-        setProject((current) => current ?? existing[0] ?? null);
-      })
-      .catch((cause) => {
-        if (!controller.signal.aborted) setError(getErrorMessage(cause));
-      });
-    return () => controller.abort();
-  }, [bridge]);
-
-  async function createProject() {
-    if (!bridge || selectingProject) return;
-    setSelectingProject(true);
-    setError(null);
-    try {
-      const selected = await bridge.selectWorkspace();
-      if (!selected) return;
-      setProjects((current) => [selected, ...current.filter((item) => item !== selected)]);
-      setProject(selected);
-    } catch (cause) {
-      setError(getErrorMessage(cause));
-    } finally {
-      setSelectingProject(false);
-    }
-  }
-
-  async function prepareCloudRequest(conversationId: string, value: PromptInputValue) {
+  async function prepareRequest(conversationId: string, value: PromptInputValue) {
     const items = value.tokens.flatMap((token) => {
       const file = value.files[token.id];
       return file ? [{ token, file }] : [];
@@ -146,54 +105,25 @@ export function ConversationListPage() {
     return parts;
   }
 
-  function changeLocation(next: "cloud" | "local") {
-    if (next === "local" && promptRef.current?.getValue().tokens.length) {
-      setError("本地新建会话暂不支持附件，请先移除附件再切换。");
-      return;
-    }
-    setError(null);
-    setLocation(next);
-  }
-
   async function submit(value: PromptInputValue) {
     if (pending.current || (!value.text.trim() && value.tokens.length === 0)) return;
     pending.current = true;
     setBusy(true);
     setError(null);
     try {
-      if (location === "local") {
-        if (!bridge) throw new Error("本地电脑需要桌面应用");
-        if (!project) throw new Error("请先选择项目");
-        if (!selectedModelId) throw new Error("请选择推理模型");
-        const thread = await bridge.createThread(
-          project,
-          selectedModelId,
-          reasoningEffort,
-          approvalPolicy,
-          permissionProfile,
-          selectedPluginIds.map((pluginId) => ({ pluginId })),
-        );
-        // Navigate even if inference fails: the local journal retains the request and error.
-        try {
-          await bridge.send(thread.id, value.text, randomId());
-        } finally {
-          void navigate(`/platform/chat/local/${thread.id}`);
-        }
-      } else {
-        if (!selectedModelId) throw new Error("请选择推理模型");
-        const conversation = await createConversation({
-          request_id: randomId(),
-          provider_id: selectedModelId,
-          reasoning_effort: reasoningEffort,
-          approval_policy: approvalPolicy,
-          permission_profile: permissionProfile,
-          plugin_selections: selectedPluginIds.map((plugin_id) => ({ plugin_id })),
-        });
-        const parts = await prepareCloudRequest(conversation.id, value);
-        void navigate(`/platform/chat/conversations/${conversation.id}`, {
-          state: { refreshConversationHistory: true, externalRequest: { id: randomId(), parts } },
-        });
-      }
+      if (!selectedModelId) throw new Error("请选择推理模型");
+      const conversation = await createConversation({
+        request_id: randomId(),
+        provider_id: selectedModelId,
+        reasoning_effort: reasoningEffort,
+        approval_policy: approvalPolicy,
+        permission_profile: permissionProfile,
+        plugin_selections: selectedPluginIds.map((plugin_id) => ({ plugin_id })),
+      });
+      const parts = await prepareRequest(conversation.id, value);
+      void navigate(`/platform/chat/conversations/${conversation.id}`, {
+        state: { refreshConversationHistory: true, externalRequest: { id: randomId(), parts } },
+      });
     } catch (cause) {
       setError(getErrorMessage(cause));
     } finally {
@@ -201,6 +131,7 @@ export function ConversationListPage() {
       setBusy(false);
     }
   }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 pb-8 text-center">
@@ -215,31 +146,14 @@ export function ConversationListPage() {
         </p>
       ) : null}
       <ChatPrompt
-        ref={promptRef}
         autoFocus
         placeholder="发送消息或创建任务…"
         loading={busy}
         disabled={false}
-        maxFiles={location === "cloud" ? 8 : 0}
+        maxFiles={8}
         maxFileSize={10 * 1024 * 1024}
         onError={setError}
         onSubmit={(value) => void submit(value)}
-        toolbarRender={
-          bridge
-            ? () => (
-                <NewConversationEnvironment
-                  location={location}
-                  onLocationChange={changeLocation}
-                  projects={projects}
-                  project={project}
-                  onProjectChange={setProject}
-                  onCreateProject={() => void createProject()}
-                  disabled={busy}
-                  selectingProject={selectingProject}
-                />
-              )
-            : undefined
-        }
         footerRender={() => (
           <>
             <ChatComposerControls

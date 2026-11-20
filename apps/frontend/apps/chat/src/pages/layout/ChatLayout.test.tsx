@@ -4,7 +4,6 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 import { ChatLayout } from "./ChatLayout";
 
 let viewportWidth = 1280;
@@ -28,10 +27,6 @@ vi.mock("@repo/ai-elements/conversation/components/ChatArtifactPanel", () => ({
   },
 }));
 vi.mock("../../components/ChatAuxiliaryPanels", () => ({ ChatAuxiliaryPanels: () => null }));
-vi.mock("../../components/LocalWorkspacePanel", () => ({
-  LocalWorkspacePanel: () => <div>本地工作区</div>,
-}));
-
 beforeEach(() => {
   viewportWidth = 1280;
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 });
@@ -84,7 +79,6 @@ beforeEach(() => {
   useChatStore.setState({ tracePanelOpen: false, memoryPanelOpen: false });
   useChatStore.getState().closeArtifactPreview();
   useChatStore.getState().closeVideoProductionWorkspace();
-  useLocalWorkspaceStore.getState().reset();
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -187,30 +181,4 @@ test("collapsing the conversation sidebar keeps its active resize separator moun
   fireEvent.keyDown(document, { key: "b", ctrlKey: true });
 
   expect(screen.getByRole("separator", { name: "调整会话记录宽度" })).toBeTruthy();
-});
-
-test("local files use the same third inspector region as cloud artifacts", async () => {
-  await mount();
-  await act(async () => useLocalWorkspaceStore.getState().openWorkspace("local", "src/demo.js"));
-  expect(await screen.findByText("本地工作区")).toBeTruthy();
-  expect(screen.getByRole("complementary", { name: "Artifact 预览" })).toBeTruthy();
-  expect(renders.content).not.toHaveBeenCalled();
-
-  await act(async () => useLocalWorkspaceStore.getState().requestClose());
-  expect(screen.queryByText("本地工作区")).toBeNull();
-});
-
-test("local files use the shared modal inspector on narrow layouts", async () => {
-  await mount();
-  await act(async () => {
-    viewportWidth = 600;
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 600 });
-    mediaListeners.forEach((notify) => notify());
-    useLocalWorkspaceStore.getState().openWorkspace("local");
-  });
-
-  expect(await screen.findByRole("dialog", { name: "Artifact 预览" })).toBeTruthy();
-  expect(await screen.findByText("本地工作区")).toBeTruthy();
-  expect(screen.queryByRole("complementary", { name: "Artifact 预览" })).toBeNull();
-  expect(renders.content).not.toHaveBeenCalled();
 });

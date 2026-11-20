@@ -1,17 +1,17 @@
 # Desktop contracts
 
-`bridge.ts` defines the versioned, capability-only preload interface. Bridge v3
-adds Turn-frozen plugin activations to local thread creation. `just sync`
-generates the Electron and `@repo/runtime/desktop` consumers. Page code never
+`bridge.ts` defines the versioned, capability-only preload interface. `just sync`
+generates the Electron and `@repo/runtime/desktop` consumers. Chat no longer consumes
+the local conversation, workspace or file capabilities: Web and Electron use the same
+cloud routes and UI, and remaining bridge methods do not authorize a Desktop-only product surface. Page code never
 receives Node, IPC channels, arbitrary HTTP access, a provider secret or an
 MCP endpoint/header/grant, or an arbitrary directory grant. The renderer can reuse projects from trusted local
 thread history. Adding a project invokes native directory selection and records a
 one-shot grant; local thread creation consumes that selected grant and never opens
 the directory picker as a side effect of sending.
 
-Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. Local
-Chat uses `useChat` with an IPC `ChatTransport`; it does not use cloud conversation
-APIs or add custom `data-*` parts. A stream segment starts from its original
+Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. The retained
+native transport does not use cloud conversation APIs or add custom `data-*` parts. A stream segment starts from its original
 messages. Attachment subscribes before an atomic snapshot, replays native chunks,
 and deduplicates subsequent segment/index envelopes. A null chunk ends only the
 subscription. Stop is a separate command. Reload never re-executes tools; after

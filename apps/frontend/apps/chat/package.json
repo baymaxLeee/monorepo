@@ -18,7 +18,6 @@
     "@repo/design-system": "workspace:*",
     "@repo/editors": "workspace:*",
     "@repo/observability": "workspace:*",
-    "@repo/runtime": "workspace:*",
     "@repo/shared": "workspace:*",
     "ai": "catalog:",
     "lucide-react": "catalog:",

@@ -21,7 +21,6 @@ import {
 import { memo, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
-import { useLocalWorkspaceStore } from "../stores/useLocalWorkspaceStore";
 import { ChatConversationSidebar } from "./ChatConversationSidebar";
 import { ChatInspector } from "./ChatInspector";
 
@@ -52,7 +51,6 @@ export function ChatPanels() {
   const { open, setOpen, isMobile } = useSidebar();
   const { pathname } = useLocation();
   const cloudInspectorOpen = useChatStore((s) => s.artifactPreview.open || s.videoProductionWorkspace.open);
-  const localWorkspaceOpen = useLocalWorkspaceStore((s) => s.open);
   const wideQuery = useMemo(() => window.matchMedia("(min-width: 1024px)"), []);
   const wide = useSyncExternalStore(
     useCallback(
@@ -67,15 +65,11 @@ export function ChatPanels() {
   );
   const historyPanel = usePanelRef();
   const closeInspector = useCallback(() => {
-    if (useLocalWorkspaceStore.getState().open) {
-      useLocalWorkspaceStore.getState().requestClose();
-      return;
-    }
     const state = useChatStore.getState();
     state.closeArtifactPreview();
     state.closeVideoProductionWorkspace();
   }, []);
-  const anyInspectorOpen = localWorkspaceOpen || (pathname.includes("/conversations/") && cloudInspectorOpen);
+  const anyInspectorOpen = pathname.includes("/conversations/") && cloudInspectorOpen;
   const panelIds = [!isMobile && "history", "conversation", wide && anyInspectorOpen && "artifact"].filter(
     (id): id is string => Boolean(id),
   );

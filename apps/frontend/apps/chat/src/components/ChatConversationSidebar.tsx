@@ -8,7 +8,6 @@ import {
   Skeleton,
   useSidebar,
 } from "@repo/design-system";
-import { getDesktopBridge } from "@repo/runtime/desktop";
 import { MessageCircleIcon, MessageSquareIcon, PanelLeftCloseIcon, SquarePenIcon } from "lucide-react";
 import { memo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -16,7 +15,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useConversationHistory } from "../hooks/useConversationHistory";
 import { ChatConversationActions } from "./ChatConversationActions";
 import { ConversationHistoryList } from "./ConversationHistoryList";
-import { LocalConversationHistory } from "./LocalConversationHistory";
 
 const HISTORY_PAGE_SIZE = 40;
 
@@ -66,7 +64,6 @@ export const ChatConversationSidebar = memo(function ChatConversationSidebar() {
         新建会话
       </Button>
       <SidebarContent className="px-2 py-4">
-        {getDesktopBridge() ? <LocalConversationHistory onSelect={closeMobile} /> : null}
         <SidebarGroupLabel className="mt-2 px-2 text-xs font-medium text-muted-foreground">最近</SidebarGroupLabel>
         {history.error ? (
           <div role="alert" className="p-2 text-sm text-muted-foreground">

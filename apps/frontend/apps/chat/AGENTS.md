@@ -4,7 +4,7 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 ## Boundaries
 
-- Cloud Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage parts. Electron local Chat uses the same `useChat` with the capability IPC `ChatTransport` in `src/pages/local/transport.ts`; its bridge contract lives in `schemas/desktop/`. Reconnection replays that same protocol; do not add a parallel one.
+- Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage parts. Web and Electron render the same cloud routes, controls, uploads, history and inspectors. Do not branch Chat product UI on Desktop capabilities or add Desktop-only routes, controllers, composer controls, history, file browsers or workspace panels.
 - The UIMessage stream is a cross-stack contract. Before adding a custom `data-*` part / `onData` field, read `schemas/streaming/chat-uimessage-stream.md` and register it there. Reuse official parts first (`text`/`reasoning`/`tool-*`/ `file`/`source-*`, message `metadata`); custom `ChatUIDataTypes` entries are only for data no official part covers.
 - After persisted messages load, call `resumeStream()` once per conversation. Refresh and route changes disconnect only the subscriber. Stop calls both `useChat.stop()` and the server run cancellation endpoint.
 - Do not add sessionStorage message/stream state; Redis is the replay buffer.
@@ -16,15 +16,15 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 ## Layout
 
 - `src/router/index.tsx` — relative route tree exposed as `./routes`
-- Cloud and local controllers render the same `ConversationSessionView`, `ChatStream` and `ChatPrompt`; do not add a separate local session shell, header, transcript or textarea. Runtime-specific controllers supply transport, persistence actions and optional capabilities. The new-conversation composer chooses execution location before creation; existing conversations cannot change execution mode.
+- Web and Electron render the same `ConversationSessionView`, `ChatStream` and `ChatPrompt`. `ChatPrompt` owns the single `+` file picker and all selected files use the cloud upload path before the conversation starts.
 - `src/pages/chat/Chat.tsx` — route wrapper for `@repo/ai-elements/conversation` ChatSession
 - `src/pages/layout/ChatLayout.tsx` — three-region composition only; no message, list or preview-content subscriptions
 - `src/components/ChatPanels.tsx` — shadcn Sidebar/Resizable layout; only visibility changes may cross region boundaries
 - `src/components/ChatConversationSidebar.tsx` / `hooks/useConversationHistory.ts` — conversation CRUD and title updates, owned by the left sidebar
-- `src/components/ChatInspector.tsx` — the single right-sidebar surface for cloud Artifact/video previews and the local workspace; local routes do not create a second Sheet or preview shell. Cloud and local selected files reuse `FileArtifactPanel`; wrappers adapt Runtime/Storage or Desktop bridge reads and writes instead of maintaining a second preview/editor UI.
+- `src/components/ChatInspector.tsx` — the single right-sidebar surface for cloud Artifact/video previews
 - `src/components/ChatAuxiliaryPanels.tsx` — lazy memory/trace sheets; closed panels do not subscribe to content updates
 - `packages/ai-elements/src/Conversation/components/ChatStream.tsx` — the only high-frequency SDK subscriber; do not lift messages into the shell, composer or app store
-- `packages/ai-elements/src/Conversation/components/ConversationSessionView.tsx` — the single cloud/local session frame; controllers inject runtime state, issue handling and composer behavior without replacing its header or stream UI
+- `packages/ai-elements/src/Conversation/components/ConversationSessionView.tsx` — the shared cloud session frame; route controllers inject state and composer behavior without replacing its header or stream UI
 - Route entry modules export the named `Component` expected by `route.lazy`
 - `packages/ai-elements/src/Conversation/components/ChatMessageView.tsx` — native message-part rendering
 - `packages/ai-elements/src/Conversation/lib/artifact-output.ts` — artifact tool-output parsing for derived todo status

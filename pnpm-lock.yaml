@@ -813,9 +813,6 @@ importers:
       '@repo/observability':
         specifier: workspace:*
         version: link:../../packages/observability
-      '@repo/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared

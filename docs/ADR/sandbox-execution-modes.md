@@ -278,36 +278,32 @@ Electron 是现有 Platform 的宿主，所有页面继续由 Platform / Chat MF
 
 ### 当前本地实现与边界
 
-Web 与 Electron 的云端/本地会话共用 Chat 侧栏、`ChatStream` 消息渲染和 `ChatPrompt` 富文本输入框。两种 controller 共同渲染唯一 `ConversationSessionView` 会话骨架；标题栏、消息区、问题区和 composer 布局不按 runtime 复制。可选能力用回调/adapter 显式注入，缺失时不渲染对应动作，不传空函数伪装支持。Electron 新建会话默认「此计算机」，并在输入框工具栏内先选择历史项目或通过原生目录选择新增项目；发送只在已选且已授权的项目中创建本地会话，不得再触发目录选择。切到云端后使用与云端会话一致的 composer 能力。Web 不渲染执行位置选择器并固定创建云端会话；已有会话的模式不可切换，因此也不渲染伪选择器。本地文件通过会话内文件面板访问，关闭面板不得丢弃未保存草稿。云端与本地选中文件复用同一 `FileArtifactPanel` 预览、编辑、保存和未保存确认 UI；差异只保留在数据源 adapter：云端调用 Runtime/Storage，Electron 调用受限 Desktop bridge。本地目录浏览仍是桌面工作区能力，不复制选中文件的编辑器。
+Electron 只作为现有 Web 产品的宿主。Web 与 Electron 渲染同一套云端 Chat 路由、`ConversationSessionView`、侧栏、`ChatStream`、`ChatPrompt`、上传和 Artifact/视频 inspector。Chat 不检查 Desktop capability 来改变产品 UI；不提供执行位置/项目选择器、`/local` 路由、本地会话历史、本地工作区、文件浏览器或 Desktop 专用 composer/preview。`ChatPrompt` 内建的 `+` 是两种宿主唯一的附件入口，所选文件统一走云端 Conversation/Storage 上传流程。此前的本地 SQLite 会话不迁移、不列出，也没有兼容入口。
 
-- `apps/frontend/apps/desktop/electron` 的 main 管理身份与原生授权，utility process 通过 shared `RuntimeTurn` 执行，`electron/runtime/` 只管理 SQLite journal、workspace、relay 和 sandbox adapters。Chat MFE `/local/:id?` 通过 `useChat` 与 IPC `ChatTransport` 消费 SDK 原生 UIMessageChunk；重连从原始消息及当前流片段重放，仅取消订阅不会 Stop。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
+- `apps/frontend/apps/desktop/electron` 仍保留 native runtime 与受限 bridge 的底层实现，但 Chat MFE 没有本地会话/文件调用方；它们不是当前产品能力，不得用于恢复 Desktop 专属 UI。契约由 [schemas/desktop](../../schemas/desktop/README.md) 生成两端。
 - 本地 journal 的 authority 是稳定 runtime home，而不是 Electron `userData` 或应用名。默认 `~/.monorepo-agent`，绝对路径环境变量 `MONOREPO_AGENT_HOME` 可覆盖；身份分区数据库位于 `sessions/<scope>/runtime.sqlite`。Desktop 与未来 CLI 只有指向同一个 runtime home 才共享本地会话；不同机器、容器或 home 自然隔离，项目文件仍以会话绑定的原目录为准。
 - `runtime.sqlite` 直接使用 Thread/Turn/Item/context checkpoint/Turn plugin snapshot schema，并以 revision CAS 安装摘要。它不读取或迁移旧 `runtime-v1.sqlite`、`sessions.sqlite`；旧文件不会被覆盖或删除。SQLite 是本项目的 journal adapter，不是 renderer、CLI 或云端数据库的 wire contract。
-- Bridge v4 只把 plugin activation ID/bindings 放入本地 Thread。utility process 经受信 main/Chat/Runtime 通道解析 snapshot；去密 projection 在模型调用前落 SQLite，connection grant 只留内存并随 Turn cleanup。renderer 不接触 MCP endpoint、header 或 token。
-- 原生目录授权由 main 显示确认；账户/租户/工作区和 origin 分区保存 journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。Bridge v4 分别持久化 `approvalPolicy` 与 `permissionProfile`；旧 `approvalMode` 或缺失新字段的 journal 直接 fail closed，不迁移、不映射。
+- Bridge v5 只把 plugin activation ID/bindings 放入本地 Thread。utility process 经受信 main/Chat/Runtime 通道解析 plugin snapshot；去密 projection 在模型调用前落 SQLite，connection grant 只留内存并随 Turn cleanup。renderer 不接触 MCP endpoint、header 或 token。
+- 原生目录授权由 main 显示确认；账户/租户/工作区和 origin 分区保存 journal，切换身份关闭旧 runtime。没有本地记录到云端会话或 Storage 的写入路径。Bridge v5 分别持久化 `approvalPolicy` 与 `permissionProfile`；旧 `approvalMode` 或缺失新字段的 journal 直接 fail closed，不迁移、不映射。
 - macOS Seatbelt 当前同时约束 Bash 和文件 helper，目录身份在每次调用前复核；文件写入限制在 profile 授权目录及隔离临时目录，应用控制目录被拒绝访问。`:workspace` 默认禁止命令网络，只有有效 profile 明确启用网络或批准 `require_escalated` 才扩大能力；普通命令批准不解除 Seatbelt。当前仍没有按 host enforcement 的本地网络 broker，因此 `restricted.allowedHosts` 不能作为已实现网络能力。native supervisor 通过继承的独立策略标记识别后代、监测父进程死亡并清理 detached 子进程；依赖 macOS sandbox SPI，启动探测失败即拒绝执行，需在每个支持的 OS 版本/架构上验证，不能等同于受支持的公共 Apple API。
 - 文件工具与用户保存按同一本地目录串行；同目录至多一个活跃 Agent。普通 UTF-8 文件编辑上限 2 MiB，hash 比较拒绝旧内容覆盖，保留文件执行权限。目录观察提供变更提示，文件真实内容仍是权威来源；外部编辑器与 shell 不参与全局事务。
 - 当前首发实现由 `PermissionProfile` 编译工作区读写、只读运行依赖、受保护路径和网络开关，支持单次追加文件权限与 typed denial retry；不支持持久开发服务或 Windows/Linux 本地执行。Bash 与模型可见的 `read_file`、`apply_patch`、`write_file` 共用 Turn 级 `ToolOrchestrator + ProcessManager`；文件工具经 Seatbelt file worker 执行、携带同一 process identity/AbortSignal，并以 SHA-256 条件写入或删除拒绝过期覆盖，不存在另一个不受控文件 helper。当前没有本地 stdio MCP/plugin 子进程。Node 由 Electron 提供，用户 shell 配置和 Homebrew 环境不会自动继承。模型 Bash 默认 deadline 为 10 秒，调用可显式扩展到 120 秒；底层命令捕获上限 8 MiB，模型观察再按每流最后 2000 行/50 KiB 收敛；文件 helper 30 秒。模型 loop 使用 AI SDK 的默认 stop condition，单段 UI replay 16 MiB，超限失败并清理，均为本项目运行保护策略。
 - 本地模型不使用远端 stored response lineage。shared context manager 从 SQLite journal 保留 recent tail、压缩旧 prefix 并 CAS 写入 checkpoint；relay 预算不足、压缩失败或 checkpoint 冲突时本次调用失败且保留完整历史，不能静默丢弃内容或声称无限上下文。
 - Chat relay 只做一次模型推理，验证 IAM scope、Admin 授权模型与生成参数；每用户/组织工作区一个并发请求，PostgreSQL 事务记录预留与实际 usage，未知结果保留预留用量。本地与云端共用 IAM/Admin 授权规则，不设置本地专属日额度或默认关闭开关；既有用量表保留用于 accounting，不承担独立配额准入。不保存 prompt、工具结果或文件。上游五分钟硬限时、8 MiB 输出上限，不自动重试。
 - 工作区创建不产生虚假变更提示。真实 watcher 变更按会话和版本仅通知一次，以 `<runtime_context type="workspace_changes">` 的 user-role runtime fact 进入 transcript，不修改 system prompt，也不被当作新的产品用户请求；普通问候和能力介绍不要求读取目录。
-- 运行中 composer 保持可编辑；补充内容经带 `expectedTurnId` 的受限 IPC admission 调用 `steer()`，进入该 turn 唯一的 AI SDK steering 通道，并在 editor 上方显示到 SDK 确认于下一个 step 投递。`not_delivered` 保留为可见失败状态，不自动成为下一 turn；应用崩溃前仅确认 admission、未确认模型接收的输入标记 `unconfirmed`，同样不自动重放。已投递内容由官方 `steering-message` part 进入本地 journal，不能再复制一条用户消息。
+- native runtime 保留的运行中补充输入经带 `expectedTurnId` 的受限 IPC admission 调用 `steer()`；当前 Chat UI 不暴露该入口。`not_delivered` 不自动成为下一 turn，崩溃前未确认模型接收的输入标记 `unconfirmed`，同样不自动重放。
 - 窗口重载/关闭保留 utility 任务（macOS 应用仍在后台）；退出应用停止执行。崩溃恢复仅恢复 journal，并将运行中工作标记 interrupted，不重放未完成工具。
 - utility 进程意外退出后，Electron main 只允许一次替代进程恢复同一 scope journal；原 IPC 调用失败且不重放，`runtime-ready` 后客户端重新读取权威 thread。替代进程再次退出则 fail closed 并要求重启，不能形成无限崩溃循环。实现验证含真实 Electron + mock provider 集成和真实 macOS 沙箱测试；不代表真实 provider、分发签名或所有 macOS 版本验收。
 
 ### 运行时与权限
 
-Electron renderer 负责会话和文件界面；main 负责目录选择、桌面授权和运行时生命周期；Agent、文件访问、命令监督与会话持久化放在独立本地运行时。界面刷新或订阅断开不自动终止 run。
+当前 Electron renderer 只显示 Web 云端界面，不提供本地会话和文件界面。保留的 main 负责 native runtime 生命周期；Agent、文件访问、命令监督与本地会话持久化仍放在独立本地运行时，且不能绕过缺失的产品入口向 renderer 暴露。
 
 本地运行时提供受限 IPC，不向 renderer 暴露任意宿主 shell 或任意文件访问。Electron renderer sandbox 与 Agent 命令的 OS sandbox 是不同边界；`cwd` 只决定命令起始目录，不能代替访问控制。
 
 用户指定的工作目录构成写入授权范围，读取范围、临时目录、运行时依赖和网络权限由有效策略明确决定。文件工具与命令都必须执行相应策略，覆盖路径穿越、符号链接和目录替换；不能仅凭字符串前缀判断安全。平台能力不足时明确失败，不隐式改为无约束执行。
 
-本地 composer 只展示冻结后有效的 permission profile 与 approval policy，不自行解释命令。审批策略采用
-`never | on-request | unless-trusted | granular`，permission profile 单独选择 `:read-only |
-:workspace | :danger-full-access` 或管理员提供的命名 profile。UI 必须分别展示文件范围、网络范围、
-是否使用 managed/external/disabled enforcement，以及本次命令请求的追加 authority；不能再把「完全访问」
-解释成“无需询问但仍固定 sandbox”，也不能把「自动批准」同时用作权限 profile。
+当前没有本地 composer 或本地权限 UI。若未来重新提出本地产品入口，必须另行更新当前决策；不得从 bridge capability 自动恢复旧选择器或旧组件。
 
 ### 本地推理与 provider 凭据
 

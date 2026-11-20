@@ -8,6 +8,4 @@ export { ChatPrompt } from "./components/ChatPrompt";
 export { ChatComposerControls } from "./components/ChatComposerControls";
 export { ConversationSessionView } from "./components/ConversationSessionView";
 export type { PendingAgentInput } from "./components/PendingInputStack";
-export { ExecutionLocation } from "./components/ExecutionLocation";
-export { NewConversationEnvironment } from "./components/NewConversationEnvironment";
 export { ExecutionPolicy, type ApprovalPolicyValue, type PermissionProfileValue } from "./components/ExecutionPolicy";

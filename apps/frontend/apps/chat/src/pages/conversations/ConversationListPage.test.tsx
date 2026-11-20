@@ -1,10 +1,9 @@
 import type * as ConversationUI from "@repo/ai-elements/conversation";
 import type { PromptInputValue } from "@repo/ai-elements/prompt-input";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type * as Router from "react-router-dom";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { ConversationListPage } from "./ConversationListPage";
 
@@ -20,33 +19,15 @@ Element.prototype.scrollIntoView = vi.fn();
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
-  local: vi.fn(),
-  list: vi.fn(),
-  selectWorkspace: vi.fn(),
-  send: vi.fn(),
   navigate: vi.fn(),
   upload: vi.fn(),
   providers: vi.fn(),
   plugins: vi.fn(),
-  desktop: true,
 }));
-vi.mock("@repo/api/chat", () => ({
-  createConversation: mocks.create,
-}));
+vi.mock("@repo/api/chat", () => ({ createConversation: mocks.create }));
 vi.mock("@repo/api/admin", () => ({ listAgentPluginOptions: mocks.plugins, listProviders: mocks.providers }));
 vi.mock("@repo/ai-elements/conversation/lib/upload-conversation-files", () => ({
   uploadConversationFiles: mocks.upload,
-}));
-vi.mock("@repo/runtime/desktop", () => ({
-  getDesktopBridge: () =>
-    mocks.desktop
-      ? {
-          createThread: mocks.local,
-          listThreads: mocks.list,
-          selectWorkspace: mocks.selectWorkspace,
-          send: mocks.send,
-        }
-      : null,
 }));
 vi.mock("react-router-dom", async (original) => ({
   ...(await original<typeof Router>()),
@@ -55,15 +36,13 @@ vi.mock("react-router-dom", async (original) => ({
 vi.mock("@repo/ai-elements/conversation", async (original) => ({
   ...(await original<typeof ConversationUI>()),
   ChatPrompt: ({
-    toolbarRender,
     footerRender,
     onSubmit,
     maxFiles,
     disabled,
     loading,
   }: {
-    toolbarRender?: () => ReactNode;
-    footerRender?: () => ReactNode;
+    footerRender?: () => React.ReactNode;
     onSubmit: (value: PromptInputValue) => void;
     maxFiles?: number;
     disabled?: boolean;
@@ -71,7 +50,6 @@ vi.mock("@repo/ai-elements/conversation", async (original) => ({
   }) => (
     <div data-testid="new-composer" data-disabled={String(Boolean(disabled))} data-loading={String(Boolean(loading))}>
       <span data-testid="max-files">{maxFiles}</span>
-      {toolbarRender?.()}
       {footerRender?.()}
       <button
         onClick={() => onSubmit({ text: "hello", segments: [{ type: "text", text: "hello" }], tokens: [], files: {} })}
@@ -95,14 +73,10 @@ vi.mock("@repo/ai-elements/conversation", async (original) => ({
     </div>
   ),
 }));
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.desktop = true;
   mocks.create.mockResolvedValue({ id: "cloud" });
-  mocks.local.mockResolvedValue({ id: "local" });
-  mocks.list.mockResolvedValue([{ workspace: "/projects/existing" }]);
-  mocks.selectWorkspace.mockResolvedValue("/projects/new-project");
-  mocks.send.mockResolvedValue(undefined);
   mocks.upload.mockResolvedValue({
     documents: [
       {
@@ -124,20 +98,17 @@ beforeEach(() => {
   ]);
   mocks.plugins.mockResolvedValue([]);
 });
+afterEach(() => {
+  Reflect.deleteProperty(globalThis, "desktop");
+});
 
-async function selectExecutionLocation(name: "云端" | "本地电脑") {
-  fireEvent.click(screen.getByRole("combobox", { name: "执行位置" }));
-  fireEvent.pointerDown(await screen.findByRole("option", { name }), { pointerType: "mouse" });
-  fireEvent.click(screen.getByRole("option", { name }));
-}
-
-test("new cloud conversation renders session controls and submits their request shape", async () => {
+test("new conversation renders the shared cloud composer and submits its request shape", async () => {
   render(
     <MemoryRouter>
       <ConversationListPage />
     </MemoryRouter>,
   );
-  await selectExecutionLocation("云端");
+  expect(screen.queryByRole("combobox", { name: "执行位置" })).toBeNull();
   expect(screen.getByTestId("max-files").textContent).toBe("8");
   expect(await screen.findByText("Cloud Model")).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "授权策略" })).toBeTruthy();
@@ -147,9 +118,7 @@ test("new cloud conversation renders session controls and submits their request 
       "/platform/chat/conversations/cloud",
       expect.objectContaining({
         state: expect.objectContaining({
-          externalRequest: expect.objectContaining({
-            parts: [{ type: "text", text: "hello" }],
-          }),
+          externalRequest: expect.objectContaining({ parts: [{ type: "text", text: "hello" }] }),
         }),
       }),
     ),
@@ -162,19 +131,31 @@ test("new cloud conversation renders session controls and submits their request 
     permission_profile: ":workspace",
     plugin_selections: [],
   });
-  expect(mocks.local).not.toHaveBeenCalled();
 });
 
-test("new cloud conversation uploads attachments before handing the first message to the session", async () => {
+test("Desktop capability does not add product UI or change cloud creation", async () => {
+  Object.defineProperty(globalThis, "desktop", { configurable: true, value: { version: 5 } });
   render(
     <MemoryRouter>
       <ConversationListPage />
     </MemoryRouter>,
   );
-  await selectExecutionLocation("云端");
+  expect(screen.queryByRole("combobox", { name: "执行位置" })).toBeNull();
+  expect(screen.queryByText("本地电脑")).toBeNull();
+  expect(await screen.findByText("Cloud Model")).toBeTruthy();
+  fireEvent.click(screen.getByText("发送测试"));
+  await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+  expect(mocks.navigate).toHaveBeenCalledWith("/platform/chat/conversations/cloud", expect.any(Object));
+});
 
+test("new conversation uploads attachments before handing the first message to the session", async () => {
+  render(
+    <MemoryRouter>
+      <ConversationListPage />
+    </MemoryRouter>,
+  );
+  await screen.findByText("Cloud Model");
   fireEvent.click(screen.getByText("发送附件测试"));
-
   await waitFor(() => expect(mocks.upload).toHaveBeenCalledOnce());
   await waitFor(() =>
     expect(mocks.navigate).toHaveBeenCalledWith(
@@ -205,108 +186,15 @@ test("new conversation keeps the editor enabled while creation is pending", asyn
       <ConversationListPage />
     </MemoryRouter>,
   );
-  await selectExecutionLocation("云端");
   await screen.findByText("Cloud Model");
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
   expect(screen.getByTestId("new-composer").dataset).toMatchObject({ disabled: "false", loading: "true" });
-
   finishCreate({ id: "cloud" });
   await waitFor(() => expect(mocks.navigate).toHaveBeenCalled());
 });
-test("Desktop defaults to this computer and creates in the selected existing project", async () => {
-  render(
-    <MemoryRouter>
-      <ConversationListPage />
-    </MemoryRouter>,
-  );
-  const executionLocation = screen.getByRole("combobox", { name: "执行位置" });
-  expect(executionLocation.textContent).toContain("此计算机");
-  expect(executionLocation.classList.contains("focus-visible:ring-1")).toBe(true);
-  expect(executionLocation.classList.contains("focus-visible:ring-3")).toBe(false);
-  expect(screen.getByTestId("max-files").textContent).toBe("0");
-  expect(await screen.findByText("existing")).toBeTruthy();
-  const projectSelector = screen.getByRole("button", { name: "选择项目" });
-  expect(projectSelector.classList.contains("focus-visible:ring-1")).toBe(true);
-  expect(projectSelector.closest('[data-slot="input-group-addon"]')?.classList.contains("border-b")).toBe(false);
-  expect(screen.queryByRole("button", { name: "查看上下文用量" })).toBeNull();
-  expect(await screen.findByText("Cloud Model")).toBeTruthy();
-  fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith(
-      "/projects/existing",
-      "cloud-model",
-      "medium",
-      "on-request",
-      ":workspace",
-      [],
-    ),
-  );
-  await waitFor(() => expect(mocks.send).toHaveBeenCalledWith("local", "hello", expect.any(String)));
-  expect(mocks.create).not.toHaveBeenCalled();
-});
 
-test("new project selection happens before send and supplies the authorized workspace", async () => {
-  mocks.list.mockResolvedValue([]);
-  render(
-    <MemoryRouter>
-      <ConversationListPage />
-    </MemoryRouter>,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "选择项目" }));
-  fireEvent.click(await screen.findByText("新建项目"));
-  await waitFor(() => expect(mocks.selectWorkspace).toHaveBeenCalledOnce());
-  expect(await screen.findByText("new-project")).toBeTruthy();
-  fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith(
-      "/projects/new-project",
-      "cloud-model",
-      "medium",
-      "on-request",
-      ":workspace",
-      [],
-    ),
-  );
-  expect(mocks.selectWorkspace.mock.invocationCallOrder[0]).toBeLessThan(mocks.local.mock.invocationCallOrder[0]);
-});
-
-test("cancelling project selection leaves send blocked without reopening the picker", async () => {
-  mocks.list.mockResolvedValue([]);
-  mocks.selectWorkspace.mockResolvedValue(null);
-  render(
-    <MemoryRouter>
-      <ConversationListPage />
-    </MemoryRouter>,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "选择项目" }));
-  fireEvent.click(await screen.findByText("新建项目"));
-  await waitFor(() => expect(mocks.selectWorkspace).toHaveBeenCalledOnce());
-  fireEvent.click(screen.getByText("发送测试"));
-  expect((await screen.findByRole("alert")).textContent).toContain("请先选择项目");
-  expect(mocks.selectWorkspace).toHaveBeenCalledTimes(1);
-  expect(mocks.local).not.toHaveBeenCalled();
-  expect(mocks.send).not.toHaveBeenCalled();
-  expect(mocks.create).not.toHaveBeenCalled();
-  expect(mocks.navigate).not.toHaveBeenCalled();
-});
-
-test("Web omits execution selection and submits to cloud", async () => {
-  mocks.desktop = false;
-  render(
-    <MemoryRouter>
-      <ConversationListPage />
-    </MemoryRouter>,
-  );
-  expect(screen.queryByRole("combobox", { name: "执行位置" })).toBeNull();
-  expect(screen.queryByText("使用桌面应用可选择本地电脑")).toBeNull();
-  expect(await screen.findByText("Cloud Model")).toBeTruthy();
-  fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
-  expect(mocks.local).not.toHaveBeenCalled();
-});
-
-test("an installed default plugin is frozen into both cloud and local conversation creation", async () => {
+test("an installed default plugin is frozen into cloud conversation creation", async () => {
   mocks.plugins.mockResolvedValue([
     {
       pluginId: "knowledge@platform",
@@ -324,19 +212,6 @@ test("an installed default plugin is frozen into both cloud and local conversati
   expect(await screen.findByText("插件 1")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith(
-      "/projects/existing",
-      "cloud-model",
-      "medium",
-      "on-request",
-      ":workspace",
-      [{ pluginId: "knowledge@platform" }],
-    ),
-  );
-
-  await selectExecutionLocation("云端");
-  fireEvent.click(screen.getByText("发送测试"));
-  await waitFor(() =>
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({ plugin_selections: [{ plugin_id: "knowledge@platform" }] }),
     ),
@@ -344,7 +219,6 @@ test("an installed default plugin is frozen into both cloud and local conversati
 });
 
 test("repeated submit while creating cannot create duplicate conversations", async () => {
-  mocks.desktop = false;
   let resolve: (value: { id: string }) => void = () => {};
   mocks.create.mockReturnValue(
     new Promise<{ id: string }>((done) => {

@@ -18,7 +18,6 @@ export const routes: RouteObject[] = [
         id: "chat-layout",
         lazy: () => import("../pages/layout"),
         children: [
-          { path: "local/:id?", lazy: () => import("../pages/local") },
           { index: true, element: <Navigate to="conversations" replace /> },
           {
             path: "conversations",
