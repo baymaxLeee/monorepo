@@ -1,17 +1,20 @@
 # Desktop contracts
 
 `bridge.ts` defines the versioned, capability-only preload interface. `just sync`
-generates the Electron and `@repo/runtime/desktop` consumers. Chat no longer consumes
-the local conversation, workspace or file capabilities: Web and Electron use the same
-cloud routes and UI, and remaining bridge methods do not authorize a Desktop-only product surface. Page code never
-receives Node, IPC channels, arbitrary HTTP access, a provider secret or an
+generates the Electron and `@repo/runtime/desktop` consumers. Chat consumes these
+capabilities only from Electron's new-conversation editor and the hidden local-thread
+controller. The visible exception selects local/cloud execution and a natively granted
+project; local threads otherwise reuse the shared Chat session surface and do not add a
+parallel history, workspace browser or inspector. Page code never receives Node, IPC channels, arbitrary HTTP access, a provider secret or an
 MCP endpoint/header/grant, or an arbitrary directory grant. The renderer can reuse projects from trusted local
 thread history. Adding a project invokes native directory selection and records a
 one-shot grant; local thread creation consumes that selected grant and never opens
 the directory picker as a side effect of sending.
 
-Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. The retained
-native transport does not use cloud conversation APIs or add custom `data-*` parts. A stream segment starts from its original
+Messages and chunks are official AI SDK `UIMessage` / `UIMessageChunk`. Bridge v6
+accepts bounded native `text` and inline `file` user parts; main and utility-process
+admission both reject remote file URLs, malformed data URLs and oversized payloads.
+The native transport does not use cloud conversation APIs or add custom `data-*` parts. A stream segment starts from its original
 messages. Attachment subscribes before an atomic snapshot, replays native chunks,
 and deduplicates subsequent segment/index envelopes. A null chunk ends only the
 subscription. Stop is a separate command. Reload never re-executes tools; after

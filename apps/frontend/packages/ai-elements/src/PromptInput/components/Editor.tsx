@@ -32,7 +32,8 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
     onSubmit,
     onStop,
     toolbarRender,
-    footerRender,
+    footerStartRender,
+    footerEndRender,
     mentionSource,
     slashCommands,
     onSkillsLoad,
@@ -213,7 +214,8 @@ const PromptInputEditor = forwardRef<PromptInputRef, PromptInputProps>((props, r
           attachmentsEnabled={props.maxFiles !== 0}
           submitLabel={submitLabel}
           onStop={onStop}
-          footerRender={footerRender}
+          footerStartRender={footerStartRender}
+          footerEndRender={footerEndRender}
           onAttach={() => fileInputRef.current?.click()}
         />
       </InputGroup>

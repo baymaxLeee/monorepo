@@ -6,19 +6,49 @@ import { ChatCheckpoint } from "./ChatCheckpoint";
 import { ChatCitedResponse } from "./ChatCitedResponse";
 import { ChatComposerControls } from "./ChatComposerControls";
 import { collectDeliverableCompletion } from "./ChatTodoListCard";
+import { ExecutionPolicy } from "./ExecutionPolicy";
 
-test("shared composer controls keep a bound local model visually aligned", () => {
+test("shared composer controls combine model and reasoning selection in one popover", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  Element.prototype.scrollIntoView = vi.fn();
+  const selectModel = vi.fn();
+  const selectReasoning = vi.fn();
   render(
     <ChatComposerControls
-      models={[{ id: "local", name: "baymax" }]}
+      models={[
+        { id: "local", name: "baymax" },
+        { id: "next", name: "next-model" },
+      ]}
       selectedModelId="local"
-      reasoningEffort="medium"
+      onSelectModel={selectModel}
+      reasoningEffort="xhigh"
+      onReasoningEffortChange={selectReasoning}
     />,
   );
 
-  expect(screen.getByText("baymax")).toBeTruthy();
-  expect(screen.getByText("推理：中")).toBeTruthy();
-  expect(screen.queryByRole("button")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "模型与推理强度" }));
+  expect(await screen.findByText("模型")).toBeTruthy();
+  expect(screen.getByText("推理强度")).toBeTruthy();
+  fireEvent.click(screen.getByRole("option", { name: "next-model" }));
+  expect(selectModel).toHaveBeenCalledWith("next");
+  fireEvent.click(screen.getByRole("button", { name: "极高" }));
+  expect(selectReasoning).toHaveBeenCalledWith("xhigh");
+});
+
+test("composer authorization control has visible hover and expanded feedback", () => {
+  render(<ExecutionPolicy approvalPolicy="on-request" permissionProfile=":workspace" onChange={vi.fn()} />);
+  const trigger = screen.getByRole("combobox", { name: "授权策略" });
+  expect(trigger.classList.contains("hover:bg-muted")).toBe(true);
+  expect(trigger.classList.contains("aria-expanded:bg-muted")).toBe(true);
+  expect(trigger.classList.contains("h-7")).toBe(true);
+  expect(trigger.classList.contains("data-[size=sm]:rounded-full")).toBe(true);
 });
 
 for (const [text, startIndex, endIndex] of [

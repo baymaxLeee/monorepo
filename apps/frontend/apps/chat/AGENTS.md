@@ -4,7 +4,7 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 
 ## Boundaries
 
-- Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage parts. Web and Electron render the same cloud routes, controls, uploads, history and inspectors. Do not branch Chat product UI on Desktop capabilities or add Desktop-only routes, controllers, composer controls, history, file browsers or workspace panels.
+- Chat uses AI SDK `useChat` + `DefaultChatTransport` and native UIMessage parts. Web and Electron render the same cloud routes, history and inspectors. The sole capability-gated product surface is Electron's new-conversation editor: it may select local or cloud execution and a native project before creating a thread. A created local thread uses the hidden `/local/:id` controller with the shared `ConversationSessionView`, `ChatStream`, `ChatPrompt` and composer controls. Do not add local history, a second session frame, workspace/file sidebars or a Desktop-only inspector.
 - The UIMessage stream is a cross-stack contract. Before adding a custom `data-*` part / `onData` field, read `schemas/streaming/chat-uimessage-stream.md` and register it there. Reuse official parts first (`text`/`reasoning`/`tool-*`/ `file`/`source-*`, message `metadata`); custom `ChatUIDataTypes` entries are only for data no official part covers.
 - After persisted messages load, call `resumeStream()` once per conversation. Refresh and route changes disconnect only the subscriber. Stop calls both `useChat.stop()` and the server run cancellation endpoint.
 - Do not add sessionStorage message/stream state; Redis is the replay buffer.
@@ -16,8 +16,9 @@ Owns `/platform/chat/*` and is backed by `apps/backend/services/chat`.
 ## Layout
 
 - `src/router/index.tsx` — relative route tree exposed as `./routes`
-- Web and Electron render the same `ConversationSessionView`, `ChatStream` and `ChatPrompt`. `ChatPrompt` owns the single `+` file picker and all selected files use the cloud upload path before the conversation starts.
+- Web and Electron cloud routes render the same `ConversationSessionView`, `ChatStream` and `ChatPrompt`. The Desktop new-conversation shell composes the same `PromptInput` into the native context-bar layout; its `+` picker sends selected local files as bounded native `file` parts, while cloud creation uses the Conversation/Storage upload path.
 - `src/pages/chat/Chat.tsx` — route wrapper for `@repo/ai-elements/conversation` ChatSession
+- `src/pages/local/` — Desktop-only local transport/controller; it injects native runtime state into the shared session UI and is not a parallel product shell
 - `src/pages/layout/ChatLayout.tsx` — three-region composition only; no message, list or preview-content subscriptions
 - `src/components/ChatPanels.tsx` — shadcn Sidebar/Resizable layout; only visibility changes may cross region boundaries
 - `src/components/ChatConversationSidebar.tsx` / `hooks/useConversationHistory.ts` — conversation CRUD and title updates, owned by the left sidebar

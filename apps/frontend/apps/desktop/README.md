@@ -18,9 +18,9 @@ MONOREPO_AGENT_HOME=/absolute/path/to/agent-home just desktop-dev
 
 显式传给开发入口的 `--platform-url` 仍直接加载 URL，默认值为 `http://localhost:3000`；远程 HTTP 必须带 `--allow-http`。应用不提供浏览器通用文件或命令接口。当前包会做完整 ad-hoc 签名和签名校验，但未使用 Developer ID、hardened runtime 或 Apple 公证，因此是可安装的内部正式构建，不是可对外无提示分发的 macOS 公证版本。
 
-登录后，Desktop App 与 Web 使用完全相同的云端 Chat：相同的新会话 composer、`+` 文件选择与上传、会话历史、Artifact/视频 inspector 和 `/conversations/*` 路由。Chat 不读取 Desktop capability 来渲染执行位置、项目、本地历史、本地工作区或本地文件 UI，也不提供 `/local` 路由。此前写入的本地 SQLite 会话不迁移、不列出、不暴露兼容入口。
+登录后，Desktop App 与 Web 共享云端会话、历史、Artifact/视频 inspector 和 `/conversations/*` 路由。唯一的 Desktop 专属产品面是新会话 editor：它按 Codex App 的上下文栏布局选择“此计算机”或“云端”，本地模式再选择经过 native 授权的项目。云端继续使用统一 Conversation/Storage 上传；本地 `+` 选择的文件作为受限 AI SDK `file` parts 进入本地 thread，不创建云端 conversation 或 Storage 文档。
 
-仓库仍保留 Electron native runtime 与受限 bridge 的底层实现，但当前 Chat renderer 没有本地会话或文件能力的调用方；这些实现不得被当成可见产品能力，也不得用于恢复 Desktop 专属 UI。
+本地 thread 通过隐藏的 `/local/:id` controller 打开，但复用 `ConversationSessionView`、`ChatStream`、`ChatPrompt` 与 composer controls；不恢复本地历史列表、工作区/文件侧栏、第二套会话 UI 或 Desktop inspector。此前旧 schema 的本地 SQLite 会话不迁移、不列出、不暴露兼容入口。
 
 本地 journal 不归属于某个 Electron 应用名。默认 runtime home 是 `~/.monorepo-agent`，新
 Thread/Turn/Item 数据库位于 `sessions/<identity-scope>/runtime.sqlite`；可通过绝对路径环境变量
@@ -28,7 +28,7 @@ Thread/Turn/Item 数据库位于 `sessions/<identity-scope>/runtime.sqlite`；�
 切换：旧 `runtime-v1.sqlite`、`sessions.sqlite` 与旧 Electron `userData/local/<scope>` 不读取、
 不导入，也不覆盖或删除。runtime home 和 Electron `userData` 都属于 Agent 禁止访问的控制目录。
 
-保留的 Desktop bridge v5 在创建本地 Thread 时只接收 plugin IDs 和非秘密 bindings。每个
+Desktop bridge v6 在创建本地 Thread 时只接收 plugin IDs 和非秘密 bindings；用户消息只接收经过 main 与 utility process 双重校验的 bounded `text` / inline `file` parts，拒绝远程文件 URL。每个
 Turn 由 utility process 经 main → Chat BFF → Runtime 的 IAM-scoped `/local-inference/plugins/resolve`
 通道解析当前 Admin installation；renderer 不接触 endpoint、header 或 token。去密的 manifest/
 activation snapshot 在首次模型调用前写入本地 `turn_plugin_snapshots`，connection grant 只驻留 utility
@@ -40,7 +40,7 @@ Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 
 
 只支持 macOS 本地执行。工具命令和文件 helper 都先应用 Seatbelt；失败时拒绝执行。命令可联网，启动时使用最小环境，写入限于授权目录和运行时临时目录。后台子进程在命令完成、取消或父进程退出后清理。Node 由 Electron 自带；其他可执行程序受固定系统路径与授权目录限制，不能自动使用用户登录 shell、Homebrew 或读取用户家目录配置。文件保存使用内容 hash 检查冲突，不静默覆盖外部编辑；外部编辑器不参与本应用队列，因此这不是对所有本机进程的文件系统事务。
 
-关闭/重载页面只断开订阅；“停止”会取消执行；退出应用会清理任务。异常退出后终止未完成工具，不自动重放副作用。目录监听提示 Agent 重读变更；文件每次读写仍受 OS 边界和内容 hash 保护。既有本地会话不迁移到云端，也不在当前 UI 中显示。
+关闭/重载页面只断开订阅；“停止”会取消执行；退出应用会清理任务。异常退出后终止未完成工具，不自动重放副作用。目录监听提示 Agent 重读变更；文件每次读写仍受 OS 边界和内容 hash 保护。既有本地会话不迁移到云端；当前新会话流程创建的本地 thread 只在创建后直接打开，不进入共享云端历史列表。
 
 utility runtime 意外退出时，main 只启动一次替代进程并重新打开同一 scope 的 SQLite journal；出错中的 IPC 明确失败且不自动重放，恢复完成后页面重载权威会话。替代进程再次退出则 fail closed，要求重启应用，避免崩溃循环。
 

@@ -6,6 +6,7 @@ import { webSearchOutputSchema } from "@repo/agent-runtime/tools/web";
 import { z } from "zod";
 
 import { inferenceConfigSchema } from "../contracts/inference.generated";
+import { parseLocalUserMessageParts } from "./local-user-message";
 import { DesktopSessionManager } from "./runtime/session-manager";
 
 const port = process.parentPort;
@@ -145,10 +146,8 @@ async function dispatch(method: string, payload: unknown) {
     case "get":
       return runtime.get(idSchema.parse(payload));
     case "send": {
-      const p = z
-        .object({ id: idSchema, messageId: idSchema, text: z.string().trim().min(1).max(64_000) })
-        .parse(payload);
-      runtime.send(p.id, p.text, p.messageId);
+      const p = z.object({ id: idSchema, messageId: idSchema, parts: z.unknown() }).parse(payload);
+      runtime.send(p.id, parseLocalUserMessageParts(p.parts), p.messageId);
       return null;
     }
     case "submitRunInput": {

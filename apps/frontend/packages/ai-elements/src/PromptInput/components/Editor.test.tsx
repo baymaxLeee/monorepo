@@ -209,7 +209,9 @@ test("composer keeps one resting surface size with or without custom controls", 
   expect(surface?.classList.contains("has-disabled:bg-background!")).toBe(true);
   expect(surface?.classList.contains("has-disabled:opacity-100!")).toBe(true);
 
-  rerender(<Editor footerRender={() => <span>会话控件</span>} />);
+  rerender(<Editor footerStartRender={() => <span>左侧控件</span>} footerEndRender={() => <span>右侧控件</span>} />);
   expect(surface?.classList.contains("min-h-24")).toBe(true);
   expect(surface?.querySelector(".prompt-input-footer")?.classList.contains("min-h-10")).toBe(true);
+  expect(surface?.querySelector(".prompt-input-tools")?.textContent).toContain("左侧控件");
+  expect(surface?.querySelector(".prompt-input-actions")?.textContent).toContain("右侧控件");
 });

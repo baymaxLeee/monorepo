@@ -70,6 +70,14 @@
   gap: 0.25rem;
 }
 
+.prompt-input-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.5rem;
+}
+
 .prompt-input-token-wrap {
   display: inline-flex;
   vertical-align: middle;

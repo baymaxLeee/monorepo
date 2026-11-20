@@ -15,7 +15,7 @@ export interface ExecutionPolicyValue {
 const authorizationModeLabels: Record<AuthorizationMode, string> = {
   "ask-for-approval": "请求批准",
   "approve-for-me": "帮我批准",
-  "full-access": "完全访问权限",
+  "full-access": "完全访问",
 };
 
 const authorizationModePolicies: Record<AuthorizationMode, ExecutionPolicyValue> = {
@@ -64,7 +64,7 @@ export function ExecutionPolicy({
       <SelectTrigger
         aria-label="授权策略"
         size="sm"
-        className={`border-0 bg-transparent shadow-none ${composerControlClassName}`}
+        className={`h-7 rounded-full border-0 bg-transparent px-2.5 text-xs text-muted-foreground shadow-none hover:bg-muted hover:text-foreground aria-expanded:bg-muted data-[size=sm]:rounded-full ${composerControlClassName}`}
       >
         <ShieldCheckIcon className="size-4" />
         <SelectValue>{authorizationModeLabels[mode]}</SelectValue>
@@ -84,7 +84,7 @@ export function ExecutionPolicy({
         </SelectItem>
         <SelectItem value="full-access">
           <span className="flex flex-col">
-            <span>完全访问权限</span>
+            <span>完全访问</span>
             <span className="text-xs text-muted-foreground">可不受限制地访问互联网和运行环境中的任何文件</span>
           </span>
         </SelectItem>

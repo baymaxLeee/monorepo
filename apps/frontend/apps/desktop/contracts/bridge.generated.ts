@@ -11,6 +11,10 @@ export interface LocalPluginActivation {
   bindings?: Record<string, string>;
 }
 
+export type LocalUserMessagePart =
+  | { type: "text"; text: string }
+  | { type: "file"; mediaType: string; filename?: string; url: string };
+
 export interface LocalPendingInput {
   id: string;
   turnId: string;
@@ -73,7 +77,7 @@ export type DesktopEvent =
 // Only these capabilities cross preload. No arbitrary channel, path grant,
 // process spawn, fetch URL or provider credential is exposed to page code.
 export interface DesktopBridge {
-  readonly version: 5;
+  readonly version: 6;
   info(): Promise<{ platform: string; localAvailable: boolean; origin: string }>;
   bindSession(accessToken: string, expiresAt: string): Promise<void>;
   clearSession(): Promise<void>;
@@ -90,7 +94,7 @@ export interface DesktopBridge {
   ): Promise<LocalThread>;
   getThread(id: string): Promise<LocalThread>;
   openStream(id: string): Promise<LocalStream>;
-  send(id: string, text: string, messageId: string): Promise<void>;
+  send(id: string, parts: LocalUserMessagePart[], messageId: string): Promise<void>;
   submitRunInput(
     id: string,
     expectedTurnId: string,

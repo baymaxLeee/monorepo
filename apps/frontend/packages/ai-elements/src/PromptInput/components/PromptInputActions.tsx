@@ -14,10 +14,14 @@ export function PromptInputActions({
   hasContent,
   submitLabel,
   onStop,
-  footerRender,
+  footerStartRender,
+  footerEndRender,
   onAttach,
   attachmentsEnabled = true,
-}: Pick<PromptInputProps, "disabled" | "loading" | "submitWhileLoading" | "submitLabel" | "onStop" | "footerRender"> & {
+}: Pick<
+  PromptInputProps,
+  "disabled" | "loading" | "submitWhileLoading" | "submitLabel" | "onStop" | "footerStartRender" | "footerEndRender"
+> & {
   api: PromptInputApi;
   attachmentsUploading: boolean;
   hasContent: boolean;
@@ -41,9 +45,10 @@ export function PromptInputActions({
             <Plus className="size-4" />
           </Button>
         ) : null}
-        {footerRender?.(api)}
+        {footerStartRender?.(api)}
       </div>
-      <div className="mr-2 flex items-center gap-1">
+      <div className="prompt-input-actions">
+        {footerEndRender?.(api)}
         <Button
           type={stopsRun ? "button" : "submit"}
           size="icon-xs"

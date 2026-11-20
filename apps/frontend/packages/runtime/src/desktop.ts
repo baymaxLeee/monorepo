@@ -4,11 +4,12 @@ export type {
   DesktopEvent,
   LocalDirectoryEntry,
   LocalFile,
+  LocalUserMessagePart,
   LocalThread,
   LocalStream,
 } from "./generated/desktop";
 
 export function getDesktopBridge(): DesktopBridge | null {
   const bridge = (globalThis as typeof globalThis & { desktop?: DesktopBridge }).desktop;
-  return bridge?.version === 5 ? bridge : null;
+  return bridge?.version === 6 ? bridge : null;
 }

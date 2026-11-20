@@ -46,8 +46,10 @@ import type {
   LocalPermissionProfileId,
   LocalPluginActivation,
   LocalThread,
+  LocalUserMessagePart,
 } from "../../contracts/bridge.generated";
 import type { InferenceConfig, ReasoningEffort } from "../../contracts/inference.generated";
+import { localUserMessagePreview } from "../local-user-message";
 import { LocalSandbox, type SandboxOptions } from "../sandbox";
 import { LocalJournal } from "./journal";
 import { relayModel, type RelayCall } from "./relay-model";
@@ -276,7 +278,7 @@ export class DesktopSessionManager {
   openStream(id: string) {
     return { thread: this.get(id), segment: this.segments.get(id) ?? null };
   }
-  send(id: string, text: string, messageId: string) {
+  send(id: string, parts: LocalUserMessagePart[], messageId: string) {
     if (this.active.has(id)) throw new Error("当前会话仍在执行");
     if (this.closed) throw new Error("本地运行时正在关闭");
     for (const activeId of this.active.keys())
@@ -285,8 +287,8 @@ export class DesktopSessionManager {
     if (thread.status === "waiting") throw new Error("请先处理待审批的命令，或停止当前轮次");
     thread.turnId = randomUUID();
     thread.error = null;
-    if (thread.messages.length === 0) thread.title = text.slice(0, 80);
-    thread.messages.push({ id: messageId, role: "user", parts: [{ type: "text", text }] });
+    if (thread.messages.length === 0) thread.title = localUserMessagePreview(parts).slice(0, 80);
+    thread.messages.push({ id: messageId, role: "user", parts: structuredClone(parts) });
     this.start(thread);
   }
   submitRunInput(id: string, expectedTurnId: string, text: string, messageId: string, mode: LocalPendingInput["mode"]) {

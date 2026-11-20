@@ -85,7 +85,8 @@ export interface PromptInputProps {
   onStop?: () => void;
   renderToken?: (token: PromptInputToken, context: PromptInputRenderContext) => ReactNode;
   toolbarRender?: (api: PromptInputApi) => ReactNode;
-  footerRender?: (api: PromptInputApi) => ReactNode;
+  footerStartRender?: (api: PromptInputApi) => ReactNode;
+  footerEndRender?: (api: PromptInputApi) => ReactNode;
   /** Enables the `@` mention popup. Resolve mentionable entities for a query. */
   mentionSource?: PromptMentionSource;
   /** Enables the `/` slash popup. Static list or a per-query resolver. */

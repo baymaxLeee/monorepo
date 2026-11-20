@@ -8,6 +8,7 @@ import { z } from "zod";
 import { DesktopAuth } from "./auth";
 import { APP_ORIGIN, APP_SCHEME, APP_URL, registerEmbeddedPlatform } from "./embedded-platform";
 import { RuntimeHost } from "./host-runtime";
+import { parseLocalUserMessageParts } from "./local-user-message";
 import { selectPlatform } from "./platform-selector";
 import { type PackagedPlatform, platformLaunch, platformUrl } from "./platform-url";
 import { resolveRuntimeHome, scopedSessionDirectory } from "./runtime-home";
@@ -209,10 +210,10 @@ async function start() {
         return null;
       }
       case "send":
-        return scopedCall(
-          "send",
-          z.strictObject({ id, messageId: id, text: z.string().trim().min(1).max(64_000) }).parse(payload),
-        );
+        return scopedCall("send", {
+          ...z.strictObject({ id, messageId: id, parts: z.unknown() }).parse(payload),
+          parts: parseLocalUserMessageParts((payload as { parts?: unknown }).parts),
+        });
       case "submitRunInput":
         return scopedCall(
           "submitRunInput",

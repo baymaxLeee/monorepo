@@ -40,6 +40,7 @@ const text = (): LanguageModelV4StreamPart[] => [
   { type: "text-delta", id: "t", delta: "已完成" },
   { type: "text-end", id: "t" },
 ];
+const user = (value: string) => [{ type: "text" as const, text: value }];
 const directories: string[] = [],
   runtimes: DesktopSessionManager[] = [];
 afterEach(async () => {
@@ -104,7 +105,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(f.runtime.get(f.thread.id)).toMatchObject({ providerId: "provider-2", reasoningEffort: "high" });
     expect(f.runtime.journal.get(f.thread.id)).toMatchObject({ providerId: "provider-2", reasoningEffort: "high" });
 
-    f.runtime.send(f.thread.id, "run", randomUUID());
+    f.runtime.send(f.thread.id, user("run"), randomUUID());
     expect(() => f.runtime.setModelBinding(f.thread.id, "provider", "low")).toThrow("当前轮次的模型与推理深度已冻结");
     await done(f.runtime, f.thread.id);
   });
@@ -204,7 +205,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
       [{ pluginId: manifest.id }],
     );
 
-    f.runtime.send(f.thread.id, "search", randomUUID());
+    f.runtime.send(f.thread.id, user("search"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(2);
     expect(requests[0]!.options.tools?.map((candidate) => candidate.name)).not.toContain("mcp__docs__search");
@@ -221,7 +222,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
       requests.push(request);
       return reply(text());
     });
-    f.runtime.send(f.thread.id, "你能帮我干啥？", randomUUID());
+    f.runtime.send(f.thread.id, user("你能帮我干啥？"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(1);
     const initialTools = requests[0]!.options.tools?.map((candidate) => candidate.name) ?? [];
@@ -256,7 +257,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     };
     await writeFile(join(f.thread.workspace, "external.txt"), "changed");
     await expect.poll(() => notified).toBe(true);
-    f.runtime.send(f.thread.id, "查看文件", randomUUID());
+    f.runtime.send(f.thread.id, user("查看文件"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(3);
     expect(JSON.stringify(requests[0]!.options.prompt)).toContain("external.txt");
@@ -281,7 +282,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
           : text(),
       );
     });
-    f.runtime.send(f.thread.id, "create", randomUUID());
+    f.runtime.send(f.thread.id, user("create"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(await readFile(join(f.thread.workspace, "demo.js"), "utf8")).toBe("one");
     let edited = false;
@@ -290,7 +291,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     };
     await writeFile(join(f.thread.workspace, "demo.js"), "user edited");
     await expect.poll(() => edited).toBe(true);
-    f.runtime.send(f.thread.id, "check edits", randomUUID());
+    f.runtime.send(f.thread.id, user("check edits"), randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     const nextPromptText =
       requests
@@ -374,7 +375,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
       }
     });
 
-    f.runtime.send(f.thread.id, "safely update the file", randomUUID());
+    f.runtime.send(f.thread.id, user("safely update the file"), randomUUID());
     const completed = await done(f.runtime, f.thread.id);
 
     expect(completed.status).toBe("idle");
@@ -403,7 +404,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
           : text(),
       ),
     );
-    f.runtime.send(f.thread.id, "run", randomUUID());
+    f.runtime.send(f.thread.id, user("run"), randomUUID());
     const completed = await done(f.runtime, f.thread.id);
     expect(completed.status).toBe("idle");
     expect(await readFile(join(f.thread.workspace, "result.txt"), "utf8")).toBe("allowed");
@@ -447,7 +448,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
         ]);
       return reply(text());
     });
-    f.runtime.send(f.thread.id, "create", randomUUID());
+    f.runtime.send(f.thread.id, user("create"), randomUUID());
     const completed = await done(f.runtime, f.thread.id);
     expect(completed.status).toBe("idle");
     expect(calls).toBe(3);
@@ -489,7 +490,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
           : text(),
       );
     });
-    f.runtime.send(f.thread.id, "start", randomUUID());
+    f.runtime.send(f.thread.id, user("start"), randomUUID());
     await expect.poll(() => requests.length).toBe(1);
     const active = f.runtime.get(f.thread.id);
     expect(active.turnId).toBeTruthy();
@@ -522,7 +523,7 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
           },
         }),
     );
-    f.runtime.send(f.thread.id, "wait", randomUUID());
+    f.runtime.send(f.thread.id, user("wait"), randomUUID());
     await expect.poll(() => f.runtime.openStream(f.thread.id).segment).not.toBe(null);
     const active = f.runtime.get(f.thread.id);
     const supplementId = randomUUID();

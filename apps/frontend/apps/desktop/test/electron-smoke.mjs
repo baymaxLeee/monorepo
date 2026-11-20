@@ -165,7 +165,9 @@ async function run() {
       `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "on-request", ":workspace", [])`,
     );
     assert.equal(thread.mode, "local");
-    await execute(`desktop.send(${JSON.stringify(thread.id)}, "create file", ${JSON.stringify(randomUUID())})`);
+    await execute(
+      `desktop.send(${JSON.stringify(thread.id)}, [{ type: "text", text: "create file" }], ${JSON.stringify(randomUUID())})`,
+    );
     let state;
     for (let i = 0; i < 200; i++) {
       state = await execute(`desktop.getThread(${JSON.stringify(thread.id)})`);

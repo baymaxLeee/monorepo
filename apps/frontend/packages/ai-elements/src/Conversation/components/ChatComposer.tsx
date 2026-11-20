@@ -1,15 +1,16 @@
 import { type PromptInputRef, type PromptInputValue, type PromptSlashCommand } from "@repo/ai-elements/prompt-input";
 import { listProviders, type ModelProvider } from "@repo/api/admin";
 import { type ConversationDocument } from "@repo/api/chat";
-import { toast } from "@repo/design-system";
+import { Badge, toast } from "@repo/design-system";
 import { getErrorMessage } from "@repo/shared";
+import { XIcon } from "lucide-react";
 import { memo, type RefObject, useEffect, useState } from "react";
 
 import { uploadConversationFiles } from "../lib/upload-conversation-files";
 import { ChatComposerControls, type ReasoningEffort } from "./ChatComposerControls";
 import { ChatContextUsage } from "./ChatContextUsage";
 import { ChatPrompt } from "./ChatPrompt";
-import type { ApprovalPolicyValue, PermissionProfileValue } from "./ExecutionPolicy";
+import { ExecutionPolicy, type ApprovalPolicyValue, type PermissionProfileValue } from "./ExecutionPolicy";
 
 type ChatComposerProps = {
   id: string;
@@ -164,33 +165,55 @@ export const ChatComposer = memo(function ChatComposer({
         setActivatedSkillName(command.id);
         toast.add({ title: `已选择技能：${command.title}` });
       }}
-      footerRender={() => (
+      toolbarRender={
+        activatedSkillName
+          ? () => (
+              <div className="px-3 pt-2">
+                <Badge variant="secondary" className="h-7 gap-1 rounded-full pr-1.5 pl-2.5">
+                  <span className="font-mono text-xs">{activatedSkillName}</span>
+                  <button
+                    type="button"
+                    aria-label="取消技能"
+                    className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                    onClick={() => setActivatedSkillName(null)}
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </Badge>
+              </div>
+            )
+          : undefined
+      }
+      footerStartRender={() => (
         <>
-          <ChatComposerControls
-            models={models}
-            selectedModelId={selectedModelId}
-            onSelectModel={(providerId) => {
-              void onUpdateModelBinding(providerId, reasoningEffort).then(() => setSelectedModelId(providerId));
-            }}
-            reasoningEffort={reasoningEffort}
-            onReasoningEffortChange={(effort) => {
-              if (!selectedModelId) return;
-              void onUpdateModelBinding(selectedModelId, effort).then(() => setReasoningEffort(effort));
-            }}
+          <ExecutionPolicy
             approvalPolicy={approvalPolicy}
             permissionProfile={permissionProfile}
-            onExecutionPolicyChange={(value) => {
+            onChange={(value) => {
               void onUpdateExecutionPolicy(value).then(() => {
                 setApprovalPolicy(value.approvalPolicy);
                 setPermissionProfile(value.permissionProfile);
               });
             }}
-            activatedSkillName={activatedSkillName}
-            onClearSkill={() => setActivatedSkillName(null)}
             disabled={busy}
           />
           <ChatContextUsage conversationId={id ?? ""} refreshKey={traceRefreshKey} running={busy} />
         </>
+      )}
+      footerEndRender={() => (
+        <ChatComposerControls
+          models={models}
+          selectedModelId={selectedModelId}
+          onSelectModel={(providerId) => {
+            void onUpdateModelBinding(providerId, reasoningEffort).then(() => setSelectedModelId(providerId));
+          }}
+          reasoningEffort={reasoningEffort}
+          onReasoningEffortChange={(effort) => {
+            if (!selectedModelId) return;
+            void onUpdateModelBinding(selectedModelId, effort).then(() => setReasoningEffort(effort));
+          }}
+          disabled={busy}
+        />
       )}
     />
   );

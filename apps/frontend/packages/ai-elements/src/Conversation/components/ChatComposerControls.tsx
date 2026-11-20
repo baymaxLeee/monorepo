@@ -1,20 +1,20 @@
 import {
-  ModelSelector,
-  ModelSelectorContent,
-  ModelSelectorEmpty,
-  ModelSelectorGroup,
-  ModelSelectorInput,
-  ModelSelectorItem,
-  ModelSelectorList,
-  ModelSelectorName,
-  ModelSelectorTrigger,
-} from "@repo/ai-elements";
-import { Badge, Button } from "@repo/design-system";
-import { BrainCircuitIcon, GaugeIcon, SparklesIcon, XIcon } from "lucide-react";
+  Button,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Separator,
+} from "@repo/design-system";
+import { CheckIcon, ZapIcon } from "lucide-react";
 import { useState } from "react";
 
 import { composerControlClassName } from "../../composer-control-styles";
-import { ExecutionPolicy, type ApprovalPolicyValue, type PermissionProfileValue } from "./ExecutionPolicy";
 
 export interface ChatComposerControlsProps {
   models: ReadonlyArray<{ id: string; name: string; model?: string }>;
@@ -22,26 +22,18 @@ export interface ChatComposerControlsProps {
   onSelectModel?: (id: string) => void;
   reasoningEffort?: ReasoningEffort;
   onReasoningEffortChange?: (effort: ReasoningEffort) => void;
-  approvalPolicy?: ApprovalPolicyValue;
-  permissionProfile?: PermissionProfileValue;
-  onExecutionPolicyChange?: (value: {
-    approvalPolicy: ApprovalPolicyValue;
-    permissionProfile: PermissionProfileValue;
-  }) => void;
-  activatedSkillName?: string | null;
-  onClearSkill?: () => void;
   disabled?: boolean;
 }
 
 export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 const REASONING_OPTIONS: Array<{ id: ReasoningEffort; label: string }> = [
-  { id: "none", label: "关闭推理" },
-  { id: "minimal", label: "最少" },
+  { id: "none", label: "关闭" },
+  { id: "minimal", label: "最低" },
   { id: "low", label: "低" },
   { id: "medium", label: "中" },
   { id: "high", label: "高" },
-  { id: "xhigh", label: "很高" },
+  { id: "xhigh", label: "极高" },
   { id: "max", label: "最高" },
 ];
 
@@ -51,134 +43,90 @@ export function ChatComposerControls({
   onSelectModel,
   reasoningEffort,
   onReasoningEffortChange,
-  approvalPolicy,
-  permissionProfile,
-  onExecutionPolicyChange,
-  activatedSkillName,
-  onClearSkill,
   disabled,
 }: ChatComposerControlsProps) {
-  const [selectorOpen, setSelectorOpen] = useState(false);
-  const [reasoningOpen, setReasoningOpen] = useState(false);
-  const options = models.map((model) => ({
-    id: model.id,
-    label: model.name,
-    detail: model.model,
-  }));
-  const selectedLabel = options.find((option) => option.id === selectedModelId)?.label ?? "选择模型";
-  const reasoningLabel = REASONING_OPTIONS.find((option) => option.id === reasoningEffort)?.label ?? "中";
+  const [open, setOpen] = useState(false);
+  const selectedModel = models.find((model) => model.id === selectedModelId);
+  const selectedModelLabel = selectedModel?.name ?? "选择模型";
+  const reasoningLabel = REASONING_OPTIONS.find((option) => option.id === reasoningEffort)?.label;
+  const triggerContent = (
+    <>
+      <ZapIcon className="size-3.5 shrink-0 fill-current" aria-hidden="true" />
+      <span className="min-w-0 truncate text-foreground">{selectedModelLabel}</span>
+      {reasoningLabel ? <span className="shrink-0 text-muted-foreground">{reasoningLabel}</span> : null}
+    </>
+  );
+
+  if (!onSelectModel && !onReasoningEffortChange) {
+    return <span className="flex h-8 max-w-80 items-center gap-2 rounded-full px-2.5 text-xs">{triggerContent}</span>;
+  }
 
   return (
-    <>
-      {onSelectModel ? (
-        <ModelSelector open={selectorOpen} onOpenChange={setSelectorOpen}>
-          <ModelSelectorTrigger
-            render={
-              <Button
-                className={`h-8 max-w-72 justify-between gap-2 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground ${composerControlClassName}`}
-                disabled={options.length === 0 || disabled}
-                type="button"
-                variant="ghost"
-              />
-            }
-          >
-            <BrainCircuitIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate">{selectedLabel}</span>
-          </ModelSelectorTrigger>
-          <ModelSelectorContent title="选择推理模型">
-            <ModelSelectorInput placeholder="搜索模型…" />
-            <ModelSelectorList>
-              <ModelSelectorEmpty>没有可用的推理模型</ModelSelectorEmpty>
-              <ModelSelectorGroup>
-                {options.map((option) => (
-                  <ModelSelectorItem
-                    key={option.id}
-                    value={`${option.label} ${option.id}`}
-                    data-checked={option.id === selectedModelId}
-                    onSelect={() => {
-                      onSelectModel(option.id);
-                      setSelectorOpen(false);
-                    }}
-                  >
-                    <ModelSelectorName>{option.label}</ModelSelectorName>
-                    {option.detail ? <span className="text-xs text-muted-foreground">{option.detail}</span> : null}
-                  </ModelSelectorItem>
-                ))}
-              </ModelSelectorGroup>
-            </ModelSelectorList>
-          </ModelSelectorContent>
-        </ModelSelector>
-      ) : (
-        <span className="flex h-8 max-w-72 items-center gap-2 rounded-full px-2.5 text-xs text-muted-foreground">
-          <BrainCircuitIcon className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 truncate">{selectedLabel}</span>
-        </span>
-      )}
-      {reasoningEffort ? (
-        onReasoningEffortChange ? (
-          <ModelSelector open={reasoningOpen} onOpenChange={setReasoningOpen}>
-            <ModelSelectorTrigger
-              render={
-                <Button
-                  className={`h-8 gap-2 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground ${composerControlClassName}`}
-                  disabled={disabled}
-                  type="button"
-                  variant="ghost"
-                />
-              }
-            >
-              <GaugeIcon className="size-3.5" aria-hidden="true" />
-              推理：{reasoningLabel}
-            </ModelSelectorTrigger>
-            <ModelSelectorContent title="推理深度">
-              <ModelSelectorList>
-                <ModelSelectorGroup>
-                  {REASONING_OPTIONS.map((option) => (
-                    <ModelSelectorItem
-                      key={option.id}
-                      value={option.label}
-                      data-checked={option.id === reasoningEffort}
-                      onSelect={() => {
-                        onReasoningEffortChange(option.id);
-                        setReasoningOpen(false);
-                      }}
-                    >
-                      <ModelSelectorName>{option.label}</ModelSelectorName>
-                    </ModelSelectorItem>
-                  ))}
-                </ModelSelectorGroup>
-              </ModelSelectorList>
-            </ModelSelectorContent>
-          </ModelSelector>
-        ) : (
-          <span className="flex h-8 items-center gap-2 rounded-full px-2.5 text-xs text-muted-foreground">
-            <GaugeIcon className="size-3.5" aria-hidden="true" />
-            推理：{reasoningLabel}
-          </span>
-        )
-      ) : null}
-      {approvalPolicy && permissionProfile ? (
-        <ExecutionPolicy
-          approvalPolicy={approvalPolicy}
-          permissionProfile={permissionProfile}
-          onChange={onExecutionPolicyChange}
-          disabled={disabled}
-        />
-      ) : null}
-      {activatedSkillName ? (
-        <Badge variant="secondary" className="h-8 gap-1 rounded-full pl-2.5 pr-1.5">
-          <SparklesIcon className="size-3.5" />
-          <span className="font-mono text-xs">{activatedSkillName}</span>
-          <button
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
             type="button"
-            aria-label="取消技能"
-            className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20"
-            onClick={onClearSkill}
-          >
-            <XIcon className="size-3" />
-          </button>
-        </Badge>
-      ) : null}
-    </>
+            variant="ghost"
+            size="sm"
+            aria-label="模型与推理强度"
+            className={`h-8 max-w-80 gap-2 rounded-full px-2.5 text-xs ${composerControlClassName}`}
+            disabled={disabled || models.length === 0}
+          />
+        }
+      >
+        {triggerContent}
+      </PopoverTrigger>
+      <PopoverContent side="top" sideOffset={8} align="end" className="w-80 p-2">
+        <div className="px-2 pt-1 pb-2 text-xs font-medium text-muted-foreground">模型</div>
+        <Command>
+          <CommandInput placeholder="搜索模型…" />
+          <CommandList className="max-h-48">
+            <CommandEmpty>没有可用的推理模型</CommandEmpty>
+            <CommandGroup>
+              {models.map((model) => (
+                <CommandItem
+                  key={model.id}
+                  value={`${model.name} ${model.model ?? ""} ${model.id}`}
+                  aria-label={model.name}
+                  disabled={!onSelectModel}
+                  onSelect={() => onSelectModel?.(model.id)}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{model.name}</span>
+                    {model.model && model.model !== model.name ? (
+                      <span className="block truncate text-xs text-muted-foreground">{model.model}</span>
+                    ) : null}
+                  </span>
+                  {model.id === selectedModelId ? <CheckIcon className="size-4 shrink-0" aria-hidden="true" /> : null}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+        {reasoningEffort ? (
+          <>
+            <Separator className="my-2" />
+            <div className="px-2 pt-1 pb-2 text-xs font-medium text-muted-foreground">推理强度</div>
+            <div className="flex flex-wrap gap-1 px-1 pb-1">
+              {REASONING_OPTIONS.map((option) => (
+                <Button
+                  key={option.id}
+                  type="button"
+                  variant={option.id === reasoningEffort ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 flex-1 px-2 text-xs"
+                  aria-label={option.label}
+                  disabled={!onReasoningEffortChange}
+                  onClick={() => onReasoningEffortChange?.(option.id)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   );
 }

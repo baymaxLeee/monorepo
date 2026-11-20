@@ -1,39 +1,58 @@
-import {
-  ChatComposerControls,
-  ChatPrompt,
-  type ApprovalPolicyValue,
-  type ChatUIMessage,
-  type PermissionProfileValue,
-} from "@repo/ai-elements/conversation";
-import { buildUserFilePart } from "@repo/ai-elements/conversation/lib/file-parts";
-import { uploadConversationFiles } from "@repo/ai-elements/conversation/lib/upload-conversation-files";
+import { ChatPrompt, type ApprovalPolicyValue, type PermissionProfileValue } from "@repo/ai-elements/conversation";
 import type { PromptInputValue } from "@repo/ai-elements/prompt-input";
-import {
-  listAgentPluginOptions,
-  listProviders,
-  type AgentPluginSelectionOption,
-  type ModelProvider,
-} from "@repo/api/admin";
+import { listAgentPluginOptions, listProviders, type ModelProvider } from "@repo/api/admin";
 import { createConversation, type ReasoningEffort } from "@repo/api/chat";
+import { getDesktopBridge } from "@repo/runtime/desktop";
 import { getErrorMessage, randomId } from "@repo/shared";
-import { BotIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { PluginPicker } from "./PluginPicker";
+import { localPromptMessageParts } from "../local/local-user-message";
+import { DesktopNewConversationPrompt } from "./DesktopNewConversationPrompt";
+import { NewConversationEndControls, NewConversationStartControls } from "./NewConversationControls";
+import { localProjectLabel, NewConversationHero } from "./NewConversationHero";
+import { prepareCloudConversationRequest } from "./prepare-cloud-request";
+import { useDesktopProjects } from "./useDesktopProjects";
 
 export function ConversationListPage() {
+  const bridge = getDesktopBridge();
   const navigate = useNavigate();
+  const [location, setLocation] = useState<"cloud" | "local">(() => (bridge ? "local" : "cloud"));
   const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicyValue>("on-request");
   const [permissionProfile, setPermissionProfile] = useState<PermissionProfileValue>(":workspace");
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
-  const [plugins, setPlugins] = useState<AgentPluginSelectionOption[]>([]);
   const [selectedPluginIds, setSelectedPluginIds] = useState<string[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
+  const [localAvailable, setLocalAvailable] = useState<boolean | null>(() => (bridge ? null : false));
+  const { projects, project, setProject, selectingProject, createProject } = useDesktopProjects(
+    localAvailable === true ? bridge : null,
+    setError,
+  );
+
+  useEffect(() => {
+    if (!bridge) return;
+    let cancelled = false;
+    void bridge
+      .info()
+      .then((info) => {
+        if (cancelled) return;
+        setLocalAvailable(info.localAvailable);
+        if (!info.localAvailable) setLocation("cloud");
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setLocalAvailable(false);
+        setLocation("cloud");
+        setError(getErrorMessage(cause));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bridge]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,7 +74,6 @@ export function ConversationListPage() {
     const controller = new AbortController();
     void listAgentPluginOptions({ signal: controller.signal, skipErrorNotify: true })
       .then((items) => {
-        setPlugins(items);
         setSelectedPluginIds(
           items
             .filter((plugin) => plugin.selectedByDefault)
@@ -63,47 +81,9 @@ export function ConversationListPage() {
             .sort(),
         );
       })
-      .catch(() => setPlugins([]));
+      .catch(() => setSelectedPluginIds([]));
     return () => controller.abort();
   }, []);
-
-  async function prepareRequest(conversationId: string, value: PromptInputValue) {
-    const items = value.tokens.flatMap((token) => {
-      const file = value.files[token.id];
-      return file ? [{ token, file }] : [];
-    });
-    const uploaded =
-      items.length > 0
-        ? await uploadConversationFiles({
-            conversationId,
-            providerId: selectedModelId ?? undefined,
-            items,
-          })
-        : null;
-    if (uploaded?.failed?.length) {
-      throw new Error(uploaded.failed.map((failure) => failure.error).join("；"));
-    }
-    const documents = new Map(uploaded?.documents.map((item) => [item.client_ref, item.document]) ?? []);
-    const parts = value.segments.flatMap((segment): ChatUIMessage["parts"][number][] => {
-      if (segment.type === "text") return segment.text ? [{ type: "text", text: segment.text }] : [];
-      const document = documents.get(segment.token.id);
-      if (!document?.asset_id || !document.source_revision_id) return [];
-      return [
-        buildUserFilePart({
-          conversationId,
-          documentId: document.id,
-          assetId: document.asset_id,
-          revisionId: document.source_revision_id,
-          filename: segment.token.label,
-          mimeType: segment.token.mime ?? "application/octet-stream",
-        }),
-      ];
-    });
-    if (!parts.some((part) => part.type === "text")) {
-      parts.push({ type: "text", text: "请阅读并处理我附加的文件。" });
-    }
-    return parts;
-  }
 
   async function submit(value: PromptInputValue) {
     if (pending.current || (!value.text.trim() && value.tokens.length === 0)) return;
@@ -112,6 +92,28 @@ export function ConversationListPage() {
     setError(null);
     try {
       if (!selectedModelId) throw new Error("请选择推理模型");
+      if (location === "local") {
+        if (!bridge) throw new Error("本地会话需要桌面应用");
+        if (localAvailable !== true) throw new Error("本地执行环境不可用");
+        if (!project) throw new Error("请先选择项目");
+        const parts = await localPromptMessageParts(value);
+        const thread = await bridge.createThread(
+          project,
+          selectedModelId,
+          reasoningEffort,
+          approvalPolicy,
+          permissionProfile,
+          selectedPluginIds.map((pluginId) => ({ pluginId })),
+        );
+        try {
+          await bridge.send(thread.id, parts, randomId());
+        } catch (cause) {
+          await bridge.removeThread(thread.id).catch(() => {});
+          throw cause;
+        }
+        void navigate(`/platform/chat/local/${thread.id}`);
+        return;
+      }
       const conversation = await createConversation({
         request_id: randomId(),
         provider_id: selectedModelId,
@@ -120,7 +122,11 @@ export function ConversationListPage() {
         permission_profile: permissionProfile,
         plugin_selections: selectedPluginIds.map((plugin_id) => ({ plugin_id })),
       });
-      const parts = await prepareRequest(conversation.id, value);
+      const parts = await prepareCloudConversationRequest({
+        conversationId: conversation.id,
+        providerId: selectedModelId,
+        value,
+      });
       void navigate(`/platform/chat/conversations/${conversation.id}`, {
         state: { refreshConversationHistory: true, externalRequest: { id: randomId(), parts } },
       });
@@ -134,51 +140,89 @@ export function ConversationListPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 pb-8 text-center">
-        <span className="flex size-12 items-center justify-center rounded-2xl border bg-card text-muted-foreground shadow-sm">
-          <BotIcon className="size-6" aria-hidden="true" />
-        </span>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">有什么可以帮你？</h1>
-      </div>
+      <NewConversationHero
+        desktop={Boolean(bridge)}
+        target={location === "local" ? localProjectLabel(project) : "云端"}
+      />
       {error ? (
         <p role="alert" className="mx-auto w-full max-w-4xl px-4 text-sm text-destructive">
           {error}
         </p>
       ) : null}
-      <ChatPrompt
-        autoFocus
-        placeholder="发送消息或创建任务…"
-        loading={busy}
-        disabled={false}
-        maxFiles={8}
-        maxFileSize={10 * 1024 * 1024}
-        onError={setError}
-        onSubmit={(value) => void submit(value)}
-        footerRender={() => (
-          <>
-            <ChatComposerControls
-              models={models}
-              selectedModelId={selectedModelId}
-              onSelectModel={setSelectedModelId}
-              reasoningEffort={reasoningEffort}
-              onReasoningEffortChange={setReasoningEffort}
+      {bridge ? (
+        <DesktopNewConversationPrompt
+          autoFocus
+          placeholder="随心输入"
+          loading={busy}
+          disabled={false}
+          maxFiles={8}
+          maxFileSize={10 * 1024 * 1024}
+          onError={setError}
+          onSubmit={(value) => void submit(value)}
+          location={location}
+          onLocationChange={setLocation}
+          localAvailable={localAvailable !== false}
+          projects={projects}
+          project={project}
+          onProjectChange={setProject}
+          onCreateProject={() => void createProject()}
+          selectingProject={selectingProject}
+          contextDisabled={busy}
+          footerStartRender={() => (
+            <NewConversationStartControls
               approvalPolicy={approvalPolicy}
               permissionProfile={permissionProfile}
-              onExecutionPolicyChange={(value) => {
+              onChange={(value) => {
                 setApprovalPolicy(value.approvalPolicy);
                 setPermissionProfile(value.permissionProfile);
               }}
               disabled={busy}
             />
-            <PluginPicker
-              plugins={plugins}
-              selected={selectedPluginIds}
-              onChange={setSelectedPluginIds}
+          )}
+          footerEndRender={() => (
+            <NewConversationEndControls
+              models={models}
+              selectedModelId={selectedModelId}
+              onSelectModel={setSelectedModelId}
+              reasoningEffort={reasoningEffort}
+              onReasoningChange={setReasoningEffort}
               disabled={busy}
             />
-          </>
-        )}
-      />
+          )}
+        />
+      ) : (
+        <ChatPrompt
+          autoFocus
+          placeholder="发送消息或创建任务…"
+          loading={busy}
+          disabled={false}
+          maxFiles={8}
+          maxFileSize={10 * 1024 * 1024}
+          onError={setError}
+          onSubmit={(value) => void submit(value)}
+          footerStartRender={() => (
+            <NewConversationStartControls
+              approvalPolicy={approvalPolicy}
+              permissionProfile={permissionProfile}
+              onChange={(value) => {
+                setApprovalPolicy(value.approvalPolicy);
+                setPermissionProfile(value.permissionProfile);
+              }}
+              disabled={busy}
+            />
+          )}
+          footerEndRender={() => (
+            <NewConversationEndControls
+              models={models}
+              selectedModelId={selectedModelId}
+              onSelectModel={setSelectedModelId}
+              reasoningEffort={reasoningEffort}
+              onReasoningChange={setReasoningEffort}
+              disabled={busy}
+            />
+          )}
+        />
+      )}
     </div>
   );
 }

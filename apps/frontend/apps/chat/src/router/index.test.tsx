@@ -9,7 +9,7 @@ function paths(items: RouteObject[]): string[] {
     .filter((path): path is string => Boolean(path));
 }
 
-test("Chat exposes only the shared cloud conversation routes", () => {
-  expect(paths(routes)).not.toContain("local/:id?");
+test("Chat exposes the shared cloud routes and the Desktop local-session controller", () => {
+  expect(paths(routes)).toContain("local/:id");
   expect(paths(routes)).toContain("conversations/:id");
 });

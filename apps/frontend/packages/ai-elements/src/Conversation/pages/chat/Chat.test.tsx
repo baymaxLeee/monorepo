@@ -173,6 +173,7 @@ vi.mock("../../components/ChatComposerControls", () => ({
   ChatComposerControls: () => null,
 }));
 vi.mock("../../components/ChatContextUsage", () => ({ ChatContextUsage: () => null }));
+vi.mock("../../components/ExecutionPolicy", () => ({ ExecutionPolicy: () => null }));
 vi.mock("@repo/ai-elements/prompt-input", () => ({
   PromptInput: ({
     ref,
@@ -180,7 +181,8 @@ vi.mock("@repo/ai-elements/prompt-input", () => ({
     onSubmit,
     loading,
     submitWhileLoading,
-    footerRender,
+    footerStartRender,
+    footerEndRender,
   }: {
     ref?: { current: unknown };
     onStop: () => void;
@@ -192,7 +194,8 @@ vi.mock("@repo/ai-elements/prompt-input", () => ({
     }) => void;
     loading: boolean;
     submitWhileLoading?: boolean;
-    footerRender: () => ReactNode;
+    footerStartRender: () => ReactNode;
+    footerEndRender: () => ReactNode;
   }) => {
     state.composerRenders++;
     if (ref)
@@ -217,7 +220,8 @@ vi.mock("@repo/ai-elements/prompt-input", () => ({
           发送补充
         </button>
         <button onClick={onStop}>停止</button>
-        {footerRender()}
+        {footerStartRender()}
+        {footerEndRender()}
       </>
     );
   },
