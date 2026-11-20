@@ -11,5 +11,5 @@ fi
 # Idempotent (safe to run on every `just up`), per workflow's own docs.
 echo "→ Setting up workflow-postgres schema..."
 cd "$RUNTIME_DIR"
-pnpm exec node --env-file=.env.worker node_modules/@workflow/world-postgres/dist/cli.js
+pnpm exec node --env-file=.env.worker node_modules/@workflow/world-postgres/bin/setup.js
 echo "✓ workflow-postgres schema ready"
