@@ -10,8 +10,12 @@
     "./plugins/*": "./src/plugins/*.ts",
     "./protocol/*": "./src/protocol/*.ts",
     "./runtime/environment": "./src/runtime/environment.ts",
+    "./runtime/exec-policy": "./src/runtime/exec-policy.ts",
     "./runtime/execution-host": "./src/runtime/execution-host.ts",
     "./runtime/input-queue": "./src/runtime/input-queue.ts",
+    "./runtime/permissions": "./src/runtime/permissions.ts",
+    "./runtime/process-manager": "./src/runtime/process-manager.ts",
+    "./runtime/tool-orchestrator": "./src/runtime/tool-orchestrator.ts",
     "./runtime/types": "./src/runtime/types.ts",
     "./tools/*": "./src/tools/*.ts"
   },

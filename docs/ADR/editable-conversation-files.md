@@ -107,7 +107,13 @@ Claim intent 的 generation 随内容切换递增并绑定同 Asset 的新精确
 
 ## Sandbox 与 Agent 契约
 
-云端在稳定的工作区路径恢复会话文件。外部 Knowledge 原件放在只读 `sources/`。模型用 Bash 操作业务文件，通过 `upload_artifacts({ paths })` 指定交付物。Runtime 依据本轮导入或发布的路径基准解析文件身份，已有文件按 ETag 与路径代际更新，新路径登记新身份。冲突保留修改并报告失败；另存需要显式选择新路径。运行收尾负责持久化其余工作文件。
+云端在稳定的工作区路径恢复会话文件。外部 Knowledge 原件放在只读 `sources/`。模型用
+`read_file` 获取 UTF-8 内容与 SHA-256 基准，用 `apply_patch` 做局部 add/update/delete/move，
+用带 expected SHA-256 的 `write_file` 完整覆盖；目录发现、CLI、生成二进制和批处理仍由 Bash 完成。
+这些工具都进入同一个 sandbox/approval/audit 边界，不能通过宿主文件系统旁路。`upload_artifacts({ paths })`
+只指定对用户可见的交付物，不承担工作草稿保存。Runtime 依据本轮导入或发布的路径基准解析文件身份，
+已有文件按 ETag 与路径代际更新，新路径登记新身份。冲突保留修改并报告失败；另存需要显式选择新路径。
+运行收尾负责持久化其余工作文件。
 
 运行中用户保存仍经过工作区写屏障和 CAS。审批、回收、恢复和并发协调见 [Sandbox 双模式决策](sandbox-execution-modes.md)。
 

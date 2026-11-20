@@ -32,7 +32,11 @@ vi.mock("@repo/api/chat", () => ({
   })),
 }));
 vi.mock("@repo/ai-elements/conversation", () => ({
-  ApprovalMode: ({ value }: { value: string }) => <span>授权 {value}</span>,
+  ExecutionPolicy: ({ approvalPolicy, permissionProfile }: { approvalPolicy: string; permissionProfile: string }) => (
+    <span>
+      授权 {approvalPolicy} {permissionProfile}
+    </span>
+  ),
   ConversationSessionView: ({
     composer,
     issue,
@@ -110,7 +114,8 @@ function fixture() {
     workspace: "/project",
     providerId: "provider",
     reasoningEffort: "medium",
-    approvalMode: "auto",
+    approvalPolicy: "on-request",
+    permissionProfile: ":workspace",
     pluginActivations: [],
     status: "waiting",
     error: null,

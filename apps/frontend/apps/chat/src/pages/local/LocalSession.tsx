@@ -4,7 +4,7 @@ import {
   ChatComposerControls,
   ChatPrompt,
   ConversationSessionView,
-  ApprovalMode,
+  ExecutionPolicy,
   type ChatUIMessage,
 } from "@repo/ai-elements/conversation";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
@@ -57,7 +57,8 @@ export function LocalSession({
     turnId: initial.turnId,
     error: initial.error,
     pendingInputs: initial.pendingInputs,
-    approvalMode: initial.approvalMode,
+    approvalPolicy: initial.approvalPolicy,
+    permissionProfile: initial.permissionProfile,
   });
   const approving = useRef(false);
   const scrollRef = useRef<ConversationScrollHandle>(null);
@@ -91,7 +92,8 @@ export function LocalSession({
               turnId: thread.turnId,
               error: thread.error,
               pendingInputs: thread.pendingInputs,
-              approvalMode: thread.approvalMode,
+              approvalPolicy: thread.approvalPolicy,
+              permissionProfile: thread.permissionProfile,
             });
             await chat.resumeStream();
           })
@@ -104,7 +106,8 @@ export function LocalSession({
           turnId: event.thread.turnId,
           error: event.thread.error,
           pendingInputs: event.thread.pendingInputs,
-          approvalMode: event.thread.approvalMode,
+          approvalPolicy: event.thread.approvalPolicy,
+          permissionProfile: event.thread.permissionProfile,
         });
         if (event.thread.status !== "running") chat.messages = event.thread.messages as ChatUIMessage[];
       }
@@ -224,12 +227,14 @@ export function LocalSession({
                 reasoningEffort={initial.reasoningEffort}
               />
               <ContextUsage value={null} loading={busy} />
-              <ApprovalMode
-                value={state.approvalMode}
-                onChange={(approvalMode) => {
+              <ExecutionPolicy
+                approvalPolicy={state.approvalPolicy}
+                permissionProfile={state.permissionProfile}
+                disabled={busy || state.status === "waiting"}
+                onChange={({ approvalPolicy, permissionProfile }) => {
                   setError(null);
                   void bridge
-                    .setApprovalMode(initial.id, approvalMode)
+                    .setExecutionPolicy(initial.id, approvalPolicy, permissionProfile)
                     .catch((cause) => setError(getErrorMessage(cause)));
                 }}
               />

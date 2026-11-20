@@ -1,6 +1,7 @@
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { COMPACTION_STATE_VERSION } from "@repo/agent-runtime/context/compaction";
 import type { ResolvedTurnPluginSnapshot } from "@repo/agent-runtime/plugins/types";
@@ -23,7 +24,8 @@ function thread(id: string, title: string): LocalThread {
     workspace: "/project",
     providerId: "provider",
     reasoningEffort: "medium",
-    approvalMode: "auto",
+    approvalPolicy: "on-request",
+    permissionProfile: ":workspace",
     pluginActivations: [],
     status: "idle",
     turnId: "33333333-3333-4333-8333-333333333333",
@@ -32,6 +34,16 @@ function thread(id: string, title: string): LocalThread {
     pendingInputs: [],
     messages: [{ id: `${id}-message`, role: "user", parts: [{ type: "text", text: title }] }],
   };
+}
+
+function replaceMetadata(directory: string, id: string, update: (value: Record<string, unknown>) => void): void {
+  const database = new DatabaseSync(join(directory, "runtime.sqlite"));
+  const row = database.prepare("SELECT metadata FROM threads WHERE id=?").get(id);
+  if (!row) throw new Error("missing test thread");
+  const metadata = JSON.parse(String(row.metadata)) as Record<string, unknown>;
+  update(metadata);
+  database.prepare("UPDATE threads SET metadata=? WHERE id=?").run(JSON.stringify(metadata), id);
+  database.close();
 }
 
 function pluginSnapshot(): ResolvedTurnPluginSnapshot {
@@ -99,6 +111,34 @@ it("installs context checkpoints with revision fencing", async () => {
     }),
   ).toThrow("revision conflict");
   journal.close();
+});
+
+it("rejects legacy or incomplete execution policy metadata without migration", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "runtime-policy-metadata-"));
+  directories.push(directory);
+  const id = "55555555-5555-4555-8555-555555555555";
+  const journal = new LocalJournal(directory);
+  journal.save(thread(id, "policy"));
+  journal.close();
+
+  replaceMetadata(directory, id, (metadata) => {
+    delete metadata.approvalPolicy;
+    metadata.approvalMode = "auto";
+  });
+  const legacy = new LocalJournal(directory);
+  expect(() => legacy.list()).toThrow("已移除的 approvalMode");
+  expect(() => legacy.get(id)).toThrow("已移除的 approvalMode");
+  legacy.close();
+
+  replaceMetadata(directory, id, (metadata) => {
+    delete metadata.approvalMode;
+    metadata.approvalPolicy = "on-request";
+    delete metadata.permissionProfile;
+  });
+  const incomplete = new LocalJournal(directory);
+  expect(() => incomplete.list()).toThrow("permissionProfile");
+  expect(() => incomplete.get(id)).toThrow("permissionProfile");
+  incomplete.close();
 });
 
 it("persists an immutable Turn plugin snapshot without connection grants", async () => {

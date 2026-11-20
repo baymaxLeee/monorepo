@@ -11,6 +11,7 @@
     "format:ts:check": "oxfmt --check oxlint.config.ts oxfmt.config.ts package.json pnpm-workspace.yaml 'apps/{frontend,backend}/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'packages/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}' 'scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,json,jsonc}'"
   },
   "devDependencies": {
+    "openapi-typescript": "catalog:",
     "oxfmt": "^0.60.0",
     "oxlint": "^1.75.0",
     "oxlint-tsgolint": "^7.0.2001",

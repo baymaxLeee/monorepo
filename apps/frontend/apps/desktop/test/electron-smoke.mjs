@@ -155,12 +155,14 @@ async function run() {
     await execute('fetch("/api/iam-server/test-login", { method: "POST", credentials: "include" })');
     assert.equal((await execute("desktop.refreshSession()")).accessToken, "fixture-token");
     await assert.rejects(
-      execute(`desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto", [])`),
+      execute(
+        `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "on-request", ":workspace", [])`,
+      ),
     );
     const selectedWorkspace = await execute("desktop.selectWorkspace()");
     assert.equal(selectedWorkspace, workspace);
     const thread = await execute(
-      `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "auto", [])`,
+      `desktop.createThread(${JSON.stringify(workspace)}, "provider", "medium", "on-request", ":workspace", [])`,
     );
     assert.equal(thread.mode, "local");
     await execute(`desktop.send(${JSON.stringify(thread.id)}, "create file", ${JSON.stringify(randomUUID())})`);

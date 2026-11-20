@@ -1,7 +1,7 @@
 import { INSTRUCTION_SECTION_TAGS } from "../instructions/section-tags.js";
 import { escapeXmlText, xmlSection } from "../instructions/xml.js";
 
-export type NetworkAccess = "disabled" | "environment" | "public";
+export type NetworkAccess = "disabled" | "restricted" | "environment" | "public";
 
 /**
  * Immutable behavioral facts about the host selected for this thread. The model sees this
@@ -27,7 +27,11 @@ export interface ExecutionEnvironment {
     backgroundServices: "unsupported" | "turn-scoped";
   };
   deliverables: "workspace-reference" | "session-file";
-  approvals: "request" | "auto" | "full" | "policy";
+  permissions: {
+    profileId: string;
+    enforcement: "managed" | "disabled" | "external";
+    approvalPolicy: "never" | "on-request" | "unless-trusted" | "granular";
+  };
 }
 
 function assertEnvironment(environment: ExecutionEnvironment): void {

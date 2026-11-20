@@ -21,18 +21,21 @@ import {
   hasPendingToolApprovals,
 } from "@repo/agent-runtime/protocol/lifecycle";
 import { attachExecutionEnvironment, type ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
+import { canonicalizeShellCommand, ExecPolicy } from "@repo/agent-runtime/runtime/exec-policy";
 import { createExecutionHostManifests } from "@repo/agent-runtime/runtime/execution-host";
+import { compilePermissionProfile, type ApprovalPolicy } from "@repo/agent-runtime/runtime/permissions";
+import { ToolOrchestrator, type SandboxViolation } from "@repo/agent-runtime/runtime/tool-orchestrator";
 import { DIRECT_TOOL_CALL } from "@repo/agent-runtime/tools/code-mode";
-import { manifestsToTools, transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
-import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
+import { deferAgentToolLoading, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { WebSearchInput, WebSearchOutput } from "@repo/agent-runtime/tools/web";
 import { isToolUIPart, readUIMessageStream, toUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 
 import type {
   DesktopEvent,
-  LocalApprovalMode,
+  LocalApprovalPolicy,
   LocalPendingInput,
+  LocalPermissionProfileId,
   LocalPluginActivation,
   LocalThread,
 } from "../../contracts/bridge.generated";
@@ -48,6 +51,26 @@ function localWorkspacePath(root: string, value: string): string {
     throw new Error("发布文件必须位于授权工作目录内");
   }
   return path;
+}
+
+function networkViolationHint(command: string): SandboxViolation | undefined {
+  const canonical = canonicalizeShellCommand(command);
+  if (!canonical.analyzable) return undefined;
+  for (const token of canonical.commands.flat()) {
+    try {
+      const url = new URL(token);
+      if (url.protocol !== "http:" && url.protocol !== "https:") continue;
+      return {
+        type: "network",
+        host: url.hostname,
+        port: url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80,
+        protocol: url.protocol === "https:" ? "https" : "http",
+      };
+    } catch {
+      // Non-URL argv tokens do not describe a network authority.
+    }
+  }
+  return undefined;
 }
 
 function publishedArtifacts(messages: UIMessage[]): Map<string, PublishedWorkspaceFile> {
@@ -107,6 +130,7 @@ export class DesktopSessionManager {
   private segments = new Map<string, { id: string; messages: UIMessage[]; chunks: UIMessageChunk[]; done: boolean }>();
   private current = new Map<string, LocalThread>();
   private observedWorkspaceEpochs = new Map<string, number>();
+  private orchestrators = new Map<string, ToolOrchestrator>();
   constructor(private readonly options: DesktopSessionOptions) {
     this.journal = new LocalJournal(options.directory);
     this.plugins = options.pluginLoader ?? new PluginManager();
@@ -139,7 +163,8 @@ export class DesktopSessionManager {
     workspace: string,
     providerId: string,
     reasoningEffort: ReasoningEffort,
-    approvalMode: LocalApprovalMode,
+    approvalPolicy: LocalApprovalPolicy,
+    permissionProfile: LocalPermissionProfileId,
     pluginActivations: LocalPluginActivation[],
   ) {
     if (this.closed) throw new Error("本地运行时正在关闭");
@@ -150,7 +175,8 @@ export class DesktopSessionManager {
       workspace: await realpath(workspace),
       providerId,
       reasoningEffort,
-      approvalMode,
+      approvalPolicy,
+      permissionProfile,
       pluginActivations: structuredClone(pluginActivations),
       status: "idle",
       turnId: null,
@@ -235,7 +261,8 @@ export class DesktopSessionManager {
   }
   async file(id: string, operation: Record<string, unknown>) {
     const thread = this.get(id);
-    return this.access(thread, (workspace) => workspace.sandbox.file(operation));
+    const profile = compilePermissionProfile(thread.permissionProfile, { workspaceRoot: thread.workspace }).profile;
+    return this.access(thread, (workspace) => workspace.sandbox.file(profile, operation));
   }
   openStream(id: string) {
     return { thread: this.get(id), segment: this.segments.get(id) ?? null };
@@ -304,9 +331,13 @@ export class DesktopSessionManager {
     this.save(thread);
     if (!hasPendingToolApprovals(thread.messages)) this.start(thread);
   }
-  setApprovalMode(id: string, approvalMode: LocalApprovalMode) {
+  setExecutionPolicy(id: string, approvalPolicy: LocalApprovalPolicy, permissionProfile: LocalPermissionProfileId) {
     const thread = this.get(id);
-    thread.approvalMode = approvalMode;
+    if (this.active.has(id) || thread.status === "waiting") {
+      throw new Error("当前轮次的权限与审批策略已冻结");
+    }
+    thread.approvalPolicy = approvalPolicy;
+    thread.permissionProfile = permissionProfile;
     this.save(thread);
   }
   private start(thread: LocalThread) {
@@ -382,6 +413,21 @@ export class DesktopSessionManager {
         // a host protocol gap, not a separately curated portable default set.
         clientInteraction: false,
       });
+      const activePermission = compilePermissionProfile(thread.permissionProfile, { workspaceRoot: thread.workspace });
+      const orchestrator =
+        this.orchestrators.get(turnId) ??
+        new ToolOrchestrator({
+          approvalPolicy: thread.approvalPolicy as ApprovalPolicy,
+          permissionProfile: activePermission.profile,
+          fileSystemPolicy: {
+            workspaceRoot: thread.workspace,
+            workingDirectory: thread.workspace,
+            immutableWriteRoots: this.options.controlDirectories,
+          },
+          execPolicy: new ExecPolicy(),
+          processManager: runWorkspace.sandbox.processes,
+        });
+      this.orchestrators.set(turnId, orchestrator);
       const environment = {
         location: "local",
         workspace: {
@@ -391,17 +437,110 @@ export class DesktopSessionManager {
           persistence: "host",
           externalSources: "unavailable",
         },
-        network: { access: "public", protocols: ["http", "https"] },
+        network: {
+          access: activePermission.profile.type === "disabled" ? "public" : "restricted",
+          protocols: ["http", "https"],
+        },
         process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
         deliverables: "workspace-reference",
-        approvals: thread.approvalMode,
+        permissions: {
+          profileId: activePermission.id,
+          enforcement: activePermission.profile.type,
+          approvalPolicy: thread.approvalPolicy,
+        },
       } as const satisfies ExecutionEnvironment;
       const executionManifests = createExecutionHostManifests({
         environment,
+        orchestrator,
+        files: {
+          readText: async ({ path }, authority, options) => {
+            const signal = options.abortSignal
+              ? AbortSignal.any([options.abortSignal, authority.abortSignal])
+              : authority.abortSignal;
+            const result = await this.access(thread, (current) => {
+              if (current.epoch !== modelEpoch) {
+                throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
+              }
+              return current.sandbox.file(authority.permissionProfile, { operation: "readOptional", path }, signal);
+            });
+            if (result === null) return null;
+            if (
+              !result ||
+              typeof result !== "object" ||
+              !("content" in result) ||
+              typeof result.content !== "string" ||
+              !("hash" in result) ||
+              typeof result.hash !== "string" ||
+              !/^[a-f0-9]{64}$/u.test(result.hash)
+            ) {
+              throw new Error("文件 helper 返回了无效读取结果");
+            }
+            return { content: result.content, sha256: result.hash, bytes: Buffer.byteLength(result.content) };
+          },
+          writeText: async ({ path, content, mode, expectedSha256 }, authority, options) => {
+            const signal = options.abortSignal
+              ? AbortSignal.any([options.abortSignal, authority.abortSignal])
+              : authority.abortSignal;
+            const result = await this.access(thread, async (current) => {
+              if (current.epoch !== modelEpoch) {
+                throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
+              }
+              const written = await current.sandbox.file(
+                authority.permissionProfile,
+                {
+                  operation: "write",
+                  path,
+                  content,
+                  expectedHash: mode === "create" ? null : expectedSha256,
+                },
+                signal,
+              );
+              await new Promise<void>((resolve) => {
+                setImmediate(resolve);
+              });
+              current.flushChanges();
+              return written;
+            });
+            if (
+              !result ||
+              typeof result !== "object" ||
+              !("hash" in result) ||
+              typeof result.hash !== "string" ||
+              !/^[a-f0-9]{64}$/u.test(result.hash)
+            ) {
+              throw new Error("文件 helper 返回了无效写入结果");
+            }
+            return {
+              path,
+              sha256: result.hash,
+              bytes: Buffer.byteLength(content),
+              created: mode === "create",
+            };
+          },
+          deleteFile: async ({ path, expectedSha256 }, authority, options) => {
+            const signal = options.abortSignal
+              ? AbortSignal.any([options.abortSignal, authority.abortSignal])
+              : authority.abortSignal;
+            await this.access(thread, async (current) => {
+              if (current.epoch !== modelEpoch) {
+                throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
+              }
+              await current.sandbox.file(
+                authority.permissionProfile,
+                { operation: "delete", path, expectedHash: expectedSha256 },
+                signal,
+              );
+              await new Promise<void>((resolve) => {
+                setImmediate(resolve);
+              });
+              current.flushChanges();
+            });
+          },
+        },
         deliver: async (candidate, options) => {
           const path = localWorkspacePath(thread.workspace, candidate);
           const inspection = await this.access(thread, (current) =>
-            current.sandbox.file({ operation: "inspect", path }, options.abortSignal),
+            current.sandbox.file(activePermission.profile, { operation: "inspect", path }, options.abortSignal),
           );
           if (
             !inspection ||
@@ -429,10 +568,11 @@ export class DesktopSessionManager {
           artifacts.set(fileId, data);
           return data;
         },
-        run: (input, options) =>
+        run: (input, attempt, options) =>
           this.access(thread, async (w) => {
             if (w.epoch !== modelEpoch) throw new Error("工作区在推理后发生变化，请重新读取相关输入再执行");
             const result = await w.sandbox.execute(
+              attempt,
               "/bin/bash",
               [
                 "--noprofile",
@@ -446,33 +586,20 @@ export class DesktopSessionManager {
               undefined,
               options.abortSignal,
               input.timeout_ms,
+              networkViolationHint(input.command),
             );
             await new Promise<void>((resolve) => {
               setImmediate(resolve);
             });
             w.flushChanges();
-            return {
-              exitCode: result.code,
-              stdout: result.stdout,
-              stderr: result.stderr,
-              timedOut: result.timedOut,
-              timeoutMs: input.timeout_ms,
-            };
+            return result;
           }),
       });
       const pluginManifests = pluginSet.manifests.map((manifest) => {
         if (manifest.policy.source !== "mcp") {
           throw new Error(`agent plugin ${manifest.policy.pluginId ?? "unknown"} contributed a non-MCP tool`);
         }
-        return manifest.tool
-          ? {
-              ...manifest,
-              tool: transformToolPreservingCaller(manifest.tool, (definition) => ({
-                ...definition,
-                deferLoading: true,
-              })),
-            }
-          : manifest;
+        return deferAgentToolLoading(manifest);
       });
       const manifests = [...portableTools.manifests, ...executionManifests, ...pluginManifests];
       const tools = manifestsToTools(manifests);
@@ -498,7 +625,7 @@ export class DesktopSessionManager {
           settings: {
             model,
             tools,
-            toolApproval: createToolApprovalPolicy({ getApprovalMode: () => thread.approvalMode }),
+            toolApproval: orchestrator.toolApproval,
             activeTools,
             toolOrder: [...activeTools].sort(),
             experimental_toolCallers: codeModeToolCallers as never,
@@ -581,6 +708,10 @@ export class DesktopSessionManager {
       workspace?.sandbox.cancel();
       if (workspace) await workspace.queue;
       await Promise.allSettled([...settlements]);
+      if (thread.status !== "waiting" && thread.turnId) {
+        this.orchestrators.get(thread.turnId)?.close();
+        this.orchestrators.delete(thread.turnId);
+      }
       thread.pendingInputs = thread.pendingInputs.filter((input) => input.state !== "delivered");
       try {
         this.save(thread);
@@ -614,12 +745,21 @@ export class DesktopSessionManager {
       thread.error = "用户停止了待审批轮次";
       thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
       this.save(thread);
+      if (thread.turnId) {
+        this.orchestrators.get(thread.turnId)?.close();
+        this.orchestrators.delete(thread.turnId);
+      }
     }
   }
   async remove(id: string) {
     await this.stop(id);
     this.segments.delete(id);
     this.observedWorkspaceEpochs.delete(id);
+    const turnId = this.get(id).turnId;
+    if (turnId) {
+      this.orchestrators.get(turnId)?.close();
+      this.orchestrators.delete(turnId);
+    }
     this.journal.remove(id);
   }
   private async release(id: string) {
@@ -638,6 +778,8 @@ export class DesktopSessionManager {
     this.closed = true;
     await Promise.all([...this.active.keys()].map((id) => this.stop(id)));
     await Promise.all([...this.workspaces.keys()].map((id) => this.release(id)));
+    for (const orchestrator of this.orchestrators.values()) orchestrator.close();
+    this.orchestrators.clear();
     this.journal.close();
   }
 }

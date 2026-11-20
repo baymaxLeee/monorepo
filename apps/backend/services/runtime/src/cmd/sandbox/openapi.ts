@@ -77,6 +77,13 @@ process.stdout.write(
             parameters: [
               ...fileParams,
               { name: "X-Sandbox-Workspace-Edit", in: "header", required: false, schema: { type: "string" } },
+              { name: "mode", in: "query", required: false, schema: { type: "string", enum: ["create", "overwrite"] } },
+              {
+                name: "expected_sha256",
+                in: "query",
+                required: false,
+                schema: { type: "string", pattern: "^[a-f0-9]{64}$" },
+              },
             ],
             requestBody: {
               required: true,
@@ -93,6 +100,20 @@ process.stdout.write(
                 description: "original file bytes",
                 content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
               },
+            },
+          },
+          delete: {
+            parameters: [
+              ...fileParams,
+              {
+                name: "expected_sha256",
+                in: "query",
+                required: true,
+                schema: { type: "string", pattern: "^[a-f0-9]{64}$" },
+              },
+            ],
+            responses: {
+              "200": json({ type: "object", properties: { deleted: { type: "boolean" } }, required: ["deleted"] }),
             },
           },
         },

@@ -2,7 +2,8 @@ import type { UIMessage, UIMessageChunk } from "ai";
 
 export type LocalReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
-export type LocalApprovalMode = "request" | "auto" | "full";
+export type LocalApprovalPolicy = "never" | "on-request" | "unless-trusted" | "granular";
+export type LocalPermissionProfileId = ":read-only" | ":workspace" | ":danger-full-access";
 
 export interface LocalPluginActivation {
   pluginId: string;
@@ -25,7 +26,8 @@ export interface LocalThread {
   workspace: string;
   providerId: string;
   reasoningEffort: LocalReasoningEffort;
-  approvalMode: LocalApprovalMode;
+  approvalPolicy: LocalApprovalPolicy;
+  permissionProfile: LocalPermissionProfileId;
   pluginActivations: LocalPluginActivation[];
   status: "idle" | "running" | "waiting" | "interrupted" | "cancelled" | "error";
   turnId: string | null;
@@ -57,7 +59,7 @@ export type DesktopEvent =
 // Only these capabilities cross preload. No arbitrary channel, path grant,
 // process spawn, fetch URL or provider credential is exposed to page code.
 export interface DesktopBridge {
-  readonly version: 3;
+  readonly version: 4;
   info(): Promise<{ platform: string; localAvailable: boolean; origin: string }>;
   bindSession(accessToken: string, expiresAt: string): Promise<void>;
   clearSession(): Promise<void>;
@@ -68,7 +70,8 @@ export interface DesktopBridge {
     workspace: string,
     providerId: string,
     reasoningEffort: LocalReasoningEffort,
-    approvalMode: LocalApprovalMode,
+    approvalPolicy: LocalApprovalPolicy,
+    permissionProfile: LocalPermissionProfileId,
     pluginActivations: LocalPluginActivation[],
   ): Promise<LocalThread>;
   getThread(id: string): Promise<LocalThread>;
@@ -82,7 +85,11 @@ export interface DesktopBridge {
     mode: "follow-up" | "next-turn",
   ): Promise<{ admission: "accepted" | "duplicate"; turnId: string }>;
   approve(id: string, approvalId: string, approved: boolean): Promise<void>;
-  setApprovalMode(id: string, approvalMode: LocalApprovalMode): Promise<void>;
+  setExecutionPolicy(
+    id: string,
+    approvalPolicy: LocalApprovalPolicy,
+    permissionProfile: LocalPermissionProfileId,
+  ): Promise<void>;
   stop(id: string): Promise<void>;
   removeThread(id: string): Promise<void>;
   listFiles(id: string, path: string): Promise<LocalDirectoryEntry[]>;

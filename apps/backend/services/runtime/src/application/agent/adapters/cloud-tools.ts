@@ -1,5 +1,13 @@
 import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
+import { canonicalizeShellCommand } from "@repo/agent-runtime/runtime/exec-policy";
 import { createExecutionHostManifests } from "@repo/agent-runtime/runtime/execution-host";
+import {
+  clonePermissionProfile,
+  compilePermissionProfile,
+  type PermissionProfile,
+} from "@repo/agent-runtime/runtime/permissions";
+import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
+import { ToolOrchestrator, type SandboxViolation } from "@repo/agent-runtime/runtime/tool-orchestrator";
 
 import { artifactToolContextSchema } from "../tools/context.js";
 import { requireRunSandbox } from "./cloud-sandbox.js";
@@ -13,24 +21,95 @@ export const CLOUD_EXECUTION_ENVIRONMENT = {
     persistence: "session",
     externalSources: "read-only",
   },
-  network: { access: "environment", protocols: ["http", "https"] },
+  network: { access: "restricted", protocols: ["http", "https"] },
   process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
   deliverables: "session-file",
-  approvals: "policy",
+  permissions: { profileId: ":workspace", enforcement: "managed", approvalPolicy: "on-request" },
 } as const satisfies ExecutionEnvironment;
 
+function cloudPermissionProfile(): PermissionProfile {
+  const profile = compilePermissionProfile(":workspace", { workspaceRoot: "/workspace" }).profile;
+  if (profile.type !== "managed" || profile.fileSystem.type !== "restricted") {
+    throw new Error("cloud workspace profile must use managed filesystem enforcement");
+  }
+  profile.fileSystem.entries.push(
+    { path: "/workspace/sources", access: "read" },
+    { path: "/workspace/.home", access: "deny" },
+    { path: "/run/control", access: "deny" },
+    { path: "/run/egress", access: "deny" },
+  );
+  return clonePermissionProfile(profile);
+}
+
+function networkViolationHint(command: string): SandboxViolation | undefined {
+  const canonical = canonicalizeShellCommand(command);
+  if (!canonical.analyzable) return undefined;
+  for (const token of canonical.commands.flat()) {
+    try {
+      const url = new URL(token);
+      if (url.protocol !== "http:" && url.protocol !== "https:") continue;
+      return {
+        type: "network",
+        host: url.hostname,
+        port: url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80,
+        protocol: url.protocol === "https:" ? "https" : "http",
+      };
+    } catch {
+      // Non-URL argv tokens do not describe a network authority.
+    }
+  }
+  return undefined;
+}
+
 export async function createCloudToolAdapters() {
+  const permissionProfile = cloudPermissionProfile();
+  const processManager = new ProcessManager<{ terminate(): void }>();
+  const orchestrator = new ToolOrchestrator({
+    approvalPolicy: "on-request",
+    permissionProfile,
+    processManager,
+    fileSystemPolicy: {
+      workspaceRoot: "/workspace",
+      workingDirectory: "/workspace/work",
+      immutableWriteRoots: ["/workspace/sources", "/workspace/.home"],
+    },
+  });
   const manifests = createExecutionHostManifests(
     {
       environment: CLOUD_EXECUTION_ENVIRONMENT,
-      run: async (input, options) => {
+      orchestrator,
+      run: async (input, attempt, options) => {
         options.abortSignal?.throwIfAborted();
-        return requireRunSandbox(options.experimental_sandbox).run({
+        return requireRunSandbox(options.experimental_sandbox).runAttempt(attempt, {
           command: input.command,
           workingDirectory: input.workdir ?? "/workspace/work",
           timeoutMs: input.timeout_ms,
           abortSignal: options.abortSignal,
+          violationHint: networkViolationHint(input.command),
         });
+      },
+      files: {
+        readText: (input, authority, options) =>
+          requireRunSandbox(options.experimental_sandbox).readTextSnapshot({
+            path: input.path,
+            abortSignal: options.abortSignal
+              ? AbortSignal.any([options.abortSignal, authority.abortSignal])
+              : authority.abortSignal,
+          }),
+        writeText: (input, authority, options) =>
+          requireRunSandbox(options.experimental_sandbox).writeTextFileConditional({
+            ...input,
+            abortSignal: options.abortSignal
+              ? AbortSignal.any([options.abortSignal, authority.abortSignal])
+              : authority.abortSignal,
+          }),
+        deleteFile: (input, authority, options) =>
+          requireRunSandbox(options.experimental_sandbox).deleteTextFile({
+            ...input,
+            abortSignal: options.abortSignal
+              ? AbortSignal.any([options.abortSignal, authority.abortSignal])
+              : authority.abortSignal,
+          }),
       },
       refreshSources: (options) => requireRunSandbox(options.experimental_sandbox).refresh(options.abortSignal),
       deliver: (input, options) =>
@@ -38,5 +117,12 @@ export async function createCloudToolAdapters() {
     },
     { contextSchema: artifactToolContextSchema },
   );
-  return { environment: CLOUD_EXECUTION_ENVIRONMENT, manifests, dispose: async () => {} };
+  return {
+    environment: CLOUD_EXECUTION_ENVIRONMENT,
+    manifests,
+    permissionProfile,
+    processManager,
+    toolApproval: orchestrator.toolApproval,
+    dispose: async () => orchestrator.close(),
+  };
 }

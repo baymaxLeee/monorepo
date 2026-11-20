@@ -229,6 +229,18 @@ export function defineUnavailableCapability(
   };
 }
 
+/** Keeps an optional tool executable and searchable without sending its full schema on every initial model step. */
+export function deferAgentToolLoading(manifest: AgentToolManifest): AgentToolManifest {
+  if (!manifest.tool) return manifest;
+  return {
+    ...manifest,
+    tool: transformToolPreservingCaller(manifest.tool, (definition) => ({
+      ...definition,
+      deferLoading: true,
+    })),
+  };
+}
+
 export function manifestsToTools(manifests: AgentToolManifest[]): ToolSet {
   const names = new Set<string>();
   const tools: ToolSet = {};

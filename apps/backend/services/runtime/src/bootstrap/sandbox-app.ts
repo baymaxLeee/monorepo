@@ -142,6 +142,11 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
   app.put("/sessions/:id/files", async (c) => {
     const scope = headerScope(c.req.header("X-Sandbox-Scope"));
     if (!c.req.raw.body) return c.json({ message: "file body required" }, 400);
+    const mode = c.req.query("mode");
+    const writeMode = mode === "create" || mode === "overwrite" ? mode : undefined;
+    if (mode && !writeMode) {
+      return c.json({ message: "invalid file write mode" }, 400);
+    }
     await engine.upload(
       c.req.param("id"),
       scope,
@@ -149,6 +154,12 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
       c.req.raw.body,
       AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(config.ttlSeconds * 1000)]),
       c.req.header("X-Sandbox-Workspace-Edit") || undefined,
+      writeMode
+        ? {
+            mode: writeMode,
+            expectedSha256: c.req.query("expected_sha256"),
+          }
+        : undefined,
     );
     return c.json({ saved: true });
   });
@@ -161,6 +172,17 @@ export function createApp(config: SandboxSettings, engine = new Engine(config)) 
       AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(config.ttlSeconds * 1000)]),
     );
     return new Response(result.body, { headers: { "Content-Type": "application/octet-stream" } });
+  });
+  app.delete("/sessions/:id/files", async (c) => {
+    const scope = headerScope(c.req.header("X-Sandbox-Scope"));
+    await engine.deleteFile(
+      c.req.param("id"),
+      scope,
+      c.req.query("path") ?? "",
+      c.req.query("expected_sha256") ?? "",
+      AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(config.ttlSeconds * 1000)]),
+    );
+    return c.json({ deleted: true });
   });
   app.post("/sessions/:id/snapshot", async (c) => {
     const scope = headerScope(c.req.header("X-Sandbox-Scope"));

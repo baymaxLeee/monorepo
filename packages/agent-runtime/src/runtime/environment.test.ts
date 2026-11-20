@@ -15,7 +15,7 @@ const environment = {
   network: { access: "environment", protocols: ["http", "https"] },
   process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
   deliverables: "session-file",
-  approvals: "policy",
+  permissions: { profileId: ":workspace", enforcement: "managed", approvalPolicy: "on-request" },
 } as const satisfies ExecutionEnvironment;
 
 test("execution environment is inserted inside assembled instructions exactly once", () => {

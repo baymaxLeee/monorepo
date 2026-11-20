@@ -204,7 +204,14 @@ test("Desktop defaults to this computer and creates in the selected existing pro
   expect(await screen.findByText("Cloud Model")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto", []),
+    expect(mocks.local).toHaveBeenCalledWith(
+      "/projects/existing",
+      "cloud-model",
+      "medium",
+      "on-request",
+      ":workspace",
+      [],
+    ),
   );
   await waitFor(() => expect(mocks.send).toHaveBeenCalledWith("local", "hello", expect.any(String)));
   expect(mocks.create).not.toHaveBeenCalled();
@@ -223,7 +230,14 @@ test("new project selection happens before send and supplies the authorized work
   expect(await screen.findByText("new-project")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith("/projects/new-project", "cloud-model", "medium", "auto", []),
+    expect(mocks.local).toHaveBeenCalledWith(
+      "/projects/new-project",
+      "cloud-model",
+      "medium",
+      "on-request",
+      ":workspace",
+      [],
+    ),
   );
   expect(mocks.selectWorkspace.mock.invocationCallOrder[0]).toBeLessThan(mocks.local.mock.invocationCallOrder[0]);
 });
@@ -281,9 +295,14 @@ test("an installed default plugin is frozen into both cloud and local conversati
   expect(await screen.findByText("插件 1")).toBeTruthy();
   fireEvent.click(screen.getByText("发送测试"));
   await waitFor(() =>
-    expect(mocks.local).toHaveBeenCalledWith("/projects/existing", "cloud-model", "medium", "auto", [
-      { pluginId: "knowledge@platform" },
-    ]),
+    expect(mocks.local).toHaveBeenCalledWith(
+      "/projects/existing",
+      "cloud-model",
+      "medium",
+      "on-request",
+      ":workspace",
+      [{ pluginId: "knowledge@platform" }],
+    ),
   );
 
   await selectExecutionLocation("云端");

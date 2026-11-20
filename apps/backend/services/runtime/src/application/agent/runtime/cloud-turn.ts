@@ -8,7 +8,6 @@ import { attachExecutionEnvironment } from "@repo/agent-runtime/runtime/environm
 import type { RuntimeTurnSettings } from "@repo/agent-runtime/runtime/types";
 import { transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
 import { isToolOutcome } from "@repo/agent-runtime/tools/outcome";
-import { createToolApprovalPolicy } from "@repo/agent-runtime/tools/policy";
 import { InvalidToolInputError } from "ai";
 import type { ToolSet } from "ai";
 
@@ -150,7 +149,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
   const toolSpans = new Map<string, ReturnType<typeof startSpan>>();
   const instrumentedTools = withActiveToolSpans(tools, toolSpans, input);
 
-  const sandbox = new RunSandbox(toolContext);
+  const sandbox = new RunSandbox(toolContext, undefined, resolvedTools.permissionProfile, resolvedTools.processManager);
   await sandbox.observeWorkspaceBaseline();
   const runtimeContext: AgentRuntimeContext = {
     runId: input.runId,
@@ -201,7 +200,7 @@ export async function prepareCloudTurn(input: CloudTurnInput, toolCatalog: ToolC
     experimental_toolCallers: codeModeToolCallers as never,
     activeTools: resolvedTools.activeTools,
     toolOrder: [...resolvedTools.activeTools].sort(),
-    toolApproval: createToolApprovalPolicy(),
+    toolApproval: resolvedTools.toolApproval,
     repairToolCall: async ({ toolCall, error }) => {
       await observe(
         "record rejected tool call",

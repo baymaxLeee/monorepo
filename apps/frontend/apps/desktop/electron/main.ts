@@ -156,7 +156,8 @@ async function start() {
             workspace: z.string().min(1).max(4096),
             providerId: z.string().min(1).max(32),
             reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
-            approvalMode: z.enum(["request", "auto", "full"]),
+            approvalPolicy: z.enum(["never", "on-request", "unless-trusted", "granular"]),
+            permissionProfile: z.enum([":read-only", ":workspace", ":danger-full-access"]),
             pluginActivations: z
               .array(
                 z.strictObject({
@@ -229,10 +230,16 @@ async function start() {
         const p = z.strictObject({ id, approvalId: z.string().max(200), approved: z.boolean() }).parse(payload);
         return scopedCall("approve", p);
       }
-      case "setApprovalMode":
+      case "setExecutionPolicy":
         return scopedCall(
-          "setApprovalMode",
-          z.strictObject({ id, approvalMode: z.enum(["request", "auto", "full"]) }).parse(payload),
+          "setExecutionPolicy",
+          z
+            .strictObject({
+              id,
+              approvalPolicy: z.enum(["never", "on-request", "unless-trusted", "granular"]),
+              permissionProfile: z.enum([":read-only", ":workspace", ":danger-full-access"]),
+            })
+            .parse(payload),
         );
       case "listFiles":
       case "readFile":

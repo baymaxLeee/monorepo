@@ -10,6 +10,27 @@ import type { UIMessage } from "ai";
 
 import type { LocalThread } from "../../contracts/bridge.generated";
 
+const approvalPolicies = new Set(["never", "on-request", "unless-trusted", "granular"]);
+const permissionProfiles = new Set([":read-only", ":workspace", ":danger-full-access"]);
+
+function parseThreadMetadata(value: string): Omit<LocalThread, "messages"> {
+  const metadata: unknown = JSON.parse(value);
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    throw new Error("本地会话元数据格式无效");
+  }
+  const record = metadata as Record<string, unknown>;
+  if ("approvalMode" in record) {
+    throw new Error("本地会话使用已移除的 approvalMode，无法打开");
+  }
+  if (typeof record.approvalPolicy !== "string" || !approvalPolicies.has(record.approvalPolicy)) {
+    throw new Error("本地会话缺少有效的 approvalPolicy");
+  }
+  if (typeof record.permissionProfile !== "string" || !permissionProfiles.has(record.permissionProfile)) {
+    throw new Error("本地会话缺少有效的 permissionProfile");
+  }
+  return record as Omit<LocalThread, "messages">;
+}
+
 /** SQLite rollout store for the local host. Previous Desktop database filenames are intentionally not imported. */
 export class LocalJournal {
   private readonly db: DatabaseSync;
@@ -72,14 +93,14 @@ export class LocalJournal {
     return this.db
       .prepare("SELECT metadata FROM threads ORDER BY json_extract(metadata,'$.updatedAt') DESC")
       .all()
-      .map((row) => JSON.parse(String(row.metadata)) as LocalThread)
+      .map((row) => parseThreadMetadata(String(row.metadata)))
       .map((thread) => ({ ...thread, messages: [] }));
   }
 
   get(id: string): LocalThread {
     const row = this.db.prepare("SELECT metadata FROM threads WHERE id=?").get(id);
     if (!row) throw new Error("本地会话不存在");
-    const metadata = JSON.parse(String(row.metadata)) as Omit<LocalThread, "messages">;
+    const metadata = parseThreadMetadata(String(row.metadata));
     const messages = this.db
       .prepare("SELECT value FROM items WHERE thread_id=? ORDER BY sequence")
       .all(id)

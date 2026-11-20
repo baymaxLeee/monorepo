@@ -1,6 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { workspaceMediaType } from "@repo/agent-runtime/protocol/artifact";
+import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
+import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
+import type {
+  SandboxAttempt,
+  SandboxAttemptResult,
+  SandboxViolation,
+} from "@repo/agent-runtime/runtime/tool-orchestrator";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
 import type { SandboxProcess, SandboxSession as SandboxResource } from "#runtime/transport";
@@ -29,7 +36,7 @@ import type { ArtifactToolContext } from "../tools/context.js";
 export interface SandboxDependencies {
   sandbox: () => Pick<
     RuntimeSandboxAdapter,
-    "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download" | "snapshot"
+    "create" | "destroy" | "start" | "write" | "cancel" | "upload" | "download" | "deleteFile" | "snapshot"
   >;
   asset: () => Pick<StorageClient, "content" | "upload" | "appendRevision" | "prepareClaim" | "activateClaim">;
   documents: typeof listDocuments;
@@ -60,6 +67,45 @@ export function documentSandboxPath(document: Pick<KnowledgeDocument, "id" | "fi
 function appendProcessOutput(target: { stdout: string; stderr: string }, process: SandboxProcess) {
   target.stdout += process.stdout;
   target.stderr += process.stderr;
+}
+
+function transportSandboxAttempt(attempt: SandboxAttempt) {
+  return {
+    attempt: attempt.attempt,
+    sandboxed: attempt.sandboxed,
+    permission_profile:
+      attempt.permissionProfile.type === "managed"
+        ? {
+            type: "managed" as const,
+            file_system:
+              attempt.permissionProfile.fileSystem.type === "unrestricted"
+                ? { type: "unrestricted" as const }
+                : {
+                    type: "restricted" as const,
+                    entries: attempt.permissionProfile.fileSystem.entries.map((entry) => ({ ...entry })),
+                  },
+            network:
+              attempt.permissionProfile.network.type === "enabled"
+                ? { type: "enabled" as const }
+                : {
+                    type: "restricted" as const,
+                    allowed_hosts: [...attempt.permissionProfile.network.allowedHosts],
+                  },
+          }
+        : attempt.permissionProfile.type === "external"
+          ? {
+              type: "external" as const,
+              network:
+                attempt.permissionProfile.network.type === "enabled"
+                  ? { type: "enabled" as const }
+                  : {
+                      type: "restricted" as const,
+                      allowed_hosts: [...attempt.permissionProfile.network.allowedHosts],
+                    },
+            }
+          : { type: "disabled" as const },
+    process: { process_id: attempt.process.processId, entry_id: attempt.process.entryId },
+  };
 }
 
 function sandboxRelativePath(path: string) {
@@ -117,10 +163,13 @@ export class RunSandbox implements Experimental_SandboxSession {
   private fileObservationInitialized = false;
   private sourceManifest = "";
   private readonly scope: SandboxScope;
-
   constructor(
     private readonly context: ArtifactToolContext & { attemptEpoch: string },
     private readonly deps: SandboxDependencies = defaults,
+    private readonly helperPermissionProfile: PermissionProfile = compilePermissionProfile(":workspace", {
+      workspaceRoot: "/workspace",
+    }).profile,
+    private readonly helperProcesses: ProcessManager<{ terminate(): void }> = new ProcessManager(),
   ) {
     this.scope = {
       tenant_id: context.tenantId,
@@ -305,15 +354,22 @@ export class RunSandbox implements Experimental_SandboxSession {
     return changes;
   }
 
-  async run(options: {
-    command: string;
-    workingDirectory?: string;
-    env?: Record<string, string>;
-    timeoutMs?: number;
-    abortSignal?: AbortSignal;
-  }): Promise<{ exitCode: number; stdout: string; stderr: string; timedOut: boolean; timeoutMs: number }> {
-    const signal = this.operationSignal(options.abortSignal);
-    const session = await this.ensure(options.abortSignal);
+  async runAttempt(
+    attempt: SandboxAttempt,
+    options: {
+      command: string;
+      workingDirectory?: string;
+      env?: Record<string, string>;
+      timeoutMs?: number;
+      abortSignal?: AbortSignal;
+      violationHint?: SandboxViolation;
+    },
+  ): Promise<SandboxAttemptResult> {
+    const attemptSignal = options.abortSignal
+      ? AbortSignal.any([attempt.abortSignal, options.abortSignal])
+      : attempt.abortSignal;
+    const signal = this.operationSignal(attemptSignal);
+    const session = await this.ensure(attemptSignal);
     const client = this.deps.sandbox();
     let process = await client.start(
       session.id,
@@ -326,12 +382,14 @@ export class RunSandbox implements Experimental_SandboxSession {
         timeout_ms: options.timeoutMs ?? 120_000,
         scope: this.scope,
         request_id: randomBytes(16).toString("hex"),
+        sandbox: transportSandboxAttempt(attempt),
+        ...(options.violationHint ? { violation_hint: options.violationHint } : {}),
       },
       signal,
     );
     const output = { stdout: "", stderr: "" };
     appendProcessOutput(output, process);
-    while (process.exitCode === null) {
+    while (process.termination === null) {
       signal?.throwIfAborted();
       process = await client.write(
         session.id,
@@ -348,18 +406,69 @@ export class RunSandbox implements Experimental_SandboxSession {
       );
       appendProcessOutput(output, process);
     }
-    return {
-      exitCode: process.exitCode,
-      ...output,
-      timedOut: process.timed_out,
-      timeoutMs: options.timeoutMs ?? 120_000,
-    };
+    const termination = process.termination;
+    switch (termination.type) {
+      case "exit":
+        return { type: "exit", exitCode: termination.exit_code, ...output };
+      case "timeout":
+        return { type: "timeout", timeoutMs: termination.timeout_ms, ...output };
+      case "start-error":
+        return { type: "start-error", message: termination.message, ...output };
+      case "sandbox-unavailable":
+        return { type: "sandbox-unavailable", message: termination.message, ...output };
+      case "sandbox-violation":
+        return { type: "sandbox-violation", violation: termination.violation, ...output };
+    }
+    throw new Error("Sandbox returned an unknown process termination.");
+  }
+
+  private async runHelper(options: {
+    command: string;
+    workingDirectory?: string;
+    env?: Record<string, string>;
+    timeoutMs?: number;
+    abortSignal?: AbortSignal;
+  }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    return this.helperProcesses.run(async (identity, abortSignal) => {
+      const result = await this.runAttempt(
+        {
+          attempt: 1,
+          sandboxed: this.helperPermissionProfile.type !== "disabled",
+          permissionProfile: this.helperPermissionProfile,
+          process: identity,
+          abortSignal,
+        },
+        options,
+      );
+      switch (result.type) {
+        case "exit":
+          return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        case "timeout":
+          return { exitCode: 124, stdout: result.stdout, stderr: result.stderr };
+        case "sandbox-violation":
+          throw new Error(result.stderr || "Sandbox helper was denied by its permission profile.");
+        case "sandbox-unavailable":
+        case "start-error":
+          throw new Error(result.message);
+      }
+      throw new Error("Sandbox helper returned an unknown process result.");
+    });
+  }
+
+  run(options: {
+    command: string;
+    workingDirectory?: string;
+    env?: Record<string, string>;
+    timeoutMs?: number;
+    abortSignal?: AbortSignal;
+  }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    return this.runHelper(options);
   }
 
   async readFile(options: { path: string; abortSignal?: AbortSignal }) {
     const relative = sandboxRelativePath(options.path);
     const absolute = `/workspace/${relative}`;
-    const check = await this.run({
+    const check = await this.runHelper({
       command: `test -f -- ${shellQuote(absolute)}`,
       workingDirectory: "/workspace/work",
       abortSignal: options.abortSignal,
@@ -402,6 +511,32 @@ export class RunSandbox implements Experimental_SandboxSession {
       .join("\n");
   }
 
+  async readTextSnapshot(options: { path: string; abortSignal?: AbortSignal }) {
+    const bytes = await this.readBinaryFile(options);
+    if (!bytes) return null;
+    if (bytes.byteLength > 2 * 1024 * 1024) {
+      throw new Error("Text file exceeds the 2 MiB direct-edit limit; use a bounded Bash command instead.");
+    }
+    let content: string;
+    try {
+      content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      const error = new Error("File is not valid UTF-8 text; use Bash or a binary-aware tool instead.");
+      Object.assign(error, { code: "FILE_NOT_TEXT" });
+      throw error;
+    }
+    if (content.includes("\0")) {
+      const error = new Error("File contains null bytes and is not supported by direct text tools.");
+      Object.assign(error, { code: "FILE_NOT_TEXT" });
+      throw error;
+    }
+    return {
+      content,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes: bytes.byteLength,
+    };
+  }
+
   async writeFile(options: { path: string; content: ReadableStream<Uint8Array>; abortSignal?: AbortSignal }) {
     const relative = writableSandboxPath(options.path);
     const session = await this.ensure(options.abortSignal);
@@ -422,12 +557,50 @@ export class RunSandbox implements Experimental_SandboxSession {
     await this.writeBinaryFile({ ...options, content: new TextEncoder().encode(options.content) });
   }
 
+  async writeTextFileConditional(options: {
+    path: string;
+    content: string;
+    mode: "create" | "overwrite";
+    expectedSha256?: string;
+    abortSignal?: AbortSignal;
+  }) {
+    const bytes = new TextEncoder().encode(options.content);
+    if (bytes.byteLength > 2 * 1024 * 1024) throw new Error("File content exceeds the 2 MiB direct-edit limit.");
+    const relative = writableSandboxPath(options.path);
+    const session = await this.ensure(options.abortSignal);
+    await this.deps
+      .sandbox()
+      .upload(
+        session.id,
+        this.scope,
+        relative,
+        new Blob([bytes]).stream(),
+        this.operationSignal(options.abortSignal),
+        undefined,
+        { mode: options.mode, ...(options.expectedSha256 ? { expectedSha256: options.expectedSha256 } : {}) },
+      );
+    return {
+      path: `/workspace/${relative}`,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes: bytes.byteLength,
+      created: options.mode === "create",
+    };
+  }
+
+  async deleteTextFile(options: { path: string; expectedSha256: string; abortSignal?: AbortSignal }) {
+    const relative = writableSandboxPath(options.path);
+    const session = await this.ensure(options.abortSignal);
+    await this.deps
+      .sandbox()
+      .deleteFile(session.id, this.scope, relative, options.expectedSha256, this.operationSignal(options.abortSignal));
+  }
+
   async stat(options: {
     path: string;
     abortSignal?: AbortSignal;
   }): Promise<{ type: "file" | "directory" | "other"; size: number } | null> {
     const absolute = `/workspace/${sandboxRelativePath(options.path)}`;
-    const result = await this.run({
+    const result = await this.runHelper({
       command: `if [ ! -e ${shellQuote(absolute)} ]; then exit 44; fi
 if [ -f ${shellQuote(absolute)} ]; then kind=file
 elif [ -d ${shellQuote(absolute)} ]; then kind=directory
@@ -450,7 +623,7 @@ stat -Lc '%s' -- ${shellQuote(absolute)}`,
 
   async listDirectory(options: { path: string; abortSignal?: AbortSignal }) {
     const absolute = `/workspace/${sandboxRelativePath(options.path)}`;
-    const result = await this.run({
+    const result = await this.runHelper({
       command: `if [ ! -e ${shellQuote(absolute)} ]; then exit 44; fi
 if [ ! -d ${shellQuote(absolute)} ]; then exit 45; fi
 find -H ${shellQuote(absolute)} -mindepth 1 -maxdepth 1 -printf '%f\\0%y\\0'`,
@@ -477,7 +650,7 @@ find -H ${shellQuote(absolute)} -mindepth 1 -maxdepth 1 -printf '%f\\0%y\\0'`,
 
   async deleteFile(options: { path: string; abortSignal?: AbortSignal }) {
     const absolute = `/workspace/${writableSandboxPath(options.path)}`;
-    const result = await this.run({
+    const result = await this.runHelper({
       command: `if [ -d ${shellQuote(absolute)} ] && [ ! -L ${shellQuote(absolute)} ]; then exit 45; fi
 if [ ! -e ${shellQuote(absolute)} ] && [ ! -L ${shellQuote(absolute)} ]; then exit 44; fi
 rm -- ${shellQuote(absolute)}`,
@@ -510,23 +683,43 @@ rm -- ${shellQuote(absolute)}`,
     if (options.stdin) {
       throw new Error("Writable process stdin is not supported by this sandbox transport.");
     }
+    const identity = this.helperProcesses.reserve();
+    const controller = new AbortController();
+    this.helperProcesses.markRunning(identity, { terminate: () => controller.abort(new Error("process closed")) });
+    const attempt: SandboxAttempt = {
+      attempt: 1,
+      sandboxed: this.helperPermissionProfile.type !== "disabled",
+      permissionProfile: this.helperPermissionProfile,
+      process: identity,
+      abortSignal: controller.signal,
+    };
     const session = await this.ensure(options.abortSignal);
-    const signal = this.operationSignal(options.abortSignal);
+    const helperSignal = options.abortSignal
+      ? AbortSignal.any([controller.signal, options.abortSignal])
+      : controller.signal;
+    const signal = this.operationSignal(helperSignal);
     const client = this.deps.sandbox();
-    let process = await client.start(
-      session.id,
-      {
-        command: options.command,
-        workdir: options.workingDirectory ?? "/workspace/work",
-        env: options.env ?? {},
-        tty: false,
-        yield_time_ms: 0,
-        timeout_ms: 120_000,
-        scope: this.scope,
-        request_id: randomBytes(16).toString("hex"),
-      },
-      signal,
-    );
+    let process: SandboxProcess;
+    try {
+      process = await client.start(
+        session.id,
+        {
+          command: options.command,
+          workdir: options.workingDirectory ?? "/workspace/work",
+          env: options.env ?? {},
+          tty: false,
+          yield_time_ms: 0,
+          timeout_ms: 120_000,
+          scope: this.scope,
+          request_id: randomBytes(16).toString("hex"),
+          sandbox: transportSandboxAttempt(attempt),
+        },
+        signal,
+      );
+    } catch (error) {
+      this.helperProcesses.close(identity);
+      throw error;
+    }
     const encoder = new TextEncoder();
     let stdoutController!: ReadableStreamDefaultController<Uint8Array>;
     let stderrController!: ReadableStreamDefaultController<Uint8Array>;
@@ -561,7 +754,7 @@ rm -- ${shellQuote(absolute)}`,
     void (async () => {
       try {
         enqueue();
-        while (process.exitCode === null) {
+        while (process.termination === null) {
           process = await client.write(
             session.id,
             process.session_id,
@@ -577,14 +770,28 @@ rm -- ${shellQuote(absolute)}`,
           );
           enqueue();
         }
-        if (process.timed_out) await this.dispose();
+        const termination = process.termination;
+        if (termination.type === "timeout") await this.dispose();
         if (stdoutOpen) stdoutController.close();
         if (stderrOpen) stderrController.close();
-        resolveWait({ exitCode: process.exitCode });
+        if (termination.type === "exit") resolveWait({ exitCode: termination.exit_code });
+        else if (termination.type === "timeout") resolveWait({ exitCode: 124 });
+        else
+          rejectWait(
+            new Error(termination.type === "sandbox-violation" ? "Sandbox process was denied." : termination.message),
+          );
       } catch (error) {
         if (stdoutOpen) stdoutController.error(error);
         if (stderrOpen) stderrController.error(error);
         rejectWait(error);
+      } finally {
+        if (this.helperProcesses.contains(identity)) {
+          try {
+            this.helperProcesses.markExited(identity);
+          } finally {
+            this.helperProcesses.close(identity);
+          }
+        }
       }
     })();
     let killPromise: Promise<void> | undefined;
@@ -594,7 +801,7 @@ rm -- ${shellQuote(absolute)}`,
       wait: () => completion,
       kill: () =>
         (killPromise ??= (async () => {
-          if (process.exitCode === null) await client.cancel(session.id, process.session_id, this.scope);
+          if (process.termination === null) await client.cancel(session.id, process.session_id, this.scope);
           await completion;
         })()),
       stdin: new WritableStream({
@@ -738,6 +945,7 @@ rm -- ${shellQuote(absolute)}`,
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal;
     this.closed = true;
+    this.helperProcesses.closeAll();
     this.abort.abort();
     for (const [signal, listener] of this.stopListeners) signal.removeEventListener("abort", listener);
     this.stopListeners.clear();

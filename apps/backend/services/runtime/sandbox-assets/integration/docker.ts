@@ -5,7 +5,7 @@ import { setTimeout } from "node:timers/promises";
 
 import { serve } from "@hono/node-server";
 
-import { RuntimeSandboxClient, type SandboxScope } from "#runtime/transport";
+import { RuntimeSandboxClient, type SandboxProcess, type SandboxScope } from "#runtime/transport";
 
 import { createApp } from "../../src/bootstrap/sandbox-app.js";
 import { getSandboxSettings } from "../../src/config/sandbox.js";
@@ -44,7 +44,30 @@ test(
       user_id: "test",
       conversation_id: "test",
       run_id: randomUUID(),
+      attempt_epoch: "1",
     };
+    let processId = 0;
+    const sandbox = (allowedHosts: string[] = []) => ({
+      attempt: 1 as const,
+      sandboxed: true,
+      permission_profile: {
+        type: "managed" as const,
+        file_system: {
+          type: "restricted" as const,
+          entries: [
+            { path: "/", access: "read" as const },
+            { path: "/workspace", access: "write" as const },
+            { path: "/workspace/sources", access: "read" as const },
+            { path: "/run/control", access: "deny" as const },
+            { path: "/run/egress", access: "deny" as const },
+          ],
+        },
+        network: { type: "restricted" as const, allowed_hosts: allowedHosts },
+      },
+      process: { process_id: ++processId, entry_id: randomUUID() },
+    });
+    const exitCode = (process: SandboxProcess) =>
+      process.termination?.type === "exit" ? process.termination.exit_code : null;
     const startAt = performance.now();
     let id = "";
     const start = (script: string, extra: { tty?: boolean; yield_time_ms?: number; timeout_ms?: number } = {}) =>
@@ -57,6 +80,7 @@ test(
         tty: false,
         yield_time_ms: 1000,
         timeout_ms: 10000,
+        sandbox: sandbox(),
         ...extra,
       });
     try {
@@ -67,30 +91,30 @@ test(
       const workspace = await start(
         "stat -c '%u:%g:%a' /workspace; printf '# Test document\\n' > /workspace/test.md; printf '<!doctype html><title>Test</title>' > /workspace/test.html",
       );
-      assert.equal(workspace.exitCode, 0, workspace.stderr);
+      assert.equal(exitCode(workspace), 0, workspace.stderr);
       assert.equal(workspace.stdout.trim(), "1000:1000:755");
       const markdown = await client.download(id, scope, "test.md");
       assert.equal(await new Response(markdown).text(), "# Test document\n");
       const html = await client.download(id, scope, "test.html");
       assert.equal(await new Response(html).text(), "<!doctype html><title>Test</title>");
       const capabilities = await start("grep -E '^Cap(Eff|Prm|Amb):' /proc/self/status");
-      assert.equal(capabilities.exitCode, 0, capabilities.stderr);
+      assert.equal(exitCode(capabilities), 0, capabilities.stderr);
       assert.equal(capabilities.stdout.trim().split("\n").length, 3);
       for (const line of capabilities.stdout.trim().split("\n")) assert.match(line, /:\s+0+$/);
       await client.upload(id, scope, "nested/restored.md", new Blob(["restored"]).stream());
       const restored = await start("cat /workspace/nested/restored.md; test -w /workspace/nested/restored.md");
-      assert.equal(restored.exitCode, 0, restored.stderr);
+      assert.equal(exitCode(restored), 0, restored.stderr);
       assert.equal(restored.stdout, "restored");
       const binary = Uint8Array.from([0, 255, 1, 128, 10, 13, 0]);
       await client.upload(id, scope, "sources/test.bin", new Blob([binary]).stream());
       const result = await start(
         "cp ../sources/test.bin ../outputs/copy.bin; python3 -c 'import os; print(os.getuid())'; node --version; curl --version | head -1; test ! -w /workspace/sources; test ! -r /run/control/runner.sock",
       );
-      assert.equal(result.exitCode, 0, result.stderr);
+      assert.equal(exitCode(result), 0, result.stderr);
       assert.match(result.stdout, /1000/);
       const body = await client.download(id, scope, "outputs/copy.bin");
       assert.deepEqual(new Uint8Array(await new Response(body).arrayBuffer()), binary);
-      assert.equal((await start("echo secret > x; ln -s /etc/passwd ../outputs/escape")).exitCode, 0);
+      assert.equal(exitCode(await start("echo secret > x; ln -s /etc/passwd ../outputs/escape")), 0);
       await assert.rejects(client.download(id, scope, "outputs/escape"));
       await assert.rejects(
         client.start(id, {
@@ -102,6 +126,7 @@ test(
           tty: false,
           yield_time_ms: 0,
           timeout_ms: 1000,
+          sandbox: sandbox(),
         }),
       );
       const request = {
@@ -113,12 +138,13 @@ test(
         tty: false,
         yield_time_ms: 1000,
         timeout_ms: 1000,
+        sandbox: sandbox(),
       };
       await client.start(id, request);
       await client.start(id, request);
       assert.equal((await start("wc -l < once")).stdout.trim(), "1");
       const pending = await start("read line; printf 'got:%s' \"$line\"", { tty: true, yield_time_ms: 0 });
-      assert.equal(pending.exitCode, null);
+      assert.equal(pending.termination, null);
       const continued = await client.write(id, pending.session_id, {
         scope,
         request_id: "stdin",
@@ -128,23 +154,26 @@ test(
         yield_time_ms: 1000,
       });
       assert.match(continued.stdout, /got:hello/);
-      assert.equal(continued.exitCode, 0);
-      const allow = await start(
-        "curl -fsS --max-time 8 https://example.com -o /tmp/egress.html && head -c 100 /tmp/egress.html",
-        {
-          yield_time_ms: 10000,
-        },
-      );
-      assert.equal(allow.exitCode, 0, allow.stderr);
+      assert.equal(exitCode(continued), 0);
+      const allow = await client.start(id, {
+        scope,
+        command: "curl -fsS --max-time 8 https://example.com -o /tmp/egress.html && head -c 100 /tmp/egress.html",
+        request_id: randomUUID(),
+        workdir: "/workspace/work",
+        env: {},
+        tty: false,
+        yield_time_ms: 10_000,
+        timeout_ms: 10_000,
+        sandbox: sandbox(["example.com"]),
+      });
+      assert.equal(exitCode(allow), 0, allow.stderr);
       assert.ok(allow.stdout.length > 0, allow.stderr);
       const denied = await start("curl -fsS --max-time 5 http://169.254.169.254/latest/meta-data", {
         yield_time_ms: 10000,
       });
-      assert.notEqual(denied.exitCode, null);
-      assert.notEqual(denied.exitCode, 0);
+      assert.notEqual(denied.termination, null);
       const bypass = await start("curl --noproxy '*' -fsS --max-time 2 http://1.1.1.1", { yield_time_ms: 10000 });
-      assert.notEqual(bypass.exitCode, null);
-      assert.notEqual(bypass.exitCode, 0);
+      assert.notEqual(bypass.termination, null);
       // A new controller has no in-memory session state; the same Pod/container
       // remains usable and has the expected original file bytes.
       const replacement = new Engine(config);
@@ -157,6 +186,7 @@ test(
         tty: false,
         yield_time_ms: 1000,
         timeout_ms: 1000,
+        sandbox: sandbox(),
       });
       assert.equal(alive.stdout, "secret\n");
       await start(

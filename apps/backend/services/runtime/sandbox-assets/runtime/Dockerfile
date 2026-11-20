@@ -3,7 +3,7 @@ FROM python:3.14-slim-bookworm
 ARG DEBIAN_MIRROR=deb.debian.org
 RUN sed -i "s|deb.debian.org|${DEBIAN_MIRROR}|g; s|http://|https://|g" /etc/apt/sources.list.d/debian.sources \
     && apt-get update && apt-get install -y --no-install-recommends \
-      bash curl ca-certificates jq git ripgrep file unzip zip poppler-utils ffmpeg socat \
+      bash bubblewrap curl ca-certificates jq git ripgrep file unzip zip poppler-utils ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1000 sandbox && useradd --uid 1000 --gid 1000 --no-create-home sandbox
 COPY --from=node /usr/local/bin/node /usr/local/bin/node

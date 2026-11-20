@@ -196,6 +196,11 @@ gen-openapi service:
     for artifact in "$tmpdir"/*.json; do
         mv "$artifact" "../../schemas/openapi/$(basename "$artifact")"
     done
+    if [ "{{ service }}" = "runtime" ]; then
+        pnpm --dir ../.. exec openapi-typescript schemas/openapi/runtime-worker.json --output apps/backend/services/runtime/src/infrastructure/transport/schema/runtime-worker.ts
+        pnpm --dir ../.. exec openapi-typescript schemas/openapi/runtime-sandbox.json --output apps/backend/services/runtime/src/infrastructure/transport/schema/runtime-sandbox.ts
+        pnpm --dir ../.. exec oxfmt --write apps/backend/services/runtime/src/infrastructure/transport/schema/runtime-worker.ts apps/backend/services/runtime/src/infrastructure/transport/schema/runtime-sandbox.ts
+    fi
     echo "✓ schemas/openapi/$out.json ($expected_version)"
 
 gen-openapi-all:

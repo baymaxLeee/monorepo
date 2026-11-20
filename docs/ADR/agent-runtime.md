@@ -113,6 +113,19 @@ checkpoint 机制。其 authority 是每个 identity scope 下的 `runtime.sqlit
 core instructions 不复制一套工具路由或产品工作流。`ToolOutcome`、native approval、UI metadata
 和 streaming semantics 保持 AI SDK 原语。
 
+模型初始步骤保持小而稳定的热工具面：执行环境始终直接提供 `bash`、`read_file`、
+`apply_patch`、`write_file`，公共 registry 直接提供单次 `web_search`/`web_fetch`、
+`tool_search`、Ask User 与 Todo，宿主保留明确的 artifact publication。Code Mode、subagents、
+Runtime Media/Memory、source refresh 和 plugin/MCP 等低频或大 schema 能力标记
+`deferLoading`，由 AI SDK 原生 `tool_search` 在需要时激活；它们仍属于同一个冻结 catalog，
+不是第二套 capability profile。Skill loader 因 `<available_skills>` 会直接要求它而保持可见。
+延迟加载只减少无关 schema 和选择歧义，不改变授权、审批、执行或可用能力。
+
+`bash` 保留目录发现、CLI、二进制/批处理与原始响应能力，但普通 UTF-8 文件读取、局部修改和完整
+覆写分别优先使用上述三个文件工具。每个 Bash stdout/stderr 对模型只保留最后 2000 行或 50 KiB，
+并返回原始行/字节数与遗漏量；需要完整日志时由命令显式重定向到授权 workspace 文件后再定向读取，
+runtime 不暗中创建会被持久化或绕过策略的隐藏文件。
+
 SDK 可以并发发出 tool call，但实际执行必须经过每个 catalog 实例的
 `ToolExecutionScheduler`：
 
@@ -145,9 +158,11 @@ runtime invariant，以及已批准 Skill/Memory 和日期。HTML、图表、搜
 采用的基线来自本地 `openai/codex` 当前实现中的 session/turn/input queue/conversation history/
 tool runtime 分层；插件治理与执行边界由 [Agent plugins](agent-plugins.md) 单独维护。公开依据包括
 [Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
-和 [App Server](https://developers.openai.com/codex/app-server/) 的 Thread/Turn/Item 模型。采用
-[pi-agent core loop](https://github.com/badlogic/pi-mono/blob/main/packages/agent/src/agent-loop.ts)
-的极简 model → tool → result 形态，并以 Anthropic 公开的
+和 [App Server](https://developers.openai.com/codex/app-server/) 的 Thread/Turn/Item 模型。Pi 侧以本地
+`~/projects/pi` 的 `earendil-works/pi@edfe6b2ef32283d31efc9e26db86fe48be19d3b2` 为核对快照，采用
+[coding-agent tools](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/src/core/tools)
+的极简热工具面、文件专用 schema 和 Bash 尾部观察窗口，不复制其 loop、权限或 host filesystem
+假设。另以 Anthropic 公开的
 [agent loop/subagent guidance](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)
 校验 prompt/context 边界。Codex 的 Rust loop、provider protocol、approval wire format 和产品提示词
 不复制，许可证受限文本不进入本仓库。

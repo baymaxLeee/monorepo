@@ -10,5 +10,5 @@ export type {
 
 export function getDesktopBridge(): DesktopBridge | null {
   const bridge = (globalThis as typeof globalThis & { desktop?: DesktopBridge }).desktop;
-  return bridge?.version === 3 ? bridge : null;
+  return bridge?.version === 4 ? bridge : null;
 }

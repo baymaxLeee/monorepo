@@ -4,12 +4,29 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
+import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
+import type { SandboxAttempt, SandboxAttemptResult } from "@repo/agent-runtime/runtime/tool-orchestrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { LocalSandbox, seatbeltProfile } from "../electron/sandbox";
 
 describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ownership", () => {
-  let directory: string, sandbox: LocalSandbox;
+  let directory: string, sandbox: LocalSandbox, profile: PermissionProfile;
+  let processId = 0;
+  const attempt = (): SandboxAttempt => ({
+    attempt: 1,
+    sandboxed: true,
+    permissionProfile: profile,
+    process: { processId: ++processId, entryId: `desktop-test-${processId}` },
+    abortSignal: new AbortController().signal,
+  });
+  const run = (
+    command: string,
+    args: string[],
+    input?: string,
+    signal?: AbortSignal,
+    timeoutMs?: number,
+  ): Promise<SandboxAttemptResult> => sandbox.execute(attempt(), command, args, input, signal, timeoutMs);
   beforeAll(async () => {
     directory = await mkdtemp(join(tmpdir(), "desktop-isolation-"));
     const root = join(directory, "workspace"),
@@ -29,6 +46,7 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
       runtimePaths: [dirname(process.execPath)],
     });
     await sandbox.initialize();
+    profile = compilePermissionProfile(":workspace", { workspaceRoot: sandbox.options.root }).profile;
   }, 60_000);
   afterAll(async () => {
     sandbox?.cancel();
@@ -38,38 +56,54 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
   it("allows authorized writes and rejects outside reads, writes and symlink escapes", async () => {
     const file = join(sandbox.options.root, "demo.txt");
     const secret = join(directory, "secret");
-    const result = await sandbox.execute("/bin/sh", ["-c", `printf hello > demo.txt; cat '${secret}'`]);
+    const result = await run("/bin/sh", ["-c", `printf hello > demo.txt; cat '${secret}'`]);
     expect(await readFile(file, "utf8")).toBe("hello");
-    expect(result.code).not.toBe(0);
+    expect(result).toMatchObject({ type: "exit" });
+    if (result.type !== "exit") throw new Error(`unexpected result: ${result.type}`);
+    expect(result.exitCode).not.toBe(0);
     expect(result.stdout).not.toContain("must stay outside");
     await symlink(secret, join(sandbox.options.root, "escape"));
-    await expect(sandbox.file({ operation: "read", path: "escape" })).rejects.toThrow();
-    expect((await sandbox.execute("/bin/sh", ["-c", `printf corrupt > '${secret}'`])).code).not.toBe(0);
+    await expect(sandbox.file(profile, { operation: "read", path: "escape" })).rejects.toThrow();
+    const writeOutside = await run("/bin/sh", ["-c", `printf corrupt > '${secret}'`]);
+    expect(writeOutside).toMatchObject({ type: "exit" });
+    if (writeOutside.type !== "exit") throw new Error(`unexpected result: ${writeOutside.type}`);
+    expect(writeOutside.exitCode).not.toBe(0);
     expect(await readFile(secret, "utf8")).toBe("must stay outside tools");
   });
 
-  it("executes file helpers under the same OS policy and rejects stale saves", async () => {
-    const first = (await sandbox.file({
+  it("executes file helpers under the same OS policy and rejects stale saves and deletes", async () => {
+    const first = (await sandbox.file(profile, {
       operation: "write",
       path: "edit.txt",
       content: "first",
       expectedHash: null,
     })) as { hash: string };
-    expect(await sandbox.file({ operation: "read", path: "edit.txt" })).toEqual({ content: "first", hash: first.hash });
+    expect(await sandbox.file(profile, { operation: "read", path: "edit.txt" })).toEqual({
+      content: "first",
+      hash: first.hash,
+    });
     await writeFile(join(sandbox.options.root, "edit.txt"), "external");
     await expect(
-      sandbox.file({ operation: "write", path: "edit.txt", content: "stale", expectedHash: first.hash }),
+      sandbox.file(profile, { operation: "write", path: "edit.txt", content: "stale", expectedHash: first.hash }),
     ).rejects.toThrow("文件已改变");
     expect(await readFile(join(sandbox.options.root, "edit.txt"), "utf8")).toBe("external");
+    await expect(
+      sandbox.file(profile, { operation: "delete", path: "edit.txt", expectedHash: first.hash }),
+    ).rejects.toThrow("文件已改变");
+    const current = (await sandbox.file(profile, { operation: "read", path: "edit.txt" })) as { hash: string };
+    await expect(
+      sandbox.file(profile, { operation: "delete", path: "edit.txt", expectedHash: current.hash }),
+    ).resolves.toEqual({ deleted: true });
+    await expect(readFile(join(sandbox.options.root, "edit.txt"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("can run the system Git toolchain inside the authorized workspace", async () => {
-    const result = await sandbox.execute("/usr/bin/git", ["--version"]);
-    expect(result.code, result.stderr).toBe(0);
+    const result = await run("/usr/bin/git", ["--version"]);
+    expect(result).toMatchObject({ type: "exit", exitCode: 0 });
     expect(result.stdout).toContain("git version");
   });
 
-  it("allows command network access while preserving the workspace boundary", async () => {
+  it("denies command network access unless the permission profile grants it", async () => {
     let hits = 0;
     const server = createServer((_request, response) => {
       hits++;
@@ -83,10 +117,12 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
       if (!address || typeof address === "string") throw new Error("missing port");
       const url = `http://127.0.0.1:${address.port}`;
       expect(await (await fetch(url)).text()).toBe("reachable");
-      const result = await sandbox.execute("/usr/bin/curl", ["--max-time", "2", url]);
-      expect(result.code, result.stderr).toBe(0);
-      expect(result.stdout).toBe("reachable");
-      expect(hits).toBe(2);
+      const result = await run("/usr/bin/curl", ["--max-time", "2", url]);
+      expect(result).toMatchObject({ type: "exit" });
+      if (result.type !== "exit") throw new Error(`unexpected result: ${result.type}`);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stdout).not.toContain("reachable");
+      expect(hits).toBe(1);
     } finally {
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
@@ -95,10 +131,12 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
   });
 
   it("protects control data even inside an authorized directory", async () => {
-    const result = await sandbox.execute("/bin/cat", [join(sandbox.options.root, "control/secret")]);
-    expect(result.code).not.toBe(0);
+    const result = await run("/bin/cat", [join(sandbox.options.root, "control/secret")]);
+    expect(result).toMatchObject({ type: "exit" });
+    if (result.type !== "exit") throw new Error(`unexpected result: ${result.type}`);
+    expect(result.exitCode).not.toBe(0);
     expect(result.stdout).not.toContain("control state");
-    await expect(sandbox.file({ operation: "read", path: "control/secret" })).rejects.toThrow();
+    await expect(sandbox.file(profile, { operation: "read", path: "control/secret" })).rejects.toThrow();
   });
 
   it("rejects a replacement directory before starting another command", async () => {
@@ -107,7 +145,7 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
     await rename(root, original);
     await mkdir(root);
     try {
-      await expect(sandbox.execute("/usr/bin/true", [])).rejects.toThrow("移动或替换");
+      await expect(run("/usr/bin/true", [])).rejects.toThrow("移动或替换");
     } finally {
       await rm(root, { recursive: true });
       await rename(original, root);
@@ -116,28 +154,26 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
 
   it("kills detached descendants when their command completes", async () => {
     const script = `const {spawn}=require('node:child_process');const c=spawn('/bin/sleep',['60'],{detached:true,stdio:'ignore'});console.log(c.pid);c.unref()`;
-    const result = await sandbox.execute(process.execPath, ["-e", script]);
-    expect(result.code).toBe(0);
+    const result = await run(process.execPath, ["-e", script]);
+    expect(result).toMatchObject({ type: "exit", exitCode: 0 });
     const pid = Number(result.stdout.trim());
     expect(pid).toBeGreaterThan(0);
     expect(() => process.kill(pid, 0)).toThrow();
   });
 
   it("cannot replace an inherited Seatbelt policy", async () => {
-    const result = await sandbox.execute("/usr/bin/sandbox-exec", [
-      "-p",
-      "(version 1)(allow default)",
-      "/usr/bin/true",
-    ]);
-    expect(result.code).not.toBe(0);
+    const result = await run("/usr/bin/sandbox-exec", ["-p", "(version 1)(allow default)", "/usr/bin/true"]);
+    expect(result).toMatchObject({ type: "exit" });
+    if (result.type !== "exit") throw new Error(`unexpected result: ${result.type}`);
+    expect(result.exitCode).not.toBe(0);
   });
 
   it("cleans detached children after the runtime parent is killed", async () => {
     const { root, scratch, supervisor, executable, fileWorker } = sandbox.options;
     const marker = `com.monorepo.desktop.death.${Date.now()}`;
-    const profile = seatbeltProfile(root, scratch, [dirname(executable), dirname(fileWorker)], [], marker);
+    const seatbelt = seatbeltProfile(root, scratch, [dirname(executable), dirname(fileWorker)], [], profile, marker);
     const childCode = `const {spawn}=require('node:child_process'); const c=spawn('/bin/sleep',['60'],{detached:true,stdio:'ignore'});console.log(c.pid);setInterval(()=>{},1000)`;
-    const code = `const {spawn}=require('node:child_process');const c=spawn(${JSON.stringify(supervisor)},${JSON.stringify([marker, profile, executable, "-e", childCode])},{cwd:${JSON.stringify(root)},stdio:['pipe','inherit','inherit']});setInterval(()=>{},1000)`;
+    const code = `const {spawn}=require('node:child_process');const c=spawn(${JSON.stringify(supervisor)},${JSON.stringify([marker, seatbelt, executable, "-e", childCode])},{cwd:${JSON.stringify(root)},stdio:['pipe','inherit','inherit']});setInterval(()=>{},1000)`;
     const parent = spawn(executable, ["-e", code], {
       stdio: ["ignore", "pipe", "pipe"],
       env: { PATH: "/usr/bin:/bin", ELECTRON_RUN_AS_NODE: "1" },
@@ -176,15 +212,16 @@ describe.skipIf(process.platform !== "darwin")("macOS OS boundary and process ow
 
   it("waits for cleanup when cancelled", async () => {
     const abort = new AbortController();
-    const running = sandbox.execute("/bin/sleep", ["60"], undefined, abort.signal);
+    const running = run("/bin/sleep", ["60"], undefined, abort.signal);
     setTimeout(() => abort.abort(), 100);
     await expect(running).rejects.toThrow("取消");
   });
 
   it("returns a distinct timeout with partial output", async () => {
-    const result = await sandbox.execute("/bin/sh", ["-c", "printf before; sleep 60"], undefined, undefined, 100);
-    expect(result.timedOut).toBe(true);
-    expect(result.code).toBe(124);
+    // Leave enough startup time for the Seatbelt supervisor under the aggregate
+    // Vitest worker load; the command still cannot finish before this deadline.
+    const result = await run("/bin/sh", ["-c", "printf before; sleep 60"], undefined, undefined, 1_000);
+    expect(result).toMatchObject({ type: "timeout", timeoutMs: 1_000 });
     expect(result.stdout).toBe("before");
   });
 });

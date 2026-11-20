@@ -1,9 +1,10 @@
 import {
-  ApprovalMode,
+  ExecutionPolicy,
   ChatComposerControls,
   ChatPrompt,
   NewConversationEnvironment,
-  type ApprovalModeValue,
+  type ApprovalPolicyValue,
+  type PermissionProfileValue,
   type ChatUIMessage,
 } from "@repo/ai-elements/conversation";
 import { buildUserFilePart } from "@repo/ai-elements/conversation/lib/file-parts";
@@ -31,7 +32,8 @@ export function ConversationListPage() {
   const [projects, setProjects] = useState<string[]>([]);
   const [project, setProject] = useState<string | null>(null);
   const [selectingProject, setSelectingProject] = useState(false);
-  const [approvalMode, setApprovalMode] = useState<ApprovalModeValue>("auto");
+  const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicyValue>("on-request");
+  const [permissionProfile, setPermissionProfile] = useState<PermissionProfileValue>(":workspace");
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const promptRef = useRef<PromptInputRef>(null);
@@ -168,7 +170,8 @@ export function ConversationListPage() {
           project,
           selectedModelId,
           reasoningEffort,
-          approvalMode,
+          approvalPolicy,
+          permissionProfile,
           selectedPluginIds.map((pluginId) => ({ pluginId })),
         );
         // Navigate even if inference fails: the local journal retains the request and error.
@@ -270,7 +273,15 @@ export function ConversationListPage() {
                 onChange={setSelectedPluginIds}
                 disabled={busy}
               />
-              <ApprovalMode value={approvalMode} onChange={setApprovalMode} disabled={busy} />
+              <ExecutionPolicy
+                approvalPolicy={approvalPolicy}
+                permissionProfile={permissionProfile}
+                onChange={(value) => {
+                  setApprovalPolicy(value.approvalPolicy);
+                  setPermissionProfile(value.permissionProfile);
+                }}
+                disabled={busy}
+              />
             </>
           )
         }

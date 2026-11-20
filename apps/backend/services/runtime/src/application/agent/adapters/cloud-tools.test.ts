@@ -36,9 +36,15 @@ test("cloud adapters expose only cloud workspace capabilities", async () => {
   const runtime = await createCloudToolAdapters();
   assert.deepEqual(
     runtime.manifests.map((manifest) => manifest.name),
-    ["bash", "refresh_session_sources", "upload_artifacts"],
+    ["bash", "read_file", "apply_patch", "write_file", "refresh_session_sources", "upload_artifacts"],
   );
-  assert.ok(runtime.manifests.every((manifest) => manifest.tool?.deferLoading !== true));
+  for (const name of ["bash", "read_file", "apply_patch", "write_file", "upload_artifacts"]) {
+    assert.notEqual(runtime.manifests.find((manifest) => manifest.name === name)?.tool?.deferLoading, true);
+  }
+  assert.equal(
+    runtime.manifests.find((manifest) => manifest.name === "refresh_session_sources")?.tool?.deferLoading,
+    true,
+  );
 });
 
 test("session source refresh remains a Runtime-only incremental import adapter", async () => {
@@ -53,13 +59,18 @@ test("cloud Bash adapter propagates cancellation", async () => {
   const runtime = await createCloudToolAdapters();
   const bash = executable(runtime, "bash");
   const signal = AbortSignal.abort(new DOMException("Stopped", "AbortError"));
-  await assert.rejects(async () => bash({ command: "echo ignored" }, { ...options, abortSignal: signal }), {
+  const input = { command: "echo ignored", timeout_ms: 10_000, sandbox_permissions: "use_default" };
+  await runtime.toolApproval({
+    toolCall: { toolCallId: "runtime-test", toolName: "bash", input },
+    messages: [],
+  } as never);
+  await assert.rejects(async () => bash(input, { ...options, abortSignal: signal }), {
     name: "AbortError",
   });
 });
 
 test("cloud execution environment describes behavior without exposing transport details", () => {
-  assert.equal(CLOUD_EXECUTION_ENVIRONMENT.network.access, "environment");
+  assert.equal(CLOUD_EXECUTION_ENVIRONMENT.network.access, "restricted");
   assert.equal(CLOUD_EXECUTION_ENVIRONMENT.workspace.persistence, "session");
   assert.doesNotMatch(JSON.stringify(CLOUD_EXECUTION_ENVIRONMENT), /proxy|squid|socket/i);
 });

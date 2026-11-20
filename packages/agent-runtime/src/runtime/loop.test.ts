@@ -12,9 +12,8 @@ import { z } from "zod";
 
 import { appendWorkspaceChangeEvent } from "../context/events.js";
 import { assembleInstructions } from "../instructions/index.js";
-import { createBashTool } from "../tools/bash.js";
+import { createBashTool, type BashResult } from "../tools/bash.js";
 import { manifestsToTools } from "../tools/manifest.js";
-import { createToolApprovalPolicy } from "../tools/policy.js";
 import { attachExecutionEnvironment, type ExecutionEnvironment } from "./environment.js";
 import { createRuntimeInputQueue } from "./input-queue.js";
 import { createAgentLoop } from "./loop.js";
@@ -59,6 +58,9 @@ function model(
   };
 }
 const request: UIMessage[] = [{ id: "user", role: "user", parts: [{ type: "text", text: "能帮我干啥" }] }];
+function commandResult(exitCode: number, stdout: string, stderr: string): BashResult {
+  return { stdout, stderr, termination: { type: "exit", exitCode } };
+}
 function environment(storage: "cloud" | "local"): ExecutionEnvironment {
   return storage === "cloud"
     ? {
@@ -73,7 +75,7 @@ function environment(storage: "cloud" | "local"): ExecutionEnvironment {
         network: { access: "environment", protocols: ["http", "https"] },
         process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
         deliverables: "session-file",
-        approvals: "policy",
+        permissions: { profileId: ":workspace", enforcement: "managed", approvalPolicy: "on-request" },
       }
     : {
         location: "local",
@@ -87,7 +89,7 @@ function environment(storage: "cloud" | "local"): ExecutionEnvironment {
         network: { access: "public", protocols: ["http", "https"] },
         process: { shell: true, lifetime: "command", backgroundServices: "unsupported" },
         deliverables: "workspace-reference",
-        approvals: "auto",
+        permissions: { profileId: ":workspace", enforcement: "managed", approvalPolicy: "on-request" },
       };
 }
 async function consume(agent: ReturnType<typeof createAgentLoop>, messages = request) {
@@ -168,12 +170,9 @@ for (const storage of ["cloud", "local"] as const) {
   test(`${storage}: records one workspace event in model history and preserves the terminal ToolOutcome`, async () => {
     let calls = 0,
       consumed = false;
-    const tools = manifestsToTools([
-      createBashTool(async () => ({ exitCode: 7, stdout: "partial", stderr: "failed command" })),
-    ]);
+    const tools = manifestsToTools([createBashTool(async () => commandResult(7, "partial", "failed command"))]);
     const agent = createAgentLoop({
       tools,
-      toolApproval: createToolApprovalPolicy(),
       instructions: attachExecutionEnvironment(assembleInstructions({ memories: [] }), environment(storage)),
       prepareStep: ({ messages }) => {
         const changes = consumed ? [] : ((consumed = true), ["external.txt"]);
@@ -199,8 +198,14 @@ for (const storage of ["cloud", "local"] as const) {
       assert.deepEqual(part.output, {
         ok: false,
         status: "partial",
-        data: { exitCode: 7, stdout: "partial", stderr: "failed command" },
-        error: { code: "COMMAND_FAILED", message: "failed command", retryable: false, source: "bash" },
+        data: { stdout: "partial", stderr: "failed command", termination: { type: "exit", exitCode: 7 } },
+        error: {
+          code: "COMMAND_FAILED",
+          message: "failed command",
+          retryable: false,
+          source: "bash",
+          details: { exit_code: 7 },
+        },
       });
     assert.equal(calls, 2);
   });
@@ -240,7 +245,7 @@ for (const approved of [false, true]) {
       calls = 0;
     const manifest = createBashTool(async () => {
       executions++;
-      return { exitCode: 0, stdout: "done", stderr: "" };
+      return commandResult(0, "done", "");
     });
     // A capability requiring consent uses the same SDK protocol on either host.
     const tools = manifestsToTools([manifest]);
@@ -363,7 +368,7 @@ test("stored-response continuation keeps steering sent during a tool in the next
       executions++;
       markToolStarted();
       await toolRelease;
-      return { exitCode: 0, stdout: "done", stderr: "" };
+      return commandResult(0, "done", "");
     }),
   ]);
   let calls = 0;
@@ -433,7 +438,7 @@ test("follow-up arriving during sampling preserves the current response and its 
   const tools = manifestsToTools([
     createBashTool(async () => {
       executions++;
-      return { exitCode: 0, stdout: "stale", stderr: "" };
+      return commandResult(0, "stale", "");
     }),
   ]);
   const inputChannel = createRuntimeInputQueue();
@@ -526,7 +531,7 @@ test("follow-up admitted while sampling still preserves the sampled tool call", 
     tools: manifestsToTools([
       createBashTool(async () => {
         executions++;
-        return { exitCode: 0, stdout: "stale", stderr: "" };
+        return commandResult(0, "stale", "");
       }),
     ]),
     model: model((options) => {
@@ -570,7 +575,7 @@ test("follow-up relies on the SDK loop and allows the model to continue with a t
   const tools = manifestsToTools([
     createBashTool(async ({ command }) => {
       commands.push(command);
-      return { exitCode: 0, stdout: "done", stderr: "" };
+      return commandResult(0, "done", "");
     }),
   ]);
   const inputChannel = createRuntimeInputQueue();
@@ -630,7 +635,7 @@ test("next-turn arriving during sampling does not preempt the active task", asyn
   const tools = manifestsToTools([
     createBashTool(async () => {
       executions++;
-      return { exitCode: 0, stdout: "current task", stderr: "" };
+      return commandResult(0, "current task", "");
     }),
   ]);
   const inputChannel = createRuntimeInputQueue();

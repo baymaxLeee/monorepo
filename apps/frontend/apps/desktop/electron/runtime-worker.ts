@@ -113,7 +113,8 @@ async function dispatch(method: string, payload: unknown) {
           workspace: z.string(),
           providerId: z.string().min(1).max(32),
           reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]),
-          approvalMode: z.enum(["request", "auto", "full"]),
+          approvalPolicy: z.enum(["never", "on-request", "unless-trusted", "granular"]),
+          permissionProfile: z.enum([":read-only", ":workspace", ":danger-full-access"]),
           pluginActivations: z
             .array(
               z
@@ -130,7 +131,14 @@ async function dispatch(method: string, payload: unknown) {
             .max(16),
         })
         .parse(payload);
-      return runtime.create(p.workspace, p.providerId, p.reasoningEffort, p.approvalMode, p.pluginActivations);
+      return runtime.create(
+        p.workspace,
+        p.providerId,
+        p.reasoningEffort,
+        p.approvalPolicy,
+        p.permissionProfile,
+        p.pluginActivations,
+      );
     }
     case "openStream":
       return runtime.openStream(idSchema.parse(payload));
@@ -160,9 +168,15 @@ async function dispatch(method: string, payload: unknown) {
       runtime.approve(p.id, p.approvalId, p.approved);
       return null;
     }
-    case "setApprovalMode": {
-      const p = z.object({ id: idSchema, approvalMode: z.enum(["request", "auto", "full"]) }).parse(payload);
-      runtime.setApprovalMode(p.id, p.approvalMode);
+    case "setExecutionPolicy": {
+      const p = z
+        .object({
+          id: idSchema,
+          approvalPolicy: z.enum(["never", "on-request", "unless-trusted", "granular"]),
+          permissionProfile: z.enum([":read-only", ":workspace", ":danger-full-access"]),
+        })
+        .parse(payload);
+      runtime.setExecutionPolicy(p.id, p.approvalPolicy, p.permissionProfile);
       return null;
     }
     case "stop":

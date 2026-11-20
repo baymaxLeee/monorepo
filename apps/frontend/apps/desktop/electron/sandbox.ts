@@ -4,6 +4,14 @@ import { realpath, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
+import { compilePermissionProfile, type PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
+import { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
+import type {
+  SandboxAttempt,
+  SandboxAttemptResult,
+  SandboxViolation,
+} from "@repo/agent-runtime/runtime/tool-orchestrator";
+
 export function within(root: string, target: string): boolean {
   const path = relative(root, target);
   return path === "" || (path !== ".." && !path.startsWith("../") && !isAbsolute(path));
@@ -15,12 +23,25 @@ function quote(value: string): string {
 }
 
 export function seatbeltProfile(
-  root: string,
+  _root: string,
   scratch: string,
   runtimePaths: string[],
   protectedPaths: string[],
+  permissionProfile: PermissionProfile,
   marker = "com.monorepo.desktop.test",
 ): string {
+  if (permissionProfile.type === "external") {
+    throw new Error("本地执行没有 external sandbox owner");
+  }
+  if (permissionProfile.type === "disabled") {
+    return [
+      "(version 1)",
+      "(allow default)",
+      `(allow mach-lookup (global-name ${quote(marker)}))`,
+      '(deny mach-lookup (global-name "com.monorepo.desktop.forbidden"))',
+      ...protectedPaths.map((p) => `(deny file-read* file-write* (subpath ${quote(p)}))`),
+    ].join("\n");
+  }
   const readPaths = [
     "/System",
     "/usr/bin",
@@ -38,21 +59,34 @@ export function seatbeltProfile(
     "/private/etc/resolv.conf",
     "/private/etc/services",
     ...runtimePaths,
-    root,
     scratch,
   ];
+  const fileRules =
+    permissionProfile.fileSystem.type === "unrestricted"
+      ? ["(allow file-read* file-write*)"]
+      : permissionProfile.fileSystem.entries.map((entry) => {
+          const operation =
+            entry.access === "read"
+              ? "file-read*"
+              : entry.access === "write"
+                ? "file-read* file-write*"
+                : "file-read* file-write*";
+          const action = entry.access === "deny" ? "deny" : "allow";
+          return `(${action} ${operation} (subpath ${quote(entry.path)}))`;
+        });
   return [
     "(version 1)",
     "(deny default)",
     "(allow process-exec process-fork sysctl-read)",
-    "(allow network*)",
+    ...(permissionProfile.network.type === "enabled" ? ["(allow network*)"] : []),
     "(allow signal (target same-sandbox))",
     `(allow mach-lookup (global-name ${quote(marker)}))`,
     '(deny mach-lookup (global-name "com.monorepo.desktop.forbidden"))',
     "(allow file-read-metadata)",
     '(allow file-read* (literal "/"))',
     `(allow file-read* ${readPaths.map((p) => `(subpath ${quote(p)})`).join(" ")})`,
-    `(allow file-write* (subpath ${quote(root)}) (subpath ${quote(scratch)}))`,
+    `(allow file-write* (subpath ${quote(scratch)}))`,
+    ...fileRules,
     '(allow file-read* file-write-data (literal "/dev/null") (literal "/dev/zero") (literal "/dev/random") (literal "/dev/urandom"))',
     '(allow mach-lookup (global-name "com.apple.system.logger") (global-name "com.apple.system.notification_center"))',
     ...protectedPaths.map((p) => `(deny file-read* file-write* (subpath ${quote(p)}))`),
@@ -71,6 +105,7 @@ export interface SandboxOptions {
 export class LocalSandbox {
   private identity: { dev: number; ino: number } | null = null;
   private active = new Set<() => void>();
+  readonly processes = new ProcessManager<{ terminate(): void }>();
   constructor(readonly options: SandboxOptions) {}
 
   async initialize() {
@@ -81,12 +116,33 @@ export class LocalSandbox {
       if (within(root, await realpath(resource))) throw new Error("工作目录不能包含桌面运行程序");
     }
     this.identity = await stat(root);
-    const result = await this.execute("/usr/bin/true", [], undefined, undefined, 10_000);
-    if (result.code !== 0) throw new Error(`Seatbelt 启动自检失败（${result.code}）：${result.stderr}`);
+    const profile = compilePermissionProfile(":workspace", { workspaceRoot: this.options.root }).profile;
+    const result = await this.processes.run((process, abortSignal) =>
+      this.execute(
+        { attempt: 1, sandboxed: true, permissionProfile: profile, process, abortSignal },
+        "/usr/bin/true",
+        [],
+        undefined,
+        undefined,
+        10_000,
+      ),
+    );
+    if (result.type !== "exit" || result.exitCode !== 0) {
+      throw new Error(`Seatbelt 启动自检失败：${result.stderr || result.type}`);
+    }
   }
 
-  async execute(command: string, args: string[], input?: string, signal?: AbortSignal, timeoutMs = 120_000) {
-    signal?.throwIfAborted();
+  async execute(
+    attempt: SandboxAttempt,
+    command: string,
+    args: string[],
+    input?: string,
+    signal?: AbortSignal,
+    timeoutMs = 120_000,
+    violationHint?: SandboxViolation,
+  ): Promise<SandboxAttemptResult> {
+    const operationSignal = signal ? AbortSignal.any([signal, attempt.abortSignal]) : attempt.abortSignal;
+    operationSignal.throwIfAborted();
     const current = await stat(this.options.root);
     if (
       !this.identity ||
@@ -107,9 +163,10 @@ export class LocalSandbox {
         ...(this.options.runtimePaths ?? []),
       ],
       this.options.protectedPaths,
+      attempt.sandboxed ? attempt.permissionProfile : { type: "disabled" },
       marker,
     );
-    return new Promise<{ stdout: string; stderr: string; code: number; timedOut: boolean }>((resolve, reject) => {
+    return new Promise<SandboxAttemptResult>((resolve, reject) => {
       const child = spawn(this.options.supervisor, [marker, profile, command, ...args], {
         cwd: this.options.root,
         stdio: ["pipe", "pipe", "pipe"],
@@ -137,10 +194,10 @@ export class LocalSandbox {
         timedOut = true;
         child.stdin.destroy();
       }, timeoutMs);
-      signal?.addEventListener("abort", cancel, { once: true });
+      operationSignal.addEventListener("abort", cancel, { once: true });
       const cleanup = () => {
         clearTimeout(timeout);
-        signal?.removeEventListener("abort", cancel);
+        operationSignal.removeEventListener("abort", cancel);
         this.active.delete(cancel);
       };
       const collect = (chunk: Buffer, channel: "stdout" | "stderr") => {
@@ -164,31 +221,55 @@ export class LocalSandbox {
       child.once("close", (code) => {
         cleanup();
         if (failure) reject(failure);
-        else
-          resolve({
-            stdout: stdout + decoders.stdout.end(),
-            stderr: stderr + decoders.stderr.end(),
-            code: timedOut ? 124 : (code ?? 128),
-            timedOut,
-          });
+        else {
+          const output = { stdout: stdout + decoders.stdout.end(), stderr: stderr + decoders.stderr.end() };
+          if (timedOut) resolve({ type: "timeout", timeoutMs, ...output });
+          else if (code === 70)
+            resolve({ type: "sandbox-unavailable", message: output.stderr || "Seatbelt unavailable", ...output });
+          else if (
+            violationHint &&
+            code !== 0 &&
+            /operation not permitted|permission denied|sandbox/iu.test(output.stderr)
+          ) {
+            resolve({ type: "sandbox-violation", violation: violationHint, ...output });
+          } else resolve({ type: "exit", exitCode: code ?? 128, ...output });
+        }
       });
       if (input) child.stdin.write(`${input}\n`);
-      if (signal?.aborted) cancel();
+      if (operationSignal.aborted) cancel();
     });
   }
 
-  async file(operation: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
-    const result = await this.execute(
-      this.options.executable,
-      [this.options.fileWorker],
-      JSON.stringify({ ...operation, root: this.options.root }),
-      signal,
-      30_000,
+  async file(
+    permissionProfile: PermissionProfile,
+    operation: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    const result = await this.processes.run((process, abortSignal) =>
+      this.execute(
+        {
+          attempt: 1,
+          sandboxed: permissionProfile.type !== "disabled",
+          permissionProfile,
+          process,
+          abortSignal,
+        },
+        this.options.executable,
+        [this.options.fileWorker],
+        JSON.stringify({ ...operation, root: this.options.root }),
+        signal,
+        30_000,
+      ),
     );
-    if (result.code !== 0) throw new Error(result.stderr.trim() || "文件操作被拒绝");
+    if (result.type !== "exit" || result.exitCode !== 0) {
+      throw new Error(
+        result.stderr.trim() || (result.type === "sandbox-violation" ? "文件操作被 sandbox 拒绝" : "文件操作被拒绝"),
+      );
+    }
     return JSON.parse(result.stdout);
   }
   cancel() {
+    this.processes.closeAll();
     for (const stop of this.active) stop();
   }
 }

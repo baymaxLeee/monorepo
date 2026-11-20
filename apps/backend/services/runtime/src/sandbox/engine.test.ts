@@ -63,6 +63,7 @@ test("Pod spec has no host mounts, service identity or writable root, and bounde
   assert.equal(pod.spec.runtimeClassName, "runsc");
   assert.equal(pod.spec.containers[0].securityContext.readOnlyRootFilesystem, true);
   assert.equal(pod.spec.containers[0].securityContext.allowPrivilegeEscalation, false);
+  assert.equal(pod.spec.containers[0].securityContext.procMount, "Unmasked");
   assert.deepEqual(pod.spec.containers[0].securityContext.capabilities, {
     drop: ["ALL"],
     add: ["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"],
@@ -131,10 +132,9 @@ test("a timed-out command keeps the stopped workspace available for final snapsh
     session_id: "process",
     stdout: "partial",
     stderr: "",
-    exitCode: 124,
+    termination: { type: "timeout", timeout_ms: 120_000 },
     stdout_offset: 7,
     stderr_offset: 0,
-    timed_out: true,
     truncated: false,
   });
   engine.remove = async () => {
@@ -143,7 +143,7 @@ test("a timed-out command keeps the stopped workspace available for final snapsh
 
   const result = await engine.process("sandbox", scope, { op: "poll" });
 
-  assert.equal(result.timed_out, true);
+  assert.deepEqual(result.termination, { type: "timeout", timeout_ms: 120_000 });
   assert.equal(result.stdout, "partial");
 });
 

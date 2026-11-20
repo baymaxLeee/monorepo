@@ -4,7 +4,7 @@ import type { FlexibleSchema } from "ai";
 import { createCodeModeManifest } from "./code-mode.js";
 import { createToolSearchManifest } from "./discovery.js";
 import { createInteractionToolManifests } from "./interaction.js";
-import { manifestsToTools } from "./manifest.js";
+import { deferAgentToolLoading, manifestsToTools } from "./manifest.js";
 import { createPlanningToolManifests } from "./planning.js";
 import { resolveSkills, type SkillSource } from "./skills.js";
 import { createSubagentsManifest, type SubagentObserver } from "./subagents.js";
@@ -49,22 +49,24 @@ export function createPortableToolRegistry<CONTEXT extends Record<string, unknow
     manifests: [
       webSearchManifest,
       webFetchManifest,
-      createCodeModeManifest(),
+      deferAgentToolLoading(createCodeModeManifest()),
       createToolSearchManifest(),
       ...createPlanningToolManifests(),
       ...(clientInteraction ? createInteractionToolManifests() : []),
-      createSubagentsManifest({
-        modelName: model.name,
-        model: model.model,
-        maxOutputTokens: model.maxOutputTokens,
-        supportsStoredContinuation: model.supportsStoredContinuation,
-        tools: {
-          web_search: researchTools.web_search,
-          web_fetch: researchTools.web_fetch,
-        },
-        ...(model.contextSchema ? { contextSchema: model.contextSchema } : {}),
-        ...(model.observer ? { observer: model.observer } : {}),
-      }),
+      deferAgentToolLoading(
+        createSubagentsManifest({
+          modelName: model.name,
+          model: model.model,
+          maxOutputTokens: model.maxOutputTokens,
+          supportsStoredContinuation: model.supportsStoredContinuation,
+          tools: {
+            web_search: researchTools.web_search,
+            web_fetch: researchTools.web_fetch,
+          },
+          ...(model.contextSchema ? { contextSchema: model.contextSchema } : {}),
+          ...(model.observer ? { observer: model.observer } : {}),
+        }),
+      ),
       ...skills.manifests,
     ],
     skills: skills.skills,

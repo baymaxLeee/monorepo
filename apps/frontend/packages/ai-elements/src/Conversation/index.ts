@@ -10,4 +10,4 @@ export { ConversationSessionView } from "./components/ConversationSessionView";
 export type { PendingAgentInput } from "./components/PendingInputStack";
 export { ExecutionLocation } from "./components/ExecutionLocation";
 export { NewConversationEnvironment } from "./components/NewConversationEnvironment";
-export { ApprovalMode, type ApprovalModeValue } from "./components/ApprovalMode";
+export { ExecutionPolicy, type ApprovalPolicyValue, type PermissionProfileValue } from "./components/ExecutionPolicy";

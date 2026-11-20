@@ -69,12 +69,16 @@ Read only relevant routes and every closer AGENTS file. See the
 - For runtime and lower-level agent-harness architecture—including the agent
   loop, session and context lifecycle, tool execution, approvals, sandbox and
   process isolation, permissions, cancellation and recovery—inspect the local
-  `~/projects/codex` checkout and the relevant current `openai/codex` upstream
-  implementation before designing or changing it. Treat proven Codex patterns
-  as the default baseline and adapt them to this repository's boundaries rather
-  than reinventing the core architecture. Current primary-source research into
-  Claude Code may supplement that baseline; document intentional divergences and
-  tradeoffs, and respect applicable licenses rather than copying blindly.
+  `~/projects/codex` and `~/projects/pi` checkouts and the relevant current
+  `openai/codex` and `earendil-works/pi` upstream implementations before designing
+  or changing it. Treat proven Codex patterns as the default engineering and
+  safety baseline; use Pi as a complementary reference for a small core, compact
+  hot-tool surface and Bash-first generality. Adapt both to this repository's
+  single shared AI SDK loop and boundaries: do not rebase the runtime on Pi or
+  introduce a second loop, permission model or tool protocol. Current
+  primary-source research into Claude Code may supplement those references;
+  document intentional divergences and tradeoffs, and respect applicable
+  licenses rather than copying blindly.
 - Reuse official AI SDK message, stream, tool and artifact primitives. Verify
   unfamiliar APIs against installed types/source and platform decisions against
   current primary sources. Do not invent limits or orchestration policy.

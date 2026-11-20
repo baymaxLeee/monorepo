@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { compilePermissionProfile } from "@repo/agent-runtime/runtime/permissions";
+import type { SandboxAttempt } from "@repo/agent-runtime/runtime/tool-orchestrator";
+
 import type { SandboxProcess } from "#runtime/transport";
 
 import type { KnowledgeDocument } from "../../../infrastructure/clients/knowledge.js";
@@ -16,6 +19,18 @@ const context = {
   attemptEpoch: "1",
 };
 const bytes = Uint8Array.from([0, 255, 1, 128, 10]);
+const permissionProfile = compilePermissionProfile(":workspace", { workspaceRoot: "/workspace" }).profile;
+let processId = 0;
+function attempt(): SandboxAttempt {
+  processId++;
+  return {
+    attempt: 1,
+    sandboxed: true,
+    permissionProfile,
+    process: { processId, entryId: `cloud-test-${processId}` },
+    abortSignal: new AbortController().signal,
+  };
+}
 const document = {
   id: "doc",
   tenant_id: "t",
@@ -34,15 +49,20 @@ function fixture() {
   const executionStates: string[] = [];
   const imported: Uint8Array[] = [];
   const importedPaths: string[] = [];
+  const conditionalUploads: Array<{
+    path: string;
+    content: Uint8Array;
+    conditions: { mode?: "create" | "overwrite"; expectedSha256?: string } | undefined;
+  }> = [];
+  const conditionalDeletes: Array<{ path: string; expectedSha256: string }> = [];
   const process: SandboxProcess = {
     session_id: "process",
     stdout: "first",
     stderr: "",
-    exitCode: null,
+    termination: null,
     stdout_offset: 5,
     stderr_offset: 0,
     truncated: false,
-    timed_out: false,
   };
   const client: ReturnType<SandboxDependencies["sandbox"]> = {
     create: async () => {
@@ -54,9 +74,14 @@ function fixture() {
       return { destroyed: true };
     },
     snapshot: async () => ({ files: [] }),
-    upload: async (_id, _scope, path, body) => {
+    upload: async (_id, _scope, path, body, _signal, _workspaceEditToken, conditions) => {
       importedPaths.push(path);
-      imported.push(new Uint8Array(await new Response(body).arrayBuffer()));
+      const content = new Uint8Array(await new Response(body).arrayBuffer());
+      imported.push(content);
+      if (conditions) conditionalUploads.push({ path, content, conditions });
+    },
+    deleteFile: async (_id, _scope, path, expectedSha256) => {
+      conditionalDeletes.push({ path, expectedSha256 });
     },
     download: async () => new Blob([bytes]).stream(),
     start: async () => {
@@ -65,9 +90,9 @@ function fixture() {
     },
     write: async (_id, _session, input) => {
       assert.equal(input.stdout_offset, 5);
-      return { ...process, stdout: "second", stdout_offset: 11, exitCode: 0 };
+      return { ...process, stdout: "second", stdout_offset: 11, termination: { type: "exit", exit_code: 0 } };
     },
-    cancel: async () => ({ ...process, exitCode: 137 }),
+    cancel: async () => ({ ...process, termination: { type: "exit", exit_code: 137 } }),
   };
   const deps: SandboxDependencies = {
     sandbox: () => client,
@@ -190,14 +215,23 @@ function fixture() {
       },
     },
   };
-  return { deps, client, calls, executionStates, imported, importedPaths };
+  return {
+    deps,
+    client,
+    calls,
+    executionStates,
+    imported,
+    importedPaths,
+    conditionalUploads,
+    conditionalDeletes,
+  };
 }
 
 test("lazy run allocation is single-flight; original binary bytes survive import and explicit publication", async () => {
   const f = fixture();
   const run = new RunSandbox(context, f.deps);
   assert.equal(f.calls.length, 0);
-  await Promise.all([run.run({ command: "one" }), run.run({ command: "two" })]);
+  await Promise.all([run.runAttempt(attempt(), { command: "one" }), run.runAttempt(attempt(), { command: "two" })]);
   assert.equal(f.calls.filter((c) => c === "create").length, 1);
   assert.deepEqual(f.imported, [bytes]);
   assert.ok(!f.calls.includes("publish"));
@@ -218,23 +252,21 @@ test("command timeout remains the primary result until finalization snapshots th
       session_id: "timed-out",
       stdout: "partial evidence",
       stderr: "",
-      exitCode: 124,
+      termination: { type: "timeout", timeout_ms: 10_000 },
       stdout_offset: 16,
       stderr_offset: 0,
       truncated: false,
-      timed_out: true,
     };
   };
   const run = new RunSandbox(context, f.deps);
 
-  const result = await run.run({ command: "slow", timeoutMs: 10_000 });
+  const result = await run.runAttempt(attempt(), { command: "slow", timeoutMs: 10_000 });
 
   assert.equal(requestedTimeout, 10_000);
   assert.deepEqual(result, {
-    exitCode: 124,
+    type: "timeout",
     stdout: "partial evidence",
     stderr: "",
-    timedOut: true,
     timeoutMs: 10_000,
   });
   assert.equal(f.calls.includes("destroy"), false);
@@ -294,7 +326,7 @@ test("Stop during provisioning waits for creation then deletes it without execut
   };
   const run = new RunSandbox(context, f.deps);
   const stop = new AbortController();
-  const pending = run.run({ command: "never", abortSignal: stop.signal });
+  const pending = run.runAttempt(attempt(), { command: "never", abortSignal: stop.signal });
   const rejected = assert.rejects(pending, { name: "AbortError" });
   stop.abort();
   release();
@@ -308,14 +340,14 @@ test("attachment scope failures destroy partial initialization; foreign process 
   const f = fixture();
   f.deps.documents = async () => [{ ...document, workspace_id: "other" }];
   const run = new RunSandbox(context, f.deps);
-  await assert.rejects(run.run({ command: "never" }), /scope mismatch/);
+  await assert.rejects(run.runAttempt(attempt(), { command: "never" }), /scope mismatch/);
   assert.deepEqual(f.calls, ["create", "destroy"]);
 });
 
 test("command continuation consumes output offsets and preserves streamed output", async () => {
   const f = fixture();
   const run = new RunSandbox(context, f.deps);
-  const result = await run.run({ command: "cat" });
+  const result = await run.runAttempt(attempt(), { command: "cat" });
   assert.equal(result.stdout, "firstsecond");
   await run.dispose();
 });
@@ -327,6 +359,69 @@ test("official SDK file methods preserve bytes and keep source snapshots read-on
   assert.deepEqual(f.imported.at(-1), bytes);
   assert.deepEqual(await run.readBinaryFile({ path: "/workspace/work/data.bin" }), bytes);
   await assert.rejects(run.writeTextFile({ path: "/workspace/sources/data.txt", content: "blocked" }), /cannot target/);
+  await run.dispose();
+});
+
+test("direct text mutations preserve create, overwrite, delete, and CAS conditions through the cloud adapter", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  f.deps.files = async () => [];
+  const run = new RunSandbox(context, f.deps);
+  const firstHash = "a".repeat(64);
+
+  const created = await run.writeTextFileConditional({
+    path: "/workspace/work/notes.txt",
+    content: "first",
+    mode: "create",
+  });
+  const overwritten = await run.writeTextFileConditional({
+    path: "/workspace/work/notes.txt",
+    content: "second",
+    mode: "overwrite",
+    expectedSha256: firstHash,
+  });
+  await run.deleteTextFile({ path: "/workspace/work/notes.txt", expectedSha256: overwritten.sha256 });
+
+  assert.equal(created.created, true);
+  assert.equal(overwritten.created, false);
+  assert.deepEqual(
+    f.conditionalUploads.map(({ path, content, conditions }) => ({
+      path,
+      content: new TextDecoder().decode(content),
+      conditions,
+    })),
+    [
+      { path: "work/notes.txt", content: "first", conditions: { mode: "create" } },
+      {
+        path: "work/notes.txt",
+        content: "second",
+        conditions: { mode: "overwrite", expectedSha256: firstHash },
+      },
+    ],
+  );
+  assert.deepEqual(f.conditionalDeletes, [{ path: "work/notes.txt", expectedSha256: overwritten.sha256 }]);
+  await run.dispose();
+});
+
+test("cloud direct text mutations surface stale-content conflicts instead of falling back to an unconditional write", async () => {
+  const f = fixture();
+  f.deps.documents = async () => [];
+  f.deps.files = async () => [];
+  const run = new RunSandbox(context, f.deps);
+  await run.ensure();
+  f.client.upload = async () => {
+    throw Object.assign(new Error("sandbox file changed"), { status: 409 });
+  };
+
+  await assert.rejects(
+    run.writeTextFileConditional({
+      path: "/workspace/work/notes.txt",
+      content: "stale",
+      mode: "overwrite",
+      expectedSha256: "b".repeat(64),
+    }),
+    /sandbox file changed/,
+  );
   await run.dispose();
 });
 
@@ -345,11 +440,10 @@ test("AI SDK 7 stat, directory listing, and deletion use the same sandbox bounda
       session_id: "process",
       stdout: response.stdout,
       stderr: "",
-      exitCode: response.exitCode,
+      termination: { type: "exit", exit_code: response.exitCode },
       stdout_offset: response.stdout.length,
       stderr_offset: 0,
       truncated: false,
-      timed_out: false,
     };
   };
   const run = new RunSandbox(context, f.deps);
@@ -371,7 +465,7 @@ test("refresh imports and reports only session sources added or updated after in
   f.deps.documents = async () => documents;
   const run = new RunSandbox(context, f.deps);
 
-  await run.run({ command: "true" });
+  await run.runAttempt(attempt(), { command: "true" });
   documents = [
     document,
     {
@@ -439,7 +533,7 @@ test("failed exports are never registered as artifacts, and later runs import pe
   assert.ok(!f.calls.includes("publish"));
   await run.dispose();
   const next = new RunSandbox({ ...context, runId: "next" }, f.deps);
-  await next.run({ command: "cat" });
+  await next.runAttempt(attempt(), { command: "cat" });
   assert.deepEqual(f.imported, [bytes, bytes]);
   await next.dispose();
 });
@@ -557,7 +651,7 @@ test("run finalization automatically persists new workspace files before destroy
     files: [{ path: "draft.txt", size: bytes.byteLength, sha256: "a".repeat(64) }],
   });
   const run = new RunSandbox(context, f.deps);
-  await run.run({ command: "create draft" });
+  await run.runAttempt(attempt(), { command: "create draft" });
   await run.dispose();
   assert.ok(f.calls.indexOf("upload") < f.calls.indexOf("publish"));
   assert.ok(f.calls.indexOf("publish") < f.calls.indexOf("destroy"));
@@ -594,7 +688,7 @@ test("run finalization records deletion tombstones before destroying compute", a
     f.calls.push("delete");
   };
   const run = new RunSandbox(context, f.deps);
-  await run.run({ command: "delete notes" });
+  await run.runAttempt(attempt(), { command: "delete notes" });
   await run.dispose();
   assert.ok(f.calls.indexOf("delete") < f.calls.indexOf("destroy"));
 });
@@ -606,7 +700,7 @@ test("failed workspace persistence retains compute for durable finalization retr
     throw new Error("Storage unavailable");
   };
   const run = new RunSandbox(context, f.deps);
-  await run.run({ command: "write draft" });
+  await run.runAttempt(attempt(), { command: "write draft" });
   await assert.rejects(run.dispose(), /Storage unavailable/);
   assert.ok(!f.calls.includes("destroy"));
   assert.deepEqual(f.executionStates, ["restoring", "active", "finalizing", "finalization-failed"]);
@@ -631,7 +725,7 @@ test("missing sandbox cleanup is terminal instead of retrying an impossible snap
     });
   };
   const run = new RunSandbox(context, f.deps);
-  await run.run({ command: "write draft" });
+  await run.runAttempt(attempt(), { command: "write draft" });
 
   await assert.rejects(run.dispose(), /snapshot failed/);
   assert.ok(f.calls.includes("destroy"));

@@ -8,22 +8,30 @@ if (process.isMainFrame && expected && location.origin === decodeURIComponent(ex
   const call = <T>(method: string, payload?: unknown): Promise<T> =>
     ipcRenderer.invoke("desktop:invoke", method, payload);
   const bridge: DesktopBridge = {
-    version: 3,
+    version: 4,
     info: () => call("info"),
     bindSession: (accessToken, expiresAt) => call("bindSession", { accessToken, expiresAt }),
     clearSession: () => call("clearSession"),
     refreshSession: () => call("refreshSession"),
     listThreads: () => call("list"),
     selectWorkspace: () => call("selectWorkspace"),
-    createThread: (workspace, providerId, reasoningEffort, approvalMode, pluginActivations) =>
-      call("create", { workspace, providerId, reasoningEffort, approvalMode, pluginActivations }),
+    createThread: (workspace, providerId, reasoningEffort, approvalPolicy, permissionProfile, pluginActivations) =>
+      call("create", {
+        workspace,
+        providerId,
+        reasoningEffort,
+        approvalPolicy,
+        permissionProfile,
+        pluginActivations,
+      }),
     getThread: (id) => call("get", id),
     openStream: (id) => call("openStream", id),
     send: (id, text, messageId) => call("send", { id, text, messageId }),
     submitRunInput: (id, expectedTurnId, text, messageId, mode) =>
       call("submitRunInput", { id, expectedTurnId, text, messageId, mode }),
     approve: (id, approvalId, approved) => call("approve", { id, approvalId, approved }),
-    setApprovalMode: (id, approvalMode) => call("setApprovalMode", { id, approvalMode }),
+    setExecutionPolicy: (id, approvalPolicy, permissionProfile) =>
+      call("setExecutionPolicy", { id, approvalPolicy, permissionProfile }),
     stop: (id) => call("stop", id),
     removeThread: (id) => call("remove", id),
     listFiles: (id, path) => call("listFiles", { id, path }),

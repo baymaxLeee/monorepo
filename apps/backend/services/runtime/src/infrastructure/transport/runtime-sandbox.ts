@@ -76,16 +76,19 @@ export class RuntimeSandboxClient {
     });
   }
   private async file(
-    method: "GET" | "PUT",
+    method: "GET" | "PUT" | "DELETE",
     id: string,
     scope: SandboxScope,
     path: string,
     signal?: AbortSignal,
     body?: ReadableStream<Uint8Array>,
     workspaceEditToken?: string,
+    conditions?: { mode?: "create" | "overwrite"; expectedSha256?: string },
   ) {
     const url = new URL(`/sessions/${encodeURIComponent(id)}/files`, this.options.baseUrl);
     url.searchParams.set("path", path);
+    if (conditions?.mode) url.searchParams.set("mode", conditions.mode);
+    if (conditions?.expectedSha256) url.searchParams.set("expected_sha256", conditions.expectedSha256);
     const init: RequestInit & { duplex?: "half" } = {
       method,
       body,
@@ -111,13 +114,18 @@ export class RuntimeSandboxClient {
     body: ReadableStream<Uint8Array>,
     signal?: AbortSignal,
     workspaceEditToken?: string,
+    conditions?: { mode?: "create" | "overwrite"; expectedSha256?: string },
   ) {
-    const response = await this.file("PUT", id, scope, path, signal, body, workspaceEditToken);
+    const response = await this.file("PUT", id, scope, path, signal, body, workspaceEditToken, conditions);
     await response.json();
   }
   async download(id: string, scope: SandboxScope, path: string, signal?: AbortSignal) {
     const response = await this.file("GET", id, scope, path, signal);
     if (!response.body) throw new Error("sandbox returned no file body");
     return response.body;
+  }
+  async deleteFile(id: string, scope: SandboxScope, path: string, expectedSha256: string, signal?: AbortSignal) {
+    const response = await this.file("DELETE", id, scope, path, signal, undefined, undefined, { expectedSha256 });
+    await response.json();
   }
 }

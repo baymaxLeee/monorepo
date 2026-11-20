@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -88,7 +88,7 @@ async function fixture(
   };
   const runtime = new DesktopSessionManager(options);
   runtimes.push(runtime);
-  const thread = await runtime.create(workspace, "provider", "medium", "auto", pluginActivations);
+  const thread = await runtime.create(workspace, "provider", "medium", "on-request", ":workspace", pluginActivations);
   return { runtime, thread, options };
 }
 async function done(runtime: DesktopSessionManager, id: string) {
@@ -212,7 +212,12 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     f.runtime.send(f.thread.id, "你能帮我干啥？", randomUUID());
     expect((await done(f.runtime, f.thread.id)).status).toBe("idle");
     expect(requests).toHaveLength(1);
-    expect(requests[0]!.options.tools?.map((candidate) => candidate.name)).toContain("subagents");
+    const initialTools = requests[0]!.options.tools?.map((candidate) => candidate.name) ?? [];
+    expect(initialTools).toEqual(
+      expect.arrayContaining(["bash", "read_file", "apply_patch", "write_file", "tool_search"]),
+    );
+    expect(initialTools).not.toContain("subagents");
+    expect(initialTools).not.toContain("code_mode");
     expect(JSON.stringify(requests[0]!.options.prompt)).not.toContain("工作区内容已变化");
   });
 
@@ -294,6 +299,82 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(await readFile(join(f.thread.workspace, "demo.js"), "utf8")).toBe("user edited");
   });
 
+  it("executes model-visible read, CAS overwrite, and patch tools through the Seatbelt file worker", async () => {
+    const requests: InferenceRequest[] = [];
+    const alphaHash = createHash("sha256").update("alpha\n").digest("hex");
+    const f = await fixture(async (request) => {
+      requests.push(request);
+      switch (requests.length) {
+        case 1:
+          return reply([
+            {
+              type: "tool-call",
+              toolCallId: "seed-file",
+              toolName: "bash",
+              input: JSON.stringify({ command: "printf 'alpha\\n' > notes.txt" }),
+            },
+          ]);
+        case 2:
+          return reply([
+            {
+              type: "tool-call",
+              toolCallId: "read-alpha",
+              toolName: "read_file",
+              input: JSON.stringify({ path: "notes.txt" }),
+            },
+          ]);
+        case 3:
+          return reply([
+            {
+              type: "tool-call",
+              toolCallId: "overwrite-beta",
+              toolName: "write_file",
+              input: JSON.stringify({
+                path: "notes.txt",
+                content: "beta\n",
+                mode: "overwrite",
+                expected_sha256: alphaHash,
+              }),
+            },
+          ]);
+        case 4:
+          return reply([
+            {
+              type: "tool-call",
+              toolCallId: "read-beta",
+              toolName: "read_file",
+              input: JSON.stringify({ path: "notes.txt" }),
+            },
+          ]);
+        case 5:
+          return reply([
+            {
+              type: "tool-call",
+              toolCallId: "patch-gamma",
+              toolName: "apply_patch",
+              input: JSON.stringify({
+                patch: "*** Begin Patch\n*** Update File: notes.txt\n@@\n-beta\n+gamma\n*** End Patch",
+              }),
+            },
+          ]);
+        default:
+          return reply(text());
+      }
+    });
+
+    f.runtime.send(f.thread.id, "safely update the file", randomUUID());
+    const completed = await done(f.runtime, f.thread.id);
+
+    expect(completed.status).toBe("idle");
+    expect(requests).toHaveLength(6);
+    expect(JSON.stringify(requests[2]!.options.prompt)).toContain(alphaHash);
+    expect(JSON.stringify(requests[2]!.options.prompt)).toContain("alpha");
+    expect(await readFile(join(f.thread.workspace, "notes.txt"), "utf8")).toBe("gamma\n");
+    expect(JSON.stringify(completed.messages)).toContain('"type":"tool-read_file"');
+    expect(JSON.stringify(completed.messages)).toContain('"type":"tool-write_file"');
+    expect(JSON.stringify(completed.messages)).toContain('"type":"tool-apply_patch"');
+  });
+
   it("uses the common Bash policy and terminal result without a local-only approval gate", async () => {
     let calls = 0;
     const f = await fixture(async () =>
@@ -318,7 +399,11 @@ describe.skipIf(process.platform !== "darwin")("local assistant owns execution a
     expect(part).toMatchObject({
       state: "output-available",
       toolMetadata: { agent: { uiKind: "terminal" } },
-      output: { ok: true, status: "completed", data: { exitCode: 0 } },
+      output: {
+        ok: true,
+        status: "completed",
+        data: { termination: { type: "exit", exitCode: 0 }, stdout: "", stderr: "" },
+      },
     });
     expect(calls).toBe(2);
   });

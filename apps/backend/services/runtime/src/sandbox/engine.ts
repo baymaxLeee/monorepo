@@ -149,14 +149,6 @@ export class Engine {
       ...(this.config.backend === "docker" && this.config.proxy
         ? { SANDBOX_PROXY_SOCKET: "/run/egress/proxy.sock" }
         : {}),
-      ...(this.config.proxy
-        ? {
-            HTTP_PROXY: this.config.proxy,
-            HTTPS_PROXY: this.config.proxy,
-            http_proxy: this.config.proxy,
-            https_proxy: this.config.proxy,
-          }
-        : {}),
     };
     // A run has one lazy, single-flight create in Chat. A colliding resource must
     // never be replaced or adopted following an ambiguous provisioning response.
@@ -180,9 +172,20 @@ export class Engine {
             : []),
           "--security-opt",
           "no-new-privileges",
+          // Bubblewrap must create the command's user/mount namespaces before its
+          // inner no-new-privs + seccomp filter is installed. Docker's default
+          // profile blocks that bootstrap even though the container has no SYS_ADMIN.
+          "--security-opt",
+          "seccomp=unconfined",
+          // Docker's masked system paths otherwise prevent bubblewrap from
+          // mounting a fresh /proc inside the command PID namespace.
+          "--security-opt",
+          "systempaths=unconfined",
           "--cap-drop",
           "ALL",
-          // Trusted transfers must access guest-owned files; guest UID 1000 drops these capabilities.
+          // Trusted transfers must access guest-owned files. The runner drops
+          // to UID 1000 before entering bubblewrap, and the inner command drops
+          // every capability before execution.
           ...["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"].flatMap((cap) => ["--cap-add", cap]),
           "--cpus",
           String(this.config.cpu),
@@ -239,7 +242,7 @@ export class Engine {
         restartPolicy: "Never",
         activeDeadlineSeconds: this.config.ttlSeconds,
         terminationGracePeriodSeconds: 5,
-        securityContext: { seccompProfile: { type: "RuntimeDefault" } },
+        securityContext: { seccompProfile: { type: "Unconfined" } },
         containers: [
           {
             name: "runtime",
@@ -249,8 +252,16 @@ export class Engine {
               runAsUser: 0,
               allowPrivilegeEscalation: false,
               readOnlyRootFilesystem: true,
-              capabilities: { drop: ["ALL"], add: ["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"] },
-              seccompProfile: { type: "RuntimeDefault" },
+              // Bubblewrap replaces this outer view with a fresh /proc in the
+              // command PID namespace before executing untrusted code.
+              procMount: "Unmasked",
+              capabilities: {
+                drop: ["ALL"],
+                add: ["SETUID", "SETGID", "CHOWN", "KILL", "DAC_OVERRIDE"],
+              },
+              // The trusted runner creates bubblewrap namespaces, then installs
+              // the command-level seccomp filter inside that namespace.
+              seccompProfile: { type: "Unconfined" },
             },
             resources: {
               requests: { cpu: "100m", memory: "128Mi" },
@@ -356,11 +367,18 @@ export class Engine {
     body: ReadableStream<Uint8Array>,
     signal: AbortSignal,
     workspaceEditToken?: string,
+    conditions?: { mode?: "create" | "overwrite"; expectedSha256?: string },
   ) {
     await this.assertOwner(id, scope);
     filePath(path);
     if (path === ".home" || path.startsWith(".home/")) {
       throw new Error("file writes cannot target runtime state");
+    }
+    if (conditions?.mode === "overwrite" && !conditions.expectedSha256) {
+      throw new Error("conditional overwrite requires expected SHA-256");
+    }
+    if (conditions?.expectedSha256 && !/^[a-f0-9]{64}$/u.test(conditions.expectedSha256)) {
+      throw new Error("invalid expected file SHA-256");
     }
     const edit = workspaceEditToken
       ? await this.acquireWorkspaceEdit(id, scope, workspaceEditToken)
@@ -368,7 +386,20 @@ export class Engine {
     const startUpload = () =>
       spawn(
         this.executable,
-        [...this.prefix, ...this.execArgs(id, ["write", path, String(this.config.maxTransferBytes)], true)],
+        [
+          ...this.prefix,
+          ...this.execArgs(
+            id,
+            [
+              "write",
+              path,
+              String(this.config.maxTransferBytes),
+              conditions?.mode ?? "upsert",
+              conditions?.expectedSha256 ?? "-",
+            ],
+            true,
+          ),
+        ],
         { stdio: ["pipe", "ignore", "pipe"], signal },
       );
     let child: ReturnType<typeof startUpload>;
@@ -417,6 +448,20 @@ export class Engine {
       throw error;
     } finally {
       if (!workspaceEditToken) await this.releaseWorkspaceEdit(id, scope, edit.token);
+    }
+  }
+  async deleteFile(id: string, scope: Scope, path: string, expectedSha256: string, signal: AbortSignal) {
+    await this.assertOwner(id, scope);
+    filePath(path);
+    if (path === ".home" || path.startsWith(".home/") || path === "sources" || path.startsWith("sources/")) {
+      throw new Error("file deletes cannot target runtime state or imported sources");
+    }
+    if (!/^[a-f0-9]{64}$/u.test(expectedSha256)) throw new Error("invalid expected file SHA-256");
+    const edit = await this.acquireWorkspaceEdit(id, scope);
+    try {
+      await this.call(this.execArgs(id, ["delete", path, expectedSha256]), undefined, signal);
+    } finally {
+      await this.releaseWorkspaceEdit(id, scope, edit.token);
     }
   }
   async download(id: string, scope: Scope, path: string, signal: AbortSignal) {

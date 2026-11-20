@@ -82,12 +82,23 @@ export class RuntimeSandboxAdapter {
     body: ReadableStream<Uint8Array>,
     signal?: AbortSignal,
     workspaceEditToken?: string,
+    conditions?: { mode?: "create" | "overwrite"; expectedSha256?: string },
   ): Promise<void> {
-    return this.client.upload(id, transportScope(scope), path, body, signal, workspaceEditToken);
+    return this.client.upload(id, transportScope(scope), path, body, signal, workspaceEditToken, conditions);
   }
 
   download(id: string, scope: SandboxScope, path: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
     return this.client.download(id, transportScope(scope), path, signal);
+  }
+
+  deleteFile(
+    id: string,
+    scope: SandboxScope,
+    path: string,
+    expectedSha256: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.client.deleteFile(id, transportScope(scope), path, expectedSha256, signal);
   }
 }
 

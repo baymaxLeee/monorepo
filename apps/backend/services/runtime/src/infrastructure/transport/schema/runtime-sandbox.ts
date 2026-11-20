@@ -255,6 +255,8 @@ export interface paths {
       parameters: {
         query: {
           path: string;
+          mode?: "create" | "overwrite";
+          expected_sha256?: string;
         };
         header: {
           /** @description JSON-encoded SandboxScope */
@@ -286,7 +288,36 @@ export interface paths {
       };
     };
     post?: never;
-    delete?: never;
+    delete: {
+      parameters: {
+        query: {
+          path: string;
+          expected_sha256: string;
+        };
+        header: {
+          /** @description JSON-encoded SandboxScope */
+          "X-Sandbox-Scope": string;
+        };
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description success */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              deleted: boolean;
+            };
+          };
+        };
+      };
+    };
     options?: never;
     head?: never;
     patch?: never;
@@ -425,6 +456,77 @@ export interface components {
         attempt_epoch: string;
       };
       request_id: string;
+      sandbox: {
+        attempt: 1 | 2;
+        sandboxed: boolean;
+        permission_profile:
+          | {
+              /** @constant */
+              type: "managed";
+              file_system:
+                | {
+                    /** @constant */
+                    type: "restricted";
+                    entries: {
+                      path: string;
+                      /** @enum {string} */
+                      access: "read" | "write" | "deny";
+                    }[];
+                  }
+                | {
+                    /** @constant */
+                    type: "unrestricted";
+                  };
+              network:
+                | {
+                    /** @constant */
+                    type: "restricted";
+                    allowed_hosts: string[];
+                  }
+                | {
+                    /** @constant */
+                    type: "enabled";
+                  };
+            }
+          | {
+              /** @constant */
+              type: "disabled";
+            }
+          | {
+              /** @constant */
+              type: "external";
+              network:
+                | {
+                    /** @constant */
+                    type: "restricted";
+                    allowed_hosts: string[];
+                  }
+                | {
+                    /** @constant */
+                    type: "enabled";
+                  };
+            };
+        process: {
+          process_id: number;
+          entry_id: string;
+        };
+      };
+      violation_hint?:
+        | {
+            /** @constant */
+            type: "file-system";
+            /** @enum {string} */
+            operation: "read" | "write";
+            path: string;
+          }
+        | {
+            /** @constant */
+            type: "network";
+            host: string;
+            port: number;
+            /** @enum {string} */
+            protocol: "http" | "https" | "tcp";
+          };
       command: string;
       /** @default /workspace/work */
       workdir: string;
@@ -461,10 +563,52 @@ export interface components {
       session_id: string;
       stdout: string;
       stderr: string;
-      exitCode: number | null;
+      termination:
+        | (
+            | {
+                /** @constant */
+                type: "exit";
+                exit_code: number;
+              }
+            | {
+                /** @constant */
+                type: "timeout";
+                timeout_ms: number;
+              }
+            | {
+                /** @constant */
+                type: "start-error";
+                message: string;
+              }
+            | {
+                /** @constant */
+                type: "sandbox-unavailable";
+                message: string;
+              }
+            | {
+                /** @constant */
+                type: "sandbox-violation";
+                violation:
+                  | {
+                      /** @constant */
+                      type: "file-system";
+                      /** @enum {string} */
+                      operation: "read" | "write";
+                      path: string;
+                    }
+                  | {
+                      /** @constant */
+                      type: "network";
+                      host: string;
+                      port: number;
+                      /** @enum {string} */
+                      protocol: "http" | "https" | "tcp";
+                    };
+              }
+          )
+        | null;
       stdout_offset: number;
       stderr_offset: number;
-      timed_out: boolean;
       truncated: boolean;
     };
     SandboxSession: {

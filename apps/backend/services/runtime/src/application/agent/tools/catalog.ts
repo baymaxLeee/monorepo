@@ -8,7 +8,10 @@ import type {
   ResolvedTurnPluginSnapshot,
 } from "@repo/agent-runtime/plugins/types";
 import type { ExecutionEnvironment } from "@repo/agent-runtime/runtime/environment";
-import { manifestsToTools, transformToolPreservingCaller } from "@repo/agent-runtime/tools/manifest";
+import type { PermissionProfile } from "@repo/agent-runtime/runtime/permissions";
+import type { ProcessManager } from "@repo/agent-runtime/runtime/process-manager";
+import type { ToolOrchestrator } from "@repo/agent-runtime/runtime/tool-orchestrator";
+import { deferAgentToolLoading, manifestsToTools } from "@repo/agent-runtime/tools/manifest";
 import { createPortableToolRegistry } from "@repo/agent-runtime/tools/registry";
 import type { SkillSource } from "@repo/agent-runtime/tools/skills";
 import type { AgentToolManifest } from "@repo/agent-runtime/tools/types";
@@ -36,7 +39,7 @@ export interface PluginSkillAssetLoader {
 }
 
 function domainManifests(providers: AgentToolProviders): AgentToolManifest[] {
-  return [...createMediaToolManifests(), ...createMemoryToolManifests()];
+  return [...createMediaToolManifests(), ...createMemoryToolManifests()].map(deferAgentToolLoading);
 }
 
 /** Runtime-owned assembly of core tools plus an already authorized Turn plugin snapshot. */
@@ -65,6 +68,9 @@ export class ToolCatalog {
     activePlugins: AgentPluginManifest[];
     contributions: InstructionContributions;
     environment: ExecutionEnvironment;
+    permissionProfile: PermissionProfile;
+    processManager: ProcessManager<{ terminate(): void }>;
+    toolApproval: ToolOrchestrator["toolApproval"];
     dispose: () => Promise<void>;
   }> {
     const cloudAdapters = await createCloudToolAdapters();
@@ -95,17 +101,7 @@ export class ToolCatalog {
         if (manifest.policy.source !== "mcp") {
           throw new Error(`agent plugin ${manifest.policy.pluginId ?? "unknown"} contributed a non-MCP tool`);
         }
-        additions.push(
-          manifest.tool
-            ? {
-                ...manifest,
-                tool: transformToolPreservingCaller(manifest.tool, (definition) => ({
-                  ...definition,
-                  deferLoading: true,
-                })),
-              }
-            : manifest,
-        );
+        additions.push(deferAgentToolLoading(manifest));
       }
 
       const manifests = [...portableTools.manifests, ...additions];
@@ -132,6 +128,9 @@ export class ToolCatalog {
         activePlugins: pluginSet.activePlugins,
         contributions: { skills: [...portableTools.skills] },
         environment: cloudAdapters.environment,
+        permissionProfile: cloudAdapters.permissionProfile,
+        processManager: cloudAdapters.processManager,
+        toolApproval: cloudAdapters.toolApproval,
         dispose: async () => {
           await Promise.allSettled(disposers.reverse().map((dispose) => dispose()));
         },

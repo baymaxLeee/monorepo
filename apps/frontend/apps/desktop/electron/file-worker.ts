@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, readdir, readFile, realpath, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, realpath, rename, rm, unlink } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -69,14 +69,26 @@ async function run(input: {
     mode = info.mode & 0o777;
     original = await readFile(path);
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT" && input.operation === "readOptional") return null;
     if ((error as NodeJS.ErrnoException).code !== "ENOENT" || input.operation !== "write") throw error;
     original = null;
   }
-  if (input.operation === "read") {
+  if (input.operation === "read" || input.operation === "readOptional") {
     if (!original) throw new Error("文件不存在");
     const content = new TextDecoder("utf-8", { fatal: true }).decode(original);
     if (content.includes("\0")) throw new Error("该文件是二进制文件，请使用外部应用或命令处理");
     return { content, hash: hash(original) };
+  }
+  if (input.operation === "delete") {
+    if (!original) throw new Error("文件不存在");
+    if (hash(original) !== input.expectedHash) throw new Error("文件已改变，请重新读取后删除");
+    const latest = await readFile(path).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    });
+    if (!latest || hash(latest) !== input.expectedHash) throw new Error("文件在删除期间改变，请重新读取");
+    await unlink(path);
+    return { deleted: true };
   }
   if (input.operation !== "write") throw new Error("不支持的文件操作");
   if (typeof input.content !== "string" || Buffer.byteLength(input.content) > 2 * 1024 * 1024)

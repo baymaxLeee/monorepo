@@ -2,11 +2,22 @@
 # ruff: noqa: PT009, PT027
 import os
 import pathlib
+import socket
 import tempfile
 import time
 import unittest
+from unittest import mock
 
-from runner import Runtime, safe_open, workspace_files
+from runner import (
+    SCMP_CMP_EQ,
+    SCMP_CMP_NE,
+    Runtime,
+    bwrap_argv,
+    command_seccomp_rules,
+    safe_open,
+    safe_unlink,
+    workspace_files,
+)
 
 
 class RuntimeTests(unittest.TestCase):
@@ -14,6 +25,12 @@ class RuntimeTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self.temp.name)
         self.runtime = Runtime(self.root, uid=os.getuid(), gid=os.getgid(), output_limit=128, workspace_edit_wait=0)
+        self.sandbox = {
+            "attempt": 1,
+            "sandboxed": False,
+            "permission_profile": {"type": "disabled"},
+            "process": {"process_id": 1, "entry_id": "runner-test"},
+        }
 
     def tearDown(self):
         self.runtime.close()
@@ -21,18 +38,141 @@ class RuntimeTests(unittest.TestCase):
 
     def start(self, command, **kw):
         return self.runtime.request(
-            {"op": "start", "request_id": str(time.time_ns()), "command": command, "yield_time_ms": 1000, **kw}
+            {
+                "op": "start",
+                "request_id": str(time.time_ns()),
+                "command": command,
+                "yield_time_ms": 1000,
+                "sandbox": self.sandbox,
+                **kw,
+            }
         )
 
     def test_exit_output_and_shared_files(self):
         result = self.start("printf hello > notes; printf error >&2; exit 7")
-        self.assertEqual(result["exitCode"], 7)
+        self.assertEqual(result["termination"], {"type": "exit", "exit_code": 7})
         self.assertEqual(result["stderr"], "error")
         self.assertEqual(self.start("cat notes")["stdout"], "hello")
 
+    def test_rejects_commands_without_an_explicit_sandbox_attempt(self):
+        with self.assertRaisesRegex(ValueError, "sandbox attempt is required"):
+            self.runtime.request({"op": "start", "request_id": "missing", "command": "true"})
+
+    def test_bubblewrap_profile_uses_read_only_root_and_specific_mounts(self):
+        sources = self.root / "sources"
+        sources.mkdir()
+        request = {
+            "command": "true",
+            "workdir": str(self.root),
+            "sandbox": {
+                "attempt": 1,
+                "sandboxed": True,
+                "permission_profile": {
+                    "type": "managed",
+                    "file_system": {
+                        "type": "restricted",
+                        "entries": [
+                            {"path": "/", "access": "read"},
+                            {"path": str(self.root), "access": "write"},
+                            {"path": str(sources), "access": "read"},
+                        ],
+                    },
+                    "network": {"type": "restricted", "allowed_hosts": []},
+                },
+            },
+        }
+        with mock.patch("pathlib.Path.is_file", return_value=True):
+            argv = bwrap_argv(request, self.root, os.getuid(), os.getgid(), 32)
+        mounts = [argv[index : index + 3] for index in range(len(argv) - 2)]
+        self.assertEqual(mounts.count(["--ro-bind", "/", "/"]), 1)
+        self.assertIn(["--bind", "/tmp", "/tmp"], mounts)
+        self.assertIn(
+            ["--bind", str(self.root), str(self.root)],
+            mounts,
+        )
+        self.assertIn(
+            ["--ro-bind", str(sources), str(sources)],
+            mounts,
+        )
+        self.assertIn("--unshare-net", argv)
+
+    def test_bubblewrap_installs_root_write_before_fixed_and_denied_mounts(self):
+        denied = self.root / "secret"
+        denied.write_text("secret")
+        request = {
+            "command": "true",
+            "workdir": str(self.root),
+            "sandbox": {
+                "attempt": 2,
+                "sandboxed": True,
+                "permission_profile": {
+                    "type": "managed",
+                    "file_system": {
+                        "type": "restricted",
+                        "entries": [
+                            {"path": "/", "access": "write"},
+                            {"path": str(denied), "access": "deny"},
+                        ],
+                    },
+                    "network": {"type": "enabled"},
+                },
+            },
+        }
+        with mock.patch("pathlib.Path.is_file", return_value=True):
+            argv = bwrap_argv(request, self.root, os.getuid(), os.getgid(), 32)
+        mounts = [argv[index : index + 3] for index in range(len(argv) - 2)]
+        root_index = mounts.index(["--bind", "/", "/"])
+        tmp_index = mounts.index(["--bind", "/tmp", "/tmp"])
+        deny_index = mounts.index(["--ro-bind", "/dev/null", str(denied)])
+        self.assertLess(root_index, tmp_index)
+        self.assertLess(tmp_index, deny_index)
+        self.assertNotIn(["--ro-bind", "/", "/"], mounts)
+
+    def test_bubblewrap_rejects_a_missing_denied_path(self):
+        request = {
+            "command": "true",
+            "workdir": str(self.root),
+            "sandbox": {
+                "attempt": 1,
+                "sandboxed": True,
+                "permission_profile": {
+                    "type": "managed",
+                    "file_system": {
+                        "type": "restricted",
+                        "entries": [
+                            {"path": "/", "access": "read"},
+                            {"path": str(self.root), "access": "write"},
+                            {"path": str(self.root / "missing-secret"), "access": "deny"},
+                        ],
+                    },
+                    "network": {"type": "restricted", "allowed_hosts": []},
+                },
+            },
+        }
+        with (
+            mock.patch("pathlib.Path.is_file", return_value=True),
+            self.assertRaisesRegex(RuntimeError, "denied sandbox path does not exist"),
+        ):
+            bwrap_argv(request, self.root, os.getuid(), os.getgid(), 32)
+
+    def test_command_seccomp_rules_keep_proxy_on_ip_and_socketpairs_on_unix(self):
+        proxy_rule_list = command_seccomp_rules("proxy")
+        proxy_rules = dict(proxy_rule_list)
+        socket_denials = [conditions for name, conditions in proxy_rule_list if name == "socket"]
+        self.assertIn(((0, SCMP_CMP_EQ, socket.AF_UNIX),), socket_denials)
+        self.assertNotIn(((0, SCMP_CMP_EQ, socket.AF_INET),), socket_denials)
+        self.assertNotIn(((0, SCMP_CMP_EQ, socket.AF_INET6),), socket_denials)
+        self.assertEqual(proxy_rules["socketpair"], ((0, SCMP_CMP_NE, socket.AF_UNIX),))
+        for syscall in ("ptrace", "process_vm_readv", "request_key", "io_uring_setup"):
+            self.assertIn(syscall, proxy_rules)
+
+        restricted_rules = dict(command_seccomp_rules("restricted"))
+        self.assertEqual(restricted_rules["socket"], ((0, SCMP_CMP_NE, socket.AF_UNIX),))
+        self.assertIn("connect", restricted_rules)
+
     def test_live_process_stdin_and_offsets(self):
         first = self.start("read line; printf '%s' \"$line\"", yield_time_ms=0)
-        self.assertIsNone(first["exitCode"])
+        self.assertIsNone(first["termination"])
         result = self.runtime.request(
             {
                 "op": "write",
@@ -50,9 +190,8 @@ class RuntimeTests(unittest.TestCase):
 
     def test_timeout_keeps_partial_output_and_kills_background(self):
         result = self.start("printf before; sleep 10 & wait", timeout_ms=100)
-        self.assertTrue(result["timed_out"])
+        self.assertEqual(result["termination"]["type"], "timeout")
         self.assertEqual(result["stdout"], "before")
-        self.assertIsNotNone(result["exitCode"])
 
     def test_output_is_bounded_at_collection(self):
         result = self.start("python3 -c 'print(\"x\" * 10000)' ")
@@ -60,7 +199,13 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(result["truncated"])
 
     def test_command_deduplication_and_conflict(self):
-        request = {"op": "start", "request_id": "once", "command": "echo x >> count", "yield_time_ms": 1000}
+        request = {
+            "op": "start",
+            "request_id": "once",
+            "command": "echo x >> count",
+            "yield_time_ms": 1000,
+            "sandbox": self.sandbox,
+        }
         self.runtime.request(request)
         self.runtime.request(request)
         self.assertEqual((self.root / "count").read_text(), "x\n")
@@ -68,7 +213,13 @@ class RuntimeTests(unittest.TestCase):
             self.runtime.request({**request, "command": "echo y >> count"})
 
     def test_completed_command_retry_survives_workspace_edit_and_close(self):
-        request = {"op": "start", "request_id": "once", "command": "echo x >> count", "yield_time_ms": 1000}
+        request = {
+            "op": "start",
+            "request_id": "once",
+            "command": "echo x >> count",
+            "yield_time_ms": 1000,
+            "sandbox": self.sandbox,
+        }
         first = self.runtime.request(request)
         self.runtime.request({"op": "begin_workspace_edit", "token": "edit"})
         self.assertEqual(self.runtime.request(request)["session_id"], first["session_id"])
@@ -86,11 +237,20 @@ class RuntimeTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises((ValueError, OSError)):
                 safe_open(self.root, name, write=False)
 
+    def test_safe_unlink_requires_the_exact_current_content(self):
+        target = self.root / "notes.txt"
+        target.write_text("first")
+        with self.assertRaisesRegex(ValueError, "file changed"):
+            safe_unlink(self.root, "notes.txt", "0" * 64)
+        self.assertTrue(target.exists())
+        safe_unlink(self.root, "notes.txt", "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e")
+        self.assertFalse(target.exists())
+
     def test_teardown_stops_pending_process(self):
         first = self.start("sleep 30", yield_time_ms=0)
         self.runtime.close()
         result = self.runtime.request({"op": "poll", "session_id": first["session_id"]})
-        self.assertIsNotNone(result["exitCode"])
+        self.assertIsNotNone(result["termination"])
 
     def test_workspace_edit_fences_processes_and_is_idempotent(self):
         token = "edit-1"
@@ -118,6 +278,7 @@ class RuntimeTests(unittest.TestCase):
                     "request_id": "short",
                     "command": "sleep 0.1",
                     "yield_time_ms": 0,
+                    "sandbox": self.sandbox,
                 }
             )
             self.assertEqual(
