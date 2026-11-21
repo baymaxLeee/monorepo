@@ -64,26 +64,30 @@ export const inferenceRequestSchema = z.strictObject({
     tools: z
       .array(
         z.union([
-        z.strictObject({
-          type: z.literal("function"),
-          name: z
-            .string()
-            .regex(/^[a-zA-Z0-9_-]+$/)
-            .max(128),
-          description: z.string().optional(),
-          inputSchema: z.record(z.string(), z.json()),
-          strict: z.boolean().optional(),
-          inputExamples: z.array(z.strictObject({ input: z.record(z.string(), z.json()) })).optional(),
-        }),
-        z.strictObject({
-          type: z.literal("provider"),
-          id: z.literal("openai.custom"),
-          name: z.literal("apply_patch"),
-          args: z.strictObject({
-            description: z.string(),
-            format: z.strictObject({type: z.literal("grammar"), syntax: z.literal("lark"), definition: z.string().max(4096)}),
+          z.strictObject({
+            type: z.literal("function"),
+            name: z
+              .string()
+              .regex(/^[a-zA-Z0-9_-]+$/)
+              .max(128),
+            description: z.string().optional(),
+            inputSchema: z.record(z.string(), z.json()),
+            strict: z.boolean().optional(),
+            inputExamples: z.array(z.strictObject({ input: z.record(z.string(), z.json()) })).optional(),
           }),
-        }),
+          z.strictObject({
+            type: z.literal("provider"),
+            id: z.literal("openai.custom"),
+            name: z.literal("apply_patch"),
+            args: z.strictObject({
+              description: z.string(),
+              format: z.strictObject({
+                type: z.literal("grammar"),
+                syntax: z.literal("lark"),
+                definition: z.string().max(4096),
+              }),
+            }),
+          }),
         ]),
       )
       .max(128)
@@ -100,6 +104,13 @@ export type InferenceRequest = z.infer<typeof inferenceRequestSchema>;
 export function modelOptions(request: InferenceRequest): LanguageModelV4CallOptions {
   return request.options;
 }
+
+export const inferenceRelayErrorSchema = z.strictObject({
+  code: z.enum(["model_connection_failed", "model_stream_interrupted"]),
+  message: z.string().min(1).max(200),
+  retryable: z.boolean(),
+});
+export type InferenceRelayError = z.infer<typeof inferenceRelayErrorSchema>;
 
 export const inferenceConfigSchema = z.strictObject({
   providerId: z.string(),

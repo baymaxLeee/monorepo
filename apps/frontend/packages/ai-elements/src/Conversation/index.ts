@@ -1,6 +1,6 @@
 export { ChatSession, type ExternalChatRequest } from "./pages/chat/Chat";
 export { ChatArtifactPanel } from "./components/ChatArtifactPanel";
-export type { ChatUIMessage } from "./lib/chat-message";
+export { chatDataPartSchemas, type ChatUIDataTypes, type ChatUIMessage } from "./lib/chat-message";
 export { ChatWorkspacePanel } from "./components/ChatWorkspacePanel";
 
 export { ChatStream } from "./components/ChatStream";

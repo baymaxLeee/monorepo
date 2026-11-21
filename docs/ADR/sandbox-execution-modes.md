@@ -236,7 +236,9 @@ relay 必须满足以下边界：
 - 上游地址、dialect、认证和额外参数由服务端授权配置决定，并执行出站地址校验。拒绝客户端任意 URL、认证头、未授权模型、任意透传参数及绕过地址校验的重定向。多模态输入也不能让 relay 任意抓取客户端指定地址。
 - 只传递模型输入、输出、工具声明及工具结果数据；tool call 的审批与执行始终在本地。不得获得本地文件操作权、启动云端 sandbox，或接受上游托管的 shell/文件执行工具。relay 不接受远程控制本地工具的回调通道。
 - 用 AI SDK 的模型与流原语承载单次推理；跨进程模型调用契约归 `schemas/`，不把 Chat 的整轮 UIMessage 流当作模型传输协议。请求大小、输出、并发和预算由服务端约束；准入时预占预算，按结果结算，未确定结果不能当作零消耗无限重试。
-- 断连或取消须中止上游请求并释放请求资源；输出已开始或上游结果未知时不透明重放。重试使用可对账的请求身份，避免重复计费；无法证明上游未执行时，如实返回未知结果，由本地运行时决定后续动作，不承诺供应商 exactly-once。
+- 断连或取消须中止上游请求并释放请求资源。HTTP 200 与 NDJSON 已开始后，relay 把 provider error、缺失 finish 或 body 读取失败转换成脱敏的 AI SDK 原生 `error` part 并正常关闭响应；Desktop 把本机 body 截断转换为相同终态。不得用损坏 chunked framing 表达模型失败，也不得向会话暴露 `ERR_INCOMPLETE_CHUNKED_ENCODING` 等 Chromium 传输细节。
+- [Codex 会把缺少 `response.completed` 的 SSE 作为显式 stream error，并按配置重试，同时报告 `Reconnecting...` 状态](https://github.com/openai/codex/blob/1145028ae47e8119955323d38ce34122d418f951/codex-rs/core/tests/suite/stream_no_completed.rs#L26-L107)。本项目采用相同的显式终态和有界重连模式，但产品上限固定为 3 次：仅当失败发生在本次模型 attempt 尚未产出正文、推理或工具协议内容时，SDK 重跑当前 step；每次等待采用约 200/400/800 ms 的指数退避和小幅 jitter，并通过 transient `data-model-retry` 显示 1/3、2/3、3/3。成功后状态清除，第 4 次调用仍失败才结束 Turn；后续显式 Turn 仍可继续。
+- 每个 retry attempt 使用新的 relay request ID、独立准入和预留记录。输出一旦开始就绝不自动重放，避免重复可见内容和工具副作用。provider 请求当前没有供应商 exactly-once 或可查询结算保证，因此失败 attempt 的 unknown reservation 不能当作零消耗；无法证明上游未执行时保留该记录，而不是伪造成功或隐藏最终失败。
 - 服务端不持久化本地 prompt、响应正文、工具参数/结果、文件字节或会话历史，不使用云端消息表、Redis 回放或内容日志保存它们。只保留必要的请求身份、授权结论、usage、计费及故障元数据；日志、trace、错误采集同样不得携带正文和 secret。配额记录不代表服务端拥有本地会话。
 
 本地 journal 是继续会话的唯一持久历史来源，relay 不维护服务端会话游标。默认逐次提交所需上下文，不依赖服务端保存的 `previous_response_id`；支持的 provider 应关闭可关闭的响应存储。供应商自身的日志、缓存与保留政策仍须按 provider 明示，不能把“平台不持久化”宣传为上游零保留。模型上下文包含被选择的本地文件内容时，界面需如实说明它会经 relay 传给模型服务。

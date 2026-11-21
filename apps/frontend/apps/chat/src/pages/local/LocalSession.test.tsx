@@ -1,5 +1,6 @@
+import type * as ConversationModule from "@repo/ai-elements/conversation";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
-import type { DesktopBridge, DesktopEvent, LocalThread } from "@repo/runtime/desktop";
+import type { DesktopBridge, DesktopEvent, LocalStream, LocalThread } from "@repo/runtime/desktop";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode, Ref } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -23,6 +24,7 @@ const promptApi = vi.hoisted(() => ({
     files: {},
   })),
 }));
+const sessionViewApi = vi.hoisted(() => ({ chat: null as { resumeStream(): Promise<void> } | null }));
 
 vi.mock("@repo/ai-elements", () => ({ ContextUsage: () => <span data-testid="local-context-usage" /> }));
 vi.mock("@repo/api/chat", () => ({
@@ -41,22 +43,28 @@ vi.mock("@repo/api/admin", () => ({
     { id: "provider", name: "baymax", model: "test-model", provider_kind: "chat", is_enabled: true },
   ]),
 }));
-vi.mock("@repo/ai-elements/conversation", () => ({
+vi.mock("@repo/ai-elements/conversation", async (importOriginal) => ({
+  ...(await importOriginal<typeof ConversationModule>()),
   ConversationSessionView: ({
+    chat,
     composer,
     issue,
     onToolApproval,
   }: {
+    chat: { resumeStream(): Promise<void> };
     composer: ReactNode;
     issue: ReactNode;
     onToolApproval: (id: string, approved: boolean) => void;
-  }) => (
-    <div>
-      {issue}
-      {composer}
-      <button onClick={() => onToolApproval("approval", true)}>共享授权</button>
-    </div>
-  ),
+  }) => {
+    sessionViewApi.chat = chat;
+    return (
+      <div>
+        {issue}
+        {composer}
+        <button onClick={() => onToolApproval("approval", true)}>共享授权</button>
+      </div>
+    );
+  },
   ChatPrompt: ({
     ref,
     placeholder,
@@ -117,7 +125,7 @@ vi.mock("@repo/ai-elements/conversation", () => ({
   ),
 }));
 
-function fixture(status: LocalThread["status"] = "idle") {
+function fixture(status: LocalThread["status"] = "idle", segment: LocalStream["segment"] = null) {
   const thread: LocalThread = {
     id: "local",
     mode: "local",
@@ -137,11 +145,14 @@ function fixture(status: LocalThread["status"] = "idle") {
     messages: [],
   };
   const off = vi.fn();
-  let listener: ((event: DesktopEvent) => void) | null = null;
+  const listeners = new Set<(event: DesktopEvent) => void>();
   const bridge = {
     subscribe: vi.fn((next) => {
-      listener = next;
-      return off;
+      listeners.add(next);
+      return () => {
+        listeners.delete(next);
+        off();
+      };
     }),
     approve: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
@@ -149,15 +160,53 @@ function fixture(status: LocalThread["status"] = "idle") {
     submitRunInput: vi.fn(async () => ({ admission: "accepted", turnId: "turn" })),
     setModelBinding: vi.fn(async () => {}),
     setExecutionPolicy: vi.fn(async () => {}),
-    openStream: vi.fn(async () => ({ thread, segment: null })),
+    openStream: vi.fn(async () => ({ thread, segment })),
   } as unknown as DesktopBridge;
   const transport = new LocalChatTransport(bridge, thread.id);
-  return { thread, bridge, transport, off, emit: (event: DesktopEvent) => listener?.(event) };
+  return { thread, bridge, transport, off, emit: (event: DesktopEvent) => listeners.forEach((next) => next(event)) };
 }
 
 beforeEach(() => {
   promptApi.clear.mockClear();
   promptApi.setValue.mockClear();
+  sessionViewApi.chat = null;
+});
+
+test("shows each model reconnect attempt and clears the hint after recovery", async () => {
+  const f = fixture("running", {
+    id: "segment",
+    messages: [],
+    chunks: [
+      {
+        type: "data-model-retry",
+        data: { state: "retrying", attempt: 1, maxAttempts: 3 },
+        transient: true,
+      },
+    ],
+    done: false,
+  });
+  render(<LocalSession bridge={f.bridge} initial={f.thread} transport={f.transport} />);
+
+  act(() => {
+    void sessionViewApi.chat?.resumeStream();
+  });
+  expect((await screen.findByRole("status")).textContent).toContain("网络连接中断，正在重连（1/3）");
+
+  act(() => {
+    f.emit({
+      type: "stream",
+      threadId: "local",
+      segmentId: "segment",
+      index: 1,
+      chunk: {
+        type: "data-model-retry",
+        data: { state: "recovered", attempt: 1, maxAttempts: 3 },
+        transient: true,
+      },
+    });
+    f.emit({ type: "stream", threadId: "local", segmentId: "segment", index: 2, chunk: null });
+  });
+  await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
 });
 
 test("uses the shared session composer and sends native local message parts", async () => {

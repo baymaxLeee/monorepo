@@ -9,7 +9,7 @@ import { isToolUIPart, tool } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import type { LocalPluginActivation } from "../contracts/bridge.generated";
+import type { DesktopEvent, LocalPluginActivation } from "../contracts/bridge.generated";
 import type { InferenceRequest } from "../contracts/inference.generated";
 import { LocalJournal } from "../electron/runtime/journal";
 import { importLocalPlugin, listLocalPlugins } from "../electron/runtime/local-plugins";
@@ -47,7 +47,9 @@ afterEach(async () => {
 });
 async function fixture(
   call: DesktopSessionOptions["call"],
-  overrides: Partial<Pick<DesktopSessionOptions, "config" | "pluginLoader" | "resolvePlugins">> = {},
+  overrides: Partial<
+    Pick<DesktopSessionOptions, "config" | "emit" | "pluginLoader" | "resolvePlugins" | "waitForModelRetry">
+  > = {},
   pluginActivations: LocalPluginActivation[] = [],
 ) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "local-agent-")));
@@ -164,6 +166,110 @@ function docsSnapshot(): ResolvedTurnPluginSnapshot {
 }
 
 describe.skipIf(process.platform !== "darwin")("local assistant owns execution and recovery", () => {
+  it("retries a connection-only model failure three times and reports recovery", async () => {
+    let calls = 0;
+    const events: DesktopEvent[] = [];
+    const f = await fixture(
+      async () => {
+        calls++;
+        if (calls > 3) return reply(text());
+        return new ReadableStream<LanguageModelV4StreamPart>({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            controller.enqueue({
+              type: "error",
+              error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+            });
+            controller.close();
+          },
+        });
+      },
+      { emit: (event) => events.push(event), waitForModelRetry: async () => {} },
+    );
+
+    f.runtime.send(f.thread.id, user("first"), randomUUID());
+    const completed = await done(f.runtime, f.thread.id);
+    expect(completed.status).toBe("idle");
+    expect(calls).toBe(4);
+    expect(
+      events.flatMap((event) =>
+        event.type === "stream" && event.chunk?.type === "data-model-retry" ? [event.chunk.data] : [],
+      ),
+    ).toEqual([
+      { state: "retrying", attempt: 1, maxAttempts: 3 },
+      { state: "retrying", attempt: 2, maxAttempts: 3 },
+      { state: "retrying", attempt: 3, maxAttempts: 3 },
+      { state: "recovered", attempt: 3, maxAttempts: 3 },
+    ]);
+  });
+
+  it("stops after three retries and accepts an explicit next turn without replay", async () => {
+    let calls = 0;
+    const events: DesktopEvent[] = [];
+    const f = await fixture(
+      async () => {
+        calls++;
+        if (calls > 4) return reply(text());
+        return new ReadableStream<LanguageModelV4StreamPart>({
+          start(controller) {
+            controller.enqueue({
+              type: "error",
+              error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+            });
+            controller.close();
+          },
+        });
+      },
+      { emit: (event) => events.push(event), waitForModelRetry: async () => {} },
+    );
+
+    f.runtime.send(f.thread.id, user("first"), randomUUID());
+    const failed = await done(f.runtime, f.thread.id);
+    expect(failed.status).toBe("error");
+    expect(failed.error).toContain("已重试 3 次");
+    expect(calls).toBe(4);
+    expect(
+      events.flatMap((event) => {
+        if (event.type !== "stream" || event.chunk?.type !== "data-model-retry") return [];
+        return [(event.chunk.data as { state: string }).state];
+      }),
+    ).toEqual(["retrying", "retrying", "retrying", "failed"]);
+
+    f.runtime.send(f.thread.id, user("continue"), randomUUID());
+    const recovered = await done(f.runtime, f.thread.id);
+    expect(recovered.status).toBe("idle");
+    expect(calls).toBe(5);
+    expect(recovered.messages.filter((message) => message.role === "user")).toHaveLength(2);
+  });
+
+  it("does not retry after model output has started", async () => {
+    let calls = 0;
+    const f = await fixture(async () => {
+      calls++;
+      return new ReadableStream<LanguageModelV4StreamPart>({
+        start(controller) {
+          controller.enqueue({ type: "text-start", id: "partial" });
+          controller.enqueue({ type: "text-delta", id: "partial", delta: "partial" });
+          controller.enqueue({
+            type: "error",
+            error: {
+              code: "model_stream_interrupted",
+              message: "模型响应中断，请重新发送消息",
+              retryable: false,
+            },
+          });
+          controller.close();
+        },
+      });
+    });
+
+    f.runtime.send(f.thread.id, user("first"), randomUUID());
+    const failed = await done(f.runtime, f.thread.id);
+    expect(failed.status).toBe("error");
+    expect(failed.error).toContain("模型响应中断");
+    expect(calls).toBe(1);
+  });
+
   it("reopens a completed tool step and its compaction while the next sample is still running", async () => {
     let resume: () => void = () => {};
     const resumed = new Promise<void>((resolve) => {

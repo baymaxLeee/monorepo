@@ -52,8 +52,27 @@ import { attachmentDirectory, selectedWorkspacePath, storeAttachment } from "./a
 import { localExecutionTools } from "./execution-tools";
 import { LocalJournal } from "./journal";
 import { resolveDesktopPlugins } from "./local-plugins";
-import { relayModel, type RelayCall } from "./relay-model";
+import { isRetryableModelConnectionError, relayModel, type RelayCall } from "./relay-model";
 import { LocalWorkspaces } from "./workspace";
+
+const MODEL_STREAM_RETRIES = 3;
+
+function waitForModelRetry(attempt: number, signal: AbortSignal) {
+  signal.throwIfAborted();
+  const base = 200 * 2 ** (attempt - 1);
+  const delay = Math.round(base * (0.9 + Math.random() * 0.2));
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, delay);
+    const abort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
 
 export interface DesktopSessionOptions {
   directory: string;
@@ -66,6 +85,7 @@ export interface DesktopSessionOptions {
   webSearch(input: WebSearchInput, signal?: AbortSignal): Promise<WebSearchOutput>;
   call: RelayCall;
   emit(event: DesktopEvent): void;
+  waitForModelRetry?(attempt: number, signal: AbortSignal): Promise<void>;
   pluginLoader?: {
     load(snapshot: ResolvedTurnPluginSnapshot, context: AgentPluginContext): Promise<ResolvedPluginSet>;
   };
@@ -75,6 +95,12 @@ interface ActiveRun {
   done: Promise<void>;
   settlements: Set<Promise<void>>;
   turnId: string;
+}
+
+function failureMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
 }
 
 export class DesktopSessionManager {
@@ -132,6 +158,18 @@ export class DesktopSessionManager {
     thread.updatedAt = new Date().toISOString();
     this.journal.save(thread);
     this.options.emit({ type: "thread", thread: structuredClone(thread) });
+  }
+  private emitStreamChunk(threadId: string, chunk: UIMessageChunk) {
+    const segment = this.segments.get(threadId);
+    if (!segment || segment.done) return;
+    segment.chunks.push(chunk);
+    this.options.emit({
+      type: "stream",
+      threadId,
+      segmentId: segment.id,
+      index: segment.chunks.length - 1,
+      chunk,
+    });
   }
   async create(
     workspace: string,
@@ -336,6 +374,15 @@ export class DesktopSessionManager {
     }
     const config = await this.options.config(thread.providerId, thread.reasoningEffort, signal);
     const model = relayModel(config, this.options.call);
+    let modelRetryAttempt = 0,
+      modelRetryActive = false;
+    const emitModelRetry = (state: "retrying" | "recovered" | "failed") => {
+      this.emitStreamChunk(thread.id, {
+        type: "data-model-retry",
+        data: { state, attempt: modelRetryAttempt, maxAttempts: MODEL_STREAM_RETRIES },
+        transient: true,
+      });
+    };
     let modelEpoch = runWorkspace.epoch;
     const portableTools = createPortableToolRegistry({
       model: {
@@ -416,6 +463,8 @@ export class DesktopSessionManager {
         activeTools,
         experimental_toolCallers: toolCallers as never,
         maxOutputTokens: config.maxOutputTokens,
+        maxRetries: 0,
+        streamRetries: MODEL_STREAM_RETRIES,
         instructions: attachExecutionEnvironment(
           [config.instructions, renderAvailableSkills(portableTools.skills)].filter(Boolean).join("\n\n"),
           environment,
@@ -437,6 +486,34 @@ export class DesktopSessionManager {
             })),
           };
           this.save(thread);
+        },
+        onStepStart: () => {
+          modelRetryAttempt = 0;
+          modelRetryActive = false;
+        },
+        onChunk: ({ chunk }) => {
+          if (
+            modelRetryActive &&
+            chunk.type !== "error" &&
+            chunk.type !== "ping" &&
+            chunk.type !== "start" &&
+            chunk.type !== "start-step"
+          ) {
+            modelRetryActive = false;
+            emitModelRetry("recovered");
+          }
+        },
+        onError: async ({ error }) => {
+          if (!isRetryableModelConnectionError(error)) return;
+          if (modelRetryAttempt >= MODEL_STREAM_RETRIES) {
+            modelRetryActive = false;
+            emitModelRetry("failed");
+            return;
+          }
+          modelRetryAttempt++;
+          modelRetryActive = true;
+          emitModelRetry("retrying");
+          await (this.options.waitForModelRetry ?? waitForModelRetry)(modelRetryAttempt, signal);
         },
         prepareStep: ({ messages }) => {
           runWorkspace.flushChanges();
@@ -463,9 +540,8 @@ export class DesktopSessionManager {
         tools,
         originalMessages: original,
         generateMessageId: () => assistantId,
-        onError: (error) => (error instanceof Error ? error.message : "本地执行失败"),
+        onError: (error) => failureMessage(error, "本地执行失败"),
       });
-      const segment = this.segments.get(thread.id)!;
       let bytes = 0;
       const observed = stream.pipeThrough(
         new TransformStream<UIMessageChunk, UIMessageChunk>({
@@ -473,14 +549,7 @@ export class DesktopSessionManager {
             for (const chunk of [incoming, ...fileDataChunks(incoming)]) {
               bytes += Buffer.byteLength(JSON.stringify(chunk));
               if (bytes > 16 * 1024 * 1024) throw new Error("当前轮次输出过大，请分步执行");
-              segment.chunks.push(chunk);
-              this.options.emit({
-                type: "stream",
-                threadId: thread.id,
-                segmentId: segment.id,
-                index: segment.chunks.length - 1,
-                chunk,
-              });
+              this.emitStreamChunk(thread.id, chunk);
               controller.enqueue(chunk);
             }
           },
@@ -527,11 +596,7 @@ export class DesktopSessionManager {
     } catch (error) {
       thread.status = turn.cancelled && !persistenceError ? "cancelled" : "error";
       thread.error =
-        thread.status === "cancelled"
-          ? "已停止，磁盘上的修改仍保留"
-          : error instanceof Error
-            ? error.message
-            : "本地运行失败";
+        thread.status === "cancelled" ? "已停止，磁盘上的修改仍保留" : failureMessage(error, "本地运行失败");
       thread.messages = finalizeInterruptedMessages(thread.messages, thread.error);
     } finally {
       try {

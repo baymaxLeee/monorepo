@@ -1,6 +1,12 @@
 import { Chat } from "@ai-sdk/react";
 import { type ConversationScrollHandle } from "@repo/ai-elements";
-import { ChatPrompt, ConversationSessionView, type ChatUIMessage } from "@repo/ai-elements/conversation";
+import {
+  chatDataPartSchemas,
+  ChatPrompt,
+  ConversationSessionView,
+  type ChatUIDataTypes,
+  type ChatUIMessage,
+} from "@repo/ai-elements/conversation";
 import type { PromptInputRef, PromptInputValue } from "@repo/ai-elements/prompt-input";
 import { listProviders, type ModelProvider } from "@repo/api/admin";
 import { getLocalInferenceConfig, type GetLocalInferenceConfig200 } from "@repo/api/chat";
@@ -23,6 +29,7 @@ export function LocalSession({
   transport: LocalChatTransport;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [modelRetry, setModelRetry] = useState<ChatUIDataTypes["model-retry"] | null>(null);
   const [inferenceConfig, setInferenceConfig] = useState<GetLocalInferenceConfig200 | null>(null);
   const [models, setModels] = useState<ModelProvider[]>([]);
   const promptRef = useRef<PromptInputRef>(null);
@@ -34,6 +41,11 @@ export function LocalSession({
         messages: initial.messages as ChatUIMessage[],
         transport,
         generateId: randomId,
+        dataPartSchemas: chatDataPartSchemas,
+        onData: (part) => {
+          if (part.type !== "data-model-retry") return;
+          setModelRetry(part.data.state === "recovered" ? null : part.data);
+        },
         onError: (cause) => {
           const pending = pendingPrompt.current;
           pendingPrompt.current = null;
@@ -73,7 +85,10 @@ export function LocalSession({
   }, [state.providerId, state.reasoningEffort]);
 
   useEffect(() => {
-    const applyThread = (thread: LocalThread) => setState(localSessionState(thread));
+    const applyThread = (thread: LocalThread) => {
+      setState(localSessionState(thread));
+      if (thread.status !== "running") setModelRetry(null);
+    };
     const off = bridge.subscribe((event) => {
       if (event.type === "runtime-error") setError(event.message);
       if (event.type === "runtime-ready") {
@@ -147,6 +162,7 @@ export function LocalSession({
     async (value: PromptInputValue) => {
       if (state.status === "waiting" || (!value.text.trim() && value.tokens.length === 0)) return;
       setError(null);
+      setModelRetry(null);
       chat.clearError();
       if (busy) {
         if (value.tokens.length > 0) {
@@ -203,6 +219,15 @@ export function LocalSession({
         error || state.error ? (
           <p role="alert" className="mx-auto w-full max-w-4xl px-4 text-sm text-destructive">
             {error ?? state.error}
+          </p>
+        ) : modelRetry ? (
+          <p
+            role={modelRetry.state === "retrying" ? "status" : "alert"}
+            className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-foreground"
+          >
+            {modelRetry.state === "retrying"
+              ? `网络连接中断，正在重连（${modelRetry.attempt}/${modelRetry.maxAttempts}）…`
+              : `网络连接仍不可用，已重试 ${modelRetry.maxAttempts} 次`}
           </p>
         ) : null
       }

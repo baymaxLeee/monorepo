@@ -42,6 +42,13 @@ export const chatMessageMetadataSchema = z
 
 export const chatDataPartSchemas = {
   "conversation-title": z.object({ title: z.string().trim().min(1).max(200) }).strict(),
+  "model-retry": z
+    .object({
+      state: z.enum(["retrying", "recovered", "failed"]),
+      attempt: z.number().int().min(1).max(3),
+      maxAttempts: z.literal(3),
+    })
+    .strict(),
   "skill-activation": z.object({ name: z.string().min(1).max(120) }).strict(),
   file: z
     .object({

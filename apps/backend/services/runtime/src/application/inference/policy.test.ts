@@ -34,7 +34,12 @@ const request = () => ({
     maxOutputTokens: 100,
   },
 });
-function fixture(parts: LanguageModelV4StreamPart[] = [finish], contextWindow = 10_000) {
+function fixture(
+  parts: LanguageModelV4StreamPart[] = [finish],
+  contextWindow = 10_000,
+  streamError?: Error,
+  startError?: Error,
+) {
   const charges: (number | null)[] = [],
     calls: LanguageModelV4CallOptions[] = [],
     reserved: number[] = [];
@@ -60,11 +65,15 @@ function fixture(parts: LanguageModelV4StreamPart[] = [finish], contextWindow = 
         },
         doStream: async (options) => {
           calls.push(options);
+          if (startError) throw startError;
+          let nextPart = 0;
           return {
             stream: new ReadableStream({
-              start(controller) {
-                for (const part of parts) controller.enqueue(part);
-                controller.close();
+              pull(controller) {
+                const part = parts[nextPart++];
+                if (part) controller.enqueue(part);
+                else if (streamError) controller.error(streamError);
+                else controller.close();
               },
               cancel() {
                 cancelled = true;
@@ -134,9 +143,42 @@ test("unauthorized model, injected provider options, remote URLs and hosted tool
     assert.equal(f.reserved.length, 0);
   }
 });
-test("missing finish and provider tool execution fail without retry and keep the reservation", async () => {
+test("a connection failure before semantic output is retryable and keeps the reservation", async () => {
+  const f = fixture([]);
+  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  assert.deepEqual(JSON.parse(await response.text()), {
+    type: "error",
+    error: {
+      code: "model_connection_failed",
+      message: "模型连接中断",
+      retryable: true,
+    },
+  });
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(f.charges, [null]);
+});
+
+test("a provider connection failure before the stream starts uses the same retryable protocol", async () => {
+  const f = fixture([], 10_000, undefined, new TypeError("fetch failed"));
+  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  assert.deepEqual(JSON.parse(await response.text()), {
+    type: "error",
+    error: {
+      code: "model_connection_failed",
+      message: "模型连接中断",
+      retryable: true,
+    },
+  });
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(f.charges, [null]);
+});
+
+test("a failure after semantic output or hosted execution is not retryable", async () => {
   for (const parts of [
-    [],
+    [
+      { type: "text-start", id: "answer" },
+      { type: "text-delta", id: "answer", delta: "partial" },
+    ] satisfies LanguageModelV4StreamPart[],
     [
       {
         type: "tool-call",
@@ -149,10 +191,43 @@ test("missing finish and provider tool execution fail without retry and keep the
   ]) {
     const f = fixture(parts);
     const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
-    await assert.rejects(response.text());
+    const output = (await response.text())
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
+    assert.deepEqual(output.at(-1), {
+      type: "error",
+      error: {
+        code: "model_stream_interrupted",
+        message: "模型响应中断，请重新发送消息",
+        retryable: false,
+      },
+    });
     assert.equal(f.calls.length, 1);
     assert.deepEqual(f.charges, [null]);
   }
+});
+
+test("a socket failure after only stream metadata remains retryable", async () => {
+  const f = fixture([{ type: "stream-start", warnings: [] }], 10_000, new Error("upstream socket closed"));
+  const response = await inferenceResponse(auth, request(), new AbortController().signal, f.deps);
+  const parts = (await response.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as LanguageModelV4StreamPart);
+  assert.deepEqual(parts, [
+    { type: "stream-start", warnings: [] },
+    {
+      type: "error",
+      error: {
+        code: "model_connection_failed",
+        message: "模型连接中断",
+        retryable: true,
+      },
+    },
+  ]);
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(f.charges, [null]);
 });
 test("pre-aborted requests do not reserve budget or call a model", async () => {
   const f = fixture();

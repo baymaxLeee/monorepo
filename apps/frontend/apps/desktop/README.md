@@ -32,7 +32,9 @@ Thread/Turn/Item 数据库位于 `sessions/<identity-scope>/runtime.sqlite`；�
 
 Desktop bridge v8 传递所选插件 ID、来源和非秘密 bindings。utility process 经 main、Chat BFF 和 Runtime 解析平台选择，再合并本机选择。模型调用前持久化去密的 Turn 快照，MCP 工具执行使用内存中的授权，请求结束后释放连接。用户消息经过 main 与 utility process 双重校验，接收文本和有大小限制的内联图片。普通附件通过 `referenceFile` 取得可供本地 sandbox 读取的路径。
 
-Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 Admin 模型授权，不需要本地专属额度配置。接纳请求记录预留用量，完成后按 usage 结算；取消、崩溃或未知结果保留预留用量用于 accounting，不以独立日配额拒绝本地请求。重复请求与并发请求仍受准入保护，没有自动重试模型请求。
+Chat 部署需应用新增版本化迁移。本地和云端共用 IAM 身份与 Admin 模型授权，不需要本地专属额度配置。接纳请求记录预留用量，完成后按 usage 结算；取消、崩溃或未知结果保留预留用量用于 accounting，不以独立日配额拒绝本地请求。重复请求与并发请求仍受准入保护；每次模型重试使用新的 request ID 和独立预留记录。
+
+模型流在开始响应后中断时，Runtime relay 发送脱敏的 AI SDK 原生 `error` part 并完整结束 NDJSON；Desktop 遇到本机 HTTP body 截断时使用同一终态语义，不把 `ERR_INCOMPLETE_CHUNKED_ENCODING` 等 Chromium 传输细节暴露给会话。如果中断发生在任何正文、推理或工具协议输出之前，本地 ToolLoopAgent 最多自动重连 3 次，使用约 200/400/800 ms 的指数退避并加入小幅抖动；界面显示当前次数，恢复后清除。第 4 次调用仍失败才终止本轮并提示用户。任何语义输出开始后都不自动重放，未知结果仍保留预留用量。
 
 只支持 macOS 本地执行。工具命令和文件 helper 都先应用 Seatbelt；失败时拒绝执行。命令可联网，启动时使用最小环境，写入限于授权目录和运行时临时目录。后台子进程在命令完成、取消或父进程退出后清理。Node 由 Electron 自带；其他可执行程序受固定系统路径与授权目录限制，不能自动使用用户登录 shell、Homebrew 或读取用户家目录配置。文件保存使用内容 hash 检查冲突，不静默覆盖外部编辑；外部编辑器不参与本应用队列，因此这不是对所有本机进程的文件系统事务。
 

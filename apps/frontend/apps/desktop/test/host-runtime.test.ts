@@ -76,3 +76,47 @@ it("fails closed instead of looping when the replacement worker also exits", asy
   expect(electron.fork).toHaveBeenCalledTimes(2);
   await host.close();
 });
+
+it("accepts a native model error part as a clean terminal event", async () => {
+  const child = new FakeUtilityProcess();
+  electron.fork.mockReturnValue(child);
+  const error = {
+    type: "error",
+    error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+  };
+  new RuntimeHost("/app", vi.fn().mockResolvedValue(new Response(`${JSON.stringify(error)}\n`)), vi.fn());
+
+  child.emit("message", { type: "inference", id: "inference-1", body: {} });
+
+  await vi.waitFor(() => expect(child.messages).toHaveLength(2));
+  expect(child.messages).toEqual([
+    { type: "inference-part", id: "inference-1", part: error },
+    { type: "inference-end", id: "inference-1" },
+  ]);
+});
+
+it("converts a truncated HTTP model body into a safe native error part", async () => {
+  const child = new FakeUtilityProcess();
+  electron.fork.mockReturnValue(child);
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.error(new Error("net::ERR_INCOMPLETE_CHUNKED_ENCODING"));
+    },
+  });
+  new RuntimeHost("/app", vi.fn().mockResolvedValue(new Response(body)), vi.fn());
+
+  child.emit("message", { type: "inference", id: "inference-2", body: {} });
+
+  await vi.waitFor(() => expect(child.messages).toHaveLength(2));
+  expect(child.messages).toEqual([
+    {
+      type: "inference-part",
+      id: "inference-2",
+      part: {
+        type: "error",
+        error: { code: "model_connection_failed", message: "模型连接中断", retryable: true },
+      },
+    },
+    { type: "inference-end", id: "inference-2" },
+  ]);
+});

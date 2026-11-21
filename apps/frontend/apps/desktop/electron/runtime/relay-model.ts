@@ -4,6 +4,7 @@ import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4Stream
 
 import {
   inferenceRequestSchema,
+  inferenceRelayErrorSchema,
   type InferenceConfig,
   type InferenceRequest,
 } from "../../contracts/inference.generated";
@@ -12,6 +13,39 @@ export type RelayCall = (
   request: InferenceRequest,
   signal?: AbortSignal,
 ) => Promise<ReadableStream<LanguageModelV4StreamPart>>;
+
+export class RetryableModelConnectionError extends Error {
+  readonly code = "model_connection_failed";
+  readonly retryable = true;
+
+  constructor() {
+    super("网络连接仍不可用，已重试 3 次，请稍后重试");
+    this.name = "RetryableModelConnectionError";
+  }
+}
+
+export function isRetryableModelConnectionError(error: unknown): error is RetryableModelConnectionError {
+  return error instanceof RetryableModelConnectionError;
+}
+
+function normalizedRelayStream(stream: ReadableStream<LanguageModelV4StreamPart>) {
+  return stream.pipeThrough(
+    new TransformStream<LanguageModelV4StreamPart, LanguageModelV4StreamPart>({
+      transform(part, controller) {
+        if (part.type !== "error") {
+          controller.enqueue(part);
+          return;
+        }
+        const parsed = inferenceRelayErrorSchema.safeParse(part.error);
+        if (parsed.success && parsed.data.retryable) {
+          controller.enqueue({ type: "error", error: new RetryableModelConnectionError() });
+          return;
+        }
+        controller.error(new Error(parsed.success ? parsed.data.message : "模型请求失败，请稍后重试"));
+      },
+    }),
+  );
+}
 function transportOptions(options: LanguageModelV4CallOptions) {
   const { prompt, tools, toolChoice, temperature, topP, reasoning, maxOutputTokens } = options;
   // SDK provider metadata can contain response identifiers. The local journal
@@ -41,7 +75,7 @@ export function relayModel(config: InferenceConfig, call: RelayCall): LanguageMo
         model: config.model,
         options: transportOptions({ ...options, maxOutputTokens: options.maxOutputTokens ?? config.maxOutputTokens }),
       });
-      return { stream: await call(request, options.abortSignal) };
+      return { stream: normalizedRelayStream(await call(request, options.abortSignal)) };
     },
   };
 }

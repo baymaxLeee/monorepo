@@ -4,6 +4,21 @@ import { join } from "node:path";
 import { utilityProcess, type UtilityProcess } from "electron";
 
 import type { DesktopEvent } from "../contracts/bridge.generated";
+import type { InferenceRelayError } from "../contracts/inference.generated";
+
+function isConnectionFailure(error: unknown) {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error &&
+      /net::ERR_|fetch failed|network|socket|ECONN|EPIPE|chunked|terminated|响应没有内容|响应中断/i.test(error.message))
+  );
+}
+
+function safeInferenceError(retryable: boolean): InferenceRelayError {
+  return retryable
+    ? { code: "model_connection_failed", message: "模型连接中断", retryable: true }
+    : { code: "model_stream_interrupted", message: "模型响应中断，请重新发送消息", retryable: false };
+}
 
 export class RuntimeHost {
   private child: UtilityProcess | null = null;
@@ -157,6 +172,7 @@ export class RuntimeHost {
     const abort = new AbortController();
     this.requests.set(id, abort);
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let semanticOutput = false;
     try {
       const response = await this.fetchApi("/api/chat-server/local-inference/stream", {
         method: "POST",
@@ -169,7 +185,7 @@ export class RuntimeHost {
       const decoder = new TextDecoder();
       let buffer = "",
         bytes = 0,
-        finished = false;
+        terminal = false;
       for (;;) {
         const next = await reader.read();
         if (next.done) break;
@@ -182,19 +198,25 @@ export class RuntimeHost {
           buffer = buffer.slice(index + 1);
           if (!line.trim()) continue;
           const part: { type: string } = JSON.parse(line);
-          if (part.type === "finish") finished = true;
+          if (part.type === "finish" || part.type === "error") terminal = true;
+          else if (part.type !== "stream-start") semanticOutput = true;
           if (this.child === child) child.postMessage({ type: "inference-part", id, part });
         }
       }
-      if (!finished || buffer.trim()) throw new Error("模型响应中断，请重新发起请求");
+      if (!terminal || buffer.trim()) throw new Error("模型响应中断，请重新发起请求");
       if (this.child === child) child.postMessage({ type: "inference-end", id });
     } catch (error) {
-      if (this.child === child)
+      if (this.child === child) {
         child.postMessage({
-          type: "inference-error",
+          type: "inference-part",
           id,
-          error: error instanceof Error ? error.message : "模型请求失败",
+          part: {
+            type: "error",
+            error: safeInferenceError(!semanticOutput && !abort.signal.aborted && isConnectionFailure(error)),
+          },
         });
+        child.postMessage({ type: "inference-end", id });
+      }
     } finally {
       abort.abort();
       await reader?.cancel().catch(() => undefined);
